@@ -1107,6 +1107,8 @@ extension Strings {
         recoveryRevert: "还原",
         recoveryCountdownTitle: "保留这个显示设置？",
         recoveryCountdownRemaining: { "\($0) 秒后自动恢复" },
-        toggleHiDPICaption: "切换 Retina HiDPI 缩放"
+        toggleHiDPICaption: "切换 Retina HiDPI 缩放",
+        xdrBoostTitle: "XDR 1600 nits 极致高亮",
+        xdrBoostCaption: "突破硬件限制，将 Liquid Retina XDR 与支持 EDR 的屏幕亮度提升至最高 1600 nits 峰值。"
     )
 }

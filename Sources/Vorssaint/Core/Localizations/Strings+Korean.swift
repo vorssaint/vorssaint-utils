@@ -1108,6 +1108,8 @@ extension Strings {
         recoveryRevert: "복원",
         recoveryCountdownTitle: "이 디스플레이 설정을 유지하겠습니까?",
         recoveryCountdownRemaining: { "\($0)초 후 자동으로 복원됩니다" },
-        toggleHiDPICaption: "Retina HiDPI 크기 조절 전환"
+        toggleHiDPICaption: "Retina HiDPI 크기 조절 전환",
+        xdrBoostTitle: "XDR 1600 nits 최대 밝기",
+        xdrBoostCaption: "Liquid Retina XDR 및 EDR 지원 디스플레이에서 최대 1600 nits 피크 밝기를 잠금 해제합니다."
     )
 }

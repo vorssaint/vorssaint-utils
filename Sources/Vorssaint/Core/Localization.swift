@@ -1314,6 +1314,8 @@ struct Strings {
     public let recoveryCountdownTitle: String
     public let recoveryCountdownRemaining: (Int) -> String
     public let toggleHiDPICaption: String
+    public let xdrBoostTitle: String
+    public let xdrBoostCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -2422,7 +2424,9 @@ extension Strings {
         recoveryRevert: "Reverter",
         recoveryCountdownTitle: "Confirmar ajustes de tela",
         recoveryCountdownRemaining: { "Revertendo em \($0) s" },
-        toggleHiDPICaption: "Alternar dimensionamento Retina HiDPI"
+        toggleHiDPICaption: "Alternar dimensionamento Retina HiDPI",
+        xdrBoostTitle: "Brilho XDR 1600 nits",
+        xdrBoostCaption: "Libera até 1600 nits de pico de luz de fundo em telas Liquid Retina XDR e EDR."
     )
 }
 
@@ -3532,6 +3536,8 @@ extension Strings {
         recoveryRevert: "Revert",
         recoveryCountdownTitle: "Confirm Display Settings",
         recoveryCountdownRemaining: { "Auto-reverting in \($0)s" },
-        toggleHiDPICaption: "Toggle Retina HiDPI scaling"
+        toggleHiDPICaption: "Toggle Retina HiDPI scaling",
+        xdrBoostTitle: "XDR 1600 nits Boost",
+        xdrBoostCaption: "Unlocks up to 1600 nits peak hardware backlight on Liquid Retina XDR and EDR displays."
     )
 }

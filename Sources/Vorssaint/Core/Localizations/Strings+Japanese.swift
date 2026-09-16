@@ -1107,6 +1107,8 @@ extension Strings {
         recoveryRevert: "元に戻す",
         recoveryCountdownTitle: "このディスプレイ設定を保持しますか？",
         recoveryCountdownRemaining: { "\($0)秒後に自動で元に戻します" },
-        toggleHiDPICaption: "Retina HiDPI スケーリングの切り替え"
+        toggleHiDPICaption: "Retina HiDPI スケーリングの切り替え",
+        xdrBoostTitle: "XDR 1600 nits ピーク輝度",
+        xdrBoostCaption: "Liquid Retina XDR および EDR 対応ディスプレイで最大 1600 nits のピーク輝度を解放します。"
     )
 }

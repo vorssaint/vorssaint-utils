@@ -1107,6 +1107,8 @@ extension Strings {
         recoveryRevert: "Zurücksetzen",
         recoveryCountdownTitle: "Diese Anzeigeeinstellungen beibehalten?",
         recoveryCountdownRemaining: { "Automatische Rückkehr in \($0) s" },
-        toggleHiDPICaption: "Retina-HiDPI-Skalierung umschalten"
+        toggleHiDPICaption: "Retina-HiDPI-Skalierung umschalten",
+        xdrBoostTitle: "XDR 1600 nits Spitzenhelligkeit",
+        xdrBoostCaption: "Schaltet bis zu 1600 nits Spitzen-Hintergrundbeleuchtung auf Liquid Retina XDR- und EDR-Bildschirmen frei."
     )
 }

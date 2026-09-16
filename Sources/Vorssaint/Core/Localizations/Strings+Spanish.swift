@@ -1107,6 +1107,8 @@ extension Strings {
         recoveryRevert: "Restablecer",
         recoveryCountdownTitle: "¿Mantener esta configuración de pantalla?",
         recoveryCountdownRemaining: { "Restableciendo automáticamente en \($0) s" },
-        toggleHiDPICaption: "Alternar ajuste de escala Retina HiDPI"
+        toggleHiDPICaption: "Alternar ajuste de escala Retina HiDPI",
+        xdrBoostTitle: "Brillo XDR 1600 nits",
+        xdrBoostCaption: "Desbloquea hasta 1600 nits de brillo pico en pantallas Liquid Retina XDR y EDR."
     )
 }

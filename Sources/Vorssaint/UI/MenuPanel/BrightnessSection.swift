@@ -145,6 +145,9 @@ struct BrightnessSection: View {
             }
             if display.isActive {
                 DisplayResolutionRow(displayID: display.id)
+                if XDRBoostService.shared.isEDRSupported(for: display.id) {
+                    XDRBoostRow(displayID: display.id)
+                }
             }
             SoftwareDimmingButton(display: display, compact: true)
         }
@@ -417,5 +420,73 @@ struct DisplayResolutionRow: View {
                 .padding(.vertical, 1.5)
                 .background(Capsule().fill(Color.primary.opacity(0.08)))
         }
+    }
+}
+
+// MARK: - XDR 1600 nits Hardware Boost Controls
+
+struct XDRBoostRow: View {
+    @ObservedObject private var xdrService = XDRBoostService.shared
+    @ObservedObject private var l10n = L10n.shared
+    let displayID: CGDirectDisplayID
+
+    private var isEnabled: Bool {
+        xdrService.isEnabled(for: displayID)
+    }
+
+    private var multiplier: Double {
+        xdrService.currentMultiplier(for: displayID)
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            // XDR Badge
+            Text("XDR")
+                .font(.system(size: 8.5, weight: .black))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 4.5)
+                .padding(.vertical, 1.5)
+                .background(Capsule().fill(isEnabled ? Color.orange : Color.gray.opacity(0.6)))
+
+            Text(l10n.s.xdrBoostTitle)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(isEnabled ? .primary : .secondary)
+
+            Spacer(minLength: 4)
+
+            if isEnabled {
+                Slider(
+                    value: Binding(
+                        get: { multiplier },
+                        set: { xdrService.setMultiplier($0, for: displayID) }
+                    ),
+                    in: XDRBoostService.minBoost...min(XDRBoostService.maxBoost, max(XDRBoostService.minBoost, xdrService.maximumHeadroom(for: displayID))),
+                    step: 0.05
+                )
+                .tint(.orange)
+                .controlSize(.mini)
+                .frame(width: 80)
+
+                Text(String(format: "%.2fx", locale: Locale(identifier: "en_US_POSIX"), multiplier))
+                    .font(.system(size: 9.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.orange)
+                    .frame(width: 38, alignment: .trailing)
+            }
+
+            // Quick On/Off Switch Button
+            Button {
+                xdrService.toggleBoost(for: displayID)
+            } label: {
+                Image(systemName: isEnabled ? "sun.max.fill" : "sun.max")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(isEnabled ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(l10n.s.xdrBoostCaption)
+        }
+        .padding(.leading, 22)
+        .padding(.top, 2)
     }
 }

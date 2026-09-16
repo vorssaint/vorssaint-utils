@@ -1107,6 +1107,8 @@ extension Strings {
         recoveryRevert: "Ripristina",
         recoveryCountdownTitle: "Mantenere queste impostazioni dello schermo?",
         recoveryCountdownRemaining: { "Ripristino automatico in \($0) s" },
-        toggleHiDPICaption: "Attiva/disattiva ridimensionamento Retina HiDPI"
+        toggleHiDPICaption: "Attiva/disattiva ridimensionamento Retina HiDPI",
+        xdrBoostTitle: "Luminosità XDR 1600 nits",
+        xdrBoostCaption: "Sblocca fino a 1600 nits di luminosità di picco sui display Liquid Retina XDR ed EDR."
     )
 }
