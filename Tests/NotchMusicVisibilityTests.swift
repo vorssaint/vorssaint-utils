@@ -149,6 +149,21 @@ enum NotchMusicVisibilityTests {
                        && (service.surfaceSize == closed) == !playing,
                        "re-enabling music detects resume while paused playback occupies no wings")
             }
+            defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
+            defaults.set(true, forKey: DefaultsKey.notchHideUntilHover)
+            service.syncVisibleConsumers()
+            expect(!reader.running && service.hiddenUntilHover,
+                   "hidden mode stops the resting music reader even with cached playing metadata")
+            service.selected = .music
+            service.expanded = true
+            service.syncVisibleConsumers()
+            expect(reader.running, "revealing hidden music controls starts their reader on demand")
+            service.collapse()
+            expect(!reader.running && service.hiddenUntilHover,
+                   "closing hidden music controls releases their reader again")
+            defaults.set(false, forKey: DefaultsKey.notchHideUntilHover)
+            service.syncVisibleConsumers()
+            expect(reader.running, "returning to a visible mode resumes the resting music reader")
             defaults.set(NotchIdleContent.battery.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)
             service.syncVisibleConsumers()

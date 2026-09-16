@@ -173,6 +173,7 @@ enum NotchDestinationContract {
             let payload = SettingsBackupSupport.payload(appVersion: "test") {
                 if $0 == DefaultsKey.notchReturnHome { return returnHome }
                 if $0 == DefaultsKey.notchHomeModule { return NotchModule.music.rawValue }
+                if $0 == DefaultsKey.notchHideUntilHover { return true }
                 if $0 == DefaultsKey.notchHoverDelay { return 0.65 }
                 return nil
             }
@@ -181,7 +182,8 @@ enum NotchDestinationContract {
             let restored = decoded.flatMap { SettingsBackupSupport.sanitizedSettings(from: $0) }
             expect(restored?[DefaultsKey.notchReturnHome] as? Bool == returnHome
                    && restored?[DefaultsKey.notchHomeModule] as? String == NotchModule.music.rawValue
-                   && restored?[DefaultsKey.notchHoverDelay] as? Double == 0.65,
+                   && restored?[DefaultsKey.notchHoverDelay] as? Double == 0.65
+                   && restored?[DefaultsKey.notchHideUntilHover] as? Bool == true,
                    "the opening behavior, selected page and activation time survive backup and restore")
 
             let service = Service()

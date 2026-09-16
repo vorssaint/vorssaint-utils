@@ -319,6 +319,7 @@ enum NotchTests {
                && defaults.bool(forKey: DefaultsKey.notchOpenOnHover)
                && defaults.bool(forKey: DefaultsKey.notchHoverExpands),
                "a new island starts spacious and expands on hover")
+        expect(!defaults.bool(forKey: DefaultsKey.notchHideUntilHover), "hidden hover is opt-in")
         expect(defaults.double(forKey: DefaultsKey.notchHoverDelay) == 0.25,
                "hover activation defaults to a deliberate quarter-second pause")
         for value in [0.10, 0.25, 0.65, 1.0] {
@@ -554,7 +555,7 @@ enum NotchTests {
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
-                                DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchHiddenModules,
+                                DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
                                 DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
                                 DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow, DefaultsKey.notchCapture,
