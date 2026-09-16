@@ -1097,6 +1097,16 @@ extension Strings {
         shelfShortcutFinderSelection: "Añadir la selección del Finder con el atajo",
         shelfShortcutFinderSelectionCaption: "Con el Finder al frente, el atajo abre el estante con los archivos seleccionados ya dentro. Sin selección, se abre como siempre.",
         spacesOrderName: "Mantener los Espacios en un orden fijo",
-        spacesOrderCaption: "Evita que macOS reorganice los Espacios según el uso más reciente, para que sigan en el orden que elegiste. Tu ajuste anterior vuelve al desactivar esta opción. El Dock puede reiniciarse una vez para aplicar el cambio."
+        spacesOrderCaption: "Evita que macOS reorganice los Espacios según el uso más reciente, para que sigan en el orden que elegiste. Tu ajuste anterior vuelve al desactivar esta opción. El Dock puede reiniciarse una vez para aplicar el cambio.",
+        hiDPILabel: "HiDPI",
+        nativeHiDPI: "HiDPI nativo",
+        virtualHiDPI: "HiDPI virtual",
+        standardResolution: "Resolución estándar (1x)",
+        resolutionMenuTitle: "Resolución",
+        recoveryKeep: "Mantener ajustes",
+        recoveryRevert: "Restablecer",
+        recoveryCountdownTitle: "¿Mantener esta configuración de pantalla?",
+        recoveryCountdownRemaining: { "Restableciendo automáticamente en \($0) s" },
+        toggleHiDPICaption: "Alternar ajuste de escala Retina HiDPI"
     )
 }

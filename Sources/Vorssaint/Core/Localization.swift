@@ -1302,6 +1302,18 @@ struct Strings {
     let shelfShortcutFinderSelectionCaption: String
     let spacesOrderName: String
     let spacesOrderCaption: String
+
+    // MARK: Display Resolution & HiDPI
+    public let hiDPILabel: String
+    public let nativeHiDPI: String
+    public let virtualHiDPI: String
+    public let standardResolution: String
+    public let resolutionMenuTitle: String
+    public let recoveryKeep: String
+    public let recoveryRevert: String
+    public let recoveryCountdownTitle: String
+    public let recoveryCountdownRemaining: (Int) -> String
+    public let toggleHiDPICaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -2400,7 +2412,17 @@ extension Strings {
         shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
         shelfShortcutFinderSelectionCaption: "Com o Finder em primeiro plano, o atalho abre a área temporária já com os arquivos selecionados. Sem seleção, ela abre como sempre.",
         spacesOrderName: "Manter os Espaços em ordem fixa",
-        spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança."
+        spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança.",
+        hiDPILabel: "HiDPI",
+        nativeHiDPI: "HiDPI nativo",
+        virtualHiDPI: "HiDPI virtual",
+        standardResolution: "Resolução padrão (1x)",
+        resolutionMenuTitle: "Resolução",
+        recoveryKeep: "Manter alterações",
+        recoveryRevert: "Reverter",
+        recoveryCountdownTitle: "Confirmar ajustes de tela",
+        recoveryCountdownRemaining: { "Revertendo em \($0) s" },
+        toggleHiDPICaption: "Alternar dimensionamento Retina HiDPI"
     )
 }
 
@@ -3500,6 +3522,16 @@ extension Strings {
         shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",
         shelfShortcutFinderSelectionCaption: "With Finder in front, the shortcut opens the shelf with the selected files already in it. With nothing selected, it opens as usual.",
         spacesOrderName: "Keep Spaces in a fixed order",
-        spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change."
+        spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change.",
+        hiDPILabel: "HiDPI",
+        nativeHiDPI: "Native HiDPI",
+        virtualHiDPI: "Virtual HiDPI",
+        standardResolution: "Standard (1x)",
+        resolutionMenuTitle: "Resolution",
+        recoveryKeep: "Keep Changes",
+        recoveryRevert: "Revert",
+        recoveryCountdownTitle: "Confirm Display Settings",
+        recoveryCountdownRemaining: { "Auto-reverting in \($0)s" },
+        toggleHiDPICaption: "Toggle Retina HiDPI scaling"
     )
 }

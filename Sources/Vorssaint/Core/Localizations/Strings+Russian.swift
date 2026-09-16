@@ -1098,6 +1098,16 @@ extension Strings {
         shelfShortcutFinderSelection: "Добавлять выбранное в Finder по горячей клавише",
         shelfShortcutFinderSelectionCaption: "Когда Finder на переднем плане, горячая клавиша открывает полку уже с выбранными файлами. Если ничего не выбрано, полка открывается как обычно.",
         spacesOrderName: "Фиксированный порядок Spaces",
-        spacesOrderCaption: "Не даёт macOS переставлять Spaces по недавнему использованию, чтобы они оставались в заданном порядке. Прежняя настройка вернётся после выключения функции. Для применения Dock может один раз перезапуститься."
+        spacesOrderCaption: "Не даёт macOS переставлять Spaces по недавнему использованию, чтобы они оставались в заданном порядке. Прежняя настройка вернётся после выключения функции. Для применения Dock может один раз перезапуститься.",
+        hiDPILabel: "HiDPI",
+        nativeHiDPI: "Нативное HiDPI",
+        virtualHiDPI: "Виртуальное HiDPI",
+        standardResolution: "Стандартное разрешение (1x)",
+        resolutionMenuTitle: "Разрешение",
+        recoveryKeep: "Сохранить",
+        recoveryRevert: "Вернуть",
+        recoveryCountdownTitle: "Сохранить эти настройки дисплея?",
+        recoveryCountdownRemaining: { "Автоматический возврат через \($0) сек." },
+        toggleHiDPICaption: "Переключить масштабирование Retina HiDPI"
     )
 }

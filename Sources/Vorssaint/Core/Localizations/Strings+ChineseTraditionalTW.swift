@@ -1098,6 +1098,16 @@ extension Strings {
         shelfShortcutFinderSelection: "使用快速鍵加入 Finder 所選項目",
         shelfShortcutFinderSelectionCaption: "Finder 位於前景時，快速鍵會打開暫存架並放入所選檔案。未選取任何項目時照常打開。",
         spacesOrderName: "固定桌面空間順序",
-        spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。"
+        spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。",
+        hiDPILabel: "HiDPI",
+        nativeHiDPI: "原生 HiDPI",
+        virtualHiDPI: "虛擬 HiDPI",
+        standardResolution: "標準解析度 (1x)",
+        resolutionMenuTitle: "解析度",
+        recoveryKeep: "保留設定",
+        recoveryRevert: "還原",
+        recoveryCountdownTitle: "保留這個顯示設定？",
+        recoveryCountdownRemaining: { "\($0) 秒後自動恢復" },
+        toggleHiDPICaption: "切換 Retina HiDPI 縮放"
     )
 }
