@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -148,5 +149,14 @@ extension FinderRenameFeatureStrings {
         enableLabel: "使用快捷鍵重新命名",
         caption: "快捷鍵只會在 Finder 生效，不會影響文字欄位。F2 會當作一般按鍵使用；如果它用來調校亮度，請按 Fn-F2 或選擇其他快捷鍵。",
         shortcutLabel: "重新命名"
+    )
+
+    static let vi = FinderRenameFeatureStrings(
+        pageTitle: "Phím tắt Finder",
+        hubTitle: "Phím tắt đổi tên",
+        hubDescription: "Đổi tên tệp hoặc thư mục đã chọn bằng phím tắt tự chọn.",
+        enableLabel: "Dùng phím tắt để đổi tên",
+        caption: "Phím tắt chỉ hoạt động trong Finder và không ảnh hưởng đến ô văn bản. F2 hoạt động như phím thường; trên bàn phím mà phím này điều khiển độ sáng, hãy dùng Fn-F2 hoặc chọn phím tắt khác.",
+        shortcutLabel: "Đổi tên"
     )
 }

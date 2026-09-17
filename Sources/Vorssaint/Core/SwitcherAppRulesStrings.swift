@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -176,5 +177,16 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "僅有視窗時顯示",
         hidden: "一律不顯示",
         caption: "選擇每個 App 的顯示方式。沒有規則的 App 使用上方選項。"
+    )
+
+    static let vi = SwitcherAppRulesStrings(
+        listTitle: "Quy tắc theo ứng dụng",
+        addButton: "Thêm ứng dụng…",
+        removeButton: "Xóa",
+        behaviorLabel: "Cách hiển thị trong bộ chuyển đổi",
+        showWithoutWindows: "Hiển thị dù không có cửa sổ",
+        windowsOnly: "Chỉ khi có cửa sổ",
+        hidden: "Không bao giờ hiển thị",
+        caption: "Chọn cách mỗi ứng dụng xuất hiện. Ứng dụng không có quy tắc riêng sẽ dùng lựa chọn ở trên."
     )
 }

@@ -20,6 +20,7 @@ struct WindowDirectionalStrings {
         case .zhHans: return .init(title: "快捷键 + 鼠标布局", caption: "按住快捷键，将鼠标移向屏幕边缘或角落，松开后摆放当前窗口。")
         case .zhTW: return .init(title: "快速鍵 + 滑鼠配置", caption: "按住快速鍵，將滑鼠移向螢幕邊緣或角落，放開後配置目前視窗。")
         case .zhHK: return .init(title: "快捷鍵 + 滑鼠配置", caption: "按住快捷鍵，將滑鼠移向螢幕邊緣或角落，放開後配置目前視窗。")
+        case .vi: return .init(title: "Phím tắt + vị trí con trỏ", caption: "Giữ phím tắt, di con trỏ về phía một cạnh hoặc góc màn hình, rồi thả ra để đặt cửa sổ đang chọn vào đó.")
         }
     }
 }

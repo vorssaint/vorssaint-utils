@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -513,5 +514,40 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "最多可保留 %d 個草稿板",
         previewFormatting: "顯示格式",
         editText: "編輯文字"
+    )
+
+    static let vi = ScratchpadFeatureStrings(
+        pageTitle: "Sổ nháp",
+        hubDescription: "Sổ nháp nổi dùng cho ghi chú ngắn hạn",
+        panelCaption: "Ghi chú nhanh trong các thẻ riêng biệt",
+        openButton: "Mở sổ nháp",
+        placeholder: "Gõ bất cứ điều gì. Nội dung sẽ tự động được lưu.",
+        copyAll: "Sao chép tất cả",
+        copied: "Đã sao chép",
+        exportAction: "Lưu thành tệp",
+        exportFailed: "Không thể lưu tệp",
+        loadFailed: "Không thể mở ghi chú. Nội dung vẫn được giữ nguyên.",
+        clearAction: "Xóa",
+        retentionTitle: "Tự động xóa",
+        retentionNever: "Không bao giờ",
+        retentionDay: "Sau một ngày không dùng",
+        retentionWeek: "Sau một tuần không dùng",
+        retentionMonth: "Sau một tháng không dùng",
+        retentionCaption: "Sổ nháp sẽ tự xóa hết nội dung khi văn bản không được chỉnh sửa trong khoảng thời gian đó.",
+        closeOnClickOutside: "Đóng khi nhấp ra ngoài",
+        keepOpen: "Giữ mở",
+        backgroundOpacity: "Nền sổ nháp",
+        backgroundTranslucent: "Trong mờ",
+        backgroundOpaque: "Đục",
+        newPad: "Sổ nháp mới",
+        padActions: "Thao tác sổ nháp",
+        renamePad: "Đổi tên sổ nháp",
+        closePad: "Đóng sổ nháp",
+        saveName: "Lưu",
+        cancel: "Hủy",
+        deletePadMessageFormat: "Xóa “%@” và toàn bộ nội dung bên trong?",
+        padLimitFormat: "Có thể giữ tối đa %d sổ nháp",
+        previewFormatting: "Hiện định dạng",
+        editText: "Chỉnh sửa văn bản"
     )
 }

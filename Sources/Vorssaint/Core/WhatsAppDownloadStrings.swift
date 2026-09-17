@@ -60,6 +60,7 @@ struct WhatsAppDownloadStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -319,6 +320,19 @@ extension WhatsAppDownloadStrings {
         existing: "包括現有檔案", firstTitle: "如何處理現有檔案？",
         trash: "檔案會移至垃圾桶，清空前仍可還原。", notificationTitle: "WhatsApp 清理")
 
+    static let vi = translated(language: .vi,
+        title: "Tải xuống WhatsApp", hub: "Giữ các tệp WhatsApp trong Tải xuống trong tầm kiểm soát",
+        intro: "Tìm các tệp mà macOS xác nhận đến từ WhatsApp. Không bao giờ đọc nội dung tệp hoặc cuộc trò chuyện.",
+        automatic: "Tự động dọn dẹp", folder: "Thư mục được theo dõi", accessReady: "Có thể truy cập Tải xuống",
+        accessDenied: "Vorssaint không thể truy cập Tải xuống. Cho phép trong Tệp và Thư mục.",
+        types: "Loại tệp", all: "Tất cả", image: "Hình ảnh", video: "Video", audio: "Âm thanh và tin nhắn thoại",
+        document: "Tài liệu", archive: "Tệp nén", other: "Khác", retention: "Giữ trong", days: "%d ngày",
+        noFiles: "Không tìm thấy tệp WhatsApp đã xác nhận nào trong Tải xuống.", keep: "Giữ lại", manage: "Quản lý lại",
+        activity: "Hoạt động", never: "Chưa có lượt dọn dẹp nào được thực hiện.", future: "Chỉ các lượt tải xuống trong tương lai",
+        existing: "Bao gồm các tệp hiện có", firstTitle: "Còn các tệp hiện có thì sao?",
+        trash: "Các tệp được chuyển vào Thùng rác và vẫn có thể khôi phục cho đến khi bạn dọn sạch.",
+        notificationTitle: "Dọn dẹp WhatsApp")
+
     private struct OperationalStrings {
         let automaticCaption: String
         let retentionCaption: String
@@ -450,6 +464,19 @@ extension WhatsAppDownloadStrings {
                 localNote: "只檢查本機中繼資料。Vorssaint 絕不讀取對話或檔案內容。",
                 notificationFormat: "%1$d 個檔案（%2$@）已移至垃圾桶。%3$d 個失敗。",
                 scanFailed: "無法掃描下載項目。請檢查系統設定中的「檔案與資料夾」。", manageButton: "管理…")
+        case .vi:
+            return OperationalStrings(
+                automaticCaption: "Kiểm tra mỗi ngày một lần và chuyển các tệp phù hợp đã quá giới hạn vào Thùng rác.",
+                retentionCaption: "Các tệp vừa chỉnh sửa sẽ chờ lại toàn bộ thời gian.",
+                manualIntro: "Quét bất cứ lúc nào. Lựa chọn ban đầu tuân theo loại tệp và thời gian giới hạn; mọi tệp đã xác nhận đều có thể xem lại.",
+                resultsFormat: "%1$d tệp đã xác nhận · %2$@", selectRules: "Chọn theo quy tắc của tôi",
+                cleanSelectedFormat: "Chuyển %1$d vào Thùng rác · %2$@",
+                lastRunFormat: "Lần dọn dẹp gần nhất %@: %d tệp · %@ · %d lỗi",
+                nextRunFormat: "Lần kiểm tra tự động tiếp theo %@.",
+                firstMessageFormat: "%d tệp hiện có đã khớp với quy tắc của bạn. Chọn bao gồm chúng hoặc chỉ quản lý các lượt tải xuống trong tương lai.",
+                localNote: "Chỉ kiểm tra siêu dữ liệu cục bộ. Vorssaint không bao giờ đọc cuộc trò chuyện hoặc nội dung tệp.",
+                notificationFormat: "%1$d tệp (%2$@) đã được chuyển vào Thùng rác. %3$d lỗi.",
+                scanFailed: "Không thể quét Tải xuống. Kiểm tra Tệp và Thư mục trong Cài đặt Hệ thống.", manageButton: "Quản lý…")
         case .enUS: return OperationalStrings(
             automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
             manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,

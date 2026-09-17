@@ -58,6 +58,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -516,5 +517,40 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "該按鍵已設有快捷鍵。請換一個。",
         spacesFollowsDragLabel: "桌面跟著拖曳走",
         spacesFollowsDragCaption: "向右拖曳會帶來左邊的桌面，就像在觸控式軌跡板上滑動時桌面跟著手指移動一樣。"
+    )
+
+    static let vi = MouseButtonFeatureStrings(
+        pageTitle: "Phím tắt nút chuột",
+        hubDescription: "Nút phụ và hướng của con lăn bên sẽ nhấn tổ hợp phím tự chọn.",
+        enableLabel: "Dùng nút phụ làm phím tắt",
+        enableCaption: "Mỗi nút phụ hoặc hướng của con lăn bên có thể tự động nhấn một tổ hợp phím. Trong khi có phím tắt, chức năng trước đó của nút sẽ tạm ngừng.",
+        addButton: "Thêm nút hoặc con lăn bên",
+        captureWaiting: "Bây giờ hãy nhấn một nút phụ hoặc di chuyển con lăn bên.",
+        captureCancel: "Hủy",
+        captureBlind: "Vorssaint hiện không thể theo dõi chuột.",
+        captureUnsupported: "Thao tác đó không thể gán phím tắt. Hãy dùng nút phụ hoặc hướng của con lăn bên.",
+        captureWheel: "Nút đó đã dùng để mở menu hình tròn. Hãy chọn nút khác, hoặc gỡ chức năng đó trước.",
+        captureExists: "Nút hoặc hướng đó đã có trong danh sách bên dưới.",
+        captureHint: "Nếu không có gì xảy ra, phần mềm riêng của chuột có thể đã dùng thao tác đó.",
+        backButtonName: "Nút bên quay lại",
+        forwardButtonName: "Nút bên tiến tới",
+        otherButtonFormat: "Nút %d",
+        setShortcutButton: "Đặt phím tắt",
+        removeButton: "Xóa",
+        emptyCaption: "Chưa có phím tắt nào. Hãy thêm nút hoặc hướng của con lăn bên.",
+        rowWheelNote: "Nút này hiện dùng để mở menu hình tròn, nên phím tắt đang chờ.",
+        manageButton: "Thiết lập…",
+        panelCaption: "Nút phụ và hướng của con lăn bên nhấn tổ hợp phím tự chọn.",
+        sideWheelLeftName: "Con lăn bên sang trái",
+        sideWheelRightName: "Con lăn bên sang phải",
+        spacesEnableLabel: "Chuyển Space bằng cách kéo một nút",
+        spacesEnableCaption: "Giữ nút đã chọn rồi kéo: sang trái hoặc phải sẽ chuyển sang Space kế bên, kéo lên mở Mission Control, kéo xuống mở App Exposé. Nhấn nhanh vẫn hoạt động như trước.",
+        spacesPickButton: "Chọn một nút",
+        spacesShortcutsOffNote: "Phím tắt bàn phím của Mission Control đang tắt trong Cài đặt Hệ thống, nên cử chỉ này không có gì để gọi.",
+        spacesCaptureWaiting: "Bây giờ hãy nhấn một nút phụ.",
+        spacesCaptureUnsupported: "Thao tác đó không thể giữ để kéo. Hãy dùng nút phụ.",
+        spacesCaptureExists: "Nút đó đã có phím tắt. Hãy chọn nút khác.",
+        spacesFollowsDragLabel: "Space đi theo hướng kéo",
+        spacesFollowsDragCaption: "Kéo sang phải sẽ đưa Space bên trái tới, giống như vuốt trackpad kéo nó theo ngón tay."
     )
 }

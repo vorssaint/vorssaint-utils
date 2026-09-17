@@ -25,6 +25,7 @@ struct NotchFilesStrings {
 extension FeatureStrings {
     static func notchFiles(_ language: AppLanguage) -> NotchFilesStrings {
         switch language {
+        case .vi: return .vi
         case .enUS: return NotchFilesStrings(
             archive: "Create ZIP",
             archiveHint: "Each selected item is saved as a separate ZIP. Originals stay unchanged.",
@@ -248,4 +249,24 @@ extension FeatureStrings {
             resumeMedia: "返回媒體")
         }
     }
+}
+
+extension NotchFilesStrings {
+    static let vi = NotchFilesStrings(
+        archive: "Tạo ZIP",
+        archiveHint: "Mỗi mục đã chọn được lưu thành một tệp ZIP riêng. Bản gốc không thay đổi.",
+        saved: "Đã lưu",
+        downloadsTitle: "Tải xuống",
+        downloadsDescription: "Xem các tệp đến một thư mục bạn chọn, ngay trong Dynamic Island.",
+        downloadsHint: "Chọn thư mục nơi trình duyệt lưu các tệp tải xuống. Chỉ thư mục đó được theo dõi.",
+        chooseFolder: "Chọn thư mục…",
+        folderUnavailable: "Thư mục này không khả dụng. Chọn lại để khôi phục quyền truy cập.",
+        waiting: "Không có lượt tải xuống nào đang diễn ra",
+        inProgress: "Đang tải xuống",
+        totalUnknown: "Không rõ tổng dung lượng",
+        completed: "Đã tải xuống xong",
+        clearFolder: "Bỏ theo dõi thư mục",
+        optimizeMedia: "Tối ưu media",
+        optimizeDropHint: "Kéo hình ảnh hoặc một video vào island, rồi thả vào Tối ưu media để chọn cách lưu bản sao.",
+        resumeMedia: "Quay lại media")
 }

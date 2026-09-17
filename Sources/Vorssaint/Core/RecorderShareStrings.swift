@@ -31,6 +31,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -190,5 +191,17 @@ extension RecorderShareStrings {
         tooLarge: "這段錄製無法在不過度損失畫質的情況下壓縮至100 MB以內。",
         failed: "無法建立暫時連結",
         tourCaption: "在這部Mac上壓縮完成的錄製，並分享1小時或6小時。"
+    )
+
+    static let vi = RecorderShareStrings(
+        caption: "Chọn 1 hoặc 6 giờ. Video cuối cùng sẽ được nén ngay trên Mac này để nhỏ hơn 100 MB và tự động bị xóa.",
+        privacyData: "Vorssaint chỉ gửi video cuối cùng được tạo từ bản ghi này, kèm âm thanh đã giữ lại và thời hạn đã chọn. Không gửi kèm tên, tài khoản hay số nhận dạng thiết bị.",
+        privacyStorage: "Nhà cung cấp mạng và dịch vụ xử lý tạm thời địa chỉ IP công khai để ngăn chặn hành vi lạm dụng. Video và siêu dữ liệu liên kết sẽ bị xóa vĩnh viễn khi liên kết bị xóa hoặc hết hạn. Dịch vụ không tạo bản sao lưu.",
+        privacyAccess: "Bất kỳ ai có liên kết đều có thể xem, tải xuống, lưu hoặc phát tán lại video. Đơn vị vận hành dịch vụ có thể xem các liên kết đang hoạt động để kiểm duyệt hành vi lạm dụng. Chỉ nên chia sẻ với người đáng tin cậy.",
+        compressing: "Đang nén để chia sẻ…",
+        uploading: "Đang tải lên an toàn…",
+        tooLarge: "Bản ghi này không thể nén xuống dưới 100 MB mà không làm giảm quá nhiều chất lượng.",
+        failed: "Không thể tạo liên kết tạm thời",
+        tourCaption: "Nén một bản ghi đã hoàn tất ngay trên Mac này và chia sẻ trong 1 hoặc 6 giờ."
     )
 }

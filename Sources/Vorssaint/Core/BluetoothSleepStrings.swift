@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -165,5 +166,15 @@ extension BluetoothSleepStrings {
         restoreToggle: "Mac 喚醒時重新開啟藍牙",
         restoreCaption: "只在藍牙是由 Vorssaint 關閉時。",
         unsupported: "這部 Mac 沒有藍牙控制器。"
+    )
+
+    static let vi = BluetoothSleepStrings(
+        pageTitle: "Bluetooth khi ngủ",
+        hubDescription: "Tắt Bluetooth trong lúc Mac ngủ, để tai nghe để trong túi không tự kết nối vào nữa.",
+        enable: "Tắt Bluetooth khi Mac vào chế độ ngủ",
+        enableCaption: "Bluetooth đã tắt từ trước khi ngủ sẽ không bị đụng đến và vẫn tắt sau khi thức dậy.",
+        restoreToggle: "Bật lại Bluetooth khi Mac thức dậy",
+        restoreCaption: "Chỉ khi chính Vorssaint là bên đã tắt nó.",
+        unsupported: "Mac này không có bộ điều khiển Bluetooth."
     )
 }

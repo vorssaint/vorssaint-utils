@@ -77,6 +77,7 @@ struct MediaImageConverterStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -859,6 +860,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "已儲存 %d 張圖像",
         batchPartialFormat: "已儲存 %d 張，%d 張失敗",
         batchSummaryHeaderFormat: "已儲存 %d 張，%d 張失敗",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let vi = MediaImageConverterStrings(
+        filesSelectedFormat: "Đã chọn %d tệp",
+        profile: "Cấu hình",
+        noProfile: "Không có cấu hình",
+        profileName: "Tên cấu hình",
+        saveAsNew: "Lưu mới",
+        updateProfile: "Cập nhật",
+        deleteProfile: "Xóa cấu hình",
+        profileModified: "Đã sửa đổi",
+        profileDefaultNameFormat: "Cấu hình %d",
+        presetWeb: "Web",
+        presetSocial: "Mạng xã hội",
+        presetDocs: "Tài liệu",
+        resize: "Đổi kích thước",
+        resizeNone: "Không đổi",
+        resizeMax: "Cạnh dài nhất",
+        resizeWidth: "Chiều rộng",
+        resizeHeight: "Chiều cao",
+        resizeExact: "Tùy chỉnh",
+        exactStretch: "Kéo giãn",
+        exactFit: "Vừa khung",
+        exactFill: "Lấp đầy",
+        height: "Chiều cao",
+        watermark: "Hình mờ",
+        watermarkOff: "Tắt",
+        watermarkText: "Văn bản",
+        watermarkLogo: "Logo",
+        watermarkBoth: "Văn bản + logo",
+        watermarkTextPlaceholder: "Văn bản hình mờ",
+        noLogo: "Không có logo",
+        chooseLogo: "Chọn logo",
+        position: "Vị trí",
+        topLeft: "Trên bên trái",
+        topRight: "Trên bên phải",
+        center: "Giữa",
+        bottomLeft: "Dưới bên trái",
+        bottomRight: "Dưới bên phải",
+        opacity: "Độ mờ",
+        margin: "Lề",
+        scale: "Tỷ lệ",
+        rename: "Đổi tên",
+        preview: "Xem trước",
+        outputName: "Đầu ra",
+        background: "Nền",
+        backgroundTransparent: "Trong suốt",
+        backgroundWhite: "Trắng",
+        backgroundBlack: "Đen",
+        preserveDate: "Giữ ngày sửa đổi gốc",
+        saveInSubfolder: "Lưu vào thư mục con “Converted”",
+        moreOptions: "Thêm tùy chọn",
+        tooLarge: "Kích thước này quá lớn để xử lý an toàn. Hãy chọn kích thước nhỏ hơn.",
+        copySummary: "Sao chép tóm tắt",
+        savedBytesFormat: "Tiết kiệm %@",
+        grewBytesFormat: "Lớn hơn %@",
+        batchSavedFormat: "Đã lưu %d ảnh",
+        batchPartialFormat: "%d đã lưu, %d thất bại",
+        batchSummaryHeaderFormat: "%d đã lưu, %d thất bại",
         batchSummaryItemFormat: "%@ -> %@"
     )
 }

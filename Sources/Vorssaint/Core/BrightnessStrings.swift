@@ -50,6 +50,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -417,5 +418,33 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
         keyboardBrightnessIncrease: "提高鍵盤亮度"
+    )
+
+    static let vi = BrightnessFeatureStrings(
+        pageTitle: "Màn hình",
+        hubDescription: "Điều khiển độ sáng và nguồn cho mọi màn hình",
+        enable: "Điều khiển màn hình",
+        enableCaption: "Điều khiển độ sáng và bật tắt cho màn hình tích hợp cùng các màn hình ngoài, ở đây và trong bảng điều khiển trên thanh menu.",
+        externalCaption: "Màn hình ngoài được điều chỉnh qua cùng giao thức với các nút bấm riêng của chúng. Khi kết nối không truyền được giao thức này, như với bộ chuyển đổi HDMI, thanh trượt sẽ làm tối hình ảnh thay vào đó, nên việc điều khiển độ sáng vẫn hoạt động trong mọi trường hợp.",
+        noDisplays: "Không tìm thấy màn hình nào.",
+        displayOff: "Tắt",
+        turnOffDisplay: "Tắt màn hình",
+        turnOnDisplay: "Bật màn hình",
+        lastDisplayCaption: "Phải có ít nhất một màn hình luôn bật.",
+        switchUnavailable: "Không thể bật tắt màn hình trên Mac này.",
+        switchFailed: "Không thể thay đổi màn hình này.",
+        keysToggle: "Phím độ sáng theo con trỏ",
+        keysCaption: "Các phím độ sáng trên bàn phím điều chỉnh màn hình đang có con trỏ.",
+        osdToggle: "Hiện độ sáng khi điều chỉnh",
+        osdCaption: "Hiện phần trăm độ sáng khi sử dụng phím hoặc thanh trượt độ sáng.",
+        displayBrightnessShortcuts: "Dùng phím tắt điều chỉnh độ sáng màn hình",
+        displayBrightnessShortcutCaption: "Phím tắt điều chỉnh màn hình chính, hoặc màn hình đang có con trỏ khi tính năng theo con trỏ được bật.",
+        displayBrightnessDecrease: "Giảm độ sáng màn hình",
+        displayBrightnessIncrease: "Tăng độ sáng màn hình",
+        keyboardLight: "Đèn bàn phím",
+        keyboardLightCaption: "Bật hoặc tắt đèn nền bàn phím.",
+        keyboardBrightnessShortcuts: "Dùng phím tắt điều chỉnh độ sáng bàn phím",
+        keyboardBrightnessDecrease: "Giảm độ sáng bàn phím",
+        keyboardBrightnessIncrease: "Tăng độ sáng bàn phím"
     )
 }

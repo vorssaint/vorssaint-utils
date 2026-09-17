@@ -1,0 +1,24 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint dùng Tự động hoá để di chuyển tệp trong Finder, đưa mục vào Thùng rác và mở lệnh Terminal khi bạn yêu cầu thao tác Homebrew.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint chỉ truy cập âm thanh của từng app để chỉnh âm lượng riêng trong bộ trộn âm. Không có gì được ghi lại hay rời khỏi Mac của bạn.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint chỉ dùng Bluetooth để đọc mức pin của thiết bị ngoại vi đang kết nối. Không có gì rời khỏi Mac của bạn.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint chỉ ghi âm micro khi bạn bật tính năng này cho một bản ghi màn hình. Âm thanh ở lại trên Mac của bạn trừ khi bạn chọn tạo liên kết chia sẻ tạm thời.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint chỉ hiện camera của bạn trong cửa sổ xem trước mà bạn tự mở, để bạn kiểm tra hình ảnh trước cuộc gọi. Không có gì được ghi lại hay rời khỏi Mac của bạn.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint chỉ đọc siêu dữ liệu cục bộ trong thư mục Tải xuống để xem lại, sắp xếp hoặc đưa vào Thùng rác những tệp WhatsApp đã xác nhận mà bạn chọn.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint sắp xếp các tệp WhatsApp đã tải xuống và xác nhận vào thư mục đích mà bạn tự chọn.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint sắp xếp các tệp WhatsApp đã tải xuống và xác nhận vào thư mục đích mà bạn tự chọn.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint sắp xếp các tệp WhatsApp đã tải xuống và xác nhận vào thư mục đích mà bạn tự chọn.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint sắp xếp các tệp WhatsApp đã tải xuống và xác nhận vào thư mục đích mà bạn tự chọn.";
+"NSCalendarsFullAccessUsageDescription" = "Hiển thị các cuộc hẹn sắp tới của bạn trong Dynamic Island. Sự kiện lịch chỉ lưu trên Mac này.";

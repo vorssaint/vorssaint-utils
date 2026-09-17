@@ -19,6 +19,17 @@ struct NotchNotificationStrings {
 extension FeatureStrings {
     static func notchNotifications(_ language: AppLanguage) -> NotchNotificationStrings {
         switch language {
+        case .vi: return NotchNotificationStrings(
+            title: "Thông báo",
+            description: "Thông báo hệ thống mới trong Dynamic Island.",
+            privacy: "Chỉ hiện các thông báo mới đang hiển thị. Tin nhắn được giữ trong bộ nhớ và bị xóa khi khóa Mac này hoặc tắt tính năng.",
+            empty: "Thông báo mới sẽ xuất hiện ở đây",
+            waiting: "Đang chờ dịch vụ thông báo của hệ thống",
+            open: "Mở",
+            dismiss: "Bỏ qua",
+            unavailable: "Thông báo này không còn hỗ trợ thao tác này.",
+            dismissSystemBanner: "Đóng thông báo hệ thống",
+            dismissSystemBannerHint: "Đóng thông báo gốc sau khi nó xuất hiện trong Dynamic Island. Thông báo vẫn có thể hiện thoáng qua.")
         case .enUS: return NotchNotificationStrings(
             title: "Notifications",
             description: "New system notifications in the Dynamic Island.",

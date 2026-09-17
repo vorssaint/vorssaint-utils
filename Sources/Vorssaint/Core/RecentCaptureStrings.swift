@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -176,5 +177,16 @@ extension RecentCaptureStrings {
         open: "開啟",
         remove: "從記錄移除",
         clear: "清除記錄"
+    )
+
+    static let vi = RecentCaptureStrings(
+        title: "Ảnh và bản ghi gần đây",
+        empty: "Chụp ảnh màn hình hoặc lưu một bản ghi để xem tại đây.",
+        screenshot: "Ảnh chụp",
+        recording: "Bản ghi",
+        restore: "Khôi phục",
+        open: "Mở",
+        remove: "Xóa khỏi lịch sử",
+        clear: "Xóa lịch sử"
     )
 }

@@ -19,6 +19,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 
@@ -37,6 +38,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 
@@ -55,6 +57,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 
@@ -73,6 +76,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 
@@ -91,6 +95,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 
@@ -115,6 +120,7 @@ struct MixerFeatureStrings {
     static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App")
     static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
     static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
+    static let vi = MixerFeatureStrings(hideInactiveApps: "Ẩn ứng dụng không hoạt động")
 }
 
 extension SettingsCategoryStrings {
@@ -411,6 +417,15 @@ struct SettingsCategoryStrings {
         utilities: "工具",
         app: "App",
         appManagement: "App 管理"
+    )
+
+    static let vi = SettingsCategoryStrings(
+        essentials: "Cơ bản",
+        windowsControls: "Cửa sổ và điều khiển",
+        files: "Tệp",
+        utilities: "Tiện ích",
+        app: "App",
+        appManagement: "Quản lý App"
     )
 }
 
@@ -1152,6 +1167,63 @@ struct ClipboardFeatureStrings {
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
         autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
         deleteSelectedFormat: "刪除 %d 個"
+    )
+
+    static let vi = ClipboardFeatureStrings(
+        title: "Bảng nhớ tạm",
+        enable: "Lưu lịch sử bảng nhớ tạm",
+        caption: "Lưu văn bản đã sao chép để dùng lại sau này. Mọi thứ đều được giữ trên máy và có thể xóa bất cứ lúc nào.",
+        localNote: "Mọi thứ đều được giữ trên chiếc Mac này. Các mục quá lớn sẽ bị bỏ qua.",
+        skipSensitive: "Bỏ qua văn bản có vẻ nhạy cảm",
+        skipSensitiveCaption: "Tránh lưu các chuỗi ngắn không có khoảng trắng trông giống mật khẩu, token hoặc khóa.",
+        limit: "Giới hạn",
+        limitUnlimited: "Không giới hạn",
+        showInPanel: "Hiện trong bảng điều khiển",
+        shortcut: "Phím tắt lịch sử",
+        shortcutCaption: "Mở một cửa sổ nhanh có tìm kiếm, các mục đã ghim và phím tắt ⌘1 đến ⌘9 để dán vào app trước đó.",
+        shortcutHint: "Nhấp vào một dòng để dán vào app trước đó. ⌘-nhấp để chọn nhiều mục; ⌘C sao chép mà không dán.",
+        clickRowShortcut: "Nhấp vào dòng",
+        commandClickShortcut: "⌘ Nhấp",
+        pinned: "Đã ghim",
+        recent: "Gần đây",
+        pin: "Ghim",
+        unpin: "Bỏ ghim",
+        clearRecent: "Xóa mục gần đây",
+        clearAll: "Xóa mục chưa ghim",
+        empty: "Chưa có văn bản nào được lưu",
+        disabled: "Bật lịch sử để bắt đầu lưu văn bản đã sao chép.",
+        search: "Tìm văn bản đã sao chép",
+        copy: "Sao chép",
+        copied: "Đã sao chép",
+        delete: "Xóa mục",
+        selectMultiple: "Thêm vào chồng",
+        unselectMultiple: "Bỏ khỏi chồng",
+        selectShortcutAction: "Chọn",
+        pasteSelectedFormat: "Dán %d mục",
+        copySelectedFormat: "Sao chép %d mục",
+        clearSelection: "Bỏ chọn",
+        moveUp: "Di chuyển lên",
+        moveDown: "Di chuyển xuống",
+        noResults: "Không có kết quả",
+        newestFirst: "Mới nhất trước",
+        active: "Đang lưu văn bản mới",
+        includeImagesFiles: "Lưu cả hình ảnh và tệp đã sao chép",
+        includeImagesFilesCaption: "Hình ảnh sẽ được thêm vào lịch sử, còn tệp được ghi nhớ dưới dạng liên kết đến vị trí của chúng. Có thể ghim và dán như bất kỳ mục văn bản nào.",
+        imageEntryLabel: "Hình ảnh",
+        fileCountFormat: "%d tệp",
+        pasteImageAsFile: "Dán hình ảnh đã sao chép dưới dạng tệp",
+        pasteImageAsFileCaption: "Khi Finder đang hoạt động, ⌘V sẽ lưu hình ảnh đã sao chép dưới dạng PNG vào thư mục hiện tại.",
+        previewLabel: "Xem trước",
+        edit: "Sửa",
+        cancel: "Hủy",
+        save: "Lưu",
+        autoClearEnable: "Tự động xóa bảng nhớ tạm sau",
+        autoClearSecondsSuffix: "giây",
+        autoClearOnSleep: "Xóa bảng nhớ tạm khi Mac vào chế độ ngủ",
+        autoClearOnDisplaySleep: "Xóa bảng nhớ tạm khi màn hình tắt",
+        autoClearOnScreenLock: "Xóa bảng nhớ tạm khi khóa màn hình",
+        autoClearCaption: "Chỉ xóa bảng nhớ tạm của hệ thống. Các mục đã lưu vẫn còn trong lịch sử.",
+        deleteSelectedFormat: "Xóa %d mục"
     )
 }
 
@@ -2076,6 +2148,77 @@ struct WindowLayoutFeatureStrings {
         gapLarge: "大",
         gapExtraLarge: "特大"
     )
+
+    static let vi = WindowLayoutFeatureStrings(
+        title: "Bố cục cửa sổ",
+        caption: "Sắp xếp cửa sổ vào các vùng màn hình hoặc di chuyển và đổi kích thước bằng trackpad hoặc chuột.",
+        showInPanel: "Hiện trong bảng điều khiển",
+        gestureSection: "Kéo cửa sổ",
+        gestureEnable: "Di chuyển và đổi kích thước bằng cách kéo",
+        gestureCaption: "Trên trackpad hoặc chuột, giữ các phím bổ trợ được hiển thị rồi kéo tại bất kỳ vị trí nào trong cửa sổ.",
+        gestureModifiers: "Phím để di chuyển",
+        gestureMove: "Kéo để di chuyển",
+        gestureResize: "Thêm Shift và kéo để đổi kích thước",
+        gestureResizeHint: "Điểm bắt đầu sẽ chọn cạnh hoặc góc gần nhất. Với chuột, kéo bằng nút phải cũng đổi được kích thước.",
+        gestureRaiseWindow: "Đưa cửa sổ đang kéo lên trên cùng",
+        shortcuts: "Phím tắt",
+        shortcutsCaption: "Dùng phím tắt toàn cục để sắp xếp cửa sổ đang hoạt động mà không cần mở bảng điều khiển.",
+        permissionCaption: "Chỉ dùng quyền Trợ năng để di chuyển và đổi kích thước cửa sổ.",
+        noWindow: "Không tìm thấy cửa sổ đang hoạt động.",
+        missingPermission: "Cấp quyền Trợ năng để di chuyển cửa sổ.",
+        failed: "Không thể di chuyển cửa sổ này.",
+        done: "Đã sắp xếp cửa sổ.",
+        restored: "Đã khôi phục cửa sổ.",
+        noRestore: "Không có bố cục trước đó để khôi phục.",
+        target: "Cửa sổ đang hoạt động",
+        halves: "Nửa",
+        thirds: "Phần ba",
+        sixths: "Phần sáu",
+        corners: "Góc",
+        other: "Thao tác",
+        leftHalf: "Trái",
+        rightHalf: "Phải",
+        topHalf: "Trên",
+        bottomHalf: "Dưới",
+        centerHalf: "Giữa",
+        leftThird: "Trái 1/3",
+        centerThird: "Giữa 1/3",
+        rightThird: "Phải 1/3",
+        leftTwoThirds: "Trái 2/3",
+        rightTwoThirds: "Phải 2/3",
+        topLeftSixth: "Trên trái 1/6",
+        topCenterSixth: "Trên giữa 1/6",
+        topRightSixth: "Trên phải 1/6",
+        bottomLeftSixth: "Dưới trái 1/6",
+        bottomCenterSixth: "Dưới giữa 1/6",
+        bottomRightSixth: "Dưới phải 1/6",
+        topLeft: "Trên trái",
+        topRight: "Trên phải",
+        bottomLeft: "Dưới trái",
+        bottomRight: "Dưới phải",
+        maximize: "Phóng to",
+        center: "Giữa",
+        nextDisplay: "Màn hình tiếp theo",
+        restore: "Khôi phục",
+        fullScreen: "Toàn màn hình",
+        previousDisplay: "Màn hình trước",
+        edgeSnapEnable: "Ghim cửa sổ vào cạnh màn hình",
+        edgeSnapCaption: "Bật tùy chọn này, sau đó kéo thanh tiêu đề cửa sổ đến bất kỳ cạnh hoặc góc màn hình nào rồi thả ra.",
+        edgeSnapSystemConflict: "macOS đang dùng cùng các cạnh đó. Hãy tắt tính năng xếp cửa sổ trong Màn hình nền và Dock để Vorssaint có thể đảm nhận.",
+        edgeSnapOpenSystemSettings: "Mở Màn hình nền và Dock",
+        edgeSnapWaitingForSystem: "Đã bật trong Vorssaint. Tính năng sẽ hoạt động ngay khi tắt tính năng xếp cửa sổ của macOS.",
+        marginMaximize: "Phóng to có lề",
+        gapsSection: "Khoảng cách",
+        gapsCaption: "Khoảng cách giữa các cửa sổ đã ghim, và giữa cửa sổ với cạnh màn hình.",
+        windowGap: "Khoảng cách giữa cửa sổ",
+        screenGap: "Khoảng cách đến cạnh màn hình",
+        gapNone: "Không có",
+        gapTiny: "Rất nhỏ",
+        gapSmall: "Nhỏ",
+        gapMedium: "Vừa",
+        gapLarge: "Lớn",
+        gapExtraLarge: "Rất lớn"
+    )
 }
 
 struct MonitorAlertFeatureStrings {
@@ -2530,5 +2673,40 @@ struct MonitorAlertFeatureStrings {
         batteryTemperatureThreshold: "溫度高於",
         batteryTemperatureTitle: "電池過熱",
         batteryTemperatureBodyFormat: "電池已達到 %d °C。"
+    )
+
+    static let vi = MonitorAlertFeatureStrings(
+        section: "Cảnh báo",
+        caption: "Cảnh báo sẽ xuất hiện khi đạt đến giới hạn đã chọn. Mức sử dụng và nhiệt độ CPU sẽ bỏ qua các đợt tăng đột biến ngắn hơn khoảng 12 giây. Cài đặt lặp lại chỉ giới hạn việc lặp lại của cùng một cảnh báo.",
+        notificationsDenied: "Thông báo cho Vorssaint đang tắt trong Cài đặt Hệ thống nên cảnh báo không thể hiện ra.",
+        cpu: "CPU cao",
+        cpuTemperature: "Nhiệt độ CPU cao",
+        memory: "Áp lực bộ nhớ nghiêm trọng",
+        disk: "Dung lượng ổ đĩa thấp",
+        battery: "Pin yếu",
+        cpuThreshold: "CPU vượt quá",
+        cpuTemperatureThreshold: "Nhiệt độ vượt quá",
+        diskThreshold: "Dung lượng trống dưới",
+        batteryThreshold: "Pin dưới",
+        cooldown: "Lặp lại cùng một cảnh báo sau",
+        cooldown2: "2 phút",
+        cooldown5: "5 phút",
+        cooldown15: "15 phút",
+        cooldown30: "30 phút",
+        cooldown60: "1 giờ",
+        cpuTitle: "CPU cao",
+        cpuBodyFormat: "CPU đã vượt quá %d%% trong vài giây.",
+        cpuTemperatureTitle: "CPU nóng",
+        cpuTemperatureBodyFormat: "CPU đã đạt %d °C.",
+        memoryTitle: "Bộ nhớ nghiêm trọng",
+        memoryBody: "Áp lực bộ nhớ đã đạt mức nghiêm trọng.",
+        diskTitle: "Dung lượng ổ đĩa thấp",
+        diskBodyFormat: "%@ còn dưới %d%% dung lượng trống.",
+        batteryTitle: "Pin yếu",
+        batteryBodyFormat: "Pin đang ở mức %d%%.",
+        batteryTemperature: "Nhiệt độ pin cao",
+        batteryTemperatureThreshold: "Nhiệt độ vượt quá",
+        batteryTemperatureTitle: "Pin nóng",
+        batteryTemperatureBodyFormat: "Pin đã đạt %d °C."
     )
 }

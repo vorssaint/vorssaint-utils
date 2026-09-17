@@ -50,6 +50,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 
@@ -68,6 +69,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -136,6 +138,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let zhHK = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "允許顯示器進入睡眠",
         allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。"
+    )
+
+    static let vi = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Cho phép màn hình ngủ",
+        allowDisplaySleepCaption: "Giữ Mac ở trạng thái thức trong khi màn hình vẫn tắt theo bộ đếm giờ ngủ bình thường."
     )
 }
 
@@ -385,5 +392,24 @@ extension KeepAwakeAutomationStrings {
         automationActive: "因符合自動條件而保持喚醒",
         pauseWhenLockedToggle: "Mac 鎖定時暫停",
         pauseWhenLockedCaption: "鎖定期間會按正常睡眠設定運作，解鎖後繼續餘下時段。"
+    )
+
+    static let vi = KeepAwakeAutomationStrings(
+        automationSection: "Tự động hóa",
+        automationCaption: "Bắt đầu khi bất kỳ điều kiện đã chọn nào được đáp ứng.",
+        automationOff: "Tắt",
+        externalDisplayToggle: "Màn hình ngoài",
+        externalDisplayActive: "Hoạt động khi có màn hình ngoài được kết nối",
+        powerToggle: "Nguồn điện",
+        powerActive: "Hoạt động khi đang cắm nguồn điện",
+        runningAppsToggle: "Ứng dụng",
+        runningAppsActive: "Hoạt động khi một ứng dụng đã chọn đang chạy",
+        runningAppsListTitle: "Ứng dụng đã chọn",
+        runningAppsAddButton: "Thêm ứng dụng…",
+        runningAppsRemoveButton: "Xóa",
+        runningAppsListCaption: "“Giữ máy thức” bắt đầu khi bất kỳ ứng dụng nào trong danh sách này đang mở, kể cả khi chạy nền.",
+        automationActive: "Hoạt động vì một điều kiện tự động đã được đáp ứng",
+        pauseWhenLockedToggle: "Tạm dừng khi Mac bị khóa",
+        pauseWhenLockedCaption: "Theo quy tắc ngủ bình thường khi bị khóa, rồi tiếp tục phần phiên còn lại sau khi mở khóa."
     )
 }

@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -471,6 +472,38 @@ extension QuitProtectionStrings {
         extraHUDFormat: "使用 %@ 以結束/關閉",
         cancelHint: "Esc 取消",
         releaseHint: "放開以確認",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let vi = QuitProtectionStrings(
+        name: "Bảo vệ khi thoát & đóng",
+        description: "Bảo vệ ⌘Q và ⌘W khỏi bị nhấn nhầm",
+        intro: "Thiết lập riêng cho từng phím tắt. Thao tác gốc chỉ được thực hiện sau khi hoàn tất xác nhận đã chọn.",
+        enabled: "Bảo vệ phím tắt này",
+        enabledCaption: "Các phím tắt Command khác vẫn hoạt động bình thường.",
+        mode: "Chế độ xác nhận",
+        hold: "Giữ để xác nhận",
+        doublePress: "Nhấn đúp",
+        extraModifier: "Yêu cầu phím bổ trợ thêm",
+        holdDuration: "Thời gian giữ",
+        doublePressInterval: "Khoảng cách giữa hai lần nhấn",
+        modifier: "Phím bổ trợ thêm",
+        appScope: "Ứng dụng",
+        allApps: "Tất cả ứng dụng",
+        selectedOnly: "Chỉ ứng dụng đã chọn",
+        allExceptSelected: "Tất cả trừ ứng dụng đã chọn",
+        exceptions: "Ngoại lệ",
+        noExceptions: "Chưa chọn ứng dụng nào",
+        addApp: "Thêm ứng dụng…",
+        feedback: "Hiện phản hồi trực quan",
+        accessibilityCaption: "Tính năng bảo vệ dùng Trợ năng để theo dõi toàn cục chỉ riêng ⌘Q và ⌘W.",
+        holdHUDFormat: "Giữ %@ để thoát/đóng",
+        doubleHUDFormat: "Nhấn %@ lần nữa để thoát/đóng",
+        extraHUDFormat: "Dùng %@ để thoát/đóng",
+        cancelHint: "Esc để hủy",
+        releaseHint: "Thả ra để xác nhận",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

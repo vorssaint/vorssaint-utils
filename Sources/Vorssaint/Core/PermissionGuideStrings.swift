@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -213,5 +214,18 @@ extension PermissionGuideStrings {
         staleHint: "清單裡已經開啟了？那筆項目屬於此 App 的早期副本。重新開始以取代它。",
         startOver: "重新開始",
         relaunch: "重新啟動以套用"
+    )
+
+    static let vi = PermissionGuideStrings(
+        title: "Còn một bước nữa",
+        stepOpen: "macOS đã mở Cài đặt Hệ thống ở đúng danh sách.",
+        stepToggle: "Bật Vorssaint trong danh sách đó.",
+        stepReturn: "Quay lại đây. Thẻ này sẽ tự nhận biết.",
+        waiting: "Đang chờ quyền…",
+        granted: "Đã cấp quyền!",
+        closeHelp: "Đóng",
+        staleHint: "Đã thấy bật sẵn trong danh sách đó? Mục đó thuộc về một bản sao cũ của ứng dụng. Bắt đầu lại để thay thế nó.",
+        startOver: "Bắt đầu lại",
+        relaunch: "Khởi động lại để áp dụng"
     )
 }

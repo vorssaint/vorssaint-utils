@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -204,5 +205,18 @@ extension MenuBarAppearanceStrings {
         highColor: "高負載顏色",
         mediumFrom: "中等起點",
         highFrom: "高負載起點"
+    )
+
+    static let vi = MenuBarAppearanceStrings(
+        label: "Hiển thị mức sử dụng",
+        values: "Giá trị",
+        bars: "Thanh",
+        caption: "Thanh áp dụng cho mức sử dụng CPU, GPU, bộ nhớ và ổ đĩa. Các chỉ số khác vẫn hiển thị dạng số.",
+        customize: "Màu và ngưỡng của thanh",
+        normalColor: "Màu bình thường",
+        mediumColor: "Màu trung bình",
+        highColor: "Màu cao",
+        mediumFrom: "Trung bình từ",
+        highFrom: "Cao từ"
     )
 }

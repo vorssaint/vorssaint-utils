@@ -88,6 +88,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -988,6 +989,75 @@ extension NotchStrings {
         sectionKeyboardHint: "使用方向鍵選取，再按 Return 鍵開啟",
         quickAccessLeft: "左側",
         quickAccessRight: "右側"
+    )
+
+    static let vi = NotchStrings(
+        title: "Dynamic Island",
+        enable: "Bật Dynamic Island",
+        description: "Nhạc, các điều khiển và công cụ hằng ngày, cùng xuất hiện ở đầu màn hình. Tùy chọn. Tắt để tiếp tục dùng các bảng riêng biệt.",
+        menuBarAccessHint: "Cho phép quyền Trợ năng để Dynamic Island hiển thị trên màn hình này mà không che thanh menu.",
+        display: "Màn hình",
+        automatic: "Tự động",
+        builtIn: "Màn hình tích hợp",
+        mainDisplay: "Màn hình chính",
+        hover: "Mở khi con trỏ dừng trên Dynamic Island",
+        modules: "Nội dung hiển thị",
+        events: "Tùy chọn khác",
+        clipboardActivity: "Thông báo khi có nội dung được sao chép",
+        captureActivity: "Hiện bản xem trước ảnh chụp màn hình ở đây",
+        privacy: "Nội dung sao chép được giữ riêng tư cho đến khi mở khay nhớ tạm. Các tùy chọn này theo cài đặt của tính năng gốc.",
+        open: "Mở Dynamic Island",
+        collapse: "Thu gọn",
+        pin: "Giữ mở",
+        unpin: "Cho phép tự động đóng",
+        panel: "Mở bảng ứng dụng",
+        dropHint: "Thả tệp vào đây",
+        empty: "Chọn nội dung hiển thị trong cài đặt Dynamic Island.",
+        volume: "Âm lượng",
+        brightness: "Độ sáng",
+        battery: "Pin",
+        onBattery: "Dùng pin",
+        charging: "Đang sạc",
+        charged: "Đã sạc đầy",
+        lowBattery: "Pin yếu",
+        controls: "Điều khiển",
+        system: "Hệ thống",
+        disabled: "Bật tính năng tương ứng để dùng ở đây.",
+        files: "Tệp",
+        showInCaptures: "Hiện trong ảnh chụp màn hình và video",
+        clipboardWindow: "Mở lịch sử khay nhớ tạm trong Dynamic Island",
+        tools: "Công cụ",
+        size: "Kích thước",
+        compact: "Gọn",
+        spacious: "Rộng rãi",
+        hoverExpand: "Mở rộng hoàn toàn khi di chuột qua",
+        shelfWindow: "Mở kệ tệp trong Dynamic Island",
+        dragReveal: "Hiện vùng thả trong khi kéo",
+        captureControls: "Hiện điều khiển chụp màn hình trong Dynamic Island",
+        quickPanel: "Mở bảng nhanh trong Dynamic Island",
+        appPanel: "Mở bảng ứng dụng trong Dynamic Island",
+        idleContent: "Khi không hoạt động",
+        idleNone: "Không có gì",
+        controlShortcuts: "Điều khiển và phím tắt",
+        activity: "Hoạt động",
+        playingMusic: "Hiện nhạc khi đang phát",
+        custom: "Tùy chỉnh",
+        width: "Chiều rộng",
+        maximumHeight: "Chiều cao tối đa",
+        sizeHint: "Điều khiển luôn gọn gàng. Danh sách dài hơn dùng tối đa chiều cao này.",
+        hapticFeedback: "Phản hồi xúc giác",
+        hapticHint: "Rung nhẹ khi mở, chuyển mục hoặc chỉnh số phút hẹn giờ, trên trackpad hỗ trợ.",
+        playbackPosition: "Vị trí phát",
+        musicHint: "Nhạc và điều khiển phát sẽ hiện ở đây.",
+        music: "Nhạc",
+        captures: "Ảnh chụp",
+        customizeTools: "Tùy chỉnh công cụ",
+        switchSection: "Chuyển mục",
+        sectionsTitle: "Khám phá",
+        searchSections: "Tìm mục",
+        sectionKeyboardHint: "Dùng phím mũi tên, sau đó nhấn Return",
+        quickAccessLeft: "Trái",
+        quickAccessRight: "Phải"
     )
 
 }

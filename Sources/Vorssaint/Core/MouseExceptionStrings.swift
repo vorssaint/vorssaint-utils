@@ -45,6 +45,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -230,5 +231,19 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。",
         captionSuperKey: "這些 App 中任何一個開啟時，即使在背景執行，Super Key 也會暫停，所選按鍵恢復正常功能。",
         pausedSuperKey: "所選 App 開啟期間已暫停"
+    )
+
+    static let vi = MouseExceptionStrings(
+        listTitle: "Ứng dụng không can thiệp",
+        addButton: "Thêm ứng dụng…",
+        removeButton: "Xóa",
+        captionSmoothScroll: "Trong các ứng dụng này, con lăn chuột vẫn giữ nguyên từng nấc gạt, dành cho các ứng dụng tự đọc con lăn theo cách riêng, như công cụ 3D và thiết kế.",
+        captionScrollDirection: "Trong các ứng dụng này, con lăn chuột vẫn giữ hướng cuộn mà macOS đưa ra.",
+        captionNavigation: "Trong các ứng dụng này, các nút bên vẫn thực hiện chức năng mà ứng dụng đã gán sẵn.",
+        captionButtonShortcuts: "Các phím tắt gán cho nút chuột sẽ không hoạt động trong các ứng dụng này, thao tác nhấn sẽ được chuyển thẳng đến ứng dụng.",
+        captionMiddleClick: "Thao tác nhấn ba ngón vẫn là một cú nhấp chuột bình thường trong các ứng dụng này.",
+        captionFocusFollowsMouse: "Di chuột qua không đổi tiêu điểm hay đưa cửa sổ lên trước trong các ứng dụng này.",
+        captionSuperKey: "Trong khi bất kỳ ứng dụng nào trong danh sách này đang mở, kể cả khi chạy nền, Phím Super sẽ tạm dừng và phím đã chọn hoạt động bình thường.",
+        pausedSuperKey: "Tạm dừng khi có ứng dụng đã chọn đang mở"
     )
 }

@@ -28,6 +28,7 @@ struct NotchCalendarStrings {
 extension FeatureStrings {
     static func notchCalendar(_ language: AppLanguage) -> NotchCalendarStrings {
         switch language {
+        case .vi: return .vi
         case .enUS: return NotchCalendarStrings(
             title: "Calendar",
             description: "Browse the month and your upcoming appointments in the Dynamic Island.",
@@ -290,4 +291,27 @@ extension FeatureStrings {
             hasEvents: "有行程")
         }
     }
+}
+
+extension NotchCalendarStrings {
+    static let vi = NotchCalendarStrings(
+        title: "Lịch",
+        description: "Xem lịch tháng và các cuộc hẹn sắp tới ngay trong Dynamic Island.",
+        permission: "Đọc lịch để hiển thị các cuộc hẹn sắp tới. Sự kiện chỉ lưu trên Mac này.",
+        allow: "Cho phép truy cập Lịch",
+        denied: "Cho phép truy cập Lịch trong Cài đặt Hệ thống để xem các cuộc hẹn.",
+        settings: "Mở Cài đặt Hệ thống",
+        empty: "Không có cuộc hẹn sắp tới",
+        next: "Sắp tới",
+        ongoing: "Đang diễn ra",
+        allDay: "Cả ngày",
+        untitled: "Sự kiện chưa đặt tên",
+        openCalendar: "Mở Lịch",
+        week: "7 ngày tới",
+        today: "Hôm nay",
+        requestFailed: "Không thể yêu cầu truy cập Lịch. Vui lòng thử lại.",
+        previousMonth: "Tháng trước",
+        nextMonth: "Tháng sau",
+        emptyDay: "Không có cuộc hẹn trong ngày này",
+        hasEvents: "Có cuộc hẹn")
 }

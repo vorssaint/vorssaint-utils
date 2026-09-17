@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -148,5 +149,14 @@ extension DiskExclusionStrings {
         removeButton: "移除",
         customPlaceholder: "磁碟機或宗卷名稱",
         caption: "使用「推出所有磁碟」時，此清單中的磁碟機絕不會被推出。"
+    )
+
+    static let vi = DiskExclusionStrings(
+        listTitle: "Ổ đĩa bị loại trừ",
+        addButton: "Thêm ổ đĩa…",
+        otherDrive: "Tên ổ đĩa khác…",
+        removeButton: "Xóa",
+        customPlaceholder: "Tên ổ đĩa hoặc phân vùng",
+        caption: "Ổ đĩa trong danh sách này không bao giờ bị đẩy ra khi dùng Đẩy ra tất cả ổ đĩa."
     )
 }

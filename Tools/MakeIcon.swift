@@ -23,8 +23,11 @@ let iconSizes: [(name: String, px: Int, icnsType: String?)] = [
 ]
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AppIcon.iconset"
-let scriptDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
-let projectDir = scriptDir.deletingLastPathComponent()
+// build.sh always cds to the project root before invoking this tool (run as a
+// script or compiled to a binary elsewhere), so the working directory is the
+// one path that reliably names it — argv[0] does not once this stops being a
+// same-directory script.
+let projectDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let logoPath = projectDir.appendingPathComponent("Resources/Brand/logo.png").path
 
 guard let logo = NSImage(contentsOfFile: logoPath),

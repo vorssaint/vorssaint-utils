@@ -12,6 +12,13 @@ struct ShelfPromiseDeliveryStrings {
 
     static func localized(_ language: AppLanguage) -> ShelfPromiseDeliveryStrings {
         switch language {
+        case .vi:
+            return .init(
+                failedTitle: "Không thể thêm tệp đính kèm",
+                failedBody: "Tệp chưa lưu xong vào kệ.",
+                fullTitle: "Kệ đã đầy",
+                fullBody: "Tệp đính kèm đã lưu xong nhưng kệ không còn chỗ trống.",
+                okButton: "OK")
         case .enUS:
             return .init(
                 failedTitle: "Couldn’t add attachment",

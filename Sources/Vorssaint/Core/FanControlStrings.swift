@@ -64,6 +64,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -652,5 +653,50 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。"
+    )
+
+    static let vi = FanControlFeatureStrings(
+        title: "Điều khiển quạt",
+        hubDescription: "Điều khiển quạt thủ công hoặc bằng đường cong nhiệt độ, đồng thời xem tốc độ hiện tại và tốc độ mục tiêu",
+        showInPanel: "Hiển thị Điều khiển quạt trong bảng",
+        settingsCaption: "Thêm tốc độ quạt thủ công và đường cong nhiệt độ vào bảng trên thanh menu.",
+        fanNameFormat: "Quạt %d",
+        rpmFormat: "%d RPM",
+        allowControl: "Cho phép điều khiển quạt",
+        approvalCaption: "Cho phép Vorssaint trong Mục khởi động để dùng trình điều khiển quạt được bảo vệ.",
+        openSettings: "Mở Cài đặt Hệ thống",
+        noFans: "Mac này không có quạt nào điều khiển được.",
+        unsupported: "Không thể điều khiển quạt trên Mac này.",
+        alreadyControlled: "Một tiến trình khác đang điều khiển quạt. Hãy trả nó về chế độ hệ thống trước.",
+        failed: "Quạt đã trở về chế độ điều khiển của hệ thống vì không thể xác minh yêu cầu điều khiển.",
+        safetyCaption: "Chế độ điều khiển vẫn hoạt động cho đến khi trả về Hệ thống. Nó tự động trả về nếu ứng dụng ngắt kết nối, Mac vào chế độ ngủ, cảm biến đọc lỗi hoặc áp lực nhiệt tăng.",
+        safetyStopped: "Đã trả về chế độ điều khiển của hệ thống vì việc điều khiển quạt bị gián đoạn.",
+        menuBarTitle: "Tốc độ quạt",
+        systemControl: "Hệ thống",
+        manualControl: "Thủ công",
+        customCurve: "Đường cong",
+        mode: "Chế độ điều khiển",
+        coolingIntensity: "Tốc độ quạt",
+        currentRPMFormat: "Hiện tại %d RPM",
+        targetRPMFormat: "Mục tiêu %d RPM",
+        applyManual: "Áp dụng điều khiển thủ công",
+        applyCurve: "Áp dụng đường cong quạt",
+        returnToSystem: "Dùng điều khiển của hệ thống",
+        temperatureUnavailable: "Cảm biến nhiệt độ đã chọn ngừng phản hồi. Điều khiển quạt đã trả về Hệ thống.",
+        curveUnavailable: "Một cảm biến nhiệt độ đã chọn không có sẵn trên Mac này.",
+        sensor: "Cảm biến nhiệt độ",
+        temperature: "Nhiệt độ",
+        fanSpeed: "Tốc độ quạt",
+        addPoint: "Thêm điểm",
+        addSensor: "Thêm cảm biến",
+        removePoint: "Xóa điểm",
+        removeSensor: "Xóa cảm biến",
+        curveGraph: "Đường cong nhiệt độ và tốc độ quạt",
+        averageSoC: "SoC trung bình",
+        hottestSoC: "SoC nóng nhất",
+        averageCPU: "CPU trung bình",
+        hottestCPU: "CPU nóng nhất",
+        hottestGPU: "GPU nóng nhất",
+        helperUnavailable: "Trình điều khiển quạt được bảo vệ hiện không sẵn dùng. Cho phép Vorssaint trong Mục khởi động rồi thử lại."
     )
 }

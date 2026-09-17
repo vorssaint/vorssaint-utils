@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -195,5 +196,17 @@ extension BackupFeatureStrings {
         importConfirmBody: "目前設定將被檔案中的設定取代,App 會重新啟動。這台 Mac 上的其他內容不受影響。",
         importAction: "匯入並重新啟動",
         invalidFile: "此檔案不是有效嘅 Vorssaint 備份。"
+    )
+
+    static let vi = BackupFeatureStrings(
+        title: "Sao lưu",
+        description: "Chuyển cấu hình sang một Mac khác: xuất toàn bộ cài đặt ra một tệp rồi nhập tệp đó ở nơi đến. Tệp này bao gồm cả nội dung ghi chú trong Sổ nháp. Lịch sử khay nhớ tạm, các mục trong Kệ và quyền hệ thống không bao giờ rời khỏi Mac này.",
+        exportButton: "Xuất cài đặt…",
+        importButton: "Nhập cài đặt…",
+        exported: "Đã lưu bản sao lưu",
+        importConfirmTitle: "Nhập các cài đặt này?",
+        importConfirmBody: "Cài đặt hiện tại sẽ được thay bằng cài đặt trong tệp và ứng dụng sẽ khởi động lại. Không có gì khác trên Mac này bị thay đổi.",
+        importAction: "Nhập và khởi động lại",
+        invalidFile: "Tệp này không phải là bản sao lưu Vorssaint hợp lệ."
     )
 }

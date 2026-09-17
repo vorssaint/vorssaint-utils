@@ -381,6 +381,32 @@ extension FeatureStrings {
             accessoryDescription: "顯示已連接的配件，並在電量降至20%時提示一次。",
             connected: "已連接",
             lowBattery: "電量不足")
+        case .vi: return NotchActivityStrings(
+            timer: "Hẹn giờ",
+            timerDescription: "Hẹn giờ và các phiên tập trung trong Dynamic Island.",
+            pomodoro: "Pomodoro",
+            focus: "Tập trung",
+            shortBreak: "Nghỉ ngắn",
+            longBreak: "Nghỉ dài",
+            pomodoroHint: "Bắt đầu từng giai đoạn khi đã sẵn sàng. Chu kỳ kết thúc sau phiên tập trung cuối cùng.",
+            totalSessions: "Tổng số phiên",
+            longBreakInterval: "Số phiên giữa các lần nghỉ dài",
+            sessionProgress: "Phiên %d trên %d",
+            pomodoroFinished: "Đã hoàn thành Pomodoro",
+            minutes: "Phút",
+            start: "Bắt đầu",
+            resume: "Tiếp tục",
+            finished: "Hết giờ",
+            soundEnabled: "Phát âm thanh khi hết giờ",
+            camera: "Gương camera",
+            cameraUnavailable: "Không thể khởi động camera. Hãy thử mở lại.",
+            cameraHint: "Mở gương trực tiếp tại đây. Camera dừng khi rời khỏi màn hình này.",
+            startCamera: "Mở camera",
+            stopCamera: "Dừng camera",
+            accessories: "Thông báo phụ kiện",
+            accessoryDescription: "Hiển thị các phụ kiện đã kết nối và cảnh báo một lần khi pin giảm còn 20%.",
+            connected: "Đã kết nối",
+            lowBattery: "Pin yếu")
         }
     }
 }

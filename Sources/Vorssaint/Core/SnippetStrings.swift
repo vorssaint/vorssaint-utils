@@ -86,6 +86,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -923,5 +924,69 @@ extension SnippetFeatureStrings {
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
         dateTimeConfirmUpdate: "更新"
+    )
+
+    static let vi = SnippetFeatureStrings(
+        pageTitle: "Gõ tắt văn bản",
+        hubDescription: "Từ gõ tắt ngắn sẽ mở rộng thành văn bản đầy đủ",
+        enable: "Mở rộng gõ tắt khi nhập",
+        enableCaption: "Gõ một từ gõ tắt ở bất kỳ đâu và nó sẽ biến thành văn bản tương ứng. Mọi thứ chỉ lưu trên Mac này.",
+        addButton: "Thêm gõ tắt",
+        newTitle: "Gõ tắt mới",
+        editTitle: "Chỉnh sửa gõ tắt",
+        nameLabel: "Tên",
+        namePlaceholder: "Email cá nhân",
+        triggerLabel: "Từ gõ tắt",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Văn bản",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "Mở rộng",
+        expansionImmediate: "Ngay lập tức",
+        expansionDelimiter: "Sau dấu cách, Tab hoặc Return",
+        variablesHint: "Biến: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Chúng sẽ biến thành ngày, giờ và văn bản đã sao chép tại thời điểm mở rộng.",
+        emptyList: "Chưa có gõ tắt nào. Thêm cái đầu tiên.",
+        duplicateTrigger: "Một gõ tắt khác đã dùng từ gõ tắt này.",
+        triggerTooShort: "Từ gõ tắt cần ít nhất 2 ký tự.",
+        deleteButton: "Xóa",
+        saveButton: "Lưu",
+        manageButton: "Quản lý gõ tắt",
+        ignoreCaseLabel: "Bỏ qua chữ hoa/thường",
+        libraryTitle: "Menu gõ tắt nhanh",
+        libraryToggle: "Mở gõ tắt từ một menu",
+        libraryCaption: "Phím tắt mở một menu có thể tìm kiếm. Chọn một gõ tắt sẽ gõ ngay vào vị trí con trỏ.",
+        librarySearchPlaceholder: "Tìm gõ tắt",
+        libraryNoResults: "Không có gõ tắt nào khớp với tìm kiếm.",
+        libraryEmpty: "Chưa có gì để hiển thị. Thêm gõ tắt, hoặc bật “Hiển thị trong menu nhanh” cho những gõ tắt dùng nhiều nhất.",
+        libraryFooterHint: "↩ chèn · esc đóng",
+        folderLabel: "Thư mục",
+        folderPlaceholder: "Công việc",
+        showInLibraryLabel: "Hiển thị trong menu nhanh",
+        variablesFormatCaption: "Định dạng sau dấu hai chấm sẽ chọn cách hiển thị, ví dụ {{date:yyyy-MM-dd}}.",
+        editorFormatCaption: "Định dạng sau dấu hai chấm sẽ chọn cách hiển thị, ví dụ {{date:yyyy-MM-dd}}, hoặc dùng nút chèn ngày/giờ ở trên. Phần -tz(...) đặt múi giờ, ví dụ {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Chèn ngày/giờ",
+        dateTimeEditButton: "Sửa ngày/giờ",
+        dateTimeTypeLabel: "Loại",
+        dateTimeKindDate: "Ngày",
+        dateTimeKindTime: "Giờ",
+        dateTimeKindDateTime: "Ngày giờ",
+        dateTimeStyleLabel: "Kiểu",
+        dateTimeStyleShort: "Ngắn",
+        dateTimeStyleMedium: "Vừa",
+        dateTimeStyleLong: "Dài",
+        dateTimeStyleFull: "Đầy đủ",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Tùy chỉnh",
+        dateTimeStyleLocaleNote: "Một kiểu có tên sẽ lưu định dạng mà khu vực hiện tại trên Mac đang dùng.",
+        dateTimeTimezoneLabel: "Múi giờ",
+        dateTimeTimezoneDeviceDefault: "Mặc định của thiết bị",
+        dateTimeTimezoneValid: "Múi giờ hợp lệ",
+        dateTimeTimezoneInvalid: "Múi giờ không nhận dạng được",
+        dateTimeTimezoneClear: "Xóa múi giờ",
+        dateTimeTimezoneSearchPlaceholder: "Tìm múi giờ",
+        dateTimePatternLabel: "Mẫu",
+        dateTimePreviewLabel: "Xem trước",
+        dateTimeConfirmInsert: "Chèn",
+        dateTimeConfirmUpdate: "Cập nhật"
     )
 }

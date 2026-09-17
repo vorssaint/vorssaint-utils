@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -625,5 +626,48 @@ extension AppUpdateStrings {
         includeOnlineCaption: "支援時會直接向開發者查詢，再用公開目錄補充搜尋。更新由 App 自行安裝。",
         incompleteCheck: "檢查未完成",
         onlineUnavailable: "無法完成網上檢查。其他結果仍然會顯示。"
+    )
+
+    static let vi = AppUpdateStrings(
+        pageTitle: "Cập nhật ứng dụng",
+        hubDescription: "Tìm và cài đặt bản cập nhật cho các ứng dụng đang có",
+        caption: "Kiểm tra xem các ứng dụng trên Mac này có phiên bản mới hơn không và cập nhật những ứng dụng đã chọn, không cần mở từng cửa hàng riêng.",
+        panelCaption: "Xem ứng dụng nào có phiên bản mới hơn",
+        checkNow: "Kiểm tra ngay",
+        checking: "Đang kiểm tra",
+        lastCheckFormat: "Lần kiểm tra gần nhất %@",
+        neverChecked: "Chưa kiểm tra",
+        upToDate: "Mọi ứng dụng đều đã cập nhật",
+        partialUpToDate: "Không tìm thấy bản cập nhật nào trong lần kiểm tra một phần này",
+        coverageNote: "Bao gồm các ứng dụng cài bằng Homebrew và ứng dụng từ App Store. Ứng dụng có trình cập nhật riêng vẫn tự cập nhật như bình thường.",
+        selectAll: "Chọn tất cả",
+        clearSelection: "Bỏ chọn",
+        updateSelectedFormat: "Cập nhật %d",
+        updateOne: "Cập nhật",
+        openAppStore: "Mở App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Mở App Store, nơi bản cập nhật này được cài đặt",
+        frequencyLabel: "Kiểm tra ở chế độ nền",
+        frequencyOff: "Tắt",
+        frequencyDaily: "Mỗi ngày",
+        frequencyWeekly: "Mỗi tuần",
+        nextCheckFormat: "Lần kiểm tra tiếp theo %@",
+        notifyToggle: "Báo khi có ứng dụng cần cập nhật",
+        includeStoreToggle: "Bao gồm ứng dụng từ App Store",
+        includeStoreCaption: "Hỏi Apple phiên bản hiện tại của các ứng dụng lấy từ cửa hàng. Tắt để mọi lượt kiểm tra chỉ diễn ra trên Mac này.",
+        packageMissing: "Chưa cài Homebrew nên chưa thể cập nhật ứng dụng từ đây.",
+        notificationBodyFormat: "%@ ứng dụng có phiên bản mới hơn.",
+        notificationBodyOne: "Một ứng dụng có phiên bản mới hơn.",
+        showInPanel: "Hiển thị trong bảng",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Nguồn",
+        includeHomebrewToggle: "Bao gồm ứng dụng Homebrew",
+        onlineBadge: "Trực tuyến",
+        openApp: "Mở",
+        openAppHint: "Mở ứng dụng để trình cập nhật riêng hoàn tất",
+        includeOnlineToggle: "Bao gồm ứng dụng khác đã cài đặt",
+        includeOnlineCaption: "Tải danh mục ứng dụng công khai mà không gửi tên hay mã định danh của ứng dụng trên Mac này.",
+        incompleteCheck: "Một số ứng dụng không thể kiểm tra",
+        onlineUnavailable: "Không thể hoàn tất kiểm tra trực tuyến. Các kết quả khác vẫn được hiển thị."
     )
 }

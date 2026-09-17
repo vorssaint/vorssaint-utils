@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -358,5 +359,28 @@ extension SuperKeyStrings {
         soloInputSource: "切換輸入法；長撳切換大寫鎖定",
         mappingForeignMapping: "另一個 App 嘅按鍵對應用咗所選按鍵。請喺嗰個 App 度移除對應：淨係結束佢唔夠。",
         mappingSystemRefused: "macOS 拒絕咗按鍵對應。請重新接駁鍵盤或者重新啟動 Mac，然後重新開啟呢個功能。"
+    )
+
+    static let vi = SuperKeyStrings(
+        pageTitle: "Phím Super",
+        hubDescription: "Biến Caps Lock thành tổ hợp phím bổ trợ đã chọn.",
+        enableToggle: "Dùng Caps Lock làm phím Super",
+        enableCaption: "Giữ phím này và nhấn một phím bất kỳ. Chọn một hoặc nhiều phím bổ trợ bên dưới.",
+        modifierKeysNote: "Giữ nguyên hành động mặc định cho phím này trong Cài đặt Hệ thống › Bàn phím › Phím bổ trợ.",
+        sourceKey: "Phím cần giữ",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "%@ phải",
+        holdHint: "Giữ",
+        soloSection: "Nhấn một mình",
+        soloCaption: "Hành động khi nhấn nhanh mà không có phím nào khác đi kèm.",
+        soloNothing: "Không làm gì",
+        soloCapsLock: "Bật/tắt chữ hoa",
+        soloEscape: "Nhấn Escape",
+        activeNow: "Đang hoạt động",
+        panelCaptionFormat: "%1$@ giữ %2$@.",
+        manageButton: "Thiết lập…",
+        soloInputSource: "Chuyển nguồn nhập; giữ để dùng Caps Lock",
+        mappingForeignMapping: "Một ứng dụng khác đang dùng phím đã chọn trong bản đồ phím riêng. Hãy xóa gán đó trong ứng dụng kia: chỉ thoát ứng dụng là chưa đủ.",
+        mappingSystemRefused: "macOS đã từ chối việc gán phím. Hãy cắm lại bàn phím hoặc khởi động lại Mac, rồi bật lại tính năng này."
     )
 }

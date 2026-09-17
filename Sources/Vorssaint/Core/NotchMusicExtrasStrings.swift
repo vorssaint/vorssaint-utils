@@ -456,6 +456,42 @@ extension FeatureStrings {
             playNow: "立即播放",
             refresh: "重新整理",
             openPlayer: "開啟播放器")
+        case .vi: return .vi
         }
     }
+}
+
+extension NotchMusicExtrasStrings {
+    static let vi = NotchMusicExtrasStrings(
+        lyrics: "Lời bài hát",
+        lyricsDescription: "Xem lời bài hát của bản nhạc đang phát ngay trên Dynamic Island.",
+        enableLyrics: "Hiện lời bài hát",
+        online: "Tìm lời bài hát trực tuyến",
+        onlineHint: "Khi lời bài hát đang mở, tên bài hát, nghệ sĩ, album và thời lượng sẽ được gửi tới lrclib.net. Lời bài hát đã nhập vẫn được giữ trên Mac này.",
+        importLyrics: "Nhập lời bài hát…",
+        importHint: "Chọn lời bài hát đã đồng bộ thời gian cho bản ghi này. Lời bài hát chỉ được giữ trong lúc bài hát này đang mở.",
+        loading: "Đang tải lời bài hát…",
+        unavailable: "Không có lời bài hát khớp với bản ghi này.",
+        failed: "Không thể tải lời bài hát.",
+        retry: "Thử lại",
+        instrumental: "Nhạc không lời",
+        waiting: "Đang chờ câu hát đầu tiên",
+        noPosition: "Trình phát không chia sẻ vị trí phát.",
+        offset: "Thời gian",
+        earlier: "Sớm hơn",
+        later: "Muộn hơn",
+        reset: "Đặt lại",
+        actionFailed: "Trình phát không chuyển sang bài hát này.",
+        playbackFailed: "Không thể thay đổi việc phát nhạc.",
+        allowPlayback: "Cho phép điều khiển phát nhạc",
+        automationPermission: "Tự động hóa phát nhạc",
+        automationExplanation: "Một số ứng dụng nhạc yêu cầu quyền cho các thao tác điều khiển. Cấp quyền cho trình phát đã chọn từ Dynamic Island; quyền truy cập được cấp riêng cho từng ứng dụng.",
+        queue: "Sắp phát",
+        queueDescription: "Xem các bài hát sắp phát do trình phát chia sẻ.",
+        enableQueue: "Hiện các bài hát sắp phát",
+        queueUnavailable: "Trình phát này không chia sẻ các bài hát sắp phát.",
+        queueEmpty: "Không có bài hát sắp phát",
+        playNow: "Phát ngay",
+        refresh: "Làm mới",
+        openPlayer: "Mở trình phát")
 }

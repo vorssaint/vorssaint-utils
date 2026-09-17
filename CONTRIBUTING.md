@@ -86,12 +86,14 @@ Every user facing string lives in `Core/Localization.swift` as a field of the
 it, and the compiler is the completeness check, so a translation can never
 silently fall out of sync.
 
-Vorssaint ships these locales today: English (US), Português (Brasil),
-Türkçe, Русский, Español, Deutsch, Français, Italiano, 日本語, 한국어, 简体中文,
-繁體中文（台灣） and 繁體中文（香港）. The non-base translations live in
+Vorssaint ships fourteen languages today, namely English, Português (Brasil),
+Español, Deutsch, Français, Italiano, 日本語, 한국어, 简体中文, Türkçe, Русский,
+繁體中文（台灣）, 繁體中文（香港）and Tiếng Việt. The non-base translations live in
 `Core/Localizations/`. To add a language, add a case to `AppLanguage`, provide
-a complete `Strings` catalog and all feature-specific string catalogs, register
-the locale in `Resources/Info.plist`, add localized permission prompts under
+a complete `Strings` catalog and all feature-specific string catalogs under
+`Core/*Strings.swift` — which keep all languages in the same file rather than
+splitting into `Core/Localizations/` — register the locale in
+`Resources/Info.plist`, add localized permission prompts under
 `Resources/<locale>.lproj/` when needed, and extend the localization coverage
 tests.
 

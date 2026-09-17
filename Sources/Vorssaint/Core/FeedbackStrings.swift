@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -470,5 +471,37 @@ extension FeedbackStrings {
         commandFeature: "建議功能",
         commandSubtitle: "傳送意見",
         diagnosticsChannelLabel: "更新頻道"
+    )
+
+    static let vi = FeedbackStrings(
+        sectionTitle: "Phản hồi",
+        sectionCaption: "Gửi báo cáo lỗi hoặc ý tưởng tính năng trực tiếp cho người duy trì Vorssaint.",
+        openButton: "Gửi phản hồi",
+        windowTitle: "Gửi phản hồi",
+        bugTitle: "Lỗi",
+        featureTitle: "Ý tưởng tính năng",
+        messageLabel: "Muốn chia sẻ điều gì?",
+        bugPlaceholder: "Mô tả điều đã xảy ra và điều đã mong đợi.",
+        featurePlaceholder: "Mô tả ý tưởng và cách nó sẽ hữu ích.",
+        charactersFormat: "%d trên 2000 ký tự",
+        includeDiagnostics: "Bao gồm thông tin kỹ thuật",
+        includeDiagnosticsCaption: "Chỉ thêm phiên bản và bản dựng ứng dụng, phiên bản macOS, dòng máy Mac và ngôn ngữ ứng dụng hiển thị bên dưới. Không bao gồm nhật ký.",
+        whatSentTitle: "Nội dung sẽ được gửi",
+        whatSentBasic: "Danh mục đã chọn và nội dung văn bản ở trên.",
+        whatSentDiagnostics: "Thông tin kỹ thuật được liệt kê bên dưới.",
+        privacyNote: "Không bao gồm tên, tài khoản, email, mã định danh thiết bị, nhật ký, ảnh chụp màn hình, tệp hoặc nội dung khay nhớ tạm. Địa chỉ IP công khai được xử lý tạm thời để chống lạm dụng và không được đính kèm vào phản hồi.",
+        retentionNote: "Sau khi gửi, nội dung văn bản vẫn lưu trong các kênh hỗ trợ riêng tư cho đến khi chủ dịch vụ xóa. Bản sao chưa gửi được sẽ bị xóa vĩnh viễn sau 7 ngày.",
+        sendButton: "Gửi phản hồi",
+        sending: "Đang gửi…",
+        sentTitle: "Đã gửi phản hồi",
+        sentCaption: "Cảm ơn. Không có thông tin liên hệ nào được gửi, nên sẽ không nhận được phản hồi trực tiếp.",
+        unavailableError: "Không thể kết nối. Kiểm tra kết nối internet rồi thử lại.",
+        rateLimitError: "Quá nhiều lượt gửi từ mạng này. Vui lòng thử lại sau.",
+        genericError: "Hiện không thể gửi phản hồi.",
+        done: "Xong",
+        commandBug: "Báo lỗi",
+        commandFeature: "Đề xuất tính năng",
+        commandSubtitle: "Gửi phản hồi",
+        diagnosticsChannelLabel: "Kênh cập nhật"
     )
 }

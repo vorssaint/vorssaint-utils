@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -487,5 +488,38 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "無法結束處理程序",
         killFailedMessage: "該處理程序可能已經結束，或需要額外的權限。",
         adminPromptFormat: "Vorssaint 需要管理員權限才能結束「%@」。"
+    )
+
+    static let vi = KillProcessFeatureStrings(
+        pageTitle: "Kết thúc tiến trình",
+        browseSubtitle: "Duyệt và kết thúc",
+        hubDescription: "Tìm kiếm các tiến trình đang chạy và buộc thoát, khởi động lại hoặc kết thúc cả cây tiến trình",
+        searchPlaceholder: "Lọc theo tên",
+        columnProcess: "Tiến trình",
+        columnCPU: "CPU",
+        columnMemory: "Bộ nhớ",
+        columnPID: "PID",
+        groupToggle: "Gộp nhóm các tiến trình liên quan",
+        groupCaption: "Gộp các tiến trình hỗ trợ vào dưới ứng dụng chịu trách nhiệm cho chúng.",
+        commandBarToggle: "Hiện trong Thanh lệnh",
+        commandBarCaption: "Thêm các tiến trình đang chạy vào Thanh lệnh, để tìm và kết thúc chúng mà không cần mở Cài đặt.",
+        refreshTooltip: "Làm mới",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "%d tiến trình",
+        killButton: "Kết thúc",
+        forceKillButton: "Buộc kết thúc",
+        killAllFormat: "Kết thúc tất cả “%@”",
+        killTreeButton: "Kết thúc cây tiến trình",
+        restartButton: "Khởi động lại",
+        copyPID: "Sao chép PID",
+        copyPath: "Sao chép đường dẫn",
+        emptyStateTitle: "Không tìm thấy tiến trình",
+        confirmKillFormat: "Kết thúc %@?",
+        confirmForceKillFormat: "Buộc kết thúc %@?",
+        confirmKillAllFormat: "Kết thúc tất cả tiến trình “%@”?",
+        confirmKillTreeFormat: "Kết thúc %@ và tất cả tiến trình con của nó?",
+        killFailedTitle: "Không thể kết thúc tiến trình",
+        killFailedMessage: "Tiến trình có thể đã thoát hoặc cần thêm quyền.",
+        adminPromptFormat: "Vorssaint cần quyền quản trị để kết thúc “%@”."
     )
 }

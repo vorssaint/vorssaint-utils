@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -134,5 +135,13 @@ extension WindowPreviewExclusionStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         caption: "當其中一個 App 位於前景時，視窗縮圖會暫停更新。"
+    )
+
+    static let vi = WindowPreviewExclusionStrings(
+        sectionTitle: "Hình thu nhỏ cửa sổ",
+        listTitle: "Tạm dừng ở các ứng dụng này",
+        addButton: "Thêm ứng dụng…",
+        removeButton: "Xóa",
+        caption: "Hình thu nhỏ cửa sổ ngừng cập nhật khi một trong các ứng dụng này đang ở phía trước."
     )
 }

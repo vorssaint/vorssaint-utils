@@ -50,6 +50,7 @@ struct WhatsAppOrganizerStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .vi: return .vi
         }
     }
 }
@@ -482,5 +483,38 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "WhatsApp 整理",
         notificationFormat: "已整理 %1$d 個檔案。處理了 %2$d 個重複下載。%3$d 個失敗。",
         privacyNote: "為辨識完全相同的重複檔案，檔案內容僅在本機計算加密摘要時被讀取。內容與聊天絕不會被儲存或上傳。"
+    )
+
+    static let vi = WhatsAppOrganizerStrings(
+        title: "Tự động sắp xếp",
+        experimental: "Thử nghiệm",
+        description: "Chuyển các tệp WhatsApp đã tải xuống ổn định sang một thư mục riêng và phát hiện các lượt tải xuống lặp lại giống hệt nhau.",
+        enabled: "Tự động sắp xếp",
+        enabledCaption: "WhatsApp có thể tải lại một tệp đã được chuyển đi. Vorssaint không thể ngăn việc tải xuống qua mạng, nhưng có thể phát hiện và loại bỏ bản sao thừa giống hệt.",
+        destination: "Thư mục đích",
+        chooseFolder: "Chọn…",
+        useDefault: "Dùng Tải xuống/WhatsApp",
+        invalidDestination: "Chọn một thư mục khác với chính thư mục Tải xuống.",
+        organization: "Cấu trúc thư mục",
+        flat: "Không có thư mục con",
+        byType: "Theo loại tệp",
+        byMonth: "Theo năm và tháng",
+        delay: "Chờ trước khi chuyển",
+        minutesFormat: "%d phút",
+        duplicateAction: "Khi cùng một tệp được tải xuống lại",
+        trashDuplicate: "Chuyển bản sao mới vào Thùng rác",
+        keepBoth: "Giữ cả hai bản sao",
+        replaceExisting: "Thay thế bản sao đã sắp xếp",
+        duplicateCaption: "Các bản trùng lặp được xác nhận bằng mã băm SHA-256 riêng tư. Bản sao đã sắp xếp được kiểm tra lại trước khi một bản sao khác bị loại bỏ.",
+        organizeNow: "Sắp xếp ngay các tệp đủ điều kiện",
+        undo: "Hoàn tác lần sắp xếp gần nhất",
+        waiting: "Đang theo dõi Tải xuống",
+        working: "Đang sắp xếp các tệp WhatsApp…",
+        resultFormat: "%1$d đã chuyển · %2$d bản trùng lặp · %3$d lỗi",
+        lastRunFormat: "Lần sắp xếp gần nhất %@: %d đã chuyển · %d bản trùng lặp · %d lỗi",
+        neverRun: "Chưa có lượt sắp xếp nào được thực hiện.",
+        notificationTitle: "Sắp xếp WhatsApp",
+        notificationFormat: "%1$d tệp đã được sắp xếp. %2$d lượt tải xuống trùng lặp đã được xử lý. %3$d lỗi.",
+        privacyNote: "Để nhận diện các bản trùng lặp chính xác, dữ liệu tệp chỉ được đọc cục bộ trong lúc tính mã băm mật mã. Nội dung và cuộc trò chuyện không bao giờ được lưu trữ hoặc tải lên."
     )
 }

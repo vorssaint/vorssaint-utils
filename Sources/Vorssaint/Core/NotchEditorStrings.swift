@@ -455,6 +455,42 @@ extension FeatureStrings {
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
             activationTimeFormat: "%.2f 秒"
         )
+        case .vi: return .vi
         }
     }
+}
+
+extension NotchEditorStrings {
+    static let vi = NotchEditorStrings(
+        layout: "Bố cục",
+        content: "Nội dung",
+        activity: "Hoạt động",
+        behavior: "Hành vi",
+        layoutHint: "Nhấn + để thêm nút. Kéo các nút quanh đảo. Nhấn vào một nút để chỉnh sửa.",
+        addButton: "Thêm nút",
+        editButton: "Sửa nút",
+        removeButton: "Xóa nút",
+        buttonName: "Tên",
+        position: "Vị trí",
+        bottom: "Dưới cùng",
+        sectionActions: "Mở một phần",
+        quickActions: "Thao tác nhanh",
+        findAction: "Tìm thao tác",
+        reorderHint: "Kéo để sắp xếp lại. Nhấn dấu chọn để hiện hoặc ẩn.",
+        opening: "Mở",
+        clickOpen: "Nhấn để mở",
+        hoverPreview: "Xem trước khi di chuột qua",
+        hoverExpand: "Mở rộng khi di chuột qua",
+        hiddenUntilHover: "Ẩn cho tới khi di chuột qua",
+        resting: "Khi rảnh",
+        destinations: "Nơi mở",
+        separate: "Cửa sổ riêng",
+        feedback: "Chỉ báo",
+        privacy: "Quyền riêng tư",
+        reopening: "Khi mở lại",
+        lastPage: "Trang gần nhất",
+        activationTime: "Thời gian kích hoạt",
+        activationTimeHint: "Giữ con trỏ trên đảo trong khoảng thời gian này để mở.",
+        activationTimeFormat: "%.2f giây"
+    )
 }
