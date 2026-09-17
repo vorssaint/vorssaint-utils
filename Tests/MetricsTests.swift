@@ -348,6 +348,7 @@ struct MetricsTests {
             (.zhHans, "剪贴板", "窗口布局", "实用工具", "提醒"),
             (.zhTW, "剪貼簿", "視窗排列", "工具程式", "提醒"),
             (.zhHK, "剪貼簿", "視窗排列", "工具", "提示"),
+            (.ar, "الحافظة", "تخطيط النوافذ", "الأدوات", "التنبيهات"),
         ]
         for (language, clipboardTitle, windowTitle, utilitiesTitle, alertsTitle) in featureTitles {
             expect(FeatureStrings.clipboard(language).title == clipboardTitle,
@@ -7306,7 +7307,7 @@ struct MetricsTests {
         let sizeTargetStrings: [(String, Strings)] = [
             ("en-US", .enUS), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
             ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
-            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW),
+            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW), ("ar", .ar),
         ]
         for (name, strings) in sizeTargetStrings {
             expect(!strings.mediaSizingResolution.isEmpty
@@ -8915,6 +8916,42 @@ struct MetricsTests {
                                          spacing: 10,
                                          inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
                "a single column puts every tile in its own row")
+        // Absolute frames in an AppKit document view mirror for nobody, so the
+        // grid is told to count its columns in from the other edge. The last
+        // row of a four-column grid holding three tiles is where it shows.
+        expect(ShelfTileLayout.tileFrame(index: 0, columns: 4,
+                                         tileSize: CGSize(width: 10, height: 10),
+                                         spacing: 2, inset: 1, mirrored: true).minX == 37
+                && ShelfTileLayout.tileFrame(index: 4, columns: 4,
+                                             tileSize: CGSize(width: 10, height: 10),
+                                             spacing: 2, inset: 1, mirrored: true)
+                    == CGRect(x: 37, y: 13, width: 10, height: 10),
+               "a mirrored shelf grid starts each row at the trailing edge")
+        expect(ShelfTileLayout.tileFrame(index: 2, columns: 4,
+                                         tileSize: CGSize(width: 10, height: 10),
+                                         spacing: 2, inset: 1, mirrored: true).minX
+                == ShelfTileLayout.tileFrame(index: 1, columns: 4,
+                                             tileSize: CGSize(width: 10, height: 10),
+                                             spacing: 2, inset: 1, mirrored: false).minX,
+               "mirroring reflects the column without moving the row")
+
+        // The notch level bars are drawn by hand inside an NSSliderCell, so
+        // AppKit mirrors the slider's tracking but not this fill. A quarter
+        // full reads from the trailing edge, and an empty or full bar looks the
+        // same either way.
+        let levelTrack = CGRect(x: 10, y: 0, width: 100, height: 6)
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: 0.25, mirrored: false)
+                == CGRect(x: 10, y: 0, width: 25, height: 6)
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 0.25, mirrored: true)
+                == CGRect(x: 85, y: 0, width: 25, height: 6),
+               "a mirrored level bar fills from the trailing edge")
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: 1, mirrored: true)
+                == NotchLevelBar.fillRect(track: levelTrack, fraction: 1, mirrored: false)
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 0, mirrored: true).width == 0,
+               "a full bar covers the track either way and an empty one draws nothing")
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: Double.nan, mirrored: true).width == 0
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 3, mirrored: true).minX == 10,
+               "a level bar clamps a value it cannot use")
 
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
@@ -16119,6 +16156,7 @@ struct MetricsTests {
                 case .zhHans: return .zhHans
                 case .zhTW: return .zhTW
                 case .zhHK: return .zhHK
+                case .ar: return .ar
                 }
             }()
             expect(!strings.obPurposeTitle.isEmpty && !strings.obPurposeBody.isEmpty

@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -134,5 +135,13 @@ extension MouseClickDebounceStrings {
         moreOptions: "更多選項",
         windowLabel: "過濾時段",
         windowCaption: "此時段內的重複點按會視為意外重複。"
+    )
+
+    static let ar = MouseClickDebounceStrings(
+        title: "مرشّح النقرات الزائدة",
+        caption: "يتجاهل النقرات الزائدة السريعة من أزرار الماوس المهترئة دون إبطاء النقر العادي.",
+        moreOptions: "خيارات أخرى",
+        windowLabel: "نافذة التصفية",
+        windowCaption: "تُعامل النقرة المتكررة داخل هذه الفترة كنقرة مكررة غير مقصودة."
     )
 }

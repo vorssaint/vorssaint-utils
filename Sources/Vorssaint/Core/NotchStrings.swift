@@ -88,6 +88,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -988,6 +989,75 @@ extension NotchStrings {
         sectionKeyboardHint: "使用方向鍵選取，再按 Return 鍵開啟",
         quickAccessLeft: "左側",
         quickAccessRight: "右側"
+    )
+
+    static let ar = NotchStrings(
+        title: "الجزيرة الديناميكية",
+        enable: "تفعيل الجزيرة الديناميكية",
+        description: "موسيقاك وعناصر التحكم وأدواتك اليومية، مجتمعة أعلى الشاشة. اختيارية. أوقفها لمواصلة استخدام اللوحات المنفصلة.",
+        menuBarAccessHint: "اسمح بإمكانية الوصول لتظهر الجزيرة الديناميكية على هذه الشاشة دون أن تغطي القوائم.",
+        display: "الشاشة",
+        automatic: "تلقائي",
+        builtIn: "الشاشة المدمجة",
+        mainDisplay: "الشاشة الرئيسية",
+        hover: "الفتح عند استقرار المؤشر على الجزيرة الديناميكية",
+        modules: "ما الذي يظهر",
+        events: "خيارات أخرى",
+        clipboardActivity: "الإشعار عند نسخ شيء",
+        captureActivity: "إظهار معاينات لقطات الشاشة هنا",
+        privacy: "يبقى المحتوى المنسوخ خاصًا حتى تفتح الحافظة. وتتبع هذه الخيارات إعدادات الميزة الأصلية.",
+        open: "فتح الجزيرة الديناميكية",
+        collapse: "طي",
+        pin: "الإبقاء مفتوحة",
+        unpin: "السماح بالإغلاق التلقائي",
+        panel: "فتح لوحة التطبيق",
+        dropHint: "أفلِت الملفات هنا",
+        empty: "اختر ما يظهر من إعدادات الجزيرة الديناميكية.",
+        volume: "مستوى الصوت",
+        brightness: "السطوع",
+        battery: "البطارية",
+        onBattery: "على البطارية",
+        charging: "قيد الشحن",
+        charged: "مشحونة بالكامل",
+        lowBattery: "بطارية منخفضة",
+        controls: "عناصر التحكم",
+        system: "النظام",
+        disabled: "فعّل الميزة المقابلة لاستخدامها هنا.",
+        files: "الملفات",
+        showInCaptures: "الإظهار في لقطات الشاشة والفيديوهات",
+        clipboardWindow: "فتح سجل الحافظة في الجزيرة الديناميكية",
+        tools: "الأدوات",
+        size: "الحجم",
+        compact: "مضغوط",
+        spacious: "فسيح",
+        hoverExpand: "التوسيع الكامل عند التمرير",
+        shelfWindow: "فتح رف الملفات في الجزيرة الديناميكية",
+        dragReveal: "إظهار هدف إفلات أثناء السحب",
+        captureControls: "إظهار عناصر التحكم بالتقاط الشاشة في الجزيرة الديناميكية",
+        quickPanel: "فتح اللوحة السريعة في الجزيرة الديناميكية",
+        appPanel: "فتح لوحة التطبيق في الجزيرة الديناميكية",
+        idleContent: "أثناء الخمول",
+        idleNone: "لا شيء",
+        controlShortcuts: "عناصر التحكم والاختصارات",
+        activity: "النشاط",
+        playingMusic: "إظهار الموسيقى أثناء التشغيل",
+        custom: "مخصص",
+        width: "العرض",
+        maximumHeight: "أقصى ارتفاع",
+        sizeHint: "تبقى عناصر التحكم مضغوطة. أما القوائم الأطول فتستخدم هذا الارتفاع كحد أقصى.",
+        hapticFeedback: "استجابة لمسية",
+        hapticHint: "نقرات لطيفة عند الفتح أو تبديل الأقسام أو ضبط دقائق المؤقت، على لوحة تتبع متوافقة.",
+        playbackPosition: "موضع التشغيل",
+        musicHint: "تظهر هنا موسيقاك وعناصر التحكم بالتشغيل.",
+        music: "الموسيقى",
+        captures: "اللقطات",
+        customizeTools: "تخصيص الأدوات",
+        switchSection: "تبديل القسم",
+        sectionsTitle: "استكشاف",
+        searchSections: "البحث عن قسم",
+        sectionKeyboardHint: "استخدم مفاتيح الأسهم ثم اضغط Return",
+        quickAccessLeft: "يسار",
+        quickAccessRight: "يمين"
     )
 
 }

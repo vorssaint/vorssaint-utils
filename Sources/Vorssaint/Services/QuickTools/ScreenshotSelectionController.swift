@@ -884,7 +884,7 @@ private final class ScreenshotOverlayView: NSView {
     private let strings: ScreenshotFeatureStrings
     private let purpose: String?
     private let screenCaptureOptions: ScreenCaptureSelectionOptions?
-    private let guideHost: PassThroughHostingView<CaptureGuideView>
+    private let guideHost: PassThroughHostingView<MirroredView<CaptureGuideView>>
 
     private var dragOrigin: CGPoint?
     private var lastDragPoint: CGPoint = .zero
@@ -954,7 +954,7 @@ private final class ScreenshotOverlayView: NSView {
             requiresDraggedRegion: controller.requiresDraggedRegion,
             scrollingCaptureEnabled: controller.scrollingCaptureEnabled,
             loupeEnabled: controller.loupeEnabled,
-            screenCaptureOptions: screenCaptureOptions))
+            screenCaptureOptions: screenCaptureOptions).appLayoutDirection())
         host.passesThrough = screenCaptureOptions == nil
         guideHost = host
         super.init(frame: frame)
@@ -1041,7 +1041,7 @@ private final class ScreenshotOverlayView: NSView {
             requiresDraggedRegion: controller?.requiresDraggedRegion ?? false,
             scrollingCaptureEnabled: controller?.scrollingCaptureEnabled ?? false,
             loupeEnabled: controller?.loupeEnabled ?? false,
-            screenCaptureOptions: screenCaptureOptions)
+            screenCaptureOptions: screenCaptureOptions).appLayoutDirection()
     }
 
     func captureToolDidChange() {

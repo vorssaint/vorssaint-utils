@@ -37,6 +37,8 @@ extension FeatureStrings {
             caption: "控制音樂、計時器、音量和亮度。選擇常用的浮動快捷按鈕。")
         case .zhHK: return NotchTourStrings(preview: "3.4 預覽",
             caption: "控制音樂、計時器、音量和亮度。選擇常用的浮動快捷按鈕。")
+        case .ar: return NotchTourStrings(preview: "معاينة الإصدار 3.4",
+            caption: "تحكّم في الموسيقى والمؤقتات ومستوى الصوت والسطوع. واختر الاختصارات العائمة الأكثر استخدامًا لديك.")
         }
     }
 }

@@ -1082,7 +1082,7 @@ final class ClipboardHistoryService: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: ClipboardQuickPanelView())
+        let host = NSHostingController(rootView: ClipboardQuickPanelView().appLayoutDirection())
         // The SwiftUI root owns the exact compact/preview frames and extends
         // under the title bar, so preferred-size tracking would add that bar
         // to the panel height a second time.

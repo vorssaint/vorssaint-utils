@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -358,5 +359,28 @@ extension SuperKeyStrings {
         soloInputSource: "切換輸入法；長撳切換大寫鎖定",
         mappingForeignMapping: "另一個 App 嘅按鍵對應用咗所選按鍵。請喺嗰個 App 度移除對應：淨係結束佢唔夠。",
         mappingSystemRefused: "macOS 拒絕咗按鍵對應。請重新接駁鍵盤或者重新啟動 Mac，然後重新開啟呢個功能。"
+    )
+
+    static let ar = SuperKeyStrings(
+        pageTitle: "المفتاح الخارق",
+        hubDescription: "يحوّل مفتاحًا واحدًا إلى مجموعة المعدِّلات التي تختارها.",
+        enableToggle: "استخدام هذا المفتاح كمفتاح خارق",
+        enableCaption: "استمر بالضغط عليه واضغط أي مفتاح. اختر معدِّلًا واحدًا أو أكثر أدناه.",
+        modifierKeysNote: "أبقِ هذا المفتاح على إجرائه الافتراضي في إعدادات النظام › لوحة المفاتيح › مفاتيح التعديل.",
+        sourceKey: "المفتاح المضغوط",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "%@ الأيمن",
+        holdHint: "استمر بالضغط",
+        soloSection: "ضغطة منفردة",
+        soloCaption: "ما تفعله الضغطة السريعة عندما لا يكون أي مفتاح آخر مضغوطًا.",
+        soloNothing: "لا شيء",
+        soloCapsLock: "تشغيل الأحرف الكبيرة وإيقافها",
+        soloEscape: "الضغط على Escape",
+        activeNow: "يعمل الآن",
+        panelCaptionFormat: "%1$@ يقوم بدور %2$@.",
+        manageButton: "الإعداد…",
+        soloInputSource: "تبديل مصدر الإدخال؛ واستمر بالضغط لـ Caps Lock",
+        mappingForeignMapping: "يستخدم تعيين مفاتيح تطبيق آخر المفتاح المحدد. أزِل التعيين من داخل ذلك التطبيق: إنهاؤه وحده لا يكفي.",
+        mappingSystemRefused: "رفض macOS تعيين المفتاح. أعِد توصيل لوحة المفاتيح أو أعِد تشغيل الـ Mac، ثم فعّل هذا مجددًا."
     )
 }

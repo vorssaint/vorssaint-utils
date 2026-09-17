@@ -246,6 +246,23 @@ extension FeatureStrings {
             optimizeMedia: "最佳化媒體",
             optimizeDropHint: "將圖片或一段影片拖曳到動態島，再放到「最佳化媒體」上，選擇如何儲存副本。",
             resumeMedia: "返回媒體")
+        case .ar: return NotchFilesStrings(
+            archive: "إنشاء ZIP",
+            archiveHint: "يُحفظ كل عنصر محدد في ملف ZIP منفصل. وتبقى الأصول دون تغيير.",
+            saved: "تم الحفظ",
+            downloadsTitle: "التنزيلات",
+            downloadsDescription: "شاهِد الملفات الواصلة إلى مجلد تختاره، في الجزيرة الديناميكية مباشرةً.",
+            downloadsHint: "اختر المجلد الذي يحفظ فيه متصفحك التنزيلات. ولا يُراقَب سواه.",
+            chooseFolder: "اختيار مجلد…",
+            folderUnavailable: "هذا المجلد غير متاح. اختره مجددًا لاستعادة الوصول.",
+            waiting: "لا توجد تنزيلات جارية",
+            inProgress: "جارٍ التنزيل",
+            totalUnknown: "الحجم الإجمالي غير متاح",
+            completed: "اكتمل التنزيل",
+            clearFolder: "نسيان المجلد",
+            optimizeMedia: "تحسين الوسائط",
+            optimizeDropHint: "اسحب صورًا أو مقطع فيديو واحدًا إلى الجزيرة، ثم أفلِته على “تحسين الوسائط” لاختيار طريقة حفظ نسخة.",
+            resumeMedia: "العودة إلى الوسائط")
         }
     }
 }

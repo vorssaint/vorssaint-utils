@@ -455,6 +455,38 @@ extension FeatureStrings {
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
             activationTimeFormat: "%.2f 秒"
         )
+        case .ar: return NotchEditorStrings(
+            layout: "التخطيط",
+            content: "المحتوى",
+            activity: "النشاط",
+            behavior: "السلوك",
+            layoutHint: "انقر + لإضافة زر. واسحب الأزرار حول الجزيرة. وانقر زرًا لتحريره.",
+            addButton: "إضافة زر",
+            editButton: "تحرير الزر",
+            removeButton: "إزالة الزر",
+            buttonName: "الاسم",
+            position: "الموضع",
+            bottom: "الأسفل",
+            sectionActions: "فتح قسم",
+            quickActions: "إجراءات سريعة",
+            findAction: "البحث عن إجراء",
+            reorderHint: "اسحب لإعادة الترتيب. وانقر علامة الصح للإظهار أو الإخفاء.",
+            opening: "الفتح",
+            clickOpen: "انقر للفتح",
+            hoverPreview: "معاينة عند التمرير",
+            hoverExpand: "توسيع عند التمرير",
+            hiddenUntilHover: "مخفي حتى التمرير",
+            resting: "في وضع السكون",
+            destinations: "أين تُفتح الأشياء",
+            separate: "نافذة منفصلة",
+            feedback: "المؤشرات",
+            privacy: "الخصوصية",
+            reopening: "عند إعادة الفتح",
+            lastPage: "آخر صفحة",
+            activationTime: "زمن التفعيل",
+            activationTimeHint: "أبقِ المؤشر فوق الجزيرة هذه المدة لفتحها.",
+            activationTimeFormat: "%.2f ث"
+        )
         }
     }
 }

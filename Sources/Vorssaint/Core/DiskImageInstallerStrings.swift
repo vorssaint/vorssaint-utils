@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -303,4 +304,23 @@ extension DiskImageInstallerStrings {
         installedKeptDownloadBodyFormat: "%@ 已可在「應用程式」中使用。磁碟映像檔已退出，下載檔案已保留。",
         installingFormat: "正在安裝 %@…"
     )
+
+    static let ar = DiskImageInstallerStrings(
+        title: "مثبّت صور الأقراص",
+        hubDescription: "ثبّت التطبيق الوحيد داخل صورة القرص ونظّف ملف التنزيل",
+        promptTitle: "تثبيت هذا التطبيق؟",
+        promptBodyFormat: "سيُنسخ %@ إلى “التطبيقات”. ثم تُخرَج صورة القرص ويُنقل ملف تنزيلها إلى المهملات.",
+        installButton: "تثبيت",
+        installedTitle: "تم تثبيت التطبيق",
+        installedBodyFormat: "%@ جاهز في “التطبيقات”. أُخرجت صورة القرص ونُقل ملف تنزيلها إلى المهملات.",
+        installedKeepingMountBodyFormat: "تم تثبيت %@، لكن تعذّر إخراج صورة القرص. وقد أُبقي على ملف تنزيلها.",
+        installedKeepingDownloadBodyFormat: "تم تثبيت %@ وأُخرجت صورة القرص، لكن تعذّر نقل ملف تنزيلها إلى المهملات.",
+        failedTitle: "تعذّر التثبيت",
+        failedBody: "لم يتغيّر أي شيء. لا يزال بإمكانك سحب التطبيق إلى “التطبيقات”.",
+        verificationFailedBody: "تعذّر على هذا الـ Mac التحقق من التطبيق، لذا لم يُثبَّت شيء.",
+        alreadyInstalledBodyFormat: "%@ موجود أصلًا في “التطبيقات”.",
+        trashDownloadOption: "نقل ملف التنزيل إلى المهملات",
+        revealAppOption: "إظهار التطبيق في “التطبيقات”",
+        installedKeptDownloadBodyFormat: "%@ جاهز في “التطبيقات”. أُخرجت صورة القرص وأُبقي على ملف تنزيلها.",
+        installingFormat: "جارٍ تثبيت %@…")
 }

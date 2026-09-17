@@ -196,7 +196,8 @@ final class DiskImageInstallerService {
     private func showProgress(for candidate: Candidate, strings: DiskImageInstallerStrings) {
         let host = NSHostingController(rootView: DiskImageInstallProgressView(
             icon: NSWorkspace.shared.icon(forFile: candidate.appURL.path),
-            message: String(format: strings.installingFormat, candidate.displayName)))
+            message: String(format: strings.installingFormat, candidate.displayName))
+            .appLayoutDirection())
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 

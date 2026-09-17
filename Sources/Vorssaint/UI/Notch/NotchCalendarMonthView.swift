@@ -27,8 +27,8 @@ struct NotchCalendarMonthView: View {
                         .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                NotchIconButton(symbol: "chevron.left", title: text.previousMonth) { move(-1) }
-                NotchIconButton(symbol: "chevron.right", title: text.nextMonth) { move(1) }
+                NotchIconButton(symbol: "chevron.backward", title: text.previousMonth) { move(-1) }
+                NotchIconButton(symbol: "chevron.forward", title: text.nextMonth) { move(1) }
             }
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(0..<7, id: \.self) { column in

@@ -64,7 +64,7 @@ struct BrightnessSection: View {
                 optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)

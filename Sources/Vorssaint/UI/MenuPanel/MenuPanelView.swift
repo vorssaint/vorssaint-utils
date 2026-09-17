@@ -392,7 +392,7 @@ struct MenuPanelView: View {
                 selectedSection = kind.panelSection
                 MenuPanelFocus.shared.clearMetricFocus()
             } label: {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
                     .font(.system(size: 11, weight: .semibold))
                     .frame(width: 24, height: 24)
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -1236,7 +1236,7 @@ struct QuickControlsSection: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.system(size: 8.5, weight: .bold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(editing || isExpanded(category) ? 90 : 0))
@@ -2059,7 +2059,7 @@ struct UtilityActionButton: View {
                         )
                 }
                 if showChevron {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
@@ -2253,7 +2253,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
 
-        let host = HeightReportingHostingView(rootView: content)
+        let host = HeightReportingHostingView(rootView: content.appLayoutDirection())
         host.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = host
         let clip = scroll.contentView
@@ -2271,7 +2271,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         scroll.scrollerStyle = .overlay
         guard let host = context.coordinator.host else { return }
-        host.rootView = content
+        host.rootView = content.appLayoutDirection()
         installReporter(on: host)               // re-bind to the latest measuredHeight
         let h = host.fittingSize.height          // catch content changes with no new layout pass
         if h > 1, abs(h - measuredHeight) > 0.5 {
@@ -2284,7 +2284,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     /// animation — so the popover tracks the real content height instead of a
     /// single stale reading taken when SwiftUI happened to re-run updateNSView.
     /// The 0.5pt guard also breaks the measure → resize → measure feedback loop.
-    private func installReporter(on host: HeightReportingHostingView<Content>) {
+    private func installReporter(on host: HeightReportingHostingView<MirroredView<Content>>) {
         let binding = $measuredHeight
         host.onLayout = { [weak host] in
             guard let host else { return }
@@ -2295,7 +2295,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var host: HeightReportingHostingView<Content>? }
+    final class Coordinator { var host: HeightReportingHostingView<MirroredView<Content>>? }
 }
 
 /// An `NSHostingView` that fires `onLayout` after each AppKit layout pass. The
@@ -2520,7 +2520,7 @@ struct KeepAwakeCard: View {
                 optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: optionsExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: optionsExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
@@ -2587,7 +2587,7 @@ struct KeepAwakeCard: View {
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     automationSummaryBadges
-                    Image(systemName: automationExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: automationExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 8.5, weight: .bold))
                         .foregroundStyle(.tertiary)
                 }

@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -214,4 +215,16 @@ extension PermissionGuideStrings {
         startOver: "重新開始",
         relaunch: "重新啟動以套用"
     )
+
+    static let ar = PermissionGuideStrings(
+        title: "بقيت خطوة واحدة",
+        stepOpen: "فتح macOS “إعدادات النظام” على القائمة الصحيحة.",
+        stepToggle: "فعّل Vorssaint في تلك القائمة.",
+        stepReturn: "عُد إلى هنا. ستلاحظ هذه البطاقة الأمر تلقائيًا.",
+        waiting: "في انتظار الإذن…",
+        granted: "تم منح الإذن!",
+        closeHelp: "إغلاق",
+        staleHint: "مفعّل أصلًا في تلك القائمة؟ ذلك المدخل يخص نسخة أقدم من التطبيق. ابدأ من جديد لاستبداله.",
+        startOver: "البدء من جديد",
+        relaunch: "أعِد التشغيل للتطبيق")
 }

@@ -172,13 +172,13 @@ struct NotchView: View {
     private var header: some View {
         HStack(spacing: 6) {
             if service.showingSections {
-                NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
+                NotchIconButton(symbol: "chevron.backward", title: l10n.s.obBack, action: service.toggleSections)
                 Text(text.sectionsTitle)
                     .font(.system(size: 16, weight: .semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if showsDetail || service.modules.isEmpty {
                 if showsDetail {
-                    NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.goBack)
+                    NotchIconButton(symbol: "chevron.backward", title: l10n.s.obBack, action: service.goBack)
                 }
                 Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric?.title(l10n.s) ?? text.title)
                     .font(.system(size: 15, weight: .semibold))

@@ -288,6 +288,26 @@ extension FeatureStrings {
             nextMonth: "下個月",
             emptyDay: "當天沒有行程",
             hasEvents: "有行程")
+        case .ar: return NotchCalendarStrings(
+            title: "التقويم",
+            description: "تصفّح الشهر ومواعيدك القادمة في الجزيرة الديناميكية.",
+            permission: "قراءة تقاويمك لعرض المواعيد القادمة. وتبقى الأحداث على هذا الـ Mac.",
+            allow: "السماح بالوصول إلى التقويم",
+            denied: "اسمح بالوصول إلى التقويم في إعدادات النظام لرؤية مواعيدك.",
+            settings: "فتح إعدادات النظام",
+            empty: "لا توجد مواعيد قادمة",
+            next: "التالي",
+            ongoing: "يجري الآن",
+            allDay: "طوال اليوم",
+            untitled: "حدث بلا عنوان",
+            openCalendar: "فتح التقويم",
+            week: "الأيام السبعة القادمة",
+            today: "اليوم",
+            requestFailed: "تعذّر طلب الوصول إلى التقويم. يُرجى المحاولة مجددًا.",
+            previousMonth: "الشهر السابق",
+            nextMonth: "الشهر التالي",
+            emptyDay: "لا مواعيد في هذا اليوم",
+            hasEvents: "به مواعيد")
         }
     }
 }
