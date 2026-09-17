@@ -272,7 +272,8 @@ final class SmoothScrollService: ObservableObject {
         let direction = ScrollDirectionPreferences(defaults: defaults)
         let redirected: Bool
         if adjustDirectionHere, let modifier = direction.horizontalModifier {
-            redirected = ScrollWheelSupport.redirectVerticalScroll(event, modifier: modifier)
+            redirected = ScrollWheelSupport.redirectVerticalScroll(event, modifier: modifier,
+                targetsOwnWindow: ScrollWheelTarget.shared.contains(event.location))
         } else {
             redirected = false
         }

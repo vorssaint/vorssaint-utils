@@ -19,15 +19,6 @@ enum ScrollHorizontalModifier: String, CaseIterable {
         case .command: return .maskCommand
         }
     }
-
-    var label: String {
-        switch self {
-        case .shift: return "⇧ Shift"
-        case .option: return "⌥ Option"
-        case .control: return "⌃ Control"
-        case .command: return "⌘ Command"
-        }
-    }
 }
 
 /// Both independently installed direction features share one tap. Resolve their
@@ -97,7 +88,8 @@ enum ScrollWheelSupport {
     /// the transformed event a second time. Other shortcut combinations keep
     /// their native meaning, as do wheels already supplying a horizontal axis.
     @discardableResult
-    static func redirectVerticalScroll(_ event: CGEvent, modifier: ScrollHorizontalModifier) -> Bool {
+    static func redirectVerticalScroll(_ event: CGEvent, modifier: ScrollHorizontalModifier,
+                                       targetsOwnWindow: @autoclosure () -> Bool = false) -> Bool {
         let shortcutFlags: CGEventFlags = [.maskShift, .maskAlternate, .maskControl, .maskCommand]
         guard event.flags.intersection(shortcutFlags) == modifier.flag else { return false }
 
@@ -108,6 +100,9 @@ enum ScrollWheelSupport {
               event.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 0,
               event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == 0,
               event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2) == 0 else { return false }
+        // Our capture/editor windows use these same modifiers for their own
+        // wheel gestures. Resolve the target only for a tick we would redirect.
+        guard !targetsOwnWindow() else { return false }
 
         // Line writes can rederive pixel fields; restore the captured precision
         // only after both line axes have been written.
@@ -126,9 +121,12 @@ enum ScrollWheelSupport {
     /// inversion to the axis the user will actually scroll.
     static func applyDirection(to event: CGEvent, isContinuous: Bool,
                                invertVertical: Bool, invertHorizontal: Bool,
-                               horizontalModifier: ScrollHorizontalModifier?) {
+                               horizontalModifier: ScrollHorizontalModifier?,
+                               targetsOwnWindow: @autoclosure () -> Bool = false) {
         let redirected = event.getIntegerValueField(.eventSourceUserData) == horizontalRedirectTag
-            || (horizontalModifier.map { redirectVerticalScroll(event, modifier: $0) } ?? false)
+            || (horizontalModifier.map {
+                redirectVerticalScroll(event, modifier: $0, targetsOwnWindow: targetsOwnWindow())
+            } ?? false)
         // Capture both axes before any set: writing a line delta makes the
         // system rederive its point and fixed-point fields.
         let verticalLine = event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
@@ -162,6 +160,25 @@ enum ScrollWheelSupport {
                 event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: -horizontalFixedPoint)
             }
         }
+    }
+
+    /// The list is front to back in Quartz coordinates. Do not restrict layers:
+    /// capture overlays sit above ordinary windows. An external window in front
+    /// must stop the search instead of exposing one of our windows behind it.
+    static func targetsOwnWindow(in windows: [[String: Any]], at point: CGPoint,
+                                 ownProcessID: Int32,
+                                 clickThroughWindowIDs: Set<CGWindowID>) -> Bool {
+        for window in windows {
+            guard let bounds = WindowServerSupport.bounds(from: window), bounds.contains(point),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0
+            else { continue }
+            let isOwnWindow = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownProcessID
+            if isOwnWindow,
+               let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+               clickThroughWindowIDs.contains(number) { continue }
+            return isOwnWindow
+        }
+        return false
     }
 
     static func isMouseWheel(_ traits: ScrollWheelEventTraits,

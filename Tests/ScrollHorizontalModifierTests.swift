@@ -6,6 +6,7 @@ import Foundation
 
 enum ScrollHorizontalModifierTests {
     static func run(_ suite: TestSuite) {
+        ownWindowGestures(suite)
         for continuous in [false, true] {
             for modifier in ScrollHorizontalModifier.allCases {
                 for sign: Int64 in [-1, 1] {
@@ -161,6 +162,76 @@ enum ScrollHorizontalModifierTests {
                 }
             }
         }
+    }
+
+    private static func ownWindowGestures(_ suite: TestSuite) {
+        let ownPID: Int32 = 41
+        let point = CGPoint(x: 100, y: 150)
+        func window(_ id: Int, pid: Int32, layer: Int = 0, alpha: Double = 1,
+                    frame: CGRect = CGRect(x: 0, y: 0, width: 400, height: 300)) -> [String: Any] {
+            [kCGWindowNumber as String: id,
+             kCGWindowOwnerPID as String: pid,
+             kCGWindowLayer as String: layer,
+             kCGWindowAlpha as String: alpha,
+             kCGWindowBounds as String: ["X": frame.minX, "Y": frame.minY,
+                                        "Width": frame.width, "Height": frame.height]]
+        }
+        let editor = window(1, pid: ownPID)
+        let external = window(2, pid: 52)
+        let overlay = window(3, pid: ownPID, layer: 1_000)
+        func ownTarget(_ windows: [[String: Any]], at point: CGPoint = point,
+                       clickThrough: Set<CGWindowID> = []) -> Bool {
+            ScrollWheelSupport.targetsOwnWindow(in: windows, at: point,
+                ownProcessID: ownPID, clickThroughWindowIDs: clickThrough)
+        }
+        suite.expect(ownTarget([editor, external]), "the editor under the pointer owns its wheel gesture")
+        suite.expect(ownTarget([overlay, external]), "high-level capture overlays own their wheel gestures")
+        suite.expect(!ownTarget([external, editor]), "an external window occludes our editor")
+        suite.expect(!ownTarget([overlay, external], clickThrough: [3]),
+                     "our click-through overlay does not claim the external app's wheel")
+        suite.expect(ownTarget([overlay, editor], clickThrough: [3]),
+                     "our editor remains the target beneath a click-through overlay")
+        suite.expect(!ownTarget([window(4, pid: ownPID, alpha: 0), external]),
+                     "a transparent own window does not claim the wheel")
+        suite.expect(!ownTarget([editor], at: CGPoint(x: 500, y: 150)),
+                     "an own window elsewhere does not disable horizontal scrolling")
+        suite.expect(ownTarget([window(5, pid: ownPID,
+            frame: CGRect(x: -400, y: -300, width: 400, height: 300))],
+            at: CGPoint(x: -100, y: -150)), "target lookup preserves secondary-display Quartz coordinates")
+
+        for continuous in [false, true] {
+            for modifier in [ScrollHorizontalModifier.option, .control] {
+                let targetWindows = modifier == .option ? [overlay, external] : [editor, external]
+                // The smooth path calls the redirect helper directly; the raw
+                // fallback applies it through the direction helper.
+                let event = wheel(continuous: continuous, flags: modifier.flag,
+                                  line: 2, point: 23, fixed: 2.25)
+                suite.expect(!ScrollWheelSupport.redirectVerticalScroll(event, modifier: modifier,
+                    targetsOwnWindow: ownTarget(targetWindows)),
+                    "smoothing does not claim capture Option or editor Control gestures")
+                ScrollWheelSupport.applyDirection(to: event, isContinuous: continuous,
+                    invertVertical: false, invertHorizontal: false, horizontalModifier: modifier,
+                    targetsOwnWindow: ownTarget(targetWindows))
+                suite.expect(event.flags == modifier.flag
+                    && event.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 2
+                    && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 23
+                    && event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1) == 2.25
+                    && event.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 0
+                    && event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.horizontalRedirectTag,
+                    "own-window wheel gestures retain the modifier, original axis and precise distance")
+                suite.expect(ScrollWheelSupport.redirectVerticalScroll(event, modifier: modifier,
+                    targetsOwnWindow: ownTarget([external, editor]))
+                    && event.flags.isEmpty
+                    && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == 23,
+                    "the same modifier still redirects the external window in front")
+            }
+        }
+        var lookupCount = 0
+        func resolveTarget() -> Bool { lookupCount += 1; return false }
+        let ordinary = wheel(flags: [])
+        ScrollWheelSupport.redirectVerticalScroll(ordinary, modifier: .option,
+            targetsOwnWindow: resolveTarget())
+        suite.expect(lookupCount == 0, "unmodified scrolling never queries the window target")
     }
 
     private static func wheel(continuous: Bool = false, flags: CGEventFlags,

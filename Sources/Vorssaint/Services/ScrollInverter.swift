@@ -51,10 +51,11 @@ final class ScrollInverter: ObservableObject {
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
-        let wanted = ScrollDirectionPreferences().isEnabled
-        if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
+        let direction = ScrollDirectionPreferences()
+        if SessionActivitySupport.tapShouldRun(featureWanted: direction.isEnabled,
                                                accessibilityGranted: Permissions.shared.accessibility,
                                                sessionIsActive: SessionActivity.shared.isActive) {
+            ScrollWheelTarget.shared.setEnabled(direction.horizontalModifier != nil)
             start()
         } else {
             stop()
@@ -86,6 +87,7 @@ final class ScrollInverter: ObservableObject {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            ScrollWheelTarget.shared.setEnabled(false)
             MouseAppExceptions.shared.setSourceTracking(false, for: .scrollDirection)
             isRunning = false
             // A create that fails during the session handoff gets one more look once the switch settles.
@@ -117,6 +119,7 @@ final class ScrollInverter: ObservableObject {
     }
 
     private func stop() {
+        ScrollWheelTarget.shared.setEnabled(false)
         tapCreationRetryWork?.cancel()
         tapCreationRetryWork = nil
         tapCreationRetryUsed = false
@@ -186,7 +189,8 @@ final class ScrollInverter: ObservableObject {
                 to: event, isContinuous: traits.isContinuous,
                 invertVertical: direction.invertVertical,
                 invertHorizontal: direction.invertHorizontal,
-                horizontalModifier: direction.horizontalModifier
+                horizontalModifier: direction.horizontalModifier,
+                targetsOwnWindow: ScrollWheelTarget.shared.contains(event.location)
             )
         }
         return Unmanaged.passUnretained(event)

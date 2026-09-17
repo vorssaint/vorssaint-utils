@@ -945,6 +945,7 @@ struct MouseSettings: View {
     }
 
     var body: some View {
+        let modifierStrings = FeatureStrings.quitProtection(l10n.language)
         Form {
             if AppFeature.scrollInverter.isAvailable || AppFeature.scrollHorizontal.isAvailable {
                 Section(l10n.s.scrollSection) {
@@ -968,14 +969,15 @@ struct MouseSettings: View {
                             }
                         if horizontalScrollEnabled {
                             Picker(l10n.s.scrollHorizontalModifierLabel, selection: $horizontalScrollModifier) {
-                                ForEach(ScrollHorizontalModifier.allCases, id: \.rawValue) { modifier in
-                                    Text(verbatim: modifier.label).tag(modifier)
-                                }
+                                Text("\(modifierStrings.shiftKey) (⇧)").tag(ScrollHorizontalModifier.shift)
+                                Text("\(modifierStrings.optionKey) (⌥)").tag(ScrollHorizontalModifier.option)
+                                Text("\(modifierStrings.controlKey) (⌃)").tag(ScrollHorizontalModifier.control)
+                                Text("\(l10n.s.scrollHorizontalCommandKey) (⌘)").tag(ScrollHorizontalModifier.command)
                             }
-                            Text(l10n.s.scrollHorizontalCaption)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
                         }
+                        Text(l10n.s.scrollHorizontalCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     if scrollDirectionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
