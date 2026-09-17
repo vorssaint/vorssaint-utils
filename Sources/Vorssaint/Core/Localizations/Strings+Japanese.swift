@@ -334,6 +334,11 @@ extension Strings {
         uninstallerCatLogs: "ログ",
         uninstallerCatState: "保存された状態",
         uninstallerCatOther: "その他",
+        uninstallerCommandBarBrowseTitle: "アプリケーションをアンインストール",
+        uninstallerCommandBarToggle: "コマンドバーに表示",
+        uninstallerCommandBarCaption: "コマンドバーでアプリを選択してアンインストールできます。",
+        uninstallerCommandBarFinderTitle: "Finderで選択したアプリをアンインストール",
+        uninstallerSelectionUnavailable: "Finderで削除できるアプリを選択するか、リストから別のアプリを選んでください。",
 
         urlCleanerName: "URL をクリーン",
         urlCleanerEnable: "コピー時に URL を自動でクリーン",

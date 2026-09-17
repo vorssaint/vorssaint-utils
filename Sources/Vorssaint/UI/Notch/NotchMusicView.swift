@@ -143,7 +143,9 @@ struct NotchMusicView: View {
 
 private struct NotchMusicTransport: View {
     let playback: NotchPlayback
-    private let service = NotchMusicService.shared
+    // Automation discovery and consent finish after the first render while the
+    // track stays the same, so this row must observe the service itself.
+    @ObservedObject private var service = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
@@ -209,7 +211,7 @@ private struct NotchMusicTransport: View {
 
 private struct NotchMusicTimeline: View {
     let playback: NotchPlayback
-    let service: NotchMusicService
+    @ObservedObject var service: NotchMusicService
     var tint: Color = .white
     @ObservedObject private var l10n = L10n.shared
     @State private var scrubPosition: Double?

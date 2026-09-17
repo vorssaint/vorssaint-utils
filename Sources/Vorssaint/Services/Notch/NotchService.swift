@@ -962,7 +962,8 @@ final class NotchService: ObservableObject {
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
         syncHiddenHoverMonitoring()
         if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
-            panel?.orderOut(nil)
+            if hiddenUntilHover { windowHost?.hide(animated: animated) }
+            else { panel?.orderOut(nil) }
             removeScreenEdgeClickMonitors()
             return
         }
@@ -979,7 +980,10 @@ final class NotchService: ObservableObject {
         if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
         windowHost?.present(size: size, geometry: geometry, animated: animated,
                             transitionContent: transitionContent,
-                            quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil)
+                            quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil,
+                            revealFromHidden: captureControls == nil
+                                && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
+                                && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover))
         let activationRect: CGRect
         if captureControls != nil {
             activationRect = captureControlsCollapsed ? CGRect(origin: .zero, size: size) : .zero

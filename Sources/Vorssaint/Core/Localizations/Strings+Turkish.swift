@@ -334,6 +334,11 @@ extension Strings {
         uninstallerCatLogs: "Günlükler",
         uninstallerCatState: "Kaydedilen durum",
         uninstallerCatOther: "Diğer",
+        uninstallerCommandBarBrowseTitle: "Uygulamayı Kaldır",
+        uninstallerCommandBarToggle: "Komut Çubuğunda Göster",
+        uninstallerCommandBarCaption: "Komut Çubuğunda uygulama seçin ve kaldırın.",
+        uninstallerCommandBarFinderTitle: "Finder’da seçili uygulamayı kaldır",
+        uninstallerSelectionUnavailable: "Finder’da kaldırılabilen bir uygulama seçin veya listeden başka bir uygulama seçin.",
 
         urlCleanerName: "URL temizle",
         urlCleanerEnable: "URL’leri kopyalarken temizle",

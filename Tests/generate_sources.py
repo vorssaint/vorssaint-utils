@@ -40,6 +40,24 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
+    bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
+    write("UninstallerFlow.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
+          + "extension UninstallerFlowTests {\n"
+          + declaration(uninstall, "    enum Phase:")
+          + declaration(bar, "    enum Mode:")
+          + "final class Uninstaller: UninstallerState {\nstatic let shared = Uninstaller()\n"
+          + "".join(declaration(uninstall, prefix) for prefix in [
+              "    var isRemoving: Bool", "    func select(appURL:",
+              "    func reset()", "    func setInclude("])
+          + "}\nfinal class Service: ServiceState {\n"
+          + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
+              "    @Published var query", "    private func beginUninstallReview(",
+              "    private func handleUninstallKey(", "    func stepBack()",
+              "    private func finishUninstallReview()"])
+          + "}\n}\nextension UninstallerFlowTests.Finder {\n"
+          + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
+          + "}\n")
     dock = "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift"
     write("DockPreviewScope.swift", "import Foundation\nextension DockPreviewScopeTests.Service {\n"
           + "".join(declaration(dock, prefix).replace("private func", "func", 1)

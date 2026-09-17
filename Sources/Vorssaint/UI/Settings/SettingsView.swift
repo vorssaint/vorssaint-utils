@@ -148,7 +148,16 @@ struct SettingsView: View {
                 if !items.isEmpty {
                     Section(section.title) {
                         ForEach(items) { item in
-                            Label(item.title, systemImage: item.icon).tag(item.page)
+                            Label {
+                                Text(item.title)
+                            } icon: {
+                                Image(systemName: item.icon)
+                                    // The sidebar's automatic icon tint can briefly disappear
+                                    // while the window activates. Resolve it in the icon itself.
+                                    .foregroundStyle(router.page == item.page
+                                        ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
+                            }
+                            .tag(item.page)
                         }
                     }
                 }

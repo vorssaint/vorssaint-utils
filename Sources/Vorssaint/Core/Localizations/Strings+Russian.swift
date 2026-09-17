@@ -335,6 +335,11 @@ extension Strings {
         uninstallerCatLogs: "Логи",
         uninstallerCatState: "Сохранённое состояние",
         uninstallerCatOther: "Другое",
+        uninstallerCommandBarBrowseTitle: "Удалить приложение",
+        uninstallerCommandBarToggle: "Показывать в командной панели",
+        uninstallerCommandBarCaption: "Выбирайте и удаляйте приложения в командной панели.",
+        uninstallerCommandBarFinderTitle: "Удалить приложение, выбранное в Finder",
+        uninstallerSelectionUnavailable: "Выберите в Finder приложение, которое можно удалить, или выберите другое из списка.",
 
         urlCleanerName: "Очистка URL",
         urlCleanerEnable: "Очищать URL при копировании",

@@ -335,6 +335,11 @@ extension Strings {
         uninstallerCatLogs: "로그",
         uninstallerCatState: "저장된 상태",
         uninstallerCatOther: "기타",
+        uninstallerCommandBarBrowseTitle: "애플리케이션 제거",
+        uninstallerCommandBarToggle: "명령 바에 표시",
+        uninstallerCommandBarCaption: "명령 바에서 앱을 선택하고 제거합니다.",
+        uninstallerCommandBarFinderTitle: "Finder에서 선택한 앱 제거",
+        uninstallerSelectionUnavailable: "Finder에서 제거할 수 있는 앱을 선택하거나 목록에서 다른 앱을 선택하세요.",
 
         urlCleanerName: "URL 정리",
         urlCleanerEnable: "복사할 때 URL 자동 정리",

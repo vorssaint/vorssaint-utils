@@ -334,6 +334,11 @@ extension Strings {
         uninstallerCatLogs: "Protokolle",
         uninstallerCatState: "Gesicherter Zustand",
         uninstallerCatOther: "Sonstiges",
+        uninstallerCommandBarBrowseTitle: "Anwendung deinstallieren",
+        uninstallerCommandBarToggle: "In der Befehlsleiste anzeigen",
+        uninstallerCommandBarCaption: "Apps in der Befehlsleiste auswählen und deinstallieren.",
+        uninstallerCommandBarFinderTitle: "Im Finder ausgewählte App deinstallieren",
+        uninstallerSelectionUnavailable: "Wähle im Finder eine App, die entfernt werden kann, oder eine andere aus der Liste.",
 
         urlCleanerName: "URL bereinigen",
         urlCleanerEnable: "URLs beim Kopieren bereinigen",

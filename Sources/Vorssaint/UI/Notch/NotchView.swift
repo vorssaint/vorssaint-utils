@@ -30,7 +30,7 @@ struct NotchView: View {
 
     private var shape: NotchShape {
         NotchShape(attached: true,
-                   radius: min(28, service.surfaceSize.height / 2))
+                   radius: NotchLayout.surfaceRadius(height: service.surfaceSize.height))
     }
 
     @ViewBuilder private var surface: some View {

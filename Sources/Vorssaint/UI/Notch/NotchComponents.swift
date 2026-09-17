@@ -203,6 +203,7 @@ struct NotchTileGrid<Item: Identifiable, Content: View>: View {
 struct NotchControlSurface: ViewModifier {
     let cornerRadius: CGFloat
     var selected = false
+    var interactive = true
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
@@ -213,7 +214,7 @@ struct NotchControlSurface: ViewModifier {
 #if compiler(>=6.2)
             if #available(macOS 26, *), glass, !reduceTransparency {
                 content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
-                    .glassEffect(.regular.interactive(), in: shape)
+                    .glassEffect(.regular.interactive(interactive), in: shape)
             } else {
                 content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
             }

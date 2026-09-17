@@ -118,8 +118,8 @@ func sectionTitle(_ text: String) -> some View {
 
 extension View {
     /// The rounded card background used by every panel section.
-    func panelCard() -> some View {
-        modifier(PanelCardModifier())
+    func panelCard(interactive: Bool = true) -> some View {
+        modifier(PanelCardModifier(interactive: interactive))
     }
 
     /// A restrained glass base for the menu panel: still translucent, but with a
@@ -131,12 +131,13 @@ extension View {
 }
 
 private struct PanelCardModifier: ViewModifier {
+    var interactive: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.notchPresentation) private var notchPresentation
 
     func body(content: Content) -> some View {
         if notchPresentation {
-            content.padding(12).modifier(NotchControlSurface(cornerRadius: 18))
+            content.padding(12).modifier(NotchControlSurface(cornerRadius: 18, interactive: interactive))
         } else {
         content
             .padding(10)

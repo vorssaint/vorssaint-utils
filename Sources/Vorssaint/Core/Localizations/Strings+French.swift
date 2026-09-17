@@ -334,6 +334,11 @@ extension Strings {
         uninstallerCatLogs: "Journaux",
         uninstallerCatState: "État enregistré",
         uninstallerCatOther: "Autres",
+        uninstallerCommandBarBrowseTitle: "Désinstaller une application",
+        uninstallerCommandBarToggle: "Afficher dans la barre de commandes",
+        uninstallerCommandBarCaption: "Choisissez et désinstallez des apps dans la barre de commandes.",
+        uninstallerCommandBarFinderTitle: "Désinstaller l’app sélectionnée dans le Finder",
+        uninstallerSelectionUnavailable: "Sélectionnez dans le Finder une app pouvant être supprimée, ou choisissez-en une autre dans la liste.",
 
         urlCleanerName: "Nettoyer l’URL",
         urlCleanerEnable: "Nettoyer les URL à la copie",

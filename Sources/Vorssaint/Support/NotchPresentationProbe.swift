@@ -10,6 +10,104 @@ import QuartzCore
 /// clipboard, keyboard input or hardware controls. Tests keep the window
 /// invisible; the separate, explicitly requested notice preview is visible.
 enum NotchPresentationProbe {
+    private static func checkHiddenReveal(screen: NSScreen) -> [String] {
+        var failures: [String] = []
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        for safeArea: CGFloat in [0, 32] {
+            let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: safeArea,
+                                         cameraWidth: safeArea > 0 ? 210 : 0)
+            let host = NotchWindowHost(content: AnyView(Color.black), geometry: geometry, size: geometry.collapsed,
+                                      quickAccess: { AnyView(NotchQuickAccessView(service: .shared, motion: $0)) })
+            host.panel.alphaValue = 0
+            host.panel.ignoresMouseEvents = true
+            func advance(_ seconds: TimeInterval) {
+                RunLoop.current.run(until: Date().addingTimeInterval(seconds))
+            }
+            // Reopen at the unchanged size, then interrupt a reveal and reopen
+            // at another size. Neither may reuse the concealed, expanded mask.
+            for (index, size) in [geometry.expanded, geometry.expanded, geometry.peek].enumerated() {
+                host.panel.orderOut(nil)
+                host.present(size: size, geometry: geometry, animated: true,
+                             quickAccess: .initial, revealFromHidden: true)
+                if host.quickAccessProbeInteractive && !reduceMotion {
+                    failures.append("hidden reveal exposed floating controls before the island")
+                }
+                host.panel.orderFrontRegardless()
+                advance(0.08)
+                if !reduceMotion && !(host.visibleFrame.height > 0 && host.visibleFrame.height < size.height) {
+                    failures.append("hidden reveal has no intermediate frames (opening \(index), safe area \(safeArea))")
+                }
+                if abs(host.panel.frame.maxY - screen.frame.maxY) > 0.5
+                    || abs(host.contentTopOnScreen - screen.frame.maxY) > 0.5
+                    || !host.containsHover(CGPoint(x: screen.frame.midX, y: screen.frame.maxY)) {
+                    failures.append("hidden reveal detached from the screen edge or lost stationary hover")
+                }
+                if !reduceMotion && host.contains(CGPoint(x: screen.frame.midX, y: host.panel.frame.maxY - size.height + 2)) {
+                    failures.append("hidden reveal accepted clicks in unrevealed content")
+                }
+                if index == 1 { continue }
+                advance(1)
+                if abs(host.visibleFrame.height - size.height) > 0.5 || !host.quickAccessProbeInteractive {
+                    failures.append("hidden reveal failed to settle with usable floating controls")
+                }
+            }
+            host.hide(animated: true)
+            let closingResizes = host.resizeCount
+            for _ in 0..<10 { host.hide(animated: true) }
+            if !reduceMotion && host.resizeCount != closingResizes {
+                failures.append("repeated hidden refreshes restarted the withdrawal")
+            }
+            advance(NotchQuickAccessLayout.withdrawalDuration + 0.08)
+            if !reduceMotion && (!host.panel.isVisible || host.visibleFrame.height <= 0
+                                  || host.visibleFrame.height >= geometry.peek.height) {
+                failures.append("hidden withdrawal has no intermediate frames")
+            }
+            if host.quickAccessProbeInteractive || !host.panel.ignoresMouseEvents {
+                failures.append("departing island or floating controls retained mouse input")
+            }
+            host.present(size: geometry.expanded, geometry: geometry, animated: true,
+                         quickAccess: .initial, revealFromHidden: true)
+            host.panel.orderFrontRegardless()
+            advance(1)
+            if !host.panel.isVisible || abs(host.visibleFrame.height - geometry.expanded.height) > 0.5
+                || !host.quickAccessProbeInteractive || !host.panel.ignoresMouseEvents {
+                failures.append("reopening during withdrawal lost the island, controls or prior mouse policy")
+            }
+            host.hide(animated: true)
+            advance(1)
+            if host.panel.isVisible || host.quickAccessProbeInteractive || host.quickAccessProbeTrackingAreas != 0 {
+                failures.append("settled withdrawal left a window or floating control active")
+            }
+            host.present(size: geometry.expanded, geometry: geometry, animated: true,
+                         quickAccess: .initial, revealFromHidden: true)
+            host.panel.orderFrontRegardless()
+            advance(0.08)
+            host.hide(animated: true)
+            advance(1)
+            if host.panel.isVisible { failures.append("closing during reveal failed to hide the island") }
+
+            host.panel.orderOut(nil)
+            host.present(size: geometry.expanded, geometry: geometry, animated: false, revealFromHidden: true)
+            host.panel.orderFrontRegardless()
+            advance(0.03)
+            if host.visibleFrame.size != geometry.expanded {
+                failures.append("nonanimated hidden reveal did not present its final size immediately")
+            }
+            host.panel.orderOut(nil)
+            host.present(size: geometry.peek, geometry: geometry, animated: true)
+            host.panel.orderFrontRegardless()
+            advance(0.03)
+            if host.visibleFrame.size != geometry.peek {
+                failures.append("ordinary first presentation unexpectedly animated from a hidden panel")
+            }
+            host.hide(animated: true)
+            host.hide(animated: false)
+            if host.panel.isVisible { failures.append("nonanimated withdrawal did not hide the island immediately") }
+            host.close()
+        }
+        return failures
+    }
+
     /// An explicitly requested preview uses the real notice and animation host,
     /// with no connection, audio adjustment or preference change.
     private static func previewNoticeAndExit(title: String) -> Never {
@@ -67,7 +165,7 @@ enum NotchPresentationProbe {
         host.panel.alphaValue = 0
         host.panel.ignoresMouseEvents = true
         host.panel.orderFrontRegardless()
-        var failures: [String] = []
+        var failures = checkHiddenReveal(screen: screen)
         if host.panel.collectionBehavior.intersection([.managed, .transient, .stationary]) != .stationary {
             failures.append("the island must stay stationary when revealing the desktop, without a conflicting window motion policy")
         }
@@ -89,6 +187,12 @@ enum NotchPresentationProbe {
         }
         defer { NotificationCenter.default.removeObserver(resizeObserver) }
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        func matchesNativeFrame(_ actual: CGRect, _ expected: CGRect) -> Bool {
+            // AppKit rounds window bounds even when the display's camera safe
+            // area is fractional (for example, 37.5 pt). Keep subpoint tolerance.
+            abs(actual.minX - expected.minX) <= 0.5 && abs(actual.minY - expected.minY) <= 0.5
+                && abs(actual.width - expected.width) <= 0.5 && abs(actual.height - expected.height) <= 0.5
+        }
         var samples = 0
         var maxAnchorError: CGFloat = 0
         var maxContentError: CGFloat = 0
@@ -134,7 +238,7 @@ enum NotchPresentationProbe {
             if !reduceMotion { failures.append("opening has no intermediate frames") }
         }
         if !reduceMotion {
-            if host.panel.frame.size != geometry.expanded { failures.append("opening did not reserve its backing area") }
+            if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.expanded)) { failures.append("opening did not reserve its backing area") }
             let outside = CGPoint(x: host.panel.frame.minX + 12, y: host.panel.frame.minY + 4)
             if host.contains(outside) { failures.append("transparent transition area accepted an interaction") }
             if let canvas = host.panel.contentView {
@@ -169,7 +273,7 @@ enum NotchPresentationProbe {
             failures.append("closing disabled the hosting view's interaction frame")
         }
         advance(0.52)
-        if host.panel.frame != geometry.frame(for: geometry.notice) { failures.append("notice did not settle") }
+        if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.notice)) { failures.append("notice did not settle") }
         if host.panel.contentView?.layer?.sublayers?.first(where: { $0.name == "notch.contentCover" })?.opacity != 0 {
             failures.append("settled content remained hidden")
         }
@@ -191,7 +295,7 @@ enum NotchPresentationProbe {
             advance(0.04)
         }
         advance(0.60)
-        if host.panel.frame != geometry.frame(for: geometry.collapsed) { failures.append("interrupted motion did not settle") }
+        if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.collapsed)) { failures.append("interrupted motion did not settle") }
         noticeHeightLimit = geometry.notice.height
         for wing in [CGFloat(112), 190, 240] {
             let size = geometry.noticeSize(wingWidth: wing)
@@ -204,7 +308,7 @@ enum NotchPresentationProbe {
             for _ in 0..<1000 { host.present(size: size, geometry: geometry, animated: true) }
             if host.resizeCount != beforeUpdates { failures.append("horizontal value updates restarted the resize") }
             advance(0.55)
-            if host.panel.frame != geometry.frame(for: size) { failures.append("horizontal feedback did not settle") }
+            if !matchesNativeFrame(host.panel.frame, geometry.frame(for: size)) { failures.append("horizontal feedback did not settle") }
             host.present(size: geometry.collapsed, geometry: geometry, animated: true, transitionContent: .dismiss)
             advance(0.55)
         }
@@ -237,7 +341,7 @@ enum NotchPresentationProbe {
         if host.beginProbeDrop(pasteboard) != [] { failures.append("disabled target retained its drop handler") }
         pasteboard.releaseGlobally()
         host.present(size: geometry.peek, geometry: geometry, animated: false)
-        if host.panel.frame != geometry.frame(for: geometry.peek)
+        if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.peek))
             || host.panel.contentView?.layer?.mask?.animation(forKey: "notch.resize") != nil {
             failures.append("immediate presentation retained an animation")
         }
@@ -245,7 +349,7 @@ enum NotchPresentationProbe {
         advance(0.04)
         host.panel.contentView?.layer?.mask?.removeAnimation(forKey: "notch.resize")
         advance(0.04)
-        if host.panel.frame != geometry.frame(for: geometry.expanded) {
+        if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.expanded)) {
             failures.append("an externally cancelled animation retained its reserved frame")
         }
         var activationCount = 0
@@ -340,7 +444,7 @@ enum NotchPresentationProbe {
                 failures.append("the notch withdrew before its floating controls could rejoin it")
             }
             advance(0.95)
-            if bubbles.panel.frame != geometry.frame(for: geometry.collapsed) {
+            if !matchesNativeFrame(bubbles.panel.frame, geometry.frame(for: geometry.collapsed)) {
                 failures.append("closing retained transparent space for the floating controls")
             }
             for _ in 0..<3 {
