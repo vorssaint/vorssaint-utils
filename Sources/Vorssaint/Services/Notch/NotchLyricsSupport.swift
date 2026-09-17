@@ -51,6 +51,10 @@ struct NotchLyrics: Equatable {
             // not leave the highlight just before its boundary until the next verse.
             dates.append(Date(timeIntervalSinceReferenceDate: max(now.timeIntervalSinceReferenceDate, time).nextUp))
         }
+        // SwiftUI can omit the last entry of a finite explicit timeline.
+        // Leave a terminal entry beyond playback so the final verse is delivered,
+        // without recurring wakeups or any scheduled work while paused.
+        if dates.count > 1 { dates.append(.distantFuture) }
         return dates
     }
 

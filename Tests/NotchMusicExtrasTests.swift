@@ -26,6 +26,7 @@ enum NotchMusicExtrasTests {
                         $0.element.time + offset > position && $0.element.time + offset <= playback.duration
                     }
                     let dates = lyrics.changeDates(for: playback, offset: offset, from: now)
+                        .filter { $0 != .distantFuture }
                     expect(dates.first == now && dates.count == upcoming.count + 1,
                            "lyrics refresh immediately after a seek or timing change and only at reachable future verses")
                     expect(zip(dates, dates.dropFirst()).allSatisfy { $0 < $1 },
@@ -47,6 +48,7 @@ enum NotchMusicExtrasTests {
         expect(lyrics.changeDates(for: playback(), offset: .nan, from: sampledAt) == [sampledAt],
                "an invalid lyric offset cannot schedule a wakeup")
         let resumed = lyrics.changeDates(for: playback(elapsed: 6), offset: 0, from: sampledAt)
+            .filter { $0 != .distantFuture }
         expect(resumed.count == 4 && resumed[1].timeIntervalSince(sampledAt) < 0.626,
                "resuming or seeking back schedules the next verse from the new playback position")
     }
