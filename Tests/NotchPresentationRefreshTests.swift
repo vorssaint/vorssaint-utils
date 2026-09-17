@@ -45,6 +45,12 @@ enum NotchPresentationRefreshContract {
         func orderFrontRegardless() { isVisible = true }
     }
     final class Host {
+        let panel = Panel()
+        var hideAnimations: [Bool] = []
+        func hide(animated: Bool) {
+            hideAnimations.append(animated)
+            panel.orderOut(nil)
+        }
         var targetSize: CGSize = .zero
         var frame: CGRect = .zero
         var animatingFrame: CGRect?
@@ -53,8 +59,11 @@ enum NotchPresentationRefreshContract {
         func containsHover(_ point: CGPoint) -> Bool { frame.contains(point) }
         func contains(_ point: CGPoint) -> Bool { (animatingFrame ?? frame).contains(point) }
         var onPresent: ((CGSize) -> Void)?
+        var revealFromHidden = false
         func present(size: CGSize, geometry: NotchGeometry, animated: Bool,
-                     transitionContent: NotchContentTransition, quickAccess: NotchQuickAccessConfiguration?) {
+                     transitionContent: NotchContentTransition, quickAccess: NotchQuickAccessConfiguration?,
+                     revealFromHidden: Bool) {
+            self.revealFromHidden = revealFromHidden
             onPresent?(size)
             targetSize = size
             frame = geometry.frame(for: size)
@@ -92,8 +101,8 @@ enum NotchPresentationRefreshContract {
         func syncVisibleConsumers() {}
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
-        var panel: Panel? = Panel()
         var windowHost: Host? = Host()
+        var panel: Panel? { windowHost?.panel }
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210)
         var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
@@ -219,6 +228,8 @@ enum NotchPresentationRefreshContract {
         simulated.refreshPresentation()
         expect(simulated.panel?.isVisible == true && simulated.windowHost?.frame.maxY == simulated.geometry.screen.maxY,
                "explicitly opening tools remains available without a menu measurement")
+        expect(simulated.windowHost?.revealFromHidden == false,
+               "ordinary openings keep their existing presentation behavior")
         simulated.expanded = false
         simulated.refreshPresentation()
         expect(simulated.panel?.isVisible == false,
@@ -234,13 +245,22 @@ enum NotchPresentationRefreshContract {
             hidden.refreshPresentation()
             expect(hidden.panel?.isVisible == false && !hidden.edgeClicksEnabled && !hidden.showsSystemFeedback,
                    "hidden mode withdraws the entire window, including compact activity and an existing notice")
+            expect(hidden.windowHost?.hideAnimations.last == true,
+                   "closing a hidden-until-hover island requests an animated withdrawal")
+            hidden.refreshPresentation(animated: false)
+            expect(hidden.windowHost?.hideAnimations.last == false,
+                   "a nonanimated refresh preserves immediate withdrawal")
             hidden.expanded = true
             hidden.refreshPresentation()
             expect(hidden.panel?.isVisible == true && hidden.showsSystemFeedback, "explicit openings remain visible in hidden mode")
+            expect(hidden.windowHost?.revealFromHidden == true,
+                   "opening a hidden island requests a reveal from the screen edge")
             hidden.expanded = false
             hidden.captureControls = CaptureOptions()
             hidden.refreshPresentation()
             expect(hidden.panel?.isVisible == true, "capture controls remain visible until dismissed")
+            expect(hidden.windowHost?.revealFromHidden == false,
+                   "capture controls keep their own presentation in hidden-until-hover mode")
             hidden.captureControls = nil
             hidden.dragPlaceholder = true
             hidden.refreshPresentation()
