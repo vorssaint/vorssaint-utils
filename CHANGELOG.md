@@ -7,7 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see with large icons.
+App Switcher makes multiple windows easier to see with large icons. The mixer remembers pinned apps and your preferred order.
+
+### Added
+- Pin and reorder mixer apps, with positions remembered when apps reopen and included in settings backups.
 
 ### Fixed
 - App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.

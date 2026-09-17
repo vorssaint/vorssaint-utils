@@ -101,20 +101,25 @@ enum FeatureStrings {
 
 struct MixerFeatureStrings {
     let hideInactiveApps: String
+    let pin: String
+    let unpin: String
+    let moveUp: String
+    let moveDown: String
+    let arrange: String
 
-    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps")
-    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos")
-    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle")
-    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения")
-    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas")
-    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden")
-    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives")
-    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive")
-    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す")
-    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기")
-    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App")
-    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
-    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
+    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", arrange: "Hold Command and drag to reorder")
+    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", arrange: "Segure Command e arraste para reorganizar")
+    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin")
+    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", arrange: "Удерживайте Command и перетащите для изменения порядка")
+    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", arrange: "Mantén pulsado Command y arrastra para reordenar")
+    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen")
+    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", arrange: "Maintenez Command et faites glisser pour réorganiser")
+    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive", pin: "Fissa in alto", unpin: "Rimuovi fissaggio", moveUp: "Sposta su", moveDown: "Sposta giù", arrange: "Tieni premuto Command e trascina per riordinare")
+    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す", pin: "一番上に固定", unpin: "固定を解除", moveUp: "上に移動", moveDown: "下に移動", arrange: "Commandキーを押しながらドラッグして並べ替え")
+    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기", pin: "맨 위에 고정", unpin: "고정 해제", moveUp: "위로 이동", moveDown: "아래로 이동", arrange: "Command 키를 누른 채 드래그하여 순서 변경")
+    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App", pin: "置顶", unpin: "取消置顶", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 并拖移以重新排列")
+    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 並拖移以重新排列")
+    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 並拖移以重新排列")
 }
 
 extension SettingsCategoryStrings {

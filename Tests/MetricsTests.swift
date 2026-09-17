@@ -67,6 +67,7 @@ struct MetricsTests {
 
     private static func coreChecks(_ suite: TestSuite) {
         ScreenshotWatermarkTests.run(suite)
+        MixerNativeDragTests.run(suite)
         func expect(_ condition: Bool, _ message: @autoclosure () -> String,
                     file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(condition, message(), file: file, line: line)
@@ -8179,6 +8180,80 @@ struct MetricsTests {
                                                                        selectedUnavailable: true,
                                                                        shouldApplyPreferred: false),
                "missing preferred input falls back visually without deleting preference")
+        do {
+            let original = ["app.a", "app.b", "app.c", "app.d"]
+            var layout = MixerAppArrangement()
+            expect(layout.ordered(original, identity: { $0 }) == original,
+                   "mixer keeps alphabetical input until the user arranges it")
+            layout.move("app.c", offset: -1, visibleIDs: original)
+            let arranged = ["app.a", "app.c", "app.b", "app.d"]
+            expect(layout.ordered(original, identity: { $0 }) == arranged,
+                   "mixer moves an app to its chosen position")
+            let reopened = MixerAppArrangement(rawValue: layout.rawValue)
+            expect(reopened.ordered(["app.a", "app.b", "app.d"], identity: { $0 }) == ["app.a", "app.b", "app.d"]
+                   && reopened.ordered(original, identity: { $0 }) == arranged,
+                   "closing and reopening an app or mixer preserves its position")
+            layout.move("app.d", offset: -1, visibleIDs: ["app.a", "app.b", "app.d"])
+            expect(layout.ordered(original, identity: { $0 }) == ["app.a", "app.c", "app.d", "app.b"],
+                   "reordering live rows preserves the slot of a closed or hidden app")
+            layout.togglePin("app.b")
+            layout.togglePin("app.d")
+            expect(layout.ordered(original, identity: { $0 }) == ["app.d", "app.b", "app.a", "app.c"],
+                   "pinned apps lead the list while keeping their chosen order")
+            layout.move("app.b", offset: -1, visibleIDs: layout.ordered(original, identity: { $0 }))
+            expect(layout.ordered(original, identity: { $0 }) == ["app.b", "app.d", "app.a", "app.c"],
+                   "pinned apps can be rearranged independently")
+            expect(layout.neighbor(of: "app.d", offset: 1, visibleIDs: ["app.b", "app.d", "app.a", "app.c"]) == nil
+                   && layout.neighbor(of: "app.a", offset: -1, visibleIDs: ["app.b", "app.d", "app.a", "app.c"]) == nil,
+                   "reordering does not cross the pinned boundary")
+            let saved = layout
+            layout.move("missing", offset: -1, visibleIDs: original)
+            expect(layout == saved, "a vanished row cannot overwrite the saved arrangement")
+            layout.togglePin("app.b")
+            expect(!layout.isPinned("app.b") && layout.isPinned("app.d"), "unpinning affects only the chosen app")
+            expect(layout.ordered(original + ["app.e"], identity: { $0 }).last == "app.e",
+                   "new apps follow the remembered order")
+            var dragged = MixerAppArrangement()
+            dragged.move("app.a", to: "app.d", after: true, visibleIDs: original)
+            expect(dragged.ordered(original, identity: { $0 }) == ["app.b", "app.c", "app.d", "app.a"],
+                   "one drag can insert the first app below the last app")
+            dragged.move("app.a", to: "app.b", after: false,
+                         visibleIDs: dragged.ordered(original, identity: { $0 }))
+            expect(dragged.ordered(original, identity: { $0 }) == original,
+                   "one drag can insert an app above the first row")
+            dragged.move("app.d", to: "app.a", after: false, visibleIDs: ["app.a", "app.c", "app.d"])
+            expect(dragged.ordered(original, identity: { $0 }) == ["app.d", "app.b", "app.a", "app.c"],
+                   "a long drag leaves a closed app's remembered slot intact")
+            let beforeInvalidDrop = dragged
+            dragged.move("app.a", to: "missing", after: false, visibleIDs: original)
+            dragged.move("missing", to: "app.a", after: true, visibleIDs: original)
+            dragged.move("app.a", to: "app.a", after: false, visibleIDs: original)
+            expect(dragged == beforeInvalidDrop, "missing or same-row drop targets do not change preferences")
+            dragged.togglePin("app.d")
+            let beforeCrossGroupDrop = dragged
+            dragged.move("app.a", to: "app.d", after: false, visibleIDs: original)
+            expect(dragged == beforeCrossGroupDrop, "dragging does not silently pin or unpin an app")
+            let malformed = MixerAppArrangement(rawValue: "invalid")
+            expect(malformed == MixerAppArrangement(), "invalid saved arrangement falls back safely")
+            let duplicate = MixerAppArrangement(rawValue: #"{"order":["app.b","app.b","","app.a"],"pinned":["app.b","app.b",""]}"#)
+            expect(duplicate.order == ["app.b", "app.a"] && duplicate.pinned == ["app.b"],
+                   "restored arrangement removes duplicate and empty identities")
+            expect(Defaults.registeredDefaults[DefaultsKey.mixerAppArrangement] as? String == ""
+                   && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerAppArrangement),
+                   "mixer arrangement is opt-in and included in settings backups")
+            let payload = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.mixerAppArrangement ? saved.rawValue : nil
+            }
+            let data = try? PropertyListSerialization.data(fromPropertyList: payload, format: .xml, options: 0)
+            let plist = data.flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) } as? [String: Any]
+            let restored = plist.flatMap { SettingsBackupSupport.sanitizedSettings(from: $0) }
+            let restoredLayout = MixerAppArrangement(rawValue: restored?[DefaultsKey.mixerAppArrangement] as? String ?? "")
+            expect(restoredLayout == saved && restoredLayout.ordered(original, identity: { $0 }) == ["app.b", "app.d", "app.a", "app.c"],
+                   "export and import preserve both pins and positions, including absent apps")
+            expect(!SettingsBackupSupport.valueLooksRight(DefaultsKey.mixerAppArrangement, ["invalid"]),
+                   "backup rejects an arrangement with the wrong storage type")
+        }
+
         expect(MixerRoutingSupport.displayOrderedBefore(name: "Music", id: "com.apple.Music",
                                                         otherName: "Safari", otherID: "com.apple.Safari"),
                "mixer rows order by display name")
