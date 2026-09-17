@@ -2405,7 +2405,7 @@ extension Strings {
         switcherSimpleModeCaption: "Shows app icons and window titles, without previews or screen capture by the switcher.",
         switcherSimpleLayout: "Layout",
         switcherSimpleLayoutHorizontal: "Horizontal",
-        switcherSimpleLayoutVertical: "Vertical list",
+        switcherSimpleLayoutVertical: "Vertical",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
         switcherWindowShortcutCaption: "Opens a switcher for the frontmost app’s windows. While the Apps switcher is open, jumps between the selected app’s windows.",

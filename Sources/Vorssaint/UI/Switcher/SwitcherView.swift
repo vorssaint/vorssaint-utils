@@ -188,7 +188,7 @@ struct SwitcherView: View {
                 LazyVStack(spacing: SwitcherIconRowLayout.verticalRowSpacing) {
                     if usesWindowRow {
                         ForEach(Array(switcher.windows.enumerated()), id: \.element.id) { index, window in
-                            verticalRow(window: window, showsWindowTitle: true,
+                            verticalRow(window: window, isAppRow: false,
                                         isSelected: index == switcher.selectedIndex) {
                                 switcher.select(index: index)
                                 switcher.commitSession()
@@ -206,7 +206,7 @@ struct SwitcherView: View {
                         ForEach(appGroups) { group in
                             let index = group.representativeIndex
                             let window = switcher.windows[index]
-                            verticalRow(window: window, showsWindowTitle: false,
+                            verticalRow(window: window, isAppRow: true, windowCount: group.windowCount,
                                         isSelected: group.pid == selectedWindow?.pid) {
                                 switcher.select(index: index)
                                 switcher.commitSession()
@@ -240,7 +240,7 @@ struct SwitcherView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: SwitcherIconRowLayout.verticalRowSpacing) {
                     ForEach(windows, id: \.element.id) { entry in
-                        verticalRow(window: entry.element, showsWindowTitle: true,
+                        verticalRow(window: entry.element, isAppRow: false,
                                     isSelected: entry.offset == switcher.selectedIndex) {
                             switcher.select(index: entry.offset)
                             switcher.commitSession()
@@ -275,11 +275,13 @@ struct SwitcherView: View {
     }
 
     private func verticalRow(window: SwitcherItem,
-                             showsWindowTitle: Bool,
+                             isAppRow: Bool,
+                             windowCount: Int = 1,
                              isSelected: Bool,
                              onCommit: @escaping () -> Void) -> some View {
         SwitcherVerticalListItem(window: window,
-                                 title: showsWindowTitle ? window.displayTitle : window.appName,
+                                 isAppRow: isAppRow,
+                                 windowCount: windowCount,
                                  isSelected: isSelected,
                                  onCommit: onCommit)
     }
@@ -792,11 +794,31 @@ struct SwitcherView: View {
 
 private struct SwitcherVerticalListItem: View {
     let window: SwitcherItem
-    let title: String
+    let isAppRow: Bool
+    let windowCount: Int
     let isSelected: Bool
     let onCommit: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+
+    private var title: String {
+        isAppRow ? window.appName : window.displayTitle
+    }
+
+    private var showsWindowState: Bool {
+        !isAppRow || windowCount == 1
+    }
+
+    private var spokenLabel: String {
+        if isAppRow {
+            return window.appGroupSpokenLabel(windowCount: windowCount,
+                                              hiddenApp: l10n.s.panelHiddenItem,
+                                              otherDesktop: l10n.s.switcherOtherDesktop)
+        }
+        return window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow,
+                                  hiddenApp: l10n.s.panelHiddenItem,
+                                  otherDesktop: l10n.s.switcherOtherDesktop)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -825,16 +847,16 @@ private struct SwitcherVerticalListItem: View {
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onTapGesture(perform: onCommit)
         .animation(.easeOut(duration: 0.12), value: isSelected)
-        .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow,
-                                               hiddenApp: l10n.s.panelHiddenItem,
-                                               otherDesktop: l10n.s.switcherOtherDesktop))
+        .accessibilityLabel(spokenLabel)
     }
 
     @ViewBuilder
     private var statusBadges: some View {
-        if window.isMinimized { Image(systemName: "minus.rectangle") }
-        if window.isFullscreen { Image(systemName: "arrow.up.left.and.arrow.down.right") }
-        if window.isOnHiddenSpace { Image(systemName: "rectangle.stack") }
+        if showsWindowState {
+            if window.isMinimized { Image(systemName: "minus.rectangle") }
+            if window.isFullscreen { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+            if window.isOnHiddenSpace { Image(systemName: "rectangle.stack") }
+        }
     }
 }
 
@@ -907,12 +929,9 @@ private struct SwitcherIconTile: View {
                                       hiddenApp: l10n.s.panelHiddenItem,
                                       otherDesktop: l10n.s.switcherOtherDesktop)
         }
-        var label = window.appName
-        if window.isAppHidden { label += ", \(l10n.s.panelHiddenItem)" }
-        if windowCount == 1, window.isOnHiddenSpace {
-            label += ", \(l10n.s.switcherOtherDesktop)"
-        }
-        return label
+        return window.appGroupSpokenLabel(windowCount: windowCount,
+                                          hiddenApp: l10n.s.panelHiddenItem,
+                                          otherDesktop: l10n.s.switcherOtherDesktop)
     }
 
     var body: some View {

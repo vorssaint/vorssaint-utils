@@ -20,6 +20,7 @@ enum SwitcherScrollContract {
     final class Model: ObservableObject {
         @Published var windows: [Item] = []
         @Published var selectedIndex = 0
+        var selectionSource: SwitcherSelectionSource = .programmatic
         @Published var iconRowLayout: SwitcherIconRowLayout = .empty
         @Published var simple = false
         @Published var previews: [Int: Int] = [:]

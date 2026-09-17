@@ -193,6 +193,17 @@ struct SwitcherItem: Identifiable, Equatable {
         return label
     }
 
+    /// A grouped row represents the app, not its arbitrary representative
+    /// window. Only a single-window app can safely carry that window's state.
+    func appGroupSpokenLabel(windowCount: Int,
+                             hiddenApp: String,
+                             otherDesktop: String) -> String {
+        var label = appName
+        if isAppHidden { label += ", \(hiddenApp)" }
+        if windowCount == 1, isOnHiddenSpace { label += ", \(otherDesktop)" }
+        return label
+    }
+
     /// Prefer an explicitly declared alternate icon, otherwise use the system
     /// bundle icon. Reuse the image only while a switcher session is open.
     var appIcon: NSImage? {

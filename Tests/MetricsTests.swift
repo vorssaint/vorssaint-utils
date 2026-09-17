@@ -9252,6 +9252,17 @@ struct MetricsTests {
         let noWindow = switcherItem(title: "", appName: "Finder", windowID: nil)
         expect(noWindow.windowDetail(noOpenWindow: "No window") == "No window",
                "an app with nothing open still says so")
+        let groupedApp = SwitcherItem(id: "example.one", title: "One", appName: "Example",
+                                      pid: 1, windowOwnerPID: 1, windowID: 7,
+                                      isOnScreen: false, isAppHidden: true, isMinimized: true,
+                                      isFullscreen: false, isOnHiddenSpace: true, frame: .zero)
+        expect(groupedApp.appGroupSpokenLabel(windowCount: 2,
+                                              hiddenApp: "Hidden",
+                                              otherDesktop: "Other Desktop") == "Example, Hidden"
+               && groupedApp.appGroupSpokenLabel(windowCount: 1,
+                                                  hiddenApp: "Hidden",
+                                                  otherDesktop: "Other Desktop") == "Example, Hidden, Other Desktop",
+               "a grouped App Switcher entry never presents one representative window's state")
         let cased = switcherItem(title: "example app", appName: "Example App", windowID: 7)
         expect(cased.windowDetail(noOpenWindow: "No window") == nil,
                "the same name in another case is still the same name")

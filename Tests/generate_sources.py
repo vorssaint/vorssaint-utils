@@ -306,6 +306,7 @@ def main():
           + "}\n}\nextension SwitcherScrollContract.Model {\n"
           + "func search(_ query: String) { searchQuery = query; applySearchFilter(preferredItemID: selectedItemID) }\n"
           + declaration(switcher_service, "    private var selectedItemID:")
+          + declaration(switcher_service, "    private func setSelectedIndex(")
           + declaration(switcher_service, "    private func applySearchFilter(")
           + "}\n")
     service = "Sources/Vorssaint/Services/QuickTools/QuickLauncherService.swift"
