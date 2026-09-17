@@ -18,6 +18,7 @@ struct ScreenshotEditorView: View {
     @State private var dragStartView: CGPoint = .zero
     @State private var appeared = false
     @State private var backdropPopoverShown = false
+    @State private var watermarkPopoverShown = false
     @State private var hoveredTool: ScreenshotSupport.Tool?
     @State private var toolOptionsShown = false
     @State private var sharing = false
@@ -297,6 +298,13 @@ struct ScreenshotEditorView: View {
                                            scale: model.scale,
                                            annotationShadowsEnabled: model.annotationShadowsEnabled,
                                            skippingText: model.editingTextID)
+        ScreenshotRenderer.drawWatermark(model.watermarkStyle,
+                                         image: model.watermarkImage,
+                                         in: cg,
+                                         imageSize: model.imageSize,
+                                         scale: model.scale,
+                                         shadowsEnabled: model.annotationShadowsEnabled,
+                                         cornerRadius: model.cardCornerPixels)
         drawTextSelection(cg)
         drawSelectionChrome(cg)
         drawCropChrome(cg, canvasSize: size, zoom: zoom)
@@ -913,6 +921,8 @@ struct ScreenshotEditorView: View {
             annotationShadowButton
             Divider().frame(height: 16)
             backdropButton
+            Divider().frame(height: 16)
+            watermarkButton
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -1095,6 +1105,38 @@ struct ScreenshotEditorView: View {
 
     @State private var backdropButtonHovered = false
 
+    private var watermarkButton: some View {
+        // Built like the backdrop button: one tappable surface with a hover
+        // wash, tinted while a mark is actually on the capture.
+        let active = model.showsWatermark
+        return HStack(spacing: 6) {
+            Image(systemName: "signature")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(active ? Color.accentColor : Color.primary.opacity(0.85))
+            Text(strings.watermarkLabel)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(active ? Color.accentColor : Color.secondary)
+        }
+        .padding(.horizontal, 7)
+        .frame(height: 24)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(watermarkButtonHovered ? Color.primary.opacity(0.10) : .clear)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .onHover { inside in watermarkButtonHovered = inside }
+        .onTapGesture { watermarkPopoverShown.toggle() }
+        .screenshotSafeHelp(strings.watermarkLabel)
+        .accessibilityLabel(strings.watermarkLabel)
+        .accessibilityAddTraits(active ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { watermarkPopoverShown.toggle() }
+        .popover(isPresented: $watermarkPopoverShown, arrowEdge: .top) {
+            ScreenshotWatermarkPopover(model: model)
+        }
+    }
+
+    @State private var watermarkButtonHovered = false
+
     private func fillPreview(for style: ScreenshotSupport.BackdropStyle) -> LinearGradient {
         let colors = BackdropPickerAssets.previewColors(for: style)
         return LinearGradient(colors: colors,
@@ -1191,9 +1233,10 @@ struct ScreenshotEditorView: View {
             .contentShape(Rectangle())
             .onDrag {
                 commitEditingTextIfNeeded()
-                guard let image = model.exportImage(),
+                guard let export = model.exportImage(),
                       let provider = ScreenshotService.dragItemProvider(
-                          image: image,
+                          image: export.image,
+                          scale: export.scale,
                           strings: strings
                       )
                 else { return NSItemProvider() }

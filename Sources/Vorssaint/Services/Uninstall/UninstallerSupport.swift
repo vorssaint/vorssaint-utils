@@ -99,6 +99,16 @@ enum UninstallerSupport {
         return FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
     }
 
+    /// A missing entry or ancestor is absence; an unreadable or invalid path
+    /// is not. Use the same lookup for both the entry and its error so an
+    /// earlier directory listing cannot turn lost access into success.
+    /// Unlike stat, lstat also sees dangling links as existing entries.
+    static func isConfirmedAbsent(at url: URL) -> Bool {
+        var info = stat()
+        guard lstat(url.path, &info) != 0 else { return false }
+        return errno == ENOENT
+    }
+
     /// A removal path must still exist below the root that produced it and no
     /// component from the item through that root may have become a symlink.
     static func removalPathIsSafe(_ url: URL, within root: URL) -> Bool {

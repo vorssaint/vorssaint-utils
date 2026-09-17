@@ -568,3 +568,73 @@ enum MixerRoutingSupport {
         return trimmed
     }
 }
+
+/// Presentation preferences use the same lasting identity as saved volumes.
+/// Missing apps retain their slots; refreshing audio never rewrites this list.
+struct MixerAppArrangement: Codable, Equatable {
+    private(set) var order: [String] = []
+    private(set) var pinned: [String] = []
+
+    init(rawValue: String = "") {
+        if let decoded = try? JSONDecoder().decode(Self.self, from: Data(rawValue.utf8)) {
+            order = Self.unique(decoded.order)
+            pinned = Self.unique(decoded.pinned)
+        }
+    }
+
+    var rawValue: String {
+        guard let data = try? JSONEncoder().encode(self) else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    func isPinned(_ id: String?) -> Bool {
+        id.map { pinned.contains($0) } ?? false
+    }
+
+    func ordered<T>(_ items: [T], identity: (T) -> String?) -> [T] {
+        let ranks = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($0.element, $0.offset) })
+        return items.enumerated().sorted { lhs, rhs in
+            let left = identity(lhs.element), right = identity(rhs.element)
+            if isPinned(left) != isPinned(right) { return isPinned(left) }
+            let leftRank = left.flatMap { ranks[$0] } ?? Int.max
+            let rightRank = right.flatMap { ranks[$0] } ?? Int.max
+            return leftRank == rightRank ? lhs.offset < rhs.offset : leftRank < rightRank
+        }.map(\.element)
+    }
+
+    mutating func togglePin(_ id: String) {
+        guard !id.isEmpty else { return }
+        if isPinned(id) { pinned.removeAll { $0 == id } }
+        else { pinned.append(id) }
+    }
+
+    func neighbor(of id: String, offset: Int, visibleIDs: [String]) -> String? {
+        let group = visibleIDs.filter { isPinned($0) == isPinned(id) }
+        guard let index = group.firstIndex(of: id), group.indices.contains(index + offset) else { return nil }
+        return group[index + offset]
+    }
+
+    mutating func move(_ id: String, offset: Int, visibleIDs: [String]) {
+        guard let neighbor = neighbor(of: id, offset: offset, visibleIDs: visibleIDs) else { return }
+        move(id, to: neighbor, after: offset > 0, visibleIDs: visibleIDs)
+    }
+
+    mutating func move(_ id: String, to target: String, after: Bool, visibleIDs: [String]) {
+        guard id != target, visibleIDs.contains(id), visibleIDs.contains(target),
+              isPinned(id) == isPinned(target) else { return }
+        var group = Self.unique(visibleIDs.filter { isPinned($0) == isPinned(id) })
+        group.removeAll { $0 == id }
+        guard let index = group.firstIndex(of: target) else { return }
+        group.insert(id, at: index + (after ? 1 : 0))
+        let moving = Set(group)
+        var reordered = group.makeIterator()
+        // Replace only this group's visible slots. Closed and hidden apps,
+        // and the other pin group, keep their remembered positions.
+        order = Self.unique(order + visibleIDs).map { moving.contains($0) ? reordered.next()! : $0 }
+    }
+
+    private static func unique(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        return ids.filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+}

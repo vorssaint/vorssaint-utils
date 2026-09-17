@@ -26,18 +26,26 @@ enum ImageThumbnailer {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else { return nil }
 
-        let maxPixelSize = pixelSize(for: pointSize, scale: scale)
+        return thumbnail(source: source, pointSize: pointSize, scale: scale)
+    }
+
+    static func thumbnail(data: Data, pointSize: CGFloat, scale: CGFloat) -> NSImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData,
+                                                       [kCGImageSourceShouldCache: false] as CFDictionary)
+        else { return nil }
+        return thumbnail(source: source, pointSize: pointSize, scale: scale)
+    }
+
+    private static func thumbnail(source: CGImageSource, pointSize: CGFloat, scale: CGFloat) -> NSImage? {
         let options = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+            kCGImageSourceThumbnailMaxPixelSize: pixelSize(for: pointSize, scale: scale)
         ] as CFDictionary
-
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
-        let size = NSSize(width: CGFloat(cgImage.width) / scale,
-                          height: CGFloat(cgImage.height) / scale)
-        return NSImage(cgImage: cgImage, size: size)
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
+        return NSImage(cgImage: image, size: NSSize(width: CGFloat(image.width) / scale,
+                                                   height: CGFloat(image.height) / scale))
     }
 
     static func thumbnail(for image: NSImage, pointSize: CGFloat = defaultPointSize) -> NSImage? {

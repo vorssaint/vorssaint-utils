@@ -7,9 +7,110 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher opens more smoothly, keeps more apps available, filters by display, excludes hidden helper windows and preserves focus; on-screen keyboard input keeps panels open. Brightness, Screenshot and Scratchpad gain shortcuts, Screenshot gains preview focus, menu bar recovery waits for placement, its panel keeps a continuous background, Cleaner protects customizations, Quit on close preserves incoming calls, and screen recordings keep video and audio aligned.
+App Switcher makes multiple windows easier to see with large icons, the mixer remembers pinned apps and their order, and capture guides reveal the repeat-region shortcut. Dynamic Island reduces background work for music bars and lyrics, improves compact spacing, transitions and access to music controls, while panel buttons align with their text, Command Bar offers reliable Keep Awake durations, and recent captures open promptly from other apps.
 
 ### Added
+- Capture guides show R to repeat the last selected area, including in Dynamic Island. Thanks to @marcelharinck.
+- Pin and reorder mixer apps, with positions remembered when apps reopen and included in settings backups.
+
+### Changed
+- Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
+- Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.
+- Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
+- Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
+
+### Fixed
+- Recent captures appear promptly when opened from another app and close when switching apps. Thanks to @iltonandrew.
+- Command Bar offers all Keep Awake durations without turning unsupported times into indefinite sessions. Thanks to @tuttopassastudios and @brandom.
+- Panel permission and recent capture buttons align with the card text. Thanks to @COMEBACKISREAL.
+- App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
+- Dynamic Island offers playback controls when a music app is recognized and updates them after permission is granted.
+
+## [3.4.0-beta.2.1] - 2026-09-16
+
+### Summary
+Dynamic Island can hide until you hover, reopen where you choose and keep capture controls out of the way while you select. This beta also adds screenshot watermarks, makes screenshots and recordings sharper, and fixes Dock previews, timers, music, alerts and recording audio.
+
+### Hotfix
+- Dynamic Island shows an Update button only while open.
+
+### Added
+- Dynamic Island can stay completely hidden and appear only when you move the pointer to the top of the screen.
+- Dynamic Island can reopen on the page you left or always on a section you choose.
+- Dragging images or a video onto Dynamic Island lets you choose between the shelf and the media tools.
+- The screenshot editor can add your own text or image as a watermark, with position, size, transparency and rotation. Thanks to @Logimon.
+- Image conversion can name results with a menu of placeholders and save batches in their own subfolder. Thanks to @ruvelro.
+
+### Changed
+- Capture controls in Dynamic Island collapse while you select and after a few idle seconds, and come back with a click or hover.
+- You can choose how long the pointer needs to stay on Dynamic Island before it opens.
+- Dynamic Island matches each display's menu bar height and shows the track name on screens without a camera cutout. Thanks to @ruvelro.
+- Timers longer than an hour now show hours and minutes wherever the time appears.
+- Compact timers have more room beside the camera and stay there when menu space changes, including in full screen.
+- Recordings in Balanced quality keep the full screen resolution, so text stays as sharp as in the system recorder.
+
+### Fixed
+- Dock Preview and App Switcher keep windows from other desktops available, with an optional Dock filter and no empty flashes during desktop changes.
+- Dynamic Island stays in place when the desktop is revealed after opening on hover.
+- Dynamic Island shows the right headphone icons, keeps device alerts readable and no longer shows a wrong volume alert when switching outputs.
+- Dynamic Island no longer shows playing music at rest when you turned that off, while the music controls remain available.
+- Displays without a camera cutout get a simulated cutout inside the menu bar that keeps its shape when opening. Thanks to @Yahddyyp.
+- Screen captures start on the first drag and keep the selector and magnifier smooth while the controls are in Dynamic Island. Thanks to @ruvelro.
+- Saved, copied and shared screenshots open at their real size and stay as sharp as system screenshots.
+- Screenshot previews take the keyboard when they appear, so ⌘C and ⌘S work right after a capture, with a switch in More options.
+- Screen recordings no longer fail to save when the microphone or system audio changes format while recording.
+- Image conversion applies the chosen watermark transparency and centers previews. Thanks to @ruvelro.
+
+## [3.4.0-beta.2] - 2026-09-16
+
+### Summary
+Dynamic Island can hide until you hover, reopen where you choose and keep capture controls out of the way while you select. This beta also adds screenshot watermarks, makes screenshots and recordings sharper, and fixes Dock previews, timers, music, alerts and recording audio.
+
+### Added
+- Dynamic Island can stay completely hidden and appear only when you move the pointer to the top of the screen.
+- Dynamic Island can reopen on the page you left or always on a section you choose.
+- Dragging images or a video onto Dynamic Island lets you choose between the shelf and the media tools.
+- The screenshot editor can add your own text or image as a watermark, with position, size, transparency and rotation. Thanks to @Logimon.
+- Image conversion can name results with a menu of placeholders and save batches in their own subfolder. Thanks to @ruvelro.
+
+### Changed
+- Capture controls in Dynamic Island collapse while you select and after a few idle seconds, and come back with a click or hover.
+- You can choose how long the pointer needs to stay on Dynamic Island before it opens.
+- Dynamic Island matches each display's menu bar height and shows the track name on screens without a camera cutout. Thanks to @ruvelro.
+- Timers longer than an hour now show hours and minutes wherever the time appears.
+- Compact timers have more room beside the camera and stay there when menu space changes, including in full screen.
+- Recordings in Balanced quality keep the full screen resolution, so text stays as sharp as in the system recorder.
+
+### Fixed
+- Dock Preview and App Switcher keep windows from other desktops available, with an optional Dock filter and no empty flashes during desktop changes.
+- Dynamic Island stays in place when the desktop is revealed after opening on hover.
+- Dynamic Island shows the right headphone icons, keeps device alerts readable and no longer shows a wrong volume alert when switching outputs.
+- Dynamic Island no longer shows playing music at rest when you turned that off, while the music controls remain available.
+- Displays without a camera cutout get a simulated cutout inside the menu bar that keeps its shape when opening. Thanks to @Yahddyyp.
+- Screen captures start on the first drag and keep the selector and magnifier smooth while the controls are in Dynamic Island. Thanks to @ruvelro.
+- Saved, copied and shared screenshots open at their real size and stay as sharp as system screenshots.
+- Screenshot previews take the keyboard when they appear, so ⌘C and ⌘S work right after a capture, with a switch in More options.
+- Screen recordings no longer fail to save when the microphone or system audio changes format while recording.
+- Image conversion applies the chosen watermark transparency and centers previews. Thanks to @ruvelro.
+
+## [3.4.0-beta.1] - 2026-09-15
+
+### Summary
+Dynamic Island is the focus of this update, bringing music, timers, calendar, notifications, downloads, files and everyday controls beside the camera. Improvements also cover App Switcher, clipboard, captures, recordings and cleaning.
+
+### Dynamic Island
+- An optional island for Macs with or without a camera cutout, with customizable layouts, hover expansion, gestures and trackpad feedback.
+- Music controls include seeking, synchronized lyrics and the player's queue, with music apps taking priority over browser videos.
+- Drag floating shortcuts beside or below the island, and reach its sections through a searchable gallery and keyboard navigation.
+- Timers and configurable focus cycles stay accurate through sleep, with repeating sound alerts for up to five minutes.
+- Browse appointments by month and mirror new notifications, with an optional inbox that clears when the Mac locks.
+- Follow downloads from a chosen folder, organize shelf files, create ZIP archives, convert media and open the camera mirror.
+- Volume, brightness, keyboard light and accessory alerts share a black surface that stays consistent across appearances.
+- Online lyric lookup needs separate consent and sends only the title, artist, album and duration, never audio.
+
+### Added
+- Dynamic Island brings music, timers, calendar, notifications, downloads, files and controls beside the camera, off until you turn it on in Settings.
+- Shelf accepts attachments dragged from other apps, preserving complete files and original names. Thanks to @Borisserz.
 - Display brightness gains optional custom shortcuts for the primary display or the display under the pointer. Thanks to @EugeneCarldotme.
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
@@ -19,14 +120,21 @@ App Switcher opens more smoothly, keeps more apps available, filters by display,
 - The App Switcher opens more smoothly when many windows are open. Thanks to @bebricoOOOOOOf.
 
 ### Fixed
-- Screen recordings keep video, system sound and microphone audio aligned through pauses, with no blank opening. Thanks to @EugeneCarldotme and @fakepooh.
+- Clipboard History skips expired copies, reports failed writes and avoids automatic paste after failure. Thanks to @MaximilianMauroner.
+- Fan Control keeps trying to take over stopped fans on Macs that lack the firmware unlock key. Thanks to @Yash121l.
+- Power keeps the system reading legible beside its graph while editing the panel. Thanks to @COMEBACKISREAL.
+- Screenshots respect editor and pinned-image visibility when switching capture tools, while recordings keep capture windows hidden. Thanks to @anandghegde.
+- App Updates clears missing-source warnings only when the catalog can verify the app, preserving incomplete checks otherwise. Thanks to @iltonandrew.
+- App Switcher keeps its icon row steady and selected windows visible during searches and window closures. Thanks to @shlok1806.
+- Uninstaller reports completed removals accurately, counts recovered space once and keeps real failures visible. Thanks to @Borisserz.
+- Screen recordings keep video, audio, cursor effects and typing zooms aligned through startup and pauses, without blank openings. Thanks to @EugeneCarldotme and @fakepooh.
 - Menu bar icon recovery waits for placement, preserves full-size content and avoids overlapping attempts. Thanks to @Borisserz.
 - Panels and App Switcher stay open when typing with the Accessibility Keyboard, including the first use. Thanks to @fermincasagrande.
 - Quit on close keeps incoming calls connected when their app has no open window. Thanks to @Borisserz.
-- Cleaner preserves installed customizations stored in an app's cache when all optional caches are selected. Thanks to @EugeneCarldotme.
+- Cleaner preserves installed customizations and localization folders during manual and scheduled cleanup. Thanks to @EugeneCarldotme and @ywu73.
 - App Switcher keeps newly opened windows focused and makes more apps available in crowded window lists. Thanks to @akune.
 - The App Switcher no longer shows blank entries for hidden helper windows that apps keep out of window cycling. Thanks to @EugeneCarldotme.
-- The menu bar panel keeps a single background up to the small arrow at its top, instead of a lighter patch there. Thanks to @iltonandrew.
+- The menu bar panel keeps one continuous background up to the small arrow at its top. Thanks to @iltonandrew.
 
 ## [3.3.5] - 2026-09-06
 

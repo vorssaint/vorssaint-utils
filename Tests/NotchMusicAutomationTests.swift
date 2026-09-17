@@ -1,0 +1,203 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import AppKit
+import CoreServices
+
+/// Only the permission system, scheduling and final Apple Event delivery are
+/// doubles. The production command/validation/cancellation bodies are generated.
+enum NotchMusicAutomationFlowContract {
+    typealias Scheduler = NotchMusicCommandContract.Scheduler
+    enum DispatchQueue {
+        static var main = Scheduler()
+        static var worker = Scheduler()
+        static func global(qos: DispatchQoS.QoSClass) -> Scheduler { worker }
+    }
+    enum AppleScriptRunner {
+        static var prompts: [String] = []
+        static func consentToAutomate(bundleID: String) -> Bool { prompts.append(bundleID); return true }
+    }
+    enum NotchMusicAutomation {
+        enum Access { case granted, consent, denied, unavailable }
+        struct Target: Equatable {
+            let pid: Int32
+            var bundleIdentifier = "local.test.player"
+            var isCurrent: Bool { alive }
+        }
+        struct Availability {
+            let target: Target
+            let capabilities: NotchMusicAutomationCapabilities
+            let access: Access
+        }
+        static var alive = true
+        static var permission = Access.granted
+        static var deliveries: [(NotchPlaybackCommand, Int32)] = []
+        static func access(to target: Target) -> Access { permission }
+        struct Event {
+            enum Option { case waitForReply, neverInteract, dontRecord }
+            let command: NotchPlaybackCommand
+            let pid: Int32
+            func sendEvent(options: [Option], timeout: TimeInterval) throws -> NSAppleEventDescriptor {
+                deliveries.append((command, pid))
+                return NSAppleEventDescriptor.record()
+            }
+        }
+        static func event(_ command: NotchPlaybackCommand, playback: NotchPlayback,
+                          capabilities: NotchMusicAutomationCapabilities, pid: Int32) -> Event? {
+            Event(command: command, pid: pid)
+        }
+    }
+    static func reset() {
+        DispatchQueue.main = Scheduler(); DispatchQueue.worker = Scheduler()
+        AppleScriptRunner.prompts = []
+        NotchMusicAutomation.alive = true
+        NotchMusicAutomation.permission = .granted
+        NotchMusicAutomation.deliveries = []
+    }
+}
+
+enum NotchMusicAutomationTests {
+    private static let dictionary = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+    <dictionary><suite name="Playback" code="TEST">
+      <command name="playpause" code="ABCDtogl"/>
+      <command name="next track" code="EFGHnext"/>
+      <command name="previous track" code="IJKLprev"/>
+      <class name="application" code="capp"><property name="player position" code="time" type="real"/></class>
+    </suite></dictionary>
+    """
+
+    private static func playback() -> NotchPlayback {
+        let track = RadialNowPlayingSnapshot(title: "Recording", artist: "Artist", album: "Album", artworkData: nil,
+                                            appBundleIdentifier: "local.test.player", appPID: 42)
+        return NotchPlayback(track: track, isPlaying: true, elapsed: 3, duration: 180, rate: 1, sampledAt: Date(),
+                             canSeek: false, itemIdentifier: "one", commandContext: .init(pid: 42, revision: UUID()))
+    }
+
+    static func run(expect: (Bool, String) -> Void) {
+        parsing(expect: expect)
+        descriptors(expect: expect)
+        lifecycle(expect: expect)
+    }
+
+    private static func parsing(expect: (Bool, String) -> Void) {
+        func parse(_ source: String) -> NotchMusicAutomationCapabilities? { .parse(Data(source.utf8)) }
+        let result = parse(dictionary)
+        expect(result?.commands["playpause"] == .init(eventClass: 0x41424344, eventID: 0x746F676C),
+               "event codes come from the installed dictionary instead of a product-specific table")
+        expect(result?.canToggle == true && result?.position?.code == 0x74696D65,
+               "declared playback controls and a writable application position are discoverable")
+        let required = dictionary.replacingOccurrences(of: "<command name=\"next track\" code=\"EFGHnext\"/>",
+            with: "<command name=\"next track\" code=\"EFGHnext\"><direct-parameter type=\"file\"/></command>")
+        expect(parse(required)?.commands["next track"] == nil, "commands requiring an argument cannot receive an incomplete playback action")
+        let unrelated = dictionary.replacingOccurrences(of: "name=\"playpause\"", with: "name=\"delete\"")
+        expect(parse(unrelated)?.canToggle == false, "unrelated commands never become playback controls")
+        for changed in [dictionary.replacingOccurrences(of: "type=\"real\"", with: "type=\"file\""),
+                        dictionary.replacingOccurrences(of: "type=\"real\"", with: "type=\"real\" access=\"r\""),
+                        dictionary.replacingOccurrences(of: "class name=\"application\"", with: "class name=\"track\"")] {
+            expect(parse(changed)?.position == nil, "only a numeric writable property of the application can seek")
+        }
+        let duplicate = dictionary.replacingOccurrences(of: "</suite>", with: "<command name=\"playpause\" code=\"abcdabcd\"/></suite>")
+        expect(parse(duplicate)?.commands["playpause"] == nil, "ambiguous command names fail closed")
+        let playPause = dictionary.replacingOccurrences(of: "<command name=\"playpause\" code=\"ABCDtogl\"/>",
+            with: "<command name=\"play\" code=\"abcdplay\"><direct-parameter optional=\"yes\"/></command><command name=\"pause\" code=\"abcdpaus\"/>")
+        expect(parse(playPause)?.canToggle == true
+               && parse(playPause)?.event(for: .toggle, isPlaying: true)?.eventID == 0x70617573,
+               "optional play arguments are omitted and a playing snapshot chooses its declared pause operation")
+        let entity = "<!DOCTYPE dictionary [<!ENTITY payload 'private'>]><dictionary>&payload;</dictionary>"
+        expect(parse(entity) == nil && parse(String(repeating: "x", count: NotchMusicAutomationCapabilities.maximumBytes + 1)) == nil,
+               "entity expansion and oversized dictionaries are rejected without external reads")
+        expect(parse("<dictionary><suite><command name='playpause' code='bad'/></suite></dictionary>") == nil,
+               "invalid native event identifiers never reach the sender")
+    }
+
+    private static func descriptors(expect: (Bool, String) -> Void) {
+        let capabilities = NotchMusicAutomationCapabilities.parse(Data(dictionary.utf8))!
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let value = playback()
+        let event = NotchMusicAutomation.event(.seek(72.5), playback: value, capabilities: capabilities, pid: pid)
+        expect(event?.eventClass == kAECoreSuite && event?.eventID == kAESetData,
+               "seeking uses the native property setter rather than evaluated script text")
+        expect(event?.paramDescriptor(forKeyword: keyDirectObject)?.descriptorType == typeObjectSpecifier
+               && event?.paramDescriptor(forKeyword: keyAEData)?.doubleValue == 72.5,
+               "the declared property and numeric position are encoded as descriptors")
+        let address = NSAppleEventDescriptor(processIdentifier: pid)
+        expect(event?.attributeDescriptor(forKeyword: keyAddressAttr)?.data == address.data
+               && event?.attributeDescriptor(forKeyword: keyAddressAttr)?.descriptorType == address.descriptorType,
+               "the Apple Event is addressed to the requested process, independently of global playback")
+        let toggle = NotchMusicAutomation.event(.toggle, playback: value, capabilities: capabilities, pid: pid)
+        expect(toggle?.eventClass == 0x41424344 && toggle?.eventID == 0x746F676C,
+               "the transport encodes the dictionary's actual command identifiers")
+        expect(NotchMusicAutomation.event(.seek(.nan), playback: value, capabilities: capabilities, pid: pid) == nil
+               && NotchMusicAutomation.event(.queueStop, playback: value, capabilities: capabilities, pid: pid) == nil,
+               "non-finite positions and queue operations cannot become unrelated Apple Events")
+    }
+
+    private static func lifecycle(expect: (Bool, String) -> Void) {
+        typealias Context = NotchMusicAutomationFlowContract
+        typealias Automation = Context.NotchMusicAutomation
+        Context.reset()
+        defer { Context.reset() }
+        let capabilities = NotchMusicAutomationCapabilities.parse(Data(dictionary.utf8))!
+        let service = Context.Service()
+        let current = playback()
+        let native = NotchPlayback(track: current.track, isPlaying: true, elapsed: 3, duration: 180, rate: 1,
+            sampledAt: Date(), canSeek: true, commandContext: current.commandContext, canSendCommandsDirectly: true)
+        service.playback = native
+        expect(service.canSeek && service.canPerform(.seek(20)), "direct native playback keeps its existing seeking capability")
+        service.playback = current
+        let target = Automation.Target(pid: 42)
+        service.automationTarget = target
+        service.automationAvailability = .init(target: target, capabilities: capabilities, access: .granted)
+        expect(service.canSeek && current.seekPosition(20, allowed: service.canSeek) == 20,
+               "authorized scripting position enables effective seek without a native seeking capability")
+        var readonly = capabilities; readonly.position = nil
+        service.automationAvailability = .init(target: target, capabilities: readonly, access: .granted)
+        expect(!service.canSeek, "authorization cannot make an undeclared or read-only position writable")
+        service.automationAvailability = .init(target: target, capabilities: capabilities, access: .granted)
+        var noPosition = current; noPosition.hasPosition = false; service.playback = noPosition
+        expect(!service.canSeek, "a missing observed position never exposes an editable timeline")
+        service.playback = current
+        service.automationAvailability = .init(target: target, capabilities: capabilities, access: .consent)
+        expect(!service.canSeek && !service.beginAutomation(.next, playback: current) && Context.AppleScriptRunner.prompts.isEmpty,
+               "an ordinary gesture cannot request permission or send before authorization")
+        service.requestAutomationAccess()
+        Context.DispatchQueue.worker.drain(); Context.DispatchQueue.main.drain()
+        expect(Context.AppleScriptRunner.prompts.count == 1 && Automation.deliveries.isEmpty && service.refreshes == 1,
+               "consent refreshes capabilities but never replays the gesture that preceded it")
+        service.automationAvailability = .init(target: target, capabilities: capabilities, access: .granted)
+        expect(service.beginAutomation(.seek(20), playback: current) && !service.beginAutomation(.next, playback: current),
+               "only one fallback action waits for validation or execution")
+        let id = service.automationAction!.id
+        expect(service.validationRequests.count == 1 && Automation.deliveries.isEmpty,
+               "the first operation only asks the adapter to validate the selected recording")
+        service.receiveValidation(["validationRequest": id.uuidString, "validationOK": true])
+        service.receiveValidation(["validationRequest": id.uuidString, "validationOK": true])
+        service.queue.drain(); Context.DispatchQueue.main.drain()
+        expect(Automation.deliveries.count == 1 && Automation.deliveries.first?.1 == 42 && !service.commandPending,
+               "a fresh validation permits exactly one event to the captured process")
+
+        for interruption in 0..<4 {
+            Automation.deliveries = []
+            Automation.alive = true; Automation.permission = .granted
+            service.playback = current
+            _ = service.beginAutomation(.next, playback: current)
+            let action = service.automationAction!
+            if interruption == 0 { service.playback?.commandContext = .init(pid: 42, revision: UUID()) }
+            service.receiveValidation(["validationRequest": action.id.uuidString, "validationOK": interruption != 1])
+            if interruption == 2 { service.cancelAutomationAction() }
+            if interruption == 3 { Automation.permission = .denied }
+            service.queue.drain(); Context.DispatchQueue.main.drain()
+            expect(Automation.deliveries.isEmpty, "track replacement, failed validation, cancellation and revoked consent block event delivery")
+        }
+        service.automationAvailability = .init(target: target, capabilities: capabilities, access: .consent)
+        service.playback = current
+        Context.AppleScriptRunner.prompts = []
+        service.requestAutomationAccess()
+        service.automationConsentCancellation.cancel()
+        Context.DispatchQueue.worker.drain(); Context.DispatchQueue.main.drain()
+        expect(Context.AppleScriptRunner.prompts.isEmpty && !service.requestingAutomation,
+               "stopping before a queued consent request suppresses the prompt and releases pending state")
+    }
+}

@@ -167,8 +167,8 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         pauseClock.resume(at: time)
     }
 
-    func elapsed(since origin: CFTimeInterval, at time: CFTimeInterval) -> Double {
-        pauseClock.elapsed(since: origin, at: time)
+    func elapsed(at time: CFTimeInterval) -> Double {
+        pauseClock.elapsed(at: time)
     }
 
     /// Stops the stream first and waits for it, so the file is closed knowing
@@ -257,7 +257,6 @@ final class ScreenRecorderService: ObservableObject {
     private var editors: [RecorderEditorController] = []
     private var mediaOwnedEditorIDs: Set<ObjectIdentifier> = []
     private var elapsedTimer: Timer?
-    private var startedAt: CFTimeInterval = 0
     private var countdown: DispatchWorkItem?
     private var countdownRemaining = 0
     private var pendingStartGeneration = 0
@@ -511,7 +510,11 @@ final class ScreenRecorderService: ObservableObject {
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard self.session === session,
                   self.pendingStartIsAuthorized(generation) else { return }
-            var chrome = Set(ScreenshotService.shared.protectedWindowIDsForCapture.map(Int.init))
+            // Recording is exempt from the screenshot visibility preference,
+            // so editors and pins stay out of the stream either way.
+            var chrome = Set(ScreenshotService.shared
+                .protectedWindowIDsForCapture(honoursVisibilityPreference: false)
+                .map(Int.init))
             chrome.formUnion(indicator.excludedWindowNumbers)
             if let number = QuickToolHUD.currentWindowNumber { chrome.insert(number) }
             let failure = await session.start(frameRate: frameRate,
@@ -550,8 +553,8 @@ final class ScreenRecorderService: ObservableObject {
     private func recordingDidStart() {
         isRecording = true
         isPaused = false
-        elapsedSeconds = 0
-        startedAt = CACurrentMediaTime()
+        elapsedSeconds = Int(session?.elapsed(at: CACurrentMediaTime()) ?? 0)
+        indicator?.update(elapsed: RecorderSupport.elapsedLabel(seconds: elapsedSeconds))
         sleepActivity = ProcessInfo.processInfo.beginActivity(
             options: .idleSystemSleepDisabled,
             reason: "Recording the screen")
@@ -565,7 +568,7 @@ final class ScreenRecorderService: ObservableObject {
 
     private func tickElapsed() {
         guard isRecording, let session else { return }
-        elapsedSeconds = Int(session.elapsed(since: startedAt, at: CACurrentMediaTime()))
+        elapsedSeconds = Int(session.elapsed(at: CACurrentMediaTime()))
         indicator?.update(elapsed: RecorderSupport.elapsedLabel(seconds: elapsedSeconds))
         checkDiskSpace()
     }
@@ -580,7 +583,7 @@ final class ScreenRecorderService: ObservableObject {
             guard session.pause(at: now) else { return }
             isPaused = true
         }
-        elapsedSeconds = Int(session.elapsed(since: startedAt, at: now))
+        elapsedSeconds = Int(session.elapsed(at: now))
         indicator?.update(elapsed: RecorderSupport.elapsedLabel(seconds: elapsedSeconds))
         indicator?.update(paused: isPaused)
     }

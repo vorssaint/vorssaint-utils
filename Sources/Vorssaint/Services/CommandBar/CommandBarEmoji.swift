@@ -156,14 +156,13 @@ enum CommandBarEmoji {
         return character + "\u{FE0F}"
     }
 
-    /// Whether Unicode allows a tone on this emoji at all. The property is the
-    /// whole answer, so there is no list of bases to keep in step with it. A
-    /// sequence of more than one scalar is refused rather than guessed at:
-    /// where the modifier belongs in one is a question per sequence.
+    /// Single-scalar bases can carry a tone, except the legacy family emoji:
+    /// it has Emoji_Modifier_Base but no RGI skin-tone sequences. Multi-scalar
+    /// sequences need placement rules of their own and are left unchanged.
     static func acceptsSkinTone(_ character: String) -> Bool {
         let base = canonicalCharacter(character).unicodeScalars
         guard base.count == 1, let scalar = base.first else { return false }
-        return scalar.properties.isEmojiModifierBase
+        return scalar.value != 0x1F46A && scalar.properties.isEmojiModifierBase
     }
 
     /// The emoji wearing a tone. The variation selector goes with it, because
