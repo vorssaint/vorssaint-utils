@@ -15,12 +15,13 @@ struct SystemShortcutTakeOverOffer: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(String(format: l10n.s.shortcutTakeOverOffer, shortcut.displayString))
                 .font(.caption)
-            // Taking a key from macOS and keeping things as they are sit at
-            // opposite ends, so a slip cannot turn one into the other.
+            // The confirming action sits at the trailing end with the other
+            // choice right beside it, the way a Mac dialog orders its buttons,
+            // and the pair lines up under the shortcut field.
             HStack {
-                Button(l10n.s.shortcutTakeOverAction, action: onAccept)
                 Spacer()
                 Button(l10n.s.shortcutTakeOverDismiss, action: onDismiss)
+                Button(l10n.s.shortcutTakeOverAction, action: onAccept)
             }
             Text(l10n.s.shortcutTakeOverCaption)
                 .font(.caption)
