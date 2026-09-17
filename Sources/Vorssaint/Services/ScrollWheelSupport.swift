@@ -168,17 +168,8 @@ enum ScrollWheelSupport {
     static func targetsOwnWindow(in windows: [[String: Any]], at point: CGPoint,
                                  ownProcessID: Int32,
                                  clickThroughWindowIDs: Set<CGWindowID>) -> Bool {
-        for window in windows {
-            guard let bounds = WindowServerSupport.bounds(from: window), bounds.contains(point),
-                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0
-            else { continue }
-            let isOwnWindow = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownProcessID
-            if isOwnWindow,
-               let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
-               clickThroughWindowIDs.contains(number) { continue }
-            return isOwnWindow
-        }
-        return false
+        ScrollWheelTargetCache.windows(in: windows, ownProcessID: ownProcessID,
+            clickThroughWindowIDs: clickThroughWindowIDs).first { $0.frame.contains(point) }?.isOwn ?? false
     }
 
     static func isMouseWheel(_ traits: ScrollWheelEventTraits,
@@ -217,5 +208,123 @@ enum ScrollWheelSupport {
                 && (shiftRedirectsVertically ? invertHorizontal : invertVertical),
             horizontal: hasHorizontalMovement && invertHorizontal
         )
+    }
+}
+
+/// One bounded WindowServer snapshot. Re-hit-testing its front-to-back windows
+/// avoids treating an overlapping front window as part of the last target's
+/// rectangle. A stationary pointer still refreshes every half second.
+final class ScrollWheelTargetCache {
+    // Match per-app pointer exceptions without extending freshness on cache hits.
+    private static let resolveLifetime: TimeInterval = 0.5
+
+    struct OwnWindow: Equatable {
+        let id: CGWindowID
+        var frame: CGRect
+        var visible: Bool
+        var alpha: Double
+        var ignoresMouseEvents: Bool
+        var level: Int
+    }
+
+    struct Window {
+        let frame: CGRect
+        let isOwn: Bool
+    }
+
+    private struct Snapshot {
+        let windows: [Window]
+        let target: Int?
+        let point: CGPoint
+        let resolvedAt: TimeInterval
+
+        func holds(_ point: CGPoint, now: TimeInterval) -> Bool {
+            guard now >= resolvedAt, now - resolvedAt < ScrollWheelTargetCache.resolveLifetime else { return false }
+            if point == self.point { return true }
+            guard target != nil else { return false }
+            return windows.firstIndex { $0.frame.contains(point) } == target
+        }
+
+        var isOwn: Bool { target.map { windows[$0].isOwn } ?? false }
+    }
+
+    private let lock = NSLock()
+    private let ownProcessID: Int32
+    private let now: () -> TimeInterval
+    private let lookup: () -> [[String: Any]]
+    private var enabled = false
+    private var generation: UInt64 = 0
+    private var ownWindows: [OwnWindow] = []
+    private var orderedWindowIDs: [CGWindowID] = []
+    private var snapshot: Snapshot?
+
+    init(ownProcessID: Int32, now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         lookup: @escaping () -> [[String: Any]] = WindowServerSupport.onScreenWindowInfo) {
+        self.ownProcessID = ownProcessID
+        self.now = now
+        self.lookup = lookup
+    }
+
+    func setEnabled(_ enabled: Bool) {
+        lock.withLock {
+            guard self.enabled != enabled else { return }
+            self.enabled = enabled
+            generation &+= 1
+            snapshot = nil
+            if !enabled {
+                ownWindows = []
+                orderedWindowIDs = []
+            }
+        }
+    }
+
+    /// Publishing unchanged AppKit state must not flush a wheel burst's cache.
+    func update(ownWindows: [OwnWindow], orderedWindowIDs: [CGWindowID]) {
+        lock.withLock {
+            guard enabled, self.ownWindows != ownWindows || self.orderedWindowIDs != orderedWindowIDs else { return }
+            self.ownWindows = ownWindows
+            self.orderedWindowIDs = orderedWindowIDs
+            generation &+= 1
+            snapshot = nil
+        }
+    }
+
+    func contains(_ point: CGPoint) -> Bool {
+        // WindowServer work happens outside the lock. Retry an invalidated read
+        // once; continuous window changes leave this tick untouched rather than
+        // publishing a stale target or making the tap wait for the main thread.
+        for _ in 0..<2 {
+            let time = now()
+            let state = lock.withLock { () -> (answer: Bool?, generation: UInt64, clickThrough: Set<CGWindowID>) in
+                guard enabled else { return (false, generation, []) }
+                if let snapshot, snapshot.holds(point, now: time) { return (snapshot.isOwn, generation, []) }
+                return (nil, generation, Set(ownWindows.filter(\.ignoresMouseEvents).map(\.id)))
+            }
+            if let answer = state.answer { return answer }
+            let windows = Self.windows(in: lookup(), ownProcessID: ownProcessID,
+                                       clickThroughWindowIDs: state.clickThrough)
+            let resolved = Snapshot(windows: windows, target: windows.firstIndex { $0.frame.contains(point) },
+                                    point: point, resolvedAt: time)
+            let answer = lock.withLock { () -> Bool? in
+                guard enabled else { return false }
+                guard generation == state.generation else { return nil }
+                snapshot = resolved
+                return resolved.isOwn
+            }
+            if let answer { return answer }
+        }
+        return true
+    }
+
+    static func windows(in windows: [[String: Any]], ownProcessID: Int32,
+                        clickThroughWindowIDs: Set<CGWindowID>) -> [Window] {
+        windows.compactMap { window in
+            guard let frame = WindowServerSupport.bounds(from: window),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0 else { return nil }
+            let isOwn = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownProcessID
+            if isOwn, let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+               clickThroughWindowIDs.contains(number) { return nil }
+            return Window(frame: frame, isOwn: isOwn)
+        }
     }
 }

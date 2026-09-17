@@ -7,6 +7,7 @@ import Foundation
 enum ScrollHorizontalModifierTests {
     static func run(_ suite: TestSuite) {
         ownWindowGestures(suite)
+        ownWindowTargetCache(suite)
         for continuous in [false, true] {
             for modifier in ScrollHorizontalModifier.allCases {
                 for sign: Int64 in [-1, 1] {
@@ -167,15 +168,6 @@ enum ScrollHorizontalModifierTests {
     private static func ownWindowGestures(_ suite: TestSuite) {
         let ownPID: Int32 = 41
         let point = CGPoint(x: 100, y: 150)
-        func window(_ id: Int, pid: Int32, layer: Int = 0, alpha: Double = 1,
-                    frame: CGRect = CGRect(x: 0, y: 0, width: 400, height: 300)) -> [String: Any] {
-            [kCGWindowNumber as String: id,
-             kCGWindowOwnerPID as String: pid,
-             kCGWindowLayer as String: layer,
-             kCGWindowAlpha as String: alpha,
-             kCGWindowBounds as String: ["X": frame.minX, "Y": frame.minY,
-                                        "Width": frame.width, "Height": frame.height]]
-        }
         let editor = window(1, pid: ownPID)
         let external = window(2, pid: 52)
         let overlay = window(3, pid: ownPID, layer: 1_000)
@@ -232,6 +224,164 @@ enum ScrollHorizontalModifierTests {
         ScrollWheelSupport.redirectVerticalScroll(ordinary, modifier: .option,
             targetsOwnWindow: resolveTarget())
         suite.expect(lookupCount == 0, "unmodified scrolling never queries the window target")
+    }
+
+    private static func ownWindowTargetCache(_ suite: TestSuite) {
+        let ownPID: Int32 = 41
+        let left = CGPoint(x: 20, y: 20)
+        let right = CGPoint(x: 250, y: 20)
+        let editor = window(1, pid: ownPID)
+        let external = window(2, pid: 52, frame: CGRect(x: 200, y: 0, width: 200, height: 300))
+        var time: TimeInterval = 10
+        var windows = [external, editor]
+        var lookups = 0
+        var onLookup: (() -> Void)?
+        let cache = ScrollWheelTargetCache(ownProcessID: ownPID, now: { time }, lookup: {
+            lookups += 1
+            let result = windows
+            onLookup?()
+            return result
+        })
+        var own = ScrollWheelTargetCache.OwnWindow(id: 1,
+            frame: CGRect(x: 0, y: 0, width: 400, height: 300), visible: true,
+            alpha: 1, ignoresMouseEvents: false, level: 0)
+        func publish() { cache.update(ownWindows: [own], orderedWindowIDs: [1]) }
+        suite.expect(!cache.contains(left) && lookups == 0, "disabled target cache never queries WindowServer")
+        cache.setEnabled(true)
+        publish()
+        var allOwn = true
+        for tick in 0..<100 {
+            time += 0.001
+            publish() // AppKit didUpdate without any actual window changes.
+            allOwn = allOwn && cache.contains(CGPoint(x: CGFloat(20 + tick % 30), y: 20))
+        }
+        suite.expect(allOwn && lookups == 1,
+                     "one lookup serves a moving own-window burst despite unchanged AppKit updates")
+        suite.expect(!cache.contains(right) && lookups == 2,
+                     "entering a front overlapping window refreshes even inside the old target rectangle")
+        var allExternal = true
+        for tick in 0..<100 {
+            time += 0.001
+            allExternal = allExternal && !cache.contains(CGPoint(x: CGFloat(250 + tick % 30), y: 20))
+        }
+        suite.expect(allExternal && lookups == 2, "external-window bursts reuse the resolved target too")
+        suite.expect(cache.contains(left) && lookups == 3, "leaving the front window refreshes the target")
+
+        windows = [window(4, pid: 53), editor]
+        suite.expect(cache.contains(left) && lookups == 3, "a fresh stationary target reuses its snapshot")
+        time += 0.5
+        suite.expect(!cache.contains(left) && lookups == 4,
+                     "TTL picks up a newly opened external window under a stationary pointer")
+        windows = []
+        time += 0.5
+        suite.expect(!cache.contains(left) && lookups == 5, "empty WindowServer results resolve to no own window")
+        suite.expect(!cache.contains(left) && lookups == 5, "stationary no-window results are cached")
+        suite.expect(!cache.contains(right) && lookups == 6, "moving over no window performs a fresh lookup")
+        windows = [editor]
+        time += 0.5
+        suite.expect(cache.contains(right) && lookups == 7, "no-window cache expires at the TTL boundary")
+        time -= 1
+        suite.expect(cache.contains(right) && lookups == 8, "a clock rollback cannot prolong a snapshot")
+
+        // Own overlay updates invalidate immediately, without waiting for TTL.
+        own.frame.origin.x = 500
+        windows = [window(1, pid: ownPID, frame: own.frame)]
+        publish()
+        suite.expect(!cache.contains(right) && lookups == 9, "own-window geometry changes invalidate the target")
+        own.frame.origin.x = 0
+        windows = [editor]
+        publish()
+        suite.expect(cache.contains(right) && lookups == 10, "moving an own overlay back restores its bypass")
+        own.visible = false
+        windows = []
+        publish()
+        suite.expect(!cache.contains(right) && lookups == 11, "hiding an own overlay invalidates its bypass")
+        own.visible = true
+        windows = [editor, external]
+        publish()
+        suite.expect(cache.contains(right) && lookups == 12, "showing an own overlay invalidates the empty target")
+        own.ignoresMouseEvents = true
+        publish()
+        suite.expect(!cache.contains(right) && lookups == 13, "a newly click-through overlay exposes the external target")
+        own.ignoresMouseEvents = false
+        publish()
+        suite.expect(cache.contains(right) && lookups == 14, "restoring mouse interaction restores the own overlay")
+        own.alpha = 0
+        windows = [window(1, pid: ownPID, alpha: 0), external]
+        publish()
+        suite.expect(!cache.contains(right) && lookups == 15, "transparent own overlays immediately stop owning the wheel")
+        own.alpha = 1
+        windows = [editor, external]
+        publish()
+        suite.expect(cache.contains(right) && lookups == 16, "opaque own overlays immediately resume owning the wheel")
+        own.level = 1_000
+        publish()
+        suite.expect(cache.contains(right) && lookups == 17, "own-window level changes invalidate ordering")
+        cache.update(ownWindows: [own], orderedWindowIDs: [5, 1])
+        windows = [external, editor]
+        suite.expect(!cache.contains(right) && lookups == 18, "own-window ordering changes invalidate the snapshot")
+
+        cache.setEnabled(false)
+        windows = [editor]
+        suite.expect(!cache.contains(right) && lookups == 18, "disabling discards the target without another lookup")
+        cache.setEnabled(true)
+        publish()
+        suite.expect(cache.contains(right) && lookups == 19, "re-enabling cannot reuse a target from the previous lifecycle")
+        cache.setEnabled(true)
+        suite.expect(cache.contains(right) && lookups == 19, "repeated enabling preserves a fresh snapshot")
+
+        // Invalidate during the injected WindowServer read, deterministically.
+        time += 0.5
+        onLookup = {
+            onLookup = nil
+            own.ignoresMouseEvents = true
+            windows = [editor, external]
+            publish()
+        }
+        suite.expect(!cache.contains(right) && lookups == 21,
+                     "invalidation during lookup retries with the new click-through state")
+        suite.expect(!cache.contains(right) && lookups == 21, "an invalidated read never overwrites the replacement cache")
+        time += 0.5
+        onLookup = {
+            onLookup = nil
+            cache.setEnabled(false)
+        }
+        suite.expect(!cache.contains(right) && lookups == 22, "disabling during lookup rejects the in-flight result")
+        cache.setEnabled(true)
+        own.ignoresMouseEvents = false
+        windows = [editor]
+        publish()
+        suite.expect(cache.contains(right) && lookups == 23, "a disabled in-flight lookup cannot repopulate the cache")
+        time += 0.5
+        onLookup = {
+            onLookup = nil
+            cache.setEnabled(false)
+            cache.setEnabled(true)
+            windows = [external, editor]
+            publish()
+        }
+        suite.expect(!cache.contains(right) && lookups == 25,
+                     "disable and re-enable during lookup cannot publish the previous generation")
+        time += 0.5
+        onLookup = {
+            own.level += 1
+            publish()
+        }
+        suite.expect(cache.contains(right) && lookups == 27,
+                     "continuous invalidation bounds lookup work and preserves the original gesture for that tick")
+        onLookup = nil
+        suite.expect(!cache.contains(right) && lookups == 28,
+                     "continuous invalidation leaves no stale cache and recovers on the next tick")
+    }
+
+    private static func window(_ id: Int, pid: Int32, layer: Int = 0, alpha: Double = 1,
+                               frame: CGRect = CGRect(x: 0, y: 0, width: 400, height: 300)) -> [String: Any] {
+        [kCGWindowNumber as String: id,
+         kCGWindowOwnerPID as String: pid,
+         kCGWindowLayer as String: layer,
+         kCGWindowAlpha as String: alpha,
+         kCGWindowBounds as String: ["X": frame.minX, "Y": frame.minY,
+                                    "Width": frame.width, "Height": frame.height]]
     }
 
     private static func wheel(continuous: Bool = false, flags: CGEventFlags,
