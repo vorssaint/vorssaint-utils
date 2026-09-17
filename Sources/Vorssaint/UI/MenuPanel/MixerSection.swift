@@ -129,7 +129,7 @@ struct MixerSection: View {
                 } icon: {
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 10.5, weight: .semibold))
-                        .frame(width: 16, alignment: .leading)
+                        .frame(width: 16)
                 }
                 .foregroundStyle(.secondary)
 
@@ -165,7 +165,7 @@ struct MixerSection: View {
                           : "speaker.wave.2.fill")
                         .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 16, alignment: .leading)
+                        .frame(width: 16)
 
                     MixerVolumeSlider(value: systemOutputVolumeBinding,
                                       normalTint: normalSliderTint,
@@ -206,7 +206,7 @@ struct MixerSection: View {
                 } icon: {
                     Image(systemName: "bell.fill")
                         .font(.system(size: 10.5, weight: .semibold))
-                        .frame(width: 16, alignment: .leading)
+                        .frame(width: 16)
                 }
                 .foregroundStyle(.secondary)
 
@@ -443,7 +443,7 @@ struct MixerSection: View {
                 } icon: {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 10.5, weight: .semibold))
-                        .frame(width: 16, alignment: .leading)
+                        .frame(width: 16)
                 }
                 .foregroundStyle(.secondary)
 
@@ -475,7 +475,7 @@ struct MixerSection: View {
                     Image(systemName: volume <= 0.001 ? "mic.slash.fill" : "mic.fill")
                         .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 16, alignment: .leading)
+                        .frame(width: 16)
 
                     MixerVolumeSlider(value: inputVolumeBinding,
                                       normalTint: normalSliderTint,
