@@ -8818,6 +8818,33 @@ struct MetricsTests {
         ShelfFilePromiseTests.run { expect($0, $1) }
         ShelfDropRoutingTests.run { expect($0, $1) }
 
+        // MARK: Shelf compress
+
+        expect(ShelfArchiveSupport.compressTitle(count: 1, name: "report.pdf",
+                                                 singleFormat: "Compress “%@”",
+                                                 manyFormat: "Compress %d Items") == "Compress “report.pdf”",
+               "one file compresses under its own name")
+        expect(ShelfArchiveSupport.compressTitle(count: 3, name: "report.pdf",
+                                                 singleFormat: "Compress “%@”",
+                                                 manyFormat: "Compress %d Items") == "Compress 3 Items",
+               "several files compress under a count")
+        expect(ShelfArchiveSupport.compressTitle(count: 1, name: nil,
+                                                 singleFormat: "Compress “%@”",
+                                                 manyFormat: "Compress %d Items") == "Compress 1 Items",
+               "a missing name falls back to the count rather than an empty quote")
+        let archiveInput = URL(fileURLWithPath: "/Volumes/Camera/DCIM/IMG_0001.HEIC")
+        let archiveFallback = URL(fileURLWithPath: "/tmp/vorssaint-shelf-store")
+        expect(ShelfArchiveSupport.archiveDirectory(for: archiveInput, fallback: archiveFallback) { _ in true }
+                   .path == "/Volumes/Camera/DCIM",
+               "an archive lands beside its original when the folder takes writes")
+        expect(ShelfArchiveSupport.archiveDirectory(for: archiveInput, fallback: archiveFallback) { _ in false }
+                   == archiveFallback,
+               "an archive of a read-only original lands in the shelf's own store")
+        expect(ShelfArchiveSupport.archiveDirectory(for: archiveInput, fallback: archiveFallback) {
+                   $0.path == "/Volumes/Camera/DCIM" }
+                   .path == "/Volumes/Camera/DCIM",
+               "the writability check is asked about the original's folder, not the original")
+
         // MARK: Shelf reveal
 
         let revealChildA = UUID()

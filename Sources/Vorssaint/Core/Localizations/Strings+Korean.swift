@@ -549,6 +549,10 @@ extension Strings {
         shelfActionOpen: "열기",
         shelfActionOpenWith: "다음으로 열기",
         shelfActionShare: "공유",
+        shelfActionCopy: "복사",
+        shelfActionCompressFormat: "“%@” 압축",
+        shelfActionCompressManyFormat: "항목 %d개 압축",
+        shelfCompressFailedMessage: "아카이브를 생성할 수 없습니다.",
 
         breakdownMeasuring: "측정 중…",
 

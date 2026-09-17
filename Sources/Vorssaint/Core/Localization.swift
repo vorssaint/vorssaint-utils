@@ -683,6 +683,10 @@ struct Strings {
     let shelfActionOpen: String
     let shelfActionOpenWith: String
     let shelfActionShare: String
+    let shelfActionCopy: String
+    let shelfActionCompressFormat: String      // + file name
+    let shelfActionCompressManyFormat: String  // + count
+    let shelfCompressFailedMessage: String
 
     // MARK: Panel — per-app breakdown
     let breakdownMeasuring: String
@@ -1716,6 +1720,10 @@ extension Strings {
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir com",
         shelfActionShare: "Compartilhar",
+        shelfActionCopy: "Copiar",
+        shelfActionCompressFormat: "Comprimir “%@”",
+        shelfActionCompressManyFormat: "Comprimir %d itens",
+        shelfCompressFailedMessage: "Não foi possível criar o arquivo compactado.",
 
         breakdownMeasuring: "Medindo…",
 
@@ -2729,6 +2737,10 @@ extension Strings {
         shelfActionOpen: "Open",
         shelfActionOpenWith: "Open With",
         shelfActionShare: "Share",
+        shelfActionCopy: "Copy",
+        shelfActionCompressFormat: "Compress “%@”",
+        shelfActionCompressManyFormat: "Compress %d Items",
+        shelfCompressFailedMessage: "Couldn’t create the archive.",
 
         breakdownMeasuring: "Measuring…",
 

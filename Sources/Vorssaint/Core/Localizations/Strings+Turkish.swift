@@ -548,6 +548,10 @@ extension Strings {
         shelfActionOpen: "Aç",
         shelfActionOpenWith: "Birlikte aç",
         shelfActionShare: "Paylaş",
+        shelfActionCopy: "Kopyala",
+        shelfActionCompressFormat: "“%@” Öğesini Sıkıştır",
+        shelfActionCompressManyFormat: "%d Öğeyi Sıkıştır",
+        shelfCompressFailedMessage: "Arşiv oluşturulamadı.",
 
         breakdownMeasuring: "Ölçülüyor…",
 

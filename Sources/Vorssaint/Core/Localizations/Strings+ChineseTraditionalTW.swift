@@ -549,6 +549,10 @@ extension Strings {
         shelfActionOpen: "打開",
         shelfActionOpenWith: "打開方式",
         shelfActionShare: "分享",
+        shelfActionCopy: "拷貝",
+        shelfActionCompressFormat: "壓縮「%@」",
+        shelfActionCompressManyFormat: "壓縮 %d 個項目",
+        shelfCompressFailedMessage: "無法製作壓縮檔。",
 
         breakdownMeasuring: "測量中…",
 

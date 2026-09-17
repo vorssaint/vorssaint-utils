@@ -549,6 +549,10 @@ extension Strings {
         shelfActionOpen: "Открыть",
         shelfActionOpenWith: "Открыть с помощью",
         shelfActionShare: "Поделиться",
+        shelfActionCopy: "Скопировать",
+        shelfActionCompressFormat: "Сжать «%@»",
+        shelfActionCompressManyFormat: "Сжать объекты (%d)",
+        shelfCompressFailedMessage: "Не удалось создать архив.",
 
         breakdownMeasuring: "Измерение…",
 

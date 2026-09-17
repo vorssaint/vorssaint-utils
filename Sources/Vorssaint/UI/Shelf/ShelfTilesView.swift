@@ -461,8 +461,6 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         ShelfService.shared.noteInteraction()
-        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
-        guard !urls.isEmpty else { return nil }
         // A tooltip already showing (or about to show, from a hover just
         // before the right-click) has no reason to stick around once a
         // context menu covers the same corner of the tile it anchors to.
@@ -470,6 +468,18 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
         let strings = L10n.shared.s
         let menu = NSMenu()
+        let copy = NSMenuItem(title: strings.shelfActionCopy,
+                              action: #selector(copyItems),
+                              keyEquivalent: "")
+        copy.target = self
+        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
+        guard !urls.isEmpty else {
+            // A note or a link has nothing to open, reveal or compress;
+            // copying it back out is the one thing left to do with it
+            // short of dragging.
+            menu.addItem(copy)
+            return menu
+        }
         let open = NSMenuItem(title: strings.shelfActionOpen,
                               action: #selector(openFiles),
                               keyEquivalent: "")
@@ -500,7 +510,17 @@ final class ShelfTileView: NSView, NSDraggingSource {
         menu.addItem(openWith)
 
         menu.addItem(sharePresenter.shareMenuItem(for: urls, title: strings.shelfActionShare))
+        menu.addItem(copy)
         menu.addItem(.separator())
+
+        let compress = NSMenuItem(title: ShelfArchiveSupport.compressTitle(
+                                    count: urls.count, name: urls.first?.lastPathComponent,
+                                    singleFormat: strings.shelfActionCompressFormat,
+                                    manyFormat: strings.shelfActionCompressManyFormat),
+                                  action: #selector(compressFiles),
+                                  keyEquivalent: "")
+        compress.target = self
+        menu.addItem(compress)
 
         let reveal = NSMenuItem(title: strings.cleanerRevealInFinder,
                                 action: #selector(revealFiles),
@@ -560,6 +580,20 @@ final class ShelfTileView: NSView, NSDraggingSource {
         NSWorkspace.shared.open(urls,
                                 withApplicationAt: applicationURL,
                                 configuration: configuration)
+    }
+
+    @objc private func copyItems() {
+        ShelfService.shared.copyToPasteboard(startingAt: item)
+    }
+
+    @objc private func compressFiles() {
+        ShelfService.shared.compress(startingAt: item) { allSucceeded in
+            guard !allSucceeded else { return }
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = L10n.shared.s.shelfCompressFailedMessage
+            alert.runModal()
+        }
     }
 
     @objc private func revealFiles() {

@@ -548,6 +548,10 @@ extension Strings {
         shelfActionOpen: "打开",
         shelfActionOpenWith: "打开方式",
         shelfActionShare: "共享",
+        shelfActionCopy: "拷贝",
+        shelfActionCompressFormat: "压缩“%@”",
+        shelfActionCompressManyFormat: "压缩 %d 项",
+        shelfCompressFailedMessage: "无法创建归档。",
 
         breakdownMeasuring: "测量中…",
 
