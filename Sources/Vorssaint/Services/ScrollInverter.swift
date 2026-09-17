@@ -51,11 +51,7 @@ final class ScrollInverter: ObservableObject {
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
-        let defaults = UserDefaults.standard
-        let wanted = AppFeature.scrollInverter.isAvailable
-            && (defaults.bool(forKey: DefaultsKey.scrollInverterEnabled)
-                || defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled)
-                || defaults.bool(forKey: DefaultsKey.scrollHorizontalEnabled))
+        let wanted = ScrollDirectionPreferences().isEnabled
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: Permissions.shared.accessibility,
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -185,14 +181,12 @@ final class ScrollInverter: ObservableObject {
                 .scrollDirection,
                 at: event.location,
                 sourceProcessID: sourceProcessID) {
-            let defaults = UserDefaults.standard
+            let direction = ScrollDirectionPreferences()
             ScrollWheelSupport.applyDirection(
                 to: event, isContinuous: traits.isContinuous,
-                invertVertical: defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
-                invertHorizontal: defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled),
-                horizontalModifier: defaults.bool(forKey: DefaultsKey.scrollHorizontalEnabled)
-                    ? ScrollHorizontalModifier(storageValue: defaults.string(forKey: DefaultsKey.scrollHorizontalModifier))
-                    : nil
+                invertVertical: direction.invertVertical,
+                invertHorizontal: direction.invertHorizontal,
+                horizontalModifier: direction.horizontalModifier
             )
         }
         return Unmanaged.passUnretained(event)

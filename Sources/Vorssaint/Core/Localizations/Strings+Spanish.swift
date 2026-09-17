@@ -991,7 +991,7 @@ extension Strings {
         switcherSearchPinCaption: "S inicia una búsqueda y fija el selector abierto: al escribir ya no aparecen caracteres especiales cuando el atajo usa ⌥, y una búsqueda que empieza por Q o W ya no cierra la ventana ni cierra la app por error.",
         invertVerticalScroll: "Invertir el desplazamiento vertical",
         invertHorizontalScroll: "Invertir el desplazamiento horizontal",
-        scrollHorizontalName: "Desplazamiento horizontal con una tecla",
+        scrollHorizontalName: "Cambiar dirección de desplazamiento del ratón",
         scrollHorizontalModifierLabel: "Tecla modificadora",
         scrollHorizontalCaption: "Mantén pulsada solo la tecla elegida para desplazar horizontalmente con la rueda vertical del ratón. Las demás combinaciones de teclas no cambian.",
         switcherShowShortcutHints: "Mostrar indicaciones de atajos",

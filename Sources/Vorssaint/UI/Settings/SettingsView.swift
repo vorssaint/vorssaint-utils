@@ -946,32 +946,36 @@ struct MouseSettings: View {
 
     var body: some View {
         Form {
-            if AppFeature.scrollInverter.isAvailable {
+            if AppFeature.scrollInverter.isAvailable || AppFeature.scrollHorizontal.isAvailable {
                 Section(l10n.s.scrollSection) {
-                    Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
-                        .onChange(of: invertVertical) { _, _ in
-                            ScrollInverter.shared.syncWithPreferences()
-                            if scrollDirectionEnabled { permissions.requestAccessibility() }
-                        }
-                    Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
-                        .onChange(of: invertHorizontal) { _, _ in
-                            ScrollInverter.shared.syncWithPreferences()
-                            if scrollDirectionEnabled { permissions.requestAccessibility() }
-                        }
-                    Toggle(l10n.s.scrollHorizontalName, isOn: $horizontalScrollEnabled)
-                        .onChange(of: horizontalScrollEnabled) { _, _ in
-                            ScrollInverter.shared.syncWithPreferences()
-                            if scrollDirectionEnabled { permissions.requestAccessibility() }
-                        }
-                    if horizontalScrollEnabled {
-                        Picker(l10n.s.scrollHorizontalModifierLabel, selection: $horizontalScrollModifier) {
-                            ForEach(ScrollHorizontalModifier.allCases, id: \.rawValue) { modifier in
-                                Text(verbatim: modifier.label).tag(modifier)
+                    if AppFeature.scrollInverter.isAvailable {
+                        Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
+                            .onChange(of: invertVertical) { _, _ in
+                                ScrollInverter.shared.syncWithPreferences()
+                                if scrollDirectionEnabled { permissions.requestAccessibility() }
                             }
+                        Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
+                            .onChange(of: invertHorizontal) { _, _ in
+                                ScrollInverter.shared.syncWithPreferences()
+                                if scrollDirectionEnabled { permissions.requestAccessibility() }
+                            }
+                    }
+                    if AppFeature.scrollHorizontal.isAvailable {
+                        Toggle(l10n.s.scrollHorizontalName, isOn: $horizontalScrollEnabled)
+                            .onChange(of: horizontalScrollEnabled) { _, _ in
+                                ScrollInverter.shared.syncWithPreferences()
+                                if scrollDirectionEnabled { permissions.requestAccessibility() }
+                            }
+                        if horizontalScrollEnabled {
+                            Picker(l10n.s.scrollHorizontalModifierLabel, selection: $horizontalScrollModifier) {
+                                ForEach(ScrollHorizontalModifier.allCases, id: \.rawValue) { modifier in
+                                    Text(verbatim: modifier.label).tag(modifier)
+                                }
+                            }
+                            Text(l10n.s.scrollHorizontalCaption)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        Text(l10n.s.scrollHorizontalCaption)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                     if scrollDirectionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
@@ -1175,7 +1179,7 @@ struct MouseSettings: View {
     /// Only features that are on AND still available can ask for the
     /// permission note; a hub-disabled one no longer needs anything.
     private var accessibilityNoteVisible: Bool {
-        let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
+        let anyEngaged = scrollDirectionEnabled
             || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
@@ -1187,7 +1191,8 @@ struct MouseSettings: View {
     }
 
     private var scrollDirectionEnabled: Bool {
-        invertVertical || invertHorizontal || horizontalScrollEnabled
+        (AppFeature.scrollInverter.isAvailable && (invertVertical || invertHorizontal))
+            || (AppFeature.scrollHorizontal.isAvailable && horizontalScrollEnabled)
     }
 
     private var smoothScrollStepBinding: Binding<Double> {

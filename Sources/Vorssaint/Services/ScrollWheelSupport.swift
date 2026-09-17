@@ -30,6 +30,31 @@ enum ScrollHorizontalModifier: String, CaseIterable {
     }
 }
 
+/// Both independently installed direction features share one tap. Resolve their
+/// effective settings once so raw and smoothed wheels honor removal identically.
+struct ScrollDirectionPreferences {
+    let invertVertical: Bool
+    let invertHorizontal: Bool
+    let horizontalModifier: ScrollHorizontalModifier?
+
+    var isEnabled: Bool { invertVertical || invertHorizontal || horizontalModifier != nil }
+
+    init(isAvailable: (AppFeature) -> Bool,
+         boolFor: (String) -> Bool,
+         stringFor: (String) -> String?) {
+        invertVertical = isAvailable(.scrollInverter) && boolFor(DefaultsKey.scrollInverterEnabled)
+        invertHorizontal = isAvailable(.scrollInverter) && boolFor(DefaultsKey.scrollInverterHorizontalEnabled)
+        horizontalModifier = isAvailable(.scrollHorizontal) && boolFor(DefaultsKey.scrollHorizontalEnabled)
+            ? ScrollHorizontalModifier(storageValue: stringFor(DefaultsKey.scrollHorizontalModifier)) : nil
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.init(isAvailable: { defaults.bool(forKey: $0.availabilityKey) },
+                  boolFor: { defaults.bool(forKey: $0) },
+                  stringFor: { defaults.string(forKey: $0) })
+    }
+}
+
 struct ScrollWheelEventTraits: Equatable {
     let isContinuous: Bool
     let momentumPhase: Int64

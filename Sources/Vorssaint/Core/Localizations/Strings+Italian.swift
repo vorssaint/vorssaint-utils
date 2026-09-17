@@ -991,7 +991,7 @@ extension Strings {
         switcherSearchPinCaption: "S avvia la ricerca e blocca il selettore aperto: niente più caratteri speciali quando la scorciatoia usa ⌥, e una ricerca che inizia con Q o W non chiude più la finestra né l’app per errore.",
         invertVerticalScroll: "Inverti lo scorrimento verticale",
         invertHorizontalScroll: "Inverti lo scorrimento orizzontale",
-        scrollHorizontalName: "Scorrimento orizzontale con un tasto",
+        scrollHorizontalName: "Cambia direzione di scorrimento del mouse",
         scrollHorizontalModifierLabel: "Tasto modificatore",
         scrollHorizontalCaption: "Tieni premuto solo il tasto scelto per scorrere in orizzontale con la rotellina verticale del mouse. Le altre combinazioni di tasti restano invariate.",
         switcherShowShortcutHints: "Mostra suggerimenti scorciatoie",

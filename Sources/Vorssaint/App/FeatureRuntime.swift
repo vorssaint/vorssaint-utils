@@ -188,6 +188,7 @@ final class FeatureRuntime: ObservableObject {
         },
         .autoQuit: { AutoQuitService.shared.syncWithPreferences() },
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
+        .scrollHorizontal: { ScrollInverter.shared.syncWithPreferences() },
         .focusFollowsMouse: { FocusFollowsMouseService.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
         .mouseAcceleration: { MouseAccelerationService.shared.syncWithPreferences() },

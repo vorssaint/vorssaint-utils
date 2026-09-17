@@ -108,8 +108,59 @@ enum ScrollHorizontalModifierTests {
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [
             DefaultsKey.scrollHorizontalEnabled, DefaultsKey.scrollHorizontalModifier,
         ]), "backup and restore include both horizontal-scroll settings")
-        suite.expect(AppFeature.scrollInverter.enabledKeys.contains(DefaultsKey.scrollHorizontalEnabled),
-                     "horizontal scrolling alone engages the existing feature's permission lifecycle")
+        suite.expect(AppFeature.scrollHorizontal.enabledKeys == [DefaultsKey.scrollHorizontalEnabled],
+                     "horizontal scrolling has its own permission lifecycle")
+        suite.expect(AppFeature.availabilityDefaults[AppFeature.scrollHorizontal.availabilityKey] as? Bool == false,
+                     "the new feature ships uninstalled")
+        suite.expect(AppFeature.scrollHorizontal.settingsDestination
+            == AppFeature.scrollInverter.settingsDestination,
+            "both direction features open the same scroll settings section")
+
+        // Saved settings remain on through removal/reinstallation. Exercise all
+        // installation and toggle combinations without changing the user's defaults.
+        for installedInversion in [false, true] {
+            for installedHorizontal in [false, true] {
+                for vertical in [false, true] {
+                    for horizontal in [false, true] {
+                        for redirect in [false, true] {
+                            let available: (AppFeature) -> Bool = {
+                                ($0 == .scrollInverter && installedInversion)
+                                    || ($0 == .scrollHorizontal && installedHorizontal)
+                            }
+                            let boolFor: (String) -> Bool = {
+                                switch $0 {
+                                case DefaultsKey.scrollInverterEnabled: return vertical
+                                case DefaultsKey.scrollInverterHorizontalEnabled: return horizontal
+                                case DefaultsKey.scrollHorizontalEnabled: return redirect
+                                default: return false
+                                }
+                            }
+                            let direction = ScrollDirectionPreferences(isAvailable: available,
+                                boolFor: boolFor, stringFor: { _ in "option" })
+                            let wantsInversion = installedInversion && (vertical || horizontal)
+                            let wantsRedirect = installedHorizontal && redirect
+                            suite.expect(direction.isEnabled == (wantsInversion || wantsRedirect),
+                                         "shared tap stays active exactly while an installed feature needs it")
+                            let event = wheel(flags: .maskAlternate)
+                            ScrollWheelSupport.applyDirection(to: event, isContinuous: false,
+                                invertVertical: direction.invertVertical,
+                                invertHorizontal: direction.invertHorizontal,
+                                horizontalModifier: direction.horizontalModifier)
+                            suite.expect(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
+                                == (wantsRedirect ? 0 : (installedInversion && vertical ? -1 : 1))
+                                && event.getIntegerValueField(.scrollWheelEventDeltaAxis2)
+                                == (wantsRedirect ? (installedInversion && horizontal ? -1 : 1) : 0),
+                                "removing either feature stops only its own transformation")
+                            let active = AppFeature.activeFeatures(using: .accessibility,
+                                isAvailable: available, boolFor: boolFor, stringFor: { _ in nil })
+                            suite.expect(active.contains(.scrollHorizontal) == wantsRedirect
+                                && active.contains(.scrollInverter) == wantsInversion,
+                                "permissions report only installed and enabled direction features")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private static func wheel(continuous: Bool = false, flags: CGEventFlags,

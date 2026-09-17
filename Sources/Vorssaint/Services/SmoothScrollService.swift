@@ -263,24 +263,26 @@ final class SmoothScrollService: ObservableObject {
         // The flip is the inverter's, so it follows the inverter's own
         // exception list: an app excepted there must keep the system's
         // direction even while its wheel glides.
-        let invertHere = ScrollInverter.shared.isRunning
+        let adjustDirectionHere = ScrollInverter.shared.isRunning
             && !exceptions.excludesPointerTarget(
                 .scrollDirection,
                 at: event.location,
                 sourceProcessID: sourceProcessID)
         let defaults = UserDefaults.standard
-        let redirected = invertHere && defaults.bool(forKey: DefaultsKey.scrollHorizontalEnabled)
-            && ScrollWheelSupport.redirectVerticalScroll(event, modifier: ScrollHorizontalModifier(
-                storageValue: defaults.string(forKey: DefaultsKey.scrollHorizontalModifier)))
+        let direction = ScrollDirectionPreferences(defaults: defaults)
+        let redirected: Bool
+        if adjustDirectionHere, let modifier = direction.horizontalModifier {
+            redirected = ScrollWheelSupport.redirectVerticalScroll(event, modifier: modifier)
+        } else {
+            redirected = false
+        }
         // Control-scroll keeps its native zoom unless explicitly used by the
         // horizontal-scroll setting, which consumes Control above.
         guard !event.flags.contains(.maskControl) else {
             return Unmanaged.passUnretained(event)
         }
-        let invertVertical = invertHere
-            && defaults.bool(forKey: DefaultsKey.scrollInverterEnabled) ? -1.0 : 1.0
-        let invertHorizontal = invertHere
-            && defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled) ? -1.0 : 1.0
+        let invertVertical = adjustDirectionHere && direction.invertVertical ? -1.0 : 1.0
+        let invertHorizontal = adjustDirectionHere && direction.invertHorizontal ? -1.0 : 1.0
         let shiftPressed = event.flags.contains(.maskShift)
         let vertical: Double
         let horizontal: Double

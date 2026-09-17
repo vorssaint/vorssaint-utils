@@ -168,7 +168,7 @@ extension AppFeature {
         case .autoQuit: return FeatureSettingsDestination(.autoQuit)
         case .quitWindowProtection: return FeatureSettingsDestination(.quitProtection)
 
-        case .scrollInverter:
+        case .scrollInverter, .scrollHorizontal:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollDirection)
         case .focusFollowsMouse:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .focusFollowsMouse)
@@ -268,7 +268,7 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
         case .monitor: return monitorFeatures
-        case .mouse: return [.scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
+        case .mouse: return [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
         case .switcher: return [.switcher, .dockPreview, .dockClick]
         case .windowLayout: return [.windowLayout]

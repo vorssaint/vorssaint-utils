@@ -991,7 +991,7 @@ extension Strings {
         switcherSearchPinCaption: "S lance une recherche et épingle le sélecteur ouvert\u{00A0}: plus de caractères spéciaux tapés quand le raccourci utilise ⌥, et une recherche commençant par Q ou W ne ferme plus la fenêtre ni ne quitte l’app par erreur.",
         invertVerticalScroll: "Inverser le défilement vertical",
         invertHorizontalScroll: "Inverser le défilement horizontal",
-        scrollHorizontalName: "Défilement horizontal avec une touche",
+        scrollHorizontalName: "Changer l’axe de défilement de la souris",
         scrollHorizontalModifierLabel: "Touche de modification",
         scrollHorizontalCaption: "Maintenez uniquement la touche choisie pour faire défiler horizontalement avec la molette verticale. Les autres combinaisons de touches restent inchangées.",
         switcherShowShortcutHints: "Afficher les raccourcis",

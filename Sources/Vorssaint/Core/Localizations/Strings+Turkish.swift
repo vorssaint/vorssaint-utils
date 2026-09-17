@@ -991,7 +991,7 @@ extension Strings {
         switcherSearchPinCaption: "S, aramayı başlatır ve değiştiriciyi sabitler; kısayolun ⌥ kullanması durumunda özel karakter yazılmasını, Q veya W ile başlayan aramaların pencereyi kapatmasını veya uygulamadan çıkmasını önler.",
         invertVerticalScroll: "Dikey kaydırmayı ters çevir",
         invertHorizontalScroll: "Yatay kaydırmayı ters çevir",
-        scrollHorizontalName: "Tuşla yatay kaydırma",
+        scrollHorizontalName: "Fare kaydırma yönünü değiştir",
         scrollHorizontalModifierLabel: "Değiştirici tuş",
         scrollHorizontalCaption: "Dikey fare tekerleğiyle yatay kaydırmak için yalnızca seçilen değiştirici tuşu basılı tutun. Diğer tuş birleşimleri değişmez.",
         switcherShowShortcutHints: "Kısayol ipuçlarını göster",

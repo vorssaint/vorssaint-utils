@@ -991,7 +991,7 @@ extension Strings {
         switcherSearchPinCaption: "S startet die Suche und pinnt den Umschalter an – so tippst du keine Sonderzeichen mehr, wenn dein Kurzbefehl ⌥ nutzt, und eine Suche, die mit Q oder W beginnt, schließt das Fenster oder die App nicht mehr versehentlich.",
         invertVerticalScroll: "Vertikales Scrollen umkehren",
         invertHorizontalScroll: "Horizontales Scrollen umkehren",
-        scrollHorizontalName: "Horizontales Scrollen mit Taste",
+        scrollHorizontalName: "Maus-Scrollrichtung wechseln",
         scrollHorizontalModifierLabel: "Zusatztaste",
         scrollHorizontalCaption: "Halten Sie nur die gewählte Zusatztaste gedrückt, um mit dem vertikalen Mausrad horizontal zu scrollen. Andere Tastenkombinationen bleiben unverändert.",
         switcherShowShortcutHints: "Kurzbefehlhinweise anzeigen",
