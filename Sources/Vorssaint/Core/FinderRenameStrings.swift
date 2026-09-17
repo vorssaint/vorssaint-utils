@@ -56,7 +56,7 @@ extension FinderRenameFeatureStrings {
         hubTitle: "Yeniden adlandırma kısayolu",
         hubDescription: "Seçili dosya veya klasörü seçtiğiniz bir kısayolla yeniden adlandırın.",
         enableLabel: "Yeniden adlandırmak için kısayol kullan",
-        caption: "Kısayol yalnızca Finder'da çalışır ve metin alanlarına dokunmaz. F2 normal tuş olarak çalışır; parlaklığı denetliyorsa Fn-F2 kullanın veya başka bir kısayol seçin.",
+        caption: "Kısayol yalnızca Finder’da çalışır ve metin alanlarına dokunmaz. F2 normal tuş olarak çalışır; parlaklığı denetliyorsa Fn-F2 kullanın veya başka bir kısayol seçin.",
         shortcutLabel: "Yeniden adlandır"
     )
 
@@ -92,16 +92,16 @@ extension FinderRenameFeatureStrings {
         hubTitle: "Raccourci pour renommer",
         hubDescription: "Renommez le fichier ou le dossier sélectionné avec le raccourci de votre choix.",
         enableLabel: "Utiliser un raccourci pour renommer",
-        caption: "Le raccourci agit uniquement dans le Finder et laisse les champs de texte intacts. F2 fonctionne comme une touche normale ; si elle règle la luminosité, utilisez Fn-F2 ou choisissez un autre raccourci.",
+        caption: "Le raccourci agit uniquement dans le Finder et laisse les champs de texte intacts. F2 fonctionne comme une touche normale\u{00A0}; si elle règle la luminosité, utilisez Fn-F2 ou choisissez un autre raccourci.",
         shortcutLabel: "Renommer"
     )
 
     static let it = FinderRenameFeatureStrings(
         pageTitle: "Abbreviazioni del Finder",
         hubTitle: "Abbreviazione per rinominare",
-        hubDescription: "Rinomina il file o la cartella selezionata con un'abbreviazione a tua scelta.",
-        enableLabel: "Usa un'abbreviazione per rinominare",
-        caption: "L'abbreviazione funziona solo nel Finder e non interferisce con i campi di testo. F2 funziona come tasto normale; se regola la luminosità, usa Fn-F2 o scegli un'altra abbreviazione.",
+        hubDescription: "Rinomina il file o la cartella selezionata con un’abbreviazione a tua scelta.",
+        enableLabel: "Usa un’abbreviazione per rinominare",
+        caption: "L’abbreviazione funziona solo nel Finder e non interferisce con i campi di testo. F2 funziona come tasto normale; se regola la luminosità, usa Fn-F2 o scegli un’altra abbreviazione.",
         shortcutLabel: "Rinomina"
     )
 

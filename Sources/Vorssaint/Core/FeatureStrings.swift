@@ -101,20 +101,25 @@ enum FeatureStrings {
 
 struct MixerFeatureStrings {
     let hideInactiveApps: String
+    let pin: String
+    let unpin: String
+    let moveUp: String
+    let moveDown: String
+    let arrange: String
 
-    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps")
-    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos")
-    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle")
-    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения")
-    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas")
-    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden")
-    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives")
-    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive")
-    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す")
-    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기")
-    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App")
-    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
-    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
+    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", arrange: "Hold Command and drag to reorder")
+    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", arrange: "Segure Command e arraste para reorganizar")
+    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin")
+    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", arrange: "Удерживайте Command и перетащите для изменения порядка")
+    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", arrange: "Mantén pulsado Command y arrastra para reordenar")
+    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen")
+    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", arrange: "Maintenez Command et faites glisser pour réorganiser")
+    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive", pin: "Fissa in alto", unpin: "Rimuovi fissaggio", moveUp: "Sposta su", moveDown: "Sposta giù", arrange: "Tieni premuto Command e trascina per riordinare")
+    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す", pin: "一番上に固定", unpin: "固定を解除", moveUp: "上に移動", moveDown: "下に移動", arrange: "Commandキーを押しながらドラッグして並べ替え")
+    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기", pin: "맨 위에 고정", unpin: "고정 해제", moveUp: "위로 이동", moveDown: "아래로 이동", arrange: "Command 키를 누른 채 드래그하여 순서 변경")
+    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App", pin: "置顶", unpin: "取消置顶", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 并拖移以重新排列")
+    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 並拖移以重新排列")
+    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 並拖移以重新排列")
 }
 
 extension SettingsCategoryStrings {
@@ -182,7 +187,8 @@ extension ClipboardFeatureStrings {
         autoClearOnSleep: "Mac이 잠자기에 들어갈 때 클립보드 지우기",
         autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
         autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
-        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다."
+        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다.",
+        deleteSelectedFormat: "%d개 삭제"
     )
 }
 
@@ -218,11 +224,13 @@ extension WindowLayoutFeatureStrings {
         rightHalf: "오른쪽",
         topHalf: "위쪽",
         bottomHalf: "아래쪽",
+        centerHalf: "가운데 반",
         leftThird: "왼쪽 1/3",
         centerThird: "가운데 1/3",
         rightThird: "오른쪽 1/3",
         leftTwoThirds: "왼쪽 2/3",
         rightTwoThirds: "오른쪽 2/3",
+        centerTwoThirds: "가운데 2/3",
         topLeftSixth: "왼쪽 위 1/6",
         topCenterSixth: "위쪽 가운데 1/6",
         topRightSixth: "오른쪽 위 1/6",
@@ -240,11 +248,21 @@ extension WindowLayoutFeatureStrings {
         fullScreen: "전체 화면",
         previousDisplay: "이전 디스플레이",
         edgeSnapEnable: "화면 가장자리에 윈도우 맞추기",
-        edgeSnapCaption: "여기에서 켠 다음 윈도우 제목 막대를 화면 가장자리나 모서리로 드래그하여 놓으세요.",
+        edgeSnapCaption: "켜고 아래에서 사용할 영역을 선택한 다음, 윈도우 제목 막대를 그중 한 곳으로 드래그해 놓으세요.",
         edgeSnapSystemConflict: "macOS가 같은 가장자리를 사용 중입니다. 데스크탑 및 Dock에서 윈도우 타일링을 끄면 Vorssaint가 사용할 수 있습니다.",
         edgeSnapOpenSystemSettings: "데스크탑 및 Dock 열기",
         edgeSnapWaitingForSystem: "Vorssaint에서 켜졌습니다. macOS 타일링을 끄면 바로 작동합니다.",
-        marginMaximize: "여백 두고 최대화"
+        marginMaximize: "여백 두고 최대화",
+        gapsSection: "간격",
+        gapsCaption: "스냅된 윈도우 사이, 그리고 윈도우와 화면 가장자리 사이의 간격입니다.",
+        windowGap: "윈도우 간격",
+        screenGap: "화면 간격",
+        gapNone: "없음",
+        gapTiny: "아주 작게",
+        gapSmall: "작게",
+        gapMedium: "중간",
+        gapLarge: "크게",
+        gapExtraLarge: "아주 크게"
     )
 }
 
@@ -456,6 +474,7 @@ struct ClipboardFeatureStrings {
     let autoClearOnDisplaySleep: String
     let autoClearOnScreenLock: String
     let autoClearCaption: String
+    let deleteSelectedFormat: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -510,7 +529,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Clear clipboard on computer sleep",
         autoClearOnDisplaySleep: "Clear clipboard on display sleep",
         autoClearOnScreenLock: "Clear clipboard on screen lock",
-        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history."
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        deleteSelectedFormat: "Delete %d"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -566,14 +586,15 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Limpar o clipboard quando o Mac dormir",
         autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
         autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
-        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico."
+        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico.",
+        deleteSelectedFormat: "Apagar %d"
     )
 
     static let tr = ClipboardFeatureStrings(
         title: "Pano",
         enable: "Pano geçmişini kaydet",
         caption: "Kopyalanan metinleri daha sonra yeniden kullanabilmen için saklar. Her şey yerel kalır ve istediğin zaman temizlenebilir.",
-        localNote: "Her şey bu Mac'te kalır. Çok büyük öğeler yok sayılır.",
+        localNote: "Her şey bu Mac’te kalır. Çok büyük öğeler yok sayılır.",
         skipSensitive: "Hassas görünen metinleri atla",
         skipSensitiveCaption: "Parola, token veya anahtar gibi görünen kısa ve boşluksuz dizeleri kaydetmekten kaçınır.",
         limit: "Sınır",
@@ -622,7 +643,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Mac uykuya geçince panoyu temizle",
         autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
         autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
-        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır."
+        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır.",
+        deleteSelectedFormat: "%d öğeyi sil"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -678,7 +700,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Очищать буфер обмена при переходе в режим сна",
         autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
         autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
-        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории."
+        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории.",
+        deleteSelectedFormat: "Удалить: %d"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -734,7 +757,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vaciar el portapapeles al suspender el Mac",
         autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
         autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
-        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial."
+        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial.",
+        deleteSelectedFormat: "Eliminar %d"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -790,22 +814,23 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Zwischenablage beim Ruhezustand leeren",
         autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
         autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
-        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf."
+        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf.",
+        deleteSelectedFormat: "%d löschen"
     )
 
     static let fr = ClipboardFeatureStrings(
         title: "Presse-papiers",
-        enable: "Enregistrer l'historique du presse-papiers",
+        enable: "Enregistrer l’historique du presse-papiers",
         caption: "Enregistre le texte copié pour le réutiliser plus tard. Tout reste local et peut être effacé à tout moment.",
         localNote: "Tout reste sur ce Mac. Les éléments très volumineux sont ignorés.",
         skipSensitive: "Ignorer le texte qui semble sensible",
-        skipSensitiveCaption: "Évite d'enregistrer les courtes chaînes sans espaces qui ressemblent à des mots de passe, jetons ou clés.",
+        skipSensitiveCaption: "Évite d’enregistrer les courtes chaînes sans espaces qui ressemblent à des mots de passe, jetons ou clés.",
         limit: "Limite",
         limitUnlimited: "Illimité",
         showInPanel: "Afficher dans le panneau",
-        shortcut: "Raccourci de l'historique",
-        shortcutCaption: "Ouvre une fenêtre rapide avec recherche, éléments épinglés et raccourcis ⌘1 à ⌘9 pour coller dans l'app précédente.",
-        shortcutHint: "Cliquez sur une ligne pour la coller dans l'app précédente. ⌘+clic en sélectionne plusieurs ; ⌘C copie sans coller.",
+        shortcut: "Raccourci de l’historique",
+        shortcutCaption: "Ouvre une fenêtre rapide avec recherche, éléments épinglés et raccourcis ⌘1 à ⌘9 pour coller dans l’app précédente.",
+        shortcutHint: "Cliquez sur une ligne pour la coller dans l’app précédente. ⌘+clic en sélectionne plusieurs ; ⌘C copie sans coller.",
         clickRowShortcut: "Cliquer la ligne",
         commandClickShortcut: "⌘ Clic",
         pinned: "Épinglés",
@@ -815,11 +840,11 @@ struct ClipboardFeatureStrings {
         clearRecent: "Effacer les récents",
         clearAll: "Effacer non épinglés",
         empty: "Aucun texte enregistré",
-        disabled: "Activez l'historique pour commencer à enregistrer le texte copié.",
+        disabled: "Activez l’historique pour commencer à enregistrer le texte copié.",
         search: "Rechercher le texte copié",
         copy: "Copier",
         copied: "Copié",
-        delete: "Supprimer l'élément",
+        delete: "Supprimer l’élément",
         selectMultiple: "Ajouter à la pile",
         unselectMultiple: "Retirer de la pile",
         selectShortcutAction: "Sélectionner",
@@ -829,10 +854,10 @@ struct ClipboardFeatureStrings {
         moveUp: "Monter",
         moveDown: "Descendre",
         noResults: "Aucun résultat",
-        newestFirst: "Plus récents d'abord",
+        newestFirst: "Plus récents d’abord",
         active: "Enregistre le nouveau texte",
         includeImagesFiles: "Enregistrer aussi les images et fichiers copiés",
-        includeImagesFilesCaption: "Les images rejoignent l'historique et les fichiers sont mémorisés comme des liens vers leur emplacement. Épinglez-les et collez-les comme du texte.",
+        includeImagesFilesCaption: "Les images rejoignent l’historique et les fichiers sont mémorisés comme des liens vers leur emplacement. Épinglez-les et collez-les comme du texte.",
         imageEntryLabel: "Image",
         fileCountFormat: "%d fichiers",
         pasteImageAsFile: "Coller les images copiées comme fichiers",
@@ -844,9 +869,10 @@ struct ClipboardFeatureStrings {
         autoClearEnable: "Vider le presse-papiers automatiquement après",
         autoClearSecondsSuffix: "secondes",
         autoClearOnSleep: "Vider le presse-papiers à la mise en veille du Mac",
-        autoClearOnDisplaySleep: "Vider le presse-papiers à l'extinction de l'écran",
-        autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l'écran",
-        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique."
+        autoClearOnDisplaySleep: "Vider le presse-papiers à l’extinction de l’écran",
+        autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l’écran",
+        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l’historique.",
+        deleteSelectedFormat: "Supprimer %d"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -860,8 +886,8 @@ struct ClipboardFeatureStrings {
         limitUnlimited: "Illimitato",
         showInPanel: "Mostra nel pannello",
         shortcut: "Scorciatoia cronologia",
-        shortcutCaption: "Apre una finestra rapida con ricerca, elementi fissati e scorciatoie ⌘1 a ⌘9 per incollare nell'app precedente.",
-        shortcutHint: "Fai clic su una riga per incollarla nell'app precedente. ⌘+clic ne seleziona diverse; ⌘C copia senza incollare.",
+        shortcutCaption: "Apre una finestra rapida con ricerca, elementi fissati e scorciatoie ⌘1 a ⌘9 per incollare nell’app precedente.",
+        shortcutHint: "Fai clic su una riga per incollarla nell’app precedente. ⌘+clic ne seleziona diverse; ⌘C copia senza incollare.",
         clickRowShortcut: "Clic sulla riga",
         commandClickShortcut: "⌘ Clic",
         pinned: "Fissati",
@@ -902,7 +928,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Svuota gli appunti quando il Mac va in stop",
         autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
         autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
-        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia."
+        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia.",
+        deleteSelectedFormat: "Elimina %d"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -958,13 +985,14 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "システムスリープ時にクリップボードを消去",
         autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
         autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
-        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。"
+        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。",
+        deleteSelectedFormat: "%d件を削除"
     )
 
     static let zhHans = ClipboardFeatureStrings(
         title: "剪贴板",
         enable: "保存剪贴板历史",
-        caption: "保存复制过的文本，方便之后再次使用。所有内容都保存在本机，可随时清除。",
+        caption: "保存拷贝过的文本，方便之后再次使用。所有内容都保存在本机，可随时清除。",
         localNote: "一切都保留在这台 Mac 上。特别大的内容会被忽略。",
         skipSensitive: "跳过疑似敏感文本",
         skipSensitiveCaption: "避免保存像密码、令牌或密钥的短文本。",
@@ -973,7 +1001,7 @@ struct ClipboardFeatureStrings {
         showInPanel: "在面板中显示",
         shortcut: "历史快捷键",
         shortcutCaption: "打开快速窗口，支持搜索、固定项目，以及用 ⌘1 到 ⌘9 粘贴到上一个 App。",
-        shortcutHint: "点击整行即可粘贴到上一个 App。⌘+点击可选择多项；⌘C 仅复制不粘贴。",
+        shortcutHint: "点击整行即可粘贴到上一个 App。⌘+点击可选择多项；⌘C 仅拷贝不粘贴。",
         clickRowShortcut: "点击整行",
         commandClickShortcut: "⌘ 点击",
         pinned: "已固定",
@@ -983,28 +1011,28 @@ struct ClipboardFeatureStrings {
         clearRecent: "清除最近项目",
         clearAll: "清除未固定项目",
         empty: "没有保存的文本",
-        disabled: "启用历史记录后即可开始保存复制的文本。",
-        search: "搜索复制的文本",
-        copy: "复制",
-        copied: "已复制",
+        disabled: "启用历史记录后即可开始保存拷贝的文本。",
+        search: "搜索拷贝的文本",
+        copy: "拷贝",
+        copied: "已拷贝",
         delete: "删除项目",
         selectMultiple: "加入堆叠",
         unselectMultiple: "从堆叠移除",
         selectShortcutAction: "选择",
         pasteSelectedFormat: "粘贴 %d 项",
-        copySelectedFormat: "复制 %d 项",
+        copySelectedFormat: "拷贝 %d 项",
         clearSelection: "清除选择",
         moveUp: "上移",
         moveDown: "下移",
         noResults: "没有结果",
         newestFirst: "最新优先",
         active: "正在保存新文本",
-        includeImagesFiles: "同时保存复制的图片和文件",
+        includeImagesFiles: "同时保存拷贝的图片和文件",
         includeImagesFilesCaption: "图片会进入历史记录，文件会以其位置链接的形式被记住。可以像文本一样固定和粘贴。",
         imageEntryLabel: "图片",
         fileCountFormat: "%d 个文件",
-        pasteImageAsFile: "将复制的图片粘贴为文件",
-        pasteImageAsFileCaption: "Finder 处于活动状态时，按 ⌘V 会将复制的图片以 PNG 格式保存到当前文件夹。",
+        pasteImageAsFile: "将拷贝的图片粘贴为文件",
+        pasteImageAsFileCaption: "Finder 处于活动状态时，按 ⌘V 会将拷贝的图片以 PNG 格式存储到当前文件夹。",
         previewLabel: "预览",
         edit: "编辑",
         cancel: "取消",
@@ -1014,7 +1042,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠时清空剪贴板",
         autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
         autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
-        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。"
+        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。",
+        deleteSelectedFormat: "删除 %d 项"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1070,7 +1099,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。"
+        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。",
+        deleteSelectedFormat: "刪除 %d 個"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1126,7 +1156,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
+        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
+        deleteSelectedFormat: "刪除 %d 個"
     )
 }
 
@@ -1161,11 +1192,13 @@ struct WindowLayoutFeatureStrings {
     let rightHalf: String
     let topHalf: String
     let bottomHalf: String
+    let centerHalf: String
     let leftThird: String
     let centerThird: String
     let rightThird: String
     let leftTwoThirds: String
     let rightTwoThirds: String
+    let centerTwoThirds: String
     let topLeftSixth: String
     let topCenterSixth: String
     let topRightSixth: String
@@ -1188,6 +1221,16 @@ struct WindowLayoutFeatureStrings {
     let edgeSnapOpenSystemSettings: String
     let edgeSnapWaitingForSystem: String
     let marginMaximize: String
+    let gapsSection: String
+    let gapsCaption: String
+    let windowGap: String
+    let screenGap: String
+    let gapNone: String
+    let gapTiny: String
+    let gapSmall: String
+    let gapMedium: String
+    let gapLarge: String
+    let gapExtraLarge: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1220,11 +1263,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "Right",
         topHalf: "Top",
         bottomHalf: "Bottom",
+        centerHalf: "Center half",
         leftThird: "Left 1/3",
         centerThird: "Center 1/3",
         rightThird: "Right 1/3",
         leftTwoThirds: "Left 2/3",
         rightTwoThirds: "Right 2/3",
+        centerTwoThirds: "Center 2/3",
         topLeftSixth: "Top left 1/6",
         topCenterSixth: "Top center 1/6",
         topRightSixth: "Top right 1/6",
@@ -1242,11 +1287,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Full Screen",
         previousDisplay: "Previous display",
         edgeSnapEnable: "Snap windows at screen edges",
-        edgeSnapCaption: "Turn this on, then drag a window title bar to any screen edge or corner and release.",
+        edgeSnapCaption: "Turn this on, choose the highlighted areas below, then drag a window title bar to one and release.",
         edgeSnapSystemConflict: "macOS is using the same edges. Turn off window tiling in Desktop & Dock so Vorssaint can take over.",
         edgeSnapOpenSystemSettings: "Open Desktop & Dock",
         edgeSnapWaitingForSystem: "Enabled in Vorssaint. It starts working as soon as macOS tiling is off.",
-        marginMaximize: "Maximize with Margin"
+        marginMaximize: "Maximize with Margin",
+        gapsSection: "Gaps",
+        gapsCaption: "Space between snapped windows, and between windows and the screen edge.",
+        windowGap: "Window gap",
+        screenGap: "Screen gap",
+        gapNone: "None",
+        gapTiny: "Tiny",
+        gapSmall: "Small",
+        gapMedium: "Medium",
+        gapLarge: "Large",
+        gapExtraLarge: "Extra large"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1280,11 +1335,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "Direita",
         topHalf: "Topo",
         bottomHalf: "Base",
+        centerHalf: "Metade central",
         leftThird: "1/3 esquerda",
         centerThird: "1/3 centro",
         rightThird: "1/3 direita",
         leftTwoThirds: "2/3 esquerda",
         rightTwoThirds: "2/3 direita",
+        centerTwoThirds: "2/3 centro",
         topLeftSixth: "1/6 topo esquerdo",
         topCenterSixth: "1/6 topo central",
         topRightSixth: "1/6 topo direito",
@@ -1302,11 +1359,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Tela cheia",
         previousDisplay: "Display anterior",
         edgeSnapEnable: "Encaixar janelas nas bordas da tela",
-        edgeSnapCaption: "Ative aqui. Depois arraste a barra de título até qualquer borda ou canto da tela e solte.",
+        edgeSnapCaption: "Ative, escolha abaixo as áreas destacadas e arraste a barra de título até uma delas.",
         edgeSnapSystemConflict: "O macOS está usando as mesmas bordas. Desligue o encaixe em Mesa e Dock para o Vorssaint assumir.",
         edgeSnapOpenSystemSettings: "Abrir Mesa e Dock",
         edgeSnapWaitingForSystem: "Ativado no Vorssaint. Começa a funcionar assim que o encaixe do macOS for desligado.",
-        marginMaximize: "Maximizar com margem"
+        marginMaximize: "Maximizar com margem",
+        gapsSection: "Espaçamento",
+        gapsCaption: "Espaço entre janelas ajustadas e entre as janelas e a borda da tela.",
+        windowGap: "Espaço entre janelas",
+        screenGap: "Espaço até a borda da tela",
+        gapNone: "Nenhum",
+        gapTiny: "Minúsculo",
+        gapSmall: "Pequeno",
+        gapMedium: "Médio",
+        gapLarge: "Grande",
+        gapExtraLarge: "Extragrande"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1340,11 +1407,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "Sağ",
         topHalf: "Üst",
         bottomHalf: "Alt",
+        centerHalf: "Orta yarım",
         leftThird: "Sol 1/3",
         centerThird: "Orta 1/3",
         rightThird: "Sağ 1/3",
         leftTwoThirds: "Sol 2/3",
         rightTwoThirds: "Sağ 2/3",
+        centerTwoThirds: "Orta 2/3",
         topLeftSixth: "Sol üst 1/6",
         topCenterSixth: "Üst orta 1/6",
         topRightSixth: "Sağ üst 1/6",
@@ -1362,11 +1431,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Tam ekran",
         previousDisplay: "Önceki ekran",
         edgeSnapEnable: "Pencereleri ekran kenarlarına yerleştir",
-        edgeSnapCaption: "Buradan açın, sonra pencerenin başlık çubuğunu herhangi bir ekran kenarına veya köşeye sürükleyip bırakın.",
+        edgeSnapCaption: "Açın, aşağıda kullanılacak alanları seçin, ardından pencerenin başlık çubuğunu bunlardan birine sürükleyip bırakın.",
         edgeSnapSystemConflict: "macOS aynı kenarları kullanıyor. Vorssaint’ın devralması için Masaüstü ve Dock’taki pencere döşemeyi kapatın.",
         edgeSnapOpenSystemSettings: "Masaüstü ve Dock’u Aç",
         edgeSnapWaitingForSystem: "Vorssaint’ta açık. macOS döşemesi kapanınca çalışmaya başlar.",
-        marginMaximize: "Kenar boşluklu büyüt"
+        marginMaximize: "Kenar boşluklu büyüt",
+        gapsSection: "Boşluklar",
+        gapsCaption: "Yaslanan pencereler arasındaki ve pencerelerle ekran kenarı arasındaki boşluk.",
+        windowGap: "Pencere boşluğu",
+        screenGap: "Ekran boşluğu",
+        gapNone: "Yok",
+        gapTiny: "Çok küçük",
+        gapSmall: "Küçük",
+        gapMedium: "Orta",
+        gapLarge: "Büyük",
+        gapExtraLarge: "Çok büyük"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1400,11 +1479,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "Правая половина",
         topHalf: "Верхняя половина",
         bottomHalf: "Нижняя половина",
+        centerHalf: "Центр 1/2",
         leftThird: "Левая 1/3",
         centerThird: "Центр 1/3",
         rightThird: "Правая 1/3",
         leftTwoThirds: "Левые 2/3",
         rightTwoThirds: "Правые 2/3",
+        centerTwoThirds: "Центр 2/3",
         topLeftSixth: "1/6 слева сверху",
         topCenterSixth: "1/6 сверху по центру",
         topRightSixth: "1/6 справа сверху",
@@ -1422,11 +1503,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Во весь экран",
         previousDisplay: "Предыдущий дисплей",
         edgeSnapEnable: "Привязывать окна к краям экрана",
-        edgeSnapCaption: "Включите здесь, затем перетащите заголовок окна к любой границе экрана или углу и отпустите.",
+        edgeSnapCaption: "Включите, выберите области ниже, затем перетащите заголовок окна к одной из них и отпустите.",
         edgeSnapSystemConflict: "macOS использует те же края. Отключите размещение окон в разделе «Рабочий стол и Dock», чтобы их использовал Vorssaint.",
         edgeSnapOpenSystemSettings: "Открыть «Рабочий стол и Dock»",
         edgeSnapWaitingForSystem: "Включено в Vorssaint. Заработает сразу после отключения размещения окон macOS.",
-        marginMaximize: "Развернуть с отступом"
+        marginMaximize: "Развернуть с отступом",
+        gapsSection: "Отступы",
+        gapsCaption: "Расстояние между прикреплёнными окнами и между окнами и краем экрана.",
+        windowGap: "Отступ между окнами",
+        screenGap: "Отступ от края экрана",
+        gapNone: "Нет",
+        gapTiny: "Крошечный",
+        gapSmall: "Маленький",
+        gapMedium: "Средний",
+        gapLarge: "Большой",
+        gapExtraLarge: "Очень большой"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1460,11 +1551,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "Derecha",
         topHalf: "Arriba",
         bottomHalf: "Abajo",
+        centerHalf: "Mitad centrada",
         leftThird: "1/3 izquierda",
         centerThird: "1/3 centro",
         rightThird: "1/3 derecha",
         leftTwoThirds: "2/3 izquierda",
         rightTwoThirds: "2/3 derecha",
+        centerTwoThirds: "2/3 centro",
         topLeftSixth: "1/6 arriba izquierda",
         topCenterSixth: "1/6 arriba centro",
         topRightSixth: "1/6 arriba derecha",
@@ -1482,11 +1575,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Pantalla completa",
         previousDisplay: "Pantalla anterior",
         edgeSnapEnable: "Ajustar ventanas a los bordes de la pantalla",
-        edgeSnapCaption: "Actívalo aquí y arrastra la barra de título a cualquier borde o esquina de la pantalla; luego suelta.",
+        edgeSnapCaption: "Actívalo, elige abajo las áreas resaltadas y arrastra la barra de título hasta una de ellas.",
         edgeSnapSystemConflict: "macOS usa los mismos bordes. Desactiva el ajuste de ventanas en Escritorio y Dock para que Vorssaint tome el control.",
         edgeSnapOpenSystemSettings: "Abrir Escritorio y Dock",
         edgeSnapWaitingForSystem: "Activado en Vorssaint. Funcionará en cuanto se desactive el ajuste de ventanas de macOS.",
-        marginMaximize: "Maximizar con margen"
+        marginMaximize: "Maximizar con margen",
+        gapsSection: "Espaciado",
+        gapsCaption: "Espacio entre ventanas ajustadas y entre las ventanas y el borde de la pantalla.",
+        windowGap: "Espacio entre ventanas",
+        screenGap: "Espacio hasta el borde de la pantalla",
+        gapNone: "Ninguno",
+        gapTiny: "Diminuto",
+        gapSmall: "Pequeño",
+        gapMedium: "Mediano",
+        gapLarge: "Grande",
+        gapExtraLarge: "Extragrande"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -1520,11 +1623,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "Rechts",
         topHalf: "Oben",
         bottomHalf: "Unten",
+        centerHalf: "Mittlere Hälfte",
         leftThird: "Linkes 1/3",
         centerThird: "Mittleres 1/3",
         rightThird: "Rechtes 1/3",
         leftTwoThirds: "Linke 2/3",
         rightTwoThirds: "Rechte 2/3",
+        centerTwoThirds: "Mittlere 2/3",
         topLeftSixth: "1/6 oben links",
         topCenterSixth: "1/6 oben mittig",
         topRightSixth: "1/6 oben rechts",
@@ -1542,11 +1647,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Vollbild",
         previousDisplay: "Vorheriges Display",
         edgeSnapEnable: "Fenster an Bildschirmrändern einrasten",
-        edgeSnapCaption: "Hier einschalten, dann die Titelleiste an einen Bildschirmrand oder eine Ecke ziehen und loslassen.",
+        edgeSnapCaption: "Einschalten, unten die hervorgehobenen Bereiche auswählen und die Titelleiste zu einem davon ziehen.",
         edgeSnapSystemConflict: "macOS verwendet dieselben Ränder. Deaktiviere die Fensteranordnung unter Schreibtisch & Dock, damit Vorssaint übernimmt.",
         edgeSnapOpenSystemSettings: "Schreibtisch & Dock öffnen",
         edgeSnapWaitingForSystem: "In Vorssaint aktiviert. Es funktioniert, sobald die Fensteranordnung von macOS aus ist.",
-        marginMaximize: "Mit Rand maximieren"
+        marginMaximize: "Mit Rand maximieren",
+        gapsSection: "Abstände",
+        gapsCaption: "Abstand zwischen angedockten Fenstern sowie zwischen Fenstern und dem Bildschirmrand.",
+        windowGap: "Fensterabstand",
+        screenGap: "Abstand zum Bildschirmrand",
+        gapNone: "Kein",
+        gapTiny: "Winzig",
+        gapSmall: "Klein",
+        gapMedium: "Mittel",
+        gapLarge: "Groß",
+        gapExtraLarge: "Sehr groß"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -1580,11 +1695,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "Droite",
         topHalf: "Haut",
         bottomHalf: "Bas",
+        centerHalf: "Moitié centrée",
         leftThird: "1/3 gauche",
         centerThird: "1/3 centre",
         rightThird: "1/3 droite",
         leftTwoThirds: "2/3 gauche",
         rightTwoThirds: "2/3 droite",
+        centerTwoThirds: "2/3 centre",
         topLeftSixth: "1/6 en haut à gauche",
         topCenterSixth: "1/6 en haut au centre",
         topRightSixth: "1/6 en haut à droite",
@@ -1602,11 +1719,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Plein écran",
         previousDisplay: "Écran précédent",
         edgeSnapEnable: "Ancrer les fenêtres aux bords de l’écran",
-        edgeSnapCaption: "Activez ici, puis faites glisser la barre de titre vers n’importe quel bord ou coin de l’écran et relâchez.",
+        edgeSnapCaption: "Activez, choisissez les zones surlignées ci-dessous, puis faites glisser la barre de titre vers l’une d’elles.",
         edgeSnapSystemConflict: "macOS utilise les mêmes bords. Désactivez le placement des fenêtres dans Bureau et Dock pour laisser Vorssaint prendre le relais.",
         edgeSnapOpenSystemSettings: "Ouvrir Bureau et Dock",
         edgeSnapWaitingForSystem: "Activé dans Vorssaint. Il fonctionnera dès que le placement des fenêtres de macOS sera désactivé.",
-        marginMaximize: "Agrandir avec marge"
+        marginMaximize: "Agrandir avec marge",
+        gapsSection: "Espacements",
+        gapsCaption: "Espace entre les fenêtres ancrées et entre les fenêtres et le bord de l’écran.",
+        windowGap: "Espace entre fenêtres",
+        screenGap: "Espace au bord de l’écran",
+        gapNone: "Aucun",
+        gapTiny: "Minuscule",
+        gapSmall: "Petit",
+        gapMedium: "Moyen",
+        gapLarge: "Grand",
+        gapExtraLarge: "Très grand"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -1640,11 +1767,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "Destra",
         topHalf: "Alto",
         bottomHalf: "Basso",
+        centerHalf: "Metà centrale",
         leftThird: "1/3 sinistra",
         centerThird: "1/3 centro",
         rightThird: "1/3 destra",
         leftTwoThirds: "2/3 sinistra",
         rightTwoThirds: "2/3 destra",
+        centerTwoThirds: "2/3 centro",
         topLeftSixth: "1/6 in alto a sinistra",
         topCenterSixth: "1/6 in alto al centro",
         topRightSixth: "1/6 in alto a destra",
@@ -1662,11 +1791,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Schermo intero",
         previousDisplay: "Display precedente",
         edgeSnapEnable: "Allinea le finestre ai bordi dello schermo",
-        edgeSnapCaption: "Attiva qui, poi trascina la barra del titolo verso un bordo o un angolo dello schermo e rilascia.",
+        edgeSnapCaption: "Attiva, scegli le aree evidenziate qui sotto e trascina la barra del titolo verso una di esse.",
         edgeSnapSystemConflict: "macOS usa gli stessi bordi. Disattiva l’affiancamento in Scrivania e Dock per lasciare il controllo a Vorssaint.",
         edgeSnapOpenSystemSettings: "Apri Scrivania e Dock",
         edgeSnapWaitingForSystem: "Attivato in Vorssaint. Funzionerà appena l’affiancamento di macOS sarà disattivato.",
-        marginMaximize: "Massimizza con margine"
+        marginMaximize: "Massimizza con margine",
+        gapsSection: "Spaziatura",
+        gapsCaption: "Spazio tra le finestre agganciate e tra le finestre e il bordo dello schermo.",
+        windowGap: "Spazio tra finestre",
+        screenGap: "Spazio dal bordo dello schermo",
+        gapNone: "Nessuno",
+        gapTiny: "Minuscolo",
+        gapSmall: "Piccolo",
+        gapMedium: "Medio",
+        gapLarge: "Grande",
+        gapExtraLarge: "Molto grande"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -1700,11 +1839,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "右",
         topHalf: "上",
         bottomHalf: "下",
+        centerHalf: "中央ハーフ",
         leftThird: "左 1/3",
         centerThird: "中央 1/3",
         rightThird: "右 1/3",
         leftTwoThirds: "左 2/3",
         rightTwoThirds: "右 2/3",
+        centerTwoThirds: "中央 2/3",
         topLeftSixth: "左上 1/6",
         topCenterSixth: "上中央 1/6",
         topRightSixth: "右上 1/6",
@@ -1722,11 +1863,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "フルスクリーン",
         previousDisplay: "前のディスプレイ",
         edgeSnapEnable: "画面の端にウインドウをスナップ",
-        edgeSnapCaption: "ここでオンにしてから、タイトルバーを画面の端または隅へドラッグして放します。",
+        edgeSnapCaption: "オンにして下で使う領域を選び、ウインドウのタイトルバーをそのいずれかへドラッグします。",
         edgeSnapSystemConflict: "macOSが同じ画面端を使用しています。Vorssaintで使うには「デスクトップとDock」でウインドウのタイル表示をオフにしてください。",
         edgeSnapOpenSystemSettings: "デスクトップとDockを開く",
         edgeSnapWaitingForSystem: "Vorssaintでオンになっています。macOSのタイル表示をオフにすると動作します。",
-        marginMaximize: "余白付きで最大化"
+        marginMaximize: "余白付きで最大化",
+        gapsSection: "間隔",
+        gapsCaption: "スナップしたウインドウ同士、およびウインドウと画面端の間隔です。",
+        windowGap: "ウインドウの間隔",
+        screenGap: "画面端との間隔",
+        gapNone: "なし",
+        gapTiny: "極小",
+        gapSmall: "小",
+        gapMedium: "中",
+        gapLarge: "大",
+        gapExtraLarge: "特大"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -1760,11 +1911,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "右半屏",
         topHalf: "上半屏",
         bottomHalf: "下半屏",
+        centerHalf: "居中半屏",
         leftThird: "左侧 1/3",
         centerThird: "中间 1/3",
         rightThird: "右侧 1/3",
         leftTwoThirds: "左侧 2/3",
         rightTwoThirds: "右侧 2/3",
+        centerTwoThirds: "居中 2/3",
         topLeftSixth: "左上 1/6",
         topCenterSixth: "上中 1/6",
         topRightSixth: "右上 1/6",
@@ -1782,11 +1935,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "全屏幕",
         previousDisplay: "上一台显示器",
         edgeSnapEnable: "将窗口贴靠到屏幕边缘",
-        edgeSnapCaption: "在此开启，然后将窗口标题栏拖到屏幕任意边缘或角落并松开。",
+        edgeSnapCaption: "开启后，在下方选择要使用的高亮区域，再将窗口标题栏拖到其中一个区域。",
         edgeSnapSystemConflict: "macOS 正在使用相同的屏幕边缘。请在“桌面与程序坞”中关闭窗口平铺，让 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "打开桌面与程序坞",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中开启。关闭 macOS 窗口平铺后即可使用。",
-        marginMaximize: "带边距最大化"
+        marginMaximize: "带边距最大化",
+        gapsSection: "间距",
+        gapsCaption: "贴靠窗口之间以及窗口与屏幕边缘之间的间距。",
+        windowGap: "窗口间距",
+        screenGap: "屏幕边距",
+        gapNone: "无",
+        gapTiny: "极小",
+        gapSmall: "小",
+        gapMedium: "中",
+        gapLarge: "大",
+        gapExtraLarge: "特大"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -1820,11 +1983,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "右半邊",
         topHalf: "上半邊",
         bottomHalf: "下半邊",
+        centerHalf: "置中半屏",
         leftThird: "左側 1/3",
         centerThird: "中間 1/3",
         rightThird: "右側 1/3",
         leftTwoThirds: "左側 2/3",
         rightTwoThirds: "右側 2/3",
+        centerTwoThirds: "置中 2/3",
         topLeftSixth: "左上 1/6",
         topCenterSixth: "上方中央 1/6",
         topRightSixth: "右上 1/6",
@@ -1842,11 +2007,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "全螢幕",
         previousDisplay: "上一台顯示器",
         edgeSnapEnable: "將視窗貼齊螢幕邊緣",
-        edgeSnapCaption: "在此開啟，然後將視窗標題列拖到螢幕任一邊緣或角落並放開。",
+        edgeSnapCaption: "開啟後，在下方選擇要使用的醒目區域，再將視窗標題列拖到其中一個區域。",
         edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
-        marginMaximize: "保留邊距最大化"
+        marginMaximize: "保留邊距最大化",
+        gapsSection: "間距",
+        gapsCaption: "貼齊視窗之間以及視窗與螢幕邊緣之間的間距。",
+        windowGap: "視窗間距",
+        screenGap: "螢幕邊距",
+        gapNone: "無",
+        gapTiny: "極小",
+        gapSmall: "小",
+        gapMedium: "中",
+        gapLarge: "大",
+        gapExtraLarge: "特大"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -1880,11 +2055,13 @@ struct WindowLayoutFeatureStrings {
         rightHalf: "右半邊",
         topHalf: "上半邊",
         bottomHalf: "下半邊",
+        centerHalf: "置中半屏",
         leftThird: "左側 1/3",
         centerThird: "中間 1/3",
         rightThird: "右側 1/3",
         leftTwoThirds: "左側 2/3",
         rightTwoThirds: "右側 2/3",
+        centerTwoThirds: "置中 2/3",
         topLeftSixth: "左上 1/6",
         topCenterSixth: "上方中央 1/6",
         topRightSixth: "右上 1/6",
@@ -1902,11 +2079,21 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "全螢幕",
         previousDisplay: "上一部顯示器",
         edgeSnapEnable: "將視窗貼齊螢幕邊緣",
-        edgeSnapCaption: "在此開啟，然後將視窗標題列拖到螢幕任一邊緣或角落並放開。",
+        edgeSnapCaption: "開啟後，在下方選擇要使用的醒目區域，再將視窗標題列拖到其中一個區域。",
         edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
-        marginMaximize: "保留邊距最大化"
+        marginMaximize: "保留邊距最大化",
+        gapsSection: "間距",
+        gapsCaption: "貼齊視窗之間以及視窗與螢幕邊緣之間的間距。",
+        windowGap: "視窗間距",
+        screenGap: "螢幕邊距",
+        gapNone: "無",
+        gapTiny: "極小",
+        gapSmall: "小",
+        gapMedium: "中",
+        gapLarge: "大",
+        gapExtraLarge: "特大"
     )
 }
 
@@ -2017,7 +2204,7 @@ struct MonitorAlertFeatureStrings {
     static let tr = MonitorAlertFeatureStrings(
         section: "Uyarılar",
         caption: "Uyarılar seçilen eşiklere ulaşıldığında gönderilir. CPU kullanımı ve sıcaklık uyarıları yaklaşık 12 saniyeden kısa sıçramaları yok sayar. Tekrarlama ayarı yalnızca aynı uyarının tekrarlanmasını sınırlar.",
-        notificationsDenied: "Sistem Ayarları'nda Vorssaint bildirimleri kapalı, bu yüzden uyarılar görünemez.",
+        notificationsDenied: "Sistem Ayarları’nda Vorssaint bildirimleri kapalı, bu yüzden uyarılar görünemez.",
         cpu: "Yüksek CPU",
         cpuTemperature: "Yüksek CPU sıcaklığı",
         memory: "Kritik bellek basıncı",
@@ -2191,7 +2378,7 @@ struct MonitorAlertFeatureStrings {
 
     static let it = MonitorAlertFeatureStrings(
         section: "Avvisi",
-        caption: "Gli avvisi compaiono quando vengono raggiunte le soglie scelte. L'uso della CPU e gli avvisi di temperatura ignorano i picchi più brevi di circa 12 secondi. L'impostazione di ripetizione limita solo la ripetizione dello stesso avviso.",
+        caption: "Gli avvisi compaiono quando vengono raggiunte le soglie scelte. L’uso della CPU e gli avvisi di temperatura ignorano i picchi più brevi di circa 12 secondi. L’impostazione di ripetizione limita solo la ripetizione dello stesso avviso.",
         notificationsDenied: "Le notifiche di Vorssaint sono disattivate in Impostazioni di Sistema, quindi gli avvisi non compaiono.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura CPU alta",

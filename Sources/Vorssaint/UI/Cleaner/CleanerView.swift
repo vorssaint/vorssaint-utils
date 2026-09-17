@@ -806,7 +806,7 @@ struct CleanerView: View {
             Button(l10n.s.uninstallerCancel) { cleaner.reset() }
             Button(String(format: l10n.s.cleanerCleanSizeFormat,
                           Self.byteString(cleaner.selectedSize))) {
-                cleaner.cleanSelected()
+                cleaner.cleanSelected(escalate: true)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)

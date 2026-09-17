@@ -60,6 +60,7 @@ final class MenuPanelFocus: ObservableObject {
 /// Content of the menu bar popover: keep-awake controls, the volume mixer and
 /// the system monitor.
 struct MenuPanelView: View {
+    var notchSize: CGSize? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
     @ObservedObject private var panelFocus = MenuPanelFocus.shared
@@ -96,7 +97,9 @@ struct MenuPanelView: View {
 
     var body: some View {
         Group {
-            if selectedMetric != nil {
+            if let notchSize {
+                embeddedPanel(size: notchSize)
+            } else if selectedMetric != nil {
                 metricPanel
             } else {
                 navigablePanel
@@ -163,6 +166,31 @@ struct MenuPanelView: View {
             selectedMetric = metric
             selectedSection = metric.panelSection
         }
+    }
+
+    /// Uses the same sections and actions inside an existing surface. The
+    /// host already supplies the title and material; one native scroll view
+    /// keeps long sections usable without nesting two scroll regions.
+    private func embeddedPanel(size: CGSize) -> some View {
+        VStack(spacing: 12) {
+            Group {
+                if let selectedMetric { metricNavigationHeader(selectedMetric) }
+                else { sectionNavigation }
+            }
+            .frame(height: 38)
+            OverlayScrollView(measuredHeight: $navigableContentHeight) {
+                Group {
+                    if let selectedMetric { MetricDetailView(kind: selectedMetric) }
+                    else { section(for: activeSection, collapsible: false) }
+                }
+                .frame(width: size.width)
+                .environment(\.notchPresentation, true)
+                .environment(\.colorScheme, .dark)
+            }
+            .frame(width: size.width, height: max(80, size.height - 96))
+            footer
+        }
+        .frame(width: size.width, height: size.height, alignment: .top)
     }
 
     private var navigablePanel: some View {
@@ -333,7 +361,7 @@ struct MenuPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .focused($focusedSection, equals: id)
-                .foregroundStyle(isActive ? Color.accentColor : Color.secondary.opacity(0.86))
+                .foregroundStyle(isActive ? (notchSize != nil ? Color.white : Color.accentColor) : Color.secondary.opacity(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(isActive ? navigationActiveFill : Color.clear)
@@ -344,7 +372,7 @@ struct MenuPanelView: View {
         .padding(4)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(PanelSurface.cardFill(for: colorScheme))
+                .fill(notchSize != nil ? .black : PanelSurface.cardFill(for: colorScheme))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -353,7 +381,8 @@ struct MenuPanelView: View {
     }
 
     private var navigationActiveFill: Color {
-        colorScheme == .light ? Color.accentColor.opacity(0.13) : Color.accentColor.opacity(0.20)
+        if notchSize != nil { return .black }
+        return colorScheme == .light ? Color.accentColor.opacity(0.13) : Color.accentColor.opacity(0.20)
     }
 
     private func metricNavigationHeader(_ kind: MetricDetailKind) -> some View {
@@ -404,6 +433,9 @@ struct MenuPanelView: View {
             footerButton(l10n.s.panelSettings,
                          systemImage: "gearshape",
                          horizontalPadding: 7) {
+                // The hosted utility's own page, or the general one from the
+                // panel's lists: the router is sticky, so it is set every time.
+                SettingsRouter.shared.page = PanelInteractionState.shared.hostedSettingsPage ?? .general
                 appDelegate()?.openSettingsWindow()
             }
 
@@ -432,7 +464,7 @@ struct MenuPanelView: View {
                 .frame(maxWidth: .infinity, minHeight: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(PanelSurface.cardFill(for: colorScheme))
+                        .fill(notchSize != nil ? .black : PanelSurface.cardFill(for: colorScheme))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -625,9 +657,32 @@ struct UtilitiesSection: View {
         .onChange(of: hostedUtilityKeepsPopoverOpen) { _, keepsOpen in
             PanelInteractionState.shared.viewKeepsPopoverOpen = keepsOpen
         }
-        .onDisappear {
-            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+        .onChange(of: hostedSettingsPage) { _, page in
+            PanelInteractionState.shared.hostedSettingsPage = page
         }
+        .onDisappear {
+            // Another section, or a metric, replacing this one takes the
+            // tool off screen with it; a closed panel does not, and keeps it.
+            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+            PanelInteractionState.shared.hostedSettingsPage = nil
+        }
+    }
+
+    /// The Settings page that belongs to whichever tool the section is
+    /// showing, derived from the same state as `isHostingUtility` so every
+    /// hosted tool is covered by the one list. Mirrored by the `onChange`
+    /// beside it, and cleared only where this section leaves the screen.
+    private var hostedSettingsPage: SettingsPage? {
+        if showUninstaller { return .uninstaller }
+        if showCleanerPanel { return .cleaner }
+        if showURLCleaner { return .urlCleaner }
+        if showHomebrewPanel { return .homebrew }
+        if showMediaPanel { return .media }
+        if showClipboardPanel { return .clipboard }
+        if showRecentCapturesPanel { return .screenshot }
+        if showWindowLayoutPanel { return .windowLayout }
+        if showAppUpdatesPanel { return .appUpdates }
+        return nil
     }
 
     /// True while the section is showing one of the tools instead of its own
@@ -1010,8 +1065,9 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, focusFollowsMouse, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
+    case mouseScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
+         dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
+         mouseClickDebounce, notch
 
     var id: String { rawValue }
 
@@ -1021,6 +1077,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         switch self {
         case .mouseScroll: return .scrollInverter
         case .focusFollowsMouse: return .focusFollowsMouse
+        case .mouseAcceleration: return .mouseAcceleration
         case .mouseNavigation: return .mouseNavigation
         case .switcher: return .switcher
         case .cutPaste: return .finderCutPaste
@@ -1032,9 +1089,11 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .dockClick, .dockClickHide, .dockClickCycle: return .dockClick
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
+        case .notch: return .notch
         case .radialMenu: return .radialMenu
         case .mouseButtonShortcuts: return .mouseButtonShortcuts
         case .superKey: return .superKey
+        case .mouseClickDebounce: return .mouseClickDebounce
         }
     }
 }
@@ -1048,10 +1107,10 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
-        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit:
+        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .notch:
             return .windows
-        case .mouseScroll, .focusFollowsMouse, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
-             .textSnippets, .radialMenu, .superKey:
+        case .mouseScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
+             .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -1092,9 +1151,14 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
+    @AppStorage(DefaultsKey.notchEnabled) private var notchEnabled = false
+    @AppStorage(DefaultsKey.panelControlNotch) private var showNotch = true
     @AppStorage(DefaultsKey.radialMenuEnabled) private var radialMenuEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
+    @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.superKeyEnabled) private var superKeyEnabled = false
+    @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
+    @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
     @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
         SuperKeySupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
@@ -1117,6 +1181,8 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlRadialMenu) private var showRadialMenu = true
     @AppStorage(DefaultsKey.panelControlMouseButtonShortcuts) private var showMouseButtonShortcuts = true
     @AppStorage(DefaultsKey.panelControlSuperKey) private var showSuperKey = true
+    @AppStorage(DefaultsKey.panelControlMouseAcceleration) private var showMouseAcceleration = true
+    @AppStorage(DefaultsKey.panelControlMouseClickDebounce) private var showMouseClickDebounce = true
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
     @AppStorage(DefaultsKey.panelControlFilesExpanded) private var filesExpanded = false
@@ -1218,6 +1284,7 @@ struct QuickControlsSection: View {
         switch item {
         case .mouseScroll: return scrollDirectionEnabled
         case .focusFollowsMouse: return focusFollowsMouseEnabled
+        case .mouseAcceleration: return mouseAccelerationDisabled
         case .mouseNavigation: return mouseNavigationEnabled
         case .switcher: return switcherEnabled
         case .cutPaste: return cutPasteEnabled
@@ -1231,9 +1298,11 @@ struct QuickControlsSection: View {
         case .dockClickCycle: return dockClickCycleEnabled
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
+        case .notch: return notchEnabled
         case .radialMenu: return radialMenuEnabled
-        case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled
+        case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .superKey: return superKeyEnabled
+        case .mouseClickDebounce: return mouseClickDebounceEnabled
         }
     }
 
@@ -1293,6 +1362,7 @@ struct QuickControlsSection: View {
         switch item {
         case .mouseScroll: return showScroll
         case .focusFollowsMouse: return showFocusFollowsMouse
+        case .mouseAcceleration: return showMouseAcceleration
         case .mouseNavigation: return showMouseNavigation
         case .switcher: return showSwitcher
         case .keyDebounce: return showKeyDebounce
@@ -1306,9 +1376,11 @@ struct QuickControlsSection: View {
         case .dockClickCycle: return showDockClickCycle
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
+        case .notch: return showNotch
         case .radialMenu: return showRadialMenu
         case .mouseButtonShortcuts: return showMouseButtonShortcuts
         case .superKey: return showSuperKey
+        case .mouseClickDebounce: return showMouseClickDebounce
         }
     }
 
@@ -1575,6 +1647,23 @@ struct QuickControlsSection: View {
                     TextSnippetService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .notch:
+            let text = FeatureStrings.notch(l10n.language)
+            PanelToggleRow(title: text.title,
+                           caption: text.description,
+                           systemImage: "macbook",
+                           isOn: $notchEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showNotch,
+                           accessoryTitle: l10n.s.menuSettings,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .notch
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: notchEnabled) { _, _ in
+                    NotchService.shared.syncWithPreferences()
+                }
         case .radialMenu:
             let radialStrings = FeatureStrings.radialMenu(l10n.language)
             // Only wheels that press keys for the user (shortcut or media
@@ -1609,18 +1698,23 @@ struct QuickControlsSection: View {
                 }
         case .mouseButtonShortcuts:
             let buttonStrings = FeatureStrings.mouseButtons(l10n.language)
+            // Either switch drives the same tap and needs the same grant
+            // (issue #1012), so every surface on this row reads them
+            // together. Widening one and not the rest is what leaves the
+            // row asking for a permission its own button cannot grant.
+            let buttonsEngaged = mouseButtonShortcutsEnabled || spacesEnabled
             PanelToggleRow(title: buttonStrings.pageTitle,
                            caption: caption(buttonStrings.panelCaption,
-                                            needsAccessibility: mouseButtonShortcutsEnabled),
+                                            needsAccessibility: buttonsEngaged),
                            systemImage: "button.programmable",
                            isOn: $mouseButtonShortcutsEnabled,
                            isEditing: editing,
                            showsDragHandle: true,
                            visibility: $showMouseButtonShortcuts,
-                           needsAttention: mouseButtonShortcutsEnabled && !permissions.accessibility,
+                           needsAttention: buttonsEngaged && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
-                           permissionAction: accessibilityPermissionAction(mouseButtonShortcutsEnabled),
-                           accessoryTitle: mouseButtonShortcutsEnabled ? buttonStrings.manageButton : nil,
+                           permissionAction: accessibilityPermissionAction(buttonsEngaged),
+                           accessoryTitle: buttonsEngaged ? buttonStrings.manageButton : nil,
                            accessoryAction: {
                                SettingsRouter.shared.page = .mouse
                                appDelegate()?.openSettingsWindow()
@@ -1657,6 +1751,34 @@ struct QuickControlsSection: View {
                     SuperKeyService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .mouseAcceleration:
+            PanelToggleRow(title: l10n.s.mouseAccelerationName,
+                           caption: l10n.s.mouseAccelerationCaption,
+                           systemImage: "cursorarrow.rays",
+                           isOn: $mouseAccelerationDisabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showMouseAcceleration)
+                .onChange(of: mouseAccelerationDisabled) { _, _ in
+                    MouseAccelerationService.shared.syncWithPreferences()
+                }
+        case .mouseClickDebounce:
+            let debounceStrings = FeatureStrings.mouseClickDebounce(l10n.language)
+            PanelToggleRow(title: debounceStrings.title,
+                           caption: caption(debounceStrings.caption,
+                                            needsAccessibility: mouseClickDebounceEnabled),
+                           systemImage: "cursorarrow.click",
+                           isOn: $mouseClickDebounceEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showMouseClickDebounce,
+                           needsAttention: mouseClickDebounceEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(mouseClickDebounceEnabled))
+                .onChange(of: mouseClickDebounceEnabled) { _, enabled in
+                    MouseClickDebounceService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
         }
     }
 
@@ -1688,6 +1810,8 @@ struct QuickControlsSection: View {
         showRadialMenu = true
         showMouseButtonShortcuts = true
         showSuperKey = true
+        showMouseAcceleration = true
+        showMouseClickDebounce = true
         windowsExpanded = false
         inputExpanded = false
         filesExpanded = false
@@ -1853,11 +1977,16 @@ struct UtilityActionButton: View {
                 VStack(alignment: .leading, spacing: 7) {
                     if permissionAction != nil {
                         rowContent(showChevron: false)
-                        permissionButton
                     } else {
                         mainButton
                     }
-                    accessoryButton
+                    VStack(alignment: .leading, spacing: 7) {
+                        if permissionAction != nil {
+                            permissionButton
+                        }
+                        accessoryButton
+                    }
+                    .padding(.leading, 31)
                 }
                 .panelCard()
             } else {
@@ -1887,7 +2016,6 @@ struct UtilityActionButton: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.mini)
-            .padding(.leading, 31)
         }
     }
 
@@ -2328,6 +2456,8 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var keepAwakeExternalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var keepAwakeConnectedToPower = false
+    @AppStorage(DefaultsKey.keepAwakeRunningApps) private var keepAwakeRunningApps = false
+    @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
@@ -2470,8 +2600,15 @@ struct KeepAwakeCard: View {
             .buttonStyle(.plain)
 
             if automationExpanded {
-                KeepAwakeAutomationEditor(compact: true)
-                    .padding(.leading, 22)
+                VStack(alignment: .leading, spacing: 8) {
+                    KeepAwakeAutomationEditor(compact: true)
+                    compactOptionToggle(
+                        icon: "lock.fill",
+                        title: automationStrings.pauseWhenLockedToggle,
+                        isOn: $keepAwakePauseWhenLocked
+                    )
+                }
+                .padding(.leading, 22)
             }
         }
     }
@@ -2479,7 +2616,9 @@ struct KeepAwakeCard: View {
     @ViewBuilder
     private var automationSummaryBadges: some View {
         if !keepAwakeExternalDisplay,
-           !keepAwakeConnectedToPower {
+           !keepAwakeConnectedToPower,
+           !keepAwakeRunningApps,
+           !keepAwakePauseWhenLocked {
             Text(automationStrings.automationOff)
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(.tertiary)
@@ -2490,6 +2629,12 @@ struct KeepAwakeCard: View {
                 }
                 if keepAwakeConnectedToPower {
                     automationSystemBadge("powerplug.fill")
+                }
+                if keepAwakeRunningApps {
+                    automationSystemBadge("app.fill")
+                }
+                if keepAwakePauseWhenLocked {
+                    automationSystemBadge("lock.fill")
                 }
             }
         }

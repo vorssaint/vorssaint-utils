@@ -33,7 +33,9 @@ final class TextSnippetService {
     private var immediateSnippets: [TextSnippet] = []
     private var delimiterSnippets: [TextSnippet] = []
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     var isRunning: Bool { tapLifecycleLock.withLock { tap != nil } }
 
@@ -44,7 +46,9 @@ final class TextSnippetService {
         let hasWork = inputLock.withLock {
             !(immediateSnippets.isEmpty && delimiterSnippets.isEmpty)
         }
-        if enabled, hasWork, Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(featureWanted: enabled && hasWork,
+                                               accessibilityGranted: AXIsProcessTrusted(),
+                                               sessionIsActive: SessionActivity.shared.isActive) {
             let libraryIsVisible = SnippetLibraryService.shared.isVisible
             let commandBarIsVisible = AppFeature.commandBar.isAvailable
                 && CommandBarService.shared.isVisible
@@ -201,7 +205,15 @@ final class TextSnippetService {
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] note in
+            // Not when the Accessibility Keyboard itself comes forward: pressing
+            // one of its keys is typing into the app you were already in, so the
+            // buffer has to survive it. Otherwise this clears what the mouse-down
+            // branch above just took care to keep.
+            if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+               app.bundleIdentifier == AssistiveKeyboard.bundleID {
+                return
+            }
             self?.resetBuffer()
         }
     }
@@ -215,13 +227,20 @@ final class TextSnippetService {
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             let currentTap = tapLifecycleLock.withLock { shouldStopTapThread ? nil : tap }
-            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let currentTap {
+                CGEvent.tapEnable(tap: currentTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             return Unmanaged.passUnretained(event)
         }
         // Clicks move the caret somewhere unknown; the half-typed trigger is
-        // no longer where the deletes would land.
+        // no longer where the deletes would land. A click on the Accessibility
+        // Keyboard is the exception: there the mouse is how a key is pressed,
+        // so the click types a character and leaves the caret alone. Window
+        // enumeration is skipped when the keyboard is not running.
         if type == .leftMouseDown || type == .rightMouseDown {
-            resetBuffer()
+            if !AssistiveKeyboard.ownsPoint(event.location) { resetBuffer() }
             return Unmanaged.passUnretained(event)
         }
         guard type == .keyDown else { return Unmanaged.passUnretained(event) }

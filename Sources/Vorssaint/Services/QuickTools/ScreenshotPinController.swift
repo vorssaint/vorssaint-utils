@@ -71,6 +71,7 @@ final class ScreenshotPinController {
 /// One pinned capture.
 private final class ScreenshotPinWindow: NSPanel {
     private let image: CGImage
+    private let scale: CGFloat
     private unowned let controller: ScreenshotPinController
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(L10n.shared.language)
@@ -78,6 +79,7 @@ private final class ScreenshotPinWindow: NSPanel {
 
     init(image: CGImage, scale: CGFloat, controller: ScreenshotPinController) {
         self.image = image
+        self.scale = scale
         self.controller = controller
 
         let screen = NSScreen.pointerVisibleFrame
@@ -117,7 +119,8 @@ private final class ScreenshotPinWindow: NSPanel {
 
     func copyImage() {
         guard ScreenshotEditorController.copyImage(
-            image, fileNamePrefix: strings.fileNamePrefix) else {
+            ScreenshotRenderer.Export(image: image, scale: scale),
+            fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return
         }
@@ -132,7 +135,7 @@ private final class ScreenshotPinWindow: NSPanel {
         NSApp.activate(ignoringOtherApps: true)
         panel.begin { [weak self] response in
             guard let self, response == .OK, let url = panel.url,
-                  let data = ScreenshotRenderer.pngData(from: self.image)
+                  let data = ScreenshotRenderer.pngData(from: self.image, scale: self.scale)
             else { return }
             do {
                 try data.write(to: url, options: .atomic)

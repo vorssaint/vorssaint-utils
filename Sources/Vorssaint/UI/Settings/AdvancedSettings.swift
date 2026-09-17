@@ -10,6 +10,7 @@ struct AdvancedSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var showClearConfirm = false
     @State private var showUninstallConfirm = false
+    @State private var uninstallFailed = false
     @State private var working = false
     @State private var cleared = false
     @State private var exported = false
@@ -112,10 +113,21 @@ struct AdvancedSettings: View {
             Button(l10n.s.uninstallerCancel, role: .cancel) {}
             Button(l10n.s.advancedUninstallButton, role: .destructive) {
                 working = true
-                SelfUninstall.uninstallCompletely()
+                SelfUninstall.uninstallCompletely {
+                    working = false
+                    // Stopping leaves the Mac exactly as it was, so the only
+                    // thing left to do is say so: the button going quiet on
+                    // its own reads as the app ignoring the request.
+                    uninstallFailed = true
+                }
             }
         } message: {
             Text(l10n.s.advancedUninstallConfirmBody)
+        }
+        .alert(l10n.s.advancedUninstallFailedTitle, isPresented: $uninstallFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(l10n.s.advancedUninstallFailedBody)
         }
         .alert(backup.importConfirmTitle, isPresented: $showImportConfirm) {
             Button(l10n.s.uninstallerCancel, role: .cancel) { pendingImport = nil }

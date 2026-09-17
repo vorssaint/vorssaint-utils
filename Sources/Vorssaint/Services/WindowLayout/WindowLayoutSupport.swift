@@ -10,9 +10,24 @@ enum WindowLayoutTargetCapability: Equatable {
     case fullScreen
 }
 
+enum WindowLayoutShortcutConflict: Equatable {
+    case directional
+    case action(WindowLayoutAction)
+
+    static func find(_ shortcut: GlobalShortcut, directional: GlobalShortcut?,
+                     excluding excluded: WindowLayoutAction? = nil,
+                     actionShortcut: (WindowLayoutAction) -> GlobalShortcut?) -> Self? {
+        if directional == shortcut { return .directional }
+        guard let action = WindowLayoutAction.shortcutActions.first(where: {
+            $0 != excluded && actionShortcut($0) == shortcut
+        }) else { return nil }
+        return .action(action)
+    }
+}
+
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
-    case leftHalf, rightHalf, topHalf, bottomHalf
-    case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds
+    case leftHalf, rightHalf, topHalf, bottomHalf, centerHalf
+    case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds, centerTwoThirds
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
@@ -22,8 +37,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static let shortcutActions: [WindowLayoutAction] = [
-        .leftHalf, .rightHalf, .topHalf, .bottomHalf,
-        .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
+        .leftHalf, .rightHalf, .topHalf, .bottomHalf, .centerHalf,
+        .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
@@ -74,6 +89,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .fullScreen: return 53
         case .previousDisplay: return 54
         case .marginMaximize: return 55
+        case .centerTwoThirds: return 56
+        case .centerHalf: return 57
         }
     }
 
@@ -88,6 +105,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightHalf: return DefaultsKey.windowLayoutShortcutRight
         case .topHalf: return DefaultsKey.windowLayoutShortcutTop
         case .bottomHalf: return DefaultsKey.windowLayoutShortcutBottom
+        case .centerHalf: return DefaultsKey.windowLayoutShortcutCenterHalf
         case .topLeft: return DefaultsKey.windowLayoutShortcutTopLeft
         case .topRight: return DefaultsKey.windowLayoutShortcutTopRight
         case .bottomLeft: return DefaultsKey.windowLayoutShortcutBottomLeft
@@ -102,6 +120,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return DefaultsKey.windowLayoutShortcutRightThird
         case .leftTwoThirds: return DefaultsKey.windowLayoutShortcutLeftTwoThirds
         case .rightTwoThirds: return DefaultsKey.windowLayoutShortcutRightTwoThirds
+        case .centerTwoThirds: return DefaultsKey.windowLayoutShortcutCenterTwoThirds
         case .previousDisplay: return DefaultsKey.windowLayoutShortcutPreviousDisplay
         case .nextDisplay: return DefaultsKey.windowLayoutShortcutNextDisplay
         case .topLeftSixth: return DefaultsKey.windowLayoutShortcutTopLeftSixth
@@ -137,7 +156,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .nextDisplay: return .windowLayoutNextDisplayDefault
         case .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
-                .marginMaximize, .fullScreen, .previousDisplay:
+                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds:
             // New actions must never claim a system-wide combination unasked.
             return nil
         }
@@ -185,6 +204,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightHalf: return text.rightHalf
         case .topHalf: return text.topHalf
         case .bottomHalf: return text.bottomHalf
+        case .centerHalf: return text.centerHalf
         case .topLeft: return text.topLeft
         case .topRight: return text.topRight
         case .bottomLeft: return text.bottomLeft
@@ -199,6 +219,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return text.rightThird
         case .leftTwoThirds: return text.leftTwoThirds
         case .rightTwoThirds: return text.rightTwoThirds
+        case .centerTwoThirds: return text.centerTwoThirds
         case .topLeftSixth: return text.topLeftSixth
         case .topCenterSixth: return text.topCenterSixth
         case .topRightSixth: return text.topRightSixth
@@ -219,9 +240,11 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return "rectangle.rightthird.inset.filled"
         case .topHalf: return "rectangle.topthird.inset.filled"
         case .bottomHalf: return "rectangle.bottomthird.inset.filled"
+        case .centerHalf: return "rectangle.center.inset.filled"
         case .centerThird: return "rectangle.center.inset.filled"
         case .leftTwoThirds: return "rectangle.leadinghalf.filled"
         case .rightTwoThirds: return "rectangle.trailinghalf.filled"
+        case .centerTwoThirds: return "rectangle.center.inset.filled"
         case .topLeftSixth, .topLeft: return "arrow.up.left"
         case .topCenterSixth: return "arrow.up"
         case .topRightSixth, .topRight: return "arrow.up.right"
@@ -239,7 +262,26 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     }
 }
 
+/// The configurable spacing around snapped windows (issue #1068). Values are
+/// in pixels, offering standard spacing presets (0 to 128 px).
+enum WindowLayoutGaps {
+    static let presets: [Int] = [0, 8, 16, 32, 64, 128]
+
+    static var windowGap: CGFloat {
+        CGFloat(UserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutWindowGap))
+    }
+
+    static var screenGap: CGFloat {
+        CGFloat(UserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutScreenGap))
+    }
+}
+
 enum WindowLayoutGeometry {
+    /// Points the settle path allows a window to miss its target by. Display
+    /// transfer uses the same value to treat a window as filling the source
+    /// or flush with an edge, so tuning settle cannot split those checks.
+    static let frameTolerance: CGFloat = 8
+
     static func effectiveAction(for action: WindowLayoutAction,
                                 current _: CGRect,
                                 visibleFrame _: CGRect,
@@ -250,9 +292,119 @@ enum WindowLayoutGeometry {
         return action
     }
 
+    /// Where a repeated side action goes: asking for the same side again keeps
+    /// pushing that way, so the window leaves through that edge and lands
+    /// against the opposite one on the display beside it. Top and bottom keep
+    /// promoting to maximize instead.
+    static func displayCrossing(
+        for action: WindowLayoutAction,
+        previousAction: WindowLayoutAction?
+    ) -> (action: WindowLayoutAction, movingRight: Bool)? {
+        guard action == previousAction else { return nil }
+        switch action {
+        case .leftHalf: return (.rightHalf, false)
+        case .rightHalf: return (.leftHalf, true)
+        default: return nil
+        }
+    }
+
+    /// The display sitting on one side of this one. Only a display that starts
+    /// further along that side counts, so one stacked above or below never
+    /// answers a sideways push, and the nearest one wins when several share an
+    /// edge. Next and previous display keep their own order, which cycles
+    /// through every screen.
+    static func horizontalNeighbourIndex(currentIndex: Int,
+                                         frames: [CGRect],
+                                         movingRight: Bool) -> Int? {
+        guard frames.indices.contains(currentIndex) else { return nil }
+        let current = frames[currentIndex]
+        return frames.indices
+            .filter { movingRight ? frames[$0].minX > current.minX : frames[$0].minX < current.minX }
+            .min { lhs, rhs in
+                let lhsFrame = frames[lhs]
+                let rhsFrame = frames[rhs]
+                if lhsFrame.minX != rhsFrame.minX {
+                    return movingRight ? lhsFrame.minX < rhsFrame.minX : lhsFrame.minX > rhsFrame.minX
+                }
+                let lhsDistance = abs(lhsFrame.midY - current.midY)
+                let rhsDistance = abs(rhsFrame.midY - current.midY)
+                if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+                return lhs < rhs
+            }
+    }
+
     static func rect(for action: WindowLayoutAction,
                      current: CGRect,
-                     visibleFrame: CGRect) -> CGRect {
+                     visibleFrame: CGRect,
+                     windowGap: CGFloat = 0,
+                     screenGap: CGFloat = 0) -> CGRect {
+        // Only placements that tile against the screen edge take the screen
+        // gap. The exempt actions keep their own geometry: margin maximize's
+        // percentage margin, center's size clamp, and the pass-through
+        // actions that return the current frame.
+        let frame: CGRect
+        switch action {
+        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen:
+            frame = visibleFrame
+        default:
+            frame = screenGapFrame(visibleFrame, screenGap: screenGap)
+        }
+        let rect = ungappedRect(for: action, current: current, visibleFrame: frame)
+        return windowGapped(rect, for: action, in: frame, windowGap: windowGap)
+    }
+
+    /// The visible frame pulled in by the screen gap on every side. The inset
+    /// keeps at least 80pt of layout space per axis, so an oversized gap on a
+    /// small display degrades instead of inverting the frame.
+    static func screenGapFrame(_ visibleFrame: CGRect, screenGap: CGFloat) -> CGRect {
+        guard screenGap > 0 else { return visibleFrame }
+        let dx = min(screenGap, max(0, (visibleFrame.width - 80) / 2))
+        let dy = min(screenGap, max(0, (visibleFrame.height - 80) / 2))
+        return visibleFrame.insetBy(dx: dx, dy: dy)
+    }
+
+    /// Shaves half the window gap off every edge a placement shares with a
+    /// neighbouring one, so two adjacent windows end up exactly `windowGap`
+    /// apart — the gap is the total distance, not applied by both sides. An
+    /// edge is shared exactly when it does not lie on the (screen-gapped)
+    /// visible frame. Actions that do not tile the screen have no neighbours
+    /// and keep their frames.
+    private static func windowGapped(_ rect: CGRect,
+                                     for action: WindowLayoutAction,
+                                     in frame: CGRect,
+                                     windowGap: CGFloat) -> CGRect {
+        guard windowGap > 0 else { return rect }
+        switch action {
+        case .maximize, .marginMaximize, .fullScreen, .center, .restore,
+                .previousDisplay, .nextDisplay:
+            return rect
+        default:
+            break
+        }
+        let half = windowGap / 2
+        var result = rect
+        if result.minX - frame.minX > 1 {
+            result.origin.x += half
+            result.size.width -= half
+        }
+        if frame.maxX - result.maxX > 1 {
+            result.size.width -= half
+        }
+        if result.minY - frame.minY > 1 {
+            result.origin.y += half
+            result.size.height -= half
+        }
+        if frame.maxY - result.maxY > 1 {
+            result.size.height -= half
+        }
+        result.size.width = max(1, result.size.width)
+        result.size.height = max(1, result.size.height)
+        return result.integral
+    }
+
+    private static func ungappedRect(for action: WindowLayoutAction,
+                                     current: CGRect,
+                                     visibleFrame: CGRect) -> CGRect {
         let halfWidth = visibleFrame.width / 2
         let halfHeight = visibleFrame.height / 2
         let thirdWidth = visibleFrame.width / 3
@@ -270,6 +422,9 @@ enum WindowLayoutGeometry {
         case .bottomHalf:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
                           width: visibleFrame.width, height: halfHeight).integral
+        case .centerHalf:
+            return CGRect(x: visibleFrame.midX - halfWidth / 2, y: visibleFrame.minY,
+                          width: halfWidth, height: visibleFrame.height).integral
         case .leftThird:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
                           width: thirdWidth, height: visibleFrame.height).integral
@@ -284,6 +439,9 @@ enum WindowLayoutGeometry {
                           width: twoThirdsWidth, height: visibleFrame.height).integral
         case .rightTwoThirds:
             return CGRect(x: visibleFrame.maxX - twoThirdsWidth, y: visibleFrame.minY,
+                          width: twoThirdsWidth, height: visibleFrame.height).integral
+        case .centerTwoThirds:
+            return CGRect(x: visibleFrame.midX - twoThirdsWidth / 2, y: visibleFrame.minY,
                           width: twoThirdsWidth, height: visibleFrame.height).integral
         case .topLeftSixth:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.midY,
@@ -352,25 +510,25 @@ enum WindowLayoutGeometry {
         switch action {
         case .leftHalf:
             origin.x = targetRect.minX
-            origin.y = visibleFrame.minY
+            origin.y = targetRect.minY
         case .rightHalf:
             origin.x = targetRect.maxX - size.width
-            origin.y = visibleFrame.minY
+            origin.y = targetRect.minY
         case .topHalf:
-            origin.x = visibleFrame.minX
+            origin.x = targetRect.minX
             origin.y = targetRect.maxY - size.height
         case .bottomHalf:
-            origin.x = visibleFrame.minX
+            origin.x = targetRect.minX
             origin.y = targetRect.minY
         case .leftThird, .leftTwoThirds:
             origin.x = targetRect.minX
-            origin.y = visibleFrame.minY
-        case .centerThird:
+            origin.y = targetRect.minY
+        case .centerThird, .centerHalf, .centerTwoThirds:
             origin.x = targetRect.midX - size.width / 2
-            origin.y = visibleFrame.minY
+            origin.y = targetRect.minY
         case .rightThird, .rightTwoThirds:
             origin.x = targetRect.maxX - size.width
-            origin.y = visibleFrame.minY
+            origin.y = targetRect.minY
         case .topLeftSixth:
             origin.x = targetRect.minX
             origin.y = targetRect.maxY - size.height
@@ -456,7 +614,7 @@ enum WindowLayoutGeometry {
             return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
-        case .centerThird:
+        case .centerThird, .centerHalf, .centerTwoThirds:
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
@@ -531,19 +689,78 @@ enum WindowLayoutGeometry {
               destinationVisibleFrame.height > 0
         else { return current.integral }
 
-        let widthRatio = min(max(current.width / sourceVisibleFrame.width, 0.08), 1)
-        let heightRatio = min(max(current.height / sourceVisibleFrame.height, 0.08), 1)
-        let xRatio = (current.minX - sourceVisibleFrame.minX) / sourceVisibleFrame.width
-        let yRatio = (current.minY - sourceVisibleFrame.minY) / sourceVisibleFrame.height
+        // Scaling by each screen's size stretches a laptop window across an
+        // ultrawide and squashes it onto a portrait panel. Keep the current
+        // size, only shrinking to fit, and keep the same edge insets rather
+        // than spreading leftover space. A window that already fills the
+        // source still fills the destination, so Maximize stays Maximize.
+        if current.width >= sourceVisibleFrame.width - frameTolerance,
+           current.height >= sourceVisibleFrame.height - frameTolerance {
+            return destinationVisibleFrame.integral
+        }
 
-        let width = min(destinationVisibleFrame.width, max(1, destinationVisibleFrame.width * widthRatio))
-        let height = min(destinationVisibleFrame.height, max(1, destinationVisibleFrame.height * heightRatio))
-        let unclampedX = destinationVisibleFrame.minX + destinationVisibleFrame.width * xRatio
-        let unclampedY = destinationVisibleFrame.minY + destinationVisibleFrame.height * yRatio
-        let x = min(max(unclampedX, destinationVisibleFrame.minX), destinationVisibleFrame.maxX - width)
-        let y = min(max(unclampedY, destinationVisibleFrame.minY), destinationVisibleFrame.maxY - height)
+        let width = min(destinationVisibleFrame.width, max(1, current.width))
+        let height = min(destinationVisibleFrame.height, max(1, current.height))
+        let x = unscaledOrigin(sourceMin: sourceVisibleFrame.minX,
+                               sourceMax: sourceVisibleFrame.maxX,
+                               currentMin: current.minX,
+                               currentMax: current.maxX,
+                               destinationMin: destinationVisibleFrame.minX,
+                               destinationMax: destinationVisibleFrame.maxX,
+                               size: width,
+                               preferMax: false)
+        let y = unscaledOrigin(sourceMin: sourceVisibleFrame.minY,
+                               sourceMax: sourceVisibleFrame.maxY,
+                               currentMin: current.minY,
+                               currentMax: current.maxY,
+                               destinationMin: destinationVisibleFrame.minY,
+                               destinationMax: destinationVisibleFrame.maxY,
+                               size: height,
+                               preferMax: true)
+        let clampedX = min(max(x, destinationVisibleFrame.minX),
+                           destinationVisibleFrame.maxX - width)
+        let clampedY = min(max(y, destinationVisibleFrame.minY),
+                           destinationVisibleFrame.maxY - height)
+        return CGRect(x: clampedX, y: clampedY, width: width, height: height).integral
+    }
 
-        return CGRect(x: x, y: y, width: width, height: height).integral
+    /// Keeps the inset from the leading edge of an axis, unless the window is
+    /// already flush with the trailing one. Horizontal placement prefers the
+    /// left so a window in the middle of a laptop does not fly to the middle
+    /// of an ultrawide; a right-half stays on the right. Vertical placement
+    /// prefers the top (AppKit maxY, under the menu bar) so a full-height
+    /// window is not dropped onto the dock of a taller display.
+    private static func unscaledOrigin(sourceMin: CGFloat,
+                                       sourceMax: CGFloat,
+                                       currentMin: CGFloat,
+                                       currentMax: CGFloat,
+                                       destinationMin: CGFloat,
+                                       destinationMax: CGFloat,
+                                       size: CGFloat,
+                                       preferMax: Bool) -> CGFloat {
+        let minInset = currentMin - sourceMin
+        let maxInset = sourceMax - currentMax
+        let sourceSlack = (sourceMax - sourceMin) - (currentMax - currentMin)
+        // Near-zero leftover space makes flush-edge detection a coin flip:
+        // a 1pt jitter picks left vs right and becomes a thousand-point
+        // jump on an ultrawide. Keep the preferred-edge inset instead;
+        // the caller already clamps.
+        if sourceSlack <= frameTolerance {
+            if preferMax {
+                return destinationMax - maxInset - size
+            }
+            return destinationMin + minInset
+        }
+        if preferMax {
+            if minInset <= frameTolerance, minInset < maxInset {
+                return destinationMin + minInset
+            }
+            return destinationMax - maxInset - size
+        }
+        if maxInset <= frameTolerance, maxInset < minInset {
+            return destinationMax - maxInset - size
+        }
+        return destinationMin + minInset
     }
 
     static func adjacentDisplayIndex(currentIndex: Int,

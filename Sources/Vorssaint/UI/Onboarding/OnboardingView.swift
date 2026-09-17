@@ -494,7 +494,10 @@ private struct SelectedPermissionsStep: View {
         features
             .filter { $0.onboardingPermissions.contains(permission) }
             .map { $0.hubTitle(l10n.s, hub: hub) }
-            .sorted()
+            // Localized: a plain sort orders by Unicode scalar, which throws
+            // every accented name past Z. On the first screen someone sees,
+            // in a language with accents, that reads as a list in no order.
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
             .joined(separator: ", ")
     }
 }

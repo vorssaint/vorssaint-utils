@@ -16,8 +16,45 @@ final class DiskProtectionService: ObservableObject {
     static let shared = DiskProtectionService()
 
     @Published private(set) var states: [String: DiskEjectState] = [:]
+    @Published private(set) var excludedVolumes: [String] = []
 
-    private init() {}
+    private init() {
+        reloadExclusions()
+    }
+
+    func reloadExclusions() {
+        let raw = UserDefaults.standard.stringArray(forKey: DefaultsKey.diskEjectExcludedVolumes) ?? []
+        let sanitized = Defaults.sanitizedDiskExclusionList(raw)
+        if raw != sanitized {
+            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.diskEjectExcludedVolumes)
+        }
+        excludedVolumes = sanitized
+    }
+
+    func addExcludedVolume(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard !excludedVolumes.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
+        let updated = Defaults.sanitizedDiskExclusionList(excludedVolumes + [trimmed])
+        UserDefaults.standard.set(updated, forKey: DefaultsKey.diskEjectExcludedVolumes)
+        excludedVolumes = updated
+    }
+
+    func removeExcludedVolume(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let updated = excludedVolumes.filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
+        UserDefaults.standard.set(updated, forKey: DefaultsKey.diskEjectExcludedVolumes)
+        excludedVolumes = updated
+    }
+
+    func isExcluded(disk: DiskDeviceReading) -> Bool {
+        guard !excludedVolumes.isEmpty else { return false }
+        let set = Set(excludedVolumes.map { $0.lowercased() })
+        return QuickTogglesSupport.isExcluded(volumeName: disk.name,
+                                              volumeUUID: disk.volumeUUID,
+                                              mountPath: disk.mountPath,
+                                              excludedVolumes: set)
+    }
 
     func state(for disk: DiskDeviceReading) -> DiskEjectState? {
         states[disk.id]
@@ -76,6 +113,7 @@ final class DiskProtectionService: ObservableObject {
         var seen = Set<String>()
         return disks.filter { disk in
             guard disk.canEject, let id = disk.ejectBSDName else { return false }
+            guard !isExcluded(disk: disk) else { return false }
             return seen.insert(id).inserted
         }
     }

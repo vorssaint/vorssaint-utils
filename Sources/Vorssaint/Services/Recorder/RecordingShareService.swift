@@ -35,6 +35,15 @@ final class RecordingShareService: ObservableObject {
         configuration.timeoutIntervalForResource = 300
         configuration.waitsForConnectivity = false
         session = URLSession(configuration: configuration)
+        // An expiry that came due during sleep never triggers its timer: the
+        // deadline below is armed on a clock that stops with the Mac, so a link
+        // that ran out overnight stays listed as live for as long as the Mac
+        // slept. Waking up recomputes and catches the miss.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refresh() }
+        }
         refresh()
     }
 

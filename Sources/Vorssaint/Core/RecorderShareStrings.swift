@@ -61,7 +61,7 @@ extension RecorderShareStrings {
     )
 
     static let tr = RecorderShareStrings(
-        caption: "1 veya 6 saat seçin. Son video bu Mac'te 100 MB altında kalacak şekilde sıkıştırılır ve otomatik olarak silinir.",
+        caption: "1 veya 6 saat seçin. Son video bu Mac’te 100 MB altında kalacak şekilde sıkıştırılır ve otomatik olarak silinir.",
         privacyData: "Vorssaint yalnızca bu kayıttan oluşturulan son videoyu, koruduğunuz sesle ve seçtiğiniz süreyle birlikte gönderir. Adınızı, hesabınızı veya aygıt kimliğinizi göndermez.",
         privacyStorage: "Ağ sağlayıcıları ve hizmet, kötüye kullanımı önlemek için genel IP adresinizi geçici olarak işler. Video ve bağlantı verileri, bağlantıyı sildiğinizde veya süresi dolduğunda kalıcı olarak silinir. Hizmet yedek oluşturmaz.",
         privacyAccess: "Bağlantıya sahip herkes videoyu izleyebilir, indirebilir, kaydedebilir veya yeniden dağıtabilir. Etkin bağlantılar kötüye kullanım denetimi için hizmet operatörüne açıktır. Yalnızca güvendiğiniz kişilerle paylaşın.",
@@ -69,7 +69,7 @@ extension RecorderShareStrings {
         uploading: "Güvenli şekilde yükleniyor…",
         tooLarge: "Bu kayıt, kaliteden çok fazla ödün vermeden 100 MB altına sığmıyor.",
         failed: "Geçici bağlantı oluşturulamadı",
-        tourCaption: "Tamamlanan kaydı bu Mac'te sıkıştırıp 1 veya 6 saatliğine paylaşın."
+        tourCaption: "Tamamlanan kaydı bu Mac’te sıkıştırıp 1 veya 6 saatliğine paylaşın."
     )
 
     static let ru = RecorderShareStrings(
@@ -110,9 +110,9 @@ extension RecorderShareStrings {
 
     static let fr = RecorderShareStrings(
         caption: "Choisissez 1 ou 6 heures. La vidéo finale est compressée sur ce Mac à moins de 100 Mo, puis supprimée automatiquement.",
-        privacyData: "Vorssaint envoie uniquement la vidéo finale créée à partir de cet enregistrement, avec l'audio conservé, et la durée choisie. Votre nom, compte et identifiant d'appareil ne sont pas envoyés.",
+        privacyData: "Vorssaint envoie uniquement la vidéo finale créée à partir de cet enregistrement, avec l’audio conservé, et la durée choisie. Votre nom, compte et identifiant d’appareil ne sont pas envoyés.",
         privacyStorage: "Les fournisseurs réseau et le service traitent temporairement votre adresse IP publique pour prévenir les abus. La vidéo et les données du lien sont définitivement supprimées quand vous effacez le lien ou à son expiration. Le service ne crée aucune sauvegarde.",
-        privacyAccess: "Toute personne disposant du lien peut voir, télécharger, enregistrer ou redistribuer la vidéo. Les liens actifs sont accessibles à l'opérateur du service pour modérer les abus. Partagez-les uniquement avec des personnes de confiance.",
+        privacyAccess: "Toute personne disposant du lien peut voir, télécharger, enregistrer ou redistribuer la vidéo. Les liens actifs sont accessibles à l’opérateur du service pour modérer les abus. Partagez-les uniquement avec des personnes de confiance.",
         compressing: "Compression pour le partage…",
         uploading: "Envoi sécurisé…",
         tooLarge: "Cet enregistrement ne peut pas tenir sous 100 Mo sans perdre trop de qualité.",
@@ -122,7 +122,7 @@ extension RecorderShareStrings {
 
     static let it = RecorderShareStrings(
         caption: "Scegli 1 o 6 ore. Il video finale viene compresso su questo Mac sotto i 100 MB ed eliminato automaticamente.",
-        privacyData: "Vorssaint invia solo il video finale creato da questa registrazione, incluso l'audio mantenuto, e la durata scelta. Non invia nome, account o identificativo del dispositivo.",
+        privacyData: "Vorssaint invia solo il video finale creato da questa registrazione, incluso l’audio mantenuto, e la durata scelta. Non invia nome, account o identificativo del dispositivo.",
         privacyStorage: "I fornitori di rete e il servizio elaborano temporaneamente il tuo IP pubblico per prevenire abusi. Il video e i dati del link vengono eliminati definitivamente quando cancelli il link o alla scadenza. Il servizio non crea backup.",
         privacyAccess: "Chiunque abbia il link può vedere, scaricare, salvare o ridistribuire il video. I link attivi sono disponibili al gestore del servizio per moderare gli abusi. Condividili solo con persone fidate.",
         compressing: "Compressione per la condivisione…",

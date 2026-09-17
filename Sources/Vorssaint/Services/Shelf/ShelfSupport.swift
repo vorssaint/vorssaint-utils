@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 enum ShelfSelectionSupport {
     /// Escape clears the Shelf selection only when pressed on its own. Keeping
@@ -137,6 +139,49 @@ enum ShelfInteractionSupport {
     }
 }
 
+/// Types accepted by the native shelf drop targets.
+enum ShelfPasteboardSupport {
+    static let filePromiseTypeIdentifiers: Set<String> = {
+        var ids = Set(NSFilePromiseReceiver.readableDraggedTypes)
+        ids.formUnion(["Apple files promise pasteboard type",
+                       "com.apple.pasteboard.promised-file-url",
+                       "com.apple.pasteboard.promised-file-content-type"])
+        return ids
+    }()
+
+    private static let directDroppableTypes: Set<String> = [
+        NSPasteboard.PasteboardType.fileURL.rawValue,
+        NSPasteboard.PasteboardType.string.rawValue,
+        NSPasteboard.PasteboardType.tiff.rawValue,
+        NSPasteboard.PasteboardType.png.rawValue,
+        UTType.gif.identifier,
+        UTType.fileURL.identifier,
+        UTType.image.identifier,
+        UTType.url.identifier,
+        UTType.text.identifier,
+        UTType.plainText.identifier,
+        "NSFilenamesPboardType",
+        "NSURLPboardType"
+    ]
+
+    private static let supportedUTTypes: [UTType] = [
+        .fileURL, .gif, .image, .url, .text, .plainText
+    ]
+
+    static func isFilePromiseType(_ rawValue: String) -> Bool {
+        filePromiseTypeIdentifiers.contains(rawValue)
+    }
+
+    static func isDroppablePasteboardType(_ rawValue: String) -> Bool {
+        if isFilePromiseType(rawValue) { return true }
+        if directDroppableTypes.contains(rawValue) { return true }
+        guard let utType = UTType(rawValue) else { return false }
+        return supportedUTTypes.contains { utType.conforms(to: $0) }
+    }
+
+
+}
+
 /// A leaf item's kind, reduced to what the pile-breakdown tooltip needs. A
 /// pure stand-in for ShelfService.Item's payload, like ShelfEdgeScreen is
 /// for NSScreen, so this stays testable without depending on Item.
@@ -154,20 +199,43 @@ struct ShelfTooltipPileBreakdown: Equatable {
     var total: Int { images + files + notes + links }
 }
 
-/// The localized words the pile breakdown needs, one singular and one
-/// plural per kind (this app has no CLDR-style pluralization, so each
-/// form is its own string) plus the always-plural items count, since a
-/// pile always holds two or more leaves.
+/// The localized words the pile breakdown needs (this app has no CLDR-style
+/// pluralization, so each form is its own string): one for a count of one, one
+/// for two through four where a language asks for it, and one for the rest.
+/// The items count has no singular because a pile always holds two or more.
 struct ShelfTooltipStrings {
     let itemsFormat: String
+    let itemsFew: String
     let imageSingular: String
+    let imageFew: String
     let imagePlural: String
     let fileSingular: String
+    let fileFew: String
     let filePlural: String
     let noteSingular: String
+    let noteFew: String
     let notePlural: String
     let linkSingular: String
+    let linkFew: String
     let linkPlural: String
+    /// Set for a language whose two through four take a form of their own.
+    let usesFewForm: Bool
+
+    /// The form a count asks for. Russian agrees by the number's last digits:
+    /// one for 1, 21, 31 but not 11; the middle form for 2 through 4, 22
+    /// through 24 but not 12 through 14; the last for everything else.
+    enum Form { case one, few, many }
+
+    func form(for count: Int) -> Form {
+        guard usesFewForm else { return count == 1 ? .one : .many }
+        let magnitude = abs(count)
+        if (11...14).contains(magnitude % 100) { return .many }
+        switch magnitude % 10 {
+        case 1: return .one
+        case 2, 3, 4: return .few
+        default: return .many
+        }
+    }
 }
 
 enum ShelfTooltipSupport {
@@ -226,23 +294,34 @@ enum ShelfTooltipSupport {
     /// leaving a dangling colon with nothing after it.
     static func text(forPile breakdown: ShelfTooltipPileBreakdown, strings: ShelfTooltipStrings) -> String {
         var parts: [String] = []
+        func worded(_ count: Int, _ one: String, _ few: String, _ many: String) -> String {
+            switch strings.form(for: count) {
+            case .one: return String(format: one, count)
+            case .few: return String(format: few, count)
+            case .many: return String(format: many, count)
+            }
+        }
         if breakdown.images > 0 {
-            parts.append(String(format: breakdown.images == 1 ? strings.imageSingular : strings.imagePlural,
-                                breakdown.images))
+            parts.append(worded(breakdown.images,
+                                strings.imageSingular, strings.imageFew, strings.imagePlural))
         }
         if breakdown.files > 0 {
-            parts.append(String(format: breakdown.files == 1 ? strings.fileSingular : strings.filePlural,
-                                breakdown.files))
+            parts.append(worded(breakdown.files,
+                                strings.fileSingular, strings.fileFew, strings.filePlural))
         }
         if breakdown.notes > 0 {
-            parts.append(String(format: breakdown.notes == 1 ? strings.noteSingular : strings.notePlural,
-                                breakdown.notes))
+            parts.append(worded(breakdown.notes,
+                                strings.noteSingular, strings.noteFew, strings.notePlural))
         }
         if breakdown.links > 0 {
-            parts.append(String(format: breakdown.links == 1 ? strings.linkSingular : strings.linkPlural,
-                                breakdown.links))
+            parts.append(worded(breakdown.links,
+                                strings.linkSingular, strings.linkFew, strings.linkPlural))
         }
-        let itemsText = String(format: strings.itemsFormat, breakdown.total)
+        // A pile always holds two or more, so the items count only ever needs
+        // the middle form or the last one.
+        let itemsText = strings.form(for: breakdown.total) == .few
+            ? String(format: strings.itemsFew, breakdown.total)
+            : String(format: strings.itemsFormat, breakdown.total)
         guard !parts.isEmpty else { return itemsText }
         return "\(itemsText): \(parts.joined(separator: ", "))"
     }
@@ -353,6 +432,70 @@ enum ShelfEdgeDragSupport {
     }
 }
 
+enum ShelfDockDragSupport {
+    /// How long the pointer has to stay within the collapsed pill trigger
+    /// area before expanding into the full shelf card, so a fast pass
+    /// across the menu bar does not fire unintentionally.
+    static let dwell: TimeInterval = 0.15
+
+    /// Margin around the collapsed pill and menu bar anchor that counts
+    /// as aiming for the docked shelf.
+    static let triggerMargin: CGFloat = 16
+
+    /// Margin around the expanded card to keep it open while aiming for
+    /// tiles or drop targets without jitter.
+    static let retreatMargin: CGFloat = 32
+
+    /// The hit target zone while the docked shelf is collapsed. Uses the
+    /// pill frame when available, expanded by triggerMargin and unioned with
+    /// the status item anchor in the menu bar.
+    static func triggerFrame(pillFrame: CGRect?,
+                             anchorFrame: CGRect?,
+                             screenFrame: CGRect?) -> CGRect? {
+        if let pillFrame, pillFrame.width > 0, pillFrame.height > 0 {
+            let padded = pillFrame.insetBy(dx: -triggerMargin, dy: -triggerMargin)
+            if let anchorFrame, anchorFrame.width > 0, anchorFrame.height > 0 {
+                return padded.union(anchorFrame.insetBy(dx: -triggerMargin, dy: 0))
+            }
+            return padded
+        }
+        if let anchorFrame, anchorFrame.width > 0, anchorFrame.height > 0 {
+            let fallbackHeight: CGFloat = 32
+            let pillY = anchorFrame.minY - 4 - fallbackHeight
+            let estimatedPill = CGRect(x: anchorFrame.midX - 36,
+                                       y: pillY,
+                                       width: 72,
+                                       height: fallbackHeight)
+            return estimatedPill.insetBy(dx: -triggerMargin, dy: -triggerMargin).union(anchorFrame)
+        }
+        return nil
+    }
+
+    /// Whether the pointer is inside the trigger zone (when collapsed)
+    /// or inside the retreat zone (when expanded).
+    static func isPointNearDock(point: CGPoint,
+                                isProximate: Bool,
+                                panelFrame: CGRect?,
+                                anchorFrame: CGRect?,
+                                screenFrame: CGRect?) -> Bool {
+        if isProximate, let panelFrame, panelFrame.width > 0, panelFrame.height > 0 {
+            return panelFrame.insetBy(dx: -retreatMargin, dy: -retreatMargin).contains(point)
+        }
+        guard let target = triggerFrame(pillFrame: panelFrame,
+                                       anchorFrame: anchorFrame,
+                                       screenFrame: screenFrame) else {
+            return false
+        }
+        return target.contains(point)
+    }
+
+    /// Whether a dwell that began at `since` has lasted long enough to count
+    /// as aiming to open the docked card.
+    static func hasDwelled(since: TimeInterval, now: TimeInterval, required: TimeInterval = dwell) -> Bool {
+        now - since >= required
+    }
+}
+
 /// Persisted form of one shelf item, so the shelf survives relaunches (and app
 /// updates, which relaunch the app). Payloads and titles are stored; icons and
 /// image flags are rebuilt from the payload at load.
@@ -392,12 +535,98 @@ struct ShelfPersistedItem: Codable, Equatable {
     }
 }
 
+// The custom decoder lives in an extension so the memberwise initializer
+// stays synthesized. It tolerates blobs written by other versions: absent
+// fields fall back to their defaults, and an unknown kind fails just this
+// item, which the lossy array decode in `ShelfPersistenceSupport.load` then
+// drops instead of losing the whole shelf.
+extension ShelfPersistedItem {
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, title, text, url, path, bookmark, children
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
+                  kind: try container.decode(Kind.self, forKey: .kind),
+                  title: try container.decodeIfPresent(String.self, forKey: .title) ?? "",
+                  text: try container.decodeIfPresent(String.self, forKey: .text),
+                  url: try container.decodeIfPresent(String.self, forKey: .url),
+                  path: try container.decodeIfPresent(String.self, forKey: .path),
+                  bookmark: try container.decodeIfPresent(Data.self, forKey: .bookmark),
+                  children: try container.decodeIfPresent([FailableShelfPersistedItem].self, forKey: .children)?
+                      .compactMap(\.value))
+    }
+}
+
+private struct FailableShelfPersistedItem: Decodable {
+    let value: ShelfPersistedItem?
+
+    init(from decoder: Decoder) throws {
+        value = try? ShelfPersistedItem(from: decoder)
+    }
+}
+
+/// What the saved shelf blob turned out to be. The outcomes are kept apart
+/// because they need opposite handling, and collapsing them into a plain
+/// item list is what lets a decode failure pass for an empty shelf: writing
+/// that empty list back and sweeping the payload files behind it turns one
+/// bad blob into permanent loss.
+enum ShelfStoreLoad: Equatable {
+    /// No blob yet (first launch), or a blob that decoded whole — possibly to
+    /// an empty list, which is a shelf the user emptied.
+    case items([ShelfPersistedItem])
+    /// A blob that decoded, but with entries this build could not read: an
+    /// unknown kind written by a newer build, at the top level or inside a
+    /// batch. Those entries still own payload files in the shelf's own
+    /// directory, and the blob still points at them, so their files must
+    /// survive to the launch that can read the store again.
+    case partial([ShelfPersistedItem])
+    /// A blob that is not a shelf list at all. Leave it, and the payload
+    /// files it still references, alone until the next launch.
+    case unreadable
+}
+
 enum ShelfPersistenceSupport {
     /// Ceilings so a stale or hand-edited blob cannot balloon startup: the
     /// shelf is a hand-curated surface, not an archive.
     static let maxLeaves = 200
     static let maxTextLength = 200_000
     static let maxDepth = 4
+
+    /// The only way into the saved shelf. Callers get a case they have to
+    /// answer for, so "the blob did not decode" cannot quietly become "the
+    /// shelf is empty" the way decoding the array outright does. Entries are
+    /// lossy on their own: one with an unknown kind or a missing required
+    /// field drops itself instead of taking the rest with it, and a list that
+    /// lost an entry that way comes back as `.partial`, not `.items`.
+    static func load(_ data: Data?) -> ShelfStoreLoad {
+        guard let data else { return .items([]) }
+        guard let decoded = try? JSONDecoder().decode([FailableShelfPersistedItem].self,
+                                                      from: data) else { return .unreadable }
+        let items = decoded.compactMap(\.value)
+        // A stored list where nothing survived is a shelf this build cannot
+        // read (a downgrade past a format change), not one the user emptied.
+        if !decoded.isEmpty, items.isEmpty { return .unreadable }
+        // Counted rather than read off `decoded.count`: an entry can also drop
+        // itself inside a batch, and its payload file is as real as a top-level
+        // one's. The blob kept still points at every dropped entry's file.
+        let stored = storedEntryCount(try? JSONSerialization.jsonObject(with: data))
+        return stored == readEntryCount(items) ? .items(items) : .partial(items)
+    }
+
+    /// Entries the blob describes at every depth, readable or not.
+    private static func storedEntryCount(_ json: Any?) -> Int {
+        guard let entries = json as? [Any] else { return 0 }
+        return entries.reduce(0) { total, entry in
+            total + 1 + storedEntryCount((entry as? [String: Any])?["children"])
+        }
+    }
+
+    /// Entries this build read at every depth.
+    private static func readEntryCount(_ items: [ShelfPersistedItem]) -> Int {
+        items.reduce(0) { $0 + 1 + readEntryCount($1.children ?? []) }
+    }
 
     static func boundedLiveText(_ text: String) -> String? {
         let bounded = String(text.prefix(maxTextLength))
@@ -407,6 +636,13 @@ enum ShelfPersistenceSupport {
 
     static func canAdd(existingLeaves: Int, newLeaves: Int) -> Bool {
         existingLeaves >= 0 && newLeaves > 0 && existingLeaves <= maxLeaves - newLeaves
+    }
+
+    /// A stored attachment can have its own directory to preserve its name.
+    /// Startup cleanup must keep that directory while a descendant is referenced.
+    static func containsKeptFile(under path: String, keptPaths: Set<String>) -> Bool {
+        let path = URL(fileURLWithPath: path).standardizedFileURL.path
+        return keptPaths.contains(path) || keptPaths.contains { $0.hasPrefix(path + "/") }
     }
 
     static func discardablePayloadPaths(candidatePaths: [String],
@@ -499,14 +735,5 @@ enum ShelfPersistenceSupport {
             }
         }
         return result
-    }
-}
-
-enum ShelfBatchSupport {
-    /// Restores original drop order after resolving every provider in a
-    /// multi-item drop in parallel, which completes out of order, and
-    /// drops any provider that failed to resolve to anything.
-    static func orderedItems<Item>(from resolved: [(index: Int, item: Item)]) -> [Item] {
-        resolved.sorted { $0.index < $1.index }.map(\.item)
     }
 }

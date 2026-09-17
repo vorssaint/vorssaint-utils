@@ -1,6 +1,6 @@
 # Privacy
 
-Vorssaint is built to be local-first. Core features run on your Mac, and the app has no Vorssaint account or cloud dashboard. Its Vorssaint-operated services are limited to temporary screenshot links and feedback you explicitly choose to send.
+Vorssaint is built to be local-first. Core features run on your Mac, and the app has no Vorssaint account or cloud dashboard. Its Vorssaint-operated services are limited to temporary screenshot and recording links and feedback you explicitly choose to send.
 
 ## The short version
 
@@ -13,13 +13,27 @@ Vorssaint is built to be local-first. Core features run on your Mac, and the app
 
 ## What it reads, and where that stays
 
-Everything Vorssaint shows you, from the CPU and memory load to the temperatures, the battery details, the network rates, the window list, per app volume and the files on the Shelf, is read locally through native macOS APIs and shown to you right there. None of it is sent anywhere, logged remotely or shared.
+Everything Vorssaint shows you, from the CPU and memory load to the temperatures, the battery details, the network rates, the window list, per app volume and the files on the Shelf, is read locally through native macOS APIs and shown to you right there. Those readings are not uploaded automatically. Optional online lyric lookup sends only the song metadata described below.
 
 Clipboard history, including the images and files you copy, lives in the app's local storage on your Mac and never leaves it. Copy text from screen recognizes the text entirely on device with Apple's Vision framework, and the temporary capture is deleted as soon as the text is read. Automatic clearing, when you switch it on, only empties the system clipboard on this Mac: nothing is sent anywhere, and items already saved to your history are left as they are.
 
 Recent Captures keeps up to 12 screenshots, within a 256 MB limit, in the app's private local cache so you can reopen them. Recordings are not duplicated: only their existing path and a small thumbnail are kept. Clear removes that history and its cached images. When a screenshot is copied as a file, its private local PNG is kept temporarily so other apps can finish reading it, then cleaned on later copies once it is older than 24 hours or earlier when the bounded cache fills. None of these local caches is uploaded automatically.
 
 When a feature needs a macOS permission such as Accessibility, Screen Recording or Microphone, that access is used only for the feature it belongs to. Captured content leaves the Mac only when you explicitly create a temporary link. The [permissions guide](PERMISSIONS.md) breaks down each permission.
+
+## Optional notch features
+
+Calendar access is requested only from the permission button. The notch reads upcoming events through the system calendar service; it does not create, change or delete events. Event text stays in memory and is cleared when the notch stops or the Mac locks.
+
+Notification mirroring uses Accessibility to read new visible system banners. It does not read the notification database or message stores and does not open notification history. The session inbox shows up to 50 notices; its temporary state is kept in memory and cleared on lock or disable. Clicking a notice invokes its original native action while valid. If that action is no longer available, the user’s click can instead open the previously identified source application. A separate, disabled-by-default option dismisses the original system banner after the notch accepts the notice for display; it revalidates that specific notice and never clears a notification group. Notices hidden by the system are not imported.
+
+The camera mirror starts only after an explicit action. Its frames go to the local preview and are not saved or uploaded by that feature. Closing the preview, hiding its section, disabling it or locking the Mac stops capture. Visible notch content, including the camera, appointments and notifications, can appear in screenshots or recordings when you leave notch capture visibility on.
+
+Timers and focus sessions are kept only for the current app session. Accessory alerts use local system readings. Download monitoring is limited to a folder you choose; its access bookmark stays on this Mac and is excluded from settings exports. File compression and conversion run locally, preserve originals, and save only to the destination you choose.
+
+Imported lyrics and timing adjustments are kept for only the current song in memory. Opening a different section cancels lookup work without losing that song's imported text. Observing a different song or disabling the feature clears it. The upcoming music queue comes from the local player and is not uploaded.
+
+Playback controls keep music apps ahead of browser videos. When a player needs Automation for directed controls, Vorssaint reads only the playback commands declared in that app's local scripting definition. Permission is requested from an explicit button; granting it does not replay an earlier action. Commands address the selected running process and recheck the displayed playback before delivery. Players without compatible controls can still be opened from the island. No playback data is uploaded by these controls.
 
 ## Network connections
 
@@ -31,7 +45,13 @@ Vorssaint opens only a few kinds of connection, and each one belongs to a visibl
 
 3. **Homebrew actions, only when you use the Homebrew manager.** Search, install and uninstall actions run the local `brew` command, which may contact Homebrew, GitHub and package vendor hosts to search metadata or download files. Popularity badges use Homebrew's public aggregate analytics JSON from `formulae.brew.sh`. Vorssaint does not send its own analytics, capture passwords or run `brew` as root.
 
-4. **The app update check, only with App updates switched on.** Finding out which apps are behind uses the sources you leave enabled. The Homebrew source runs the local `brew` command, exactly as above. The App Store source asks Apple's public lookup service at `itunes.apple.com` which version is current, and to do that it sends the bundle identifiers of the apps you installed from the App Store, plus your Mac's region. The Online source downloads the complete public app catalog from `formulae.brew.sh`; it does not send the names, paths or bundle identifiers of apps on your Mac. No account or identifier of yours goes along with either request. The check runs when you open the list or press Check now, and on a schedule only if you set one; the three source switches under App updates control these connections independently. With the App Store source off, no app bundle identifiers are sent to Apple, and with the Online source off, the public catalog is not requested.
+4. **The app update check, only with App updates switched on.** Finding out which apps are behind uses the sources you leave enabled. The Homebrew source runs the local `brew` command, exactly as above. The App Store source sends store identifiers to `uclient-api.itunes.apple.com`, falling back to bundle identifiers at `itunes.apple.com`, along with your Mac's region, to find the current Mac version.
+
+The Online source checks supported public update addresses declared inside installed apps. These requests go to the app developer's server or its release hosting service, including `github.com` and redirected download hosts. The server receives your public IP address and the requested URL, which can reveal which app is being checked. Vorssaint does not add your app inventory, local paths, account details or device identifiers to these requests, and does not use stored cookies or credentials. The declared URL, including any query parameters it already contains, is sent as provided by the app. These services may process ordinary request data under their own privacy policies.
+
+The Online source also downloads the complete public app catalog from `formulae.brew.sh` as a fallback. That catalog request does not send the names, paths or bundle identifiers of apps on your Mac. Version comparisons happen locally; updates from developer feeds are installed by the app's own updater after you open it.
+
+The check runs when you open the list or press Check now, and on a schedule only if you set one. The three source switches under App updates control these connections independently. Turning off the App Store source stops its store and bundle identifier lookups. Turning off the Online source stops both developer feed requests and public catalog requests on subsequent checks.
 
 5. **Temporary screenshot links, only when you choose to create one.** Creating a link sends the rendered PNG and your chosen expiration of 1, 6 or 24 hours to the Vorssaint service over HTTPS. It does not send your name, account, device identifier or MAC address. On your Mac, the feature keeps only the link, expiration and private deletion token while the link is active, so you can copy it or delete it early. The service holds your public IP address in memory for no more than 24 hours to prevent abuse, while network providers may process normal HTTPS request data under their own policies.
 
@@ -45,6 +65,8 @@ The service validates and rebuilds the MP4 without its original metadata. The vi
 
 Feedback is delivered to private support channels visible to the service owner. After delivery, the text and any technical details you selected remain there until the service owner deletes them. The temporary delivery copy is then deleted; if delivery never succeeds, that copy is permanently deleted after 7 days. No contact information is sent, so feedback cannot receive a direct reply.
 
+8. **Online lyrics, only after you enable the separate lookup option.** While the lyrics view is open, a lookup sends the current song's title, artist, album and duration over HTTPS to `lrclib.net`. Audio, artwork, local paths, accounts and listening history are not included. The provider receives ordinary request data, including your public IP address, under its own policies. Requests use an ephemeral session without stored cookies, reject redirects and stop when you hide the view or disable lookup. Lyrics are kept only in memory for the current song. Local lyric import works without this connection.
+
 That is the entire list. There are no hidden beacons or background uploads.
 
 ## Changes to this document
@@ -53,4 +75,4 @@ This page describes how the current version of Vorssaint behaves. If the app's b
 
 ## Questions
 
-If anything here is unclear, open a question in [GitHub issues](https://github.com/vorssaintapp/vorssaint-utils/issues), or have a look at [support](../SUPPORT.md).
+If anything here is unclear, open a question in [GitHub issues](https://github.com/vorssaint/vorssaint-utils/issues), or have a look at [support](../SUPPORT.md).

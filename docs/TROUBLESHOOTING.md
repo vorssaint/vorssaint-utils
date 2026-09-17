@@ -41,6 +41,24 @@ This one powers per app volume and output routing in the mixer. If the mixer say
 
 Finder cut and paste, the uninstaller and Homebrew's Terminal handoff may ask for Automation. If a Finder move or Terminal handoff does nothing after a denial, open System Settings, Privacy and Security, Automation, and allow Vorssaint for the app it needs to control.
 
+## Clipboard history does not copy or paste
+
+First check whether a fresh copy appears in history. History must be enabled,
+and copies from excluded apps or marked as concealed are not saved. Compare
+copy-only followed by Command-V with automatic paste. If only automatic paste
+fails, check Accessibility and the app that should receive the paste.
+
+A failed history copy sounds the system alert and does not trigger automatic
+paste. A request also fails after five seconds, or if another history copy is
+still pending. Expired requests that have not started are skipped. A write
+already in progress can still change the clipboard; it cannot be rolled back.
+
+If another app stops answering a clipboard read, history waits for that read
+to end instead of adding more reads behind it. The deadline does not unblock
+macOS. If copying fresh text does not restore history, quit and reopen the
+source app and Vorssaint. Include the source app and macOS version in a report;
+do not include private clipboard content.
+
 ## Resetting permissions
 
 To wipe Vorssaint's granted permissions and let macOS ask again from scratch, pick one of these.
@@ -58,6 +76,11 @@ To wipe Vorssaint's granted permissions and let macOS ask again from scratch, pi
   tccutil reset Accessibility com.vorssaint.utils
   tccutil reset ScreenCapture com.vorssaint.utils
   ```
+
+  A self-built Developer variant has its own grants under
+  `com.vorssaint.utils.dev`. Resetting is the way out when System Settings
+  shows the permission as granted but the app disagrees — that happens when a
+  grant was given to an earlier ad-hoc build whose signature no longer matches.
 
 ## Clean uninstall
 
@@ -88,4 +111,4 @@ If you have a build from source, the self test prints a quick health summary tha
 ./build/Vorssaint --selftest
 ```
 
-Open a report from the [new issue](https://github.com/vorssaintapp/vorssaint-utils/issues/new/choose) page, and see [support](../SUPPORT.md) for every way to get help.
+Open a report from the [new issue](https://github.com/vorssaint/vorssaint-utils/issues/new/choose) page, and see [support](../SUPPORT.md) for every way to get help.

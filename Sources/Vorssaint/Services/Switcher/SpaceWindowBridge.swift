@@ -36,6 +36,23 @@ enum SpaceWindowBridge {
         return unsafeBitCast(symbol, to: GetWindowTagsFunction.self)
     }()
 
+    private typealias WindowIsOrderedInFunction =
+        @convention(c) (ConnectionID, CGWindowID, UnsafeMutablePointer<UInt8>) -> CGError
+    private static let windowIsOrderedIn: WindowIsOrderedInFunction? = {
+        guard let symbol = symbol("CGSWindowIsOrderedIn") else { return nil }
+        return unsafeBitCast(symbol, to: WindowIsOrderedInFunction.self)
+    }()
+
+    /// Unlike on-screen visibility, ordering survives a move to another desktop.
+    /// A dismissed surface can retain its desktop assignment without being ordered.
+    /// Keep an unavailable query distinct from an explicit ordered-out answer.
+    static func isWindowOrderedIn(_ windowID: CGWindowID) -> Bool? {
+        guard connection != 0, let windowIsOrderedIn else { return nil }
+        var ordered: UInt8 = 0
+        guard windowIsOrderedIn(connection, windowID, &ordered) == .success else { return nil }
+        return ordered != 0
+    }
+
     // MARK: - Space membership
 
     private typealias CopySpacesFunction =
@@ -95,24 +112,33 @@ enum SpaceWindowBridge {
         }
     }
 
+    /// Captures AppKit's display identity while the caller is on main. The
+    /// resulting values are safe to carry to window-enumeration workers.
+    static func displayIDsByUUID() -> [String: CGDirectDisplayID] {
+        var map: [String: CGDirectDisplayID] = [:]
+        for screen in NSScreen.screens {
+            guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
+                  let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
+                  let uuidStr = CFUUIDCreateString(nil, uuid) as String?
+            else { continue }
+            map[uuidStr] = screenNum
+        }
+        return map
+    }
+
+    /// Main-thread callers can keep using the AppKit-backed display mapping.
     static func topology() -> Topology? {
+        topology(displayIDsByUUID: displayIDsByUUID())
+    }
+
+    /// Resolves Space topology using display values captured by the caller.
+    /// This overload does not access AppKit and is safe for worker queues.
+    static func topology(displayIDsByUUID: [String: CGDirectDisplayID]) -> Topology? {
         guard connection != 0, let copyManagedDisplaySpaces,
               let displayDicts = copyManagedDisplaySpaces(connection)?
                 .takeRetainedValue() as? [[String: Any]],
               !displayDicts.isEmpty
         else { return nil }
-
-        let screenMap: [String: CGDirectDisplayID] = {
-            var map: [String: CGDirectDisplayID] = [:]
-            for screen in NSScreen.screens {
-                guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
-                      let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
-                      let uuidStr = CFUUIDCreateString(nil, uuid) as String?
-                else { continue }
-                map[uuidStr] = screenNum
-            }
-            return map
-        }()
 
         var displays: [Topology.DisplayInfo] = []
         for display in displayDicts {
@@ -126,7 +152,7 @@ enum SpaceWindowBridge {
             })
             let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
             let uuidStr = display["Display Identifier"] as? String
-            let displayID = uuidStr.flatMap { screenMap[$0] }
+            let displayID = uuidStr.flatMap { displayIDsByUUID[$0] }
             displays.append(Topology.DisplayInfo(displayID: displayID,
                                                  spaces: row,
                                                  fullscreenSpaces: fullscreenSpaces,
@@ -223,13 +249,15 @@ enum SpaceWindowBridge {
     /// Space part, which is why SpaceHop verifies the outcome and escalates.
     /// The follow-up record pair makes the window key without clicking any of
     /// its content (the synthetic click points just outside the frame).
-    static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) {
-        guard let setFrontProcess, let processForPID else { return }
+    /// Returns false when the window server did not take the request, so the
+    /// caller can fall back to app-level activation.
+    @discardableResult
+    static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
+        guard let setFrontProcess, let processForPID, let postEventRecord else { return false }
         var psn = ProcessSerialNumber()
-        guard processForPID(ownerPID, &psn) == noErr else { return }
+        guard processForPID(ownerPID, &psn) == noErr else { return false }
         let userGenerated: UInt32 = 0x200
-        guard setFrontProcess(&psn, windowID, userGenerated) == .success else { return }
-        guard let postEventRecord else { return }
+        guard setFrontProcess(&psn, windowID, userGenerated) == .success else { return false }
         var targetID = windowID
         var clickPoint = CGPoint(x: -1, y: -1)
         var record = [UInt8](repeating: 0, count: 0x100)
@@ -238,9 +266,10 @@ enum SpaceWindowBridge {
         withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
         withUnsafeBytes(of: &clickPoint) { record.replaceSubrange(0x20..<0x20 + $0.count, with: $0) }
         record[0x08] = 0x01 // left mouse down…
-        _ = postEventRecord(&psn, &record)
+        let down = postEventRecord(&psn, &record)
         record[0x08] = 0x02 // …then up: the pair makes the window key
-        _ = postEventRecord(&psn, &record)
+        let up = postEventRecord(&psn, &record)
+        return down == .success && up == .success
     }
 
     // MARK: - The user's "move a space" shortcut
@@ -266,6 +295,17 @@ enum SpaceWindowBridge {
         fileprivate var hotKeyID: Int32 { self == .left ? 79 : 81 }
     }
 
+    /// The two Mission Control overviews, by their system symbolic hotkey ids
+    /// (32 is "Mission Control", 33 is "Application windows"). The window
+    /// server refuses software-simulated touch gestures, so an overview is
+    /// opened the same way the keyboard opens it (issue #1012).
+    enum SpaceOverview {
+        case missionControl
+        case appExpose
+
+        fileprivate var hotKeyID: Int32 { self == .missionControl ? 32 : 33 }
+    }
+
     struct SpaceShortcut {
         let keyCode: CGKeyCode
         let flags: CGEventFlags
@@ -275,12 +315,23 @@ enum SpaceWindowBridge {
     /// Space over, honoring user remaps. Nil when the shortcut is disabled or
     /// unreadable, in which case no synthetic travel is attempted.
     static func spaceShortcut(_ direction: SpaceDirection) -> SpaceShortcut? {
+        registeredShortcut(direction.hotKeyID)
+    }
+
+    /// The same lookup for the overviews. Nil when the user switched that
+    /// shortcut off in System Settings, which is the one honest answer: with
+    /// no registered combination there is nothing to press.
+    static func overviewShortcut(_ overview: SpaceOverview) -> SpaceShortcut? {
+        registeredShortcut(overview.hotKeyID)
+    }
+
+    private static func registeredShortcut(_ hotKeyID: Int32) -> SpaceShortcut? {
         guard let symbolicHotKeyValue, let symbolicHotKeyEnabled,
-              symbolicHotKeyEnabled(direction.hotKeyID) else { return nil }
+              symbolicHotKeyEnabled(hotKeyID) else { return nil }
         var options: UInt32 = 0
         var keyCode: UInt32 = 0
         var modifiers: UInt32 = 0
-        guard symbolicHotKeyValue(direction.hotKeyID, &options, &keyCode, &modifiers) == .success,
+        guard symbolicHotKeyValue(hotKeyID, &options, &keyCode, &modifiers) == .success,
               keyCode != 0
         else { return nil }
         return SpaceShortcut(keyCode: CGKeyCode(keyCode),

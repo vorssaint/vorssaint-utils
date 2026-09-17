@@ -23,6 +23,7 @@ final class SuperKeyService: ObservableObject {
 
     /// True while the key is actually working: tap up and mapping applied.
     @Published private(set) var isRunning = false
+    @Published private(set) var isPausedForApplication = false
     /// What stopped the mapping, while it is stopped. The feature has several
     /// reasons to refuse, and none of them is visible in the key itself.
     @Published private(set) var mappingFailure: SuperKeyMappingFailure?
@@ -78,6 +79,7 @@ final class SuperKeyService: ObservableObject {
     private var eventModifiers = SuperKeySupport.defaultModifiers
     private var eventSource = SuperKeySource.capsLock
     private var wakeObserver: NSObjectProtocol?
+    private var exceptionObservation: AnyCancellable?
     /// The mapping is written off the main thread, and in the order it was
     /// asked for: a queue of one keeps an apply and a clear from crossing.
     private let mappingQueue = DispatchQueue(label: "com.vorssaint.utils.superkey-mapping")
@@ -95,20 +97,23 @@ final class SuperKeyService: ObservableObject {
     /// modifiers would ride every keystroke from then on, with no way back but
     /// pressing the key again, and typing would be dead in the meantime.
     private var heldKeyWatchdog: DispatchWorkItem?
-    /// How long the press may go without a repeat before it is let go. A key
-    /// really held repeats, so this is pushed out again and again and never
-    /// runs; it only decides how long a press whose release was lost can hold
-    /// the modifiers down. Taken from the keyboard's own first-repeat delay, so
-    /// a slow setting is never fought, and bounded at both ends: never so short
-    /// that a hold is cut off, never so long that the keyboard stays unusable
-    /// when repeat is switched off and no repeat is ever coming.
+    /// How long before a held press is re-checked. The source is remapped to
+    /// F18, which does not autorepeat, so the deadline cannot lean on repeats to
+    /// know the key is still down: when it fires the watchdog reads the key's
+    /// real state and either watches again or lets go (`reevaluateHold`).
+    /// So this is both the poll interval while held and the longest a press
+    /// whose key-up was lost keeps the modifiers down. Taken from the keyboard's
+    /// own first-repeat delay and bounded at both ends: never so short it churns,
+    /// never so long a lost release strands the keyboard.
     private var heldKeyTimeout: TimeInterval {
         let firstRepeat = NSEvent.keyRepeatDelay
         guard firstRepeat.isFinite, firstRepeat > 0 else { return 3 }
         return min(30, max(3, firstRepeat * 2))
     }
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let defaults = UserDefaults.standard
@@ -131,7 +136,9 @@ final class SuperKeyService: ObservableObject {
         self.source = source
         let enabled = AppFeature.superKey.isAvailable
             && defaults.bool(forKey: DefaultsKey.superKeyEnabled)
-        guard enabled else {
+            && SessionActivity.shared.isActive
+        syncExceptionMonitoring(enabled: enabled && AXIsProcessTrusted())
+        guard enabled, !isPausedForApplication else {
             stop()
             return
         }
@@ -154,7 +161,28 @@ final class SuperKeyService: ObservableObject {
     /// Quitting takes the mapping out on the spot: the process is about to go
     /// away, and a mapping left behind would leave its source doing nothing.
     func suspend() {
+        syncExceptionMonitoring(enabled: false)
         stop(synchronously: true)
+    }
+
+    private func syncExceptionMonitoring(enabled: Bool) {
+        let exceptions = MouseAppExceptions.shared
+        if enabled {
+            if exceptionObservation == nil {
+                exceptionObservation = exceptions.$runningScopes
+                    .map { $0.contains(.superKey) }
+                    .removeDuplicates()
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] _ in self?.syncWithPreferences() }
+            }
+        } else {
+            exceptionObservation = nil
+        }
+        // Tracking outlives a pause: the final app exit must restart the key.
+        // An empty list leaves the shared workspace observer stopped.
+        exceptions.setSourceTracking(enabled, for: .superKey)
+        let paused = enabled && exceptions.runningScopes.contains(.superKey)
+        if isPausedForApplication != paused { isPausedForApplication = paused }
     }
 
     private func start() {
@@ -338,7 +366,7 @@ final class SuperKeyService: ObservableObject {
     }
 
     private func startOnMain() {
-        DispatchQueue.main.async { [weak self] in self?.start() }
+        DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
     }
 
     private func tapDidStart(_ startedTap: CFMachPort) {
@@ -592,8 +620,12 @@ final class SuperKeyService: ObservableObject {
             let currentTaps = lifecycleLock.withLock {
                 shouldStopTapThread ? (nil, nil) : (tap, mouseTap)
             }
-            if let currentTap = currentTaps.0 { CGEvent.tapEnable(tap: currentTap, enable: true) }
-            if let currentMouseTap = currentTaps.1 { CGEvent.tapEnable(tap: currentMouseTap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted() {
+                if let currentTap = currentTaps.0 { CGEvent.tapEnable(tap: currentTap, enable: true) }
+                if let currentMouseTap = currentTaps.1 { CGEvent.tapEnable(tap: currentMouseTap, enable: true) }
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             forgetHeldKey()
             return Unmanaged.passUnretained(event)
         }
@@ -660,9 +692,53 @@ final class SuperKeyService: ObservableObject {
 
     private func armHeldKeyWatchdog() {
         heldKeyWatchdog?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.forgetHeldKey() }
+        let work = DispatchWorkItem { [weak self] in self?.reevaluateHold() }
         heldKeyWatchdog = work
         DispatchQueue.main.asyncAfter(deadline: .now() + heldKeyTimeout, execute: work)
+    }
+
+    /// Decides whether a hold that reached its deadline should survive, and
+    /// acts on it — re-arm the watchdog or let the modifiers go. The watchdog
+    /// exists for a press whose key-up was lost, but the physical key (F18) does
+    /// not autorepeat, so a key held perfectly steadily reaches here too. The
+    /// only way to tell those apart is the real hardware state: still down means
+    /// the hold is real, so watch again; up means the release was missed, so let
+    /// go. Runs on the main thread, where the watchdog is scheduled; only the
+    /// hardware read is moved off it.
+    private func reevaluateHold() {
+        guard stateLock.withLock({ state.isHeld }),
+              lifecycleLock.withLock({ tap != nil && !shouldStopTapThread })
+        else { forgetHeldKey(); return }
+        readPhysicalKeyDown { [weak self] physicalKeyDown in
+            guard let self else { return }
+            // Re-read on the way back: the key may have come up during the hop.
+            let stateThinksHeld = self.stateLock.withLock { self.state.isHeld }
+            let tapAlive = self.lifecycleLock.withLock { self.tap != nil && !self.shouldStopTapThread }
+            switch SuperKeySupport.heldKeyWatchdogOutcome(physicalKeyDown: physicalKeyDown,
+                                                          stateThinksHeld: stateThinksHeld,
+                                                          tapAlive: tapAlive) {
+            case .reArm:
+                self.armHeldKeyWatchdog()
+            case .forget:
+                self.forgetHeldKey()
+            }
+        }
+    }
+
+    /// Reads whether the physical source key is down, then calls `handler` on
+    /// the main thread. It queries `triggerKeyCode` (F18), not `source.keyCode`:
+    /// the key the user presses is remapped to F18 by hidutil, so that is what
+    /// the hardware reports as down. Two things force the read off the main
+    /// thread: keyState reaches the window server over a lock the main run loop
+    /// itself has to service, so calling it from a main-queue block deadlocks
+    /// the app; and only `.hidSystemState` reflects the remapped key — the
+    /// combined session state reports it up even while it is held.
+    private func readPhysicalKeyDown(_ handler: @escaping (Bool) -> Void) {
+        let key = CGKeyCode(SuperKeySupport.triggerKeyCode)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let physicalKeyDown = CGEventSource.keyState(.hidSystemState, key: key)
+            DispatchQueue.main.async { handler(physicalKeyDown) }
+        }
     }
 
     private func cancelHeldKeyWatchdog() {
@@ -746,6 +822,9 @@ final class SuperKeyService: ObservableObject {
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return false }
+        // The HID source can inherit a still-held physical modifier.
+        down.flags = []
+        up.flags = []
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
         return true

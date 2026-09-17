@@ -21,6 +21,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var scratchpadBackgroundOpacity = 0.0
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
+    @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
 
     var body: some View {
         Form {
@@ -75,6 +76,7 @@ struct QuickToolsSettings: View {
                                   systemImage: "keyboard")
                         }
                     }
+                    DiskExclusionsList()
                     Text(FeatureStrings.quickToggles(l10n.language).panelCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -217,6 +219,26 @@ struct QuickToolsSettings: View {
                     Text(FeatureStrings.scratchpad(l10n.language).pageTitle)
                 }
                 .settingsSectionAnchor(.scratchpad)
+            }
+
+            if AppFeature.cleaningMode.isAvailable {
+                Section {
+                    Button {
+                        CleaningModeManager.shared.activate()
+                    } label: {
+                        Label(l10n.s.cleaningStartNow, systemImage: "bubbles.and.sparkles")
+                    }
+                    Text(l10n.s.cleaningPanelCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.cleaningKeepScreenVisibleToggle, isOn: $cleaningModeKeepScreenVisible)
+                    Text(l10n.s.cleaningKeepScreenVisibleCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(l10n.s.cleaningMenuItem)
+                }
+                .settingsSectionAnchor(.cleaningMode)
             }
         }
         .formStyle(.grouped)

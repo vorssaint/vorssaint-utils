@@ -73,10 +73,9 @@ enum BundleMigration {
             .appendingPathComponent("vorssaint-rename-\(pid)-\(UUID().uuidString).sh")
         do {
             try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/bin/sh")
-            task.arguments = [scriptURL.path, oldPath, newPath, "\(pid)"]
-            try task.run()
+            // Its own session: the script waits for this app to exit before it
+            // renames the bundle, which it can only do from outside our session.
+            try DetachedProcess.spawn("/bin/sh", [scriptURL.path, oldPath, newPath, "\(pid)"])
         } catch {
             try? FileManager.default.removeItem(at: scriptURL)
             return false   // could not stage the rename; keep running as we are

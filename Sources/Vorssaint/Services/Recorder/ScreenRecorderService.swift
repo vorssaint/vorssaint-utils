@@ -30,6 +30,17 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     private let engine = RecorderCaptureEngine()
     private let pauseClock = RecorderPauseClock()
     private let microphone: RecorderMicrophoneCapture?
+    private let capturesSystemAudio: Bool
+    /// The Mac's sound read once per process, when the audio system grants
+    /// one. Both it and the stream's audio run whenever the Mac's sound is
+    /// wanted; which of the two the file receives is settled in `start()`.
+    private var systemAudioTap: RecorderSystemAudioTap?
+    private var writesTapAudio = false
+    /// Raised when an output device change costs the tap its reader mid
+    /// recording. One way, and read from the audio threads, so it is the flag
+    /// type rather than a plain Bool.
+    private let tapReaderLost = RecorderAudioFlag()
+    private let streamHeard = RecorderAudioFlag()
     private let pointer: RecorderPointerSampler
     private let typing: RecorderTypingSampler
     private let writerQueue = DispatchQueue(label: "com.vorssaint.recorder.writer",
@@ -57,6 +68,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         self.take = take
         self.region = region
         self.writer = writer
+        self.capturesSystemAudio = capturesSystemAudio
         microphone = capturesMicrophone ? RecorderMicrophoneCapture() : nil
         pointer = RecorderPointerSampler(region: region, pauseClock: pauseClock)
         typing = RecorderTypingSampler(pauseClock: pauseClock)
@@ -76,36 +88,72 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             _ = startGate.claimStartFailure()
             return .writerFailed
         }
+        if capturesSystemAudio {
+            systemAudioTap = await RecorderSystemAudioTap.make()
+        }
+        let tap = systemAudioTap
+        // A tap that has not yet heard sound on this Mac may be waiting on a
+        // permission, and it answers that with silence, not an error. The
+        // stream's sound is written until the tap has proven itself.
+        writesTapAudio = tap != nil
+            && UserDefaults.standard.bool(forKey: DefaultsKey.recorderSystemAudioTapVerified)
+        tap?.onSample = { [weak self] sampleBuffer in
+            self?.appendTapSample(sampleBuffer)
+        }
+        tap?.onReaderLost = { [weak self] in self?.tapReaderLost.raise() }
         if let failure = await engine.start(region: region,
                                             frameRate: frameRate,
                                             capturesSystemAudio: capturesSystemAudio,
                                             excludedWindowNumbers: excludedWindowNumbers,
+                                            willStartCapture: { [writerQueue, writer] time in
+                                                writerQueue.sync { writer.beginSession(at: time) }
+                                            },
                                             isCancelled: { [weak self] in
                                                 self?.startGate.isAuthorized != true
                                             }) {
             if startGate.claimStartFailure() { writer.cancel() }
+            await tap?.stop()
             return failure
         }
         guard startGate.isAuthorized else {
+            await tap?.stop()
             await engine.stop()
             return .streamFailed
         }
-        if let microphone, let clock = engine.synchronizationClock {
+        // The tap starts before the microphone so the Mac's sound has the
+        // shortest possible gap at the head of the file while it comes up.
+        let clock = CMClockGetHostTimeClock()
+        if let tap {
+            let started = await tap.start(synchronizingTo: clock)
+            // A trusted tap that could not build a reader this time (no output
+            // device, or a permission just revoked) would otherwise leave the
+            // file's sound silent, since the stream's copy is being dropped.
+            if writesTapAudio, !started { writesTapAudio = false }
+        }
+        guard startGate.isAuthorized else {
+            await tap?.stop()
+            await engine.stop()
+            return .streamFailed
+        }
+        if let microphone {
             if await microphone.start(synchronizingTo: clock) == false {
                 onMicrophoneUnavailable?()
             }
             guard startGate.isAuthorized else {
+                await tap?.stop()
                 await microphone.stop()
                 await engine.stop()
                 return .streamFailed
             }
         }
-        guard startGate.isAuthorized else {
-            await engine.stop()
-            return .streamFailed
+        // This method is nonisolated and async, so its body runs on the
+        // cooperative pool however main-actor the caller was (SE-0338). The
+        // two samplers install AppKit event monitors, which belong to the
+        // main thread's dispatch, so they are started and stopped there.
+        await MainActor.run {
+            pointer.start()
+            typing.start()
         }
-        pointer.start()
-        typing.start()
         return nil
     }
 
@@ -119,16 +167,19 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         pauseClock.resume(at: time)
     }
 
-    func elapsed(since origin: CFTimeInterval, at time: CFTimeInterval) -> Double {
-        pauseClock.elapsed(since: origin, at: time)
+    func elapsed(at time: CFTimeInterval) -> Double {
+        pauseClock.elapsed(at: time)
     }
 
     /// Stops the stream first and waits for it, so the file is closed knowing
     /// no further frame can arrive.
     func stop() async -> Bool {
+        let end = CMClockGetTime(CMClockGetHostTimeClock())
         let ownsFinalization = startGate.cancelAndClaimStop()
         await startGate.waitUntilFinished()
         guard ownsFinalization else { return false }
+        let tap = systemAudioTap
+        async let tapStop: Void = { if let tap { await tap.stop() } }()
         if let microphone {
             async let microphoneStop: Void = microphone.stop()
             await engine.stop()
@@ -136,9 +187,17 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         } else {
             await engine.stop()
         }
-        let track = pointer.stop()
-        let typingTrack = typing.stop()
-        let end = CMClockGetTime(CMClockGetHostTimeClock())
+        await tapStop
+        // A tap that lost its reader was cut short by a device change, not by a
+        // missing permission, so this recording proves nothing either way.
+        if let tap, !tapReaderLost.value {
+            UserDefaults.standard.set(
+                RecorderSupport.trustsSystemAudioTap(previously: writesTapAudio,
+                                                     tapHeardSound: tap.heardSound,
+                                                     streamHeardSound: streamHeard.value),
+                forKey: DefaultsKey.recorderSystemAudioTapVerified)
+        }
+        let (track, typingTrack) = await MainActor.run { (pointer.stop(), typing.stop()) }
         writerQueue.sync {}
         let written = await writer.finish(at: end)
         if written, !track.isEmpty {
@@ -153,7 +212,21 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     func captureEngine(_ engine: RecorderCaptureEngine,
                        didOutput sampleBuffer: CMSampleBuffer,
                        of kind: RecorderCaptureEngine.Kind) {
+        if kind == .systemAudio {
+            // The stream keeps listening even when the tap is written: a tap
+            // that stays silent through sound the stream heard has lost its
+            // permission, and the next recording goes back to the stream.
+            if !streamHeard.value, RecorderAudioProbe.containsSound(sampleBuffer) {
+                streamHeard.raise()
+            }
+            if writesTapAudio, !tapReaderLost.value { return }
+        }
         append(sampleBuffer, kind: kind)
+    }
+
+    private func appendTapSample(_ sampleBuffer: CMSampleBuffer) {
+        guard writesTapAudio, !tapReaderLost.value else { return }
+        append(sampleBuffer, kind: .systemAudio)
     }
 
     func captureEngine(_ engine: RecorderCaptureEngine, didStopWith failure: RecorderFailure) {
@@ -184,7 +257,6 @@ final class ScreenRecorderService: ObservableObject {
     private var editors: [RecorderEditorController] = []
     private var mediaOwnedEditorIDs: Set<ObjectIdentifier> = []
     private var elapsedTimer: Timer?
-    private var startedAt: CFTimeInterval = 0
     private var countdown: DispatchWorkItem?
     private var countdownRemaining = 0
     private var pendingStartGeneration = 0
@@ -263,6 +335,10 @@ final class ScreenRecorderService: ObservableObject {
     func toggle() {
         if stopOrCancelActiveCapture() { return }
         ScreenCaptureService.shared.capture(initial: .recording)
+    }
+
+    var hasActiveCapture: Bool {
+        isRecording || session != nil || countdown != nil || isAwaitingMicrophone || isFinishing
     }
 
     func stopOrCancelActiveCapture() -> Bool {
@@ -434,7 +510,11 @@ final class ScreenRecorderService: ObservableObject {
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard self.session === session,
                   self.pendingStartIsAuthorized(generation) else { return }
-            var chrome = Set(ScreenshotService.shared.protectedWindowIDsForCapture.map(Int.init))
+            // Recording is exempt from the screenshot visibility preference,
+            // so editors and pins stay out of the stream either way.
+            var chrome = Set(ScreenshotService.shared
+                .protectedWindowIDsForCapture(honoursVisibilityPreference: false)
+                .map(Int.init))
             chrome.formUnion(indicator.excludedWindowNumbers)
             if let number = QuickToolHUD.currentWindowNumber { chrome.insert(number) }
             let failure = await session.start(frameRate: frameRate,
@@ -473,8 +553,8 @@ final class ScreenRecorderService: ObservableObject {
     private func recordingDidStart() {
         isRecording = true
         isPaused = false
-        elapsedSeconds = 0
-        startedAt = CACurrentMediaTime()
+        elapsedSeconds = Int(session?.elapsed(at: CACurrentMediaTime()) ?? 0)
+        indicator?.update(elapsed: RecorderSupport.elapsedLabel(seconds: elapsedSeconds))
         sleepActivity = ProcessInfo.processInfo.beginActivity(
             options: .idleSystemSleepDisabled,
             reason: "Recording the screen")
@@ -488,7 +568,7 @@ final class ScreenRecorderService: ObservableObject {
 
     private func tickElapsed() {
         guard isRecording, let session else { return }
-        elapsedSeconds = Int(session.elapsed(since: startedAt, at: CACurrentMediaTime()))
+        elapsedSeconds = Int(session.elapsed(at: CACurrentMediaTime()))
         indicator?.update(elapsed: RecorderSupport.elapsedLabel(seconds: elapsedSeconds))
         checkDiskSpace()
     }
@@ -503,7 +583,7 @@ final class ScreenRecorderService: ObservableObject {
             guard session.pause(at: now) else { return }
             isPaused = true
         }
-        elapsedSeconds = Int(session.elapsed(since: startedAt, at: now))
+        elapsedSeconds = Int(session.elapsed(at: now))
         indicator?.update(elapsed: RecorderSupport.elapsedLabel(seconds: elapsedSeconds))
         indicator?.update(paused: isPaused)
     }

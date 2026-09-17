@@ -216,15 +216,15 @@ extension WhatsAppDownloadStrings {
         document: "Documents", archive: "Archives", other: "Autres", retention: "Conserver pendant", days: "%d jours",
         noFiles: "Aucun fichier WhatsApp confirmé dans Téléchargements.", keep: "Conserver", manage: "Gérer à nouveau",
         activity: "Activité", never: "Aucun nettoyage effectué pour le moment.", future: "Téléchargements futurs uniquement",
-        existing: "Inclure les fichiers existants", firstTitle: "Que faire des fichiers existants ?",
-        trash: "Les fichiers sont placés dans la Corbeille et restent récupérables jusqu'à ce qu'elle soit vidée.",
+        existing: "Inclure les fichiers existants", firstTitle: "Que faire des fichiers existants\u{00A0}?",
+        trash: "Les fichiers sont placés dans la Corbeille et restent récupérables jusqu’à ce qu’elle soit vidée.",
         notificationTitle: "Nettoyage WhatsApp")
 
     static let it = translated(language: .it,
         title: "Download di WhatsApp", hub: "Tiene sotto controllo i file WhatsApp in Download",
         intro: "Trova i file che macOS conferma provenire da WhatsApp. Non legge mai contenuti o chat.",
         automatic: "Pulisci automaticamente", folder: "Cartella monitorata", accessReady: "Download è accessibile",
-        accessDenied: "Vorssaint non può accedere a Download. Consenti l'accesso in File e cartelle.",
+        accessDenied: "Vorssaint non può accedere a Download. Consenti l’accesso in File e cartelle.",
         types: "Tipi di file", all: "Tutti", image: "Immagini", video: "Video", audio: "Audio e messaggi vocali",
         document: "Documenti", archive: "Archivi", other: "Altro", retention: "Conserva per", days: "%d giorni",
         noFiles: "Nessun file WhatsApp confermato in Download.", keep: "Conserva", manage: "Gestisci di nuovo",
@@ -234,16 +234,16 @@ extension WhatsAppDownloadStrings {
         notificationTitle: "Pulizia WhatsApp")
 
     static let tr = translated(language: .tr,
-        title: "WhatsApp indirmeleri", hub: "İndirilenler'deki WhatsApp dosyalarını kontrol altında tutar",
-        intro: "macOS'in WhatsApp'tan geldiğini doğruladığı dosyaları bulur. İçerikler ve sohbetler asla okunmaz.",
+        title: "WhatsApp indirmeleri", hub: "İndirilenler’deki WhatsApp dosyalarını kontrol altında tutar",
+        intro: "macOS’in WhatsApp’tan geldiğini doğruladığı dosyaları bulur. İçerikler ve sohbetler asla okunmaz.",
         automatic: "Otomatik temizle", folder: "İzlenen klasör", accessReady: "İndirilenler erişilebilir",
-        accessDenied: "Vorssaint İndirilenler'e erişemiyor. Dosyalar ve Klasörler'den izin verin.",
+        accessDenied: "Vorssaint İndirilenler’e erişemiyor. Dosyalar ve Klasörler’den izin verin.",
         types: "Dosya türleri", all: "Tümü", image: "Görseller", video: "Videolar", audio: "Ses ve sesli mesajlar",
         document: "Belgeler", archive: "Arşivler", other: "Diğer", retention: "Şu kadar sakla", days: "%d gün",
-        noFiles: "İndirilenler'de doğrulanmış WhatsApp dosyası bulunamadı.", keep: "Sakla", manage: "Yeniden yönet",
+        noFiles: "İndirilenler’de doğrulanmış WhatsApp dosyası bulunamadı.", keep: "Sakla", manage: "Yeniden yönet",
         activity: "Etkinlik", never: "Henüz temizlik yapılmadı.", future: "Yalnızca gelecekteki indirmeler",
         existing: "Mevcut dosyaları dahil et", firstTitle: "Mevcut dosyalar ne olacak?",
-        trash: "Dosyalar Çöp Sepeti'ne taşınır ve boşaltılana kadar kurtarılabilir.",
+        trash: "Dosyalar Çöp Sepeti’ne taşınır ve boşaltılana kadar kurtarılabilir.",
         notificationTitle: "WhatsApp temizliği")
 
     static let ru = translated(language: .ru,
@@ -362,11 +362,11 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "%d fichiers existants correspondent déjà à vos règles. Choisissez de les inclure ou de ne gérer que les futurs téléchargements.",
                 localNote: "Seules les métadonnées locales sont consultées. Vorssaint ne lit ni les discussions ni le contenu des fichiers.",
                 notificationFormat: "%1$d fichiers (%2$@) placés dans la Corbeille. %3$d échecs.",
-                scanFailed: "Impossible d'analyser Téléchargements. Vérifiez Fichiers et dossiers dans Réglages Système.", manageButton: "Gérer…")
+                scanFailed: "Impossible d’analyser Téléchargements. Vérifiez Fichiers et dossiers dans Réglages Système.", manageButton: "Gérer…")
         case .it:
             return OperationalStrings(
                 automaticCaption: "Controlla una volta al giorno e sposta nel Cestino i file corrispondenti oltre il limite.",
-                retentionCaption: "I file modificati di recente attendono nuovamente l'intero periodo.",
+                retentionCaption: "I file modificati di recente attendono nuovamente l’intero periodo.",
                 manualIntro: "Controlla in qualsiasi momento. La selezione iniziale segue tipi e durata; puoi rivedere tutti i file confermati.",
                 resultsFormat: "%1$d file confermati · %2$@", selectRules: "Seleziona con le mie regole",
                 cleanSelectedFormat: "Sposta %1$d nel Cestino · %2$@",
@@ -378,17 +378,17 @@ extension WhatsAppDownloadStrings {
                 scanFailed: "Impossibile controllare Download. Verifica File e cartelle nelle Impostazioni di Sistema.", manageButton: "Gestisci…")
         case .tr:
             return OperationalStrings(
-                automaticCaption: "Günde bir kez denetler ve süresi dolan eşleşen dosyaları Çöp Sepeti'ne taşır.",
+                automaticCaption: "Günde bir kez denetler ve süresi dolan eşleşen dosyaları Çöp Sepeti’ne taşır.",
                 retentionCaption: "Yakın zamanda düzenlenen dosyalar tam süreyi yeniden bekler.",
                 manualIntro: "İstediğiniz zaman tarayın. İlk seçim tür ve süre kurallarınıza uyar; doğrulanan tüm dosyaları inceleyebilirsiniz.",
                 resultsFormat: "%1$d doğrulanmış dosya · %2$@", selectRules: "Kurallarıma göre seç",
-                cleanSelectedFormat: "%1$d dosyayı Çöp Sepeti'ne taşı · %2$@",
+                cleanSelectedFormat: "%1$d dosyayı Çöp Sepeti’ne taşı · %2$@",
                 lastRunFormat: "Son temizlik %@: %d dosya · %@ · %d başarısız",
                 nextRunFormat: "Sonraki otomatik denetim %@.",
                 firstMessageFormat: "%d mevcut dosya kurallarınıza uyuyor. Bunları dahil etmeyi veya yalnızca gelecekteki indirmeleri yönetmeyi seçin.",
                 localNote: "Yalnızca yerel meta veriler incelenir. Vorssaint sohbetleri veya dosya içeriklerini okumaz.",
-                notificationFormat: "%1$d dosya (%2$@) Çöp Sepeti'ne taşındı. %3$d başarısız.",
-                scanFailed: "İndirilenler taranamadı. Sistem Ayarları'nda Dosyalar ve Klasörler'i denetleyin.", manageButton: "Yönet…")
+                notificationFormat: "%1$d dosya (%2$@) Çöp Sepeti’ne taşındı. %3$d başarısız.",
+                scanFailed: "İndirilenler taranamadı. Sistem Ayarları’nda Dosyalar ve Klasörler’i denetleyin.", manageButton: "Yönet…")
         case .ru:
             return OperationalStrings(
                 automaticCaption: "Раз в день проверяет и перемещает в Корзину подходящие файлы старше выбранного срока.",

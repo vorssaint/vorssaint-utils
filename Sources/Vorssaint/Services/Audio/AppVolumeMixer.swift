@@ -153,6 +153,17 @@ final class AppVolumeMixer: ObservableObject {
     /// Deliberately not `buildQueue`: creating a tap and its aggregate device
     /// takes far longer than reading a property, and the panel must never wait
     /// behind one to learn which devices exist.
+    private struct OutputAdjustment {
+        let device: AudioObjectID
+        let lifetime: UUID
+        var volume: Double?
+        var muted: Bool?
+        var completion: (Bool) -> Void
+    }
+    private var pendingOutputAdjustment: OutputAdjustment?
+    private var outputWriteInFlight: OutputAdjustment?
+    private let outputControlLock = NSLock()
+    private var outputControlLifetime = UUID()
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
 
     private init() {}
@@ -340,6 +351,11 @@ final class AppVolumeMixer: ObservableObject {
         outputControlListenerDevice = nil
         outputControlListenerAddresses.removeAll()
         outputControlRefreshGeneration &+= 1
+        outputControlLock.withLock { outputControlLifetime = UUID() }
+        let pending = pendingOutputAdjustment
+        pendingOutputAdjustment = nil
+        // Superseded keys are handled: replaying them would adjust the new output.
+        pending?.completion(true)
     }
 
     private func scheduleOutputControlRefresh(for device: AudioObjectID) {
@@ -364,8 +380,7 @@ final class AppVolumeMixer: ObservableObject {
                           self.listenerInstalled,
                           self.outputControlListenerDevice == device,
                           self.outputControlRefreshGeneration == generation else { return }
-                    if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
-                    if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
+                    self.applyOutputControls(volume: volume, muted: muted)
                 }
             }
         }
@@ -428,14 +443,90 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - Volume API (panel)
 
-    func setCurrentOutputVolume(_ volume: Double) {
+    /// UI feedback is immediate; one HAL write runs at a time and a burst
+    /// retains only its newest requested level. Device changes never inherit
+    /// a write intended for the previous output.
+    func requestOutputAdjustment(volume: Double? = nil, muted: Bool? = nil,
+                                 completion: @escaping (Bool) -> Void = { _ in }) {
+        guard let device = outputControlListenerDevice,
+              volume?.isFinite != false,
+              volume == nil || systemOutputVolume != nil,
+              muted == nil || systemOutputMuted != nil else { completion(false); return }
+        outputControlRefreshGeneration &+= 1
+        let previous = pendingOutputAdjustment
+        var adjustment = previous ?? OutputAdjustment(device: device,
+            lifetime: outputControlLock.withLock { outputControlLifetime }, completion: completion)
+        adjustment.completion = completion
+        if let volume {
+            let value = min(1, max(0, volume))
+            adjustment.volume = value
+            systemOutputVolume = value
+            if value > 0, systemOutputMuted != nil {
+                adjustment.muted = false
+                systemOutputMuted = false
+            }
+        }
+        if let muted { adjustment.muted = muted; systemOutputMuted = muted }
+        pendingOutputAdjustment = adjustment
+        previous?.completion(true)
+        drainOutputAdjustment()
+    }
+
+    private func isCurrentOutputAdjustment(_ adjustment: OutputAdjustment) -> Bool {
+        outputControlLock.withLock { outputControlLifetime == adjustment.lifetime }
+    }
+
+    private var hasCurrentOutputAdjustment: Bool {
+        pendingOutputAdjustment != nil || outputWriteInFlight.map(isCurrentOutputAdjustment) == true
+    }
+
+    private func applyOutputControls(volume: Double?, muted: Bool?) {
+        guard !hasCurrentOutputAdjustment else { return }
+        if systemOutputVolume != volume { systemOutputVolume = volume }
+        if systemOutputMuted != muted { systemOutputMuted = muted }
+    }
+
+    private func drainOutputAdjustment() {
+        guard outputWriteInFlight == nil, let adjustment = pendingOutputAdjustment else { return }
+        pendingOutputAdjustment = nil
+        guard isCurrentOutputAdjustment(adjustment), outputControlListenerDevice == adjustment.device else {
+            adjustment.completion(true)
+            return
+        }
+        outputWriteInFlight = adjustment
+        halQueue.async { [weak self] in
+            guard let self else { return }
+            let device = adjustment.device
+            var success = self.isCurrentOutputAdjustment(adjustment) && Self.defaultOutputDeviceID() == device
+            if success, let volume = adjustment.volume { success = Self.setOutputVolume(Float(volume), for: device) }
+            if success, let muted = adjustment.muted, self.isCurrentOutputAdjustment(adjustment) {
+                success = Self.setOutputMuted(muted, for: device)
+            }
+            DispatchQueue.main.async {
+                self.outputWriteInFlight = nil
+                let current = self.isCurrentOutputAdjustment(adjustment)
+                adjustment.completion(!current || success)
+                if self.pendingOutputAdjustment != nil {
+                    self.drainOutputAdjustment()
+                } else if current {
+                    self.scheduleOutputControlRefresh(for: device)
+                } else {
+                    self.scheduleListenerRefresh()
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    func setCurrentOutputVolume(_ volume: Double) -> Bool {
         let clamped = min(max(volume, 0), 1)
         guard Self.setSystemOutputVolume(clamped) else {
             scheduleListenerRefresh()
-            return
+            return false
         }
         if systemOutputVolume != clamped { systemOutputVolume = clamped }
         if clamped > 0, systemOutputMuted == true { systemOutputMuted = false }
+        return true
     }
 
     /// 100% means bit-perfect passthrough (no tap). A value the UI would round to
@@ -851,12 +942,7 @@ final class AppVolumeMixer: ObservableObject {
             outputDevices = snapshot.outputDevices
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
-        if systemOutputVolume != snapshot.systemOutputVolume {
-            systemOutputVolume = snapshot.systemOutputVolume
-        }
-        if systemOutputMuted != snapshot.systemOutputMuted {
-            systemOutputMuted = snapshot.systemOutputMuted
-        }
+        applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
 
         guard let next = snapshot.apps else {
             if !apps.isEmpty {
@@ -1891,8 +1977,15 @@ private final class TapGainEngine: GainEngine {
             let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
             guard let tapIndex = MixerRender.tapBufferIndex(in: inputBuffers,
-                                                            tapChannels: tapChannels) else { return }
+                                                            tapChannels: tapChannels) else {
+                // No samples to put in the buffer is not a reason to leave it:
+                // whatever the HAL left there plays otherwise (issue #326).
+                MixerRender.silence(outputBuffers)
+                return
+            }
             let gain = box.value
+            // `render` silences whatever it does not fill, so every path from
+            // here on leaves the output written.
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
                                             into: outputBuffers,
                                             gain: gain)
@@ -1947,11 +2040,23 @@ private final class TapGainEngine: GainEngine {
     /// arrived on. Serial, so two changes in a row cannot land out of order.
     private static let rateQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.rate",
                                                  qos: .userInitiated)
-    /// A broken HAL path can park inside teardown. Cleanup stays serialized so
-    /// repeated failures cannot accumulate blocked worker threads; every IO
-    /// proc is already stopped before it reaches this queue.
-    private static let teardownQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.teardown",
-                                                     qos: .utility)
+    /// How many teardowns may sit in the HAL at once. Operations past the
+    /// bound wait in the queue holding no thread, so however often a wedged
+    /// HAL parks a destroy, the shared pool loses at most this many workers
+    /// (issue #971).
+    private static let maximumConcurrentTeardowns = 4
+    /// A broken HAL path can park inside teardown — `AudioHardwareDestroyProcessTap`
+    /// on a wedged tap is the one that does it. Serialized, that one call left
+    /// every later engine's aggregate and tap alive behind it, for as long as
+    /// the app ran. Overlapping them lets the rest through, under the bound
+    /// above so the parked ones cannot take the thread pool with them.
+    private static let teardownQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.vorssaint.utils.mixer.teardown"
+        queue.qualityOfService = .utility
+        queue.maxConcurrentOperationCount = maximumConcurrentTeardowns
+        return queue
+    }()
 
     /// The smallest possible answer, for the same reason as the mixer's own
     /// callback above: the system decides which thread this arrives on and it
@@ -2036,7 +2141,7 @@ private final class TapGainEngine: GainEngine {
             AudioDeviceStop(aggregateID, ioProc)
         }
 
-        Self.teardownQueue.async {
+        Self.teardownQueue.addOperation {
             if let listenerClient {
                 var mayReleaseListener = aggregateID == 0
                 if aggregateID != 0 {

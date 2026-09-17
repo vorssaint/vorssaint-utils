@@ -546,6 +546,11 @@ final class FanControlService: ObservableObject {
                 self.refresh()
             }
         }
+        // The helper drops cooling once a heartbeat is `heartbeatLimit` seconds
+        // old, so a second's cadence has six to spare; matching the leeway the
+        // helper's own watchdog already takes lets these wakes coalesce with
+        // everything else on the run loop instead of standing alone.
+        timer?.tolerance = 0.1
     }
 
     private func stopIdleWorkIfPossible() {

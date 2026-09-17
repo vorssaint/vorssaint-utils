@@ -9,12 +9,16 @@ import SwiftUI
 /// 100% is untouched passthrough; below it attenuates and above it (up to 200%)
 /// boosts, with the slider and percentage turning amber in the boost range.
 struct MixerSection: View {
+    @Environment(\.notchPresentation) private var inNotch
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
+    @ObservedObject private var micMute = MicMuteService.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
     @ObservedObject private var preciseVolumeRoller = PreciseVolumeRollerService.shared
     @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.mixerAppArrangement)
+    private var arrangementValue = ""
     @AppStorage(DefaultsKey.mixerHideInactiveApps)
     private var hideInactiveApps = false
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
@@ -32,6 +36,8 @@ struct MixerSection: View {
     @State private var accentRevision = 0
     @State private var lastResolvedAccent: NSColor?
     @State private var editingVolumeID: String?
+    @State private var draggingAppID: String?
+    @State private var dropTarget: MixerAppDropTarget?
     var collapsible = true
 
     var body: some View {
@@ -56,7 +62,7 @@ struct MixerSection: View {
                 Divider()
                 optionsDisclosure
             }
-            .panelCard()
+            .panelCard(interactive: false)
         }
         .onReceive(NSApplication.shared.publisher(for: \.effectiveAppearance, options: [.new])) { _ in
             refreshSliderTint()
@@ -186,7 +192,7 @@ struct MixerSection: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     } onCommit: {
-                        mixer.setCurrentOutputVolume($0)
+                        setSystemOutputVolume($0)
                     }
                 }
             }
@@ -260,10 +266,15 @@ struct MixerSection: View {
         )
     }
 
+    private func setSystemOutputVolume(_ value: Double) {
+        if inNotch { mixer.requestOutputAdjustment(volume: value) }
+        else { mixer.setCurrentOutputVolume(value) }
+    }
+
     private var systemOutputVolumeBinding: Binding<Double> {
         Binding(
             get: { mixer.systemOutputVolume ?? 0 },
-            set: { mixer.setCurrentOutputVolume($0) }
+            set: { setSystemOutputVolume($0) }
         )
     }
 
@@ -499,6 +510,7 @@ struct MixerSection: View {
                         inputManager.setInputVolume($0)
                     }
                 }
+                .disabled(micMute.isMuted)
             }
 
             if inputManager.inputDevices.isEmpty {
@@ -640,8 +652,10 @@ struct MixerSection: View {
         }
     }
 
+    private var arrangement: MixerAppArrangement { MixerAppArrangement(rawValue: arrangementValue) }
+
     private var visibleApps: [MixerApp] {
-        mixer.apps.filter { app in
+        arrangement.ordered(mixer.apps, identity: { $0.persistenceID }).filter { app in
             MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying,
                                               volume: app.volume,
                                               selectedOutputDeviceUID: app.selectedOutputDeviceUID,
@@ -692,7 +706,48 @@ struct MixerSection: View {
             MixerRow(app: app,
                      normalTint: normalSliderTint,
                      accentRevision: accentRevision,
-                     editingVolumeID: $editingVolumeID)
+                     editingVolumeID: $editingVolumeID,
+                     isPinned: arrangement.isPinned(app.persistenceID),
+                     togglePin: { updateArrangement { $0.togglePin(app.persistenceID ?? "") } },
+                     moveUp: moveAction(for: app, offset: -1),
+                     moveDown: moveAction(for: app, offset: 1))
+                .modifier(MixerAppReorderModifier(
+                    id: app.persistenceID,
+                    icon: ResponsibleProcess.icon(for: app.ownerPid, pointSize: 32),
+                    draggingID: $draggingAppID,
+                    target: $dropTarget,
+                    dragChanged: { active in
+                        if inNotch { NotchService.shared.fileDragChanged(active, internalDrag: true) }
+                    },
+                    canMove: { source, target in
+                        let ids = visibleApps.compactMap(\.persistenceID)
+                        return ids.contains(source) && ids.contains(target)
+                            && arrangement.isPinned(source) == arrangement.isPinned(target)
+                    },
+                    move: { source, target, after in
+                        updateArrangement {
+                            $0.move(source, to: target, after: after,
+                                    visibleIDs: visibleApps.compactMap(\.persistenceID))
+                        }
+                    }))
+                .help(FeatureStrings.mixer(l10n.language).arrange)
+        }
+    }
+
+    private func updateArrangement(_ change: (inout MixerAppArrangement) -> Void) {
+        var updated = arrangement
+        change(&updated)
+        arrangementValue = updated.rawValue
+    }
+
+    private func moveAction(for app: MixerApp, offset: Int) -> (() -> Void)? {
+        let ids = visibleApps.compactMap(\.persistenceID)
+        guard let id = app.persistenceID,
+              arrangement.neighbor(of: id, offset: offset, visibleIDs: ids) != nil else { return nil }
+        return {
+            updateArrangement {
+                $0.move(id, offset: offset, visibleIDs: visibleApps.compactMap(\.persistenceID))
+            }
         }
     }
 
@@ -743,6 +798,12 @@ private struct MixerRow: View {
     let normalTint: Color
     let accentRevision: Int
     @Binding var editingVolumeID: String?
+    let isPinned: Bool
+    let togglePin: () -> Void
+    let moveUp: (() -> Void)?
+    let moveDown: (() -> Void)?
+
+    private var arrangementStrings: MixerFeatureStrings { FeatureStrings.mixer(l10n.language) }
 
     /// Warm accent to flag the boost range, darkened in Light Mode for contrast.
     private var boostColor: Color { PanelMetricColor.orange(for: colorScheme) }
@@ -778,8 +839,24 @@ private struct MixerRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
 
+                    if isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(arrangementStrings.pin)
+                    }
                     Spacer(minLength: 4)
 
+                    if app.persistenceID != nil {
+                        Menu { arrangementActions } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                        .help(isPinned ? arrangementStrings.unpin : arrangementStrings.pin)
+                        .accessibilityLabel("\(isPinned ? arrangementStrings.unpin : arrangementStrings.pin): \(app.name)")
+                    }
                     if !app.isBypassed {
                         outputPicker
                     }
@@ -862,14 +939,24 @@ private struct MixerRow: View {
             }
         }
         .padding(.vertical, 2)
+        .accessibilityAction(named: Text(arrangementStrings.moveUp)) { moveUp?() }
+        .accessibilityAction(named: Text(arrangementStrings.moveDown)) { moveDown?() }
         .contextMenu {
-            // Same action as unchecking the app in the footer menu, one
-            // right-click closer (issue #300).
             if app.persistenceID != nil {
+                arrangementActions
+                Divider()
                 Button(l10n.s.mixerHideFromList) {
                     mixer.hideFromList(app)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var arrangementActions: some View {
+        Button(action: togglePin) {
+            Label(isPinned ? arrangementStrings.unpin : arrangementStrings.pin,
+                  systemImage: isPinned ? "pin.slash" : "pin")
         }
     }
 

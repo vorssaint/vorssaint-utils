@@ -57,7 +57,7 @@ class ShelfPanelMoveView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let accepted = acceptsDrops && ShelfService.shared.accept(pasteboard: sender.draggingPasteboard)
+        let accepted = acceptsDrops && ShelfService.shared.accept(draggingInfo: sender)
         ShelfService.shared.setDropTargeted(false)
         return accepted
     }
@@ -275,6 +275,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     private var pendingRebuildAfterDrag = false
     private var closeButton: NSButton!
     private var expandButton: NSButton?
+    private let sharePresenter = ShelfSharePresenter()
 
     init(item: ShelfService.Item, isSelected: Bool, isExpanded: Bool) {
         self.item = item
@@ -396,14 +397,20 @@ final class ShelfTileView: NSView, NSDraggingSource {
             let breakdown = ShelfTooltipSupport.breakdown(of: item.tooltipLeafKinds)
             let s = L10n.shared.s
             let strings = ShelfTooltipStrings(itemsFormat: s.shelfTooltipItemsFormat,
+                                              itemsFew: s.shelfTooltipItemsFew,
                                               imageSingular: s.shelfTooltipImageSingular,
+                                              imageFew: s.shelfTooltipImageFew,
                                               imagePlural: s.shelfTooltipImagePlural,
                                               fileSingular: s.shelfTooltipFileSingular,
+                                              fileFew: s.shelfTooltipFileFew,
                                               filePlural: s.shelfTooltipFilePlural,
                                               noteSingular: s.shelfTooltipNoteSingular,
+                                              noteFew: s.shelfTooltipNoteFew,
                                               notePlural: s.shelfTooltipNotePlural,
                                               linkSingular: s.shelfTooltipLinkSingular,
-                                              linkPlural: s.shelfTooltipLinkPlural)
+                                              linkFew: s.shelfTooltipLinkFew,
+                                              linkPlural: s.shelfTooltipLinkPlural,
+                                              usesFewForm: L10n.shared.language.usesFewCountForm)
             return ShelfTooltipSupport.text(forPile: breakdown, strings: strings)
         }
     }
@@ -492,12 +499,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
         }
         menu.addItem(openWith)
 
-        let airDrop = NSMenuItem(title: strings.shelfActionAirDrop,
-                                 action: #selector(shareWithAirDrop),
-                                 keyEquivalent: "")
-        airDrop.target = self
-        airDrop.isEnabled = NSSharingService(named: .sendViaAirDrop) != nil
-        menu.addItem(airDrop)
+        menu.addItem(sharePresenter.shareMenuItem(for: urls, title: strings.shelfActionShare))
         menu.addItem(.separator())
 
         let reveal = NSMenuItem(title: strings.cleanerRevealInFinder,
@@ -560,14 +562,6 @@ final class ShelfTileView: NSView, NSDraggingSource {
                                 configuration: configuration)
     }
 
-    @objc private func shareWithAirDrop() {
-        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
-        guard !urls.isEmpty,
-              let service = NSSharingService(named: .sendViaAirDrop) else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        service.perform(withItems: urls)
-    }
-
     @objc private func revealFiles() {
         let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
         guard !urls.isEmpty else { return }
@@ -610,7 +604,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
             draggingItem.setDraggingFrame(bounds, contents: entry.icon)
             return draggingItem
         }
-        shelf.beginInternalDrag(ids: draggedIDs)
+        shelf.beginInternalDrag(ids: draggedIDs, from: window)
         shelf.beginInteraction()
         beginDraggingSession(with: draggingItems, event: event, source: self)
     }
@@ -654,7 +648,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let merged = ShelfService.shared.mergePasteboard(sender.draggingPasteboard, into: item.id)
+        let merged = ShelfService.shared.merge(draggingInfo: sender, into: item.id)
         setDropTargeted(false)
         pendingRebuildAfterDrag = merged
         return merged

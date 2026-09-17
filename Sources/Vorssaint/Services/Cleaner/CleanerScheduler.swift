@@ -141,12 +141,12 @@ final class CleanerScheduler: ObservableObject {
                     // The scan pre checks exactly the safe groups; an
                     // automatic run takes that selection as is.
                     if cleaner.selectedCount > 0 {
-                        cleaner.cleanSelected()
+                        cleaner.cleanSelected(escalate: false)
                     } else {
-                        self.finishRun(freed: 0)
+                        self.finishRun(freed: 0, failed: 0)
                     }
-                case let .done(freed, _):
-                    self.finishRun(freed: freed)
+                case let .done(freed, failed):
+                    self.finishRun(freed: freed, failed: failed)
                 case .idle:
                     // The user (or a reset) interrupted the automatic pass.
                     self.runObserver = nil
@@ -158,13 +158,13 @@ final class CleanerScheduler: ObservableObject {
         cleaner.scan()
     }
 
-    private func finishRun(freed: Int64) {
+    private func finishRun(freed: Int64, failed: Int) {
         runObserver = nil
         JunkCleaner.shared.reset()
         let defaults = UserDefaults.standard
         defaults.set(Date().timeIntervalSince1970, forKey: DefaultsKey.cleanerLastAutoRun)
         defaults.set(freed, forKey: DefaultsKey.cleanerLastAutoFreed)
-        notifyIfWanted(freed: freed)
+        notifyIfWanted(freed: freed, failed: failed)
         scheduleNext()
     }
 
@@ -172,16 +172,20 @@ final class CleanerScheduler: ObservableObject {
     /// app's regular notifier (which drops the note quietly if macOS
     /// notifications are not allowed). Even a run that found nothing posts,
     /// so a fresh schedule gives proof of life on its first pass.
-    private func notifyIfWanted(freed: Int64) {
+    private func notifyIfWanted(freed: Int64, failed: Int) {
         guard UserDefaults.standard.bool(forKey: DefaultsKey.cleanerScheduleNotify) else { return }
         let strings = L10n.shared.s
-        let body: String
+        var sentences: [String] = []
         if freed > 0 {
-            body = String(format: strings.cleanerAutoNotificationFormat,
-                          ByteCountFormatter.string(fromByteCount: freed, countStyle: .file))
-        } else {
-            body = strings.cleanerNothingFound
+            sentences.append(String(format: strings.cleanerAutoNotificationFormat,
+                                    ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)))
         }
-        Notifier.post(title: strings.cleanerScheduleTitle, body: body)
+        // An unattended pass never escalates, so what it left behind has to
+        // be said or a deferred find reads like one that was never there.
+        if failed > 0 {
+            sentences.append(strings.uninstallerSomeFailed)
+        }
+        if sentences.isEmpty { sentences.append(strings.cleanerNothingFound) }
+        Notifier.post(title: strings.cleanerScheduleTitle, body: sentences.joined(separator: " "))
     }
 }

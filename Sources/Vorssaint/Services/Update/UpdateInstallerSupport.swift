@@ -168,8 +168,8 @@ enum UpdateInstallerSupport {
     /// The shell command run with admin rights when the app's folder is not
     /// writable by the current user. The whole installer travels inline (no
     /// script file that another process could rewrite before root runs it)
-    /// and is detached with nohup so the prompt returns while the installer
-    /// waits for the app to quit.
+    /// and is started in its own session (`DetachedProcess`) so the prompt
+    /// returns immediately and the installer outlives the app it replaces.
     static func elevatedInstallCommand(appPath: String,
                                        dmgPath: String,
                                        pid: Int32,
@@ -180,7 +180,8 @@ enum UpdateInstallerSupport {
         let args = [appPath, dmgPath, "\(pid)", resultPath, "\(uid)", expectedVersion]
             .map(shellSingleQuoted)
             .joined(separator: " ")
-        return "/usr/bin/nohup /bin/sh -c \(script) vorssaint-installer \(args) >/dev/null 2>&1 &"
+        return DetachedProcess.detachedShellCommand(
+            quotedArgv: "/bin/sh -c \(script) vorssaint-installer \(args)")
     }
 
     /// Whether the next install attempt should go straight through the admin

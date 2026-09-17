@@ -436,11 +436,11 @@ enum HomebrewAnalytics {
     static func compactCount(_ count: Int) -> String {
         if count >= 1_000_000 {
             let value = Double(count) / 1_000_000
-            return value >= 10 ? "\(Int(value.rounded()))M" : String(format: "%.1fM", value)
+            return value >= 10 ? "\(Int(value.rounded()))M" : String(format: "%.1fM", locale: MetricFormat.locale, value)
         }
         if count >= 1_000 {
             let value = Double(count) / 1_000
-            return value >= 10 ? "\(Int(value.rounded()))K" : String(format: "%.1fK", value)
+            return value >= 10 ? "\(Int(value.rounded()))K" : String(format: "%.1fK", locale: MetricFormat.locale, value)
         }
         return "\(max(count, 0))"
     }
@@ -496,10 +496,12 @@ enum HomebrewAnalytics {
 }
 
 enum HomebrewProgressParser {
+    private static let percentageRegex = try? NSRegularExpression(pattern: #"([0-9]{1,3}(?:\.[0-9]+)?)%"#)
+    private static let ansiRegex = try? NSRegularExpression(pattern: #"\u001B\[[0-9;?]*[ -/]*[@-~]"#)
+
     static func progressFraction(in output: String) -> Double? {
         var latest: Double?
-        let pattern = #"([0-9]{1,3}(?:\.[0-9]+)?)%"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        guard let regex = percentageRegex else { return nil }
         let range = NSRange(output.startIndex..<output.endIndex, in: output)
         regex.enumerateMatches(in: output, range: range) { match, _, _ in
             guard let match,
@@ -601,7 +603,7 @@ enum HomebrewProgressParser {
     }
 
     private static func stripANSI(_ value: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\u001B\[[0-9;?]*[ -/]*[@-~]"#) else {
+        guard let regex = ansiRegex else {
             return value
         }
         let range = NSRange(value.startIndex..<value.endIndex, in: value)

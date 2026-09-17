@@ -21,14 +21,14 @@ final class NetworkSampler {
     private var totalUp: UInt64 = 0
     private var counterFallback = NetworkCounterFallback()
     private var processDeltaTracker = NetworkProcessDeltaTracker(maxGap: 30)
-    private let counterReader: () -> NetworkCounters
+    private let counterReader: () -> NetworkCounters?
     private let processReader: () -> [NetworkProcessSample]?
 
     /// After a gap longer than this (sampling was paused), the previous reading
     /// is treated as a fresh baseline instead of producing a misleading spike.
     private static let maxGap: TimeInterval = 10
 
-    init(counterReader: @escaping () -> NetworkCounters = NetworkSampler.readCounters,
+    init(counterReader: @escaping () -> NetworkCounters? = NetworkSampler.readCounters,
          processReader: @escaping () -> [NetworkProcessSample]? = {
              NetworkProcessSupport.currentExternalActivitySamples()
          }) {
@@ -37,10 +37,15 @@ final class NetworkSampler {
     }
 
     func sample(now: TimeInterval) -> NetworkReading {
-        let counters = counterReader()
+        guard let counters = counterReader() else {
+            return NetworkReading(downBytesPerSec: nil, upBytesPerSec: nil,
+                                  totalDown: totalDown, totalUp: totalUp)
+        }
         defer { previous = (counters, now) }
 
         guard let prev = previous, now > prev.time, now - prev.time <= Self.maxGap else {
+            counterFallback.reset()
+            processDeltaTracker.reset()
             return NetworkReading(downBytesPerSec: nil, upBytesPerSec: nil,
                                   totalDown: totalDown, totalUp: totalUp)
         }
@@ -90,16 +95,16 @@ final class NetworkSampler {
     /// Sums received/sent bytes across the physical interfaces via the routing
     /// socket (`NET_RT_IFLIST2`), which reports 64-bit counters in `if_data64` —
     /// unlike `getifaddrs`, whose 32-bit counters wrap and corrupt totals.
-    static func readCounters() -> NetworkCounters {
+    static func readCounters() -> NetworkCounters? {
         var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0]
         var length = 0
         guard sysctl(&mib, 6, nil, &length, nil, 0) == 0, length > 0 else {
-            return NetworkCounters()
+            return nil
         }
 
         var buffer = [UInt8](repeating: 0, count: length)
         guard sysctl(&mib, 6, &buffer, &length, nil, 0) == 0 else {
-            return NetworkCounters()
+            return nil
         }
 
         var result = NetworkCounters()

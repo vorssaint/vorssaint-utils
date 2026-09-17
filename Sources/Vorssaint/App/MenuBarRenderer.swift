@@ -1271,6 +1271,7 @@ enum MenuBarRenderer {
                               fileSystem: "APFS",
                               totalBytes: 1_000_000_000_000,
                               freeBytes: 0,
+                              purgeableBytes: nil,
                               usedBytes: 1_000_000_000_000,
                               isInternal: true,
                               isRemovable: false,

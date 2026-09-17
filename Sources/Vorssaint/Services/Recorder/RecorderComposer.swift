@@ -56,6 +56,14 @@ final class RecorderComposer {
         /// once like everything else, so a frame is a lookup.
         let texts: [RecorderTextOverlay]
         let textOpacity: [[Double]]
+        /// Pictures laid over the recording, each already resized to the
+        /// pixels it is drawn at, with the same per-frame solidity.
+        let images: [RecorderImageOverlay]
+        let imageSprites: [CGImage?]
+        let imageOpacity: [[Double]]
+        /// Areas kept unreadable and, for each frame, whether each one is on.
+        let blurs: [RecorderBlurRegion]
+        let blurCovers: [[Bool]]
     }
 
     private let plan: Plan
@@ -82,6 +90,7 @@ final class RecorderComposer {
     func render(_ source: CIImage, at seconds: Double) -> CIImage {
         let index = frameIndex(for: seconds)
         var content = source.cropped(to: CGRect(origin: .zero, size: plan.sourceSize))
+        content = blurred(content, index: index)
 
         let pointerWasOnScreen = plan.pointerVisible.indices.contains(index)
             ? plan.pointerVisible[index] : true
@@ -102,8 +111,30 @@ final class RecorderComposer {
         } else if let plate = plan.plate {
             content = content.composited(over: plate)
         }
+        content = drawImages(on: content, index: index)
         content = drawTexts(on: content, index: index)
         return content.cropped(to: CGRect(origin: .zero, size: plan.canvasSize))
+    }
+
+    /// Pictures share the captions' place above the zoom, and go under them:
+    /// a mark of your own belongs behind what the recording is saying.
+    private func drawImages(on content: CIImage, index: Int) -> CIImage {
+        guard !plan.images.isEmpty else { return content }
+        var result = content
+        for (order, overlay) in plan.images.enumerated() {
+            guard plan.imageOpacity.indices.contains(order),
+                  plan.imageOpacity[order].indices.contains(index),
+                  plan.imageSprites.indices.contains(order),
+                  let sprite = plan.imageSprites[order] else { continue }
+            let opacity = plan.imageOpacity[order][index]
+            guard opacity > 0.01 else { continue }
+            let size = CGSize(width: sprite.width, height: sprite.height)
+            let origin = overlay.anchor.origin(of: size, in: plan.canvasSize)
+            result = faded(CIImage(cgImage: sprite), opacity: opacity)
+                .transformed(by: CGAffineTransform(translationX: origin.x, y: origin.y))
+                .composited(over: result)
+        }
+        return result
     }
 
     /// Text sits on top of everything, including the background and the zoom:
@@ -121,12 +152,40 @@ final class RecorderComposer {
                                                          canvasHeight: plan.canvasSize.height)
             else { continue }
             let size = CGSize(width: image.width, height: image.height)
-            let origin = RecorderTextRenderer.origin(for: overlay,
-                                                     textSize: size,
-                                                     canvas: plan.canvasSize)
+            let origin = overlay.anchor.origin(of: size, in: plan.canvasSize)
             result = faded(CIImage(cgImage: image), opacity: opacity)
                 .transformed(by: CGAffineTransform(translationX: origin.x, y: origin.y))
                 .composited(over: result)
+        }
+        return result
+    }
+
+    /// Blurs go into the picture before anything else is drawn on it, so the
+    /// zoom magnifies the blur along with what it hides and the pointer still
+    /// travels over it. A mosaic under a blur, rather than either alone: blocks
+    /// destroy the letters and the blur destroys the blocks.
+    private func blurred(_ content: CIImage, index: Int) -> CIImage {
+        guard !plan.blurs.isEmpty else { return content }
+        var result = content
+        for (order, region) in plan.blurs.enumerated() {
+            guard plan.blurCovers.indices.contains(order),
+                  plan.blurCovers[order].indices.contains(index),
+                  plan.blurCovers[order][index] else { continue }
+            let rect = region.pixelRect(in: plan.sourceSize)
+            guard rect.width >= 1, rect.height >= 1 else { continue }
+            let block = RecorderSupport.blurBlockSize(for: rect.size)
+            // Clamped first so the blur never pulls transparent edges in and
+            // lets a sliver of the original show through the border.
+            let hidden = content.clampedToExtent()
+                .applyingFilter("CIPixellate", parameters: [
+                    kCIInputScaleKey: block,
+                    kCIInputCenterKey: CIVector(x: rect.minX, y: rect.minY),
+                ])
+                .applyingFilter("CIGaussianBlur", parameters: [
+                    kCIInputRadiusKey: block * 0.6,
+                ])
+                .cropped(to: rect)
+            result = hidden.composited(over: result)
         }
         return result
     }
@@ -255,13 +314,19 @@ final class RecorderComposer {
     /// The master is written at a variable rate on purpose, so a still screen
     /// costs nothing while recording; the steady rate is imposed here instead,
     /// in the single decode pass the export already needs.
+    ///
+    /// Nil when a recording that carries an edit cannot be composed. The plain
+    /// path below draws the recording untouched, which is only ever right when
+    /// there is nothing drawn on it: answering with it after a failure would
+    /// hand back a file missing the areas kept unreadable, and everything else
+    /// the person put on the picture.
     static func videoComposition(track: AVAssetTrack,
                                  asset: AVAsset,
                                  duration: CMTime,
                                  frameRate: Int,
                                  composer: RecorderComposer?,
                                  sourceSize: CGSize,
-                                 outputSize: CGSize) async -> AVMutableVideoComposition {
+                                 outputSize: CGSize) async -> AVMutableVideoComposition? {
         if let composer {
             // The handler may run concurrently; this composer only reads
             // immutable state while rendering each frame.
@@ -273,13 +338,12 @@ final class RecorderComposer {
                         at: CMTimeGetSeconds(request.compositionTime))
                     request.finish(with: rendered, context: nil)
                 }
-            if let composition {
-                composition.frameDuration = CMTime(value: 1,
-                                                   timescale: CMTimeScale(max(1, frameRate)))
-                composition.renderSize = composer.canvasSize
-                composition.sourceTrackIDForFrameTiming = kCMPersistentTrackID_Invalid
-                return composition
-            }
+            guard let composition else { return nil }
+            composition.frameDuration = CMTime(value: 1,
+                                               timescale: CMTimeScale(max(1, frameRate)))
+            composition.renderSize = composer.canvasSize
+            composition.sourceTrackIDForFrameTiming = kCMPersistentTrackID_Invalid
+            return composition
         }
         let naturalSize = (try? await track.load(.naturalSize)) ?? sourceSize
         let preferredTransform = (try? await track.load(.preferredTransform)) ?? .identity

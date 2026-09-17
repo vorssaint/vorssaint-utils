@@ -84,6 +84,27 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// Loaded image for an image-kind backdrop; nil when missing on disk,
     /// which quietly renders as no backdrop.
     @Published private(set) var backdropImage: CGImage?
+    /// A mark of your own over the capture, persisted as JSON like the
+    /// backdrop and applied live on the canvas.
+    @Published var watermarkStyle: ScreenshotSupport.WatermarkStyle {
+        didSet {
+            UserDefaults.standard.set(watermarkStyle.encoded(),
+                                      forKey: DefaultsKey.screenshotWatermarkStyle)
+            reloadWatermarkImageIfNeeded()
+            refreshDirtyState()
+        }
+    }
+    /// Loaded picture for an image-kind watermark; nil when missing on disk,
+    /// which quietly draws nothing.
+    @Published private(set) var watermarkImage: CGImage?
+    /// Watermarks the user chose to keep.
+    @Published private(set) var watermarkPresets: [ScreenshotSupport.WatermarkStyle] {
+        didSet {
+            UserDefaults.standard.set(
+                ScreenshotSupport.encodedWatermarkPresets(watermarkPresets),
+                forKey: DefaultsKey.screenshotWatermarkPresets)
+        }
+    }
     @Published var cropDraft: CGRect?
     /// Exact image pixel under a crop resize grip. Nil while moving the
     /// whole crop so the loupe appears only when it adds precision.
@@ -108,6 +129,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var cleanImage: CGImage?
     private var cleanAnnotations: [ScreenshotSupport.Annotation] = []
     private var cleanBackdropStyle = ScreenshotSupport.BackdropStyle()
+    private var cleanWatermarkStyle = ScreenshotSupport.WatermarkStyle()
     private var cleanAnnotationShadowsEnabled = false
 
     // Gesture state, in image pixels.
@@ -152,8 +174,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         backdropStyle = ScreenshotSupport.BackdropStyle.decoded(rawStyle)
         backdropPresets = ScreenshotSupport.decodedBackdropPresets(
             defaults.string(forKey: DefaultsKey.screenshotBackdropPresets))
+        watermarkStyle = ScreenshotSupport.WatermarkStyle.decoded(
+            defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle))
+        watermarkPresets = ScreenshotSupport.decodedWatermarkPresets(
+            defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets))
         pixelated = nil
         reloadBackdropImageIfNeeded()
+        reloadWatermarkImageIfNeeded()
         recordCleanState()
     }
 
@@ -209,14 +236,36 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         }
         if backdropImage != nil, loadedBackdropPath == path { return }
         loadedBackdropPath = path
-        backdropImage = Self.loadBackdropImage(path)
+        backdropImage = Self.loadImageFile(path)
     }
 
     private var loadedBackdropPath: String?
 
-    /// Loads and caps a backdrop image; wallpapers can be 6K and the fill
-    /// never needs more than the export canvas.
-    private static func loadBackdropImage(_ path: String) -> CGImage? {
+    /// True when a mark actually draws: text with something typed, or a
+    /// picture that loaded.
+    var showsWatermark: Bool {
+        switch watermarkStyle.sanitized().kind {
+        case .none: return false
+        case .text: return true
+        case .image: return watermarkImage != nil
+        }
+    }
+
+    private func reloadWatermarkImageIfNeeded() {
+        guard watermarkStyle.kind == .image, let path = watermarkStyle.imagePath else {
+            watermarkImage = nil
+            return
+        }
+        if watermarkImage != nil, loadedWatermarkPath == path { return }
+        loadedWatermarkPath = path
+        watermarkImage = Self.loadImageFile(path)
+    }
+
+    private var loadedWatermarkPath: String?
+
+    /// Loads and caps a backdrop or watermark picture; wallpapers can be 6K
+    /// and neither needs more than the export canvas.
+    private static func loadImageFile(_ path: String) -> CGImage? {
         let url = URL(fileURLWithPath: path)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
@@ -253,6 +302,22 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     func removeBackdropPreset(at index: Int) {
         guard backdropPresets.indices.contains(index) else { return }
         backdropPresets.remove(at: index)
+    }
+
+    // MARK: - Watermark presets
+
+    /// Keeps the current mark, placement and all, in the presets row;
+    /// duplicates are ignored.
+    func saveCurrentWatermarkAsPreset() {
+        let style = watermarkStyle.sanitized()
+        guard style.kind != .none, !watermarkPresets.contains(style) else { return }
+        watermarkPresets = Array((watermarkPresets + [style])
+            .suffix(ScreenshotSupport.backdropPresetLimit))
+    }
+
+    func removeWatermarkPreset(at index: Int) {
+        guard watermarkPresets.indices.contains(index) else { return }
+        watermarkPresets.remove(at: index)
     }
 
     // MARK: - Selectable text on the canvas
@@ -422,6 +487,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         cleanImage = baseImage
         cleanAnnotations = annotations
         cleanBackdropStyle = backdropStyle.sanitized()
+        cleanWatermarkStyle = watermarkStyle.sanitized()
         cleanAnnotationShadowsEnabled = annotationShadowsEnabled
         isDirty = false
     }
@@ -431,6 +497,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         isDirty = baseImage !== cleanImage
             || annotations != cleanAnnotations
             || backdropStyle.sanitized() != cleanBackdropStyle
+            || watermarkStyle.sanitized() != cleanWatermarkStyle
             || annotationShadowsEnabled != cleanAnnotationShadowsEnabled
     }
 
@@ -934,7 +1001,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Output
 
-    func exportImage(withBackdrop: Bool = true) -> CGImage? {
+    func exportImage(withBackdrop: Bool = true) -> ScreenshotRenderer.Export? {
         if annotations.contains(where: { $0.tool == .pixelate }) {
             ensurePixelated()
         }
@@ -945,6 +1012,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             pixelated: pixelated,
             scale: scale,
             annotationShadowsEnabled: annotationShadowsEnabled,
+            watermark: watermarkStyle,
+            watermarkImage: watermarkImage,
             style: backdropStyle.sanitized(),
             fill: withBackdrop ? backdropFill : .none,
             downscaleTo1x: downscale)
@@ -980,8 +1049,16 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        let screen = NSScreen.pointerVisibleFrame
+        let minimumSize = ScreenshotSupport.editorMinimumContentSize(visibleSize: screen.size)
+        // The hosting view rewrites the window's size limits on its first
+        // layout pass, so a contentMinSize set on the window is silently
+        // lost. Declare the minimum on the hosted view and track just that:
+        // the hosting controller then maintains contentMinSize itself.
         let content = ScreenshotEditorView(model: model, controller: self)
+            .frame(minWidth: minimumSize.width, minHeight: minimumSize.height)
         let host = NSHostingController(rootView: content)
+        host.sizingOptions = [.minSize]
         let window = NSWindow(contentViewController: host)
         // One continuous surface: the canvas fills the window and the
         // controls float over it, so the editor reads as a single object.
@@ -1000,13 +1077,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         // Chrome must equal the view's designed margins exactly (rail 64 +
         // sides, action band above, style band below), so a fresh window
         // opens with zero leftover stage around the capture.
-        let screen = NSScreen.pointerVisibleFrame
         let contentSize = ScreenshotSupport.editorContentSize(
             imagePointSize: model.pointSize,
             visibleSize: screen.size)
-        let minimumSize = ScreenshotSupport.editorMinimumContentSize(visibleSize: screen.size)
         window.setContentSize(contentSize)
-        window.contentMinSize = minimumSize
         window.center()
 
         self.window = window
@@ -1036,6 +1110,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                     editorWindowNumber: window.windowNumber,
                     editorIsKey: window.isKeyWindow)
             else { return event }
+            // The recorder owns every key, including editor commands.
+            if ShortcutCapture.isCapturing { return event }
             // While a text field edits, every key belongs to it.
             if window.firstResponder is NSText || self.model.editingTextID != nil {
                 return event
@@ -1062,6 +1138,18 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     private func handleKey(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let key = Int(event.keyCode)
+
+        let orderRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder)
+        let bindingsRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolShortcuts)
+        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotToolShortcutsEnabled)
+        let number = event.characters?.first.flatMap { Int(String($0)) }
+        if let tool = ScreenshotSupport.Tool.shortcutTool(
+            keyCode: Int64(key), modifiers: GlobalShortcutModifiers(eventFlags: flags),
+            number: number, orderRaw: orderRaw, bindingsRaw: bindingsRaw, enabled: enabled,
+            capsLockOn: flags.contains(.capsLock)) {
+            model.tool = tool
+            return true
+        }
 
         if flags.contains(.command) {
             switch key {
@@ -1117,16 +1205,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
             return true
         default:
-            guard let character = event.characters?.first,
-                  let number = Int(String(character)),
-                  let tool = ScreenshotSupport.Tool.shortcutTool(
-                    number: number,
-                    orderRaw: UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder),
-                    enabled: UserDefaults.standard.bool(
-                        forKey: DefaultsKey.screenshotToolShortcutsEnabled))
-            else { return false }
-            model.tool = tool
-            return true
+            return false
         }
     }
 
@@ -1136,7 +1215,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     /// the editor. The view presents the owner controls after it succeeds.
     func share(duration: ScreenshotShareDuration,
                completion: @escaping (ScreenshotShareRecord?) -> Void) {
-        guard let image = model.exportImage() else {
+        guard let export = model.exportImage() else {
             QuickToolHUD.show(icon: "link", message: strings.shareFailedHUD)
             completion(nil)
             return
@@ -1147,7 +1226,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                 return
             }
             let data = await Task.detached(priority: .userInitiated) {
-                ScreenshotRenderer.pngData(from: image)
+                ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
             }.value
             guard let data else {
                 QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
@@ -1175,8 +1254,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     /// Every final output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
-        guard let image = model.exportImage() else { return }
-        guard Self.copyImage(image, fileNamePrefix: strings.fileNamePrefix) else {
+        guard let export = model.exportImage() else { return }
+        guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return
         }
@@ -1186,8 +1265,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyImage(_ image: CGImage, fileNamePrefix: String) -> Bool {
-        guard let data = ScreenshotRenderer.pngData(from: image),
+    static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String) -> Bool {
+        guard let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale),
               let base = FileManager.default.urls(for: .cachesDirectory,
                                                   in: .userDomainMask).first,
               let bundleID = Bundle.main.bundleIdentifier
@@ -1199,7 +1278,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                          directory: folder) else {
             return false
         }
-        guard copyFile(url, payload: clipboardPayload(from: image, png: data)) else {
+        guard copyFile(url, payload: clipboardPayload(from: export, png: data)) else {
             try? FileManager.default.removeItem(at: url)
             return false
         }
@@ -1227,13 +1306,15 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         let tiff: Data?
     }
 
-    static func clipboardPayload(from image: CGImage) -> ClipboardPayload {
-        clipboardPayload(from: image, png: ScreenshotRenderer.pngData(from: image))
+    static func clipboardPayload(from export: ScreenshotRenderer.Export) -> ClipboardPayload {
+        clipboardPayload(from: export,
+                         png: ScreenshotRenderer.pngData(from: export.image, scale: export.scale))
     }
 
-    static func clipboardPayload(from image: CGImage, png: Data?) -> ClipboardPayload {
-        let bitmap = NSBitmapImageRep(cgImage: image)
-        return ClipboardPayload(png: png, tiff: bitmap.tiffRepresentation)
+    static func clipboardPayload(from export: ScreenshotRenderer.Export,
+                                 png: Data?) -> ClipboardPayload {
+        ClipboardPayload(png: png,
+                         tiff: ScreenshotRenderer.tiffData(from: export.image, scale: export.scale))
     }
 
     @discardableResult
@@ -1251,8 +1332,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     func save() {
-        guard let image = model.exportImage(),
-              let data = ScreenshotRenderer.pngData(from: image)
+        guard let export = model.exportImage(),
+              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return }
         let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
         do {
@@ -1278,8 +1359,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             prefix: strings.fileNamePrefix, date: Date())
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
-            guard let image = self.model.exportImage(),
-                  let data = ScreenshotRenderer.pngData(from: image)
+            guard let export = self.model.exportImage(),
+                  let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
             else { return }
             do {
                 try data.write(to: url, options: .atomic)
@@ -1293,8 +1374,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     /// Pinning snapshots the current export and leaves the editor open.
     func pin() {
-        guard let image = model.exportImage(withBackdrop: false) else { return }
-        ScreenshotPinController.shared.pin(image: image, scale: model.scale)
+        guard let export = model.exportImage(withBackdrop: false) else { return }
+        ScreenshotPinController.shared.pin(image: export.image, scale: export.scale)
         model.markExported()
     }
 

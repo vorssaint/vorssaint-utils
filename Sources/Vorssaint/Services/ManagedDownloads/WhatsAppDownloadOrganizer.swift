@@ -513,17 +513,18 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
                                      destination: URL,
                                      digest: String) throws -> [UndoTransaction.Action] {
         let fm = FileManager.default
-        let sourceVolume = try? source.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier
-        let destinationVolume = try? destination.deletingLastPathComponent()
-            .resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier
+        let sourceVolume = (try? source.resourceValues(forKeys: [.volumeIdentifierKey]))?
+            .volumeIdentifier as? NSObject
+        let destinationVolume = (try? destination.deletingLastPathComponent()
+            .resourceValues(forKeys: [.volumeIdentifierKey]))?.volumeIdentifier as? NSObject
 
-        if let sourceVolume, let destinationVolume,
-           String(describing: sourceVolume) == String(describing: destinationVolume) {
+        if WhatsAppDownloadSupport.isSameVolume(source: sourceVolume,
+                                                destination: destinationVolume) {
+            // Same volume: this is a rename, so no byte ever moves and the
+            // digest cannot change. Re-hashing here read a second full copy of
+            // every file - on a multi-gigabyte video, longer than the move.
+            // The cross-volume branch below copies and must still verify.
             try fm.moveItem(at: source, to: destination)
-            guard (try? sha256(of: destination)) == digest else {
-                try? fm.moveItem(at: destination, to: source)
-                throw CocoaError(.fileReadCorruptFile)
-            }
             return [.init(kind: .move, currentPath: destination.path,
                           restorePath: source.path)]
         }

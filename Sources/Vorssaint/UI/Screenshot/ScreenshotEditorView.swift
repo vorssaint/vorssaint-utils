@@ -10,6 +10,7 @@ struct ScreenshotEditorView: View {
     @ObservedObject var model: ScreenshotEditorModel
     let controller: ScreenshotEditorController
     @ObservedObject private var l10n = L10n.shared
+    @StateObject private var keyboard = ScreenshotShortcutContext()
 
     @State private var editingText = ""
     @FocusState private var textFieldFocused: Bool
@@ -17,12 +18,14 @@ struct ScreenshotEditorView: View {
     @State private var dragStartView: CGPoint = .zero
     @State private var appeared = false
     @State private var backdropPopoverShown = false
+    @State private var watermarkPopoverShown = false
     @State private var hoveredTool: ScreenshotSupport.Tool?
     @State private var toolOptionsShown = false
     @State private var sharing = false
     @State private var sharedRecord: ScreenshotShareRecord?
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
+    @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
 
@@ -63,6 +66,8 @@ struct ScreenshotEditorView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.tool)
         .animation(.easeOut(duration: 0.16), value: model.annotationShadowsEnabled)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.backdropStyle)
+        .onAppear { keyboard.start() }
+        .onDisappear { keyboard.stop() }
         .sheet(item: $sharedRecord) { record in
             ScreenshotEditorSharedLinkView(record: record,
                                            strings: strings,
@@ -293,6 +298,13 @@ struct ScreenshotEditorView: View {
                                            scale: model.scale,
                                            annotationShadowsEnabled: model.annotationShadowsEnabled,
                                            skippingText: model.editingTextID)
+        ScreenshotRenderer.drawWatermark(model.watermarkStyle,
+                                         image: model.watermarkImage,
+                                         in: cg,
+                                         imageSize: model.imageSize,
+                                         scale: model.scale,
+                                         shadowsEnabled: model.annotationShadowsEnabled,
+                                         cornerRadius: model.cardCornerPixels)
         drawTextSelection(cg)
         drawSelectionChrome(cg)
         drawCropChrome(cg, canvasSize: size, zoom: zoom)
@@ -610,36 +622,36 @@ struct ScreenshotEditorView: View {
     private func railButton(_ tool: ScreenshotSupport.Tool) -> some View {
         let isActive = model.tool == tool
         let isHovered = hoveredTool == tool
-        let shortcutNumber = ScreenshotSupport.Tool.shortcutNumber(
-            for: tool,
-            orderRaw: toolOrderRaw,
-            enabled: toolShortcutsEnabled)
+        let shortcutLabel = ScreenshotSupport.Tool.shortcutLabel(
+            for: tool, orderRaw: toolOrderRaw, bindingsRaw: bindingsRaw, enabled: toolShortcutsEnabled,
+            capsLockOn: keyboard.capsLockOn)
         return Button {
             commitEditingTextIfNeeded()
             model.tool = tool
         } label: {
-            Image(systemName: tool.screenshotSymbolName)
-                .font(.system(size: 13.5, weight: .medium))
-                .symbolEffect(.bounce, value: isActive)
-                .frame(width: 33, height: 29)
-                .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(isActive
-                                ? Color.accentColor.opacity(0.22)
-                                : isHovered ? Color.primary.opacity(0.08) : .clear)
-                )
-                .foregroundStyle(isActive ? Color.accentColor : Color.primary.opacity(0.85))
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .scaleEffect(isHovered && !isActive ? 1.06 : 1)
-                .overlay(alignment: .topTrailing) {
-                    if let shortcutNumber {
-                        Text("\(shortcutNumber)")
-                            .font(.system(size: 8, weight: .bold, design: .rounded))
-                            .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
-                            .padding(2)
-                            .opacity(isHovered || isActive ? 0.9 : 0)
-                    }
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: tool.screenshotSymbolName)
+                    .font(.system(size: 13.5, weight: .medium))
+                    .symbolEffect(.bounce, value: isActive)
+                    .frame(width: 33, height: 29)
+                if let shortcutLabel {
+                    Text(shortcutLabel)
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .fixedSize()
+                        .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                        .padding(2)
+                        .opacity(isHovered || isActive ? 0.9 : 0)
                 }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(isActive
+                            ? Color.accentColor.opacity(0.22)
+                            : isHovered ? Color.primary.opacity(0.08) : .clear)
+            )
+            .foregroundStyle(isActive ? Color.accentColor : Color.primary.opacity(0.85))
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .scaleEffect(isHovered && !isActive ? 1.06 : 1)
         }
         .buttonStyle(.borderless)
         .onHover { inside in
@@ -648,8 +660,9 @@ struct ScreenshotEditorView: View {
             }
         }
         .screenshotSafeHelp(tool.screenshotTitle(strings)
-            + (shortcutNumber.map { "  (\($0))" } ?? ""))
-        .accessibilityLabel(tool.screenshotTitle(strings))
+            + (shortcutLabel.map { "  (\($0))" } ?? ""))
+        .accessibilityLabel(tool.screenshotTitle(strings)
+            + (shortcutLabel.map { "  (\($0))" } ?? ""))
     }
 
     // MARK: - QR code (shown only when the capture holds one)
@@ -908,6 +921,8 @@ struct ScreenshotEditorView: View {
             annotationShadowButton
             Divider().frame(height: 16)
             backdropButton
+            Divider().frame(height: 16)
+            watermarkButton
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -1090,6 +1105,38 @@ struct ScreenshotEditorView: View {
 
     @State private var backdropButtonHovered = false
 
+    private var watermarkButton: some View {
+        // Built like the backdrop button: one tappable surface with a hover
+        // wash, tinted while a mark is actually on the capture.
+        let active = model.showsWatermark
+        return HStack(spacing: 6) {
+            Image(systemName: "signature")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(active ? Color.accentColor : Color.primary.opacity(0.85))
+            Text(strings.watermarkLabel)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(active ? Color.accentColor : Color.secondary)
+        }
+        .padding(.horizontal, 7)
+        .frame(height: 24)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(watermarkButtonHovered ? Color.primary.opacity(0.10) : .clear)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .onHover { inside in watermarkButtonHovered = inside }
+        .onTapGesture { watermarkPopoverShown.toggle() }
+        .screenshotSafeHelp(strings.watermarkLabel)
+        .accessibilityLabel(strings.watermarkLabel)
+        .accessibilityAddTraits(active ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { watermarkPopoverShown.toggle() }
+        .popover(isPresented: $watermarkPopoverShown, arrowEdge: .top) {
+            ScreenshotWatermarkPopover(model: model)
+        }
+    }
+
+    @State private var watermarkButtonHovered = false
+
     private func fillPreview(for style: ScreenshotSupport.BackdropStyle) -> LinearGradient {
         let colors = BackdropPickerAssets.previewColors(for: style)
         return LinearGradient(colors: colors,
@@ -1173,31 +1220,32 @@ struct ScreenshotEditorView: View {
         return "\(width) × \(height) px\(retina)"
     }
 
-    /// A draggable thumbnail that exports the flattened PNG.
+    /// A draggable control that exports the flattened PNG. Lives in infoChip
+    /// (bottom row), not the top toolbar — that region overlaps the
+    /// window's real system title bar, where no subview-level override
+    /// can reliably stop AppKit from treating a click as "move the
+    /// window."
     private var dragOutHandle: some View {
-        Image(nsImage: NSImage(cgImage: model.baseImage,
-                               size: NSSize(width: 22, height: 22 * model.imageSize.height
-                                                / max(model.imageSize.width, 1))))
-            .resizable()
-            .aspectRatio(contentMode: .fit)
+        Label(strings.dragOutHandleLabel, systemImage: "arrow.up.doc")
+            .labelStyle(.iconOnly)
+            .font(.system(size: 11, weight: .medium))
             .frame(width: 26, height: 18)
-            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.2), lineWidth: 1)
-            )
+            .contentShape(Rectangle())
             .onDrag {
                 commitEditingTextIfNeeded()
-                guard let image = model.exportImage(),
-                      let provider = ScreenshotService.dragItemProvider(image: image,
-                                                                        strings: strings)
+                guard let export = model.exportImage(),
+                      let provider = ScreenshotService.dragItemProvider(
+                          image: export.image,
+                          scale: export.scale,
+                          strings: strings
+                      )
                 else { return NSItemProvider() }
                 model.markExported()
                 return provider
             }
-            .screenshotSafeHelp(strings.editorTitle)
+            .screenshotSafeHelp(strings.dragOutHandleLabel)
+            .accessibilityLabel(strings.dragOutHandleLabel)
     }
-
 }
 
 private struct ScreenshotEditorSharedLinkView: View {

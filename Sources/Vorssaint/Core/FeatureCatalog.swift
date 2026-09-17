@@ -16,8 +16,8 @@ enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
-    case scrollInverter, focusFollowsMouse, smoothScroll, mouseNavigation, mouseButtonShortcuts, middleClick,
-         keyboardDebounce, textSnippets, superKey
+    case scrollInverter, focusFollowsMouse, smoothScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
+         mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
          diskImageInstaller
@@ -28,7 +28,7 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, killProcess
+         commandBar, screenRecorder, killProcess, notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics, notchQueue, notchDownloads
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
@@ -42,7 +42,7 @@ enum FeatureGroup: String, CaseIterable {
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
     case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
-         automationFinder, automationTerminal, audioCapture, microphone, camera, appManagement
+         automationFinder, automationTerminal, automationPlayback, audioCapture, microphone, camera, appManagement, calendar
 }
 
 enum PermissionPollingSupport {
@@ -67,12 +67,16 @@ extension AppFeature {
     /// Whether an engaged feature needs permission changes while it sits in
     /// the background. One-shot tools ask and refresh at the moment they run;
     /// polling for those just because their tile is installed wastes wakeups.
-    func monitorsPermissionChanges(boolFor: (String) -> Bool) -> Bool {
+    func monitorsPermissionChanges(edgeSnapDisabledZones: String? = nil,
+                                   boolFor: (String) -> Bool) -> Bool {
         switch self {
         case .windowLayout:
             return boolFor(DefaultsKey.windowLayoutShortcutsEnabled)
                 || boolFor(DefaultsKey.windowGestureEnabled)
-                || boolFor(DefaultsKey.windowEdgeSnapEnabled)
+                || (boolFor(DefaultsKey.windowEdgeSnapEnabled)
+                    && !WindowEdgeSnapZone.enabledZones(
+                        from: edgeSnapDisabledZones
+                    ).isEmpty)
         case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder:
             return false
         default:
@@ -81,15 +85,20 @@ extension AppFeature {
     }
 
     var monitorsPermissionChanges: Bool {
-        monitorsPermissionChanges(boolFor: UserDefaults.standard.bool(forKey:))
+        monitorsPermissionChanges(
+            edgeSnapDisabledZones: UserDefaults.standard.string(
+                forKey: DefaultsKey.windowEdgeSnapDisabledZones
+            ),
+            boolFor: UserDefaults.standard.bool(forKey:)
+        )
     }
 
     var group: FeatureGroup {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
-        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-             .keyboardDebounce, .textSnippets, .superKey:
+        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+             .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
              .diskImageInstaller:
@@ -100,7 +109,7 @@ extension AppFeature {
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .killProcess:
+             .scratchpad, .commandBar, .screenRecorder, .killProcess, .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .fanControl:
@@ -119,6 +128,7 @@ extension AppFeature {
         case .scrollInverter: return "arrow.up.arrow.down"
         case .focusFollowsMouse: return "cursorarrow.and.square.on.square.dashed"
         case .smoothScroll: return "cursorarrow.motionlines"
+        case .mouseAcceleration: return "cursorarrow.rays"
         case .mouseNavigation: return "arrow.left.arrow.right"
         case .mouseButtonShortcuts: return "button.programmable"
         case .middleClick: return "computermouse"
@@ -128,6 +138,8 @@ extension AppFeature {
             return SuperKeySource.sanitized(
                 UserDefaults.standard.string(forKey: DefaultsKey.superKeySource)
             ).systemImage
+        case .mouseClickDebounce: return "cursorarrow.click"
+        case .quitWindowProtection: return "shield.lefthalf.filled"
         case .clipboardHistory: return "doc.on.clipboard"
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
@@ -156,6 +168,15 @@ extension AppFeature {
         case .screenshot: return "camera.viewfinder"
         case .screenRecorder: return "record.circle"
         case .cameraPreview: return "web.camera"
+        case .notchGestures: return "hand.draw"
+        case .notchTimer: return "timer"
+        case .notchAccessories: return "battery.25percent"
+        case .notchLyrics: return "quote.bubble"
+        case .notchQueue: return "list.bullet"
+        case .notchDownloads: return "arrow.down.circle"
+        case .notchNotifications: return "bell"
+        case .notchCalendar: return "calendar"
+        case .notch: return "macbook"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
         case .commandBar: return "command"
@@ -177,7 +198,11 @@ extension AppFeature {
     /// Availability read straight from defaults. Existing features stay
     /// available on update; explicit beta opt-ins may start unavailable.
     var isAvailable: Bool {
-        UserDefaults.standard.bool(forKey: availabilityKey)
+        isAvailable(in: .standard)
+    }
+
+    func isAvailable(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: availabilityKey)
     }
 
     /// The feature's own enable keys; any one being true means the feature is
@@ -197,12 +222,26 @@ extension AppFeature {
                                       DefaultsKey.scrollInverterHorizontalEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
+        case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
-        case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled]
+        case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled,
+                                            DefaultsKey.mouseSpacesGestureEnabled]
         case .middleClick: return [DefaultsKey.middleClickEnabled]
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
+        case .quitWindowProtection:
+            return [DefaultsKey.quitProtectionQuitEnabled, DefaultsKey.quitProtectionCloseEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]
         case .superKey: return [DefaultsKey.superKeyEnabled]
+        case .mouseClickDebounce: return [DefaultsKey.mouseClickDebounceEnabled]
+        case .notchGestures: return [DefaultsKey.notchGesturesEnabled]
+        case .notchTimer: return [DefaultsKey.notchTimerEnabled]
+        case .notchAccessories: return [DefaultsKey.notchAccessoriesEnabled]
+        case .notchLyrics: return [DefaultsKey.notchLyricsEnabled]
+        case .notchQueue: return [DefaultsKey.notchQueueEnabled]
+        case .notchDownloads: return [DefaultsKey.notchDownloadsEnabled]
+        case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
+        case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
+        case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
@@ -232,9 +271,19 @@ extension AppFeature {
     /// monitor only notifies when an alert is on, and so on).
     var permissions: [AppPermission] {
         switch self {
+        case .notchGestures: return []
+        case .notchTimer, .notchAccessories: return []
+        case .notchLyrics, .notchQueue: return []
+        case .notchDownloads: return [.filesAndFolders]
+        case .notchNotifications: return [.accessibility]
+        case .notchCalendar: return [.calendar]
+        case .notch: return [.accessibility, .automationPlayback]
+        case .mouseAcceleration:
+            return []
         case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-             .keyboardDebounce, .textSnippets, .superKey, .dockClick, .windowMaximizer, .windowLayout,
-             .autoQuit, .cleaningMode, .pastePlain, .radialMenu,
+             .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
+             .dockClick, .windowMaximizer, .windowLayout,
+             .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
              .commandBar:
@@ -248,9 +297,10 @@ extension AppFeature {
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
-        // The sound of the Mac rides the same grant the pixels do. Microphone
-        // access stays contextual, and Accessibility only keeps typing timing.
-        case .screenRecorder: return [.screenRecording, .accessibility, .microphone]
+        // The sound of the Mac is read through an audio grant of its own.
+        // Microphone access stays contextual, and Accessibility only keeps
+        // typing timing.
+        case .screenRecorder: return [.screenRecording, .accessibility, .audioCapture, .microphone]
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
@@ -310,8 +360,26 @@ extension AppFeature {
             let keys = feature.enabledKeys
             guard keys.isEmpty || keys.contains(where: boolFor) else { return false }
             switch (feature, permission) {
+            case (.notch, .automationPlayback):
+                return !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
             case (.switcher, .screenRecording):
                 return !boolFor(DefaultsKey.switcherSimpleMode)
+            case (.notchNotifications, .accessibility):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("notifications")
+            case (.notchDownloads, .filesAndFolders):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && dataFor(DefaultsKey.notchDownloadsFolderBookmark) != nil
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("downloads")
+            case (.notchCalendar, .calendar):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("calendar")
+            case (.notch, .accessibility):
+                return (boolFor(DefaultsKey.notchVolume) && isAvailable(.mixer))
+                    || (boolFor(DefaultsKey.notchKeyboardLight) && isAvailable(.brightness))
+                    || (boolFor(DefaultsKey.notchBrightness) && isAvailable(.brightness)
+                        && boolFor(DefaultsKey.brightnessControlEnabled))
+                    || (boolFor(DefaultsKey.notchClipboardWindow) && isAvailable(.clipboardHistory))
             case (.radialMenu, .accessibility):
                 return RadialMenuSupport.needsAccessibility(
                     RadialMenuSupport.decode(dataFor(DefaultsKey.radialMenuItems)))
@@ -347,6 +415,8 @@ extension AppFeature {
                         || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
                     && boolFor(DefaultsKey.whatsAppDownloadsNotify)
                 return cleanerNotifies || whatsAppNotifies
+            case (.screenRecorder, .audioCapture):
+                return boolFor(DefaultsKey.recorderSystemAudio)
             case (.screenRecorder, .microphone):
                 return boolFor(DefaultsKey.recorderMicrophone)
             default:
@@ -390,9 +460,10 @@ extension AppPermission {
         case .fullDiskAccess: return "externaldrive.badge.person.crop"
         case .filesAndFolders: return "folder.badge.person.crop"
         case .notifications: return "bell.badge"
-        case .automationFinder, .automationTerminal: return "gearshape.2"
+        case .automationFinder, .automationTerminal, .automationPlayback: return "gearshape.2"
         case .audioCapture: return "waveform"
         case .microphone: return "mic"
+        case .calendar: return "calendar"
         case .camera: return "camera"
         case .appManagement: return "app.badge"
         }

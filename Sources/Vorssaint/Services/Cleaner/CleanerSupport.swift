@@ -49,12 +49,12 @@ enum CleanerSupport {
     }
 
     /// Whether a Library entry name is shaped like a reverse DNS bundle
-    /// identifier (at least three dot separated components of plain
+    /// identifier (at least two dot separated components of plain
     /// identifier characters). Anything else, including a plain vendor folder,
     /// is never matched by name because it is too easy to hit living app data.
     static func looksLikeBundleID(_ name: String) -> Bool {
         let parts = name.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count >= 3 else { return false }
+        guard parts.count >= 2 else { return false }
         for part in parts {
             guard !part.isEmpty else { return false }
             for scalar in part.unicodeScalars {
@@ -98,7 +98,7 @@ enum CleanerSupport {
             name.removeFirst(prefix.count)
         }
         let parts = name.split(separator: ".")
-        if parts.count >= 4, isTeamIdentifier(String(parts[0])) {
+        if parts.count >= 3, isTeamIdentifier(String(parts[0])) {
             name = parts.dropFirst().joined(separator: ".")
         }
         // A UUID still in the remainder (update stamps, mid-name hosts)

@@ -181,17 +181,28 @@ struct RecorderPauseTimeline {
     }
 }
 
-/// Thread-safe shared pause state for the writer and the two event samplers.
-/// It exists only for the lifetime of one recording.
+/// One origin and pause state for the writer, event samplers and elapsed display.
+/// It exists only for the lifetime of one recording. Starting a later source
+/// must never rebase events against that source's startup time.
 final class RecorderPauseClock {
     private let lock = NSLock()
     private var timeline = RecorderPauseTimeline()
+    private var origin: Double?
 
     var isPaused: Bool { lock.withLock { timeline.isPaused } }
 
     @discardableResult
+    func begin(at time: Double) -> Bool {
+        lock.withLock {
+            guard origin == nil, time.isFinite else { return false }
+            origin = time
+            return true
+        }
+    }
+
+    @discardableResult
     func pause(at time: Double) -> Bool {
-        lock.withLock { timeline.pause(at: time) }
+        lock.withLock { origin != nil && timeline.pause(at: time) }
     }
 
     @discardableResult
@@ -199,16 +210,25 @@ final class RecorderPauseClock {
         lock.withLock { timeline.resume(at: time) }
     }
 
-    func elapsed(since origin: Double, at time: Double) -> Double {
-        lock.withLock { timeline.elapsed(since: origin, at: time) }
+    func elapsed(at time: Double) -> Double {
+        lock.withLock {
+            guard let origin else { return 0 }
+            return timeline.elapsed(since: origin, at: time)
+        }
     }
 
-    func sampleTime(start: Double, duration: Double, since origin: Double) -> Double? {
-        lock.withLock { timeline.sampleTime(start: start, duration: duration, since: origin) }
+    func sampleTime(start: Double, duration: Double) -> Double? {
+        lock.withLock {
+            guard let origin else { return nil }
+            return timeline.sampleTime(start: start, duration: duration, since: origin)
+        }
     }
 
-    func eventTime(_ time: Double, since origin: Double) -> Double? {
-        lock.withLock { timeline.eventTime(time, since: origin) }
+    func eventTime(_ time: Double) -> Double? {
+        lock.withLock {
+            guard let origin, time >= origin else { return nil }
+            return timeline.eventTime(time, since: origin)
+        }
     }
 }
 
@@ -286,6 +306,21 @@ enum RecorderSupport {
         return CGRect(origin: origin, size: size)
     }
 
+    // MARK: - System audio source
+
+    /// Whether the next recording writes the Mac's sound from the process
+    /// tap rather than from the screen stream. A tap without its permission
+    /// delivers silence, never an error, so only sound it actually heard
+    /// earns trust, and a recording in which the stream heard sound the tap
+    /// missed takes that trust away. A silent recording proves nothing.
+    static func trustsSystemAudioTap(previously trusted: Bool,
+                                     tapHeardSound: Bool,
+                                     streamHeardSound: Bool) -> Bool {
+        if tapHeardSound { return true }
+        if streamHeardSound { return false }
+        return trusted
+    }
+
     // MARK: - Frame rate
 
     static let frameRates = [30, 60]
@@ -297,25 +332,30 @@ enum RecorderSupport {
     // MARK: - Quality
 
     /// Three named outcomes instead of a codec form. Screen content is
-    /// low-entropy, so the encoder undershoots these ceilings hard; what the
-    /// preset really decides is the output scale, and the ceiling only caps
-    /// the busy moments.
+    /// low-entropy, so the encoder undershoots these ceilings hard, and the
+    /// ceiling only caps the busy moments. Only Small trades pixels for size:
+    /// a recording is mostly text, and a picture written at two thirds and
+    /// stretched back over the same display reads as blurry next to the
+    /// system recorder, which keeps every pixel. Balanced keeps them too and
+    /// saves on bits instead, which flat screen content barely misses.
     enum Quality: String, CaseIterable {
         case small, balanced, high
 
         var outputScale: CGFloat {
             switch self {
             case .small: return 0.5
-            case .balanced: return 2.0 / 3.0
-            case .high: return 1
+            case .balanced, .high: return 1
             }
         }
 
-        /// Bits per pixel per frame, from measurements on real screen content.
+        /// Bits per pixel per frame. Small and High come from measurements on
+        /// real screen content; Balanced sits between them now that it writes
+        /// the full picture, where each pixel carries less detail than in a
+        /// scaled-down one.
         var bitsPerPixel: Double {
             switch self {
             case .small: return 0.05
-            case .balanced: return 0.082
+            case .balanced: return 0.06
             case .high: return 0.09
             }
         }
@@ -492,6 +532,34 @@ enum RecorderSupport {
         return min(audioGainRange.upperBound, max(audioGainRange.lowerBound, raw))
     }
 
+    /// How coarse the mosaic under a blur is, in the recording's own pixels.
+    /// Sized from the area rather than the picture: a strip drawn around one
+    /// line of text gets blocks taller than its letters, which is what makes
+    /// it unreadable, while a big area is not turned into four squares.
+    static func blurBlockSize(for area: CGSize) -> CGFloat {
+        let side = min(area.width, area.height)
+        guard side.isFinite, side > 0 else { return 8 }
+        return min(48, max(8, (side / 3).rounded()))
+    }
+
+    /// A point on the stage, turned into the recorded picture's own 0...1
+    /// space with a top-left origin. The picture is letterboxed inside the
+    /// stage, so the empty bands on either side come off first. Not clamped:
+    /// the caller decides whether a point outside the picture means anything.
+    static func unitPoint(at location: CGPoint,
+                          in viewSize: CGSize,
+                          sourceSize: CGSize) -> CGPoint? {
+        guard sourceSize.width > 0, sourceSize.height > 0,
+              viewSize.width > 0, viewSize.height > 0
+        else { return nil }
+        let fit = min(viewSize.width / sourceSize.width, viewSize.height / sourceSize.height)
+        let shown = CGSize(width: sourceSize.width * fit, height: sourceSize.height * fit)
+        let originX = (viewSize.width - shown.width) / 2
+        let originY = (viewSize.height - shown.height) / 2
+        return CGPoint(x: (location.x - originX) / shown.width,
+                       y: (location.y - originY) / shown.height)
+    }
+
     /// How big the drawn pointer is in the recording's own pixels. Tied to the
     /// height of the picture so it reads the same on a small area and on a
     /// whole Retina display, and multiplied by the size the person was
@@ -557,6 +625,41 @@ enum RecorderSupport {
             }
             guard let createdAt = take.createdAt else { return nil }
             return now.timeIntervalSince(createdAt) > unwrittenMaxAge ? take.id : nil
+        }
+    }
+
+    // MARK: - Finished file
+
+    /// Where an export is written before it takes the destination's place.
+    /// Save as can be pointed at a file that already exists, and that file has
+    /// to survive an export that is cancelled or fails halfway: it is only
+    /// replaced by a finished one. A hidden sibling of the destination, so
+    /// putting it in place afterwards is a rename on the same volume and not a
+    /// second copy of the whole recording, and it carries the destination's
+    /// own extension, so nothing on the way writes a file of one kind under
+    /// the name of another.
+    static func stagingURL(for destination: URL) -> URL {
+        let name = ".vorssaint-partial-\(UUID().uuidString)"
+        let staged = destination.deletingLastPathComponent().appendingPathComponent(name)
+        return destination.pathExtension.isEmpty
+            ? staged
+            : staged.appendingPathExtension(destination.pathExtension)
+    }
+
+    /// Puts the finished file where the person asked for it, replacing what
+    /// was there in a single step. False means nothing was moved and whatever
+    /// was at the destination is still there, untouched.
+    static func commitExport(from staged: URL, to destination: URL) -> Bool {
+        let manager = FileManager.default
+        do {
+            if manager.fileExists(atPath: destination.path) {
+                _ = try manager.replaceItemAt(destination, withItemAt: staged)
+            } else {
+                try manager.moveItem(at: staged, to: destination)
+            }
+            return true
+        } catch {
+            return false
         }
     }
 

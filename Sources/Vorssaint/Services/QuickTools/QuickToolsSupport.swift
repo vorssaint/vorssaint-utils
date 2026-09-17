@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
 
 /// How a sampled color lands on the clipboard.
 enum ColorCopyFormat: String, CaseIterable, Identifiable {
@@ -28,6 +28,22 @@ enum ColorCopyFormat: String, CaseIterable, Identifiable {
 }
 
 enum QuickToolsSupport {
+    static func sampledColor(in image: CGImage, x: Int, y: Int) -> NSColor? {
+        guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1))
+        else { return nil }
+        let bitmap = NSBitmapImageRep(cgImage: pixel)
+        guard let color = bitmap.colorAt(x: 0, y: 0) else { return nil }
+        // colorAt returns the pixel's components tagged as a generic color
+        // space. Preserve the bitmap's profile before converting to sRGB.
+        var components = [CGFloat](repeating: 0, count: color.numberOfComponents)
+        color.getComponents(&components)
+        guard components.count == bitmap.colorSpace.numberOfColorComponents + 1
+        else { return nil }
+        return NSColor(colorSpace: bitmap.colorSpace,
+                       components: components,
+                       count: components.count)
+    }
+
     /// Formats sRGB components (0...1) in the chosen copy format. Components
     /// out of range are clamped so extended-gamut samples never produce
     /// invalid strings. `bareHex` drops the leading # (issue #168: some design
@@ -58,7 +74,10 @@ enum QuickToolsSupport {
                           Int((s * 100).rounded()),
                           Int((l * 100).rounded()))
         case .swiftui:
-            return String(format: "Color(red: %.3f, green: %.3f, blue: %.3f)", r, g, b)
+            // Source code, not prose: a comma here would paste something that
+            // does not compile, whatever region the reader is in.
+            return String(format: "Color(red: %.3f, green: %.3f, blue: %.3f)",
+                          locale: Locale(identifier: "en_US_POSIX"), r, g, b)
         }
     }
 
@@ -131,8 +150,9 @@ enum QuickToolsSupport {
 
     /// Joins recognized lines in natural reading order: top to bottom, left
     /// to right within the same visual row. Empty lines are dropped.
-    static func joinedRecognizedText(_ lines: [RecognizedLine]) -> String {
-        lines
+    static func joinedRecognizedText(_ lines: [RecognizedLine],
+                                     removingLineBreaks: Bool) -> String {
+        let texts = lines
             .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .sorted {
                 // Vision's y grows upward; bucket rows so tiny baseline
@@ -143,7 +163,36 @@ enum QuickToolsSupport {
                 return $0.x < $1.x
             }
             .map(\.text)
-            .joined(separator: "\n")
+        guard removingLineBreaks else { return texts.joined(separator: "\n") }
+
+        let normalizedTexts = texts.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return normalizedTexts.reduce(into: "") { joined, line in
+            guard !joined.isEmpty else {
+                joined = line
+                return
+            }
+            let joinsTightly = joined.unicodeScalars.last.map(isTightScriptScalar) == true
+                && line.unicodeScalars.first.map(isTightScriptScalar) == true
+            joined.append(joinsTightly ? "" : " ")
+            joined.append(line)
+        }
+    }
+
+    // CJK punctuation, kana, Han. Hangul syllables and halfwidth Hangul jamo
+    // stay out on purpose because Korean keeps its word spaces.
+    private static func isTightScriptScalar(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3000...0x312F,
+             0x3190...0x9FFF,
+             0xF900...0xFAFF,
+             0xFF01...0xFF9F,
+             0x20000...0x2FA1F:
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - QR codes

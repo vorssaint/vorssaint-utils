@@ -23,7 +23,11 @@ final class PermissionGuideOverlay {
     private var panel: NSPanel?
     private var grantWatcher: AnyCancellable?
     private var dismissWork: DispatchWorkItem?
+    private var staleWork: DispatchWorkItem?
     private let pollingDemandID = UUID()
+    /// Long enough for the trip to System Settings and back; short enough
+    /// that someone staring at a switch that is already on is not left alone.
+    private static let staleAfter: TimeInterval = 12
 
     private init() {}
 
@@ -32,6 +36,8 @@ final class PermissionGuideOverlay {
         Permissions.shared.setActivePermissionSurface(pollingDemandID, visible: false)
         dismissWork?.cancel()
         dismissWork = nil
+        staleWork?.cancel()
+        staleWork = nil
         grantWatcher = nil
         panel?.orderOut(nil)
         panel = nil
@@ -43,9 +49,14 @@ final class PermissionGuideOverlay {
             : L10n.shared.s.permissionScreenRecording
         let model = PermissionGuideModel()
         let view = PermissionGuideCard(guide: guide, permissionName: permissionName,
-                                       model: model) { [weak self] in
+                                       kind: kind, model: model,
+                                       onStartOver: { Permissions.shared.startOver(kind) },
+                                       onRelaunch: { appDelegate()?.relaunchApp() }) { [weak self] in
             self?.dismiss()
         }
+        let stale = DispatchWorkItem { model.stale = true }
+        staleWork = stale
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.staleAfter, execute: stale)
 
         let host = NSHostingView(rootView: view)
         let size = host.fittingSize
@@ -82,7 +93,15 @@ final class PermissionGuideOverlay {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 model.granted = true
-                self?.scheduleDismiss()
+                model.stale = false
+                self?.staleWork?.cancel()
+                // Granted is the end of the wait either way, so the fast
+                // polling this card asked for stops here, whether the card
+                // leaves or stays.
+                if let self { Permissions.shared.setActivePermissionSurface(self.pollingDemandID, visible: false) }
+                // Screen Recording applies to a fresh process only, so the
+                // card stays with a Relaunch button instead of leaving.
+                if kind == .accessibility { self?.scheduleDismiss() }
             }
     }
 
@@ -97,6 +116,8 @@ final class PermissionGuideOverlay {
     func dismiss() {
         dismissWork?.cancel()
         dismissWork = nil
+        staleWork?.cancel()
+        staleWork = nil
         grantWatcher = nil
         panel?.orderOut(nil)
         panel = nil
@@ -104,15 +125,21 @@ final class PermissionGuideOverlay {
     }
 }
 
-/// The card's only mutable state: flips once when the grant lands.
+/// The card's mutable state: `granted` flips once when the grant arrives;
+/// `stale` once the wait has gone on long enough that the usual cause is an
+/// entry left by an earlier copy of the app.
 private final class PermissionGuideModel: ObservableObject {
     @Published var granted = false
+    @Published var stale = false
 }
 
 private struct PermissionGuideCard: View {
     let guide: PermissionGuideStrings
     let permissionName: String
+    let kind: PermissionKind
     @ObservedObject var model: PermissionGuideModel
+    let onStartOver: () -> Void
+    let onRelaunch: () -> Void
     let onClose: () -> Void
 
     var body: some View {
@@ -150,6 +177,12 @@ private struct PermissionGuideCard: View {
                     Text(guide.granted)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.green)
+                    if kind == .screenRecording {
+                        Spacer(minLength: 8)
+                        Button(guide.relaunch, action: onRelaunch)
+                            .controlSize(.small)
+                            .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     ProgressView()
                         .controlSize(.small)
@@ -159,6 +192,18 @@ private struct PermissionGuideCard: View {
                 }
             }
             .padding(.top, 2)
+
+            if model.stale, !model.granted {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(guide.staleHint)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(guide.startOver, action: onStartOver)
+                        .controlSize(.small)
+                }
+                .padding(.top, 2)
+            }
         }
         .padding(14)
         .frame(width: 320, alignment: .leading)
@@ -171,6 +216,7 @@ private struct PermissionGuideCard: View {
                 )
         )
         .animation(.easeOut(duration: 0.2), value: model.granted)
+        .animation(.easeOut(duration: 0.2), value: model.stale)
     }
 
     private func stepRow(_ number: Int, _ text: String) -> some View {

@@ -32,14 +32,34 @@ final class FeatureRuntime: ObservableObject {
         loadedThisSession.contains { !$0.isAvailable }
     }
 
-    /// Relaunches the app in place: a detached `open` fires after the process
-    /// exits, so the fresh instance starts without the uninstalled features.
+    /// Relaunches the app in place: a detached helper waits for this process
+    /// to be gone and only then reopens it, so the fresh instance starts
+    /// without the uninstalled features.
+    ///
+    /// It waits for the process rather than for a fixed moment because
+    /// quitting flushes the clipboard history and every other pending write
+    /// first: a reopen that arrives while the app is still here does nothing,
+    /// and the restart ends as a plain quit.
     func relaunchApp() {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.6; /usr/bin/open -b '\(bundleID)'"]
-        try? task.run()
+        let path = Bundle.main.bundlePath
+        // Its own session: the reopen fires after we terminate, so the child
+        // has to outlive the session it was started from. It gives up if we
+        // are somehow still here after twenty seconds, so a quit that never
+        // happens cannot reopen the app long afterwards.
+        let script = """
+            waited=0
+            while kill -0 "$1" 2>/dev/null && [ "$waited" -lt 100 ]; do
+                sleep 0.2
+                waited=$((waited + 1))
+            done
+            kill -0 "$1" 2>/dev/null || /usr/bin/open "$2"
+            """
+        let pid = String(ProcessInfo.processInfo.processIdentifier)
+        // Nothing is quit until the helper is running: without it, terminating
+        // would close the app instead of restarting it.
+        guard (try? DetachedProcess.spawn(
+            "/bin/sh", ["-c", script, "vorssaint-relaunch", pid, path])) != nil
+        else { return }
         NSApp.terminate(nil)
     }
 
@@ -148,6 +168,7 @@ final class FeatureRuntime: ObservableObject {
     private func finishAvailabilityChange() {
         revision += 1
         CommandBarService.shared.noteHubChange()
+        if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
     }
 
     /// What each feature must re-evaluate when its availability (or a
@@ -169,10 +190,13 @@ final class FeatureRuntime: ObservableObject {
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .focusFollowsMouse: { FocusFollowsMouseService.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
+        .mouseAcceleration: { MouseAccelerationService.shared.syncWithPreferences() },
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
         .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
         .middleClick: { MiddleClickService.shared.syncWithPreferences() },
+        .mouseClickDebounce: { MouseClickDebounceService.shared.syncWithPreferences() },
         .keyboardDebounce: { KeyboardDebounceService.shared.syncWithPreferences() },
+        .quitWindowProtection: { QuitProtectionService.shared.syncWithPreferences() },
         .superKey: { SuperKeyService.shared.syncWithPreferences() },
         .textSnippets: {
             TextSnippetService.shared.syncWithPreferences()
@@ -186,6 +210,7 @@ final class FeatureRuntime: ObservableObject {
             ClipboardAutoClearService.shared.syncWithPreferences()
         },
         .mediaTools: {
+            NotchFileToolsService.shared.syncWithPreferences()
             guard !AppFeature.mediaTools.isAvailable else { return }
             MediaService.shared.cancel()
             ScreenRecorderService.shared.closeEditors(ownedBy: .mediaTools)
@@ -193,7 +218,10 @@ final class FeatureRuntime: ObservableObject {
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },
-        .shelf: { ShelfService.shared.syncWithPreferences() },
+        .shelf: {
+            ShelfService.shared.syncWithPreferences()
+            NotchFileToolsService.shared.syncWithPreferences()
+        },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
         .diskImageInstaller: { DiskImageInstallerService.shared.syncWithPreferences() },
         .mixer: {
@@ -222,13 +250,43 @@ final class FeatureRuntime: ObservableObject {
         .screenshot: {
             ScreenCaptureService.shared.syncWithPreferences()
             ScreenshotService.shared.syncWithPreferences()
+            RecentCaptureService.shared.syncWithPreferences()
         },
         .screenRecorder: {
             ScreenCaptureService.shared.syncWithPreferences()
             ScreenRecorderService.shared.syncWithPreferences()
+            RecentCaptureService.shared.syncWithPreferences()
         },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
+        .notch: { NotchService.shared.syncWithPreferences() },
+        .notchGestures: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+        },
+        .notchTimer: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchTimerService.shared.stop() }
+        },
+        .notchAccessories: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchAccessoryService.shared.stop() }
+        },
+        .notchLyrics: {
+            if !NotchLyricsSupport.isEnabled() { NotchLyricsService.shared.stop() }
+        },
+        .notchQueue: { NotchMusicService.shared.syncQueuePreference() },
+        .notchNotifications: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchNotificationService.shared.stop() }
+        },
+        .notchDownloads: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchDownloadService.shared.stop() }
+        },
+        .notchCalendar: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchCalendarService.shared.stop() }
+        },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
         .cleaner: {
