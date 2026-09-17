@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 
 enum NotchActivityTests {
@@ -10,6 +11,7 @@ enum NotchActivityTests {
         pomodoroContracts(expect: expect)
         rulerContracts(expect: expect)
         compactTimerContracts(expect: expect)
+        compactMarginContracts(expect: expect)
         accessoryContracts(expect: expect)
         PeripheralBatteryLifecycleTests.run(expect: expect)
         gateContracts(expect: expect)
@@ -347,6 +349,61 @@ enum NotchActivityTests {
                                        "timer and simultaneous downloads stay beside the camera through menu-space changes")
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Compact strips measure their margins from the silhouette rather than
+    /// from a flat padding, so the promise is geometric: whatever a wing draws
+    /// keeps the shared gap from the curve, and the download reading still
+    /// fits the narrowest wing in every language.
+    private static func compactMarginContracts(expect: (Bool, String) -> Void) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let gap = NotchLayout.compactEdgeGap
+        /// Distance from a centred box, anchored at `inset`, to the silhouette.
+        func clearance(_ geometry: NotchGeometry, inset: CGFloat, boxHeight: CGFloat, radius: CGFloat) -> CGFloat {
+            let surface = geometry.compactActivitySize
+            let shoulder = geometry.compactActivityShoulder
+            let corner = min(NotchLayout.surfaceRadius(height: surface.height),
+                             (surface.width - shoulder * 2) / 2)
+            let centre = CGPoint(x: shoulder + corner, y: surface.height - corner)
+            let x = inset + geometry.compactActivityHorizontalPadding + radius
+            let y = surface.height - (geometry.compactActivityContentHeight - boxHeight) / 2 - radius
+            if y <= centre.y { return x - radius - shoulder }
+            if x >= centre.x { return surface.height - y - radius }
+            return corner - hypot(x - centre.x, y - centre.y) - radius
+        }
+        let font = NSFont.monospacedDigitSystemFont(ofSize: NotchDownloadSupport.percentSize, weight: .medium)
+        for barHeight: CGFloat in [24, 32, 37, 40, 44, 64] {
+            for room: CGFloat in [44, 52, 56, 72, 100, 200] {
+                for notched in [true, false] {
+                    let geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                 cameraWidth: notched ? 180 : 160, layout: .compact,
+                                                 menuBarHeight: barHeight, compactSideRoom: room)
+                    let wing = geometry.compactActivityWingWidth
+                    expect(wing == 0 || wing >= 44,
+                           "a compact strip either retracts its wings or keeps them wide enough to fill")
+                    // Cover, equalizer bar, timer icon, download arrow and the
+                    // ink of a percentage. A box too tall for the strip has no
+                    // inset that can clear the curve, and keeps the flat margin.
+                    for (box, radius) in [(26.0, 26.0 * 0.28), (16.0, 0.9), (20.0, 10.0), (17.0, 8.5),
+                                          (NotchDownloadSupport.percentSize * 0.72, 0.0)] {
+                        let side = min(box, geometry.compactActivityContentHeight - gap * 2)
+                        guard side > 0 else { continue }
+                        let corner = min(radius, side / 2)
+                        let inset = geometry.compactActivityEdgeInset(boxHeight: side, radius: corner)
+                        expect(clearance(geometry, inset: inset, boxHeight: side, radius: corner) >= gap - 0.01,
+                               "compact strip content keeps its breathing room from the curved edge")
+                    }
+                    guard wing >= 44 else { continue }
+                    let inset = NotchDownloadSupport.percentInset(in: geometry)
+                    for language in AppLanguage.allCases {
+                        let reading = (1.0).formatted(NotchDownloadSupport.percentFormat(language)) as NSString
+                        let width = reading.size(withAttributes: [.font: font]).width
+                        expect(wing - inset >= width * NotchDownloadSupport.percentMinimumScale,
+                               "a download reading its last percent keeps one whole line in every language")
                     }
                 }
             }

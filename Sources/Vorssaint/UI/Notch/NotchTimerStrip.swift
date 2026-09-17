@@ -10,10 +10,18 @@ struct NotchTimerStrip: View {
     @ObservedObject private var l10n = L10n.shared
 
     private var geometry: NotchGeometry { service.compactActivityGeometry }
-    private var outerInset: CGFloat {
+    /// Height the strip can give away once both edges keep their gap.
+    private var budget: CGFloat { geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2 }
+    private var iconSize: CGFloat { min(service.hasDownloadActivity ? 13 : 20, budget) }
+    private var textSize: CGFloat { min(16, geometry.compactActivityContentHeight - 6) }
+    private var iconInset: CGFloat {
         guard !geometry.compactActivityUsesFooter else { return 0 }
-        let shoulder = min(NotchLayout.shoulder, geometry.compactActivityContentHeight * 0.28)
-        return shoulder + 6
+        return geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
+    }
+    private var textInset: CGFloat {
+        guard !geometry.compactActivityUsesFooter else { return 0 }
+        // Digits carry no descenders, so their ink is about the cap height.
+        return geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0)
     }
 
     var body: some View {
@@ -25,14 +33,17 @@ struct NotchTimerStrip: View {
                             downloadIndicator
                         } else {
                             Image(systemName: timer.session.completed ? "checkmark.circle" : timer.session.isPaused ? "pause.circle" : "timer")
-                                .font(.system(size: min(20, geometry.compactActivityContentHeight - 6), weight: .medium))
+                                .font(.system(size: iconSize, weight: .medium))
                                 .foregroundStyle(.orange)
                         }
                     }
                 }
-                .padding(.leading, outerInset)
+                .padding(.leading, iconInset)
                 .padding(.trailing, geometry.compactActivityUsesFooter ? 0 : 8)
-                .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight)
+                // Leading and trailing wings anchor to their own edge, so the
+                // silhouette's curve decides the margin instead of the content.
+                .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
+                       alignment: .leading)
                 .contentShape(Rectangle())
             }
             .accessibilityLabel(service.hasDownloadActivity ? FeatureStrings.notchFiles(l10n.language).downloadsTitle
@@ -48,14 +59,15 @@ struct NotchTimerStrip: View {
                     Group {
                         if geometry.compactActivityWingWidth >= 42 {
                             Text(remaining)
-                                .font(.system(size: min(16, geometry.compactActivityContentHeight - 6), weight: .medium)).monospacedDigit()
+                                .font(.system(size: textSize, weight: .medium)).monospacedDigit()
                                 .foregroundStyle(.orange)
                                 .lineLimit(1).minimumScaleFactor(0.65)
                         }
                     }
                     .padding(.leading, geometry.compactActivityUsesFooter ? 0 : 8)
-                    .padding(.trailing, outerInset)
-                    .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight)
+                    .padding(.trailing, textInset)
+                    .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
+                           alignment: .trailing)
                     .contentShape(Rectangle())
                 }
                 .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))

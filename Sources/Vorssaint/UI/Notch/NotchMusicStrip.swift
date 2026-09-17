@@ -11,12 +11,35 @@ struct NotchMusicStrip: View {
 
     private var geometry: NotchGeometry { service.compactActivityGeometry }
 
-    private var outerInset: CGFloat {
-        max(12, min(NotchLayout.shoulder, geometry.compactActivityContentHeight * 0.28) + 4)
-    }
+    private static let edgeGap = NotchLayout.compactEdgeGap
+    private static let barWidth: CGFloat = 1.8
+    private static let barCount = 7
 
+    /// The cover keeps `edgeGap` from the top and bottom edges, which is also
+    /// what lets it clear the corner arc once it is inset for it.
+    private var preferredArtworkSide: CGFloat {
+        min(26, geometry.compactActivityContentHeight - Self.edgeGap * 2)
+    }
     private var artworkSide: CGFloat {
-        max(0, min(26, geometry.menuBarHeight - 6, geometry.compactActivityWingWidth - outerInset - 8))
+        max(0, min(preferredArtworkSide, geometry.compactActivityWingWidth - artworkInset - 8))
+    }
+    private var artworkRadius: CGFloat { artworkSide * 0.28 }
+    private var artworkInset: CGFloat {
+        let ideal = geometry.compactActivityEdgeInset(boxHeight: preferredArtworkSide,
+                                                      radius: preferredArtworkSide * 0.28,
+                                                      gap: Self.edgeGap)
+        // A short wing gives clearance back before the cover turns into a chip.
+        return max(0, min(ideal, geometry.compactActivityWingWidth - min(preferredArtworkSide, 20) - 8))
+    }
+    /// Mirrors `NotchEqualizerBars`, whose spacing follows its bar width.
+    private var barsWidth: CGFloat {
+        Self.barWidth * (CGFloat(Self.barCount) + CGFloat(Self.barCount - 1) * 0.85)
+    }
+    private var barsInset: CGFloat {
+        let ideal = geometry.compactActivityEdgeInset(boxHeight: barHeight,
+                                                      radius: Self.barWidth / 2,
+                                                      gap: Self.edgeGap)
+        return max(0, min(ideal, geometry.compactActivityWingWidth - barsWidth - 8))
     }
 
     private var title: String { music.playback?.track.title ?? FeatureStrings.radialMenu(l10n.language).mediaNowPlaying }
@@ -27,7 +50,9 @@ struct NotchMusicStrip: View {
     /// A simulated camera has room for the track even when its wings disappear.
     private var fillsCameraGap: Bool { !geometry.isNotched && geometry.compactActivityCameraGap >= 56 }
     private var showsArtist: Bool { geometry.compactActivityContentHeight >= 28 }
-    private var barHeight: CGFloat { min(16, max(8, geometry.compactActivityContentHeight - 12)) }
+    private var barHeight: CGFloat {
+        min(16, max(6, geometry.compactActivityContentHeight - Self.edgeGap * 2))
+    }
 
     var body: some View {
         Button { service.open(.music) } label: {
@@ -42,14 +67,14 @@ struct NotchMusicStrip: View {
                             }
                         }
                         .frame(width: artworkSide, height: artworkSide)
-                        .clipShape(RoundedRectangle(cornerRadius: artworkSide * 0.28, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: artworkRadius, style: .continuous))
                         .overlay {
-                            RoundedRectangle(cornerRadius: artworkSide * 0.28, style: .continuous)
+                            RoundedRectangle(cornerRadius: artworkRadius, style: .continuous)
                                 .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
                         }
                     }
                 }
-                .padding(.leading, outerInset)
+                .padding(.leading, artworkInset)
                 .padding(.trailing, 8)
                 // Keep the wings spread out while clearing the curved edges.
                 .frame(width: geometry.compactActivityWingWidth, alignment: .leading)
@@ -62,13 +87,13 @@ struct NotchMusicStrip: View {
                 HStack {
                     if geometry.compactActivityWingWidth >= 44 {
                         NotchEqualizerBars(isPlaying: music.playback?.isPlaying == true,
-                                           bars: 7, barWidth: 1.8,
+                                           bars: Self.barCount, barWidth: Self.barWidth,
                                            height: barHeight,
                                            tint: music.artworkTint?.color ?? .white)
                     }
                 }
                 .padding(.leading, 8)
-                .padding(.trailing, outerInset)
+                .padding(.trailing, barsInset)
                 .frame(width: geometry.compactActivityWingWidth, alignment: .trailing)
             }
             .frame(height: geometry.compactActivityContentHeight)
