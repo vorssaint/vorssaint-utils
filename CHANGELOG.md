@@ -7,12 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see with large icons, and the mixer remembers pinned apps and your preferred order. Dynamic Island improves compact spacing, hidden-until-hover transitions and access to music controls.
+App Switcher makes multiple windows easier to see with large icons, and the mixer remembers pinned apps and your preferred order. Dynamic Island reduces background work for music bars and lyrics, with better compact spacing, transitions and access to music controls.
 
 ### Added
 - Pin and reorder mixer apps, with positions remembered when apps reopen and included in settings backups.
 
 ### Changed
+- Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
+- Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
 

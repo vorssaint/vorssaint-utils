@@ -34,6 +34,26 @@ struct NotchLyrics: Equatable {
     let plain: String
     let instrumental: Bool
 
+    /// Highlighting changes only at lyric boundaries. Rebuild this schedule
+    /// when playback or the user's offset changes, with no clock while paused.
+    func changeDates(for playback: NotchPlayback, offset: Double, from now: Date) -> [Date] {
+        var dates = [now]
+        guard playback.isPlaying, playback.hasPosition, playback.rate.isFinite, playback.rate > 0,
+              offset.isFinite else { return dates }
+        let position = playback.position(at: now)
+        for line in lines {
+            let target = line.time + offset
+            guard target > position, target <= playback.duration else { continue }
+            let time = playback.sampledAt.timeIntervalSinceReferenceDate
+                + (target - playback.elapsed) / playback.rate
+            guard time.isFinite else { continue }
+            // Round toward the new verse: inverse rate/date arithmetic must
+            // not leave the highlight just before its boundary until the next verse.
+            dates.append(Date(timeIntervalSinceReferenceDate: max(now.timeIntervalSinceReferenceDate, time).nextUp))
+        }
+        return dates
+    }
+
     func activeIndex(at position: Double, offset: Double = 0) -> Int? {
         guard position.isFinite, offset.isFinite else { return nil }
         let time = position - offset

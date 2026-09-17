@@ -36,51 +36,6 @@ extension NotchArtworkTint {
     var color: Color { Color(.sRGB, red: red, green: green, blue: blue, opacity: 1) }
 }
 
-/// Bars that rise and fall while something is playing — the one moving thing
-/// in the resting notch. Purely decorative, so it is hidden from assistive
-/// technology, holds still when motion is reduced and stops dead when paused.
-struct NotchEqualizerBars: View {
-    var isPlaying = true
-    var bars = 4
-    var barWidth: CGFloat = 2.5
-    var height: CGFloat = 14
-    var tint: Color = .white
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var animates: Bool { isPlaying && !reduceMotion }
-    private var count: Int { max(1, bars) }
-    private var spacing: CGFloat { barWidth * 0.85 }
-    private var width: CGFloat { CGFloat(count) * barWidth + CGFloat(count - 1) * spacing }
-
-    var body: some View {
-        // Keep the drawing surface fixed while bar heights change, so ticks
-        // redraw the contents without resizing individual views.
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !animates)) { context in
-            let phase = context.date.timeIntervalSinceReferenceDate
-            Canvas { canvas, size in
-                for index in 0..<count {
-                    let bar = barHeight(index, at: phase)
-                    let rect = CGRect(x: CGFloat(index) * (barWidth + spacing), y: (size.height - bar) / 2,
-                                      width: barWidth, height: bar)
-                    canvas.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2, style: .continuous),
-                                with: .color(tint))
-                }
-            }
-        }
-        .frame(width: width, height: height)
-        .accessibilityHidden(true)
-    }
-
-    private func barHeight(_ index: Int, at phase: Double) -> CGFloat {
-        guard animates else { return barWidth }
-        let center = Double(count - 1) / 2
-        let distance = abs(Double(index) - center) / max(1, center)
-        let envelope = pow(1 - distance, 1.5)
-        let wave = (sin(phase * (5.2 + Double(index) * 0.61) + Double(index) * 1.7) + 1) / 2
-        return max(barWidth, height * (0.12 + envelope * (0.25 + 0.63 * wave)))
-    }
-}
-
 /// A level readout in the same language as the notch's sliders, instead of the
 /// thin system bar, so every meter in the panel matches.
 struct NotchMeter: View {
