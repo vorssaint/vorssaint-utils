@@ -1147,6 +1147,9 @@ struct Strings {
     let switcherSearchPinCaption: String
     let invertVerticalScroll: String
     let invertHorizontalScroll: String
+    let scrollHorizontalName: String
+    let scrollHorizontalModifierLabel: String
+    let scrollHorizontalCaption: String
     let switcherShowShortcutHints: String
     let switcherShowShortcutHintsCaption: String
     let uninstallerHomebrewPackageFormat: String
@@ -2164,6 +2167,9 @@ extension Strings {
         switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
         invertVerticalScroll: "Inverter rolagem vertical",
         invertHorizontalScroll: "Inverter rolagem horizontal",
+        scrollHorizontalName: "Rolagem horizontal com tecla",
+        scrollHorizontalModifierLabel: "Tecla modificadora",
+        scrollHorizontalCaption: "Mantenha apenas a tecla escolhida pressionada para rolar a roda vertical do mouse na horizontal. Outras combinações de teclas não são alteradas.",
         switcherShowShortcutHints: "Mostrar dicas de atalhos",
         switcherShowShortcutHintsCaption: "Exibe os atalhos de apps e janelas abaixo dos ícones.",
         uninstallerHomebrewPackageFormat: "%@ também será removido do Homebrew.",
@@ -3182,6 +3188,9 @@ extension Strings {
         switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",
         invertVerticalScroll: "Invert vertical scrolling",
         invertHorizontalScroll: "Invert horizontal scrolling",
+        scrollHorizontalName: "Horizontal scrolling with a key",
+        scrollHorizontalModifierLabel: "Modifier key",
+        scrollHorizontalCaption: "Hold only the selected modifier to scroll the vertical mouse wheel horizontally. Other key combinations are unchanged.",
         switcherShowShortcutHints: "Show shortcut hints",
         switcherShowShortcutHintsCaption: "Shows the app and window shortcuts below the icons.",
         uninstallerHomebrewPackageFormat: "%@ will also be removed from Homebrew.",

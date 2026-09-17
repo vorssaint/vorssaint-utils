@@ -918,6 +918,9 @@ struct MouseSettings: View {
     @ObservedObject private var middleClick = MiddleClickService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
     @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
+    @AppStorage(DefaultsKey.scrollHorizontalEnabled) private var horizontalScrollEnabled = false
+    @AppStorage(DefaultsKey.scrollHorizontalModifier) private var horizontalScrollModifier =
+        ScrollHorizontalModifier.shift
     @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
     @AppStorage(DefaultsKey.focusFollowsMouseDelay) private var focusFollowsMouseDelay =
         FocusFollowsMouseSupport.defaultDelayMilliseconds
@@ -955,6 +958,21 @@ struct MouseSettings: View {
                             ScrollInverter.shared.syncWithPreferences()
                             if scrollDirectionEnabled { permissions.requestAccessibility() }
                         }
+                    Toggle(l10n.s.scrollHorizontalName, isOn: $horizontalScrollEnabled)
+                        .onChange(of: horizontalScrollEnabled) { _, _ in
+                            ScrollInverter.shared.syncWithPreferences()
+                            if scrollDirectionEnabled { permissions.requestAccessibility() }
+                        }
+                    if horizontalScrollEnabled {
+                        Picker(l10n.s.scrollHorizontalModifierLabel, selection: $horizontalScrollModifier) {
+                            ForEach(ScrollHorizontalModifier.allCases, id: \.rawValue) { modifier in
+                                Text(verbatim: modifier.label).tag(modifier)
+                            }
+                        }
+                        Text(l10n.s.scrollHorizontalCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if scrollDirectionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
@@ -1169,7 +1187,7 @@ struct MouseSettings: View {
     }
 
     private var scrollDirectionEnabled: Bool {
-        invertVertical || invertHorizontal
+        invertVertical || invertHorizontal || horizontalScrollEnabled
     }
 
     private var smoothScrollStepBinding: Binding<Double> {

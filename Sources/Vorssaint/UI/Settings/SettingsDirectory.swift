@@ -110,7 +110,8 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",
                                        featureKeywords: [
                                         (.scrollInverter, [s.invertMouseScroll, s.invertVerticalScroll,
-                                                           s.invertHorizontalScroll]),
+                                                           s.invertHorizontalScroll, s.scrollHorizontalName,
+                                                           s.scrollHorizontalModifierLabel]),
                                         (.middleClick, [s.middleClickTapPicker]),
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay]),

@@ -19,6 +19,7 @@ struct MetricsTests {
         let suite = TestSuite()
         let groups: [(String, () -> Void)] = [
             ("harness", { TestHarnessTests.run(suite) }),
+            ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("core", { coreChecks(suite) }),
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
@@ -15823,8 +15824,9 @@ struct MetricsTests {
                 .contains(.scrollInverter),
                "horizontal-only inversion counts as using accessibility")
         expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
-                                                          DefaultsKey.scrollInverterHorizontalEnabled],
-               "the scroll direction feature tracks both independent axes")
+                                                          DefaultsKey.scrollInverterHorizontalEnabled,
+                                                          DefaultsKey.scrollHorizontalEnabled],
+               "the scroll direction feature tracks both axes and horizontal redirection")
         expect(activeSet(.accessibility, on: [DefaultsKey.focusFollowsMouseEnabled])
                 .contains(.focusFollowsMouse),
                "focus follows mouse reports its live accessibility use")

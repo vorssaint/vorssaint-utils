@@ -219,7 +219,8 @@ extension AppFeature {
         case .windowMaximizer: return [DefaultsKey.windowMaximizeEnabled]
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
-                                      DefaultsKey.scrollInverterHorizontalEnabled]
+                                      DefaultsKey.scrollInverterHorizontalEnabled,
+                                      DefaultsKey.scrollHorizontalEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled]
