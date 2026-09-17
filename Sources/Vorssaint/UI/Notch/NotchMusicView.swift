@@ -28,7 +28,7 @@ struct NotchMusicView: View {
                         .scrollIndicators(.automatic)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            } else {
+            } else if !service.awaitingPlayback {
                 HStack(spacing: 20) {
                     Image(systemName: "music.note")
                         .font(.system(size: 30, weight: .light))
@@ -311,11 +311,11 @@ struct NotchMusicControlsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Button { notch.select(.music) } label: {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(music.playback?.track.title ?? text.mediaNothingPlaying)
+                        Text(music.playback?.track.title ?? (music.awaitingPlayback ? text.mediaNowPlaying : text.mediaNothingPlaying))
                             .font(.system(size: 13, weight: .semibold)).lineLimit(1)
                         Text(music.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
                              : music.playback?.track.artist ?? music.playback?.track.album
-                                ?? FeatureStrings.notch(l10n.language).musicHint)
+                                ?? (music.awaitingPlayback ? "" : FeatureStrings.notch(l10n.language).musicHint))
                             .font(.system(size: 11))
                             .foregroundStyle(music.commandFailed ? .orange : .secondary)
                             .lineLimit(1)

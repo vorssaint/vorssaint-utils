@@ -321,6 +321,10 @@ final class NotchPanel: NSPanel {
     var handleScroll: ((NSEvent) -> Bool)?
     override var canBecomeKey: Bool { acceptsKeyFocus }
     override var canBecomeMain: Bool { false }
+    // AppKit describes a non-activating panel as a system dialog, which tiling
+    // window managers then track and list on whichever space is current; the
+    // borderless overlays they leave alone are undescribed windows.
+    override func accessibilitySubrole() -> NSAccessibility.Subrole? { .unknown }
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .scrollWheel, handleScroll?(event) == true { return }

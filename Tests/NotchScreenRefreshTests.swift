@@ -38,6 +38,25 @@ enum NotchScreenRefreshContract {
             func add(_ timer: Timer, forMode: Mode) {}
         }
     }
+    struct RunningApplication { let bundleIdentifier: String? }
+    enum NSWorkspace {
+        static let shared = Workspace()
+        final class Workspace { var frontmostApplication: RunningApplication? }
+    }
+    enum Bundle {
+        static let main = RunningApplication(bundleIdentifier: "com.vorssaint.tests.notch")
+    }
+    enum ClipboardHistoryService {
+        static let shared = History()
+        final class History {
+            var remembered = 0
+            func rememberPasteTarget() { remembered += 1 }
+        }
+    }
+    final class Panel {
+        var resignations = 0
+        func resignKey() { resignations += 1 }
+    }
     class State {
         var running = true
         var suspended = false
@@ -52,12 +71,18 @@ enum NotchScreenRefreshContract {
         var screenRefreshWork: DispatchWorkItem?
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210, compactSideRoom: 64)
+        var panel: Panel? = Panel()
+        var modules: [NotchModule] = [.controls]
+        var pinned = false
+        var keepsWorkingSurface = false
         var preferenceSyncs = 0
         var reads = 0
         var presentations = 0
+        var collapses = 0
         func syncWithPreferences() { preferenceSyncs += 1 }
         func readMenuSpace() { reads += 1 }
         func refreshPresentation(animated: Bool) { presentations += 1 }
+        func collapse() { collapses += 1 }
     }
 
     static func run(expect: (Bool, String) -> Void) {
@@ -158,25 +183,55 @@ enum NotchScreenRefreshContract {
         simulated.geometry.compactSideRoom = 64
         let beforeChange = simulated.menuSpaceGeneration
         let beforePresentation = simulated.presentations
-        simulated.invalidateMenuSpace(clearMeasurement: true)
-        expect(simulated.geometry.compactSideRoom == nil && simulated.menuSpaceGeneration > beforeChange
-               && simulated.presentations == beforePresentation + 1,
-               "switching apps withdraws a simulated cutout before the new menu read completes")
+        let beforeReads = simulated.reads
+        NSWorkspace.shared.frontmostApplication = RunningApplication(bundleIdentifier: "com.example.terminal")
+        simulated.applicationDidActivate()
+        expect(simulated.geometry.compactSideRoom == 64 && simulated.menuSpaceGeneration > beforeChange
+               && simulated.presentations == beforePresentation && simulated.reads == beforeReads + 1,
+               "switching apps keeps the simulated cutout on screen and starts the read that decides whether it stays")
+        expect(simulated.panel?.resignations == 1 && simulated.collapses == 0,
+               "another app taking focus releases the island's key status without collapsing a closed island")
         simulated.syncMenuSpaceMonitoring()
-        expect(simulated.geometry.compactSideRoom == nil,
-               "another preference sync cannot restore a previous app's menu clearance")
-        simulated.geometry.compactSideRoom = 64
-        simulated.invalidateMenuSpace()
-        expect(simulated.geometry.compactSideRoom == 64,
-               "screen notifications retain a simulated layout until actual geometry changes")
+        expect(simulated.geometry.compactSideRoom == 64 && simulated.reads == beforeReads + 1,
+               "a preference sync during the pending read neither withdraws the cutout nor starts another read")
+        simulated.expanded = true
+        simulated.modules = [.controls, .clipboard]
+        simulated.applicationDidActivate()
+        expect(simulated.collapses == 1 && ClipboardHistoryService.shared.remembered == 1
+               && simulated.reads == beforeReads + 2,
+               "an open island still remembers the paste target and collapses when another app activates")
+        NSWorkspace.shared.frontmostApplication = Bundle.main
+        simulated.applicationDidActivate()
+        expect(simulated.collapses == 1 && simulated.panel?.resignations == 2 && simulated.reads == beforeReads + 3,
+               "this app activating re-reads the menus without giving up its own island")
+        simulated.suspended = true
+        simulated.applicationDidActivate()
+        expect(simulated.reads == beforeReads + 3, "a suspended island ignores activations")
+        simulated.suspended = false
 
         let physical = Service()
         physical.idleContent = .none
         physical.syncMenuSpaceMonitoring()
         expect(physical.menuSpaceTimer == nil && physical.reads == 0,
                "an empty physical camera does not need a menu reader")
-        physical.invalidateMenuSpace(clearMeasurement: true)
+        NSWorkspace.shared.frontmostApplication = RunningApplication(bundleIdentifier: "com.example.terminal")
+        physical.applicationDidActivate()
         expect(physical.geometry.compactSideRoom == 64 && physical.presentations == 0,
                "the physical camera retains its existing presentation during app changes")
+
+        let source = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchService.swift",
+                                  encoding: .utf8)) ?? ""
+        let code = source.components(separatedBy: "\n")
+            .map { line in line.range(of: "//").map { String(line[..<$0.lowerBound]) } ?? line }
+            .joined(separator: "\n")
+        guard let start = code.range(of: "func readMenuSpace()"),
+              let end = code.range(of: "func applyMenuSpace(", range: start.upperBound..<code.endIndex) else {
+            expect(false, "the menu reader and the method that applies its result are still found")
+            return
+        }
+        let reader = code[start.lowerBound..<end.lowerBound]
+        expect(reader.contains("menuBarOwningApplication") && !reader.contains("frontmostApplication"),
+               "the menu read measures the application whose menus are on the bar: an accessory app with focus "
+               + "leaves the previous app's menus displayed, and its own menu geometry is never laid out")
     }
 }

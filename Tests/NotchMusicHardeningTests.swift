@@ -534,12 +534,15 @@ enum NotchMusicHardeningTests {
         expect(pipe.fileHandleForWriting.written.count == before + 1,
                "closing the last music consumer cancels its still-unwritten controls")
 
+        expect(!service.awaitingPlayback, "a stopped subscription is not waiting for a reading")
         service.start()
         let launches = service.launches
+        expect(service.awaitingPlayback, "a fresh subscription waits for the adapter's first reply before reporting nothing playing")
         service.connectionEnded()
         for _ in 0..<100 { service.start() }
         expect(service.launches == launches && Contract.DispatchQueue.main.jobs.count == 1,
                "preference updates cannot bypass a pending recovery or launch extra helpers")
+        expect(service.awaitingPlayback, "a pending recovery keeps the first reading outstanding")
         Contract.DispatchQueue.main.drain()
         expect(service.launches == launches + 1, "unexpected termination receives one delayed recovery while music is wanted")
         service.connectionEnded()
@@ -548,13 +551,14 @@ enum NotchMusicHardeningTests {
         for _ in 0..<100 { service.start() }
         expect(service.launches == launches + 2 && Contract.DispatchQueue.main.jobs.isEmpty,
                "persistent failure stops after two retries even if preferences continue changing")
+        expect(!service.awaitingPlayback, "giving up on the adapter ends the wait so the empty state can show")
         service.stop()
         service.start()
         service.connectionEnded()
         let cancelledLaunches = service.launches
         service.stop()
         Contract.DispatchQueue.main.drain()
-        expect(service.launches == cancelledLaunches && !service.wantsPlayback,
+        expect(service.launches == cancelledLaunches && !service.wantsPlayback && !service.awaitingPlayback,
                "disabling, hiding the last consumer or suspending cancels delayed recovery")
         service.start()
         service.connectionEnded()

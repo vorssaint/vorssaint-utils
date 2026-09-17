@@ -6,6 +6,7 @@ import Foundation
 enum NotchFileToolsTests {
     static func run(expect: (Bool, String) -> Void) {
         NotchDownloadFolderChoiceTests.run(expect: expect)
+        MediaDialogHostTests.run(expect: expect)
         ShelfDragCompletionTests.run(expect: expect)
         let suite = "com.vorssaint.tests.notch-files"
         let defaults = UserDefaults(suiteName: suite)!

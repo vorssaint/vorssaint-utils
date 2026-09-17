@@ -30,6 +30,11 @@ App Switcher makes multiple windows easier to see and brings selected windows fo
 - Panel permission and recent capture buttons align with the card text. Thanks to @COMEBACKISREAL.
 - App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
 - Dynamic Island offers playback controls when a music app is recognized and updates them after permission is granted.
+- Dynamic Island is no longer listed as a window by tiling window managers, which showed a ghost window on the current desktop. Thanks to @Yahddyyp.
+- On screens without a camera cutout, Dynamic Island no longer blinks when you switch apps and measures the menus actually on the bar while a launcher or other accessory app has focus. Thanks to @Yahddyyp.
+- Now Playing in Dynamic Island no longer says nothing is playing while it fetches the current track. Thanks to @Yahddyyp.
+- File dialogs opened from the media tools inside Dynamic Island attach to it instead of opening behind it. Thanks to @Yahddyyp.
+- The recording editor keeps its saving indicator on one line in narrow windows. Thanks to @Yahddyyp.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 
