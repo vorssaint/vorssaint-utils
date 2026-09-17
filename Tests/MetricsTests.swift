@@ -9011,6 +9011,24 @@ struct MetricsTests {
                                              spacing: 2, inset: 1, mirrored: false).minX,
                "mirroring reflects the column without moving the row")
 
+        // The notch level bars are drawn by hand inside an NSSliderCell, so
+        // AppKit mirrors the slider's tracking but not this fill. A quarter
+        // full reads from the trailing edge, and an empty or full bar looks the
+        // same either way.
+        let levelTrack = CGRect(x: 10, y: 0, width: 100, height: 6)
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: 0.25, mirrored: false)
+                == CGRect(x: 10, y: 0, width: 25, height: 6)
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 0.25, mirrored: true)
+                == CGRect(x: 85, y: 0, width: 25, height: 6),
+               "a mirrored level bar fills from the trailing edge")
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: 1, mirrored: true)
+                == NotchLevelBar.fillRect(track: levelTrack, fraction: 1, mirrored: false)
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 0, mirrored: true).width == 0,
+               "a full bar covers the track either way and an empty one draws nothing")
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: Double.nan, mirrored: true).width == 0
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 3, mirrored: true).minX == 10,
+               "a level bar clamps a value it cannot use")
+
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
         expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 10, y: 500), screens: singleScreen,
