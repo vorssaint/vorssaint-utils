@@ -232,11 +232,43 @@ enum NotchTests {
         }
     }
 
+
+    private static func statusItemOccupancyContracts(expect: (Bool, String) -> Void) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let barHeight: CGFloat = 32
+        let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
+        let primaryTop = screen.maxY
+        let statusLayer = Int(CGWindowLevelForKey(.statusWindow))
+
+        func window(y: CGFloat, height: CGFloat = 28, width: CGFloat = 320, number: Int = 42) -> [String: Any] {
+            [kCGWindowNumber as String: number,
+             kCGWindowLayer as String: statusLayer,
+             kCGWindowAlpha as String: Double(1),
+             kCGWindowBounds as String: ["X": CGFloat(560), "Y": y, "Width": width, "Height": height]]
+        }
+
+        // A status item sits in the bar and takes room from it.
+        let inBar = NotchMenuBarSpace.statusItemRect(window(y: 2), bar: bar, screenWidth: screen.width,
+                                                     menuBarHeight: barHeight, primaryTop: primaryTop, ownWindow: -1)
+        expect(inBar != nil, "a status level window inside the menu bar occupies it")
+
+        // An overlay of the same level and size, well below the bar, does not.
+        let belowBar = NotchMenuBarSpace.statusItemRect(window(y: 400), bar: bar, screenWidth: screen.width,
+                                                        menuBarHeight: barHeight, primaryTop: primaryTop, ownWindow: -1)
+        expect(belowBar == nil, "a status level window below the menu bar does not occupy it")
+
+        // Own window stays excluded wherever it is.
+        let own = NotchMenuBarSpace.statusItemRect(window(y: 2, number: 7), bar: bar, screenWidth: screen.width,
+                                                   menuBarHeight: barHeight, primaryTop: primaryTop, ownWindow: 7)
+        expect(own == nil, "the notch's own window never occupies the menu bar")
+    }
+
     static func run(expect: (Bool, String) -> Void) {
         noticeLayoutContracts(expect: expect)
         simulatedMenuBoundsContracts(expect: expect)
         simulatedDisplayContracts(expect: expect)
         menuSpaceReuseContracts(expect: expect)
+        statusItemOccupancyContracts(expect: expect)
         menuBarHeightContracts(expect: expect)
         musicLabelContracts(expect: expect)
         NotchHoverTests.run(expect: expect)

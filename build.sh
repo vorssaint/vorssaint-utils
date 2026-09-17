@@ -262,6 +262,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchTimerSupport.swift
         Sources/Vorssaint/Services/Notch/NotchTimerAlert.swift
         Sources/Vorssaint/Services/Notch/NotchAccessorySupport.swift
+        Sources/Vorssaint/Services/Notch/NotchMenuBarSpace.swift
         Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift
         Sources/Vorssaint/Core/NotchMusicExtrasStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift

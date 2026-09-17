@@ -30,20 +30,36 @@ enum NotchMenuBarSpace {
         guard occupied.contains(where: { $0.intersects(bar) }) else { return nil }
         guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else { return nil }
         for window in windows {
-            guard let number = window[kCGWindowNumber as String] as? Int, number != ownWindow,
-                  let layer = window[kCGWindowLayer as String] as? Int,
-                  layer >= Int(CGWindowLevelForKey(.statusWindow)),
-                  layer <= Int(CGWindowLevelForKey(.statusWindow)) + 1,
-                  (window[kCGWindowAlpha as String] as? Double ?? 1) > 0,
-                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
-                  let x = bounds["X"], let y = bounds["Y"],
-                  let width = bounds["Width"], let height = bounds["Height"],
-                  width > 0, width < geometry.screen.width - 2,
-                  height > 0, height <= geometry.menuBarHeight + 2 else { continue }
-            occupied.append(CGRect(x: x, y: primaryTop - y - height, width: width, height: height))
+            guard let rect = statusItemRect(window, bar: bar, screenWidth: geometry.screen.width,
+                                            menuBarHeight: geometry.menuBarHeight,
+                                            primaryTop: primaryTop, ownWindow: ownWindow) else { continue }
+            occupied.append(rect)
         }
         return NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                            barHeight: geometry.menuBarHeight, occupied: occupied)
+    }
+
+    /// Room a status level window takes from the menu bar, or nil when it is not
+    /// a menu bar item. Separate from `measure` so the filter can be exercised
+    /// without the window server.
+    static func statusItemRect(_ window: [String: Any], bar: CGRect, screenWidth: CGFloat,
+                               menuBarHeight: CGFloat, primaryTop: CGFloat, ownWindow: Int) -> CGRect? {
+        guard let number = window[kCGWindowNumber as String] as? Int, number != ownWindow,
+              let layer = window[kCGWindowLayer as String] as? Int,
+              layer >= Int(CGWindowLevelForKey(.statusWindow)),
+              layer <= Int(CGWindowLevelForKey(.statusWindow)) + 1,
+              (window[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+              let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+              let x = bounds["X"], let y = bounds["Y"],
+              let width = bounds["Width"], let height = bounds["Height"],
+              width > 0, width < screenWidth - 2,
+              height > 0, height <= menuBarHeight + 2 else { return nil }
+        let rect = CGRect(x: x, y: primaryTop - y - height, width: width, height: height)
+        // Level and size alone do not make a window a status item: a small
+        // always on top overlay anywhere on the display matches both. Only a
+        // window that reaches the bar takes room from it.
+        guard rect.intersects(bar) else { return nil }
+        return rect
     }
 
     private static func value(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
