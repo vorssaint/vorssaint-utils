@@ -105,13 +105,20 @@ enum ShelfTileLayout {
     }
 
     /// Where the tile at `index` sits in the flipped document view.
+    ///
+    /// These are absolute frames in an AppKit document view, so nothing mirrors
+    /// them on its own: the grid would keep filling from the left inside a
+    /// panel whose chrome had already flipped. `mirrored` counts the column in
+    /// from the other edge instead, which is what a reader of a right-to-left
+    /// language expects and is most obvious on a row that is not full.
     static func tileFrame(index: Int,
                           columns: Int,
                           tileSize: CGSize,
                           spacing: CGFloat,
-                          inset: CGFloat) -> CGRect {
+                          inset: CGFloat,
+                          mirrored: Bool = false) -> CGRect {
         let safeColumns = max(1, columns)
-        let column = index % safeColumns
+        let column = mirrored ? safeColumns - 1 - index % safeColumns : index % safeColumns
         let row = index / safeColumns
         return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
                       y: inset + CGFloat(row) * (tileSize.height + spacing),

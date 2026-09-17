@@ -8992,6 +8992,24 @@ struct MetricsTests {
                                          spacing: 10,
                                          inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
                "a single column puts every tile in its own row")
+        // Absolute frames in an AppKit document view mirror for nobody, so the
+        // grid is told to count its columns in from the other edge. The last
+        // row of a four-column grid holding three tiles is where it shows.
+        expect(ShelfTileLayout.tileFrame(index: 0, columns: 4,
+                                         tileSize: CGSize(width: 10, height: 10),
+                                         spacing: 2, inset: 1, mirrored: true).minX == 37
+                && ShelfTileLayout.tileFrame(index: 4, columns: 4,
+                                             tileSize: CGSize(width: 10, height: 10),
+                                             spacing: 2, inset: 1, mirrored: true)
+                    == CGRect(x: 37, y: 13, width: 10, height: 10),
+               "a mirrored shelf grid starts each row at the trailing edge")
+        expect(ShelfTileLayout.tileFrame(index: 2, columns: 4,
+                                         tileSize: CGSize(width: 10, height: 10),
+                                         spacing: 2, inset: 1, mirrored: true).minX
+                == ShelfTileLayout.tileFrame(index: 1, columns: 4,
+                                             tileSize: CGSize(width: 10, height: 10),
+                                             spacing: 2, inset: 1, mirrored: false).minX,
+               "mirroring reflects the column without moving the row")
 
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
