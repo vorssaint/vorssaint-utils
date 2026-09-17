@@ -112,7 +112,7 @@ enum NotchPresentationRefreshContract {
             if !expanded { return geometry.collapsed }
             return geometry.expandedSize(module: selected, capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
                                          timerHasSession: session.hasSession,
-                                         timerShowsPomodoro: (session.hasSession ? session.mode : mode) == .pomodoro)
+                                         timerMode: session.hasSession ? session.mode : mode)
         }
         func syncHiddenHoverMonitoring() {}
         func toggle() { expanded.toggle() }
@@ -139,16 +139,16 @@ enum NotchPresentationRefreshContract {
         service.windowHost?.onPresent = { size in
             if contentSize != size { mismatches += 1 }
         }
-        for mode in [NotchTimerMode.pomodoro, .timer, .pomodoro, .timer] {
+        for mode in [NotchTimerMode.pomodoro, .timer, .stopwatch, .pomodoro, .stopwatch, .timer] {
             service.mode = mode
             service.refreshPresentation(animated: false)
             expect(contentSize == service.surfaceSize,
-                   "switching Timer and Pomodoro updates the content height without reopening the island")
+                   "switching Timer, Pomodoro and Stopwatch updates the content height without reopening the island")
         }
         expect(mismatches == 0, "content is invalidated before the native window receives its new size")
-        expect(invalidations == 4, "each mode change publishes its new presentation size")
+        expect(invalidations == 6, "each mode change publishes its new presentation size")
         for _ in 0..<1000 { service.refreshPresentation() }
-        expect(invalidations == 4, "unchanged presentations do not repeatedly invalidate SwiftUI layout")
+        expect(invalidations == 6, "unchanged presentations do not repeatedly invalidate SwiftUI layout")
 
         service.session.start(mode: .timer, minutes: 15, now: 0)
         service.refreshPresentation()

@@ -7,6 +7,7 @@ struct NotchActivityStrings {
     let timer: String
     let timerDescription: String
     let pomodoro: String
+    let stopwatch: String
     let focus: String
     let shortBreak: String
     let longBreak: String
@@ -33,6 +34,7 @@ struct NotchActivityStrings {
     func phase(_ phase: NotchTimerPhase) -> String {
         switch phase {
         case .timer: return timer
+        case .stopwatch: return stopwatch
         case .focus: return focus
         case .shortBreak: return shortBreak
         case .longBreak: return longBreak
@@ -45,8 +47,9 @@ extension FeatureStrings {
         switch language {
         case .enUS: return NotchActivityStrings(
             timer: "Timer",
-            timerDescription: "Timers and focused work sessions in the Dynamic Island.",
+            timerDescription: "Timers, a stopwatch and focused work sessions in the Dynamic Island.",
             pomodoro: "Pomodoro",
+            stopwatch: "Stopwatch",
             focus: "Focus",
             shortBreak: "Short break",
             longBreak: "Long break",
@@ -71,8 +74,9 @@ extension FeatureStrings {
             lowBattery: "Low battery")
         case .ptBR: return NotchActivityStrings(
             timer: "Temporizador",
-            timerDescription: "Temporizadores e sessões de foco no Dynamic Island.",
+            timerDescription: "Temporizadores, cronômetro e sessões de foco no Dynamic Island.",
             pomodoro: "Pomodoro",
+            stopwatch: "Cronômetro",
             focus: "Foco",
             shortBreak: "Pausa curta",
             longBreak: "Pausa longa",
@@ -97,8 +101,9 @@ extension FeatureStrings {
             lowBattery: "Bateria baixa")
         case .es: return NotchActivityStrings(
             timer: "Temporizador",
-            timerDescription: "Temporizadores y sesiones de concentración en el Dynamic Island.",
+            timerDescription: "Temporizadores, cronómetro y sesiones de concentración en el Dynamic Island.",
             pomodoro: "Pomodoro",
+            stopwatch: "Cronómetro",
             focus: "Concentración",
             shortBreak: "Descanso corto",
             longBreak: "Descanso largo",
@@ -123,8 +128,9 @@ extension FeatureStrings {
             lowBattery: "Batería baja")
         case .de: return NotchActivityStrings(
             timer: "Timer",
-            timerDescription: "Timer und konzentrierte Arbeitsphasen im Dynamic Island.",
+            timerDescription: "Timer, Stoppuhr und konzentrierte Arbeitsphasen im Dynamic Island.",
             pomodoro: "Pomodoro",
+            stopwatch: "Stoppuhr",
             focus: "Fokus",
             shortBreak: "Kurze Pause",
             longBreak: "Lange Pause",
@@ -149,8 +155,9 @@ extension FeatureStrings {
             lowBattery: "Batterie schwach")
         case .fr: return NotchActivityStrings(
             timer: "Minuteur",
-            timerDescription: "Des minuteurs et des séances de concentration dans le Dynamic Island.",
+            timerDescription: "Des minuteurs, un chronomètre et des séances de concentration dans le Dynamic Island.",
             pomodoro: "Pomodoro",
+            stopwatch: "Chronomètre",
             focus: "Concentration",
             shortBreak: "Pause courte",
             longBreak: "Pause longue",
@@ -175,8 +182,9 @@ extension FeatureStrings {
             lowBattery: "Batterie faible")
         case .it: return NotchActivityStrings(
             timer: "Timer",
-            timerDescription: "Timer e sessioni di concentrazione nel Dynamic Island.",
+            timerDescription: "Timer, cronometro e sessioni di concentrazione nel Dynamic Island.",
             pomodoro: "Pomodoro",
+            stopwatch: "Cronometro",
             focus: "Concentrazione",
             shortBreak: "Pausa breve",
             longBreak: "Pausa lunga",
@@ -201,8 +209,9 @@ extension FeatureStrings {
             lowBattery: "Batteria scarica")
         case .ru: return NotchActivityStrings(
             timer: "Таймер",
-            timerDescription: "Таймеры и сеансы сосредоточенной работы в вырезе экрана.",
+            timerDescription: "Таймеры, секундомер и сеансы сосредоточенной работы в вырезе экрана.",
             pomodoro: "Помодоро",
+            stopwatch: "Секундомер",
             focus: "Работа",
             shortBreak: "Короткий перерыв",
             longBreak: "Длинный перерыв",
@@ -227,8 +236,9 @@ extension FeatureStrings {
             lowBattery: "Низкий заряд")
         case .tr: return NotchActivityStrings(
             timer: "Zamanlayıcı",
-            timerDescription: "Çentikte zamanlayıcılar ve odaklanma oturumları.",
+            timerDescription: "Çentikte zamanlayıcılar, kronometre ve odaklanma oturumları.",
             pomodoro: "Pomodoro",
+            stopwatch: "Kronometre",
             focus: "Odaklanma",
             shortBreak: "Kısa mola",
             longBreak: "Uzun mola",
@@ -253,8 +263,9 @@ extension FeatureStrings {
             lowBattery: "Pil zayıf")
         case .ja: return NotchActivityStrings(
             timer: "タイマー",
-            timerDescription: "Dynamic Islandでタイマーと集中セッションを使えます。",
+            timerDescription: "Dynamic Islandでタイマー、ストップウォッチ、集中セッションを使えます。",
             pomodoro: "ポモドーロ",
+            stopwatch: "ストップウォッチ",
             focus: "集中",
             shortBreak: "短い休憩",
             longBreak: "長い休憩",
@@ -279,8 +290,9 @@ extension FeatureStrings {
             lowBattery: "バッテリー残量低下")
         case .ko: return NotchActivityStrings(
             timer: "타이머",
-            timerDescription: "Dynamic Island에서 타이머와 집중 세션을 사용하세요.",
+            timerDescription: "Dynamic Island에서 타이머, 스톱워치, 집중 세션을 사용하세요.",
             pomodoro: "뽀모도로",
+            stopwatch: "스톱워치",
             focus: "집중",
             shortBreak: "짧은 휴식",
             longBreak: "긴 휴식",
@@ -305,8 +317,9 @@ extension FeatureStrings {
             lowBattery: "배터리 부족")
         case .zhHans: return NotchActivityStrings(
             timer: "计时器",
-            timerDescription: "在Dynamic Island中使用计时器和专注时段。",
+            timerDescription: "在Dynamic Island中使用计时器、秒表和专注时段。",
             pomodoro: "番茄钟",
+            stopwatch: "秒表",
             focus: "专注",
             shortBreak: "短休息",
             longBreak: "长休息",
@@ -331,8 +344,9 @@ extension FeatureStrings {
             lowBattery: "电量低")
         case .zhTW: return NotchActivityStrings(
             timer: "計時器",
-            timerDescription: "在Dynamic Island中使用計時器與專注時段。",
+            timerDescription: "在Dynamic Island中使用計時器、碼錶與專注時段。",
             pomodoro: "番茄鐘",
+            stopwatch: "碼錶",
             focus: "專注",
             shortBreak: "短休息",
             longBreak: "長休息",
@@ -357,8 +371,9 @@ extension FeatureStrings {
             lowBattery: "電量不足")
         case .zhHK: return NotchActivityStrings(
             timer: "計時器",
-            timerDescription: "在Dynamic Island中使用計時器和專注時段。",
+            timerDescription: "在Dynamic Island中使用計時器、秒錶和專注時段。",
             pomodoro: "番茄鐘",
+            stopwatch: "秒錶",
             focus: "專注",
             shortBreak: "短休息",
             longBreak: "長休息",

@@ -13,6 +13,8 @@ struct NotchTimerView: View {
     @AppStorage(DefaultsKey.notchPomodoroLongBreakInterval) private var longBreakInterval = 4
     @AppStorage(DefaultsKey.notchPomodoroTotalSessions) private var totalSessions = 4
     @State private var minutes = 15
+    @Namespace private var modeSelection
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: NotchActivityStrings { FeatureStrings.notchActivities(l10n.language) }
 
     var body: some View {
@@ -29,19 +31,14 @@ struct NotchTimerView: View {
 
     private var setup: some View {
         VStack(spacing: 12) {
-            Picker(text.timer, selection: $mode) {
-                Text(text.timer).tag(NotchTimerMode.timer)
-                Text(text.pomodoro).tag(NotchTimerMode.pomodoro)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 260)
-            if mode == .timer {
+            modePicker
+            switch mode {
+            case .timer:
                 NotchTimerRuler(minutes: $minutes, label: text.timer,
                                 locale: Locale(identifier: l10n.language.rawValue))
                     .frame(height: 82)
-            } else {
-                pomodoroOptions
+            case .pomodoro: pomodoroOptions
+            case .stopwatch: EmptyView()
             }
             HStack(spacing: 16) {
                 Button { service.start(mode: mode, minutes: minutes) } label: {
@@ -55,9 +52,57 @@ struct NotchTimerView: View {
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 22))
                 Spacer(minLength: 0)
-                clock(NotchTimerSupport.clockText(Double(mode == .timer ? minutes : NotchPomodoroConfiguration.load().focusMinutes) * 60))
+                clock(setupClock)
             }
             .frame(height: 72)
+        }
+    }
+
+    private var setupClock: String {
+        switch mode {
+        case .timer: return NotchTimerSupport.clockText(Double(minutes) * 60)
+        case .pomodoro: return NotchTimerSupport.clockText(Double(NotchPomodoroConfiguration.load().focusMinutes) * 60)
+        case .stopwatch: return NotchTimerSupport.stopwatchText(0)
+        }
+    }
+
+    /// One pill, each label as wide as its own word. Equal segments would
+    /// let the longest translation push the three modes past a narrow island.
+    private var modePicker: some View {
+        HStack(spacing: NotchTimerSupport.ModePicker.spacing) {
+            ForEach(NotchTimerMode.allCases, id: \.self) { candidate in
+                let selected = mode == candidate
+                Button { mode = candidate } label: {
+                    Text(title(for: candidate))
+                        .font(.system(size: NotchTimerSupport.ModePicker.labelSize, weight: .medium))
+                        .lineLimit(1)
+                        .foregroundStyle(selected ? .white : .white.opacity(0.55))
+                        .padding(.horizontal, NotchTimerSupport.ModePicker.labelPadding)
+                        .frame(height: NotchTimerSupport.ModePicker.height - NotchTimerSupport.ModePicker.inset * 2)
+                        .background {
+                            if selected {
+                                Capsule(style: .continuous).fill(.white.opacity(0.16))
+                                    .matchedGeometryEffect(id: "selection", in: modeSelection)
+                            }
+                        }
+                        .contentShape(Capsule(style: .continuous))
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 12))
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(NotchTimerSupport.ModePicker.inset)
+        .modifier(NotchControlSurface(cornerRadius: NotchTimerSupport.ModePicker.height / 2, interactive: false))
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: mode)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(text.timer)
+    }
+
+    private func title(for mode: NotchTimerMode) -> String {
+        switch mode {
+        case .timer: return text.timer
+        case .pomodoro: return text.pomodoro
+        case .stopwatch: return text.stopwatch
         }
     }
 
@@ -88,28 +133,35 @@ struct NotchTimerView: View {
                             primary: false, action: service.cancel)
             }
             Spacer(minLength: 0)
-            TimelineView(.animation(minimumInterval: 1, paused: !service.session.isRunning)) { _ in
-                let remaining = NotchTimerSupport.clockText(service.session.remaining(at: service.now))
-                let title = service.session.cycleFinished ? text.pomodoroFinished
-                    : service.session.completed ? text.finished : text.phase(service.session.phase)
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(title).font(.system(size: 17, weight: .medium))
-                        clock(remaining)
-                    }.fixedSize()
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text(title).font(.system(size: 13, weight: .medium))
-                            .lineLimit(1).minimumScaleFactor(0.7)
-                        clock(remaining)
-                    }
-                }
-                .foregroundStyle(.orange)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(title)
-                .accessibilityValue(remaining)
+            if service.session.isRunning {
+                TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.secondBoundaryOffset(
+                    for: service.session, at: service.now)), by: 1)) { _ in reading }
+            } else {
+                reading
             }
         }
         .frame(height: 96)
+    }
+
+    private var reading: some View {
+        let value = NotchTimerSupport.clockText(for: service.session, at: service.now)
+        let title = service.session.cycleFinished ? text.pomodoroFinished
+            : service.session.completed ? text.finished : text.phase(service.session.phase)
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title).font(.system(size: 17, weight: .medium))
+                clock(value)
+            }.fixedSize()
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(title).font(.system(size: 13, weight: .medium))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                clock(value)
+            }
+        }
+        .foregroundStyle(.orange)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
     }
 
     private var pomodoroOptions: some View {
