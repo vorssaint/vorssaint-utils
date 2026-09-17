@@ -125,12 +125,12 @@ final class AudioInputDeviceManager: ObservableObject {
         volumeRefreshGeneration &+= 1
         inputVolume = clamped
         halQueue.async { [weak self] in
-            let applied = Self.setInputVolume(Float32(clamped), for: device.audioObjectID)
+            _ = Self.setInputVolume(Float32(clamped), for: device.audioObjectID)
             DispatchQueue.main.async {
                 guard let self, self.effectiveInputDeviceUID == uid else { return }
-                if !applied {
-                    self.scheduleVolumeRefresh(for: device.audioObjectID)
-                }
+                // A successful HAL write does not guarantee that the device
+                // accepted the requested level, so always read it back.
+                self.scheduleVolumeRefresh(for: device.audioObjectID)
             }
         }
     }
@@ -318,7 +318,8 @@ final class AudioInputDeviceManager: ObservableObject {
         if currentInputDeviceUID != snapshot.currentUID {
             currentInputDeviceUID = snapshot.currentUID
         }
-        if effectiveInputDeviceUID != snapshot.resolution.effectiveUID {
+        let effectiveDeviceChanged = effectiveInputDeviceUID != snapshot.resolution.effectiveUID
+        if effectiveDeviceChanged {
             effectiveInputDeviceUID = snapshot.resolution.effectiveUID
         }
         if preferredUnavailable != snapshot.resolution.selectedUnavailable {
@@ -331,10 +332,12 @@ final class AudioInputDeviceManager: ObservableObject {
             .flatMap { uid in snapshot.devices.first(where: { $0.uid == uid })?.audioObjectID }
         // Rewiring listeners invalidates pending control reads. Capture the
         // sweep's validity first so that initial wiring cannot invalidate the
-        // volume value discovered by this same sweep.
+        // volume value discovered by this same sweep. A stale read is still
+        // useful when it belongs to a newly selected device: it must replace
+        // the old device's level while a slider drag is in flight.
         let sweepVolumeIsCurrent = volumeRefreshGeneration == snapshot.volumeGeneration
         updateVolumeListeners(for: effectiveDeviceID)
-        if sweepVolumeIsCurrent, inputVolume != snapshot.inputVolume {
+        if (sweepVolumeIsCurrent || effectiveDeviceChanged), inputVolume != snapshot.inputVolume {
             inputVolume = snapshot.inputVolume
         }
 
