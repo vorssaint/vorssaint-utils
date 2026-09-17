@@ -73,6 +73,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // about which displays are attached.
         BrightnessService.shared.restoreDisplaysLeftOff()
 
+        // The Services menu's "Add to Shelf" and files opened with the app.
+        NSApp.servicesProvider = ShelfServicesProvider.shared
+
         // An accessory (LSUIElement) app gets no default main menu, so the standard
         // keyboard shortcuts (Cmd+H/M/W/Q and the Edit shortcuts Cmd+C/V/X/A) have
         // no menu items to fire and do nothing in the Settings window. Install one.
@@ -350,6 +353,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
+
+    /// `open -a Vorssaint <file>`, or files dropped on the app in Finder: they
+    /// go on the shelf, the one place in the app a file can be handed to.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        ShelfServicesProvider.shared.open(urls)
+    }
 
     private func bindManagers() {
         KeepAwakeManager.shared.onSessionEnded = { reason in
