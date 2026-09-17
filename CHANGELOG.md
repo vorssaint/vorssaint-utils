@@ -7,13 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see with large icons. The mixer remembers pinned apps and your preferred order.
+App Switcher makes multiple windows easier to see with large icons. The mixer remembers pinned apps and your preferred order. Dynamic Island offers playback control for Spotify and other music apps.
 
 ### Added
 - Pin and reorder mixer apps, with positions remembered when apps reopen and included in settings backups.
 
 ### Fixed
 - App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
+- Dynamic Island offers to control Spotify and other music apps as soon as the song appears, instead of showing only Open player, however the player was started.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 
