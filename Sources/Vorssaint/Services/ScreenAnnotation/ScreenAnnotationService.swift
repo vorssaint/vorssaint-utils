@@ -26,7 +26,6 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
 
     private(set) var isDrawingActive = false
     private(set) var strokes: [AnnotationStroke] = []
-    @Published private(set) var selectedStrokeIndex: Int?
     @Published private(set) var shortcutRegistrationFailed = false
 
     // Preferences (kept in sync with UserDefaults)
@@ -39,13 +38,14 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
     private var keyMonitor: Any?
     private var globalKeyMonitor: Any?
 
-    // MARK: - Shortcut (Carbon)
+    // MARK: - Shortcut
 
-    private var hotKeyRef: EventHotKeyRef?
-    private var hotKeyHandler: EventHandlerRef?
-    private var registeredShortcut: GlobalShortcut?
+    private let hotkey = QuickToolHotkey(id: 61)
 
-    private override init() { super.init() }
+    private override init() {
+        super.init()
+        hotkey.onPress = { [weak self] in self?.toggleDrawing() }
+    }
 
     // MARK: - Lifecycle
 
@@ -81,7 +81,7 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
     func teardown() {
         exitDrawingMode()
         removeKeyMonitors()
-        unregisterShortcut()
+        hotkey.unregister()
         canvasPanel?.orderOut(nil)
         canvasPanel?.contentView = nil
         canvasPanel = nil
@@ -111,6 +111,7 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
         canvasPanel?.ignoresMouseEvents = ScreenAnnotationSupport.canvasIgnoresMouseEvents(isDrawing: false)
         removeKeyMonitors()
         canvasPanel?.resignKey()
+        toolbarPanel?.orderOut(nil)
         drawingView?.needsDisplay = true
     }
 
@@ -283,10 +284,9 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
             drawingView?.beginTextEditor(at: p)
             return
         }
-        if tool == .select || tool == .eraser {
+        if tool == .eraser {
             let index = strokeIndex(at: p, bounds: bounds)
-            selectedStrokeIndex = tool == .select ? index : nil
-            if tool == .eraser, let index { strokes.remove(at: index) }
+            if let index { strokes.remove(at: index) }
             drawingView?.needsDisplay = true
             return
         }
@@ -315,14 +315,24 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
                 CGPoint(x: $0.x * Double(bounds.width), y: $0.y * Double(bounds.height))
             }
             guard let first = points.first else { continue }
-            var hit = CGRect(x: first.x, y: first.y, width: 1, height: 1)
-            for candidate in points.dropFirst() { hit = hit.union(CGRect(x: candidate.x, y: candidate.y, width: 1, height: 1)) }
-            if stroke.tool == .text {
-                hit.size.width = max(40, CGFloat(stroke.text.count) * max(8, stroke.width * 2.2))
-                hit.size.height = max(24, stroke.width * 4)
-            }
             let tolerance = max(12, stroke.width * 2)
-            if hit.insetBy(dx: -tolerance, dy: -tolerance).contains(point) { return index }
+            if stroke.tool == .text {
+                let font = NSFont.systemFont(ofSize: max(14, stroke.width * 3), weight: .medium)
+                let textSize = (stroke.text as NSString).size(withAttributes: [.font: font])
+                let hit = CGRect(x: first.x, y: first.y, width: max(40, textSize.width),
+                                 height: max(24, textSize.height))
+                if hit.insetBy(dx: -tolerance, dy: -tolerance).contains(point) { return index }
+                continue
+            }
+            if points.count == 1 {
+                if hypot(point.x - first.x, point.y - first.y) <= tolerance { return index }
+                continue
+            }
+            var closest = CGFloat.greatestFiniteMagnitude
+            for (a, b) in zip(points, points.dropFirst()) {
+                closest = min(closest, ScreenAnnotationSupport.distance(from: point, toSegmentFrom: a, to: b))
+            }
+            if closest <= tolerance { return index }
         }
         return nil
     }
@@ -350,61 +360,14 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
                 alpha: stroke.tool == .highlighter ? 0.35 : 1)
     }
 
-    // MARK: - Carbon shortcut
+    // MARK: - Shortcut
 
     func syncShortcut() {
         let on = AppFeature.screenAnnotation.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.screenAnnotationShortcutEnabled)
-        on ? registerShortcut() : unregisterShortcut()
-    }
-
-    private func registerShortcut() {
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.screenAnnotationShortcut,
                                             fallback: .screenAnnotationDefault)
-        if hotKeyRef != nil, registeredShortcut == shortcut { return }
-        unregisterShortcut()
-        if hotKeyHandler == nil {
-            var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                     eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(
-                GetEventDispatcherTarget(),
-                { _, event, userData -> OSStatus in
-                    guard let userData else { return OSStatus(eventNotHandledErr) }
-                    var id = EventHotKeyID()
-                    if let event {
-                        GetEventParameter(event,
-                                          EventParamName(kEventParamDirectObject),
-                                          EventParamType(typeEventHotKeyID),
-                                          nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
-                    }
-                    guard id.signature == 0x5655_414E, id.id == 7 else {
-                        return OSStatus(eventNotHandledErr)
-                    }
-                    let svc = Unmanaged<ScreenAnnotationService>
-                        .fromOpaque(userData).takeUnretainedValue()
-                    DispatchQueue.main.async { svc.toggleDrawing() }
-                    return noErr
-                },
-                1, &spec, Unmanaged.passUnretained(self).toOpaque(), &hotKeyHandler)
-        }
-        var ref: EventHotKeyRef?
-        let status = RegisterEventHotKey(
-            shortcut.carbonKeyCode, shortcut.carbonModifiers,
-            EventHotKeyID(signature: 0x5655_414E, id: 7),
-            GetEventDispatcherTarget(), 0, &ref)
-        if status == noErr, let ref {
-            hotKeyRef = ref; registeredShortcut = shortcut
-            shortcutRegistrationFailed = false
-        } else {
-            hotKeyRef = nil; registeredShortcut = nil
-            shortcutRegistrationFailed = true
-        }
-    }
-
-    private func unregisterShortcut() {
-        if let h = hotKeyRef { UnregisterEventHotKey(h) }
-        hotKeyRef = nil; registeredShortcut = nil
-        shortcutRegistrationFailed = false
+        shortcutRegistrationFailed = !hotkey.sync(enabled: on, shortcut: shortcut)
     }
 }
 
@@ -415,17 +378,14 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
 /// Pattern identical to `ScreenshotOverlayPanel`.
 private final class AnnotationCanvasPanel: NSPanel {
     override var canBecomeKey: Bool { true }
-    
+
     /// Route mouse events directly to the drawing view.
-    /// Pattern from Annotate's OverlayWindow: transparent panels may not
-    /// deliver events through the normal responder chain.
+    /// Transparent panels may not deliver events through the normal
+    /// responder chain, so the drawing view's handlers are invoked directly.
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown, .leftMouseDragged, .leftMouseUp:
-            NSLog("🎯 AnnotationCanvasPanel.sendEvent: \(event.type.rawValue) at \(event.locationInWindow)")
-            NSLog("🎯 contentView type: \(type(of: contentView))")
             if let view = contentView as? AnnotationDrawingView {
-                NSLog("🎯 Routing to AnnotationDrawingView")
                 switch event.type {
                 case .leftMouseDown:  view.mouseDown(with: event)
                 case .leftMouseDragged: view.mouseDragged(with: event)
@@ -433,8 +393,6 @@ private final class AnnotationCanvasPanel: NSPanel {
                 default: break
                 }
                 return
-            } else {
-                NSLog("❌ contentView is NOT AnnotationDrawingView")
             }
         default:
             break
@@ -477,7 +435,7 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
         let field = NSTextField(frame: NSRect(x: point.x, y: point.y,
                                                width: 300, height: 34))
         field.font = NSFont.systemFont(ofSize: 18, weight: .medium)
-        field.textColor = .white
+        field.textColor = service.map { NSColor(calibratedRed: $0.color.red, green: $0.color.green, blue: $0.color.blue, alpha: 1) } ?? .white
         field.backgroundColor = .clear
         field.drawsBackground = false
         field.isBordered = false
@@ -523,23 +481,15 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
         guard let svc = service,
               let ctx = NSGraphicsContext.current?.cgContext else { return }
         ctx.saveGState()
-        for (index, stroke) in svc.strokes.enumerated() where !stroke.points.isEmpty {
+        for stroke in svc.strokes where !stroke.points.isEmpty {
             if stroke.tool == .text {
                 let point = CGPoint(x: stroke.points[0].x * Double(bounds.width),
                                     y: stroke.points[0].y * Double(bounds.height))
                 let font = NSFont.systemFont(ofSize: max(14, stroke.width * 3), weight: .medium)
-                let textSize = (stroke.text as NSString).size(withAttributes: [.font: font])
                 NSAttributedString(string: stroke.text,
                                     attributes: [.font: font,
                                                  .foregroundColor: svc.strokeColor(for: stroke)])
                     .draw(at: point)
-                if svc.selectedStrokeIndex == index {
-                    ctx.setStrokeColor(NSColor.systemBlue.cgColor)
-                    ctx.setLineWidth(2)
-                    ctx.setLineDash(phase: 0, lengths: [5, 3])
-                    ctx.stroke(CGRect(x: point.x - 4, y: point.y - 4,
-                                      width: textSize.width + 8, height: textSize.height + 8))
-                }
                 continue
             }
             guard stroke.points.count > 1 else { continue }
@@ -577,14 +527,8 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
             case .line, .pen, .highlighter:
                 ctx.addPath(path)
                 ctx.strokePath()
-            case .select, .text, .eraser:
+            case .eraser, .text:
                 break
-            }
-            if svc.selectedStrokeIndex == index {
-                ctx.setStrokeColor(NSColor.systemBlue.cgColor)
-                ctx.setLineWidth(2)
-                ctx.setLineDash(phase: 0, lengths: [5, 3])
-                ctx.stroke(rect.insetBy(dx: -6, dy: -6))
             }
         }
         ctx.restoreGState()
@@ -595,7 +539,7 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
 
     override func mouseDown(with event: NSEvent) {
         guard let svc = service, svc.isDrawingActive else { return }
-        if svc.tool == .text || svc.tool == .select || svc.tool == .eraser {
+        if svc.tool == .text || svc.tool == .eraser {
             isDragging = false
             let point = convert(event.locationInWindow, from: nil)
             svc.beginStroke(at: point, bounds: bounds)
@@ -696,7 +640,6 @@ private struct AnnotationToolbarView: View {
 
     private func toolSymbol(_ tool: AnnotationTool) -> String {
         switch tool {
-        case .select: return "cursorarrow"
         case .pen: return "pencil"
         case .highlighter: return "highlighter"
         case .arrow: return "arrow.up.right"

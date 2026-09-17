@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
 
 struct AnnotationPoint: Codable, Equatable {
@@ -14,7 +15,6 @@ struct AnnotationPoint: Codable, Equatable {
 }
 
 enum AnnotationTool: String, Codable, CaseIterable {
-    case select
     case pen
     case highlighter
     case arrow
@@ -24,13 +24,6 @@ enum AnnotationTool: String, Codable, CaseIterable {
     case text
     case redact
     case eraser
-
-    var isRectangular: Bool {
-        switch self {
-        case .rectangle, .ellipse, .redact: return true
-        case .select, .text, .eraser, .pen, .highlighter, .arrow, .line: return false
-        }
-    }
 
     var isFreehand: Bool { self == .pen || self == .highlighter }
 }
@@ -110,6 +103,21 @@ enum ScreenAnnotationSupport {
     }
 
     static func clear(_ strokes: [AnnotationStroke]) -> [AnnotationStroke] { [] }
+
+    /// Shortest distance from `point` to the segment `a`–`b`, used for hit
+    /// testing individual strokes instead of their overall bounding box.
+    static func distance(from point: CGPoint, toSegmentFrom a: CGPoint, to b: CGPoint) -> CGFloat {
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let lengthSquared = dx * dx + dy * dy
+        guard lengthSquared > 0 else {
+            return hypot(point.x - a.x, point.y - a.y)
+        }
+        let t = max(0, min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared))
+        let projX = a.x + t * dx
+        let projY = a.y + t * dy
+        return hypot(point.x - projX, point.y - projY)
+    }
 }
 
 private extension Double {

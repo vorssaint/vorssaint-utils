@@ -474,6 +474,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SecureInputSupport.swift
         Sources/Vorssaint/Services/ScreenAnnotation/ScreenAnnotationSupport.swift
         Sources/Vorssaint/Services/ScreenAnnotation/ScreenAnnotationService.swift
+        Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift
         Tests/*.swift
         build/generated-tests/*.swift
     )
