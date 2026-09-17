@@ -21,6 +21,7 @@ App Switcher makes multiple windows easier to see and brings selected windows fo
 - Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
+- Dynamic Island shows Keep open directly in its header, and Settings appears there when its floating button is removed.
 
 ### Fixed
 - Dynamic Island shows a video playing in a browser even when a music app is open but stopped. Thanks to @ruvelro.
