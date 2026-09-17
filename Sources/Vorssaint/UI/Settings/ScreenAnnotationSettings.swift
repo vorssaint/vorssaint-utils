@@ -40,15 +40,6 @@ struct ScreenAnnotationSettings: View {
             } header: {
                 Text(strings.title)
             }
-
-            Section {
-                LabeledContent(strings.pen, value: strings.penDescription)
-                LabeledContent(strings.highlighter, value: strings.highlighterDescription)
-                LabeledContent(strings.undo, value: strings.undoDescription)
-                LabeledContent(strings.clear, value: strings.clearDescription)
-            } header: {
-                Text(strings.controls)
-            }
         }
         .formStyle(.grouped)
     }

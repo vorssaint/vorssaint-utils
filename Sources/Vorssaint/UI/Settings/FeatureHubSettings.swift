@@ -843,7 +843,7 @@ extension AppFeature {
         case .screenOCR: return hub.descScreenOCR
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
-        case .screenAnnotation: return FeatureStrings.annotation(L10n.shared.language).title
+        case .screenAnnotation: return FeatureStrings.annotation(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
         case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).description
         case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timerDescription
