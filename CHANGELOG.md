@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume, pinned apps and remembered ordering; capture guides reveal repeat-region shortcuts, Dynamic Island improves music efficiency and interaction, panel buttons align correctly, Command Bar adds emoji skin tones and reliable Keep Awake durations, recent captures open promptly from other apps, and Window Layout adds a centered two-thirds placement.
+App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume, pinned apps and remembered ordering; capture guides reveal repeat-region shortcuts, Dynamic Island gets its own section in Features, can uninstall with its extensions and improves music efficiency and interaction, panel buttons align correctly, Command Bar adds emoji skin tones and reliable Keep Awake durations, recent captures open promptly from other apps, and Window Layout adds a centered two-thirds placement.
 
 ### Added
+- Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
 - Adjust microphone input volume from the mixer, with an editable percentage on supported devices. Thanks to @GolamRafi27oo.
 - Window Layout can center a window at two-thirds of the screen width in one action. Thanks to @Borisserz.
 - Command Bar offers a default emoji skin tone and one-off alternatives from each emoji’s actions. Thanks to @justin-chiam.
@@ -17,6 +18,7 @@ App Switcher makes multiple windows easier to see and brings selected windows fo
 - Pin and reorder mixer apps, with positions remembered when apps reopen and included in settings backups.
 
 ### Changed
+- Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
 - Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
 - Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
