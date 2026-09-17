@@ -979,7 +979,7 @@ struct MouseSettings: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if scrollDirectionEnabled, inverter.isRunning {
+                    if scrollInversionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
@@ -1192,8 +1192,12 @@ struct MouseSettings: View {
         return anyEngaged && !permissions.accessibility
     }
 
+    private var scrollInversionEnabled: Bool {
+        AppFeature.scrollInverter.isAvailable && (invertVertical || invertHorizontal)
+    }
+
     private var scrollDirectionEnabled: Bool {
-        (AppFeature.scrollInverter.isAvailable && (invertVertical || invertHorizontal))
+        scrollInversionEnabled
             || (AppFeature.scrollHorizontal.isAvailable && horizontalScrollEnabled)
     }
 
