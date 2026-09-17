@@ -125,6 +125,7 @@ enum SystemShortcutTakeover {
             transition, owned: suppressed,
             setEnabled: { setEnabled($0, $1) == .success },
             persist: persist)
+        observeWake(!suppressed.isEmpty)
     }
 
     /// Launch only repairs previous ownership. Keep ids a feature will claim
@@ -135,16 +136,6 @@ enum SystemShortcutTakeover {
     static func recoverIfNeeded(keeping desired: Set<Int32>) {
         lock.lock()
         defer { lock.unlock() }
-        // Wake can leave the live table changed under a claim that is still
-        // ours; the switcher's own three seconds keep the two reconciles from
-        // racing the WindowServer right after wake. Launch is the only caller,
-        // so the observer is installed once and kept for the life of the app.
-        if wakeObserver == nil {
-            wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-                forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { reconcile() }
-                }
-        }
         persist(suppressed)
         UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
         guard let setEnabled = SymbolicHotKeys.setEnabled else { return }
@@ -157,6 +148,7 @@ enum SystemShortcutTakeover {
             owned: suppressed,
             setEnabled: { setEnabled($0, $1) == .success },
             persist: persist)
+        observeWake(!suppressed.isEmpty)
         // What stayed off for the switcher is held on its behalf until its tap
         // comes up and says so itself. Recorded as its source, or the first
         // claim of the launch resolves what every source wants without those
@@ -168,6 +160,25 @@ enum SystemShortcutTakeover {
         let isEnabled = SymbolicHotKeys.isEnabled
         let held = desired.intersection(suppressed).filter { isEnabled?($0) != true }
         if !held.isEmpty { wanted[switcherSource] = held }
+    }
+
+    /// Wake can leave the live table changed under a claim that is still ours,
+    /// so a held key is re-resolved after the switcher's own three seconds, which
+    /// keep the two reconciles from racing the WindowServer right after wake.
+    /// The observer exists only while some feature holds a key and goes away
+    /// when the last one is given back, as the switcher does with its own; a Mac
+    /// where nothing was ever taken over never installs it. Callers hold `lock`;
+    /// the notification arrives later on the main queue and takes it afresh.
+    private static func observeWake(_ holding: Bool) {
+        if holding, wakeObserver == nil {
+            wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { reconcile() }
+                }
+        } else if !holding, let observer = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            wakeObserver = nil
+        }
     }
 
     private static func persist(_ ids: Set<Int32>) {
