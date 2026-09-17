@@ -233,7 +233,8 @@ struct ShelfView: View {
                            selection: shelf.selection,
                            expandedBatches: shelf.expandedBatches,
                            revealID: shelf.revealTargetID,
-                           revealSerial: shelf.addSerial)
+                           revealSerial: shelf.addSerial,
+                           focusID: shelf.selectionAnchor)
                 .frame(height: Self.tileAreaHeight)
         }
     }

@@ -25,6 +25,50 @@ enum ShelfSelectionSupport {
     }
 }
 
+enum ShelfKeyboardSupport {
+    enum Move: Equatable {
+        case previous, next, up, down
+    }
+
+    /// The arrow keys, in the layout's own terms: previous and next walk the
+    /// tiles in reading order, up and down jump a row.
+    static func move(for keyCode: UInt16) -> Move? {
+        switch keyCode {
+        case 123: return .previous
+        case 124: return .next
+        case 126: return .up
+        case 125: return .down
+        default: return nil
+        }
+    }
+
+    /// Delete and forward delete both take the selection off the shelf; the
+    /// files themselves are never touched, the same as the trash button.
+    static func isRemoveKey(_ keyCode: UInt16) -> Bool {
+        keyCode == 51 || keyCode == 117
+    }
+
+    /// Where an arrow lands, the way Finder's icon view moves: a neighbour in
+    /// reading order, or the tile one row up or down, never wrapping. Down
+    /// from a full row onto a shorter last row settles on that row's last
+    /// tile rather than refusing to move; pressing past the last row stays
+    /// put. Nothing selected starts at the first tile, whichever arrow it is.
+    static func destinationIndex(from current: Int?, move: Move, count: Int, columns: Int) -> Int? {
+        guard count > 0 else { return nil }
+        guard let current, current >= 0, current < count else { return 0 }
+        let columns = max(1, columns)
+        switch move {
+        case .previous: return max(0, current - 1)
+        case .next: return min(count - 1, current + 1)
+        case .up: return current >= columns ? current - columns : current
+        case .down:
+            if current + columns < count { return current + columns }
+            let lastRow = (count - 1) / columns
+            return current / columns < lastRow ? count - 1 : current
+        }
+    }
+}
+
 /// A Shelf item reduced to what revealing needs: identity and nesting. A pure
 /// stand-in for the service's item tree, like ShelfEdgeScreen is for NSScreen,
 /// so the rules below stay in the unit harness.
