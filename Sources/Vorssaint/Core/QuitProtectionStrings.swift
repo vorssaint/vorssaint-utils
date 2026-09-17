@@ -70,6 +70,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -525,6 +526,38 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "使用 %@ 以關閉",
         cancelHint: "Esc 取消",
         releaseHint: "放開以確認",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let ar = QuitProtectionStrings(
+        name: "الحماية من الإنهاء والإغلاق",
+        description: "يحمي ⌘Q و⌘W من الضغطات غير المقصودة",
+        intro: "اضبط كل اختصار على حدة. ولا يمر الإجراء الأصلي إلا بعد التأكيد المحدد.",
+        enabled: "حماية هذا الاختصار",
+        enabledCaption: "تواصل اختصارات Command الأخرى عملها بشكل طبيعي.",
+        mode: "وضع التأكيد",
+        hold: "الاستمرار بالضغط للتأكيد",
+        doublePress: "ضغطة مزدوجة",
+        extraModifier: "طلب مفتاح تعديل إضافي",
+        holdDuration: "مدة الضغط",
+        doublePressInterval: "الفاصل بين الضغطتين",
+        modifier: "مفتاح التعديل الإضافي",
+        appScope: "التطبيقات",
+        allApps: "كل التطبيقات",
+        selectedOnly: "التطبيقات المحددة فقط",
+        allExceptSelected: "كل التطبيقات عدا المحددة",
+        exceptions: "الاستثناءات",
+        noExceptions: "لم يتم تحديد أي تطبيق",
+        addApp: "إضافة تطبيق…",
+        feedback: "إظهار تأكيد مرئي",
+        accessibilityCaption: "تستخدم الحماية إمكانية الوصول لمراقبة ⌘Q و⌘W عامةً فقط.",
+        holdHUDFormat: "استمر بالضغط على %@ للإنهاء أو الإغلاق",
+        doubleHUDFormat: "اضغط %@ مجددًا للإنهاء أو الإغلاق",
+        extraHUDFormat: "استخدم %@ للإنهاء أو الإغلاق",
+        cancelHint: "Esc للإلغاء",
+        releaseHint: "أفلِت للتأكيد",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

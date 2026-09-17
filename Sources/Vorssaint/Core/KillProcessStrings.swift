@@ -508,7 +508,7 @@ extension KillProcessFeatureStrings {
         processCountFormat: "%d عملية",
         killButton: "إنهاء",
         forceKillButton: "إنهاء إجباري",
-        killAllFormat: "إنهاء كل «%@»",
+        killAllFormat: "إنهاء كل “%@”",
         killTreeButton: "إنهاء شجرة العمليات",
         restartButton: "إعادة التشغيل",
         copyPID: "نسخ المعرّف",
@@ -516,10 +516,10 @@ extension KillProcessFeatureStrings {
         emptyStateTitle: "لم يتم العثور على عمليات",
         confirmKillFormat: "إنهاء %@؟",
         confirmForceKillFormat: "إنهاء %@ إجباريًا؟",
-        confirmKillAllFormat: "إنهاء كل عمليات «%@»؟",
+        confirmKillAllFormat: "إنهاء كل عمليات “%@”؟",
         confirmKillTreeFormat: "إنهاء %@ وكل العمليات المتفرعة عنه؟",
         killFailedTitle: "تعذّر إنهاء العملية",
         killFailedMessage: "قد تكون العملية قد انتهت بالفعل أو تتطلب صلاحيات إضافية.",
-        adminPromptFormat: "يحتاج Vorssaint إلى صلاحيات المسؤول لإنهاء «%@»."
+        adminPromptFormat: "يحتاج Vorssaint إلى صلاحيات المسؤول لإنهاء “%@”."
     )
 }

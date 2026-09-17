@@ -451,6 +451,13 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "نشط أثناء توصيل شاشة خارجية",
         powerToggle: "الطاقة",
         powerActive: "نشط أثناء التوصيل بالطاقة",
-        automationActive: "نشط لتحقق أحد الشروط التلقائية"
-    )
+        runningAppsToggle: "التطبيقات",
+        runningAppsActive: "نشط أثناء تشغيل تطبيق محدد",
+        runningAppsListTitle: "التطبيقات المحددة",
+        runningAppsAddButton: "إضافة تطبيق…",
+        runningAppsRemoveButton: "إزالة",
+        runningAppsListCaption: "يبدأ “الإبقاء مستيقظًا” ما دام أي من هذه التطبيقات مفتوحًا، ولو في الخلفية.",
+        automationActive: "نشط لتحقق أحد الشروط التلقائية",
+        pauseWhenLockedToggle: "الإيقاف المؤقت أثناء قفل الـ Mac",
+        pauseWhenLockedCaption: "يتبع قواعد السكون المعتادة أثناء القفل ويستأنف ما تبقى من الجلسة بعد إلغاء القفل.")
 }

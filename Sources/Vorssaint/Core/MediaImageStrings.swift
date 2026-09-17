@@ -911,6 +911,7 @@ extension MediaImageConverterStrings {
         backgroundWhite: "بيضاء",
         backgroundBlack: "سوداء",
         preserveDate: "الاحتفاظ بتاريخ التعديل الأصلي",
+        saveInSubfolder: "الحفظ في مجلد فرعي باسم “المحوَّلة”",
         moreOptions: "خيارات أخرى",
         tooLarge: "هذه الأبعاد أكبر من أن تُعالَج بأمان. اختر حجمًا أصغر.",
         copySummary: "نسخ الملخص",
@@ -919,6 +920,5 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "تم حفظ %d صورة",
         batchPartialFormat: "%d محفوظة، %d فشلت",
         batchSummaryHeaderFormat: "%d محفوظة، %d فشلت",
-        batchSummaryItemFormat: "%@ -> %@"
-    )
+        batchSummaryItemFormat: "%@ -> %@")
 }

@@ -21,3 +21,6 @@
 "NSDocumentsFolderUsageDescription" = "ينظّم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحةً.";
 "NSNetworkVolumesUsageDescription" = "ينظّم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحةً.";
 "NSRemovableVolumesUsageDescription" = "ينظّم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحةً.";
+
+/* macOS Calendar permission prompt. */
+"NSCalendarsFullAccessUsageDescription" = "عرض مواعيدك القادمة في النتوء. وتبقى أحداث التقويم على هذا الـ Mac.";

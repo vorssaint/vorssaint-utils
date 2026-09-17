@@ -1483,7 +1483,7 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "ضغطة أو استمرار",
         activationModePress: "اضغط للفتح",
         activationModeHold: "استمر للاختيار",
-        activationModeCaption: "يحافظ خيار «ضغطة أو استمرار» على الإيماءة التكيّفية الحالية. أما «ضغطة» فتُبقيها مفتوحة؛ و«استمرار» ينفّذ الإجراء المميّز عند الإفلات.",
+        activationModeCaption: "يحافظ خيار “ضغطة أو استمرار” على الإيماءة التكيّفية الحالية. أما “ضغطة” فتُبقيها مفتوحة؛ و“استمرار” ينفّذ الإجراء المميّز عند الإفلات.",
         profilesHeader: "الملفات الشخصية",
         profilePickerLabel: "الملف الشخصي",
         addProfileButton: "إضافة ملف شخصي",
@@ -1515,6 +1515,12 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "يتصل بالموقع مرة واحدة لتنزيل أيقونته. وتُحفظ محليًا.",
         fetchFaviconLoading: "جارٍ جلب الأيقونة…",
         fetchFaviconSuccess: "تم تنزيل الأيقونة",
-        fetchFaviconError: "تعذّر العثور على أيقونة للموقع"
-    )
+        fetchFaviconError: "تعذّر العثور على أيقونة للموقع",
+        mouseTriggerRequirement: "تعمل هنا الأزرار الإضافية للماوس فقط. أما مع لوحة التتبع أو ماوس بلا أزرار إضافية، فاستخدم اختصار لوحة المفاتيح أعلاه.",
+        canvasHint: "انقر زرًا لاختيار ما يبدأه أو لإزالته. واسحب الزر لتحريكه.",
+        resetActionsButton: "إعادة تعيين",
+        resetActionsConfirm: "إعادة تعيين الإجراءات",
+        resetActionsConfirmMessage: "استعادة الإجراءات الافتراضية لهذا الملف الشخصي؟ ستُستبدل الإجراءات المخصصة.",
+        showListButton: "العرض كقائمة",
+        hideListButton: "إخفاء القائمة")
 }

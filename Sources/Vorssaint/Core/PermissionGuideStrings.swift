@@ -218,11 +218,13 @@ extension PermissionGuideStrings {
 
     static let ar = PermissionGuideStrings(
         title: "بقيت خطوة واحدة",
-        stepOpen: "فتح macOS «إعدادات النظام» على القائمة الصحيحة.",
+        stepOpen: "فتح macOS “إعدادات النظام” على القائمة الصحيحة.",
         stepToggle: "فعّل Vorssaint في تلك القائمة.",
         stepReturn: "عُد إلى هنا. ستلاحظ هذه البطاقة الأمر تلقائيًا.",
         waiting: "في انتظار الإذن…",
         granted: "تم منح الإذن!",
-        closeHelp: "إغلاق"
-    )
+        closeHelp: "إغلاق",
+        staleHint: "مفعّل أصلًا في تلك القائمة؟ ذلك المدخل يخص نسخة أقدم من التطبيق. ابدأ من جديد لاستبداله.",
+        startOver: "البدء من جديد",
+        relaunch: "أعِد التشغيل للتطبيق")
 }

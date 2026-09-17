@@ -324,7 +324,7 @@ extension WhatsAppDownloadStrings {
         title: "تنزيلات WhatsApp", hub: "يضبط ملفات WhatsApp داخل مجلد التنزيلات",
         intro: "يعثر على الملفات التي يؤكد macOS أنها جاءت من WhatsApp. ولا تُقرأ محتويات الملفات ولا المحادثات أبدًا.",
         automatic: "التنظيف تلقائيًا", folder: "المجلد المراقَب", accessReady: "يمكن الوصول إلى مجلد التنزيلات",
-        accessDenied: "لا يستطيع Vorssaint الوصول إلى مجلد التنزيلات. اسمح بذلك في «الملفات والمجلدات».",
+        accessDenied: "لا يستطيع Vorssaint الوصول إلى مجلد التنزيلات. اسمح بذلك في “الملفات والمجلدات”.",
         types: "أنواع الملفات", all: "الكل", image: "الصور", video: "الفيديوهات", audio: "الصوت والرسائل الصوتية",
         document: "المستندات", archive: "الأرشيفات", other: "أخرى", retention: "الاحتفاظ", days: "%d يوم",
         noFiles: "لا توجد ملفات WhatsApp مؤكدة في مجلد التنزيلات.", keep: "الاحتفاظ", manage: "الإدارة مجددًا",
@@ -489,7 +489,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "هناك %d ملف حالي يطابق قواعدك أصلًا. اختر تضمينها أو إدارة التنزيلات المستقبلية فقط.",
                 localNote: "تُفحص البيانات الوصفية المحلية فقط. ولا يقرأ Vorssaint المحادثات ولا محتويات الملفات.",
                 notificationFormat: "تم نقل %1$d ملف (%2$@) إلى المهملات. وفشل %3$d.",
-                scanFailed: "تعذّر فحص مجلد التنزيلات. تحقق من «الملفات والمجلدات» في إعدادات النظام.", manageButton: "إدارة…")
+                scanFailed: "تعذّر فحص مجلد التنزيلات. تحقق من “الملفات والمجلدات” في إعدادات النظام.", manageButton: "إدارة…")
         case .es: return OperationalStrings(
             automaticCaption: es.automaticCaption, retentionCaption: es.retentionCaption,
             manualIntro: es.manualIntro, resultsFormat: es.resultsFormat,

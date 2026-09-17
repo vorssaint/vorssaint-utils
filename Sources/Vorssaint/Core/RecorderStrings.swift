@@ -2033,6 +2033,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "طولي",
         noPointerNote: "لا يحتوي هذا التسجيل على مسار للمؤشر، فلا شيء لتنعيمه. أما عمليات التقريب المضافة يدويًا فتظل تعمل.",
         zoomLaneEmptyHint: "انقر هنا لإضافة تقريب",
+        addZoomButton: "إضافة تقريب",
         removeZoom: "إزالة",
         thisZoomLabel: "هذا التقريب",
         zoomWhereLabel: "موضع النظر",
@@ -2077,6 +2078,20 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "إضافة التقريب تلقائيًا",
         automaticZoomCaption: "أوقف هذا لبدء تسجيلات جديدة بلا تقريب. ولا يزال بإمكانك إضافته في المحرر.",
         pauseButton: "إيقاف التسجيل مؤقتًا",
-        resumeButton: "متابعة التسجيل"
-    )
+        resumeButton: "متابعة التسجيل",
+        blurLaneLabel: "التمويه",
+        addBlurButton: "تمويه منطقة",
+        blurLaneEmptyHint: "انقر هنا لإضافة تمويه",
+        thisBlurLabel: "هذا التمويه",
+        blurPickArea: "اختيار المنطقة",
+        blurPickAreaHint: "اسحب فوق ما تريد إخفاءه",
+        blurCaption: "يبقى مخفيًا ما دامت كتلته على الشريط الزمني.",
+        addImageButton: "إضافة صورة",
+        imageLaneLabel: "الصورة",
+        imageLaneEmptyHint: "انقر هنا لإضافة صورة",
+        thisImageLabel: "هذه الصورة",
+        imageSizeLabel: "الحجم",
+        imageOpacityLabel: "العتامة",
+        imagePositionLabel: "الموضع",
+        imageImportFailed: "تعذّرت إضافة هذه الصورة.")
 }

@@ -351,15 +351,18 @@ extension DiskImageInstallerStrings {
         title: "مثبّت صور الأقراص",
         hubDescription: "ثبّت التطبيق الوحيد داخل صورة القرص ونظّف ملف التنزيل",
         promptTitle: "تثبيت هذا التطبيق؟",
-        promptBodyFormat: "سيُنسخ %@ إلى «التطبيقات». ثم تُخرَج صورة القرص ويُنقل ملف تنزيلها إلى المهملات.",
+        promptBodyFormat: "سيُنسخ %@ إلى “التطبيقات”. ثم تُخرَج صورة القرص ويُنقل ملف تنزيلها إلى المهملات.",
         installButton: "تثبيت",
         installedTitle: "تم تثبيت التطبيق",
-        installedBodyFormat: "%@ جاهز في «التطبيقات». أُخرجت صورة القرص ونُقل ملف تنزيلها إلى المهملات.",
+        installedBodyFormat: "%@ جاهز في “التطبيقات”. أُخرجت صورة القرص ونُقل ملف تنزيلها إلى المهملات.",
         installedKeepingMountBodyFormat: "تم تثبيت %@، لكن تعذّر إخراج صورة القرص. وقد أُبقي على ملف تنزيلها.",
         installedKeepingDownloadBodyFormat: "تم تثبيت %@ وأُخرجت صورة القرص، لكن تعذّر نقل ملف تنزيلها إلى المهملات.",
         failedTitle: "تعذّر التثبيت",
-        failedBody: "لم يتغيّر أي شيء. لا يزال بإمكانك سحب التطبيق إلى «التطبيقات».",
+        failedBody: "لم يتغيّر أي شيء. لا يزال بإمكانك سحب التطبيق إلى “التطبيقات”.",
         verificationFailedBody: "تعذّر على هذا الـ Mac التحقق من التطبيق، لذا لم يُثبَّت شيء.",
-        alreadyInstalledBodyFormat: "%@ موجود أصلًا في «التطبيقات»."
-    )
+        alreadyInstalledBodyFormat: "%@ موجود أصلًا في “التطبيقات”.",
+        trashDownloadOption: "نقل ملف التنزيل إلى المهملات",
+        revealAppOption: "إظهار التطبيق في “التطبيقات”",
+        installedKeptDownloadBodyFormat: "%@ جاهز في “التطبيقات”. أُخرجت صورة القرص وأُبقي على ملف تنزيلها.",
+        installingFormat: "جارٍ تثبيت %@…")
 }

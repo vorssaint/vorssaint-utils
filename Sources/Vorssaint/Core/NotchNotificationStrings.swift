@@ -162,6 +162,17 @@ extension FeatureStrings {
             unavailable: "此通知已無法執行此操作。",
             dismissSystemBanner: "收起系統通知",
             dismissSystemBannerHint: "在Dynamic Island顯示片刻後關閉原通知。較長的提示音仍可能被截斷。")
+        case .ar: return NotchNotificationStrings(
+            title: "الإشعارات",
+            description: "الإشعارات الجديدة من النظام في الجزيرة الديناميكية.",
+            privacy: "تُعرض الرايات الظاهرة الجديدة فقط. وتبقى الرسائل في الذاكرة وتُمسح عند قفل هذا الـ Mac أو إيقاف هذه الميزة.",
+            empty: "ستظهر الإشعارات الجديدة هنا",
+            waiting: "في انتظار خدمة إشعارات النظام",
+            open: "فتح",
+            dismiss: "تجاهل",
+            unavailable: "لم يعد هذا الإشعار يقبل هذا الإجراء.",
+            dismissSystemBanner: "تجاهل راية النظام",
+            dismissSystemBannerHint: "يتجاهل الراية الأصلية بعد ظهورها في الجزيرة الديناميكية. وقد تظل تظهر للحظة.")
         }
     }
 }

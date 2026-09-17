@@ -1624,7 +1624,7 @@ extension FeatureHubStrings {
         tabFeatures: "المزايا",
         tabPermissions: "الأذونات",
         activeCountFormat: "تم تثبيت %1$d من %2$d ميزة",
-        monitorAllOffNote: "بإيقاف كل شيء، تغادر «المراقبة» اللوحة وشريط القائمة.",
+        monitorAllOffNote: "بإيقاف كل شيء، تغادر “المراقبة” اللوحة وشريط القائمة.",
         titleDockClick: "نقرات الـ Dock",
         titleMouseNavigation: "الأزرار الجانبية",
         titleMusicBlock: "مانع تطبيق Music",

@@ -525,6 +525,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "نسخ الكل",
         copied: "تم النسخ",
         exportAction: "الحفظ كملف",
+        exportFailed: "تعذّر حفظ الملف",
+        loadFailed: "تعذّر فتح ملاحظاتك. وقد تُركت دون تغيير.",
         clearAction: "مسح",
         retentionTitle: "المسح التلقائي",
         retentionNever: "أبدًا",
@@ -543,9 +545,8 @@ extension ScratchpadFeatureStrings {
         closePad: "إغلاق المفكرة",
         saveName: "حفظ",
         cancel: "إلغاء",
-        deletePadMessageFormat: "حذف «%@» وكل ما فيها؟",
+        deletePadMessageFormat: "حذف “%@” وكل ما فيها؟",
         padLimitFormat: "يمكنك الاحتفاظ بما يصل إلى %d مفكرة",
         previewFormatting: "إظهار التنسيق",
-        editText: "تحرير النص"
-    )
+        editText: "تحرير النص")
 }

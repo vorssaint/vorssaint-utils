@@ -542,6 +542,14 @@ extension MouseButtonFeatureStrings {
         manageButton: "الإعداد…",
         panelCaption: "تضغط الأزرار الإضافية واتجاهات العجلة الجانبية مجموعات مفاتيح تختارها.",
         sideWheelLeftName: "العجلة الجانبية لليسار",
-        sideWheelRightName: "العجلة الجانبية لليمين"
-    )
+        sideWheelRightName: "العجلة الجانبية لليمين",
+        spacesEnableLabel: "تبديل المساحات بسحب زر",
+        spacesEnableCaption: "استمر بالضغط على الزر المختار واسحب: يمينًا أو يسارًا ينتقل مساحة واحدة، وأعلى يفتح “مركز المهام”، وأسفل يفتح “عرض التطبيق”. أما النقرة القصيرة فتبقى على وظيفتها المعتادة.",
+        spacesPickButton: "اختيار زر",
+        spacesShortcutsOffNote: "اختصارات لوحة المفاتيح لـ “مركز المهام” متوقفة في إعدادات النظام، فلا شيء لهذه الإيماءة أن تطلبه.",
+        spacesCaptureWaiting: "اضغط الآن زرًا إضافيًا.",
+        spacesCaptureUnsupported: "لا يمكن الاستمرار بالضغط على هذا المدخل للسحب. استخدم زرًا إضافيًا.",
+        spacesCaptureExists: "هذا الزر له اختصار أصلًا. اختر زرًا آخر.",
+        spacesFollowsDragLabel: "المساحات تتبع السحب",
+        spacesFollowsDragCaption: "السحب يمينًا يجلب المساحة التي على اليسار، تمامًا كما تحملها إيماءة لوحة التتبع مع أصابعك.")
 }

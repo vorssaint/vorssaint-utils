@@ -465,7 +465,13 @@ extension BrightnessFeatureStrings {
         keysCaption: "تغيّر مفاتيح السطوع في لوحة المفاتيح الشاشة الموجودة تحت المؤشر.",
         osdToggle: "إظهار السطوع عند الضبط",
         osdCaption: "يعرض نسبة السطوع عند استخدام مفاتيح السطوع أو أشرطة التمرير.",
+        displayBrightnessShortcuts: "استخدام اختصارات سطوع الشاشة",
+        displayBrightnessShortcutCaption: "تضبط الاختصارات الشاشة الرئيسية، أو الشاشة الموجودة تحت المؤشر عند تفعيل تتبّع المؤشر.",
+        displayBrightnessDecrease: "خفض سطوع الشاشة",
+        displayBrightnessIncrease: "رفع سطوع الشاشة",
         keyboardLight: "إضاءة لوحة المفاتيح",
-        keyboardLightCaption: "يشغّل الإضاءة الخلفية للوحة المفاتيح أو يوقفها."
-    )
+        keyboardLightCaption: "يشغّل الإضاءة الخلفية للوحة المفاتيح أو يوقفها.",
+        keyboardBrightnessShortcuts: "استخدام اختصارات إضاءة لوحة المفاتيح",
+        keyboardBrightnessDecrease: "خفض إضاءة لوحة المفاتيح",
+        keyboardBrightnessIncrease: "رفع إضاءة لوحة المفاتيح")
 }

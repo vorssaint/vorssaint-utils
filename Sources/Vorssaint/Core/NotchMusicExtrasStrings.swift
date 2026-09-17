@@ -541,6 +541,38 @@ extension FeatureStrings {
             liveEqualizerDescription: "讓Dynamic Island的音柱隨播放器的聲音起伏。",
             liveEqualizerHint: "監聽播放器本身的音訊輸出來驅動音柱。macOS 會請求一次系統音訊錄製權限。不會儲存或傳送任何內容。未授權時音柱保持原有動畫。",
             liveEqualizerUnavailable: "需要 macOS 14.4 或更新版本。")
+        case .ar: return NotchMusicExtrasStrings(
+            lyrics: "كلمات الأغنية",
+            lyricsDescription: "تابِع كلمات الأغنية الحالية في الجزيرة الديناميكية.",
+            enableLyrics: "إظهار الكلمات",
+            online: "البحث عن الكلمات عبر الإنترنت",
+            onlineHint: "أثناء فتح الكلمات، يُرسَل عنوان الأغنية والفنان والألبوم والمدة إلى lrclib.net. أما الكلمات المستوردة فتبقى على هذا الـ Mac.",
+            importLyrics: "استيراد الكلمات…",
+            importHint: "اختر كلمات موقوتة للتسجيل الحالي. ولا يُحتفظ بها إلا ما دامت هذه الأغنية مفتوحة.",
+            loading: "جارٍ تحميل الكلمات…",
+            unavailable: "لا توجد كلمات مطابقة لهذا التسجيل.",
+            failed: "تعذّر تحميل الكلمات.",
+            retry: "المحاولة مجددًا",
+            instrumental: "موسيقى بلا كلمات",
+            waiting: "في انتظار المقطع الأول",
+            noPosition: "لا يشارك المشغّل موضع التشغيل.",
+            offset: "التوقيت",
+            earlier: "أبكر",
+            later: "متأخر",
+            reset: "إعادة تعيين",
+            actionFailed: "لم ينتقل المشغّل إلى هذه الأغنية.",
+            playbackFailed: "تعذّر تغيير التشغيل.",
+            allowPlayback: "السماح بالتحكم في التشغيل",
+            automationPermission: "أتمتة التشغيل",
+            automationExplanation: "تتطلب بعض تطبيقات الموسيقى إذنًا للتحكم في تشغيلها. صرّح للمشغّل المحدد من الجزيرة الديناميكية؛ ويُمنح الوصول لكل تطبيق على حدة.",
+            queue: "التالي",
+            queueDescription: "اطّلع على الأغاني القادمة فعلًا كما يشاركها مشغّلك.",
+            enableQueue: "إظهار الأغاني القادمة",
+            queueUnavailable: "لا يشارك هذا المشغّل أغانيه القادمة.",
+            queueEmpty: "لا توجد أغانٍ قادمة",
+            playNow: "التشغيل الآن",
+            refresh: "تحديث",
+            openPlayer: "فتح المشغّل")
         }
     }
 }
