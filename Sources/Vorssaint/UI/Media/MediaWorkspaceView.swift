@@ -1001,7 +1001,10 @@ struct MediaWorkspaceView: View {
                     compressionButton(level, value: value)
                 }
             }
-            .fixedSize(horizontal: false, vertical: true)
+            Text(compressionDescription(for: MediaCompressionLevel.nearest(to: value.wrappedValue)))
+                .font(.system(size: compact ? 9.5 : 10.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1010,22 +1013,15 @@ struct MediaWorkspaceView: View {
         return Button {
             value.wrappedValue = level.quality
         } label: {
-            VStack(spacing: 4) {
-                HStack(spacing: 5) {
-                    Image(systemName: level.symbolName)
-                    Text(compressionTitle(for: level))
-                        .lineLimit(1)
-                }
-                .font(.system(size: compact ? 10 : 11, weight: .semibold))
-                Text(compressionDescription(for: level))
-                    .font(.system(size: compact ? 10 : 11))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 5) {
+                Image(systemName: level.symbolName)
+                    .font(.system(size: compact ? 10 : 11, weight: .semibold))
+                Text(compressionTitle(for: level))
+                    .font(.system(size: compact ? 10 : 11, weight: .semibold))
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 7)
-            .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity)
+            .frame(height: compact ? 28 : 32)
             .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.78))
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
