@@ -396,6 +396,33 @@ extension FeatureStrings {
             accessoryDescription: "顯示已連接的配件，並在電量降至20%時提示一次。",
             connected: "已連接",
             lowBattery: "電量不足")
+        case .uk: return NotchActivityStrings(
+            timer: "Таймер",
+            timerDescription: "Таймери, секундомір і сеанси зосередженої роботи у Dynamic Island.",
+            pomodoro: "Помодоро",
+            stopwatch: "Секундомір",
+            focus: "Зосередженість",
+            shortBreak: "Коротка перерва",
+            longBreak: "Довга перерва",
+            pomodoroHint: "Починайте кожен етап, коли будете готові. Цикл завершується після останнього сеансу зосередженості.",
+            totalSessions: "Усього сеансів",
+            longBreakInterval: "Сеансів між довгими перервами",
+            sessionProgress: "Сеанс %d з %d",
+            pomodoroFinished: "Помодоро завершено",
+            minutes: "Хвилини",
+            start: "Почати",
+            resume: "Продовжити",
+            finished: "Час вийшов",
+            soundEnabled: "Відтворювати звук після завершення",
+            camera: "Дзеркало камери",
+            cameraUnavailable: "Не вдалося запустити камеру. Спробуйте відкрити її знову.",
+            cameraHint: "Відкрийте живе дзеркало тут. Камера зупиняється, коли ви виходите з цього екрана.",
+            startCamera: "Відкрити камеру",
+            stopCamera: "Зупинити камеру",
+            accessories: "Сповіщення про аксесуари",
+            accessoryDescription: "Показує підключені аксесуари та один раз попереджає, коли їхній заряд падає до 20%.",
+            connected: "Підключено",
+            lowBattery: "Низький заряд")
         }
     }
 }

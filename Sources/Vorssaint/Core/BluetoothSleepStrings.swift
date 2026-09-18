@@ -169,7 +169,7 @@ extension BluetoothSleepStrings {
     )
     static let uk = BluetoothSleepStrings(
         pageTitle: "Bluetooth під час сну",
-        hubDescription: "Вимикає Bluetooth, поки Mac спить, щоб навушники в сумці перестали з'єднуватися з ним.",
+        hubDescription: "Вимикає Bluetooth, поки Mac спить, щоб навушники в сумці перестали з’єднуватися з ним.",
         enable: "Вимикати Bluetooth, коли Mac засинає",
         enableCaption: "Bluetooth, який уже був вимкнений до сну, залишається таким і не вмикається при пробудженні.",
         restoreToggle: "Ввімкнути Bluetooth назад, коли Mac прокидається",

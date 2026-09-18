@@ -910,6 +910,7 @@ extension MediaImageConverterStrings {
         backgroundWhite: "Білий",
         backgroundBlack: "Чорний",
         preserveDate: "Зберегти оригінальну дату зміни",
+        saveInSubfolder: "Зберігати до підпапки «Converted»",
         moreOptions: "Більше опцій",
         tooLarge: "Ці розміри завеликі для безпечної обробки. Виберіть менший розмір.",
         copySummary: "Скопіювати підсумок",

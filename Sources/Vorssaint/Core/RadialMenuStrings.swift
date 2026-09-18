@@ -1506,14 +1506,21 @@ extension RadialMenuFeatureStrings {
         colorOrange: "Помаранчевий",
         colorYellow: "Жовтий",
         colorGreen: "Зелений",
-        colorMint: "М'ятний",
+        colorMint: "М’ятний",
         colorCyan: "Блакитний",
         colorIndigo: "Індиго",
         colorGraphite: "Графіт",
         fetchFaviconButton: "Завантажити значок сайту",
-        fetchFaviconDisclaimer: "З'єднується з сайтом один раз, щоб завантажити його значок. Зберігається локально.",
+        fetchFaviconDisclaimer: "З’єднується з сайтом один раз, щоб завантажити його значок. Зберігається локально.",
         fetchFaviconLoading: "Завантаження значка…",
         fetchFaviconSuccess: "Значок завантажено",
-        fetchFaviconError: "Не вдалося знайти значок сайту"
+        fetchFaviconError: "Не вдалося знайти значок сайту",
+        mouseTriggerRequirement: "Тут підтримуються лише додаткові кнопки миші. З трекпадом або мишею без додаткових кнопок використовуйте клавіатурне скорочення вище.",
+        canvasHint: "Клацніть кнопку, щоб вибрати дію або видалити її. Перетягуйте, щоб змінити розташування.",
+        resetActionsButton: "Скинути",
+        resetActionsConfirm: "Скинути дії",
+        resetActionsConfirmMessage: "Відновити дії за замовчуванням для цього профілю? Ваші власні дії буде замінено.",
+        showListButton: "Показати списком",
+        hideListButton: "Сховати список"
     )
 }

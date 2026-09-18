@@ -2608,7 +2608,7 @@ extension ClipboardFeatureStrings {
         newestFirst: "Спочатку нові",
         active: "Збереження нового тексту",
         includeImagesFiles: "Також зберігати скопійовані зображення та файли",
-        includeImagesFilesCaption: "Зображення потрапляють в історію, а файли запам'ятовуються як посилання на їхнє розташування. Закріплюйте та вставляйте їх як будь-який текстовий елемент.",
+        includeImagesFilesCaption: "Зображення потрапляють в історію, а файли запам’ятовуються як посилання на їхнє розташування. Закріплюйте та вставляйте їх як будь-який текстовий елемент.",
         imageEntryLabel: "Зображення",
         fileCountFormat: "%d файлів",
         pasteImageAsFile: "Вставляти скопійовані зображення як файли",
@@ -2619,7 +2619,7 @@ extension ClipboardFeatureStrings {
         save: "Зберегти",
         autoClearEnable: "Автоочищення буфера з затримкою",
         autoClearSecondsSuffix: "секунд",
-        autoClearOnSleep: "Очищати буфер при засинанні комп'ютера",
+        autoClearOnSleep: "Очищати буфер при засинанні комп’ютера",
         autoClearOnDisplaySleep: "Очищати буфер при засинанні дисплея",
         autoClearOnScreenLock: "Очищати буфер при блокуванні екрана",
         autoClearCaption: "Очищає лише системний буфер обміну. Збережені елементи залишаються в історії.",
@@ -2659,11 +2659,13 @@ extension WindowLayoutFeatureStrings {
         rightHalf: "Праворуч",
         topHalf: "Вгорі",
         bottomHalf: "Внизу",
+        centerHalf: "Центральна 1/2",
         leftThird: "Ліва 1/3",
         centerThird: "Центральна 1/3",
         rightThird: "Права 1/3",
         leftTwoThirds: "Ліва 2/3",
         rightTwoThirds: "Права 2/3",
+        centerTwoThirds: "Центральні 2/3",
         topLeftSixth: "Вгорі ліворуч 1/6",
         topCenterSixth: "Вгорі по центру 1/6",
         topRightSixth: "Вгорі праворуч 1/6",
@@ -2703,10 +2705,10 @@ extension MonitorAlertFeatureStrings {
     static let uk = MonitorAlertFeatureStrings(
         section: "Сповіщення",
         caption: "Сповіщення спрацьовують, коли досягаються вибрані межі. Сповіщення про використання й температуру CPU ігнорують сплески коротші за 12 секунд. Налаштування повтору обмежує лише повтори того самого сповіщення.",
-        notificationsDenied: "Сповіщення Vorssaint вимкнено в Системних налаштуваннях, тому вони не можуть з'являтися.",
+        notificationsDenied: "Сповіщення Vorssaint вимкнено в Системних налаштуваннях, тому вони не можуть з’являтися.",
         cpu: "Високий CPU",
         cpuTemperature: "Висока температура CPU",
-        memory: "Критичний тиск пам'яті",
+        memory: "Критичний тиск пам’яті",
         disk: "Мало місця на диску",
         battery: "Низький заряд акумулятора",
         cpuThreshold: "CPU вище",
@@ -2723,8 +2725,8 @@ extension MonitorAlertFeatureStrings {
         cpuBodyFormat: "CPU тримався вище %d%% кілька секунд.",
         cpuTemperatureTitle: "Гарячий CPU",
         cpuTemperatureBodyFormat: "CPU досяг %d °C.",
-        memoryTitle: "Критична пам'ять",
-        memoryBody: "Тиск пам'яті досяг критичного рівня.",
+        memoryTitle: "Критична пам’ять",
+        memoryBody: "Тиск пам’яті досяг критичного рівня.",
         diskTitle: "Мало місця на диску",
         diskBodyFormat: "На %@ залишилося менше %d%%.",
         batteryTitle: "Низький заряд акумулятора",
@@ -2738,7 +2740,12 @@ extension MonitorAlertFeatureStrings {
 
 extension MixerFeatureStrings {
     static let uk = MixerFeatureStrings(
-        hideInactiveApps: "Приховувати неактивні програми"
+        hideInactiveApps: "Приховувати неактивні програми",
+        pin: "Закріпити вгорі",
+        unpin: "Відкріпити",
+        moveUp: "Вгору",
+        moveDown: "Вниз",
+        arrange: "Утримуйте Command і перетягуйте, щоб змінити порядок"
     )
 }
 
@@ -2772,7 +2779,7 @@ extension CommandBarFeatureStrings {
         answerBatteryLabel: "Акумулятор",
         answerBatteryCharging: "Заряджається",
         answerBatteryPlugged: "Підключено до живлення",
-        answerMemoryLabel: "Пам'ять",
+        answerMemoryLabel: "Пам’ять",
         answerMemoryFormat: "Використано %@ / %@",
         answerStorageLabel: "Сховище",
         answerStorageFormat: "Доступно %@ / %@",
@@ -2863,6 +2870,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "Натисніть бажану клавішу · Delete очищає · Esc повертає",
         rowShortcutsTitle: "Елементи із власними клавіатурними скороченнями",
         rowShortcutsEmpty: "Ще немає елементів із клавіатурними скороченнями. Відкрийте будь-який елемент, щоб задати клавіатурне скорочення.",
+        appCenterTitle: "Клавіатурні скорочення програм",
+        appCenterCaption: "Відкривайте програми їхніми власними клавіатурними скороченнями, навіть коли панель закрита. Задавайте назви для пошуку та закріплюйте обрані програми тут.",
+        appAliasLabel: "Псевдонім",
+        appShortcutLabel: "Клавіатурне скорочення",
+        appShortcutsFilter: "Зі скороченням",
+        appShortcutRecord: "Записати…",
+        rowShortcutsLimitFormat: "Можна призначити до %d клавіатурних скорочень. Видаліть одне, щоб додати інше.",
         turnOnFormat: "Увімкнути %@",
         turnOffFormat: "Вимкнути %@",
         everythingTitle: "Усе, що вона може",
@@ -2873,7 +2887,7 @@ extension CommandBarFeatureStrings {
         uninstallAppFormat: "Видалити %@…",
         openInBrowser: "Відкрити в браузері",
         linkKindScript: "Скрипт",
-        scriptHint: "Виберіть виконуваний файл. Введіть назву, потім вміст для надсилання. Результати з'являться тут, щойно ви припините введення.",
+        scriptHint: "Виберіть виконуваний файл. Введіть назву, потім вміст для надсилання. Результати з’являться тут, щойно ви припините введення.",
         scriptRunsWithoutArgument: "Виконувати й при введенні лише назви",
         scriptRunFailed: "Не вдалося виконати цей файл",
         scriptSearchHint: "Після назви введіть вміст для надсилання",
@@ -2894,6 +2908,8 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Назва папки або файлу",
         filesIgnoreAdd: "Додати",
         compactModeToggle: "Компактний режим",
-        compactModeCaption: "Панель відкривається без пропозицій. Результати з’являються під час введення."
+        compactModeCaption: "Панель відкривається без пропозицій. Результати з’являються під час введення.",
+        emojiSkinToneLabel: "Тон шкіри",
+        emojiSkinToneCaption: "Типово емодзі з підтримкою тону використовують цей. Щоб вибрати інший, відкрийте дії в рядку емодзі."
     )
 }

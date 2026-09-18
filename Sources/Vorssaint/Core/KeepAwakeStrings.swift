@@ -400,6 +400,14 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Активно при підключеному зовнішньому дисплеї",
         powerToggle: "Живлення",
         powerActive: "Активно при підключеному живленні",
-        automationActive: "Активно, оскільки виконано автоматичну умову"
+        runningAppsToggle: "Програми",
+        runningAppsActive: "Активно, поки запущена обрана програма",
+        runningAppsListTitle: "Обрані програми",
+        runningAppsAddButton: "Додати програму…",
+        runningAppsRemoveButton: "Видалити",
+        runningAppsListCaption: "Режим без сну вмикається, поки будь-яка з цих програм відкрита, навіть у фоновому режимі.",
+        automationActive: "Активно, оскільки виконано автоматичну умову",
+        pauseWhenLockedToggle: "Призупиняти, коли Mac заблоковано",
+        pauseWhenLockedCaption: "Під час блокування діють звичайні правила сну; після розблокування сеанс продовжується.",
     )
 }

@@ -64,6 +64,10 @@ extension FeatureStrings {
             title: "Dynamic Island手勢",
             description: "捲動以開啟或關閉Dynamic Island，左右滑動以切換歌曲。",
             hint: "向下捲動以開啟，在頂部列向上捲動以關閉。在音樂上左右滑動以切換歌曲。列表保留原有的捲動方式。")
+        case .uk: return NotchGestureStrings(
+            title: "Жести Dynamic Island",
+            description: "Відкривайте та закривайте Dynamic Island прокручуванням і змінюйте треки змахуванням.",
+            hint: "Прокрутіть униз, щоб відкрити, і вгору над верхнім рядком, щоб закрити. Змахніть ліворуч або праворуч над музикою, щоб змінити трек. Списки прокручуються як зазвичай.")
         }
     }
 }

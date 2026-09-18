@@ -246,6 +246,23 @@ extension FeatureStrings {
             optimizeMedia: "最佳化媒體",
             optimizeDropHint: "將圖片或一段影片拖曳到動態島，再放到「最佳化媒體」上，選擇如何儲存副本。",
             resumeMedia: "返回媒體")
+        case .uk: return NotchFilesStrings(
+            archive: "Створити ZIP",
+            archiveHint: "Кожен вибраний елемент зберігається в окремий ZIP. Оригінали лишаються без змін.",
+            saved: "Збережено",
+            downloadsTitle: "Завантаження",
+            downloadsDescription: "Стежте за файлами, які надходять до вибраної папки, прямо у Dynamic Island.",
+            downloadsHint: "Виберіть папку, куди ваш браузер зберігає завантаження. Відстежується лише ця папка.",
+            chooseFolder: "Вибрати папку…",
+            folderUnavailable: "Ця папка недоступна. Виберіть її знову, щоб відновити доступ.",
+            waiting: "Немає завантажень у процесі",
+            inProgress: "Завантаження",
+            totalUnknown: "Загальний розмір недоступний",
+            completed: "Завантаження завершено",
+            clearFolder: "Забути папку",
+            optimizeMedia: "Оптимізувати медіа",
+            optimizeDropHint: "Перетягніть зображення або одне відео на острівець і відпустіть над «Оптимізувати медіа», щоб вибрати, як зберегти копію.",
+            resumeMedia: "Повернутися до медіа")
         }
     }
 }

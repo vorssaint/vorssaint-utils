@@ -2032,6 +2032,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "Високий",
         noPointerNote: "Цей запис не має доріжки вказівника, тому згладжувати нічого. Масштабування, додані вручну, усе одно працюють.",
         zoomLaneEmptyHint: "Натисніть тут, щоб додати масштаб",
+        addZoomButton: "Додати масштаб",
         removeZoom: "Видалити",
         thisZoomLabel: "Цей масштаб",
         zoomWhereLabel: "Область збільшення",
@@ -2076,6 +2077,21 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Додавати масштабування автоматично",
         automaticZoomCaption: "Вимкніть це, щоб починати нові записи без масштабувань. Ви все ще можете додати їх у редакторі.",
         pauseButton: "Призупинити запис",
-        resumeButton: "Відновити запис"
+        resumeButton: "Відновити запис",
+        blurLaneLabel: "Розмиття",
+        addBlurButton: "Розмити область",
+        blurLaneEmptyHint: "Натисніть тут, щоб додати розмиття",
+        thisBlurLabel: "Це розмиття",
+        blurPickArea: "Виберіть область",
+        blurPickAreaHint: "Перетягніть по тому, що має лишитися прихованим",
+        blurCaption: "Залишається прихованим, поки блок триває на таймлайні.",
+        addImageButton: "Додати зображення",
+        imageLaneLabel: "Зображення",
+        imageLaneEmptyHint: "Натисніть тут, щоб додати зображення",
+        thisImageLabel: "Це зображення",
+        imageSizeLabel: "Розмір",
+        imageOpacityLabel: "Непрозорість",
+        imagePositionLabel: "Позиція",
+        imageImportFailed: "Не вдалося додати це зображення."
     )
 }

@@ -455,6 +455,38 @@ extension FeatureStrings {
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
             activationTimeFormat: "%.2f 秒"
         )
+        case .uk: return NotchEditorStrings(
+            layout: "Розкладка",
+            content: "Вміст",
+            activity: "Активність",
+            behavior: "Поведінка",
+            layoutHint: "Натисніть +, щоб додати кнопку. Перетягуйте кнопки навколо острівця. Натисніть кнопку, щоб редагувати її.",
+            addButton: "Додати кнопку",
+            editButton: "Редагувати кнопку",
+            removeButton: "Видалити кнопку",
+            buttonName: "Назва",
+            position: "Позиція",
+            bottom: "Унизу",
+            sectionActions: "Відкрити розділ",
+            quickActions: "Швидкі дії",
+            findAction: "Знайти дію",
+            reorderHint: "Перетягуйте, щоб змінити порядок. Натисніть галочку, щоб показати або сховати.",
+            opening: "Відкриття",
+            clickOpen: "Відкривати клацанням",
+            hoverPreview: "Перегляд при наведенні",
+            hoverExpand: "Розгортати при наведенні",
+            hiddenUntilHover: "Приховано до наведення",
+            resting: "У стані спокою",
+            destinations: "Де відкривається",
+            separate: "Окреме вікно",
+            feedback: "Індикатори",
+            privacy: "Приватність",
+            reopening: "При повторному відкритті",
+            lastPage: "Остання сторінка",
+            activationTime: "Час активації",
+            activationTimeHint: "Тримайте вказівник над острівцем стільки часу, щоб відкрити його.",
+            activationTimeFormat: "%.2f с"
+        )
         }
     }
 }

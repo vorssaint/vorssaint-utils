@@ -548,6 +548,8 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Клавіатурні скорочення Mission Control вимкнені в Системних налаштуваннях, тому цей жест нічого не може викликати.",
         spacesCaptureWaiting: "Тепер натисніть додаткову кнопку.",
         spacesCaptureUnsupported: "Це введення не можна утримувати для перетягування. Використовуйте додаткову кнопку.",
-        spacesCaptureExists: "Ця кнопка вже має клавіатурне скорочення. Виберіть іншу."
+        spacesCaptureExists: "Ця кнопка вже має клавіатурне скорочення. Виберіть іншу.",
+        spacesFollowsDragLabel: "Space слідує за перетягуванням",
+        spacesFollowsDragCaption: "Перетягування вправо підтягує Space ліворуч, як на трекпаді, коли робочий стіл слідує за пальцем."
     )
 }

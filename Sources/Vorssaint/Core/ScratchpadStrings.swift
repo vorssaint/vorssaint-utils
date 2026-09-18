@@ -524,6 +524,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "Скопіювати все",
         copied: "Скопійовано",
         exportAction: "Зберегти як файл",
+        exportFailed: "Не вдалося зберегти файл.",
+        loadFailed: "Не вдалося відкрити нотатку. Вміст збережено і не змінено.",
         clearAction: "Очистити",
         retentionTitle: "Очищати сам",
         retentionNever: "Ніколи",

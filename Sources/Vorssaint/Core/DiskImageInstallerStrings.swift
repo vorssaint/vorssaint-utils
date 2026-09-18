@@ -317,6 +317,10 @@ extension DiskImageInstallerStrings {
         failedTitle: "Не вдалося встановити",
         failedBody: "Нічого не змінено. Ви все ще можете перетягнути програму у «Програми».",
         verificationFailedBody: "Цей Mac не зміг перевірити програму, тому нічого не встановлено.",
-        alreadyInstalledBodyFormat: "%@ вже у папці «Програми»."
+        alreadyInstalledBodyFormat: "%@ вже у папці «Програми».",
+        trashDownloadOption: "Перемістити завантаження в Кошик",
+        revealAppOption: "Показати програму у папці «Програми»",
+        installedKeptDownloadBodyFormat: "%@ готова у папці «Програми». Образ диска вийнято, а завантаження збережено.",
+        installingFormat: "Встановлення %@…"
     )
 }

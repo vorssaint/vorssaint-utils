@@ -224,7 +224,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Шаблон",
         dateTimePreviewLabel: "Попередній перегляд",
         dateTimeConfirmInsert: "Вставити",
-        dateTimeConfirmUpdate: "Оновити"
+        dateTimeConfirmUpdate: "Оновити",
+        soundToggle: "Відтворювати звук, коли тригер розгортається",
+        soundCaption: "Щоразу, коли введений тригер розгортається, лунає короткий системний звук.",
+        soundPickerLabel: "Звук",
+        soundUnavailable: "Звук недоступний"
     )
 }
 
