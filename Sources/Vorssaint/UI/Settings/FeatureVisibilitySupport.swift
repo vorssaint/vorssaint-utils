@@ -204,6 +204,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .soundOutputSwitcher:
             return FeatureSettingsDestination(.shortcuts, sectionAnchor: .soundOutputSwitcher)
+        case .audioPriority:
+            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .micMute:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .micMute)
         case .musicBlock:

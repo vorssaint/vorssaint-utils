@@ -30,11 +30,12 @@ enum MixerInputVolumeContract {
         }
     }
     enum AppFeature {
-        case mixer, micMute
+        case mixer, audioPriority, micMute
         var isAvailable: Bool { true }
     }
     enum DefaultsKey {
         static let preferredInputDevice = "preferred"
+        static let audioPriorityInputEnabled = "audioPriorityInputEnabled"
         static let micMuteActive = "mute"
         static let micMuteSavedVolumes = "savedVolumes"
         static let micMuteMutedDevices = "owned"
