@@ -29,6 +29,7 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorNetApps) private var netApps = true
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
+    @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
 
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorDiskUsage) private var diskUsage = true
@@ -123,6 +124,7 @@ struct MonitorPanelConfig: View {
             itemTile(l10n.s.monitorItemNetSpeed, symbol: "speedometer", value: $netSpeed, available: available)
             itemTile(l10n.s.networkApps, symbol: "app.badge", value: $netApps, available: available)
             itemTile(l10n.s.monitorItemNetTotals, symbol: "sum", value: $netTotals, available: available)
+            itemTile(l10n.s.networkIPAddresses, symbol: "network", value: $netAddresses, available: available)
             itemTile(l10n.s.monitorItemNetTest, symbol: "gauge.with.needle", value: $netTest, available: available)
         case .disk:
             itemTile(l10n.s.monitorItemDiskUsage, symbol: "internaldrive", value: $diskUsage, available: available)
@@ -180,6 +182,7 @@ struct MonitorPanelConfig: View {
                 Toggle(l10n.s.monitorItemNetSpeed, isOn: $netSpeed)
                 Toggle(l10n.s.networkApps, isOn: $netApps)
                 Toggle(l10n.s.monitorItemNetTotals, isOn: $netTotals)
+                Toggle(l10n.s.networkIPAddresses, isOn: $netAddresses)
                 Toggle(l10n.s.monitorItemNetTest, isOn: $netTest)
             }
         }

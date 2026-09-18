@@ -703,6 +703,8 @@ extension Strings {
         betaFeatureWarning: "測試版。你可能會遇到一些問題。",
 
         networkSection: "網絡",
+        networkIPAddresses: "IP 位址",
+        networkLocalIP: "本機 IPv4",
         networkDownload: "下載",
         networkUpload: "上傳",
         networkThisSession: "今次時段",

@@ -702,6 +702,8 @@ extension Strings {
         betaFeatureWarning: "测试版。你可能会遇到一些错误。",
 
         networkSection: "网络",
+        networkIPAddresses: "IP 地址",
+        networkLocalIP: "本地 IPv4",
         networkDownload: "下载",
         networkUpload: "上传",
         networkThisSession: "本次会话",

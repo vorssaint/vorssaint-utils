@@ -702,6 +702,8 @@ extension Strings {
         betaFeatureWarning: "Beta. Es können noch Fehler auftreten.",
 
         networkSection: "Netzwerk",
+        networkIPAddresses: "IP-Adressen",
+        networkLocalIP: "Lokales IPv4",
         networkDownload: "Download",
         networkUpload: "Upload",
         networkThisSession: "Diese Sitzung",

@@ -703,6 +703,8 @@ extension Strings {
         betaFeatureWarning: "베타 기능입니다. 일부 문제가 남아 있을 수 있습니다.",
 
         networkSection: "네트워크",
+        networkIPAddresses: "IP 주소",
+        networkLocalIP: "로컬 IPv4",
         networkDownload: "다운로드",
         networkUpload: "업로드",
         networkThisSession: "이 세션",
