@@ -64,14 +64,6 @@ struct AnnotationStroke: Codable, Equatable {
     }
 }
 
-enum AnnotationMode: String, Equatable {
-    case inactive
-    case drawing
-    case exiting
-    case clearing
-    case teardown
-}
-
 enum ScreenAnnotationSupport {
     static let maxPointsPerStroke = 600
     static let defaultWidth = 6.0
