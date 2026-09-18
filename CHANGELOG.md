@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume, pinned apps and remembered ordering; capture guides reveal repeat-region shortcuts, Dynamic Island gets its own section in Features, can uninstall with its extensions and improves music efficiency and interaction, panel buttons align correctly, Command Bar adds emoji skin tones and reliable Keep Awake durations, recent captures open promptly from other apps, and Window Layout adds a centered two-thirds placement.
+App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume, pinned apps and remembered ordering; capture guides reveal repeat-region shortcuts, Dynamic Island gets its own Features section, a stopwatch, Keep open in its header and lighter music updates, panel buttons align correctly, Command Bar adds emoji skin tones and reliable Keep Awake durations, recent captures open promptly from other apps, and Window Layout adds a centered two-thirds placement.
 
 ### Added
 - Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
