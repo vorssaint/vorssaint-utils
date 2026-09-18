@@ -74,6 +74,9 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
 
     @objc func hideOverlay() {
         exitDrawingMode()
+        drawingView?.cancelTextEditor()
+        strokes = ScreenAnnotationSupport.clear(strokes)
+        drawingView?.needsDisplay = true
         canvasPanel?.orderOut(nil)
         toolbarPanel?.orderOut(nil)
     }
@@ -256,12 +259,14 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
 
     func setColor(_ c: AnnotationColor) {
         color = c
+        drawingView?.updateActiveTextColor(c)
         UserDefaults.standard.set("\(c.red),\(c.green),\(c.blue)",
                                    forKey: DefaultsKey.screenAnnotationColor)
     }
 
     func setWidth(_ w: Double) {
         width = min(max(w, 1), 40)
+        drawingView?.updateActiveTextWidth(width)
         UserDefaults.standard.set(width, forKey: DefaultsKey.screenAnnotationWidth)
     }
 
@@ -297,7 +302,8 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
                 let origin = CGPoint(x: existing.points[0].x * Double(bounds.width),
                                      y: existing.points[0].y * Double(bounds.height))
                 drawingView?.beginTextEditor(at: NSPoint(x: origin.x, y: origin.y),
-                                             existingText: existing.text)
+                                             existingText: existing.text,
+                                             existingColor: existing.color, existingWidth: existing.width)
                 drawingView?.needsDisplay = true
                 return
             }
@@ -316,13 +322,13 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
         strokes.append(AnnotationStroke(tool: tool, color: color, width: width, points: [n, n]))
     }
 
-    fileprivate func commitText(_ value: String, at p: NSPoint, bounds: CGRect) {
+    fileprivate func commitText(_ value: String, at p: NSPoint, bounds: CGRect, color overrideColor: AnnotationColor? = nil, width overrideWidth: Double? = nil) {
         let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let n = ScreenAnnotationSupport.normalized(
             point: AnnotationPoint(x: p.x, y: p.y),
             in: (Double(bounds.width), Double(bounds.height)))
-        strokes.append(AnnotationStroke(tool: .text, color: color, width: width,
+        strokes.append(AnnotationStroke(tool: .text, color: overrideColor ?? color, width: overrideWidth ?? width,
                                         points: [n], text: text))
         drawingView?.needsDisplay = true
     }
@@ -485,6 +491,21 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
     private var isDragging = false
     private var textField: NSTextField?
     private var textOrigin: NSPoint?
+    private var editingColor: AnnotationColor?
+    private var editingWidth: Double?
+
+    func updateActiveTextColor(_ c: AnnotationColor) {
+        guard textField != nil else { return }
+        editingColor = c
+        textField?.textColor = NSColor(calibratedRed: c.red, green: c.green, blue: c.blue, alpha: 1)
+    }
+
+    func updateActiveTextWidth(_ w: Double) {
+        guard let field = textField else { return }
+        editingWidth = w
+        let fontSize = CGFloat(max(14, w * 3))
+        field.font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+    }
 
     init(service: ScreenAnnotationService) {
         self.service = service
@@ -509,8 +530,9 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
         return textField.frame.contains(local)
     }
 
-    func beginTextEditor(at point: NSPoint, existingText: String = "") {
-        let fontSize = CGFloat(max(14, (service?.width ?? ScreenAnnotationSupport.defaultWidth) * 3))
+    func beginTextEditor(at point: NSPoint, existingText: String = "",
+                         existingColor: AnnotationColor? = nil, existingWidth: Double? = nil) {
+        let fontSize = CGFloat(max(14, (existingWidth ?? service?.width ?? ScreenAnnotationSupport.defaultWidth) * 3))
         // No fixed box: the field grows to the edge of the screen so typing
         // long or multi-line text is never clipped or scrolled.
         let availableWidth = ScreenAnnotationSupport.textWrapWidth(originX: point.x, boundsWidth: bounds.width)
@@ -519,7 +541,8 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
                                                width: availableWidth, height: availableHeight))
         field.stringValue = existingText
         field.font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
-        field.textColor = service.map { NSColor(calibratedRed: $0.color.red, green: $0.color.green, blue: $0.color.blue, alpha: 1) } ?? .white
+        let color = existingColor ?? service?.color
+        field.textColor = color.map { NSColor(calibratedRed: $0.red, green: $0.green, blue: $0.blue, alpha: 1) } ?? .white
         field.backgroundColor = .clear
         field.drawsBackground = false
         field.isBordered = false
@@ -534,6 +557,8 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
         addSubview(field)
         textField = field
         textOrigin = point
+        editingColor = existingColor
+        editingWidth = existingWidth
         window?.makeFirstResponder(field)
         if !existingText.isEmpty, let editor = field.currentEditor() {
             editor.selectedRange = NSRange(location: existingText.utf16.count, length: 0)
@@ -544,6 +569,8 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
         textField?.removeFromSuperview()
         textField = nil
         textOrigin = nil
+        editingColor = nil
+        editingWidth = nil
         // Removing the field leaves first responder nil until the next
         // click; reclaim it now so the canvas — not the toolbar's own
         // controls — is what a keystroke like Escape reaches.
@@ -552,7 +579,8 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
 
     @objc fileprivate func commitTextEditor() {
         guard let field = textField, let origin = textOrigin, let service else { return }
-        service.commitText(field.stringValue, at: origin, bounds: bounds)
+        service.commitText(field.stringValue, at: origin, bounds: bounds,
+                           color: editingColor, width: editingWidth)
         cancelTextEditor()
     }
 
@@ -576,6 +604,9 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
     /// Critical: return self for all points so the view captures all mouse events.
     /// Without this, a transparent view may let clicks pass through.
     override func hitTest(_ point: NSPoint) -> NSView? {
+        if let textField, textField.frame.contains(point) {
+            return textField.hitTest(point)
+        }
         return bounds.contains(point) ? self : nil
     }
 
