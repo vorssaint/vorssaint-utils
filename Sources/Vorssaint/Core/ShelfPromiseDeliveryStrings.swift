@@ -96,6 +96,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "暫存架已滿",
                 fullBody: "附件已儲存，但暫存架已沒有空間。",
                 okButton: "好")
+        case .uk:
+            return .init(
+                failedTitle: "Не вдалося додати вкладення",
+                failedBody: "Файл так і не завершив зберігання на полицю.",
+                fullTitle: "Полиця заповнена",
+                fullBody: "Вкладення збереглося, але на полиці більше немає місця.",
+                okButton: "OK")
         }
     }
 }

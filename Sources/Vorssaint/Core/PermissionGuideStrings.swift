@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -55,6 +56,18 @@ extension PermissionGuideStrings {
         staleHint: "목록에서 이미 켜져 있나요? 그 항목은 이전 앱 사본의 것입니다. 다시 시작하여 교체하세요.",
         startOver: "다시 시작",
         relaunch: "적용하려면 다시 실행"
+    )
+    static let uk = PermissionGuideStrings(
+        title: "Залишився один крок",
+        stepOpen: "macOS відкрила Системні налаштування на правильному списку.",
+        stepToggle: "Увімкніть Vorssaint у тому списку.",
+        stepReturn: "Поверніться. Ця картка помітить сама.",
+        waiting: "Очікування дозволу…",
+        granted: "Дозвіл надано!",
+        closeHelp: "Закрити",
+        staleHint: "Вже є в тому списку? Той запис належить попередній копії програми. Почніть заново, щоб замінити її.",
+        startOver: "Почати заново",
+        relaunch: "Перезапустити для застосування"
     )
 }
 

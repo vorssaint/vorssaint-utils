@@ -60,6 +60,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 
@@ -78,6 +79,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -146,6 +148,10 @@ extension KeepAwakeDisplaySleepStrings {
     static let zhHK = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "允許顯示器進入睡眠",
         allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。"
+    )
+    static let uk = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Дозволити дисплею засинати",
+        allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
     )
 }
 
@@ -434,5 +440,23 @@ extension KeepAwakeAutomationStrings {
         matchAny: "任一",
         matchAll: "所有",
         automationCaptionAll: "只有當所有已選條件都符合時才啟動。"
+    )
+    static let uk = KeepAwakeAutomationStrings(
+        automationSection: "Автоматизація",
+        automationCaption: "Запускається, коли будь-яка обрана умова активна.",
+        automationOff: "Вимкнено",
+        externalDisplayToggle: "Зовнішній дисплей",
+        externalDisplayActive: "Активно при підключеному зовнішньому дисплеї",
+        powerToggle: "Живлення",
+        powerActive: "Активно при підключеному живленні",
+        runningAppsToggle: "Програми",
+        runningAppsActive: "Активно, поки запущена обрана програма",
+        runningAppsListTitle: "Обрані програми",
+        runningAppsAddButton: "Додати програму…",
+        runningAppsRemoveButton: "Видалити",
+        runningAppsListCaption: "Режим без сну вмикається, поки будь-яка з цих програм відкрита, навіть у фоновому режимі.",
+        automationActive: "Активно, оскільки виконано автоматичну умову",
+        pauseWhenLockedToggle: "Призупиняти, коли Mac заблоковано",
+        pauseWhenLockedCaption: "Під час блокування діють звичайні правила сну; після розблокування сеанс продовжується.",
     )
 }

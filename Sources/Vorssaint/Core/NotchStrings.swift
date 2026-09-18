@@ -88,6 +88,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -988,6 +989,75 @@ extension NotchStrings {
         sectionKeyboardHint: "使用方向鍵選取，再按 Return 鍵開啟",
         quickAccessLeft: "左側",
         quickAccessRight: "右側"
+    )
+
+    static let uk = NotchStrings(
+        title: "Dynamic Island",
+        enable: "Увімкнути Dynamic Island",
+        description: "Ваша музика, елементи керування та повсякденні інструменти, зібрані у верхній частині екрана. Необов’язково. Вимкніть, щоб і надалі користуватися окремими панелями.",
+        menuBarAccessHint: "Дозвольте Універсальний доступ, щоб Dynamic Island з’являвся на цьому дисплеї, не затуляючи меню.",
+        display: "Дисплей",
+        automatic: "Автоматично",
+        builtIn: "Вбудований дисплей",
+        mainDisplay: "Основний дисплей",
+        hover: "Відкривати, коли вказівник зупиняється на Dynamic Island",
+        modules: "Що показувати",
+        events: "Більше опцій",
+        clipboardActivity: "Сповіщати, коли щось скопійовано",
+        captureActivity: "Показувати мініатюри знімків тут",
+        privacy: "Скопійований вміст залишається приватним, доки ви не відкриєте буфер обміну. Ці опції дотримуються налаштувань відповідної функції.",
+        open: "Відкрити Dynamic Island",
+        collapse: "Згорнути",
+        pin: "Тримати відкритим",
+        unpin: "Дозволити автоматичне закриття",
+        panel: "Відкрити панель програми",
+        dropHint: "Перетягніть файли сюди",
+        empty: "Виберіть, що показувати, у налаштуваннях Dynamic Island.",
+        volume: "Гучність",
+        brightness: "Яскравість",
+        battery: "Акумулятор",
+        onBattery: "Від акумулятора",
+        charging: "Заряджається",
+        charged: "Повністю заряджено",
+        lowBattery: "Низький заряд",
+        controls: "Елементи керування",
+        system: "Система",
+        disabled: "Увімкніть відповідну функцію, щоб використовувати її тут.",
+        files: "Файли",
+        showInCaptures: "Показувати на знімках і відео",
+        clipboardWindow: "Відкривати історію буфера обміну у Dynamic Island",
+        tools: "Інструменти",
+        size: "Розмір",
+        compact: "Компактний",
+        spacious: "Просторий",
+        hoverExpand: "Розгортати повністю при наведенні",
+        shelfWindow: "Відкривати полицю файлів у Dynamic Island",
+        dragReveal: "Показувати зону скидання під час перетягування",
+        captureControls: "Показувати елементи захоплення екрана у Dynamic Island",
+        quickPanel: "Відкривати швидку панель у Dynamic Island",
+        appPanel: "Відкривати панель програми у Dynamic Island",
+        idleContent: "Поки неактивний",
+        idleNone: "Нічого",
+        controlShortcuts: "Керування та скорочення",
+        activity: "Активність",
+        playingMusic: "Показувати музику під час відтворення",
+        custom: "Власне",
+        width: "Ширина",
+        maximumHeight: "Максимальна висота",
+        sizeHint: "Елементи керування залишаються компактними. Довші списки використовують щонайбільше цю висоту.",
+        hapticFeedback: "Тактильний відгук",
+        hapticHint: "Легкі дотики при відкритті, перемиканні розділів або зміні хвилин таймера на сумісному трекпаді.",
+        playbackPosition: "Позиція відтворення",
+        musicHint: "Ваша музика та елементи керування відтворенням з’являються тут.",
+        music: "Музика",
+        captures: "Зйомки",
+        customizeTools: "Налаштувати інструменти",
+        switchSection: "Перемкнути розділ",
+        sectionsTitle: "Огляд",
+        searchSections: "Знайти розділ",
+        sectionKeyboardHint: "Використовуйте стрілки, потім натисніть Return",
+        quickAccessLeft: "Ліворуч",
+        quickAccessRight: "Праворуч"
     )
 
 }

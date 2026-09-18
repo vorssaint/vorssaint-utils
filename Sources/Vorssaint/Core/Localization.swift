@@ -17,16 +17,17 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case it = "it"
     case ja = "ja"
     case ko = "ko"
+    case uk = "uk"
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
 
     var id: String { rawValue }
 
-    /// Whether this language puts a distinct form between one and many. Only
-    /// Russian, of the thirteen: two through four take a form of their own,
-    /// so "2 файла" and not "2 файлов".
-    var usesFewCountForm: Bool { self == .ru }
+    /// Whether this language puts a distinct form between one and many.
+    /// Russian and Ukrainian use a separate form for counts ending in two
+    /// through four.
+    var usesFewCountForm: Bool { self == .ru || self == .uk }
 
     /// The language's own name, shown in its own script, the way macOS lists them.
     var displayName: String {
@@ -44,6 +45,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhHans: return "简体中文"
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
+        case .uk: return "Українська"
         }
     }
 
@@ -61,7 +63,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("de", .de), ("fr", .fr),
-            ("it", .it), ("ja", .ja), ("ko", .ko), ("zh", .zhHans),
+            ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -92,6 +94,7 @@ final class L10n: ObservableObject {
         case .zhHans: return .zhHans
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
+        case .uk: return .uk
         }
     }
 

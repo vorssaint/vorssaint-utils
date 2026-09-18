@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -49,6 +50,17 @@ extension BackupFeatureStrings {
         importConfirmBody: "현재 설정이 파일의 설정으로 바뀌고 앱이 다시 시작됩니다. 이 Mac의 다른 항목은 변경되지 않습니다.",
         importAction: "가져오고 다시 시작",
         invalidFile: "이 파일은 유효한 Vorssaint 백업이 아닙니다."
+    )
+    static let uk = BackupFeatureStrings(
+        title: "Резервна копія",
+        description: "Перенесіть свої налаштування на інший Mac: експортуйте всі параметри у файл та імпортуйте їх там. Файл містить текст із нотаток Нотатника. Історія буфера обміну, елементи Полиці та системні дозволи ніколи не залишають цей Mac.",
+        exportButton: "Експортувати налаштування…",
+        importButton: "Імпортувати налаштування…",
+        exported: "Резервну копію збережено",
+        importConfirmTitle: "Імпортувати ці налаштування?",
+        importConfirmBody: "Ваші поточні налаштування замінюються файлом, і програма перезапускається. Нічого іншого на цьому Mac не зачіпається.",
+        importAction: "Імпортувати та перезапустити",
+        invalidFile: "Цей файл не є коректною резервною копією Vorssaint."
     )
 }
 
