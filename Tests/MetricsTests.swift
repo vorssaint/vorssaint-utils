@@ -14480,7 +14480,6 @@ struct MetricsTests {
             expect(!strings.homebrewUpdateHomebrew.isEmpty, "\(prefix) Homebrew update Homebrew title is present")
             expectFormat(strings.switcherIconRowMode, ["@"], "\(prefix) App Switcher icon-row title format")
             expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
-            expect(!strings.switcherSimpleMode.isEmpty, "\(prefix) App Switcher simple-mode title is present")
             expect(!strings.switcherSimpleModeCaption.isEmpty, "\(prefix) App Switcher simple-mode caption is present")
             expect(!strings.switcherCurrentSpaceOnly.isEmpty
                    && !strings.switcherCurrentSpaceOnly.contains("—"),
@@ -17106,7 +17105,7 @@ struct MetricsTests {
         // where the slider is just as dead, so both surfaces offer the way out.
         // Neither can be rendered here, so the shared control is pinned as
         // source shape.
-        for surface in ["Sources/Vorssaint/UI/Settings/SettingsView.swift",
+        for surface in ["Sources/Vorssaint/UI/Settings/EnergySettings.swift",
                         "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift"] {
             let source = (try? String(contentsOfFile: surface, encoding: .utf8)) ?? ""
             expect(source.contains("SoftwareDimmingButton(display: display"),
@@ -21558,7 +21557,7 @@ struct MetricsTests {
         }
 
         let mouseSettingsViewLines = ((try? String(
-            contentsOfFile: "Sources/Vorssaint/UI/Settings/SettingsView.swift",
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/MouseSettings.swift",
             encoding: .utf8)) ?? "").components(separatedBy: "\n")
         let menuPanelLines = ((try? String(
             contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",

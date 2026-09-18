@@ -326,23 +326,12 @@ struct MenuPanelView: View {
         }
     }
 
+    /// The rule lives in PanelLayout; reading the @AppStorage values here is
+    /// what keeps the tabs refreshing when Settings flips one of them.
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
-        guard id.isAvailable else { return false }
-        switch id {
-        case .keepAwake: return showKeepAwake
-        // The section only earns its navigation tab while the feature is on;
-        // it is switched on in Settings, not from an empty panel screen.
-        case .brightness: return showBrightness && brightnessEnabled
-        case .mixer: return showMixer
-        case .system: return showSystem
-        case .network: return showNetwork
-        case .disk: return showDisk
-        case .power: return showPower
-        case .fanControl: return showFanControl
-        case .utilities: return showUtilities
-        case .controls: return showControls
-        case .toggles: return showToggles
-        }
+        _ = (showKeepAwake, showBrightness, brightnessEnabled, showMixer, showSystem, showNetwork,
+             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles)
+        return PanelLayout.isVisibleInPanel(id)
     }
 
     private var sectionNavigation: some View {
@@ -2816,7 +2805,8 @@ struct KeepAwakeCard: View {
         .font(.system(size: 10))
     }
 
-    private static func remainingText(until end: Date) -> String {
+    /// "1 h 05 min" style countdown, shared with the Energy page's status line.
+    static func remainingText(until end: Date) -> String {
         let total = max(0, Int(end.timeIntervalSinceNow))
         let hours = total / 3600
         let minutes = (total % 3600) / 60
@@ -2832,15 +2822,27 @@ struct DurationPicker: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var selection: Int
 
+    /// The offered durations in minutes; 0 keeps the session open until it
+    /// is switched off.
+    static let choices = [15, 30, 60, 120, 240, 480, 0]
+
+    static func title(for minutes: Int, _ s: Strings) -> String {
+        switch minutes {
+        case 15: return s.minutes15
+        case 30: return s.minutes30
+        case 60: return s.hour1
+        case 120: return s.hours2
+        case 240: return s.hours4
+        case 480: return s.hours8
+        default: return s.indefinite
+        }
+    }
+
     var body: some View {
         Picker("", selection: $selection) {
-            Text(l10n.s.minutes15).tag(15)
-            Text(l10n.s.minutes30).tag(30)
-            Text(l10n.s.hour1).tag(60)
-            Text(l10n.s.hours2).tag(120)
-            Text(l10n.s.hours4).tag(240)
-            Text(l10n.s.hours8).tag(480)
-            Text(l10n.s.indefinite).tag(0)
+            ForEach(Self.choices, id: \.self) { minutes in
+                Text(Self.title(for: minutes, l10n.s)).tag(minutes)
+            }
         }
         .labelsHidden()
         .pickerStyle(.menu)

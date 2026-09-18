@@ -312,6 +312,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift
         Sources/Vorssaint/Core/AppAppearance.swift
         Sources/Vorssaint/Core/AppearanceStrings.swift
+        Sources/Vorssaint/Core/GeneralSettingsStrings.swift
+        Sources/Vorssaint/Core/SettingsPageStrings.swift
         Sources/Vorssaint/Core/BatteryTimeStrings.swift
         Sources/Vorssaint/Core/KeepAwakeStrings.swift
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift

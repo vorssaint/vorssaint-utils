@@ -3,14 +3,17 @@
 
 import SwiftUI
 
-/// Reusable panel configuration: one expandable block per panel section, each
-/// with a master "show in panel" toggle plus per-item toggles. Shared by
-/// Settings → Monitor and the onboarding panel step so the two stay identical.
-/// Designed to live inside a `Form` (grouped style) in both places.
+/// Reusable panel configuration: one block per panel section, each with a
+/// master "show in panel" toggle plus per-item toggles. The onboarding panel
+/// step draws it as expandable rows inside a grouped `Form`; Settings → Monitor
+/// draws the same choices as tiles, one per block, with the chosen block's
+/// items as tiles under it. Both write the same keys.
 struct MonitorPanelConfig: View {
+    var tiles = false
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var expandedBlocks = Set<PanelConfigBlock>()
+    @State private var selectedBlock: PanelConfigBlock?
 
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
@@ -44,6 +47,117 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorShowMixer) private var showMixer = true
 
     var body: some View {
+        if tiles {
+            tileLayout
+        } else {
+            rowLayout
+        }
+    }
+
+    // MARK: - Tiles
+
+    private var availableBlocks: [PanelConfigBlock] {
+        PanelConfigBlock.allCases.filter { $0.section.isAvailable }
+    }
+
+    private var currentBlock: PanelConfigBlock? {
+        let blocks = availableBlocks
+        if let selectedBlock, blocks.contains(selectedBlock) { return selectedBlock }
+        return blocks.first
+    }
+
+    private var tileLayout: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
+                ForEach(availableBlocks, id: \.self) { block in
+                    NotchEditorItem(symbol: block.section.symbolName,
+                                    title: block.section.title(l10n.s),
+                                    included: master(block),
+                                    selected: currentBlock == block) {
+                        selectedBlock = block
+                    }
+                }
+            }
+            if let block = currentBlock, block != .mixer {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(block.section.title(l10n.s))
+                        .font(.subheadline.weight(.medium))
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
+                        itemTiles(for: block)
+                    }
+                }
+            }
+        }
+    }
+
+    private func master(_ block: PanelConfigBlock) -> Binding<Bool> {
+        switch block {
+        case .system: return $showSystem
+        case .network: return $showNetwork
+        case .disk: return $showDisk
+        case .power: return $showPower
+        case .mixer: return $showMixer
+        }
+    }
+
+    /// The block's items as tiles, greyed while the whole block is hidden.
+    @ViewBuilder
+    private func itemTiles(for block: PanelConfigBlock) -> some View {
+        let available = master(block).wrappedValue
+        switch block {
+        case .system:
+            if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable {
+                itemTile(l10n.s.temperatures, symbol: "thermometer.medium", value: $sysTemps, available: available)
+            }
+            if AppFeature.monitorCPU.isAvailable {
+                itemTile(l10n.s.cpuLabel, symbol: MenuBarMetric.cpu.symbolName, value: $sysCPU, available: available)
+            }
+            if AppFeature.monitorGPU.isAvailable {
+                itemTile(l10n.s.gpuLabel, symbol: MenuBarMetric.gpu.symbolName, value: $sysGPU, available: available)
+            }
+            if AppFeature.monitorMemory.isAvailable {
+                itemTile(l10n.s.memorySection, symbol: MenuBarMetric.memory.symbolName, value: $sysMemory, available: available)
+            }
+            itemTile(l10n.s.monitorItemUptime, symbol: "clock", value: $sysUptime, available: available)
+        case .network:
+            itemTile(l10n.s.monitorItemNetSpeed, symbol: "speedometer", value: $netSpeed, available: available)
+            itemTile(l10n.s.networkApps, symbol: "app.badge", value: $netApps, available: available)
+            itemTile(l10n.s.monitorItemNetTotals, symbol: "sum", value: $netTotals, available: available)
+            itemTile(l10n.s.monitorItemNetTest, symbol: "gauge.with.needle", value: $netTest, available: available)
+        case .disk:
+            itemTile(l10n.s.monitorItemDiskUsage, symbol: "internaldrive", value: $diskUsage, available: available)
+            itemTile(l10n.s.monitorItemDiskActivity, symbol: "arrow.up.arrow.down", value: $diskActivity, available: available)
+            itemTile(l10n.s.monitorItemDiskSMART, symbol: "heart.text.square", value: $diskSMART, available: available)
+            itemTile(l10n.s.monitorItemDiskProtection, symbol: "shield", value: $diskProtection, available: available)
+            itemTile(l10n.s.monitorItemDiskTools, symbol: "wrench.and.screwdriver", value: $diskTools, available: available)
+        case .power:
+            itemTile(l10n.s.powerSystem, symbol: "bolt", value: $pwrSystem, available: available)
+            itemTile(l10n.s.powerAdapter, symbol: "powerplug", value: $pwrAdapter, available: available)
+            if PowerSampler.hasInternalBattery {
+                itemTile(l10n.s.batteryCharge, symbol: "battery.75percent", value: $sysBattery, available: available)
+                itemTile(l10n.s.powerBattery, symbol: "battery.100percent.bolt", value: $pwrBattery, available: available)
+                itemTile(FeatureStrings.batteryTime(l10n.language).title, symbol: "clock", value: $pwrTimeRemaining,
+                         available: available)
+                itemTile(l10n.s.monitorShowBatteryTemperature, symbol: "thermometer.medium", value: $pwrTemperature,
+                         available: available)
+                itemTile(l10n.s.powerHealth, symbol: "heart", value: $pwrHealth, available: available)
+            }
+        case .mixer:
+            EmptyView()
+        }
+    }
+
+    private func itemTile(_ title: String, symbol: String, value: Binding<Bool>, available: Bool) -> some View {
+        NotchEditorItem(symbol: symbol, title: title, included: value, available: available) {
+            value.wrappedValue.toggle()
+        }
+        .disabled(!available)
+    }
+
+    // MARK: - Rows
+
+    @ViewBuilder
+    private var rowLayout: some View {
         if PanelSectionID.system.isAvailable {
             block(.system, title: l10n.s.systemSection, master: $showSystem) {
                 if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable {
@@ -135,6 +249,16 @@ struct MonitorPanelConfig: View {
 
 }
 
-private enum PanelConfigBlock: Hashable {
-    case system, network, disk, power
+private enum PanelConfigBlock: CaseIterable, Hashable {
+    case system, network, disk, power, mixer
+
+    var section: PanelSectionID {
+        switch self {
+        case .system: return .system
+        case .network: return .network
+        case .disk: return .disk
+        case .power: return .power
+        case .mixer: return .mixer
+        }
+    }
 }

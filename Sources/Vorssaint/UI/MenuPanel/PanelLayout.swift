@@ -159,6 +159,15 @@ enum PanelLayout {
         defaults.set(shown, forKey: id.visibilityKey)
     }
 
+    /// Whether the section earns a tab in the panel right now: installed and
+    /// shown, and for brightness also switched on, since that tab is enabled
+    /// from Settings rather than from an empty panel screen. The one rule the
+    /// live panel and its preview in Settings both read.
+    static func isVisibleInPanel(_ id: PanelSectionID) -> Bool {
+        guard id.isAvailable, isShown(id) else { return false }
+        return id != .brightness || defaults.bool(forKey: DefaultsKey.brightnessControlEnabled)
+    }
+
     static func isCollapsed(_ id: PanelSectionID) -> Bool {
         collapsedSet().contains(id.rawValue)
     }

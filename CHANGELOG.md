@@ -32,6 +32,14 @@ App Switcher makes multiple windows easier to see and keeps a window opened afte
 - The disk image installer can put the app in the Applications folder inside your home folder, a remembered choice in the install prompt that also names the destination. Thanks to @JashRashne.
 
 ### Changed
+- General settings are redesigned around pictures: appearance is picked from desktop thumbnails, and the menu bar panel is arranged against a live miniature of itself, with an icon, a one-line explanation and a switch for each section.
+- Features is redesigned as cards: a bar shows how much is installed, each group has its own icon and bar, every feature installs with a switch instead of a button, and permissions show their status by color.
+- Energy is redesigned as cards: Keep Awake opens with its live status and switch, the default duration is picked from chips, and displays, extra brightness and Bluetooth on sleep each get a row with an icon and one line of explanation.
+- Monitor is redesigned around its live menu bar preview, which now follows spacing, the hidden icon and separate items and stays in view while you pick readings from tiles, choose values or bars from drawn samples, and set alerts, panel blocks and graphs from tiles.
+- Mouse & Trackpad opens with a legend of its features, lit when on, each a click away from its card; the sideways-scroll key is picked from keycaps and the middle-click tap from finger chips.
+- Landing on a setting from search, the Command Bar, Features or a page legend centers it and lights it with an outline and glow for a moment, so the eye finds it.
+- Switcher is redesigned around three drawn layouts (window previews, large icons, simple list), with shortcuts, options and Dock features as rows with icons, choices as chips, and preview sizes drawn at their size.
+- Dynamic Island settings use the same rows with icons and switches as the other redesigned pages for its module, opening and privacy options.
 - Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
 - Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
 - Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.

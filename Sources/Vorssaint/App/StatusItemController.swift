@@ -53,7 +53,9 @@ final class StatusItemController {
     private static let maxPlacementGeneration = 10_000
     private static let emptyStatusImage = NSImage()
 
-    private struct MetricStatusGroup {
+    /// One separate menu bar item: a metric, or a metric with its temperature
+    /// when the two are combined.
+    struct MetricStatusGroup {
         let id: String
         let metrics: [MenuBarMetric]
         let focusMetric: MenuBarMetric
@@ -531,7 +533,7 @@ final class StatusItemController {
     private func refreshMetricStatusItems(metrics: [MenuBarMetric],
                                           snapshot: SystemSnapshot,
                                           strings: Strings) {
-        let groups = metricStatusGroups(for: metrics, strings: strings)
+        let groups = Self.metricStatusGroups(for: metrics, strings: strings)
         let wanted = Set(groups.map(\.id))
         removeMetricStatusItems(except: wanted)
         var rendered = 0
@@ -583,7 +585,9 @@ final class StatusItemController {
         }
     }
 
-    private func metricStatusGroups(for metrics: [MenuBarMetric], strings: Strings) -> [MetricStatusGroup] {
+    /// How the enabled metrics split into separate items. Static so the
+    /// Settings preview draws the same split the bar does.
+    static func metricStatusGroups(for metrics: [MenuBarMetric], strings: Strings) -> [MetricStatusGroup] {
         guard MenuBarMetricAppearance.current.allowsCombinedTemperatures,
               UserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures) else {
             return metrics.map {
