@@ -10,6 +10,21 @@ struct LiveSystemShortcut: Equatable {
     let id: Int32
     let shortcut: GlobalShortcut
     let enabled: Bool
+    let requiresFunctionKey: Bool
+
+    init(id: Int32, shortcut: GlobalShortcut, enabled: Bool,
+         requiresFunctionKey: Bool = false) {
+        self.id = id
+        self.shortcut = shortcut
+        self.enabled = enabled
+        self.requiresFunctionKey = requiresFunctionKey
+    }
+
+    init(id: Int32, keyCode: Int64, flags: CGEventFlags, enabled: Bool) {
+        self.init(id: id, shortcut: GlobalShortcut(keyCode: keyCode,
+                                                   modifiers: GlobalShortcutModifiers(cgFlags: flags)),
+                  enabled: enabled, requiresFunctionKey: flags.contains(.maskSecondaryFn))
+    }
 }
 
 /// The WindowServer's own shortcut table, reached through the same private
@@ -75,12 +90,8 @@ enum SymbolicHotKeys {
         var modifiers: UInt32 = 0
         guard getValue(id, &character, &keyCode, &modifiers) == .success,
               keyCode != unassignedKeyCode else { return nil }
+        let flags = SpaceHopSupport.eventFlags(fromCarbonModifiers: modifiers)
         return LiveSystemShortcut(
-            id: id,
-            shortcut: GlobalShortcut(
-                keyCode: Int64(keyCode),
-                modifiers: GlobalShortcutModifiers(
-                    cgFlags: SpaceHopSupport.eventFlags(fromCarbonModifiers: modifiers))),
-            enabled: isEnabled(id))
+            id: id, keyCode: Int64(keyCode), flags: flags, enabled: isEnabled(id))
     }
 }

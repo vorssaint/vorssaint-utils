@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 enum ShelfSelectionSupport {
     /// Escape clears the Shelf selection only when pressed on its own. Keeping
@@ -135,6 +137,49 @@ enum ShelfInteractionSupport {
                                       removeAfterDrop: Bool) -> Bool {
         dropAccepted && draggedItemCount > 0 && removeAfterDrop
     }
+}
+
+/// Types accepted by the native shelf drop targets.
+enum ShelfPasteboardSupport {
+    static let filePromiseTypeIdentifiers: Set<String> = {
+        var ids = Set(NSFilePromiseReceiver.readableDraggedTypes)
+        ids.formUnion(["Apple files promise pasteboard type",
+                       "com.apple.pasteboard.promised-file-url",
+                       "com.apple.pasteboard.promised-file-content-type"])
+        return ids
+    }()
+
+    private static let directDroppableTypes: Set<String> = [
+        NSPasteboard.PasteboardType.fileURL.rawValue,
+        NSPasteboard.PasteboardType.string.rawValue,
+        NSPasteboard.PasteboardType.tiff.rawValue,
+        NSPasteboard.PasteboardType.png.rawValue,
+        UTType.gif.identifier,
+        UTType.fileURL.identifier,
+        UTType.image.identifier,
+        UTType.url.identifier,
+        UTType.text.identifier,
+        UTType.plainText.identifier,
+        "NSFilenamesPboardType",
+        "NSURLPboardType"
+    ]
+
+    private static let supportedUTTypes: [UTType] = [
+        .fileURL, .gif, .image, .url, .text, .plainText
+    ]
+
+    static func isFilePromiseType(_ rawValue: String) -> Bool {
+        filePromiseTypeIdentifiers.contains(rawValue)
+    }
+
+    static func isDroppablePasteboardType(_ rawValue: String) -> Bool {
+        if isFilePromiseType(rawValue) { return true }
+        if directDroppableTypes.contains(rawValue) { return true }
+        guard let utType = UTType(rawValue) else { return false }
+        return supportedUTTypes.contains { utType.conforms(to: $0) }
+    }
+
+
 }
 
 /// A leaf item's kind, reduced to what the pile-breakdown tooltip needs. A
@@ -593,6 +638,13 @@ enum ShelfPersistenceSupport {
         existingLeaves >= 0 && newLeaves > 0 && existingLeaves <= maxLeaves - newLeaves
     }
 
+    /// A stored attachment can have its own directory to preserve its name.
+    /// Startup cleanup must keep that directory while a descendant is referenced.
+    static func containsKeptFile(under path: String, keptPaths: Set<String>) -> Bool {
+        let path = URL(fileURLWithPath: path).standardizedFileURL.path
+        return keptPaths.contains(path) || keptPaths.contains { $0.hasPrefix(path + "/") }
+    }
+
     static func discardablePayloadPaths(candidatePaths: [String],
                                         referencedPaths: Set<String>) -> Set<String> {
         Set(candidatePaths).subtracting(referencedPaths)
@@ -683,14 +735,5 @@ enum ShelfPersistenceSupport {
             }
         }
         return result
-    }
-}
-
-enum ShelfBatchSupport {
-    /// Restores original drop order after resolving every provider in a
-    /// multi-item drop in parallel, which completes out of order, and
-    /// drops any provider that failed to resolve to anything.
-    static func orderedItems<Item>(from resolved: [(index: Int, item: Item)]) -> [Item] {
-        resolved.sorted { $0.index < $1.index }.map(\.item)
     }
 }

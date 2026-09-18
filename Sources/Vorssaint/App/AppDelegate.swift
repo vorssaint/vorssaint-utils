@@ -48,10 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         beginStartupWatch()
         Self.boundAccessibilityWaits()
-        // Resolve the Accessibility Keyboard's pid now. The lookup is async, so
-        // a feature that asks first and has no second chance — the switcher
-        // judges a click only after cancelSession() has already run — would
-        // otherwise be told "not running" once per launch.
+        // Pay the first AppKit process lookup before an input callback needs
+        // it. Each click still resolves the current process independently.
         _ = AssistiveKeyboard.isRunning
 
         // Finish the on-disk rename for installs carried over from a pre-2.5
@@ -143,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
-                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer,
+                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .notch,
                 ])
             }
             .store(in: &cancellables)
@@ -173,6 +171,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let skipStartupWindows = startupOfPreviousRunDidNotFinish
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            #if VORSSAINT_DEVELOPMENT
+            if CommandLine.arguments.contains("--preview-notch-tour") {
+                self.showUpdateHighlights()
+                return
+            }
+            #endif
             if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
                 guard !skipStartupWindows else { return }
                 self.showOnboarding(mode: .full)
@@ -228,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
         endStartupWatch()
         if AppFeature.brightness.isAvailable {
@@ -323,6 +328,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return NSScreen.screens.contains { $0.frame.intersects(frame) }
     }
 
+    private func iconIsSettling() -> Bool {
+        StatusItemAnchorSupport.isSettlingStatusFrame(
+            statusController?.statusItem.button?.window?.frame)
+    }
+
     /// What the recovery saw, in the app's own log. Whether macOS gave the
     /// rebuilt item a place is invisible from the outside, so a report of an
     /// icon that never comes back has nothing to go on without this
@@ -387,14 +397,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func toggleMainPopover() {
+        if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback {
+            NotchService.shared.openAppPanel(toggle: true); return
+        }
         if !popover.isShown {
             MenuPanelFocus.shared.showNormalPanel()
         }
         togglePopover()
     }
 
+    func isOverStatusItem(_ point: NSPoint) -> Bool {
+        statusController?.containsStatusItem(at: point) == true
+    }
+
     private func showMetricPanel(for metric: MenuBarMetric, anchoredTo button: NSStatusBarButton) {
         let detailKind = metric.detailKind
+        if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback,
+           NotchSupport.modules().contains(.system) {
+            NotchService.shared.showMetric(detailKind, toggle: true); return
+        }
         if popover.isShown {
             if MenuPanelFocus.shared.activeMetric == detailKind {
                 metricAnchorSwitchSerial &+= 1
@@ -1008,7 +1029,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func closePopover(animated: Bool = true, after delay: TimeInterval = 0,
-                      completion: (() -> Void)? = nil) {
+                      preservingNotch: Bool = false, completion: (() -> Void)? = nil) {
+        if !preservingNotch, NotchSupport.isEnabled() { NotchService.shared.collapse() }
         if delay <= 0 {
             closePopoverNow(animated: animated, completion: completion)
             return
@@ -1463,6 +1485,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // metrics option must not immediately re-hide what the user just
         // asked to see (and then trip the "still hidden" alert).
         UserDefaults.standard.set(false, forKey: DefaultsKey.menuBarHideIconWithMetrics)
+        guard !isReshowingStatusItem else { return }
+        isReshowingStatusItem = true
         statusController?.recreateStatusItem()
         verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts)
     }
@@ -1471,19 +1495,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// can take longer than one look to settle. Judging it once meant a slow
     /// placement read as a failure and the person was told the bar was full
     /// when it was not, so the answer is asked for several times before
-    /// anything is said.
-    private static let reshowVerifyAttempts = 4
+    /// anything is said. A newborn item also reports a zero-height frame for
+    /// a few seconds (#1394); that settling grace is separate from the
+    /// "still hidden" countdown so recovery does not burn the arranged spot
+    /// while macOS is still placing the window.
+    private var isReshowingStatusItem = false
+    private static let reshowVerifyAttempts = 6
+    private static let reshowSettlingGraceAttempts = 8
     private static let reshowVerifyInterval: TimeInterval = 0.8
 
-    private func verifyIconReappeared(attemptsLeft: Int, placementWasReset: Bool = false) {
+    private func verifyIconReappeared(attemptsLeft: Int,
+                                      settlingGraceLeft: Int = AppDelegate.reshowSettlingGraceAttempts,
+                                      placementWasReset: Bool = false) {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.reshowVerifyInterval) { [weak self] in
             guard let self else { return }
+            // A later choice to hide the icon cancels the explicit recovery.
+            guard !UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics) else {
+                self.isReshowingStatusItem = false
+                return
+            }
             if self.iconIsOnScreen() {
+                self.isReshowingStatusItem = false
                 self.logStatusItemPlacement("appeared")
+                return
+            }
+            if StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                isOnScreen: false,
+                isSettling: self.iconIsSettling(),
+                settlingGraceLeft: settlingGraceLeft) {
+                self.logStatusItemPlacement("settling")
+                self.verifyIconReappeared(attemptsLeft: attemptsLeft,
+                                          settlingGraceLeft: settlingGraceLeft - 1,
+                                          placementWasReset: placementWasReset)
                 return
             }
             guard attemptsLeft <= 1 else {
                 self.verifyIconReappeared(attemptsLeft: attemptsLeft - 1,
+                                          settlingGraceLeft: settlingGraceLeft,
                                           placementWasReset: placementWasReset)
                 return
             }
@@ -1495,9 +1543,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.logStatusItemPlacement("resetting placement")
                 self.statusController?.resetStatusItemPlacementIdentity()
                 self.verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts,
+                                          settlingGraceLeft: Self.reshowSettlingGraceAttempts,
                                           placementWasReset: true)
                 return
             }
+            self.isReshowingStatusItem = false
             self.logStatusItemPlacement("still hidden")
             let s = L10n.shared.s
             var body = s.menuBarIconStillHiddenBody
@@ -1574,10 +1624,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
-    /// On launch after an update, keep the short support prompt visible once per
-    /// version. The changelog itself is already shown before download.
+    /// Beta updates only introduce their new feature; other update surfaces
+    /// retain their own release gates.
     private func presentUpdateIntros() {
         if showUpdateHighlightsIfNeeded() { return }
+        guard !AppInfo.isBeta else { return }
         if showSupportUpdateIntroIfNeeded() { return }
         if showUpdateShowcaseIntroIfNeeded() { return }
     }
@@ -1599,16 +1650,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             return
         }
         let host = NSHostingController(rootView: UpdateHighlightsView(
-            onFinish: { [weak self] in
-                guard let self else { return }
-                let previousWindow = self.updateHighlightsWindow
-                previousWindow?.close()
-                self.showSupportUpdateIntro()
-                if let previousWindow, let supportWindow = self.supportIntroWindow {
-                    supportWindow.setFrameOrigin(previousWindow.frame.origin)
-                    self.positionTourBesideSettings(supportWindow)
-                }
-            }
+            onFinish: { [weak self] in self?.updateHighlightsWindow?.close() }
         ))
         host.sizingOptions = .preferredContentSize
         let window = NSPanel(contentViewController: host)
@@ -1654,6 +1696,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func markUpdateHighlightsSeen() {
+        guard UpdateHighlightsInfo.matchesRelease(AppInfo.version) else { return }
         UserDefaults.standard.set(UpdateHighlightsInfo.releaseVersion,
                                   forKey: DefaultsKey.updateHighlightsSeenVersion)
     }
@@ -1718,6 +1761,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showSupportUpdateIntro() {
+        guard !AppInfo.isBeta else { return }
         closePopover()
         if let window = supportIntroWindow {
             NSApp.activate(ignoringOtherApps: true)

@@ -30,7 +30,6 @@ final class RecorderPointerSampler {
     private var identities: [UInt64] = []
     private var clicks: [RecorderMotion.Click] = []
     private let cursors = RecorderCursorCatalog()
-    private var startedAt: CFTimeInterval = 0
     private var running = false
     private var generation = 0
     private var lastSeed: Int32?
@@ -52,9 +51,7 @@ final class RecorderPointerSampler {
 
     func start() {
         guard thread == nil else { return }
-        let startedAt = CACurrentMediaTime()
         let generation = lock.withLock { () -> Int in
-            self.startedAt = startedAt
             self.generation += 1
             running = true
             samples.removeAll(keepingCapacity: true)
@@ -76,7 +73,7 @@ final class RecorderPointerSampler {
         }
 
         let thread = Thread { [weak self] in
-            self?.loop(generation: generation, startedAt: startedAt)
+            self?.loop(generation: generation)
         }
         thread.qualityOfService = .userInteractive
         thread.name = "com.vorssaint.recorder.pointer"
@@ -108,11 +105,11 @@ final class RecorderPointerSampler {
 
     // MARK: - Sampling
 
-    private func loop(generation: Int, startedAt: CFTimeInterval) {
+    private func loop(generation: Int) {
         let interval = 1.0 / Self.sampleRate
         while lock.withLock({ running && self.generation == generation }) {
             let now = CACurrentMediaTime()
-            if let time = pauseClock.eventTime(now, since: startedAt),
+            if let time = pauseClock.eventTime(now),
                let point = normalizedPointerLocation() {
                 // Two nanoseconds to ask whether the pointer changed, twenty
                 // two microseconds to read the new one. So the question rides
@@ -162,7 +159,7 @@ final class RecorderPointerSampler {
     private func record(_ event: NSEvent, generation: Int) {
         lock.withLock {
             guard running, self.generation == generation else { return }
-            guard let time = pauseClock.eventTime(CACurrentMediaTime(), since: startedAt)
+            guard let time = pauseClock.eventTime(CACurrentMediaTime())
             else { return }
             let isDown = event.type == .leftMouseDown || event.type == .rightMouseDown
             let click = RecorderMotion.Click(time: time, isDown: isDown)

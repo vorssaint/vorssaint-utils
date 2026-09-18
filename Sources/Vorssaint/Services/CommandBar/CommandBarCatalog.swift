@@ -72,6 +72,8 @@ struct CommandBarEntry: Identifiable {
     /// rows the bar makes up have no such place, and saying so here is what
     /// keeps ⌘Return and the actions list from ever disagreeing about it.
     let revealPath: String?
+    /// Selection must succeed before the bar replaces search with a review.
+    let uninstallAppURL: URL?
     let run: (Int?) -> Void
 
     /// Whether this row can be shown where it lives. One rule, read by the
@@ -85,6 +87,7 @@ struct CommandBarEntry: Identifiable {
         if confirmationPrompt != nil { return true }
         if numericRange != nil, !numericIsOptional { return true }
         if case .needsSetup = trouble { return true }
+        if uninstallAppURL != nil { return true }
         return false
     }
 
@@ -98,7 +101,8 @@ struct CommandBarEntry: Identifiable {
                         confirmationPrompt: confirmationPrompt, answerValue: answerValue,
                         isAnswer: isAnswer, countsUsage: countsUsage,
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
-                        takesArgument: takesArgument, revealPath: revealPath, run: run)
+                        takesArgument: takesArgument, revealPath: revealPath,
+                        uninstallAppURL: uninstallAppURL, run: run)
     }
 
     /// Glyph rows get a tinted plate behind the icon; real app, file and
@@ -129,6 +133,7 @@ struct CommandBarEntry: Identifiable {
          keepsBarOpen: Bool = false,
          takesArgument: Bool = false,
          revealPath: String? = nil,
+         uninstallAppURL: URL? = nil,
          run: @escaping (Int?) -> Void) {
         self.id = id
         self.stableKey = stableKey ?? id
@@ -150,6 +155,7 @@ struct CommandBarEntry: Identifiable {
         self.keepsBarOpen = keepsBarOpen
         self.takesArgument = takesArgument
         self.revealPath = revealPath
+        self.uninstallAppURL = uninstallAppURL
         self.run = run
     }
 }
@@ -456,21 +462,17 @@ enum CommandBarCatalog {
                 icon: .symbol(awake.isActive ? "bolt.fill" : "bolt"),
                 shortcut: roleShortcut(.keepAwake),
                 isActive: awake.isActive,
-                // A typed number is a duration in minutes; without one the row
-                // is the plain on and off switch.
-                numericRange: 1...480,
-                numericIsOptional: true,
-                run: { minutes in
-                    if let minutes {
-                        KeepAwakeManager.shared.activate(minutes: minutes)
-                    } else {
-                        KeepAwakeManager.shared.toggle()
-                    }
-                }))
+                // Keep awake only honours the preset durations and turns any
+                // other number into an indefinite session, so the plain row
+                // takes no number and each preset has a row of its own.
+                run: { _ in KeepAwakeManager.shared.toggle() }))
             let durations: [(String, String, Int)] = [
+                ("action.keepAwake.15", s.minutes15, 15),
                 ("action.keepAwake.30", s.minutes30, 30),
                 ("action.keepAwake.60", s.hour1, 60),
                 ("action.keepAwake.120", s.hours2, 120),
+                ("action.keepAwake.240", s.hours4, 240),
+                ("action.keepAwake.480", s.hours8, 480),
             ]
             for (id, label, minutes) in durations {
                 entries.append(CommandBarEntry(
@@ -684,6 +686,32 @@ enum CommandBarCatalog {
                 subtitle: area(.uninstaller, under: s.uninstallerName),
                 icon: .symbol("trash"),
                 run: { _ in openSettings(at: .uninstaller) }))
+            if UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled) {
+                entries.append(CommandBarEntry(
+                    id: "uninstall.browse",
+                    title: s.uninstallerCommandBarBrowseTitle,
+                    subtitle: s.uninstallerName,
+                    icon: .symbol("trash"),
+                    // A habit boost on this row could otherwise outweigh the
+                    // Finder selection's fixed rank bias after enough clicks,
+                    // putting the wrong "Uninstall" row first; a plain
+                    // navigation entry has no business competing on habit.
+                    countsUsage: false,
+                    keepsBarOpen: true,
+                    run: { _ in
+                        let service = CommandBarService.shared
+                        service.query = ""
+                        service.setCategory(.uninstallApps)
+                    }))
+                entries.append(CommandBarEntry(
+                    id: "uninstall.finder",
+                    title: s.uninstallerCommandBarFinderTitle,
+                    subtitle: s.uninstallerName,
+                    icon: .symbol("app.badge"),
+                    countsUsage: false,
+                    keepsBarOpen: true,
+                    run: { _ in CommandBarService.shared.uninstallFinderSelection() }))
+            }
         }
         if AppFeature.quickLauncher.isAvailable {
             entries.append(CommandBarEntry(
@@ -1040,6 +1068,56 @@ enum CommandBarCatalog {
         }
     }
 
+    /// One row per installed app, offered only inside the "Uninstall
+    /// Application" category browse - never in the flat search pool, since a
+    /// few hundred destructive rows have no business sitting in a list
+    /// someone might arrow through by accident. Selecting one opens the full
+    /// leftover-files review, the same as picking the app straight from
+    /// Finder does.
+    static func uninstallEntries(_ apps: [InstalledApps.InstalledApp],
+                                 bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        guard AppFeature.uninstaller.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
+        else { return [] }
+        let ownBundleID = Bundle.main.bundleIdentifier
+        return apps.filter { !$0.isSystem && $0.bundleID != ownBundleID }.map { app in
+            CommandBarEntry(
+                id: "uninstall.\(app.id)",
+                stableKey: app.bundleID.map { "uninstall.bundle.\($0)" } ?? "uninstall.\(app.id)",
+                title: app.name,
+                subtitle: bar.kindApp,
+                keywords: app.alternateNames.joined(separator: " "),
+                icon: .appIcon(path: app.url.path),
+                revealPath: app.url.path,
+                uninstallAppURL: app.url,
+                run: { _ in })
+        }
+    }
+
+    /// One row for whatever single app is selected in Finder's Applications
+    /// folder, so uninstalling it never needs the bar's own picker first.
+    static func uninstallSelectionEntries(urls: [URL], automationDenied: Bool) -> [CommandBarEntry] {
+        guard AppFeature.uninstaller.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
+              urls.count == 1, let url = urls.first,
+              url.pathExtension.lowercased() == "app",
+              InstalledApps.isInApplicationsFolder(url),
+              !InstalledApps.isSystemApplication(at: url)
+        else { return [] }
+        let bar = FeatureStrings.commandBar(L10n.shared.language)
+        var name = FileManager.default.displayName(atPath: url.path)
+        if name.hasSuffix(".app") { name.removeLast(4) }
+        return [CommandBarEntry(
+            id: "selection.uninstall",
+            title: String(format: bar.uninstallAppFormat, name),
+            subtitle: L10n.shared.s.uninstallerName,
+            icon: .appIcon(path: url.path),
+            trouble: automationDenied ? .needsPermission : nil,
+            revealPath: url.path,
+            uninstallAppURL: url,
+            run: { _ in })]
+    }
+
     /// One row per open window, so a person with six windows of the same app
     /// can name the one they want. Titles come from the window server, which
     /// only fills them in with Screen Recording granted; without it there is
@@ -1206,18 +1284,23 @@ enum CommandBarCatalog {
     // MARK: - Emoji
 
     /// Emoji rows, which type themselves at the caret the way a snippet does.
-    /// Built once and reused: the names come from Unicode and never change.
+    /// The names come from Unicode and never change.
+    /// The tone is read here, because the bar has to rebuild this on every
+    /// opening and a chosen tone has to arrive with it.
     static func emojiEntries(bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
-        CommandBarEmoji.emoji.map { emoji in
-            CommandBarEntry(
-                id: "emoji.\(emoji.identity)",
-                title: emoji.character + "  " + emoji.name,
+        let tone = CommandBarPreferences.skinTone(
+            from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "")
+        return CommandBarEmoji.emoji.map { emoji in
+            let character = CommandBarEmoji.applying(tone, to: emoji.character)
+            return CommandBarEntry(
+                id: CommandBarPreferences.emojiRowID(identity: emoji.identity),
+                title: character + "  " + emoji.name,
                 subtitle: bar.kindEmoji,
                 keywords: emoji.name + " " + emoji.keywords + " " + bar.kindEmoji,
                 icon: .symbol("face.smiling"),
                 trouble: Permissions.shared.accessibility ? nil : .needsPermission,
                 matchTitle: emoji.name,
-                run: { _ in typeAtCursor(emoji.character) })
+                run: { _ in typeAtCursor(character) })
         }
     }
 

@@ -18,6 +18,61 @@ struct SwitcherActivationPlan: Equatable {
     let restoreSourceWhenTargetMinimizes: Bool
 }
 
+/// How the owning app is brought forward. App-level activation can raise
+/// sibling windows even without activateAllWindows, so a plan
+/// scoped to one window asks the window server to front that window alone.
+enum SwitcherAppActivationRoute: Equatable {
+    case exactWindow(CGWindowID)
+    case wholeApp
+}
+
+/// Shared by the bounded focus passes on the main thread. Once a pass sees
+/// a newer user action, the remaining passes cannot reclaim the old target.
+final class SwitcherWindowFocusRetryState {
+    let targetStartedMinimized: Bool
+    let knownWindowIDs: Set<CGWindowID>
+    private(set) var targetWasObservedRestored: Bool
+    private(set) var isActive = true
+
+    init(targetWindowID: CGWindowID, targetStartedMinimized: Bool, knownWindowIDs: Set<CGWindowID>) {
+        self.targetStartedMinimized = targetStartedMinimized
+        // The selected target is already known even if the server's snapshot
+        // missed it. An entirely unavailable snapshot still stays unavailable.
+        self.knownWindowIDs = knownWindowIDs.isEmpty ? [] : knownWindowIDs.union([targetWindowID])
+        self.targetWasObservedRestored = !targetStartedMinimized
+    }
+
+    func observe(targetMinimizedState: Bool?) {
+        if targetMinimizedState == false {
+            targetWasObservedRestored = true
+        }
+    }
+
+    func shouldContinue(targetPID: pid_t,
+                        sourcePID: pid_t?,
+                        frontmostPID: @autoclosure () -> pid_t?,
+                        targetMinimizedState: Bool?,
+                        targetAppWindowIDs: @autoclosure () -> Set<CGWindowID>,
+                        targetAppFocusedWindowID: @autoclosure () -> CGWindowID?,
+                        ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
+        guard isActive else { return false }
+        isActive = SwitcherSupport.shouldContinueFocusRetry(
+            targetPID: targetPID,
+            sourcePID: sourcePID,
+            frontmostPID: frontmostPID(),
+            targetIsMinimized: targetMinimizedState == true,
+            targetStartedMinimized: targetStartedMinimized,
+            targetWasObservedRestored: targetWasObservedRestored,
+            knownWindowIDs: knownWindowIDs,
+            targetAppWindowIDs: targetAppWindowIDs(),
+            targetAppFocusedWindowID: targetAppFocusedWindowID(),
+            ownPID: ownPID
+        )
+        observe(targetMinimizedState: targetMinimizedState)
+        return isActive
+    }
+}
+
 struct SwitcherSearchRecord: Equatable {
     let id: String
     let title: String
@@ -234,13 +289,28 @@ struct SwitcherIconRowLayout: Equatable {
     static let simpleTitleSpacing: CGFloat = 6
     static let simpleTitleScrollPadding: CGFloat = 1
 
+    /// The width `cardCount` preview cards lay out to, including the spacing
+    /// the row puts between them. The preview viewport is sized from this and
+    /// decides whether it has anything to scroll from it, so the two can never
+    /// disagree about what fits.
+    static func naturalPreviewWidth(cardCount: Int) -> CGFloat {
+        let count = max(0, cardCount)
+        return CGFloat(count) * previewCardWidth + CGFloat(max(0, count - 1)) * spacing
+    }
+
+    /// Whether every preview card is on screen at once, so the scroll view has
+    /// nothing to scroll to.
+    func previewFitsWithoutScrolling(cardCount: Int) -> Bool {
+        Self.naturalPreviewWidth(cardCount: cardCount) <= previewContentWidth
+    }
+
     /// The widest row the panel has to hold. Panel sizing and the rows
     /// themselves both measure against this one value, so a row can never come
     /// out wider than the window drawing it and get clipped (issues #710, #730).
     func contentWidth(simpleMode: Bool, windowRow: Bool) -> CGFloat {
         let hintWidth = showsShortcutHints ? Self.hintBarWidth : 0
         guard simpleMode else {
-            return max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth)
+            return max(0, panelSize.width - Self.padding * 2)
         }
         return max(appRowSurfaceWidth,
                    windowRow ? 0 : simpleTitleSurfaceWidth,
@@ -278,6 +348,7 @@ struct SwitcherIconRowLayout: Equatable {
 
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
+                        maximumWindowCount: Int = 1,
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
                         tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
@@ -286,13 +357,18 @@ struct SwitcherIconRowLayout: Equatable {
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
         let maxContentWidth = max(tileWidth, usableWidth - padding * 2)
         let naturalAppRowWidth = CGFloat(appCount) * tileWidth + CGFloat(max(0, appCount - 1)) * spacing
-        let naturalPreviewWidth = CGFloat(windowCount) * previewCardWidth
-            + CGFloat(max(0, windowCount - 1)) * spacing
+        let naturalPreviewWidth = Self.naturalPreviewWidth(cardCount: windowCount)
         let maxAppContentWidth = max(tileWidth, maxContentWidth - rowHorizontalPadding * 2)
         let maxPreviewContentWidth = max(previewCardWidth, maxContentWidth - previewPanelPadding * 2)
         let appRowWidth = min(naturalAppRowWidth, maxAppContentWidth)
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
-        let previewWidth = min(max(previewCardWidth, naturalPreviewWidth), maxPreviewContentWidth)
+        // Reserve room for a pair whenever any app has multiple windows. Use
+        // the whole list so selecting another app never moves the icon row.
+        let reservedCardCount = min(2, max(windowCount, maximumWindowCount))
+        let previewCeiling = min(maxPreviewContentWidth,
+                                 max(Self.naturalPreviewWidth(cardCount: reservedCardCount),
+                                     appRowSurfaceWidth - previewPanelPadding * 2))
+        let previewWidth = min(naturalPreviewWidth, previewCeiling)
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
         let naturalSimpleTitleWidth = CGFloat(windowCount) * simpleTitleChipMaxWidth
             + CGFloat(max(0, windowCount - 1)) * simpleTitleSpacing
@@ -300,7 +376,9 @@ struct SwitcherIconRowLayout: Equatable {
             + simpleTitlePanelPadding * 2
         let simpleTitleSurfaceWidth = min(naturalSimpleTitleWidth, maxContentWidth)
         let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
-        let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
+        let contentWidth = min(max(appRowSurfaceWidth,
+                                   previewCeiling + previewPanelPadding * 2,
+                                   hintWidth), maxContentWidth)
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
         let width = contentWidth + padding * 2
         let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
@@ -463,6 +541,15 @@ enum SwitcherSupport {
             ?? candidates.first(where: { $0.windowID == nil })
     }
 
+    /// Fresh focus can lead the independent use history. Promote only a source
+    /// that survived the visibility rules; a source on another display stays out.
+    static func orderedForSession(_ items: [SwitcherItem], currentID: String?) -> [SwitcherItem] {
+        guard let currentID, let index = items.firstIndex(where: { $0.id == currentID }) else { return items }
+        var ordered = items
+        ordered.insert(ordered.remove(at: index), at: 0)
+        return ordered
+    }
+
     /// A focused-window Accessibility query is useful unless exactly one
     /// visible window already identifies the session source. With no visible
     /// windows, AX can still identify a minimized source window.
@@ -572,6 +659,66 @@ enum SwitcherSupport {
             return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
         }
         return fillsScreen && subrole == "AXFloatingWindow"
+    }
+
+    /// Picks the entries that survive the visible cap, by index into `appPIDs`
+    /// (the owning app of each entry, in the order the switcher will show them).
+    ///
+    /// The cap counts entries, not applications, so taking the first `limit` of
+    /// them let a single app with many windows push whole other applications
+    /// off the end: the switcher then looked like those apps were not running
+    /// at all, and the only way to bring one back was to raise it by other
+    /// means so its window rose in the use order. Issue #172 fixed the half of
+    /// this that truncated before the use order was applied; this is the other
+    /// half.
+    ///
+    /// Every app now gets its most recently used entry first, in app order, and
+    /// only the slots left over are filled with further entries. With more apps
+    /// than slots the apps compete with each other instead of one app's windows
+    /// crowding the rest out.
+    ///
+    /// The incoming order is preserved: index 0 is the window the user is
+    /// looking at and index 1 the toggle target, so the survivors must not be
+    /// resorted into app groups.
+    static func visibleSelectionIndices(appPIDs: [pid_t], limit: Int) -> [Int] {
+        guard limit > 0 else { return [] }
+        guard appPIDs.count > limit else { return Array(appPIDs.indices) }
+        var chosen = Set<Int>()
+        var representedApps = Set<pid_t>()
+        // The window in front and the one before it lead the use order, and a
+        // quick flick of the shortcut goes straight from the first to the
+        // second. They stay whatever else a full list has to give up, as they
+        // did under the plain leading slice, even when both belong to one app
+        // and every other slot is needed for an app of its own.
+        for index in appPIDs.indices.prefix(min(2, limit)) {
+            chosen.insert(index)
+            representedApps.insert(appPIDs[index])
+        }
+        for (index, pid) in appPIDs.enumerated() {
+            guard chosen.count < limit else { break }
+            guard representedApps.insert(pid).inserted else { continue }
+            chosen.insert(index)
+        }
+        for index in appPIDs.indices {
+            guard chosen.count < limit else { break }
+            chosen.insert(index)
+        }
+        return chosen.sorted()
+    }
+
+    /// The entries a session keeps once its list is capped, by index into
+    /// `items`. A session scoped to the front app's windows shows that app
+    /// alone, so it caps that app's own list: other apps must not take places
+    /// in a list that never shows them. `frontmostPID` is the process that
+    /// owns the keyboard, resolved to its app the same way the session does.
+    static func visibleSelectionIndices(items: [SwitcherItem],
+                                        limit: Int,
+                                        frontmostPID: pid_t?) -> [Int] {
+        guard let frontmostPID else {
+            return visibleSelectionIndices(appPIDs: items.map(\.pid), limit: limit)
+        }
+        let appPID = appPID(forFrontmost: frontmostPID, items: items)
+        return Array(items.indices.filter { items[$0].pid == appPID }.prefix(max(0, limit)))
     }
 
     /// Finds the regular app that contains an accessory helper bundle.
@@ -711,6 +858,23 @@ enum SwitcherSupport {
     static func isConfirmedHiddenAppWindow(appIsHidden: Bool,
                                            windowSpaces: [UInt64]) -> Bool {
         appIsHidden && !windowSpaces.isEmpty
+    }
+
+    /// A partial Accessibility list cannot veto windows on another desktop.
+    /// Still reject unmatched visible surfaces and helpers excluded from cycling.
+    static func keepsUnmatchedWindow(isOnHiddenSpace: Bool,
+                                     isConfirmedHiddenAppWindow: Bool,
+                                     isExcludedFromWindowCycle: Bool,
+                                     isOrderedIn: Bool?,
+                                     allowsUnverifiedHiddenSpace: Bool) -> Bool {
+        guard !isExcludedFromWindowCycle else { return false }
+        // Hiding an app orders its windows out without closing them.
+        if isConfirmedHiddenAppWindow { return true }
+        guard isOnHiddenSpace else { return false }
+        // Preserve the earlier empty-Accessibility and fullscreen exceptions:
+        // ordering out can also mean minimized, not closed. Only broaden that
+        // fallback when the native query positively witnesses a live window.
+        return allowsUnverifiedHiddenSpace || isOrderedIn == true
     }
 
     /// Whether a WindowServer surface whose owner never answered Accessibility
@@ -1100,6 +1264,14 @@ enum SwitcherSupport {
         activationPlan(targetsSpecificWindow: targetsSpecificWindow).activateAllWindows
     }
 
+    static func appActivationRoute(plan: SwitcherActivationPlan,
+                                   windowID: CGWindowID?) -> SwitcherAppActivationRoute {
+        if !plan.activateAllWindows, let windowID {
+            return .exactWindow(windowID)
+        }
+        return .wholeApp
+    }
+
     static func shouldRestoreSourceAfterTargetMinimize(targetPID: pid_t,
                                                        sourcePID: pid_t?,
                                                        frontmostPID: pid_t?,
@@ -1159,19 +1331,46 @@ enum SwitcherSupport {
         return true
     }
 
+    /// Window identities, not a list of focusable windows: keeping every layer
+    /// prevents an existing dialog or auxiliary surface from appearing new.
+    static func focusRetryWindowIDs(in windows: [[String: Any]], ownerPID: pid_t) -> Set<CGWindowID> {
+        Set(windows.compactMap { info -> CGWindowID? in
+            guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID else { return nil }
+            return (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+        })
+    }
+
     static func shouldContinueFocusRetry(targetPID: pid_t,
                                          sourcePID: pid_t?,
-                                         frontmostPID: pid_t?,
+                                         frontmostPID: @autoclosure () -> pid_t?,
                                          targetIsMinimized: Bool,
                                          targetStartedMinimized: Bool,
                                          targetWasObservedRestored: Bool = false,
+                                         knownWindowIDs: Set<CGWindowID> = [],
+                                         targetAppWindowIDs: @autoclosure () -> Set<CGWindowID> = [],
+                                         targetAppFocusedWindowID: @autoclosure () -> CGWindowID? = nil,
                                          ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard !targetIsMinimized
                 || (targetStartedMinimized && !targetWasObservedRestored)
         else { return false }
-        guard let sourcePID,
-              let frontmostPID else { return true }
-        return frontmostPID == targetPID || frontmostPID == sourcePID || frontmostPID == ownPID
+        let initialFrontmostPID = frontmostPID()
+        if let sourcePID, let initialFrontmostPID,
+           initialFrontmostPID != targetPID && initialFrontmostPID != sourcePID && initialFrontmostPID != ownPID {
+            return false
+        }
+        // Z-order cannot identify keyboard focus: a new transparent helper
+        // may sit above a real window. Only query Accessibility when this app
+        // is active and the cheap window-server list contains something new.
+        // An unavailable focus reading preserves the previous retry behavior.
+        guard initialFrontmostPID == targetPID,
+              !knownWindowIDs.isEmpty,
+              !targetAppWindowIDs().isSubset(of: knownWindowIDs) else { return true }
+        let focusedWindowID = targetAppFocusedWindowID()
+        // Accessibility can wait on the other process. Do not act on the old
+        // foreground observation if the user left the app during that wait.
+        guard frontmostPID() == targetPID else { return false }
+        guard let focusedWindowID else { return true }
+        return knownWindowIDs.contains(focusedWindowID)
     }
 
     /// Async results belong only to the still-pending shortcut press. A key

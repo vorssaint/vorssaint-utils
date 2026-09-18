@@ -181,17 +181,28 @@ struct RecorderPauseTimeline {
     }
 }
 
-/// Thread-safe shared pause state for the writer and the two event samplers.
-/// It exists only for the lifetime of one recording.
+/// One origin and pause state for the writer, event samplers and elapsed display.
+/// It exists only for the lifetime of one recording. Starting a later source
+/// must never rebase events against that source's startup time.
 final class RecorderPauseClock {
     private let lock = NSLock()
     private var timeline = RecorderPauseTimeline()
+    private var origin: Double?
 
     var isPaused: Bool { lock.withLock { timeline.isPaused } }
 
     @discardableResult
+    func begin(at time: Double) -> Bool {
+        lock.withLock {
+            guard origin == nil, time.isFinite else { return false }
+            origin = time
+            return true
+        }
+    }
+
+    @discardableResult
     func pause(at time: Double) -> Bool {
-        lock.withLock { timeline.pause(at: time) }
+        lock.withLock { origin != nil && timeline.pause(at: time) }
     }
 
     @discardableResult
@@ -199,16 +210,25 @@ final class RecorderPauseClock {
         lock.withLock { timeline.resume(at: time) }
     }
 
-    func elapsed(since origin: Double, at time: Double) -> Double {
-        lock.withLock { timeline.elapsed(since: origin, at: time) }
+    func elapsed(at time: Double) -> Double {
+        lock.withLock {
+            guard let origin else { return 0 }
+            return timeline.elapsed(since: origin, at: time)
+        }
     }
 
-    func sampleTime(start: Double, duration: Double, since origin: Double) -> Double? {
-        lock.withLock { timeline.sampleTime(start: start, duration: duration, since: origin) }
+    func sampleTime(start: Double, duration: Double) -> Double? {
+        lock.withLock {
+            guard let origin else { return nil }
+            return timeline.sampleTime(start: start, duration: duration, since: origin)
+        }
     }
 
-    func eventTime(_ time: Double, since origin: Double) -> Double? {
-        lock.withLock { timeline.eventTime(time, since: origin) }
+    func eventTime(_ time: Double) -> Double? {
+        lock.withLock {
+            guard let origin, time >= origin else { return nil }
+            return timeline.eventTime(time, since: origin)
+        }
     }
 }
 
@@ -312,25 +332,30 @@ enum RecorderSupport {
     // MARK: - Quality
 
     /// Three named outcomes instead of a codec form. Screen content is
-    /// low-entropy, so the encoder undershoots these ceilings hard; what the
-    /// preset really decides is the output scale, and the ceiling only caps
-    /// the busy moments.
+    /// low-entropy, so the encoder undershoots these ceilings hard, and the
+    /// ceiling only caps the busy moments. Only Small trades pixels for size:
+    /// a recording is mostly text, and a picture written at two thirds and
+    /// stretched back over the same display reads as blurry next to the
+    /// system recorder, which keeps every pixel. Balanced keeps them too and
+    /// saves on bits instead, which flat screen content barely misses.
     enum Quality: String, CaseIterable {
         case small, balanced, high
 
         var outputScale: CGFloat {
             switch self {
             case .small: return 0.5
-            case .balanced: return 2.0 / 3.0
-            case .high: return 1
+            case .balanced, .high: return 1
             }
         }
 
-        /// Bits per pixel per frame, from measurements on real screen content.
+        /// Bits per pixel per frame. Small and High come from measurements on
+        /// real screen content; Balanced sits between them now that it writes
+        /// the full picture, where each pixel carries less detail than in a
+        /// scaled-down one.
         var bitsPerPixel: Double {
             switch self {
             case .small: return 0.05
-            case .balanced: return 0.082
+            case .balanced: return 0.06
             case .high: return 0.09
             }
         }

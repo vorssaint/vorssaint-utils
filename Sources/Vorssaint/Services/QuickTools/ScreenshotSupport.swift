@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -89,6 +90,11 @@ enum ScreenCaptureTool: String, CaseIterable {
         }
     }
 
+    /// Only the recorder writes sound, so its microphone and system-audio
+    /// choices are the only tool controls that belong under the chooser.
+    /// Every other mode leaves them out entirely, reserving no space for them.
+    var capturesAudio: Bool { self == .recording }
+
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .screenshot: return FeatureStrings.screenshot(language).pageTitle
@@ -114,15 +120,20 @@ enum ScreenshotSupport {
         let freeze: Bool
         let includePointer: Bool
         let hideVorssaintWindows: Bool
+        /// Whether editors and pinned captures stay out of the picture and the
+        /// pickable windows. Recording keeps them out even while "Hide
+        /// Vorssaint windows" is off, which that flag alone cannot tell apart.
+        let keepsContentWindowsOut: Bool
         let usesGeometry: Bool
 
         /// Two tools can want the same photograph and still do different
         /// things with it, so only the fields that decide which pixels are
-        /// taken force a new one.
+        /// taken, and which windows can be picked, force a new one.
         func sharesSource(with other: UnifiedCapturePolicy) -> Bool {
             freeze == other.freeze
                 && includePointer == other.includePointer
                 && hideVorssaintWindows == other.hideVorssaintWindows
+                && keepsContentWindowsOut == other.keepsContentWindowsOut
         }
     }
 
@@ -135,6 +146,7 @@ enum ScreenshotSupport {
             freeze: tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
+            keepsContentWindowsOut: tool == .recording || screenshotHideVorssaintWindows,
             usesGeometry: tool == .recording)
     }
 
@@ -150,10 +162,24 @@ enum ScreenshotSupport {
         isAvailable(selected.feature)
     }
 
+    static func selectionDimAlpha(notchControls: Bool, isFrozen: Bool, isDragging: Bool) -> CGFloat {
+        if notchControls { return isDragging ? 0.18 : 0 }
+        return isFrozen ? 0.22 : 0.18
+    }
+
     static func captureGuideIsVisible(pointerOnDisplay: Bool,
                                       selectionInProgress: Bool,
                                       capturePending: Bool) -> Bool {
         pointerOnDisplay && !selectionInProgress && !capturePending
+    }
+
+    /// Whether the guide should advertise repeating the last capture region.
+    /// The region is remembered for this app session only and belongs to one
+    /// display, so the hint stays hidden until pressing the key would really
+    /// capture something.
+    static func offersRepeatLastRegion(isPickingColor: Bool,
+                                       storedRegionDisplayIsAvailable: Bool) -> Bool {
+        !isPickingColor && storedRegionDisplayIsAvailable
     }
 
     // MARK: - Preferences
@@ -1196,6 +1222,141 @@ enum ScreenshotSupport {
             return index + 1
         }
 
+        static func bindings(from raw: String?) -> [Tool: GlobalShortcut] {
+            var result: [Tool: GlobalShortcut] = [:]
+            for entry in (raw ?? "").split(separator: ",") {
+                let pair = entry.split(separator: "=", maxSplits: 1)
+                guard pair.count == 2, let tool = Tool(rawValue: String(pair[0])),
+                      let shortcut = GlobalShortcut(storageValue: String(pair[1]), requiringModifier: false),
+                      !isReservedEditorKey(shortcut) else { continue }
+                result[tool] = shortcut
+            }
+            // Edited backups can contain duplicate bindings. Keep one owner,
+            // in rail-default order, so routing and the displayed keys agree.
+            var seen = Set<GlobalShortcut>()
+            for tool in allCases {
+                if let shortcut = result[tool], !seen.insert(shortcut).inserted {
+                    result[tool] = nil
+                }
+            }
+            return result
+        }
+
+        /// A layout or Caps Lock change can make a saved symbol type a rail
+        /// digit. Suspend it in that context without erasing the saved choice.
+        static func activeBindings(from raw: String?, capsLockOn: Bool = false) -> [Tool: GlobalShortcut] {
+            bindings(from: raw).filter { shortcutDigit($0.value, capsLockOn: capsLockOn) == nil }
+        }
+
+        static func bindingsStorage(_ bindings: [Tool: GlobalShortcut]) -> String {
+            allCases.compactMap { tool in
+                bindings[tool].map { "\(tool.rawValue)=\($0.storageValue)" }
+            }.joined(separator: ",")
+        }
+
+        static func isReservedEditorKey(_ shortcut: GlobalShortcut) -> Bool {
+            let key = Int(shortcut.keyCode)
+            if shortcut.modifiers.contains(.command) {
+                // The editor's Command branch also accepts extra modifiers.
+                return [kVK_ANSI_C, kVK_ANSI_S, kVK_ANSI_Z, kVK_ANSI_P,
+                        kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_Equal, kVK_ANSI_Minus,
+                        kVK_Delete, kVK_ForwardDelete, kVK_ANSI_W, kVK_ANSI_Q].contains(key)
+            }
+            return !shortcut.modifiers.hasPrimaryModifier
+                && [kVK_Escape, kVK_Return, kVK_ANSI_KeypadEnter,
+                    kVK_Delete, kVK_ForwardDelete].contains(key)
+        }
+
+        static func shortcutTool(keyCode: Int64, modifiers: GlobalShortcutModifiers,
+                                 number: Int? = nil, orderRaw: String?,
+                                 bindingsRaw: String?, enabled: Bool, capsLockOn: Bool = false) -> Tool? {
+            guard enabled else { return nil }
+            let bindings = activeBindings(from: bindingsRaw, capsLockOn: capsLockOn)
+            // The event's printed digit is authoritative, including input
+            // methods whose output differs from the underlying keycap table.
+            if !modifiers.hasPrimaryModifier, let number, (1...shortcutLimit).contains(number) {
+                guard let tool = shortcutTool(number: number, orderRaw: orderRaw, enabled: true),
+                      bindings[tool] == nil else { return nil }
+                return tool
+            }
+            let shortcut = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
+            return allCases.first(where: { bindings[$0] == shortcut })
+        }
+
+        /// The rail slot a recorded key names, read from what the key types
+        /// on the active layout rather than from its position: AZERTY's 1 is
+        /// Shift on the & key, and the numerical variant also reaches it
+        /// through Caps Lock. Recording carries the actual lock state rather
+        /// than trying to recover it from the stored shortcut's modifiers.
+        static func shortcutDigit(_ shortcut: GlobalShortcut, capsLockOn: Bool = false) -> Int? {
+            guard !shortcut.modifiers.hasPrimaryModifier else { return nil }
+            let shifted = shortcut.modifiers.contains(.shift)
+            let typed = GlobalShortcut.layoutKeyLabel(for: shortcut.keyCode, usesCommand: false,
+                                                      usesShift: shifted, capsLockOn: capsLockOn)
+                ?? (shifted || capsLockOn ? nil : shortcut.displayString)
+            guard let typed, let digit = Int(typed), (1...shortcutLimit).contains(digit)
+            else { return nil }
+            return digit
+        }
+
+        /// What the rail badge and the recorder show for a tool: its own
+        /// binding's caps, or the position digit of an unbound tool in the
+        /// first nine.
+        static func shortcutLabel(for tool: Tool, orderRaw: String?,
+                                  bindingsRaw: String?, enabled: Bool, capsLockOn: Bool = false) -> String? {
+            guard enabled else { return nil }
+            if let binding = activeBindings(from: bindingsRaw, capsLockOn: capsLockOn)[tool] {
+                return binding.displayString
+            }
+            return shortcutNumber(for: tool, orderRaw: orderRaw, enabled: true).map(String.init)
+        }
+
+        /// Why a recorded key cannot become a binding, or nil when it can.
+        /// Digits never get here: they move the tool instead. The outside
+        /// checks are the same three every shortcut field runs, passed in by
+        /// the field so the order and the early return are testable without
+        /// defaults or the WindowServer. Recording silences those owners, so
+        /// the key records fine and then fires them once the field lets go:
+        /// macOS and the app's global taps answer before the editor's window
+        /// monitor ever sees the press. The system table is asked last
+        /// because it is the one read that leaves the process.
+        enum BindingRejection: Equatable {
+            case reserved
+            case tool(Tool)
+            case role(GlobalShortcutRole)
+            case windowLayout(String)
+            case system
+        }
+
+        static func bindingRejection(
+            for shortcut: GlobalShortcut, excluding tool: Tool, bindingsRaw: String?,
+            roleConflict: (GlobalShortcut) -> GlobalShortcutRole?,
+            windowLayoutConflict: (GlobalShortcut) -> String?,
+            systemConflict: (GlobalShortcut) -> Bool
+        ) -> BindingRejection? {
+            if isReservedEditorKey(shortcut) { return .reserved }
+            let bindings = bindings(from: bindingsRaw)
+            if let other = allCases.first(where: { $0 != tool && bindings[$0] == shortcut }) {
+                return .tool(other)
+            }
+            if let role = roleConflict(shortcut) { return .role(role) }
+            if let title = windowLayoutConflict(shortcut) { return .windowLayout(title) }
+            return systemConflict(shortcut) ? .system : nil
+        }
+
+        /// A recorded digit moves the tool; clearing moves it below the first
+        /// nine. Other bindings stay attached to their tools through reorders.
+        static func assigningBinding(_ shortcut: GlobalShortcut?, digit: Int? = nil,
+                                     to tool: Tool, orderRaw: String?, bindingsRaw: String?)
+            -> (orderRaw: String, bindingsRaw: String) {
+            var bindings = bindings(from: bindingsRaw)
+            bindings[tool] = digit == nil ? shortcut : nil
+            let order = shortcut == nil || digit != nil
+                ? assigningShortcut(digit, to: tool, orderRaw: orderRaw)
+                : ordered(from: orderRaw)
+            return (order.map(\.rawValue).joined(separator: ","), bindingsStorage(bindings))
+        }
+
         /// Assigning a number is the same operation as moving the tool into
         /// that numbered rail slot. Choosing no shortcut moves it just below
         /// the first nine, where it remains available without a key.
@@ -1911,6 +2072,181 @@ enum ScreenshotSupport {
         guard let data = try? JSONEncoder().encode(Array(presets.suffix(backdropPresetLimit)))
         else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    // MARK: - Watermark
+
+    /// A mark of your own on every capture that leaves the editor: a line of
+    /// text or a picture from disk, faded, tilted if you like and set on one
+    /// of nine places. Persisted as JSON like the backdrop, so the next
+    /// capture opens with it already on.
+    struct WatermarkStyle: Codable, Equatable {
+        enum Kind: String, Codable {
+            case none, text, image
+        }
+
+        /// The same nine places the recorder's captions and pictures take:
+        /// one grid to learn across both editors.
+        typealias Anchor = RecorderTextOverlay.Anchor
+
+        var kind: Kind
+        var text: String
+        /// Absolute path when kind == .image.
+        var imagePath: String?
+        /// ColorID raw value the text is drawn in.
+        var color: String
+        var anchor: Anchor
+        /// Sliders 0…1; `watermarkFontSize` and `watermarkImageWidth` turn
+        /// them into pixels for a given capture.
+        var size: Double
+        var opacity: Double
+        /// Degrees, -90…90: positive tilts the mark up to the right, the way
+        /// a diagonal document watermark runs.
+        var rotation: Double
+
+        init(kind: Kind = .none,
+             text: String = "",
+             imagePath: String? = nil,
+             color: String = ColorID.white.rawValue,
+             anchor: Anchor = .bottomTrailing,
+             size: Double = 0.3,
+             opacity: Double = 0.4,
+             rotation: Double = 0) {
+            self.kind = kind
+            self.text = text
+            self.imagePath = imagePath
+            self.color = color
+            self.anchor = anchor
+            self.size = size
+            self.opacity = opacity
+            self.rotation = rotation
+        }
+
+        static let opacityRange: ClosedRange<Double> = 0.05...1
+        static let rotationRange: ClosedRange<Double> = -90...90
+        static let textLimit = 120
+
+        /// Clamps the sliders, trims the text and drops a configuration
+        /// missing its content back to .none, so a damaged persisted value
+        /// can never wedge the editor.
+        func sanitized() -> WatermarkStyle {
+            var style = self
+            style.text = String(text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(Self.textLimit))
+            style.color = ColorID(rawValue: color)?.rawValue ?? ColorID.white.rawValue
+            style.size = size.isFinite ? max(0, min(1, size)) : 0.3
+            style.opacity = opacity.isFinite
+                ? max(Self.opacityRange.lowerBound, min(Self.opacityRange.upperBound, opacity))
+                : 0.4
+            style.rotation = rotation.isFinite
+                ? max(Self.rotationRange.lowerBound, min(Self.rotationRange.upperBound, rotation))
+                : 0
+            switch style.kind {
+            case .none:
+                break
+            case .text:
+                guard !style.text.isEmpty else { return style.demoted() }
+            case .image:
+                guard let path = style.imagePath, !path.isEmpty else { return style.demoted() }
+            }
+            return style
+        }
+
+        private func demoted() -> WatermarkStyle {
+            var style = self
+            style.kind = .none
+            return style
+        }
+
+        func encoded() -> String {
+            guard let data = try? JSONEncoder().encode(self) else { return "" }
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+
+        static func decoded(_ raw: String?) -> WatermarkStyle {
+            guard let raw, !raw.isEmpty,
+                  let data = raw.data(using: .utf8),
+                  let style = try? JSONDecoder().decode(WatermarkStyle.self, from: data)
+            else { return WatermarkStyle() }
+            return style.sanitized()
+        }
+    }
+
+    /// Saved watermarks, capped like the backdrops.
+    static func decodedWatermarkPresets(_ raw: String?) -> [WatermarkStyle] {
+        guard let raw, !raw.isEmpty,
+              let data = raw.data(using: .utf8),
+              let presets = try? JSONDecoder().decode([WatermarkStyle].self, from: data)
+        else { return [] }
+        return presets.map { $0.sanitized() }
+            .filter { $0.kind != .none }
+            .suffix(backdropPresetLimit)
+            .map { $0 }
+    }
+
+    static func encodedWatermarkPresets(_ presets: [WatermarkStyle]) -> String {
+        guard let data = try? JSONEncoder().encode(Array(presets.suffix(backdropPresetLimit)))
+        else { return "[]" }
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    /// Point size of watermark text in image pixels: factor 0 is a discreet
+    /// 2% of the short side, 1 a bold 16%, the recorder's caption ceiling.
+    static func watermarkFontSize(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return max(8, (min(imageSize.width, imageSize.height) * (0.02 + 0.14 * clamped)).rounded())
+    }
+
+    /// Width of a watermark picture in image pixels, from a corner mark of
+    /// 5% of the capture's width up to half of it. The picture's own
+    /// proportions decide the height.
+    static func watermarkImageWidth(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return max(1, (imageSize.width * (0.05 + 0.45 * clamped)).rounded())
+    }
+
+    struct WatermarkPlacement {
+        /// Where the mark's center goes, in image pixels with a top-left origin.
+        let center: CGPoint
+        /// How much the content shrinks so its tilted bounds stay inside the
+        /// margins; 1 when it already fits.
+        let fit: CGFloat
+    }
+
+    /// Where a mark of `contentSize`, turned by `rotation` degrees, sits on a
+    /// capture: its tilted bounding box is what the nine places position, so
+    /// a diagonal mark in a corner touches the margin instead of leaving it.
+    /// The margin is the recorder's, 5% of the short side.
+    static func watermarkPlacement(contentSize: CGSize,
+                                   rotation: Double,
+                                   anchor: WatermarkStyle.Anchor,
+                                   in imageSize: CGSize,
+                                   cornerRadius: CGFloat = 0) -> WatermarkPlacement? {
+        guard contentSize.width.isFinite, contentSize.height.isFinite,
+              contentSize.width > 0, contentSize.height > 0,
+              imageSize.width > 0, imageSize.height > 0, rotation.isFinite
+        else { return nil }
+        let radians = rotation * .pi / 180
+        let bounds = CGSize(
+            width: abs(contentSize.width * cos(radians)) + abs(contentSize.height * sin(radians)),
+            height: abs(contentSize.width * sin(radians)) + abs(contentSize.height * cos(radians)))
+        let shortSide = min(imageSize.width, imageSize.height)
+        // The inset rectangle must lie entirely inside the rounded capture.
+        // At the diagonal of a quarter circle the inset is r * (1 - sqrt(0.5)).
+        // A pixel of breathing room avoids clipping antialiased edges. Keep
+        // positive space even after cropping down to only a few pixels.
+        let radius = cornerRadius.isFinite ? max(0, min(shortSide / 2, cornerRadius)) : 0
+        let roundedInset = radius > 0 ? ceil(radius * (1 - sqrt(0.5))) + 1 : 0
+        let margin = min(shortSide * 0.45, max(shortSide * 0.05, roundedInset))
+        let available = CGSize(width: imageSize.width - margin * 2,
+                               height: imageSize.height - margin * 2)
+        let fit = min(1, min(available.width / bounds.width, available.height / bounds.height))
+        let fitted = CGSize(width: bounds.width * fit, height: bounds.height * fit)
+        let point = anchor.unitPoint
+        return WatermarkPlacement(
+            center: CGPoint(x: margin + (available.width - fitted.width) * point.x + fitted.width / 2,
+                            y: margin + (available.height - fitted.height) * point.y + fitted.height / 2),
+            fit: fit)
     }
 }
 

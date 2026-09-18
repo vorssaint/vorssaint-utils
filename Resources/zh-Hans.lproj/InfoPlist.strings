@@ -1,5 +1,5 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "Vorssaint 使用自动化在访达中移动文件、将项目移到废纸篓，并在你请求 Homebrew 操作时打开终端命令。";
+"NSAppleEventsUsageDescription" = "Vorssaint 使用自动化来移动文件、将项目移到废纸篓、打开请求的命令以及控制媒体 App 的播放。";
 
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaint 使用各个 App 的音频，用于在混音器中调节它们的音量，以及在你开始的屏幕录制中加入 Mac 的声音。不会有任何数据离开你的 Mac。";
@@ -21,3 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint 将确认的 WhatsApp 下载整理到你明确选择的目标文件夹中。";
 "NSNetworkVolumesUsageDescription" = "Vorssaint 将确认的 WhatsApp 下载整理到你明确选择的目标文件夹中。";
 "NSRemovableVolumesUsageDescription" = "Vorssaint 将确认的 WhatsApp 下载整理到你明确选择的目标文件夹中。";
+"NSCalendarsFullAccessUsageDescription" = "在屏幕顶部显示即将到来的日程。日历事件仅保留在这台 Mac 上。";

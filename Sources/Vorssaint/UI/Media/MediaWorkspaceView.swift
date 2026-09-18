@@ -51,9 +51,10 @@ private enum MediaCompressionLevel: String, CaseIterable, Identifiable {
 
 struct MediaWorkspaceView: View {
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var media = MediaService.shared
+    @ObservedObject private var media: MediaService
     @ObservedObject private var featureRuntime = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.notchPresentation) private var inNotch
 
     @AppStorage(DefaultsKey.mediaLastTool) private var toolRaw = MediaTool.videoCompressor.rawValue
     @AppStorage(DefaultsKey.mediaVideoStart) private var videoStart = 0.0
@@ -89,15 +90,29 @@ struct MediaWorkspaceView: View {
     @AppStorage(DefaultsKey.mediaImageRenamePattern) private var imageRenamePattern = ""
     @AppStorage(DefaultsKey.mediaImageBackground) private var imageBackgroundRaw = MediaImageBackground.transparent.rawValue
     @AppStorage(DefaultsKey.mediaImagePreserveModificationDate) private var imagePreserveModificationDate = false
+    @AppStorage(DefaultsKey.mediaImageSaveInSubfolder) private var imageSaveInSubfolder = false
     @AppStorage(DefaultsKey.mediaImageProfiles) private var imageProfilesRaw = "[]"
     @AppStorage(DefaultsKey.mediaImageSelectedProfileID) private var imageSelectedProfileID = ""
 
     @AppStorage(DefaultsKey.mediaTextAccurate) private var textAccurate = true
 
-    @State private var inputURLs: [URL] = []
-    @State private var inputImageSize: CGSize?
-    @State private var outputURL: URL?
-    @State private var outputWasChosenManually = false
+    @StateObject private var workspace: MediaWorkspaceSelection
+    private var inputURLs: [URL] {
+        get { workspace.inputURLs }
+        nonmutating set { workspace.inputURLs = newValue }
+    }
+    private var inputImageSize: CGSize? {
+        get { workspace.inputImageSize }
+        nonmutating set { workspace.inputImageSize = newValue }
+    }
+    private var outputURL: URL? {
+        get { workspace.outputURL }
+        nonmutating set { workspace.outputURL = newValue }
+    }
+    private var outputWasChosenManually: Bool {
+        get { workspace.outputWasChosenManually }
+        nonmutating set { workspace.outputWasChosenManually = newValue }
+    }
     @State private var isDropTargeted = false
     @State private var localMessage: String?
     @State private var mediaDefaultsTask: Task<Void, Never>?
@@ -112,9 +127,36 @@ struct MediaWorkspaceView: View {
     @State private var watermarkLogo: NSImage?
 
     var compact: Bool
-    var onClose: (() -> Void)? = nil
+    var onClose: (() -> Void)?
+    private let initialInputs: [URL]
+    private let initialTool: MediaTool?
+    private let preservesServiceState: Bool
+    private let onContentHeightChange: ((CGFloat) -> Void)?
+    private let onToolChange: (() -> Void)?
+
+    init(compact: Bool, onClose: (() -> Void)? = nil,
+         media: MediaService = .shared, initialInputs: [URL] = [],
+         initialTool: MediaTool? = nil, preservesServiceState: Bool = false,
+         workspace: MediaWorkspaceSelection? = nil,
+         onContentHeightChange: ((CGFloat) -> Void)? = nil,
+         onToolChange: (() -> Void)? = nil) {
+        self.compact = compact
+        self.onClose = onClose
+        self.media = media
+        self.initialInputs = initialInputs
+        self.initialTool = initialTool
+        self.preservesServiceState = preservesServiceState
+        self.onContentHeightChange = onContentHeightChange
+        self.onToolChange = onToolChange
+        _workspace = StateObject(wrappedValue: workspace ?? MediaWorkspaceSelection())
+    }
 
     private var inputURL: URL? { inputURLs.first }
+    private static let imageOutputSubfolderName = "Converted"
+    private static let imageRenameTokens = [
+        "{name}", "{index}", "{index:03}", "{counter}", "{date}",
+        "{time}", "{datetime}", "{width}", "{height}", "{format}",
+    ]
     private var imageText: MediaImageConverterStrings {
         MediaImageConverterStrings.localized(l10n.language)
     }
@@ -124,10 +166,11 @@ struct MediaWorkspaceView: View {
     }
 
     private var selectedTool: MediaTool {
-        get { MediaSupport.sanitizedTool(toolRaw) }
+        get { workspace.tool ?? MediaSupport.sanitizedTool(toolRaw) }
         nonmutating set {
             cancelVideoImport()
-            toolRaw = newValue.rawValue
+            if preservesServiceState { workspace.tool = newValue }
+            else { toolRaw = newValue.rawValue }
             inputImageSize = newValue == .imageCompressor
                 ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
                 : nil
@@ -143,6 +186,8 @@ struct MediaWorkspaceView: View {
         Binding {
             selectedTool
         } set: { newValue in
+            guard newValue != selectedTool else { return }
+            onToolChange?()
             selectedTool = newValue
         }
     }
@@ -153,14 +198,18 @@ struct MediaWorkspaceView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
-            header
-            toolPicker
-            ScrollView {
-                content
-                    .padding(.trailing, 1)
+        layout
+        .onAppear {
+            if !workspace.loadedInitialInputs {
+                workspace.loadedInitialInputs = true
+                if let initialTool {
+                    if preservesServiceState { workspace.tool = initialTool }
+                    else { selectedTool = initialTool }
+                }
+                if !initialInputs.isEmpty { setInputs(initialInputs, resetsMedia: !preservesServiceState) }
+            } else {
+                applyMediaDefaults(for: inputURL, tool: selectedTool, replacingInput: false)
             }
-            .frame(maxHeight: compact ? 430 : .infinity)
         }
         .onChange(of: currentImageOptions) { oldOptions, newOptions in
             guard selectedTool == .imageCompressor else { return }
@@ -178,10 +227,42 @@ struct MediaWorkspaceView: View {
         }
         .onDisappear {
             mediaDefaultsTask?.cancel()
+            workspace.durationLoading.cancel()
             cancelVideoImport()
         }
         .onChange(of: featureRuntime.revision) {
-            if !AppFeature.mediaTools.isAvailable { cancelVideoImport() }
+            if !AppFeature.mediaTools.isAvailable {
+                mediaDefaultsTask?.cancel()
+                workspace.durationLoading.cancel()
+                cancelVideoImport()
+            }
+        }
+    }
+
+    private var layout: some View {
+        Group {
+            if let onContentHeightChange {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+                        header
+                        toolPicker
+                        content.padding(.trailing, 1)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        onContentHeightChange($0)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+                    header
+                    toolPicker
+                    ScrollView {
+                        content.padding(.trailing, 1)
+                    }
+                    .frame(maxHeight: compact ? 430 : .infinity)
+                }
+            }
         }
     }
 
@@ -225,63 +306,74 @@ struct MediaWorkspaceView: View {
         }
     }
 
-    private var fileCard: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            ZStack(alignment: .trailing) {
-                Button {
-                    chooseInput()
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: selectedTool == .textExtractor ? "doc.text.viewfinder" : "doc.badge.plus")
-                            .font(.system(size: 16, weight: .semibold))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(inputTitle)
-                                .font(.system(size: compact ? 11.5 : 12.5, weight: .semibold))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Text(l10n.s.mediaDropHint)
-                                .font(.system(size: compact ? 9.5 : 10.5))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(compact ? 9 : 12)
-                    .padding(.trailing, inputURLs.isEmpty ? 0 : (compact ? 30 : 34))
-                    .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
-                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
-
-                if !inputURLs.isEmpty {
-                    Button {
-                        clearInput()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: compact ? 14 : 16, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: compact ? 24 : 28, height: compact ? 24 : 28)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(l10n.s.mediaCancel)
-                    .padding(.trailing, compact ? 8 : 10)
-                }
-            }
-            .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isDropTargeted ? Color.accentColor.opacity(0.16) : PanelSurface.controlFill(for: colorScheme))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(isDropTargeted ? Color.accentColor.opacity(0.7) : PanelSurface.border(for: colorScheme),
-                                  lineWidth: isDropTargeted ? 1.2 : 0.8)
-            )
-            .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+    @ViewBuilder private var inputDropTarget: some View {
+        if inNotch {
+            inputSelector
+        } else {
+            inputSelector.onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
                 acceptDrop(providers)
             }
+        }
+    }
+
+    private var inputSelector: some View {
+        ZStack(alignment: .trailing) {
+            Button {
+                chooseInput()
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: selectedTool == .textExtractor ? "doc.text.viewfinder" : "doc.badge.plus")
+                        .font(.system(size: 16, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(inputTitle)
+                            .font(.system(size: compact ? 11.5 : 12.5, weight: .semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Text(l10n.s.mediaDropHint)
+                            .font(.system(size: compact ? 9.5 : 10.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(compact ? 9 : 12)
+                .padding(.trailing, inputURLs.isEmpty ? 0 : (compact ? 30 : 34))
+                .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
+                .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
+
+            if !inputURLs.isEmpty {
+                Button {
+                    clearInput()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: compact ? 14 : 16, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: compact ? 24 : 28, height: compact ? 24 : 28)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(l10n.s.mediaCancel)
+                .padding(.trailing, compact ? 8 : 10)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isDropTargeted ? Color.accentColor.opacity(0.16) : PanelSurface.controlFill(for: colorScheme))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isDropTargeted ? Color.accentColor.opacity(0.7) : PanelSurface.border(for: colorScheme),
+                              lineWidth: isDropTargeted ? 1.2 : 0.8)
+        )
+    }
+
+    private var fileCard: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            inputDropTarget
 
             HStack(spacing: 7) {
                 Text(l10n.s.mediaOutput)
@@ -299,6 +391,11 @@ struct MediaWorkspaceView: View {
                 }
                 .controlSize(.small)
                 .disabled(inputURLs.isEmpty || isRunning)
+            }
+            if selectedTool == .imageCompressor, inputURLs.count > 1 {
+                Toggle(imageText.saveInSubfolder, isOn: $imageSaveInSubfolder)
+                    .toggleStyle(.checkbox)
+                    .disabled(isRunning)
             }
         }
         .panelCard()
@@ -649,20 +746,20 @@ struct MediaWorkspaceView: View {
 
     private var imagePreviewSection: some View {
         HStack(spacing: 10) {
-            ZStack(alignment: previewAlignment) {
+            ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(previewBackgroundColor)
                 if let thumbnail = inputURL.flatMap({ ImageThumbnailer.thumbnail(for: $0, pointSize: compact ? 96 : 128) }) {
                     previewImage(thumbnail)
-                        .padding(4)
+                        .frame(width: previewFrameSize.width,
+                               height: previewFrameSize.height,
+                               alignment: .center)
+                        .clipped()
                 } else {
                     Image(systemName: "photo")
                         .font(.system(size: compact ? 26 : 32))
                         .foregroundStyle(.secondary)
                 }
-                previewWatermarkOverlay
-                    .padding(previewWatermarkMargin)
-                    .opacity(imageWatermarkOpacity)
             }
             .task(id: currentWatermark.usesLogo ? imageWatermarkLogoPath : "") {
                 watermarkLogo = currentWatermark.usesLogo
@@ -670,6 +767,12 @@ struct MediaWorkspaceView: View {
                     : nil
             }
             .frame(width: previewFrameSize.width, height: previewFrameSize.height)
+            .overlay(alignment: previewAlignment) {
+                previewWatermarkOverlay
+                    .padding(previewWatermarkMargin)
+                    .opacity(currentWatermark.opacity)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
@@ -832,12 +935,24 @@ struct MediaWorkspaceView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(imageText.rename)
                 .font(.system(size: compact ? 10 : 11, weight: .semibold))
-            TextField("{name}-{index:03}", text: $imageRenamePattern)
-                .textFieldStyle(.roundedBorder)
-            Text("{name} {index} {index:03} {counter} {date} {time} {datetime} {width} {height} {format}")
-                .font(.system(size: compact ? 8.5 : 9.5, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                TextField("{name}-{index:03}", text: $imageRenamePattern)
+                    .textFieldStyle(.roundedBorder)
+                Menu {
+                    ForEach(Self.imageRenameTokens, id: \.self) { token in
+                        Button(token) {
+                            imageRenamePattern.append(token)
+                        }
+                    }
+                } label: {
+                    Text("{…}")
+                        .font(.system(size: compact ? 10 : 11, design: .monospaced))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help(imageText.rename)
+                .accessibilityLabel(imageText.rename)
+            }
         }
     }
 
@@ -1191,7 +1306,7 @@ struct MediaWorkspaceView: View {
             panel.canChooseFiles = false
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = false
-            panel.directoryURL = (outputURL ?? inputURL.deletingLastPathComponent())
+            panel.directoryURL = outputURL ?? inputURL.deletingLastPathComponent()
             Self.runPanelModal(panel) { response in
                 if response == .OK, let url = panel.url {
                     outputURL = url
@@ -1282,7 +1397,7 @@ struct MediaWorkspaceView: View {
         setInputs([url])
     }
 
-    private func setInputs(_ urls: [URL]) {
+    private func setInputs(_ urls: [URL], resetsMedia: Bool = true) {
         cancelVideoImport()
         inputURLs = selectedTool == .imageCompressor ? urls : Array(urls.prefix(1))
         inputImageSize = selectedTool == .imageCompressor
@@ -1292,11 +1407,12 @@ struct MediaWorkspaceView: View {
         outputWasChosenManually = false
         applyMediaDefaults(for: inputURL, tool: selectedTool)
         localMessage = nil
-        media.reset()
+        if resetsMedia { media.reset() }
     }
 
     private func clearInput() {
         mediaDefaultsTask?.cancel()
+        workspace.durationLoading.reset()
         cancelVideoImport()
         inputURLs = []
         inputImageSize = nil
@@ -1306,14 +1422,25 @@ struct MediaWorkspaceView: View {
         media.reset()
     }
 
-    private func applyMediaDefaults(for url: URL?, tool: MediaTool) {
+    private func applyMediaDefaults(for url: URL?, tool: MediaTool, replacingInput: Bool = true) {
         mediaDefaultsTask?.cancel()
-        guard let url, tool == .videoCompressor || tool == .gifMaker else { return }
+        workspace.durationLoading.cancel()
+        if replacingInput {
+            workspace.durationLoading.reset()
+            // Zero means the full recording until its actual duration arrives.
+            // Never leave a previous input's saved trim on a newly chosen file.
+            if tool == .videoCompressor { videoStart = 0; videoEnd = 0 }
+            else if tool == .gifMaker { gifStart = 0; gifEnd = 0 }
+        }
+        guard AppFeature.mediaTools.isAvailable,
+              let request = workspace.durationLoading.start(url: url, tool: tool) else { return }
         mediaDefaultsTask = Task {
-            guard let duration = await Self.mediaDuration(for: url),
-                  !Task.isCancelled else { return }
+            let duration = await Self.mediaDuration(for: request.url)
+            guard !Task.isCancelled else { return }
             await MainActor.run {
-                guard inputURL == url, selectedTool == tool else { return }
+                guard inputURL == request.url, selectedTool == request.tool,
+                      AppFeature.mediaTools.isAvailable,
+                      let duration = workspace.durationLoading.finish(request, duration: duration) else { return }
                 switch tool {
                 case .videoCompressor:
                     videoStart = 0
@@ -1331,7 +1458,7 @@ struct MediaWorkspaceView: View {
     private static func mediaDuration(for url: URL) async -> Double? {
         guard let duration = try? await AVURLAsset(url: url).load(.duration).seconds else { return nil }
         guard duration.isFinite, duration > 0 else { return nil }
-        return (duration * 10).rounded() / 10
+        return duration
     }
 
     @MainActor
@@ -1422,8 +1549,12 @@ struct MediaWorkspaceView: View {
                                                        megabytes: gifTargetMegabytes)))
         case .imageCompressor:
             if inputURLs.count > 1 {
+                let outputDirectory = imageSaveInSubfolder
+                    ? outputURL.appendingPathComponent(Self.imageOutputSubfolderName,
+                                                       isDirectory: true)
+                    : outputURL
                 media.processImages(inputURLs: inputURLs,
-                                    outputDirectory: outputURL,
+                                    outputDirectory: outputDirectory,
                                     options: currentImageOptions)
             } else {
                 media.compressImage(inputURL: inputURL,
