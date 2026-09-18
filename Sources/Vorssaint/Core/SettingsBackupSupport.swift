@@ -136,6 +136,8 @@ enum SettingsBackupSupport {
         DefaultsKey.systemShortcutsSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
+        // Audio device uids name the hardware on this Mac, not a preference.
+        DefaultsKey.micMuteTouchedDevices,
     ]
 
     /// The file's content: an envelope with the format version, the app

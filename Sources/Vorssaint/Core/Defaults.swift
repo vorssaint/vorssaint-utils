@@ -524,6 +524,10 @@ enum DefaultsKey {
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute (pre 3.2.0 state)
     static let micMuteSavedVolumes = "micMuteSavedVolumes"   // [device uid: input volume] to restore on unmute
     static let micMuteMutedDevices = "micMuteMutedDevices"   // uids of the devices this app muted
+    // Every device this app has ever silenced, not only the ones it still
+    // claims: a mute that lost its claim is only recognizable as this app's
+    // from this record. Issue #1568.
+    static let micMuteTouchedDevices = "micMuteTouchedDevices"
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted
     static let quickLauncherShortcutEnabled = "quickLauncherShortcutEnabled"
     static let quickLauncherShortcut = "quickLauncherShortcut"
