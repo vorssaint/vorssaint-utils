@@ -324,6 +324,28 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
                 if hit.insetBy(dx: -tolerance, dy: -tolerance).contains(point) { return index }
                 continue
             }
+            if stroke.tool == .rectangle || stroke.tool == .ellipse || stroke.tool == .redact {
+                guard points.count >= 2 else { continue }
+                let start = points[0]
+                let end = points[1]
+                let rect = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                                  width: abs(end.x - start.x), height: abs(end.y - start.y))
+                if stroke.tool == .redact {
+                    // Redact is a solid filled box: the whole area counts.
+                    if rect.insetBy(dx: -tolerance, dy: -tolerance).contains(point) { return index }
+                    continue
+                }
+                // Rectangle/ellipse are hollow outlines: only a ring near the
+                // edge counts, matching ScreenshotEditorController.hitTest.
+                let outer = rect.insetBy(dx: -tolerance / 2, dy: -tolerance / 2)
+                guard outer.contains(point) else { continue }
+                let inner = rect.insetBy(dx: tolerance, dy: tolerance)
+                if inner.isEmpty || inner.width <= 0 || inner.height <= 0
+                    || !inner.contains(point) {
+                    return index
+                }
+                continue
+            }
             if points.count == 1 {
                 if hypot(point.x - first.x, point.y - first.y) <= tolerance { return index }
                 continue
@@ -635,7 +657,21 @@ private struct AnnotationToolbarView: View {
             .background(selectedTool == t ? Color.accentColor.opacity(0.22) : .clear,
                         in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .foregroundStyle(selectedTool == t ? Color.accentColor : Color.primary)
-            .help(t.rawValue.capitalized)
+            .help(toolName(t))
+    }
+
+    private func toolName(_ tool: AnnotationTool) -> String {
+        switch tool {
+        case .pen: return strings.pen
+        case .highlighter: return strings.highlighter
+        case .arrow: return strings.arrow
+        case .line: return strings.line
+        case .rectangle: return strings.rectangle
+        case .ellipse: return strings.ellipse
+        case .text: return strings.text
+        case .redact: return strings.redact
+        case .eraser: return strings.eraser
+        }
     }
 
     private func toolSymbol(_ tool: AnnotationTool) -> String {
