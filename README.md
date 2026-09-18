@@ -108,6 +108,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
   modifier key.
 - **Scroll direction.** Invert vertical and horizontal wheel movement separately without
   touching the trackpad's natural scrolling.
+- **Scroll sideways while holding a key.** Turn the vertical mouse wheel into horizontal scrolling in any app while a chosen key is held, installable from Features.
 - **Side buttons.** The mouse Back and Forward buttons start meaning it, in Finder, browsers and compatible apps.
 - **Mouse button shortcuts.** Give any extra button or side-wheel direction a key combination of your choice, or hold a button and drag to switch Spaces, open Mission Control or show the current app's windows.
 - **Middle click.** A three finger press becomes a real middle click.
