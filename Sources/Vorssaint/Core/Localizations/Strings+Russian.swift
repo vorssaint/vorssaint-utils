@@ -1022,6 +1022,8 @@ extension Strings {
         switcherCurrentDisplayOnly: "Показывать только текущий экран",
         switcherCurrentDisplayOnlyCaption: "Показывает только окна на экране под указателем. Если на этом экране нет окон, переключатель не открывается.",
         smoothScrollResponseLabel: "Отклик",
+        smoothScrollCoastLabel: "Инерция",
+        smoothScrollInitialSpeedLabel: "Начальная скорость",
         mouseAccelerationName: "Отключить ускорение мыши",
         mouseAccelerationCaption: "Отключает ускорение указателя для подключённых мышей. Прежняя настройка вернётся после выключения функции или выхода из Vorssaint.",
         shelfClearOnClose: "Очищать при закрытии",

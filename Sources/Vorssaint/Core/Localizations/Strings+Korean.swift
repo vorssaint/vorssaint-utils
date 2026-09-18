@@ -1022,6 +1022,8 @@ extension Strings {
         switcherCurrentDisplayOnly: "현재 화면만 표시",
         switcherCurrentDisplayOnlyCaption: "포인터가 있는 화면의 윈도우만 표시합니다. 해당 화면에 윈도우가 없으면 전환기가 열리지 않습니다.",
         smoothScrollResponseLabel: "반응 속도",
+        smoothScrollCoastLabel: "관성",
+        smoothScrollInitialSpeedLabel: "초기 속도",
         mouseAccelerationName: "마우스 가속 끄기",
         mouseAccelerationCaption: "연결된 마우스의 포인터 가속을 끕니다. 옵션을 끄거나 Vorssaint를 종료하면 이전 설정으로 복원됩니다.",
         shelfClearOnClose: "닫을 때 항목 지우기",

@@ -36,16 +36,21 @@ enum SmoothScrollSupport {
             Self.add(horizontal, to: &remainingHorizontal)
         }
 
-        mutating func advance(elapsed: TimeInterval, response: Int) -> Frame {
+        mutating func advance(elapsed: TimeInterval, response: Int, coast: Int = 0,
+                              initialSpeed: Int = 0) -> Frame {
             let vertical = SmoothScrollSupport.frameDelta(
                 remaining: remainingVertical,
                 elapsed: elapsed,
-                response: response
+                response: response,
+                coast: coast,
+                initialSpeed: initialSpeed
             )
             let horizontal = SmoothScrollSupport.frameDelta(
                 remaining: remainingHorizontal,
                 elapsed: elapsed,
-                response: response
+                response: response,
+                coast: coast,
+                initialSpeed: initialSpeed
             )
             remainingVertical -= vertical
             remainingHorizontal -= horizontal
@@ -84,10 +89,29 @@ enum SmoothScrollSupport {
     /// the rest independent from the timer cadence.
     static let responseRange = 0...100
     static let defaultResponse = 65
+    /// Extra glide length on top of the response curve. Zero reproduces the
+    /// shipped curve exactly; higher values stretch the response time so the
+    /// same distance coasts out longer. The decay stays exponential in
+    /// elapsed time, so the shape is still identical on any refresh rate.
+    static let coastRange = 0...100
+    static let defaultCoast = 0
     private static let slowResponseTime: TimeInterval = 0.16
     private static let fastResponseTime: TimeInterval = 0.04
+    /// How much longer the glide lasts at full coast, as a multiple of the
+    /// response time. Three times the slowest response still settles a single
+    /// tick in well under a second.
+    private static let fullCoastStretch = 3.0
     /// Time-based equivalent of the former one-point minimum at 60 Hz.
     private static let minimumGlideSpeed = 60.0
+    /// How promptly the glide starts moving. Zero keeps the shipped minimum
+    /// speed; higher values raise that floor so the first frames punch out
+    /// sooner. Only the curve changes: the budget still caps every frame and
+    /// the tail still flushes, so the full distance always arrives.
+    static let initialSpeedRange = 0...100
+    static let defaultInitialSpeed = 0
+    /// Floor multiplier at full initial speed: five times the shipped
+    /// minimum still moves a single tick in small steps per frame.
+    private static let fullInitialSpeedStretch = 5.0
 
     /// The tick count of a discrete wheel event. High-resolution wheels
     /// report fractions of a line in the fixed-point field while the integer
@@ -167,7 +191,9 @@ enum SmoothScrollSupport {
     /// with their combined duration.
     static func frameDelta(remaining: Double,
                            elapsed: TimeInterval,
-                           response: Int) -> Double {
+                           response: Int,
+                           coast: Int = 0,
+                           initialSpeed: Int = 0) -> Double {
         guard remaining.isFinite, remaining != 0,
               elapsed.isFinite, elapsed > 0 else { return 0 }
         let magnitude = abs(remaining)
@@ -175,10 +201,17 @@ enum SmoothScrollSupport {
         let clampedElapsed = min(elapsed, maximumFrameInterval)
         let normalizedResponse = Double(sanitizedResponse(response) - responseRange.lowerBound)
             / Double(responseRange.upperBound - responseRange.lowerBound)
-        let responseTime = slowResponseTime
-            - normalizedResponse * (slowResponseTime - fastResponseTime)
+        let normalizedCoast = Double(sanitizedCoast(coast) - coastRange.lowerBound)
+            / Double(coastRange.upperBound - coastRange.lowerBound)
+        let normalizedInitialSpeed = Double(sanitizedInitialSpeed(initialSpeed) - initialSpeedRange.lowerBound)
+            / Double(initialSpeedRange.upperBound - initialSpeedRange.lowerBound)
+        let responseTime = (slowResponseTime
+            - normalizedResponse * (slowResponseTime - fastResponseTime))
+            * (1 + normalizedCoast * (fullCoastStretch - 1))
+        let speedFloor = minimumGlideSpeed
+            * (1 + normalizedInitialSpeed * (fullInitialSpeedStretch - 1))
         let eased = magnitude * (1 - exp(-clampedElapsed / responseTime))
-        let emitted = min(magnitude, max(eased, minimumGlideSpeed * clampedElapsed))
+        let emitted = min(magnitude, max(eased, speedFloor * clampedElapsed))
         return remaining < 0 ? -emitted : emitted
     }
 
@@ -191,5 +224,13 @@ enum SmoothScrollSupport {
 
     static func sanitizedResponse(_ value: Int) -> Int {
         min(max(value, responseRange.lowerBound), responseRange.upperBound)
+    }
+
+    static func sanitizedCoast(_ value: Int) -> Int {
+        min(max(value, coastRange.lowerBound), coastRange.upperBound)
+    }
+
+    static func sanitizedInitialSpeed(_ value: Int) -> Int {
+        min(max(value, initialSpeedRange.lowerBound), initialSpeedRange.upperBound)
     }
 }

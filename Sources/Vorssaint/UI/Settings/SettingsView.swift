@@ -930,6 +930,10 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
     @AppStorage(DefaultsKey.smoothScrollResponse) private var smoothScrollResponse =
         SmoothScrollSupport.defaultResponse
+    @AppStorage(DefaultsKey.smoothScrollCoast) private var smoothScrollCoast =
+        SmoothScrollSupport.defaultCoast
+    @AppStorage(DefaultsKey.smoothScrollInitialSpeed) private var smoothScrollInitialSpeed =
+        SmoothScrollSupport.defaultInitialSpeed
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
@@ -1055,6 +1059,32 @@ struct MouseSettings: View {
                                     Text(l10n.s.smoothScrollResponseLabel)
                                 }
                                 Text("\(SmoothScrollSupport.sanitizedResponse(smoothScrollResponse))%")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 42, alignment: .trailing)
+                            }
+                            .padding(.top, 4)
+                            HStack {
+                                Slider(value: smoothScrollCoastBinding,
+                                       in: Double(SmoothScrollSupport.coastRange.lowerBound)
+                                           ... Double(SmoothScrollSupport.coastRange.upperBound),
+                                       step: 5) {
+                                    Text(l10n.s.smoothScrollCoastLabel)
+                                }
+                                Text("\(SmoothScrollSupport.sanitizedCoast(smoothScrollCoast))%")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 42, alignment: .trailing)
+                            }
+                            .padding(.top, 4)
+                            HStack {
+                                Slider(value: smoothScrollInitialSpeedBinding,
+                                       in: Double(SmoothScrollSupport.initialSpeedRange.lowerBound)
+                                           ... Double(SmoothScrollSupport.initialSpeedRange.upperBound),
+                                       step: 5) {
+                                    Text(l10n.s.smoothScrollInitialSpeedLabel)
+                                }
+                                Text("\(SmoothScrollSupport.sanitizedInitialSpeed(smoothScrollInitialSpeed))%")
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(.secondary)
                                     .frame(width: 42, alignment: .trailing)
@@ -1213,6 +1243,20 @@ struct MouseSettings: View {
         Binding(
             get: { Double(SmoothScrollSupport.sanitizedResponse(smoothScrollResponse)) },
             set: { smoothScrollResponse = Int($0) }
+        )
+    }
+
+    private var smoothScrollCoastBinding: Binding<Double> {
+        Binding(
+            get: { Double(SmoothScrollSupport.sanitizedCoast(smoothScrollCoast)) },
+            set: { smoothScrollCoast = Int($0) }
+        )
+    }
+
+    private var smoothScrollInitialSpeedBinding: Binding<Double> {
+        Binding(
+            get: { Double(SmoothScrollSupport.sanitizedInitialSpeed(smoothScrollInitialSpeed)) },
+            set: { smoothScrollInitialSpeed = Int($0) }
         )
     }
 
