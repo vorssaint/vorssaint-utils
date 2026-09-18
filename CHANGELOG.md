@@ -61,6 +61,7 @@ App Switcher makes multiple windows easier to see and keeps a window opened afte
 - The built-in display is no longer switched back on while the lid is closed; it comes back when the lid opens, and the panel says to open the lid when a switch has to wait. Thanks to @rkrkrkk.
 - A window opened right after an App Switcher switch, even from a fullscreen app, stays in front. Thanks to @akune.
 - Picking a mark in the screenshot editor shows its own color and thickness, so changing one no longer carries the other over from the last mark. Thanks to @kxnstandin.
+- The menu bar panel no longer disappears on the first click inside it after you were working in another app.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 

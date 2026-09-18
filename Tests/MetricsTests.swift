@@ -4264,6 +4264,30 @@ struct MetricsTests {
         expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1240, reportedMidX: 1144, buttonWidth: 197) == nil,
                "clicks near the edge of a wide metrics item stay anchored to the item")
 
+        // A close nobody in the app asked for, while the pointer is still on
+        // the panel, is the system closing it under a click: show it again.
+        let panelFrame = CGRect(x: 1000, y: 400, width: 332, height: 500)
+        let insidePanel = CGPoint(x: 1100, y: 850)
+        expect(StatusItemAnchorSupport.shouldReopenPanel(closedByApp: false, lastFrame: panelFrame, pointer: insidePanel,
+                                                         closedByKeyPress: false, secondsSinceLastReopen: 60),
+               "a close the app never asked for, under a click inside the panel, reopens it")
+        expect(!StatusItemAnchorSupport.shouldReopenPanel(closedByApp: true, lastFrame: panelFrame, pointer: insidePanel,
+                                                          closedByKeyPress: false, secondsSinceLastReopen: 60),
+               "a close the app asked for stays closed even with the pointer on the panel")
+        expect(!StatusItemAnchorSupport.shouldReopenPanel(closedByApp: false, lastFrame: panelFrame,
+                                                          pointer: CGPoint(x: 400, y: 300),
+                                                          closedByKeyPress: false, secondsSinceLastReopen: 60),
+               "a click elsewhere is the person dismissing the panel")
+        expect(!StatusItemAnchorSupport.shouldReopenPanel(closedByApp: false, lastFrame: panelFrame, pointer: insidePanel,
+                                                          closedByKeyPress: true, secondsSinceLastReopen: 60),
+               "a key press closing the panel is deliberate")
+        expect(!StatusItemAnchorSupport.shouldReopenPanel(closedByApp: false, lastFrame: panelFrame, pointer: insidePanel,
+                                                          closedByKeyPress: false, secondsSinceLastReopen: 0.2),
+               "a second close right after a recovery is not reopened again")
+        expect(!StatusItemAnchorSupport.shouldReopenPanel(closedByApp: false, lastFrame: nil, pointer: insidePanel,
+                                                          closedByKeyPress: false, secondsSinceLastReopen: 60),
+               "with no known panel frame there is nothing to judge the click against")
+
         // The built-in display and a taller one placed to its left.
         let builtInScreen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         let secondScreen = CGRect(x: -1920, y: 100, width: 1920, height: 1080)

@@ -16,6 +16,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var popoverLocalDismissMonitor: Any?
     private var popoverKeyboardMonitor: Any?
     private var popoverIsClosing = false
+    /// Where the panel was last seen on screen, so a close this app did not
+    /// ask for can tell whether the click that caused it landed inside the panel.
+    private var popoverLastFrame: CGRect?
+    private var popoverForeignReopenAt = Date.distantPast
     private var popoverIsSwitchingAnchor = false
     private var metricAnchorSwitchSerial = 0
     private var popoverCloseCompletions: [() -> Void] = []
@@ -692,6 +696,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func armPopoverDriftCorrection(window: NSWindow, anchor: PanelAnchor) {
         popoverAnchor = anchor
+        popoverLastFrame = window.frame
         if anchor.trusted { lastGoodPanelAnchor = anchor }
         PanelInteractionState.shared.anchorScreen = anchor.screen
         if popoverPositioningPanel != nil {
@@ -704,6 +709,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 forName: name, object: window, queue: .main
             ) { [weak self, weak window] notification in
                 guard let self, let window else { return }
+                self.popoverLastFrame = window.frame
                 // Once the popover hangs from the stable view, that view is the
                 // only authority for placement. Recompute its screen-space
                 // position on both resize and move; applying the old midX frame
@@ -1128,20 +1134,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func popoverDidClose(_ notification: Notification) {
+        // Decided before anything below is torn down, and treated like a
+        // metric anchor switch: the panel is about to be shown again in the
+        // same turn, so the sampling and caches it is using stay alive.
+        let reopenButton = reopenButtonAfterForeignClose()
+        if reopenButton != nil {
+            popoverIsSwitchingAnchor = true
+            MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
+        }
         if !popoverIsSwitchingAnchor && !popover.isShown {
             statusController.setMicBadgeHeld(false)
         }
         if !popoverIsSwitchingAnchor {
-            SystemMonitor.shared.setMenuPanelNeeds(.none)
-        }
-        if !popoverIsSwitchingAnchor {
-            MenuPanelFocus.shared.clearMetricFocus()
-            // Non-forced stop: the shortened lease lets nettop wind down on its
-            // own within a few seconds while keeping the delta baseline, so a
-            // quick reopen shows per-app rows immediately instead of re-priming.
-            ProcessUsageService.shared.stopNetworkMonitoring()
-            ProcessUsageService.shared.clearCachedRows()
-            ResponsibleProcess.clearIconCache()
+            releasePanelResources()
         }
         removePopoverDismissMonitor()
         endPopoverDriftCorrection()
@@ -1150,6 +1155,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         runPopoverCloseCompletions()
+        if let reopenButton {
+            reopenPanelAfterForeignClose(anchoredTo: reopenButton)
+        }
+    }
+
+    /// What the panel was holding open only for as long as it was on screen.
+    private func releasePanelResources() {
+        SystemMonitor.shared.setMenuPanelNeeds(.none)
+        MenuPanelFocus.shared.clearMetricFocus()
+        // Non-forced stop: the shortened lease lets nettop wind down on its
+        // own within a few seconds while keeping the delta baseline, so a
+        // quick reopen shows per-app rows immediately instead of re-priming.
+        ProcessUsageService.shared.stopNetworkMonitoring()
+        ProcessUsageService.shared.clearCachedRows()
+        ResponsibleProcess.clearIconCache()
+    }
+
+    /// The button to hang the panel from again when AppKit closed it out from
+    /// under a click inside it (see StatusItemAnchorSupport.shouldReopenPanel),
+    /// or nil for every close that stays closed. Every close this app asks
+    /// for goes through closePopover, which raises popoverIsClosing first;
+    /// AppKit's own close through the status item's session never does. The
+    /// button is the one the panel was anchored to, which for a metric panel
+    /// is not the main icon.
+    private func reopenButtonAfterForeignClose() -> NSStatusBarButton? {
+        guard !isTerminating, !popoverIsSwitchingAnchor,
+              let button = popoverAnchor?.button, button.window != nil,
+              StatusItemAnchorSupport.shouldReopenPanel(
+                  closedByApp: popoverIsClosing,
+                  lastFrame: popoverLastFrame,
+                  pointer: NSEvent.mouseLocation,
+                  closedByKeyPress: Self.isKeyboardEvent(NSApp.currentEvent),
+                  secondsSinceLastReopen: Date().timeIntervalSince(popoverForeignReopenAt))
+        else { return nil }
+        return button
+    }
+
+    private static func isKeyboardEvent(_ event: NSEvent?) -> Bool {
+        guard let event else { return false }
+        return event.type == .keyDown || event.type == .keyUp || event.type == .flagsChanged
+    }
+
+    /// Shows the panel again in place, within the same turn of the run loop
+    /// as the close, so nothing is seen to flicker. The switch ends on the
+    /// next turn, like a metric anchor switch; a panel that is not on screen
+    /// by then, because it failed to come back or was closed again at once,
+    /// gets the teardown the switch skipped.
+    private func reopenPanelAfterForeignClose(anchoredTo button: NSStatusBarButton) {
+        popoverForeignReopenAt = Date()
+        showPopover(anchor: button, allowRecentClose: true, animate: false, activate: false)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.popoverIsSwitchingAnchor = false
+            MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+            if !self.popover.isShown {
+                self.statusController.setMicBadgeHeld(false)
+                self.releasePanelResources()
+            }
+        }
     }
 
     // MARK: - Context menu (right click)
