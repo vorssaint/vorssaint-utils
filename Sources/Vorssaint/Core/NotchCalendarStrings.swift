@@ -1,0 +1,293 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+struct NotchCalendarStrings {
+    let title: String
+    let description: String
+    let permission: String
+    let allow: String
+    let denied: String
+    let settings: String
+    let empty: String
+    let next: String
+    let ongoing: String
+    let allDay: String
+    let untitled: String
+    let openCalendar: String
+    let week: String
+    let today: String
+    let requestFailed: String
+    let previousMonth: String
+    let nextMonth: String
+    let emptyDay: String
+    let hasEvents: String
+}
+
+extension FeatureStrings {
+    static func notchCalendar(_ language: AppLanguage) -> NotchCalendarStrings {
+        switch language {
+        case .enUS: return NotchCalendarStrings(
+            title: "Calendar",
+            description: "Browse the month and your upcoming appointments in the Dynamic Island.",
+            permission: "Read your calendars to show upcoming appointments. Events stay on this Mac.",
+            allow: "Allow Calendar Access",
+            denied: "Allow calendar access in System Settings to see your appointments.",
+            settings: "Open System Settings",
+            empty: "No upcoming appointments",
+            next: "Up next",
+            ongoing: "Happening now",
+            allDay: "All day",
+            untitled: "Untitled event",
+            openCalendar: "Open Calendar",
+            week: "Next 7 days",
+            today: "Today",
+            requestFailed: "Could not request calendar access. Please try again.",
+            previousMonth: "Previous month",
+            nextMonth: "Next month",
+            emptyDay: "No appointments on this day",
+            hasEvents: "Has appointments")
+        case .ptBR: return NotchCalendarStrings(
+            title: "Calendário",
+            description: "Veja o mês e seus próximos compromissos no Dynamic Island.",
+            permission: "Leia seus calendários para mostrar os próximos compromissos. Os eventos ficam neste Mac.",
+            allow: "Permitir acesso ao calendário",
+            denied: "Permita o acesso ao calendário nos Ajustes do Sistema para ver seus compromissos.",
+            settings: "Abrir Ajustes do Sistema",
+            empty: "Nenhum compromisso por enquanto",
+            next: "Próximo compromisso",
+            ongoing: "Acontecendo agora",
+            allDay: "Dia inteiro",
+            untitled: "Evento sem título",
+            openCalendar: "Abrir calendário",
+            week: "Próximos 7 dias",
+            today: "Hoje",
+            requestFailed: "Não foi possível pedir acesso ao calendário. Tente novamente.",
+            previousMonth: "Mês anterior",
+            nextMonth: "Próximo mês",
+            emptyDay: "Nenhum compromisso neste dia",
+            hasEvents: "Tem compromissos")
+        case .es: return NotchCalendarStrings(
+            title: "Calendario",
+            description: "Consulta el mes y tus próximas citas en el Dynamic Island.",
+            permission: "Lee tus calendarios para mostrar las próximas citas. Los eventos se quedan en este Mac.",
+            allow: "Permitir acceso al calendario",
+            denied: "Permite el acceso al calendario en Ajustes del Sistema para ver tus citas.",
+            settings: "Abrir Ajustes del Sistema",
+            empty: "No hay próximas citas",
+            next: "A continuación",
+            ongoing: "En curso",
+            allDay: "Todo el día",
+            untitled: "Evento sin título",
+            openCalendar: "Abrir Calendario",
+            week: "Próximos 7 días",
+            today: "Hoy",
+            requestFailed: "No se pudo solicitar acceso al calendario. Inténtalo de nuevo.",
+            previousMonth: "Mes anterior",
+            nextMonth: "Mes siguiente",
+            emptyDay: "No hay citas este día",
+            hasEvents: "Tiene citas")
+        case .de: return NotchCalendarStrings(
+            title: "Kalender",
+            description: "Den Monat und deine nächsten Termine im Dynamic Island ansehen.",
+            permission: "Liest deine Kalender, um kommende Termine anzuzeigen. Die Ereignisse bleiben auf diesem Mac.",
+            allow: "Kalenderzugriff erlauben",
+            denied: "Erlaube den Kalenderzugriff in den Systemeinstellungen, um deine Termine zu sehen.",
+            settings: "Systemeinstellungen öffnen",
+            empty: "Keine anstehenden Termine",
+            next: "Nächster Termin",
+            ongoing: "Findet gerade statt",
+            allDay: "Ganztägig",
+            untitled: "Ereignis ohne Titel",
+            openCalendar: "Kalender öffnen",
+            week: "Nächste 7 Tage",
+            today: "Heute",
+            requestFailed: "Der Kalenderzugriff konnte nicht angefordert werden. Versuche es erneut.",
+            previousMonth: "Vorheriger Monat",
+            nextMonth: "Nächster Monat",
+            emptyDay: "Keine Termine an diesem Tag",
+            hasEvents: "Termine vorhanden")
+        case .fr: return NotchCalendarStrings(
+            title: "Calendrier",
+            description: "Consultez le mois et vos prochains rendez-vous dans le Dynamic Island.",
+            permission: "Lit vos calendriers pour afficher les prochains rendez-vous. Les événements restent sur ce Mac.",
+            allow: "Autoriser l’accès au calendrier",
+            denied: "Autorisez l’accès au calendrier dans les Réglages Système pour voir vos rendez-vous.",
+            settings: "Ouvrir les Réglages Système",
+            empty: "Aucun rendez-vous à venir",
+            next: "À venir",
+            ongoing: "En cours",
+            allDay: "Toute la journée",
+            untitled: "Événement sans titre",
+            openCalendar: "Ouvrir Calendrier",
+            week: "7 prochains jours",
+            today: "Aujourd’hui",
+            requestFailed: "Impossible de demander l’accès au calendrier. Réessayez.",
+            previousMonth: "Mois précédent",
+            nextMonth: "Mois suivant",
+            emptyDay: "Aucun rendez-vous ce jour-là",
+            hasEvents: "Rendez-vous prévus")
+        case .it: return NotchCalendarStrings(
+            title: "Calendario",
+            description: "Consulta il mese e i prossimi appuntamenti nel Dynamic Island.",
+            permission: "Legge i calendari per mostrare i prossimi appuntamenti. Gli eventi restano su questo Mac.",
+            allow: "Consenti accesso al calendario",
+            denied: "Consenti l’accesso al calendario in Impostazioni di Sistema per vedere gli appuntamenti.",
+            settings: "Apri Impostazioni di Sistema",
+            empty: "Nessun appuntamento in programma",
+            next: "Prossimo appuntamento",
+            ongoing: "In corso",
+            allDay: "Tutto il giorno",
+            untitled: "Evento senza titolo",
+            openCalendar: "Apri Calendario",
+            week: "Prossimi 7 giorni",
+            today: "Oggi",
+            requestFailed: "Impossibile richiedere l’accesso al calendario. Riprova.",
+            previousMonth: "Mese precedente",
+            nextMonth: "Mese successivo",
+            emptyDay: "Nessun appuntamento in questo giorno",
+            hasEvents: "Appuntamenti presenti")
+        case .ru: return NotchCalendarStrings(
+            title: "Календарь",
+            description: "Просматривайте месяц и ближайшие встречи в вырезе экрана.",
+            permission: "Чтение календарей для показа предстоящих встреч. События остаются на этом Mac.",
+            allow: "Разрешить доступ к календарю",
+            denied: "Разрешите доступ к календарю в Системных настройках, чтобы видеть встречи.",
+            settings: "Открыть Системные настройки",
+            empty: "Предстоящих встреч нет",
+            next: "Следующая встреча",
+            ongoing: "Сейчас",
+            allDay: "Весь день",
+            untitled: "Событие без названия",
+            openCalendar: "Открыть Календарь",
+            week: "Ближайшие 7 дней",
+            today: "Сегодня",
+            requestFailed: "Не удалось запросить доступ к календарю. Повторите попытку.",
+            previousMonth: "Предыдущий месяц",
+            nextMonth: "Следующий месяц",
+            emptyDay: "В этот день встреч нет",
+            hasEvents: "Есть встречи")
+        case .tr: return NotchCalendarStrings(
+            title: "Takvim",
+            description: "Ayı ve yaklaşan randevularınızı çentikte görüntüleyin.",
+            permission: "Yaklaşan randevuları göstermek için takvimlerinizi okur. Etkinlikler bu Mac’te kalır.",
+            allow: "Takvim Erişimine İzin Ver",
+            denied: "Randevularınızı görmek için Sistem Ayarları’nda takvim erişimine izin verin.",
+            settings: "Sistem Ayarları’nı Aç",
+            empty: "Yaklaşan randevu yok",
+            next: "Sıradaki",
+            ongoing: "Şu anda",
+            allDay: "Tüm gün",
+            untitled: "Başlıksız etkinlik",
+            openCalendar: "Takvimi Aç",
+            week: "Önümüzdeki 7 gün",
+            today: "Bugün",
+            requestFailed: "Takvim erişimi istenemedi. Tekrar deneyin.",
+            previousMonth: "Önceki ay",
+            nextMonth: "Sonraki ay",
+            emptyDay: "Bu gün için randevu yok",
+            hasEvents: "Randevu var")
+        case .ja: return NotchCalendarStrings(
+            title: "カレンダー",
+            description: "Dynamic Islandで月のカレンダーと今後の予定を確認できます。",
+            permission: "カレンダーを読み取り、今後の予定を表示します。予定の情報はこのMacに保持されます。",
+            allow: "カレンダーへのアクセスを許可",
+            denied: "予定を表示するには、システム設定でカレンダーへのアクセスを許可してください。",
+            settings: "システム設定を開く",
+            empty: "今後の予定はありません",
+            next: "次の予定",
+            ongoing: "進行中",
+            allDay: "終日",
+            untitled: "名称未設定の予定",
+            openCalendar: "カレンダーを開く",
+            week: "今後7日間",
+            today: "今日",
+            requestFailed: "カレンダーへのアクセスを要求できませんでした。もう一度お試しください。",
+            previousMonth: "前の月",
+            nextMonth: "次の月",
+            emptyDay: "この日の予定はありません",
+            hasEvents: "予定あり")
+        case .ko: return NotchCalendarStrings(
+            title: "캘린더",
+            description: "Dynamic Island에서 월별 달력과 다가오는 일정을 확인하세요.",
+            permission: "다가오는 일정을 표시하기 위해 캘린더를 읽습니다. 일정은 이 Mac에만 보관됩니다.",
+            allow: "캘린더 접근 허용",
+            denied: "일정을 보려면 시스템 설정에서 캘린더 접근을 허용하세요.",
+            settings: "시스템 설정 열기",
+            empty: "예정된 일정 없음",
+            next: "다음 일정",
+            ongoing: "진행 중",
+            allDay: "하루 종일",
+            untitled: "제목 없는 일정",
+            openCalendar: "캘린더 열기",
+            week: "앞으로 7일",
+            today: "오늘",
+            requestFailed: "캘린더 접근을 요청할 수 없습니다. 다시 시도하세요.",
+            previousMonth: "이전 달",
+            nextMonth: "다음 달",
+            emptyDay: "이 날의 일정 없음",
+            hasEvents: "일정 있음")
+        case .zhHans: return NotchCalendarStrings(
+            title: "日历",
+            description: "在Dynamic Island中浏览月历和即将开始的日程。",
+            permission: "读取日历以显示即将开始的日程。日程信息仅保留在此 Mac 上。",
+            allow: "允许访问日历",
+            denied: "请在系统设置中允许访问日历，以查看日程。",
+            settings: "打开系统设置",
+            empty: "暂无即将开始的日程",
+            next: "下一个日程",
+            ongoing: "正在进行",
+            allDay: "全天",
+            untitled: "无标题日程",
+            openCalendar: "打开日历",
+            week: "未来 7 天",
+            today: "今天",
+            requestFailed: "无法请求日历访问权限，请重试。",
+            previousMonth: "上个月",
+            nextMonth: "下个月",
+            emptyDay: "当天没有日程",
+            hasEvents: "有日程")
+        case .zhTW: return NotchCalendarStrings(
+            title: "行事曆",
+            description: "在Dynamic Island中瀏覽月曆與即將到來的行程。",
+            permission: "讀取行事曆以顯示即將到來的行程。行程資訊僅保留在這部 Mac 上。",
+            allow: "允許取用行事曆",
+            denied: "請在系統設定中允許取用行事曆，以查看行程。",
+            settings: "打開系統設定",
+            empty: "沒有即將到來的行程",
+            next: "下一個行程",
+            ongoing: "進行中",
+            allDay: "整天",
+            untitled: "未命名行程",
+            openCalendar: "打開行事曆",
+            week: "未來 7 天",
+            today: "今天",
+            requestFailed: "無法要求行事曆取用權限，請再試一次。",
+            previousMonth: "上個月",
+            nextMonth: "下個月",
+            emptyDay: "當天沒有行程",
+            hasEvents: "有行程")
+        case .zhHK: return NotchCalendarStrings(
+            title: "日曆",
+            description: "在Dynamic Island中瀏覽月曆及即將到來的行程。",
+            permission: "讀取日曆以顯示即將到來的行程。行程資料只保留在此 Mac 上。",
+            allow: "允許取用日曆",
+            denied: "請在系統設定中允許取用日曆，以查看行程。",
+            settings: "開啟系統設定",
+            empty: "沒有即將到來的行程",
+            next: "下一個行程",
+            ongoing: "進行中",
+            allDay: "全天",
+            untitled: "未命名行程",
+            openCalendar: "開啟日曆",
+            week: "未來 7 天",
+            today: "今天",
+            requestFailed: "無法要求日曆取用權限，請重試。",
+            previousMonth: "上個月",
+            nextMonth: "下個月",
+            emptyDay: "當天沒有行程",
+            hasEvents: "有行程")
+        }
+    }
+}

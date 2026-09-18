@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import Combine
-import CoreAudio
 import Foundation
 
 /// Automatically selects the highest-priority connected audio device.
@@ -26,13 +25,13 @@ final class AudioPriorityService: ObservableObject {
     @Published private(set) var outputPriorityUIDs: [String] = []
     @Published private(set) var inputPriorityUIDs: [String] = []
     @Published private(set) var deviceNames: [String: String] = [:]
-    @Published private(set) var lastError: String?
 
     private var cancellables = Set<AnyCancellable>()
     private var enforceDebouce: DispatchWorkItem?
-    private var isEnforcing = false
-    private var failedOutputAttempt: MixerRoutingSupport.PrioritySwitchAttempt?
-    private var failedInputAttempt: MixerRoutingSupport.PrioritySwitchAttempt?
+    private var settledOutputUIDs: Set<String>?
+    private var settledInputUIDs: Set<String>?
+    private var pendingOutputUIDs: Set<String>?
+    private var pendingInputUIDs: Set<String>?
     private var started = false
 
     private init() {}
@@ -48,45 +47,32 @@ final class AudioPriorityService: ObservableObject {
     }
 
     func start() {
-        failedOutputAttempt = nil
-        failedInputAttempt = nil
         guard !started else {
             loadPreferences()
-            AudioInputDeviceManager.shared.inputPriorityIsActive = inputPriorityEnabled
-            scheduleEnforcement()
+            AudioInputDeviceManager.shared.setInputPriorityActive(inputPriorityEnabled)
+            mergeAvailableDevicesIntoPriorityLists()
+            updateDeviceNames()
             return
         }
         started = true
         loadPreferences()
+        AudioInputDeviceManager.shared.setInputPriorityActive(inputPriorityEnabled)
 
-        // Observe device list and default changes from the shared audio
-        // services. These are already @Published on the main thread, so
-        // enforcement runs there too — no competing HAL listeners.
+        // The published device models also change when only the default flag
+        // changes. Compare eligible UID sets so a manual selection anywhere
+        // remains in effect until hardware actually connects or disconnects.
         AppVolumeMixer.shared.$outputDevices
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.scheduleEnforcement() }
-            .store(in: &cancellables)
-
-        AppVolumeMixer.shared.$currentOutputDeviceUID
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.scheduleEnforcement() }
+            .sink { [weak self] in self?.observeOutputDevices($0) }
             .store(in: &cancellables)
 
         AudioInputDeviceManager.shared.$inputDevices
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.scheduleEnforcement() }
+            .sink { [weak self] in self?.observeInputDevices($0) }
             .store(in: &cancellables)
 
-        AudioInputDeviceManager.shared.$currentInputDeviceUID
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.scheduleEnforcement() }
-            .store(in: &cancellables)
-
-        // Update the input manager's suppression flag so singular preferred
-        // input enforcement steps aside while priority is active.
-        AudioInputDeviceManager.shared.inputPriorityIsActive = inputPriorityEnabled
-
-        scheduleEnforcement()
+        mergeAvailableDevicesIntoPriorityLists()
+        updateDeviceNames()
     }
 
     func stop() {
@@ -95,10 +81,11 @@ final class AudioPriorityService: ObservableObject {
         cancellables.removeAll()
         enforceDebouce?.cancel()
         enforceDebouce = nil
-        isEnforcing = false
-        failedOutputAttempt = nil
-        failedInputAttempt = nil
-        AudioInputDeviceManager.shared.inputPriorityIsActive = false
+        settledOutputUIDs = nil
+        settledInputUIDs = nil
+        pendingOutputUIDs = nil
+        pendingInputUIDs = nil
+        AudioInputDeviceManager.shared.setInputPriorityActive(false)
     }
 
     // MARK: - Preference loading
@@ -121,19 +108,17 @@ final class AudioPriorityService: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.set(enabled, forKey: DefaultsKey.audioPriorityOutputEnabled)
         outputPriorityEnabled = enabled
-        failedOutputAttempt = nil
         mergeAvailableDevicesIntoPriorityLists()
-        scheduleEnforcement()
+        updateDeviceNames()
     }
 
     func setInputPriorityEnabled(_ enabled: Bool) {
         let defaults = UserDefaults.standard
         defaults.set(enabled, forKey: DefaultsKey.audioPriorityInputEnabled)
         inputPriorityEnabled = enabled
-        failedInputAttempt = nil
-        AudioInputDeviceManager.shared.inputPriorityIsActive = enabled
+        AudioInputDeviceManager.shared.setInputPriorityActive(enabled)
         mergeAvailableDevicesIntoPriorityLists()
-        scheduleEnforcement()
+        updateDeviceNames()
     }
 
     func setOutputPriorityUIDs(_ uids: [String]) {
@@ -145,12 +130,7 @@ final class AudioPriorityService: ObservableObject {
             defaults.set(sanitized, forKey: DefaultsKey.audioPriorityOutputUIDs)
         }
         outputPriorityUIDs = sanitized
-        failedOutputAttempt = nil
         updateDeviceNames()
-        // Dragging can cross several rows in quick succession. Keep those
-        // list edits immediate, but wait for the gesture to settle before a
-        // synchronous CoreAudio default-device change reaches the main thread.
-        scheduleEnforcement(after: Self.reorderEnforcementDelay)
     }
 
     func setInputPriorityUIDs(_ uids: [String]) {
@@ -162,38 +142,7 @@ final class AudioPriorityService: ObservableObject {
             defaults.set(sanitized, forKey: DefaultsKey.audioPriorityInputUIDs)
         }
         inputPriorityUIDs = sanitized
-        failedInputAttempt = nil
         updateDeviceNames()
-        scheduleEnforcement(after: Self.reorderEnforcementDelay)
-    }
-
-    /// Promotes a UID to the front of the output priority list. Called when
-    /// the user manually selects an output while output priority is active,
-    /// so the automatic enforcement does not immediately undo the choice.
-    func promoteOutputDevice(_ uid: String) {
-        guard started, outputPriorityEnabled else { return }
-        guard let sanitized = MixerRoutingSupport.sanitizedDeviceUID(uid) else { return }
-        var uids = outputPriorityUIDs.filter { $0 != sanitized }
-        uids.insert(sanitized, at: 0)
-        let defaults = UserDefaults.standard
-        defaults.set(uids, forKey: DefaultsKey.audioPriorityOutputUIDs)
-        outputPriorityUIDs = uids
-        updateDeviceNames()
-        scheduleEnforcement()
-    }
-
-    /// Promotes a UID to the front of the input priority list. Called when
-    /// the user manually selects a microphone while input priority is active.
-    func promoteInputDevice(_ uid: String) {
-        guard started, inputPriorityEnabled else { return }
-        guard let sanitized = MixerRoutingSupport.sanitizedDeviceUID(uid) else { return }
-        var uids = inputPriorityUIDs.filter { $0 != sanitized }
-        uids.insert(sanitized, at: 0)
-        let defaults = UserDefaults.standard
-        defaults.set(uids, forKey: DefaultsKey.audioPriorityInputUIDs)
-        inputPriorityUIDs = uids
-        updateDeviceNames()
-        scheduleEnforcement()
     }
 
     // MARK: - Device name tracking
@@ -277,36 +226,78 @@ final class AudioPriorityService: ObservableObject {
 
     // MARK: - Enforcement
 
-    /// Coalesces hardware event bursts into one enforcement pass. The HAL can
-    /// fire several device/default notifications back-to-back, and each one
-    /// only needs to ask "is the top available device already active?"
-    private static let eventEnforcementDelay: TimeInterval = 0.15
-    private static let reorderEnforcementDelay: TimeInterval = 0.65
+    /// Coalesces connect/disconnect bursts into one pass. Core Audio can
+    /// briefly publish an incomplete inventory while changing only the
+    /// default device, so compare the final settled set with the last settled
+    /// set instead of treating every intermediate publication as hardware.
+    private static let eventEnforcementDelay: TimeInterval = 0.25
 
-    private func scheduleEnforcement(after delay: TimeInterval = eventEnforcementDelay) {
+    private func observeOutputDevices(_ devices: [MixerOutputDevice]) {
+        let availableUIDs = Set(devices.filter(\.canBeDefaultOutput).map(\.uid))
+        // An empty initial publication precedes the first HAL snapshot. It is
+        // initialization, not every built-in device connecting at app launch.
+        guard settledOutputUIDs != nil || !availableUIDs.isEmpty else { return }
+        guard settledOutputUIDs != nil else {
+            settledOutputUIDs = availableUIDs
+            mergeAvailableDevicesIntoPriorityLists()
+            updateDeviceNames()
+            return
+        }
+        pendingOutputUIDs = availableUIDs
+        mergeAvailableDevicesIntoPriorityLists()
+        updateDeviceNames()
+        scheduleEnforcement()
+    }
+
+    private func observeInputDevices(_ devices: [MixerInputDevice]) {
+        let availableUIDs = Set(devices.map(\.uid))
+        guard settledInputUIDs != nil || !availableUIDs.isEmpty else { return }
+        guard settledInputUIDs != nil else {
+            settledInputUIDs = availableUIDs
+            mergeAvailableDevicesIntoPriorityLists()
+            updateDeviceNames()
+            return
+        }
+        pendingInputUIDs = availableUIDs
+        mergeAvailableDevicesIntoPriorityLists()
+        updateDeviceNames()
+        scheduleEnforcement()
+    }
+
+    private func scheduleEnforcement() {
         guard started else { return }
         enforceDebouce?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            self?.enforce()
+            self?.enforceAvailabilityChanges()
         }
         enforceDebouce = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.eventEnforcementDelay, execute: work)
     }
 
-    /// Evaluates the priority lists and performs a CoreAudio write only when
-    /// the resolved UID exists and differs from the current default.
-    private func enforce() {
-        guard started, !isEnforcing else { return }
-        isEnforcing = true
-        defer { isEnforcing = false }
-
+    private func enforceAvailabilityChanges() {
+        guard started else { return }
+        enforceDebouce = nil
+        let enforceOutput = pendingOutputUIDs.map {
+            MixerRoutingSupport.deviceAvailabilityChanged(
+                previousUIDs: settledOutputUIDs,
+                currentUIDs: $0)
+        } ?? false
+        let enforceInput = pendingInputUIDs.map {
+            MixerRoutingSupport.deviceAvailabilityChanged(
+                previousUIDs: settledInputUIDs,
+                currentUIDs: $0)
+        } ?? false
+        if let pendingOutputUIDs { settledOutputUIDs = pendingOutputUIDs }
+        if let pendingInputUIDs { settledInputUIDs = pendingInputUIDs }
+        pendingOutputUIDs = nil
+        pendingInputUIDs = nil
         mergeAvailableDevicesIntoPriorityLists()
         updateDeviceNames()
 
-        if outputPriorityEnabled {
+        if enforceOutput, outputPriorityEnabled {
             enforceOutputPriority()
         }
-        if inputPriorityEnabled {
+        if enforceInput, inputPriorityEnabled {
             enforceInputPriority()
         }
     }
@@ -316,42 +307,26 @@ final class AudioPriorityService: ObservableObject {
             .filter(\.canBeDefaultOutput)
             .map(\.uid))
         let currentUID = AppVolumeMixer.shared.currentOutputDeviceUID
-        failedOutputAttempt = MixerRoutingSupport.stillRelevantFailedPrioritySwitchAttempt(
-            failedOutputAttempt,
-            currentUID: currentUID,
-            availableUIDs: availableUIDs)
         guard let target = MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: outputPriorityUIDs,
             availableUIDs: availableUIDs) else { return }
-        guard let attempt = MixerRoutingSupport.pendingPrioritySwitchAttempt(
+        guard MixerRoutingSupport.shouldSwitchToDevice(
             targetUID: target,
-            currentUID: currentUID,
-            availableUIDs: availableUIDs,
-            failedAttempt: failedOutputAttempt) else { return }
+            currentUID: currentUID) else { return }
         // Automatic selection preserves the configured priority order and
         // explicit per-app routes; only the normal system default changes.
-        failedOutputAttempt = AppVolumeMixer.shared.setPriorityOutputDeviceUID(target)
-            ? nil
-            : attempt
+        AppVolumeMixer.shared.setPriorityOutputDeviceUID(target)
     }
 
     private func enforceInputPriority() {
         let availableUIDs = Set(AudioInputDeviceManager.shared.inputDevices.map(\.uid))
         let currentUID = AudioInputDeviceManager.shared.currentInputDeviceUID
-        failedInputAttempt = MixerRoutingSupport.stillRelevantFailedPrioritySwitchAttempt(
-            failedInputAttempt,
-            currentUID: currentUID,
-            availableUIDs: availableUIDs)
         guard let target = MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: inputPriorityUIDs,
             availableUIDs: availableUIDs) else { return }
-        guard let attempt = MixerRoutingSupport.pendingPrioritySwitchAttempt(
+        guard MixerRoutingSupport.shouldSwitchToDevice(
             targetUID: target,
-            currentUID: currentUID,
-            availableUIDs: availableUIDs,
-            failedAttempt: failedInputAttempt) else { return }
-        failedInputAttempt = AudioInputDeviceManager.shared.setCurrentInputDeviceUID(target)
-            ? nil
-            : attempt
+            currentUID: currentUID) else { return }
+        AudioInputDeviceManager.shared.setCurrentInputDeviceUID(target)
     }
 }

@@ -6,11 +6,13 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions |
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen and screen recordings |
 | System Audio Recording | Yes | Per app volume and output routing in the mixer |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
-| Camera | Yes | The camera preview mirror |
+| Camera | Yes | The camera preview mirror, floating or inside the notch |
+| Calendars | Yes | Upcoming appointments in the notch |
+| Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
@@ -23,6 +25,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **What uses it.**
 
+- **Notch**, for optional mirroring of new visible notifications, opening their original native action and optional dismissal of the original banner, plus system key feedback. Scrolling gestures inside the notch window need no global input permission.
 - **Scroll direction inverter**, which flips the mouse wheel.
 - **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture.
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.
@@ -74,11 +77,19 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **Why it comes up.** macOS asks before any app can show the camera image.
 
-**What uses it.** Camera preview, the floating mirror you can open before joining a call. The camera runs only while the preview window is on screen and stops the moment it closes.
+**What uses it.** Camera preview, either in its floating mirror or inside the notch. The camera starts only from an explicit action and stops when the preview closes, its notch section is hidden, the feature is disabled or the Mac locks.
 
 **If you say no.** The preview window explains the state and offers the System Settings shortcut. Everything else in the app carries on as normal.
 
-**Optional.** Yes. The image goes straight to the preview window. Nothing is recorded and nothing leaves your Mac.
+**Optional.** Yes. The image goes straight to the local preview. This feature does not save or upload camera frames. Visible notch content can still appear in a screenshot or recording when you include the notch in captures.
+
+## Calendars
+
+The optional notch calendar asks for access when you press its permission button. macOS calls this full calendar access; Vorssaint uses it only to read appointments and never modifies them. If access is denied, the calendar shows a System Settings shortcut while the rest of the notch remains available. Event content stays on this Mac.
+
+## Files and Folders
+
+Download monitoring watches only the folder you choose in the system picker. Folder access is stored as a local bookmark and does not travel in a settings backup. If the folder becomes unavailable or access is revoked, the notch asks you to choose it again. It does not scan other folders or need Full Disk Access for this feature.
 
 ## Notifications
 
@@ -92,7 +103,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Updates**, with a one time note when a new version shows up, and only while automatic update checks are on.
 - **App updates**, with a note when other apps on the Mac have a newer version, and only while the background check is on.
 
-**If you say no.** Vorssaint runs without a peep, and the same information is still right there in the panel and in Settings.
+**If you say no.** These system notifications are not posted. Status remains available inside the app, and alarms from timers you start still work. Mirroring existing system banners uses Accessibility instead of this permission.
 
 **Optional.** Yes.
 
@@ -118,7 +129,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 ## Automation
 
-**Why it comes up.** A few features ask Finder or Terminal to do something for you, and macOS guards that with an Automation prompt the first time it happens.
+**Why it comes up.** A few features ask another app to carry out an action you choose. macOS protects that interaction with permission for each target app.
 
 **What uses it.**
 
@@ -126,8 +137,9 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Uninstaller**, which moves leftover files to the Trash.
 - **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
 - **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
+- **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent.
 
-**If you say no.** Those Finder or Terminal handoff steps will not go through. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
+**If you say no.** Those Finder or Terminal handoff steps will not go through. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 
 **Optional.** Yes.
 

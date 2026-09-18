@@ -305,6 +305,7 @@ enum SettingsSearchSupport {
             (.screenshot, [screenshot.pageTitle, screenshot.freezeToggle,
                            screenshot.loupeStartsOnToggle,
                            screenshot.fullScreenShortcutTitle, screenshot.previewPositionLabel,
+                           screenshot.previewFocusToggle,
                            screenshot.pinButton, screenshot.toolPixelate, screenshot.toolArrow]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
                                recorder.systemAudioToggle, recorder.microphoneToggle,

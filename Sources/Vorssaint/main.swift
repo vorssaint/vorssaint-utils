@@ -8,6 +8,12 @@ Defaults.register()
 MouseAccelerationGuard.runIfRequestedAndExit()
 MouseAccelerationService.recoverPendingAtLaunch()
 
+#if VORSSAINT_DEVELOPMENT
+if CommandLine.arguments.contains("--notch-presentation-test") {
+    NotchPresentationProbe.runAndExit()
+}
+#endif
+
 if CommandLine.arguments.contains("--selftest") {
     SelfTest.runAndExit()
 }

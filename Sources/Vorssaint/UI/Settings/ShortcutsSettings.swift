@@ -134,8 +134,12 @@ struct ShortcutsSettings: View {
                         .disclosureIndent()
                     }
                 } else {
-                    if feature == .brightness {
+                    if feature == .brightness, roles.allSatisfy(\.isKeyboardBrightness) {
                         KeyboardBrightnessShortcutToggle(isEnabled: $keyboardBrightnessShortcutsEnabled)
+                            .disclosureIndent()
+                    }
+                    if feature == .brightness, !roles.contains(where: \.isKeyboardBrightness) {
+                        DisplayBrightnessShortcutControls(showsShortcutRows: false)
                             .disclosureIndent()
                     }
                     ForEach(roles) { role in
@@ -243,6 +247,7 @@ struct ShortcutsSettings: View {
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
         }
     }

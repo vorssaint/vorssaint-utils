@@ -12,6 +12,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     /// sentence explaining what to do lives in the caption under the row, so
     /// the field never has to grow to fit it.
     let waitingTitle: String
+    var requiresModifier = true
     /// When set, the button shows this instead of the shortcut, meaning "no
     /// shortcut assigned"; clicking still records a new one.
     var emptyTitle: String? = nil
@@ -22,6 +23,9 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     var notCapturedAction: (() -> Void)? = nil
     /// Lets the row show its caption exactly while the field is listening.
     var recordingChanged: ((Bool) -> Void)? = nil
+    /// For local shortcuts whose typed character also depends on Caps Lock.
+    /// When supplied, this handles capture instead of the ordinary callback.
+    var captureWithFlagsAction: ((GlobalShortcut, CGEventFlags) -> Void)? = nil
     let invalidAction: () -> Void
     let captureAction: (GlobalShortcut) -> Void
 
@@ -66,12 +70,14 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     }
 
     private func apply(to button: RecorderButton) {
+        button.requiresModifier = requiresModifier
         button.shortcut = shortcut
         button.waitingTitle = waitingTitle
         button.emptyTitle = emptyTitle
         button.clearAction = clearAction
         button.notCapturedAction = notCapturedAction
         button.recordingChanged = recordingChanged
+        button.captureWithFlagsAction = captureWithFlagsAction
         button.invalidAction = invalidAction
         button.captureAction = captureAction
         button.isEnabled = isEnabled
@@ -80,12 +86,14 @@ struct ShortcutRecorderButton: NSViewRepresentable {
 }
 
 final class RecorderButton: NSButton {
+    var requiresModifier = true
     var shortcut = GlobalShortcut.keepAwakeDefault
     var waitingTitle = ""
     var emptyTitle: String?
     var clearAction: (() -> Void)?
     var notCapturedAction: (() -> Void)?
     var recordingChanged: ((Bool) -> Void)?
+    var captureWithFlagsAction: ((GlobalShortcut, CGEventFlags) -> Void)?
     var invalidAction: (() -> Void)?
     var captureAction: ((GlobalShortcut) -> Void)?
     private var isRecording = false
@@ -130,9 +138,9 @@ final class RecorderButton: NSButton {
         // combination the system or another app answers to performs that
         // action while being recorded. When the tap cannot exist (no
         // Accessibility), the view events below still record as before.
-        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers in
+        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers, flags in
             guard let self, self.isRecording else { return }
-            self.handleRecordingKey(keyCode: keyCode, modifiers: modifiers)
+            self.handleRecordingKey(keyCode: keyCode, modifiers: modifiers, flags: flags)
         }
         observeExits()
         refreshTitle()
@@ -202,12 +210,14 @@ final class RecorderButton: NSButton {
 
     private func handleRecordingKey(_ event: NSEvent) {
         handleRecordingKey(keyCode: Int64(event.keyCode),
-                           modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags))
+                           modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags),
+                           flags: CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue)))
     }
 
     /// The one recording path, fed by the swallowing tap or, without it, by
     /// the view events above.
-    private func handleRecordingKey(keyCode: Int64, modifiers: GlobalShortcutModifiers) {
+    private func handleRecordingKey(keyCode: Int64, modifiers: GlobalShortcutModifiers,
+                                    flags: CGEventFlags) {
         // A key arrived, so the modifiers being held did produce something.
         awaitingKeyForHeldModifiers = false
 
@@ -222,14 +232,26 @@ final class RecorderButton: NSButton {
             return
         }
         let captured = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
-        guard captured.isValid else {
+        // Fn on a letter cannot be represented by the saved shortcut. Do not
+        // silently record N when the user pressed Fn-N. Function/navigation
+        // keys carry this flag intrinsically and remain recordable.
+        if !requiresModifier, flags.contains(.maskSecondaryFn),
+           !captured.syntheticEventFlags.contains(.maskSecondaryFn) {
+            invalidAction?()
+            return
+        }
+        guard requiresModifier ? captured.isValid : captured.hasPrintableKey else {
             NSSound.beep()
             invalidAction?()
             return
         }
         shortcut = captured
         stopRecording()
-        captureAction?(captured)
+        if let captureWithFlagsAction {
+            captureWithFlagsAction(captured, flags)
+        } else {
+            captureAction?(captured)
+        }
     }
 
     /// Watchers that exist only while the field is listening. Each one is a

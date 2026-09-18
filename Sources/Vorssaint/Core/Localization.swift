@@ -358,6 +358,7 @@ struct Strings {
     let dockPreviewName: String
     let dockPreviewEnable: String
     let dockPreviewEnableCaption: String
+    let dockPreviewCurrentSpaceOnlyCaption: String
     let dockPreviewBackgroundOpacity: String
     let dockPreviewBackgroundOpacityCaption: String
     let dockPreviewOpenDelay: String
@@ -456,6 +457,11 @@ struct Strings {
     let uninstallerCatLogs: String
     let uninstallerCatState: String
     let uninstallerCatOther: String
+    let uninstallerCommandBarBrowseTitle: String
+    let uninstallerCommandBarToggle: String
+    let uninstallerCommandBarCaption: String
+    let uninstallerCommandBarFinderTitle: String
+    let uninstallerSelectionUnavailable: String
 
     // MARK: Feature — URL cleaner
     let urlCleanerName: String
@@ -730,11 +736,8 @@ struct Strings {
     let audioPriorityInputEnable: String
     let audioPriorityOutputList: String
     let audioPriorityInputList: String
-    let audioPriorityAddOutput: String
-    let audioPriorityAddInput: String
     let audioPriorityMoveUp: String
     let audioPriorityMoveDown: String
-    let audioPriorityRemove: String
     let audioPriorityUnavailable: String
     let audioPriorityCurrent: String
     let audioPriorityEmpty: String
@@ -1175,6 +1178,8 @@ struct Strings {
     let switcherScreenPlacementMenuBar: String
     let switcherScreenPlacementActiveWindow: String
     let switcherScreenPlacementCaption: String
+    let switcherCurrentDisplayOnly: String
+    let switcherCurrentDisplayOnlyCaption: String
     let smoothScrollResponseLabel: String
     let mouseAccelerationName: String
     let mouseAccelerationCaption: String
@@ -1416,6 +1421,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Pré-visualizar janelas no Dock",
         dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver suas janelas e clique na que quiser abrir.",
+        dockPreviewCurrentSpaceOnlyCaption: "Quando desligado, mostra janelas de todas as mesas. Escolher uma janela em outra mesa leva você até ela.",
         dockPreviewBackgroundOpacity: "Fundo do painel",
         dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
         dockPreviewOpenDelay: "Atraso de abertura",
@@ -1511,6 +1517,11 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Estado salvo",
         uninstallerCatOther: "Outros",
+        uninstallerCommandBarBrowseTitle: "Desinstalar aplicativo",
+        uninstallerCommandBarToggle: "Mostrar na Barra de Comandos",
+        uninstallerCommandBarCaption: "Permite escolher e desinstalar aplicativos pela Barra de Comandos.",
+        uninstallerCommandBarFinderTitle: "Desinstalar aplicativo selecionado no Finder",
+        uninstallerSelectionUnavailable: "Selecione um aplicativo que possa ser removido no Finder ou escolha outro na lista.",
 
         urlCleanerName: "Limpar URL",
         urlCleanerEnable: "Limpar URLs ao copiar",
@@ -1772,11 +1783,8 @@ extension Strings {
         audioPriorityInputEnable: "Trocar automaticamente para o microfone de maior prioridade",
         audioPriorityOutputList: "Prioridade das saídas de áudio",
         audioPriorityInputList: "Prioridade dos microfones",
-        audioPriorityAddOutput: "Adicionar saída de áudio",
-        audioPriorityAddInput: "Adicionar microfone",
         audioPriorityMoveUp: "Mover para cima",
         audioPriorityMoveDown: "Mover para baixo",
-        audioPriorityRemove: "Remover",
         audioPriorityUnavailable: "Indisponível",
         audioPriorityCurrent: "Em uso",
         audioPriorityEmpty: "Nenhum dispositivo selecionado",
@@ -2198,6 +2206,8 @@ extension Strings {
         switcherScreenPlacementMenuBar: "Tela com a barra de menus",
         switcherScreenPlacementActiveWindow: "Tela com a janela ativa",
         switcherScreenPlacementCaption: "Em qual tela o alternador abre quando há mais de uma conectada.",
+        switcherCurrentDisplayOnly: "Mostrar só a tela atual",
+        switcherCurrentDisplayOnlyCaption: "Mostra apenas as janelas da tela sob o cursor. Se essa tela não tiver janelas, o alternador não abre.",
         smoothScrollResponseLabel: "Resposta",
         mouseAccelerationName: "Desativar aceleração do mouse",
         mouseAccelerationCaption: "Remove a aceleração do cursor para os mouses conectados. A configuração anterior volta ao desligar esta opção ou sair do Vorssaint.",
@@ -2440,6 +2450,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Preview windows from the Dock",
         dockPreviewEnableCaption: "Hover over an open app in the Dock to see its windows, then click the one you want.",
+        dockPreviewCurrentSpaceOnlyCaption: "When off, shows windows from all desktops. Choosing a window on another desktop takes you there.",
         dockPreviewBackgroundOpacity: "Panel background",
         dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
         dockPreviewOpenDelay: "Open delay",
@@ -2535,6 +2546,11 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Saved state",
         uninstallerCatOther: "Other",
+        uninstallerCommandBarBrowseTitle: "Uninstall Application",
+        uninstallerCommandBarToggle: "Show in Command Bar",
+        uninstallerCommandBarCaption: "Choose and uninstall apps in the Command Bar.",
+        uninstallerCommandBarFinderTitle: "Uninstall app selected in Finder",
+        uninstallerSelectionUnavailable: "Select an app that can be removed in Finder, or choose another from the list.",
 
         urlCleanerName: "Clean URL",
         urlCleanerEnable: "Clean URLs as you copy them",
@@ -2796,11 +2812,8 @@ extension Strings {
         audioPriorityInputEnable: "Automatically switch to the highest-priority microphone",
         audioPriorityOutputList: "Output priority",
         audioPriorityInputList: "Microphone priority",
-        audioPriorityAddOutput: "Add output",
-        audioPriorityAddInput: "Add microphone",
         audioPriorityMoveUp: "Move up",
         audioPriorityMoveDown: "Move down",
-        audioPriorityRemove: "Remove",
         audioPriorityUnavailable: "Unavailable",
         audioPriorityCurrent: "Current",
         audioPriorityEmpty: "No devices selected",
@@ -3222,6 +3235,8 @@ extension Strings {
         switcherScreenPlacementMenuBar: "Screen with the menu bar",
         switcherScreenPlacementActiveWindow: "Screen with the active window",
         switcherScreenPlacementCaption: "Which display the switcher opens on when more than one is connected.",
+        switcherCurrentDisplayOnly: "Show only the current display",
+        switcherCurrentDisplayOnlyCaption: "Lists only windows on the display under the pointer. If that display has no windows, the switcher does not open.",
         smoothScrollResponseLabel: "Response",
         mouseAccelerationName: "Disable mouse acceleration",
         mouseAccelerationCaption: "Removes pointer acceleration for connected mice. Your previous setting returns when this is turned off or Vorssaint quits.",

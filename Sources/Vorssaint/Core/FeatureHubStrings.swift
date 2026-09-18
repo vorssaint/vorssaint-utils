@@ -122,6 +122,11 @@ struct FeatureHubStrings {
     let onboardingNoSelectedPermissions: String
     let onboardingOtherPermissionsTitle: String
     let onboardingOtherPermissionsCaption: String
+    // Uninstalling the Dynamic Island while extensions of it are installed
+    let notchUninstallTitle: String
+    let notchUninstallMessageFormat: String   // "…: %@. …", the installed extensions' names
+    let notchUninstallWithExtensions: String
+    let notchUninstallKeepExtensions: String
 }
 
 extension FeatureStrings {
@@ -204,7 +209,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Finder에서 파일 잘라내기 및 붙여넣기",
         descShelf: "파일을 메뉴 막대에 놓아 보관",
         descURLCleaner: "복사한 링크에서 추적 요소 제거",
-        descMixer: "앱별 볼륨 슬라이더",
+        descMixer: "앱별 음량 조절, 고정 및 순서 변경",
         descSoundOutputSwitcher: "단축키로 사운드 출력 순환",
          descAudioPriority: "선호하는 오디오 장치를 자동으로 사용",
         descMicMute: "어디서나 마이크 음소거",
@@ -255,7 +260,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "선택한 기능에 필요한 권한",
         onboardingNoSelectedPermissions: "설정을 마치는 데 필요한 권한이 없습니다.",
         onboardingOtherPermissionsTitle: "기타 권한",
-        onboardingOtherPermissionsCaption: "선택 사항입니다. 기능에서 필요할 때 지금 또는 나중에 허용할 수 있습니다."
+        onboardingOtherPermissionsCaption: "선택 사항입니다. 기능에서 필요할 때 지금 또는 나중에 허용할 수 있습니다.",
+        notchUninstallTitle: "Dynamic Island 제거",
+        notchUninstallMessageFormat: "다음 확장 기능은 Dynamic Island 안에서만 작동합니다: %@. 함께 제거할까요? 아무것도 삭제되지 않으며 한 번의 클릭으로 모두 되돌릴 수 있습니다.",
+        notchUninstallWithExtensions: "확장 기능도 제거",
+        notchUninstallKeepExtensions: "확장 기능 유지"
     )
 }
 
@@ -319,7 +328,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Cut and paste files in Finder",
         descShelf: "Drop files on the menu bar to hold them",
         descURLCleaner: "Copied links lose their tracking junk",
-        descMixer: "A volume slider for each app",
+        descMixer: "Per-app volume, pinning and custom order",
         descSoundOutputSwitcher: "Cycle sound outputs with a shortcut",
          descAudioPriority: "Automatically use your preferred audio devices",
         descMicMute: "Mute the microphone from anywhere",
@@ -370,7 +379,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permissions for your choices",
         onboardingNoSelectedPermissions: "You do not need to grant any permission to finish setup.",
         onboardingOtherPermissionsTitle: "Other permissions",
-        onboardingOtherPermissionsCaption: "Optional. Grant these now or later, when a feature needs them."
+        onboardingOtherPermissionsCaption: "Optional. Grant these now or later, when a feature needs them.",
+        notchUninstallTitle: "Uninstall Dynamic Island",
+        notchUninstallMessageFormat: "These extensions only work inside the Dynamic Island: %@. Uninstall them too? Nothing is deleted, and everything comes back with one click.",
+        notchUninstallWithExtensions: "Uninstall extensions too",
+        notchUninstallKeepExtensions: "Keep extensions"
     )
 
     static let ptBR = FeatureHubStrings(
@@ -432,7 +445,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Recorte e cole arquivos no Finder",
         descShelf: "Solte arquivos na barra de menus para segurar",
         descURLCleaner: "Links copiados perdem os rastreadores",
-        descMixer: "Um controle de volume para cada app",
+        descMixer: "Volume por app, fixação e ordem personalizada",
         descSoundOutputSwitcher: "Troque a saída de som com um atalho",
          descAudioPriority: "Use automaticamente seus dispositivos de áudio preferidos",
         descMicMute: "Silencie o microfone de qualquer lugar",
@@ -483,7 +496,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permissões para suas escolhas",
         onboardingNoSelectedPermissions: "Você não precisa conceder nenhuma permissão para concluir a configuração.",
         onboardingOtherPermissionsTitle: "Outras permissões",
-        onboardingOtherPermissionsCaption: "Opcional. Você pode concedê-las agora ou depois, quando algum recurso precisar."
+        onboardingOtherPermissionsCaption: "Opcional. Você pode concedê-las agora ou depois, quando algum recurso precisar.",
+        notchUninstallTitle: "Desinstalar Dynamic Island",
+        notchUninstallMessageFormat: "Estas extensões só funcionam dentro da Dynamic Island: %@. Desinstalar também? Nada é apagado e tudo volta com um clique.",
+        notchUninstallWithExtensions: "Desinstalar extensões também",
+        notchUninstallKeepExtensions: "Manter extensões"
     )
 
     static let tr = FeatureHubStrings(
@@ -545,7 +562,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Finder’da dosyaları kesip yapıştırın",
         descShelf: "Dosyaları menü çubuğuna bırakıp bekletin",
         descURLCleaner: "Kopyalanan bağlantılar izleyicilerden arınır",
-        descMixer: "Her uygulama için ayrı ses düzeyi",
+        descMixer: "Uygulama başına ses, sabitleme ve özel sıralama",
         descSoundOutputSwitcher: "Kısayolla ses çıkışları arasında geçin",
          descAudioPriority: "Tercih ettiğiniz ses cihazlarını otomatik kullan",
         descMicMute: "Mikrofonu her yerden sessize alın",
@@ -596,7 +613,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Seçimleriniz için gereken izinler",
         onboardingNoSelectedPermissions: "Kurulumu tamamlamak için izin vermeniz gerekmiyor.",
         onboardingOtherPermissionsTitle: "Diğer izinler",
-        onboardingOtherPermissionsCaption: "İsteğe bağlıdır. Bir özellik gerektiğinde şimdi veya daha sonra izin verebilirsiniz."
+        onboardingOtherPermissionsCaption: "İsteğe bağlıdır. Bir özellik gerektiğinde şimdi veya daha sonra izin verebilirsiniz.",
+        notchUninstallTitle: "Dynamic Island’ı kaldır",
+        notchUninstallMessageFormat: "Bu uzantılar yalnızca Dynamic Island içinde çalışır: %@. Onlar da kaldırılsın mı? Hiçbir şey silinmez, hepsi tek tıkla geri gelir.",
+        notchUninstallWithExtensions: "Uzantıları da kaldır",
+        notchUninstallKeepExtensions: "Uzantılar kalsın"
     )
 
     static let ru = FeatureHubStrings(
@@ -658,7 +679,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Вырезайте и вставляйте файлы в Finder",
         descShelf: "Бросайте файлы на строку меню на хранение",
         descURLCleaner: "Скопированные ссылки очищаются от трекеров",
-        descMixer: "Отдельная громкость для каждого приложения",
+        descMixer: "Громкость приложений, закрепление и порядок",
         descSoundOutputSwitcher: "Переключайте выходы звука сочетанием клавиш",
          descAudioPriority: "Автоматически использовать предпочитаемые аудиоустройства",
         descMicMute: "Отключайте микрофон откуда угодно",
@@ -709,7 +730,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Разрешения для выбранных функций",
         onboardingNoSelectedPermissions: "Для завершения настройки разрешения не нужны.",
         onboardingOtherPermissionsTitle: "Другие разрешения",
-        onboardingOtherPermissionsCaption: "Необязательно. Их можно выдать сейчас или позже, когда они понадобятся функции."
+        onboardingOtherPermissionsCaption: "Необязательно. Их можно выдать сейчас или позже, когда они понадобятся функции.",
+        notchUninstallTitle: "Удалить Dynamic Island",
+        notchUninstallMessageFormat: "Эти расширения работают только внутри Dynamic Island: %@. Удалить и их? Ничего не стирается, всё возвращается одним кликом.",
+        notchUninstallWithExtensions: "Удалить и расширения",
+        notchUninstallKeepExtensions: "Оставить расширения"
     )
 
     static let es = FeatureHubStrings(
@@ -771,7 +796,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Corta y pega archivos en el Finder",
         descShelf: "Suelta archivos en la barra de menús para guardarlos",
         descURLCleaner: "Los enlaces copiados pierden los rastreadores",
-        descMixer: "Un control de volumen para cada app",
+        descMixer: "Volumen por app, fijación y orden personalizado",
         descSoundOutputSwitcher: "Cambia la salida de sonido con un atajo",
          descAudioPriority: "Usa automáticamente tus dispositivos de audio preferidos",
         descMicMute: "Silencia el micrófono desde cualquier lugar",
@@ -822,7 +847,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permisos para tus elecciones",
         onboardingNoSelectedPermissions: "No necesitas conceder permisos para terminar la configuración.",
         onboardingOtherPermissionsTitle: "Otros permisos",
-        onboardingOtherPermissionsCaption: "Opcional. Concédelos ahora o después, cuando una función los necesite."
+        onboardingOtherPermissionsCaption: "Opcional. Concédelos ahora o después, cuando una función los necesite.",
+        notchUninstallTitle: "Desinstalar Dynamic Island",
+        notchUninstallMessageFormat: "Estas extensiones solo funcionan dentro del Dynamic Island: %@. ¿Desinstalarlas también? No se borra nada y todo vuelve con un clic.",
+        notchUninstallWithExtensions: "Desinstalar también las extensiones",
+        notchUninstallKeepExtensions: "Conservar las extensiones"
     )
 
     static let de = FeatureHubStrings(
@@ -884,7 +913,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Dateien im Finder ausschneiden und einsetzen",
         descShelf: "Dateien auf der Menüleiste ablegen und festhalten",
         descURLCleaner: "Kopierte Links verlieren ihre Tracker",
-        descMixer: "Ein Lautstärkeregler für jede App",
+        descMixer: "App-Lautstärke, Anheften und eigene Reihenfolge",
         descSoundOutputSwitcher: "Tonausgänge per Kurzbefehl durchschalten",
          descAudioPriority: "Bevorzugte Audiogeräte automatisch verwenden",
         descMicMute: "Das Mikrofon von überall stummschalten",
@@ -935,7 +964,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Berechtigungen für deine Auswahl",
         onboardingNoSelectedPermissions: "Zum Abschließen der Einrichtung ist keine Berechtigung nötig.",
         onboardingOtherPermissionsTitle: "Weitere Berechtigungen",
-        onboardingOtherPermissionsCaption: "Optional. Erlaube sie jetzt oder später, wenn eine Funktion sie benötigt."
+        onboardingOtherPermissionsCaption: "Optional. Erlaube sie jetzt oder später, wenn eine Funktion sie benötigt.",
+        notchUninstallTitle: "Dynamic Island deinstallieren",
+        notchUninstallMessageFormat: "Diese Erweiterungen funktionieren nur im Dynamic Island: %@. Auch deinstallieren? Nichts wird gelöscht, alles kommt mit einem Klick zurück.",
+        notchUninstallWithExtensions: "Erweiterungen auch deinstallieren",
+        notchUninstallKeepExtensions: "Erweiterungen behalten"
     )
 
     static let fr = FeatureHubStrings(
@@ -997,7 +1030,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Coupez et collez des fichiers dans le Finder",
         descShelf: "Déposez des fichiers sur la barre des menus",
         descURLCleaner: "Les liens copiés perdent leurs traqueurs",
-        descMixer: "Un volume pour chaque app",
+        descMixer: "Volume par app, épinglage et ordre personnalisé",
         descSoundOutputSwitcher: "Changez de sortie audio avec un raccourci",
         descAudioPriority: "Utiliser automatiquement vos périphériques audio préférés",
         descMicMute: "Coupez le micro depuis n’importe où",
@@ -1048,7 +1081,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Autorisations pour vos choix",
         onboardingNoSelectedPermissions: "Aucune autorisation n’est nécessaire pour terminer la configuration.",
         onboardingOtherPermissionsTitle: "Autres autorisations",
-        onboardingOtherPermissionsCaption: "Facultatif. Accordez-les maintenant ou plus tard, lorsqu’une fonction en aura besoin."
+        onboardingOtherPermissionsCaption: "Facultatif. Accordez-les maintenant ou plus tard, lorsqu’une fonction en aura besoin.",
+        notchUninstallTitle: "Désinstaller Dynamic Island",
+        notchUninstallMessageFormat: "Ces extensions ne fonctionnent que dans Dynamic Island\u{00A0}: %@. Les désinstaller aussi\u{00A0}? Rien n’est effacé et tout revient en un clic.",
+        notchUninstallWithExtensions: "Désinstaller aussi les extensions",
+        notchUninstallKeepExtensions: "Conserver les extensions"
     )
 
     static let it = FeatureHubStrings(
@@ -1110,7 +1147,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Taglia e incolla i file nel Finder",
         descShelf: "Trascina file sulla barra dei menu per tenerli lì",
         descURLCleaner: "I link copiati perdono i tracciatori",
-        descMixer: "Un volume per ogni app",
+        descMixer: "Volume per app, app fissate e ordine personalizzato",
         descSoundOutputSwitcher: "Cambia uscita audio con una scorciatoia",
          descAudioPriority: "Usa automaticamente i tuoi dispositivi audio preferiti",
         descMicMute: "Silenzia il microfono da ovunque",
@@ -1161,7 +1198,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permessi per le tue scelte",
         onboardingNoSelectedPermissions: "Non servono permessi per completare la configurazione.",
         onboardingOtherPermissionsTitle: "Altri permessi",
-        onboardingOtherPermissionsCaption: "Facoltativo. Concedili ora o più tardi, quando una funzione ne avrà bisogno."
+        onboardingOtherPermissionsCaption: "Facoltativo. Concedili ora o più tardi, quando una funzione ne avrà bisogno.",
+        notchUninstallTitle: "Disinstalla Dynamic Island",
+        notchUninstallMessageFormat: "Queste estensioni funzionano solo nel Dynamic Island: %@. Disinstallare anche loro? Nulla viene cancellato e tutto torna con un clic.",
+        notchUninstallWithExtensions: "Disinstalla anche le estensioni",
+        notchUninstallKeepExtensions: "Mantieni le estensioni"
     )
 
     static let ja = FeatureHubStrings(
@@ -1223,7 +1264,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Finderでファイルをカット&ペースト",
         descShelf: "メニューバーにファイルをドロップして一時置き",
         descURLCleaner: "コピーしたリンクからトラッカーを除去",
-        descMixer: "アプリごとの音量スライダ",
+        descMixer: "アプリ別の音量、固定、並べ替え",
         descSoundOutputSwitcher: "ショートカットで出力先を切り替え",
          descAudioPriority: "優先するオーディオデバイスを自動的に使用",
         descMicMute: "どこからでもマイクをミュート",
@@ -1274,7 +1315,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "選んだ機能に必要な許可",
         onboardingNoSelectedPermissions: "設定を完了するための許可は必要ありません。",
         onboardingOtherPermissionsTitle: "その他の許可",
-        onboardingOtherPermissionsCaption: "任意です。機能で必要になったときに、今または後で許可できます。"
+        onboardingOtherPermissionsCaption: "任意です。機能で必要になったときに、今または後で許可できます。",
+        notchUninstallTitle: "Dynamic Islandをアンインストール",
+        notchUninstallMessageFormat: "次の拡張機能はDynamic Islandの中でのみ動作します：%@。これらもアンインストールしますか？何も削除されず、すべてワンクリックで戻ります。",
+        notchUninstallWithExtensions: "拡張機能もアンインストール",
+        notchUninstallKeepExtensions: "拡張機能を残す"
     )
 
     static let zhHans = FeatureHubStrings(
@@ -1336,7 +1381,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "在访达中剪切和粘贴文件",
         descShelf: "把文件放到菜单栏上暂存",
         descURLCleaner: "拷贝的链接自动去除跟踪参数",
-        descMixer: "每个 App 独立的音量滑块",
+        descMixer: "各 App 音量、置顶和自定义排序",
         descSoundOutputSwitcher: "用快捷键切换声音输出",
          descAudioPriority: "自动使用您首选的音频设备",
         descMicMute: "随时随地静音麦克风",
@@ -1387,7 +1432,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所选功能需要的权限",
         onboardingNoSelectedPermissions: "完成设置无需授予任何权限。",
         onboardingOtherPermissionsTitle: "其他权限",
-        onboardingOtherPermissionsCaption: "可选。你可以现在授予，也可以等功能需要时再授予。"
+        onboardingOtherPermissionsCaption: "可选。你可以现在授予，也可以等功能需要时再授予。",
+        notchUninstallTitle: "卸载 Dynamic Island",
+        notchUninstallMessageFormat: "以下扩展只能在 Dynamic Island 中使用：%@。要一并卸载吗？不会删除任何内容，一键即可全部恢复。",
+        notchUninstallWithExtensions: "一并卸载扩展",
+        notchUninstallKeepExtensions: "保留扩展"
     )
 
     static let zhTW = FeatureHubStrings(
@@ -1449,7 +1498,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "在 Finder 中剪下和貼上檔案",
         descShelf: "把檔案放到選單列上暫存",
         descURLCleaner: "拷貝的連結自動移除追蹤參數",
-        descMixer: "每個 App 獨立的音量滑桿",
+        descMixer: "各 App 音量、置頂和自訂排序",
         descSoundOutputSwitcher: "用快速鍵切換聲音輸出",
          descAudioPriority: "自動使用您偏好的音訊裝置",
         descMicMute: "隨時隨地將麥克風靜音",
@@ -1500,7 +1549,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所選功能需要的權限",
         onboardingNoSelectedPermissions: "完成設定不需要授予任何權限。",
         onboardingOtherPermissionsTitle: "其他權限",
-        onboardingOtherPermissionsCaption: "可選。你可以現在授予，也可以等功能需要時再授予。"
+        onboardingOtherPermissionsCaption: "可選。你可以現在授予，也可以等功能需要時再授予。",
+        notchUninstallTitle: "解除安裝 Dynamic Island",
+        notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
+        notchUninstallWithExtensions: "一併解除安裝延伸功能",
+        notchUninstallKeepExtensions: "保留延伸功能"
     )
 
     static let zhHK = FeatureHubStrings(
@@ -1562,7 +1615,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "在 Finder 剪下和貼上檔案",
         descShelf: "把檔案放到選單列暫存",
         descURLCleaner: "複製的連結自動移除追蹤參數",
-        descMixer: "每個 App 獨立的音量滑桿",
+        descMixer: "各 App 音量、置頂和自訂排序",
         descSoundOutputSwitcher: "用快速鍵切換聲音輸出",
          descAudioPriority: "自動使用您偏好嘅音訊裝置",
         descMicMute: "隨時隨地將咪高風靜音",
@@ -1613,6 +1666,10 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所選功能需要嘅權限",
         onboardingNoSelectedPermissions: "完成設定唔需要授予任何權限。",
         onboardingOtherPermissionsTitle: "其他權限",
-        onboardingOtherPermissionsCaption: "可選。你可以而家授予，亦可以等功能需要時再授予。"
+        onboardingOtherPermissionsCaption: "可選。你可以而家授予，亦可以等功能需要時再授予。",
+        notchUninstallTitle: "解除安裝 Dynamic Island",
+        notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
+        notchUninstallWithExtensions: "一併解除安裝延伸功能",
+        notchUninstallKeepExtensions: "保留延伸功能"
     )
 }

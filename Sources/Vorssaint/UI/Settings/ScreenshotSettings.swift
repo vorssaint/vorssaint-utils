@@ -37,6 +37,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
+    @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = true
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
@@ -155,6 +156,7 @@ struct ScreenshotCaptureSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     previewPositionRow
+                    previewFocusRow
                     defaultActionRow
                 } label: {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)
@@ -226,14 +228,17 @@ struct ScreenshotCaptureSettings: View {
 
     private var defaultActionRow: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Picker(strings.defaultActionLabel, selection: $defaultActionRaw) {
-                Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
-                Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
-                Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)
-                Text(strings.copyButton).tag(ScreenshotDefaultAction.copy.rawValue)
-                Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
-            }
+            ScreenshotDefaultActionPicker(strings: strings, selection: $defaultActionRaw)
             Text(strings.defaultActionCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var previewFocusRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(strings.previewFocusToggle, isOn: $previewTakesFocus)
+            Text(strings.previewFocusCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -548,6 +553,21 @@ private struct ScreenshotSharedLinksView: View {
                 showingDeleteError = true
             }
             deletingID = nil
+        }
+    }
+}
+
+struct ScreenshotDefaultActionPicker: View {
+    let strings: ScreenshotFeatureStrings
+    @Binding var selection: String
+
+    var body: some View {
+        Picker(strings.defaultActionLabel, selection: $selection) {
+            Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
+            Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
+            Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)
+            Text(strings.copyButton).tag(ScreenshotDefaultAction.copy.rawValue)
+            Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
         }
     }
 }

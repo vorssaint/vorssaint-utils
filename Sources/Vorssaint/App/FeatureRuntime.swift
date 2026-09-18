@@ -90,15 +90,20 @@ final class FeatureRuntime: ObservableObject {
         return !available || feature.isHardwareSupported
     }
 
-    /// Flipping availability runs the feature's binding immediately: off
-    /// tears every resource down on the spot, on restores whatever enabled
-    /// state the feature had (its own keys are never touched).
-    func setAvailable(_ feature: AppFeature, _ available: Bool) {
-        guard mayFlip(feature, to: available) else { return }
-        UserDefaults.standard.set(available, forKey: feature.availabilityKey)
-        if available { loadedThisSession.insert(feature) }
-        Self.bindings[feature]?()
-        finishAvailabilityChange()
+    /// Flipping availability runs each feature's binding immediately, in the
+    /// order given: off tears every resource down on the spot, on restores
+    /// whatever enabled state the feature had (its own keys are never
+    /// touched). One row, the "all" buttons and the Dynamic Island leaving
+    /// with its extensions all pass through here, with one revision bump.
+    func setAvailable(_ features: [AppFeature], _ available: Bool) {
+        var changed = false
+        for feature in features where mayFlip(feature, to: available) {
+            UserDefaults.standard.set(available, forKey: feature.availabilityKey)
+            if available { loadedThisSession.insert(feature) }
+            Self.bindings[feature]?()
+            changed = true
+        }
+        if changed { finishAvailabilityChange() }
     }
 
     /// Applies a hub preset: its features become the installed set, with
@@ -134,17 +139,9 @@ final class FeatureRuntime: ObservableObject {
         finishAvailabilityChange()
     }
 
-    /// Bulk install or uninstall for the hub's "all" buttons: one revision
-    /// bump, every changed feature's binding run.
+    /// Bulk install or uninstall for the hub's "all" buttons.
     func setAllAvailable(_ available: Bool) {
-        var changed = false
-        for feature in AppFeature.allCases where mayFlip(feature, to: available) {
-            UserDefaults.standard.set(available, forKey: feature.availabilityKey)
-            if available { loadedThisSession.insert(feature) }
-            Self.bindings[feature]?()
-            changed = true
-        }
-        if changed { finishAvailabilityChange() }
+        setAvailable(AppFeature.allCases, available)
     }
 
     /// Launch path: replaces the old unconditional sync block. Only available
@@ -168,6 +165,7 @@ final class FeatureRuntime: ObservableObject {
     private func finishAvailabilityChange() {
         revision += 1
         CommandBarService.shared.noteHubChange()
+        if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
     }
 
     /// What each feature must re-evaluate when its availability (or a
@@ -209,6 +207,7 @@ final class FeatureRuntime: ObservableObject {
             ClipboardAutoClearService.shared.syncWithPreferences()
         },
         .mediaTools: {
+            NotchFileToolsService.shared.syncWithPreferences()
             guard !AppFeature.mediaTools.isAvailable else { return }
             MediaService.shared.cancel()
             ScreenRecorderService.shared.closeEditors(ownedBy: .mediaTools)
@@ -216,7 +215,10 @@ final class FeatureRuntime: ObservableObject {
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },
-        .shelf: { ShelfService.shared.syncWithPreferences() },
+        .shelf: {
+            ShelfService.shared.syncWithPreferences()
+            NotchFileToolsService.shared.syncWithPreferences()
+        },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
         .diskImageInstaller: { DiskImageInstallerService.shared.syncWithPreferences() },
         .mixer: {
@@ -262,6 +264,34 @@ final class FeatureRuntime: ObservableObject {
         },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
+        .notch: { NotchService.shared.syncWithPreferences() },
+        .notchGestures: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+        },
+        .notchTimer: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchTimerService.shared.stop() }
+        },
+        .notchAccessories: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchAccessoryService.shared.stop() }
+        },
+        .notchLyrics: {
+            if !NotchLyricsSupport.isEnabled() { NotchLyricsService.shared.stop() }
+        },
+        .notchQueue: { NotchMusicService.shared.syncQueuePreference() },
+        .notchNotifications: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchNotificationService.shared.stop() }
+        },
+        .notchDownloads: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchDownloadService.shared.stop() }
+        },
+        .notchCalendar: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchCalendarService.shared.stop() }
+        },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
         .cleaner: {

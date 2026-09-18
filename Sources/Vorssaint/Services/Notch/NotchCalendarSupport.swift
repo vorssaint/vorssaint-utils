@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+import EventKit
+
+struct NotchCalendarColor: Equatable, Sendable {
+    let red: Double
+    let green: Double
+    let blue: Double
+
+    static let fallback = Self(red: 0.35, green: 0.65, blue: 1)
+}
+
+struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
+    let id: String
+    let title: String
+    let calendar: String
+    let start: Date
+    let end: Date
+    let allDay: Bool
+    let location: String
+    var color: NotchCalendarColor = .fallback
+}
+
+enum NotchCalendarSupport {
+    static func monthDays(containing date: Date, calendar: Calendar = .current) -> [Date] {
+        guard let month = calendar.dateInterval(of: .month, for: date) else { return [] }
+        let offset = (calendar.component(.weekday, from: month.start) - calendar.firstWeekday + 7) % 7
+        guard let start = calendar.date(byAdding: .day, value: -offset, to: month.start) else { return [] }
+        return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+    }
+
+    static func readInterval(month: Date?, now: Date, calendar: Calendar = .current) -> DateInterval {
+        let today = calendar.startOfDay(for: now)
+        let weekEnd = calendar.date(byAdding: .day, value: 7, to: today) ?? now
+        if let month {
+            let days = monthDays(containing: month, calendar: calendar)
+            if let first = days.first, let last = days.last,
+               let end = calendar.date(byAdding: .day, value: 1, to: last) {
+                return DateInterval(start: first, end: calendar.isDate(month, equalTo: now, toGranularity: .month)
+                                    ? max(end, weekEnd) : end)
+            }
+        }
+        return DateInterval(start: today, end: weekEnd)
+    }
+
+    /// End dates are exclusive, including all-day events and midnight boundaries.
+    static func events(_ events: [NotchCalendarEvent], on day: Date,
+                       calendar: Calendar = .current) -> [NotchCalendarEvent] {
+        guard let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
+        return events.filter { $0.start < interval.end && $0.end > interval.start }.sorted {
+            if $0.allDay != $1.allDay { return $0.allDay }
+            if $0.start != $1.start { return $0.start < $1.start }
+            return $0.id < $1.id
+        }
+    }
+
+    static func requestFailed(status: EKAuthorizationStatus, hasError: Bool) -> Bool {
+        hasError || ![.fullAccess, .denied, .restricted].contains(status)
+    }
+
+    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        NotchSupport.isEnabled(in: defaults)
+            && AppFeature.notchCalendar.isAvailable(in: defaults)
+            && defaults.bool(forKey: DefaultsKey.notchCalendarEnabled)
+            && NotchSupport.modules(in: defaults).contains(.calendar)
+    }
+
+    static func ordered(_ events: [NotchCalendarEvent]) -> [NotchCalendarEvent] {
+        var seen = Set<String>()
+        return events.filter {
+            $0.start.timeIntervalSinceReferenceDate.isFinite
+                && $0.end.timeIntervalSinceReferenceDate.isFinite
+                && $0.end > $0.start && seen.insert($0.id).inserted
+        }.sorted {
+            if $0.start != $1.start { return $0.start < $1.start }
+            if $0.end != $1.end { return $0.end < $1.end }
+            return $0.id < $1.id
+        }
+    }
+
+    static func upcoming(_ events: [NotchCalendarEvent], now: Date) -> [NotchCalendarEvent] {
+        ordered(events).filter { $0.end > now }
+    }
+
+    static func next(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
+        upcoming(events, now: now).first { !$0.allDay }
+    }
+
+    static func nextRefresh(_ events: [NotchCalendarEvent], now: Date,
+                            calendar: Calendar = .current) -> Date {
+        let midnight = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+            ?? now.addingTimeInterval(900)
+        return (upcoming(events, now: now).flatMap { [$0.start, $0.end] } + [midnight, now.addingTimeInterval(900)])
+            .filter { $0 > now }.min() ?? now.addingTimeInterval(900)
+    }
+}

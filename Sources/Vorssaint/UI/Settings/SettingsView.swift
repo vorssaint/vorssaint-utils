@@ -148,7 +148,16 @@ struct SettingsView: View {
                 if !items.isEmpty {
                     Section(section.title) {
                         ForEach(items) { item in
-                            Label(item.title, systemImage: item.icon).tag(item.page)
+                            Label {
+                                Text(item.title)
+                            } icon: {
+                                Image(systemName: item.icon)
+                                    // The sidebar's automatic icon tint can briefly disappear
+                                    // while the window activates. Resolve it in the icon itself.
+                                    .foregroundStyle(router.page == item.page
+                                        ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
+                            }
+                            .tag(item.page)
                         }
                     }
                 }
@@ -348,6 +357,7 @@ struct SettingsView: View {
         case .general: GeneralSettings()
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
+        case .notch: NotchSettings()
         case .radialMenu: RadialMenuSettings()
         case .commandBar: CommandBarSettings()
         case .energy: EnergySettings()
@@ -756,27 +766,32 @@ struct EnergySettings: View {
                             SettingsCaptionText(displayControlFailureText(failure, strings: strings))
                                 .foregroundStyle(.red)
                         }
-                        SettingsToggleWithCaption(title: strings.keysToggle,
-                                                  caption: strings.keysCaption,
-                                                  isOn: $brightnessKeysEnabled)
-                            .onChange(of: brightnessKeysEnabled) { _, isOn in
-                                if isOn { Permissions.shared.requestAccessibility() }
-                                BrightnessService.shared.syncWithPreferences()
-                            }
-                        if brightness.brightnessOSDSupported {
-                            SettingsToggleWithCaption(title: strings.osdToggle,
-                                                      caption: strings.osdCaption,
-                                                      isOn: $brightnessOSDEnabled)
-                                .onChange(of: brightnessOSDEnabled) { _, isOn in
+                        DisclosureGroup {
+                            SettingsToggleWithCaption(title: strings.keysToggle,
+                                                      caption: strings.keysCaption,
+                                                      isOn: $brightnessKeysEnabled)
+                                .onChange(of: brightnessKeysEnabled) { _, isOn in
                                     if isOn { Permissions.shared.requestAccessibility() }
                                     BrightnessService.shared.syncWithPreferences()
                                 }
+                            DisplayBrightnessShortcutControls()
+                            if brightness.brightnessOSDSupported {
+                                SettingsToggleWithCaption(title: strings.osdToggle,
+                                                          caption: strings.osdCaption,
+                                                          isOn: $brightnessOSDEnabled)
+                                    .onChange(of: brightnessOSDEnabled) { _, isOn in
+                                        if isOn { Permissions.shared.requestAccessibility() }
+                                        BrightnessService.shared.syncWithPreferences()
+                                    }
+                            }
+                            if (brightnessKeysEnabled || brightnessOSDEnabled),
+                               !permissions.accessibility {
+                                PermissionRow(kind: .accessibility)
+                            }
+                            SettingsCaptionText(strings.externalCaption)
+                        } label: {
+                            Text(FeatureStrings.recorder(l10n.language).moreOptions)
                         }
-                        if (brightnessKeysEnabled || brightnessOSDEnabled),
-                           !permissions.accessibility {
-                            PermissionRow(kind: .accessibility)
-                        }
-                        SettingsCaptionText(strings.externalCaption)
                     }
                 }
                 .settingsSectionAnchor(.brightness)
@@ -1209,11 +1224,13 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
     @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
     @AppStorage(DefaultsKey.switcherScreenPlacement) private var switcherScreenPlacement = SwitcherScreenPlacement.fallback.rawValue
+    @AppStorage(DefaultsKey.switcherCurrentDisplayOnly) private var switcherCurrentDisplayOnly = false
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
+    @AppStorage(DefaultsKey.dockPreviewCurrentSpaceOnly) private var dockPreviewCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
@@ -1359,6 +1376,12 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    Toggle(l10n.s.switcherCurrentDisplayOnly, isOn: $switcherCurrentDisplayOnly)
+                        .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherCurrentDisplayOnlyCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
                         .disabled(!switcherEnabled)
                     Text(l10n.s.switcherCurrentSpaceOnlyCaption)
@@ -1390,6 +1413,11 @@ struct SwitcherSettings: View {
                             .font(.caption)
                             .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
                         if dockPreviewEnabled {
+                            Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $dockPreviewCurrentSpaceOnly)
+                                .onChange(of: dockPreviewCurrentSpaceOnly) { _, _ in
+                                    DockPreviewService.shared.syncWithPreferences()
+                                }
+                            SettingsCaptionText(l10n.s.dockPreviewCurrentSpaceOnlyCaption)
                             HStack {
                                 Text(l10n.s.dockPreviewOpenDelay)
                                 Spacer()

@@ -274,6 +274,13 @@ enum BrightnessSupport {
         return BrightnessKeyEvent(delta: delta, isKeyDown: state == 10, isRepeat: (raw & 0x1) != 0)
     }
 
+    static func isKeyboardLightPress(subtype: Int, data1: Int) -> Bool {
+        guard subtype == 8 else { return false }
+        let raw = UInt32(truncatingIfNeeded: data1)
+        // Native illumination up, down and toggle. Key-up is always left alone.
+        return (21...23).contains((raw >> 16) & 0xFFFF) && ((raw >> 8) & 0xFF) == 10
+    }
+
     /// Keyboards other than the built-in one do not send brightness as a
     /// media key at all. They send an ordinary key press: either one of the
     /// two dedicated brightness codes, or F14 and F15, which the system
@@ -328,6 +335,13 @@ enum BrightnessSupport {
             if let enabled = entry["enabled"] as? NSNumber, !enabled.boolValue { return false }
         }
         return true
+    }
+
+    static func shortcutDisplay(followsPointer: Bool, pointerDisplay: UInt32?,
+                                primaryDisplay: UInt32, eligible: Set<UInt32>) -> UInt32? {
+        let target = followsPointer ? pointerDisplay : primaryDisplay
+        guard let target, eligible.contains(target) else { return nil }
+        return target
     }
 
     static func steppedBrightness(_ current: Double, delta: Double) -> Double {

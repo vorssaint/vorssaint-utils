@@ -1,5 +1,5 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "O Vorssaint usa a Automação para mover arquivos no Finder, enviar itens para o Lixo e abrir comandos do Terminal quando você pede ações do Homebrew.";
+"NSAppleEventsUsageDescription" = "O Vorssaint usa a Automação para mover arquivos, enviar itens ao Lixo, abrir comandos solicitados e controlar a reprodução nos seus apps de mídia.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "O Vorssaint usa o áudio de cada app para ajustar o volume no mixer e para incluir o som do Mac nas gravações de tela que você iniciar. Nada sai do seu Mac.";
@@ -21,3 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você.";
 "NSNetworkVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você.";
 "NSRemovableVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você.";
+"NSCalendarsFullAccessUsageDescription" = "Mostra seus próximos compromissos na parte superior da tela. Os eventos do calendário ficam neste Mac.";

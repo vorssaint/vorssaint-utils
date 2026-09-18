@@ -40,9 +40,6 @@ enum SettingsBackupSupport {
         DefaultsKey.mixerHiddenApps,
         DefaultsKey.preferredInputDevice,
         DefaultsKey.soundOutputSwitcherDeviceUIDs,
-        DefaultsKey.audioPriorityOutputUIDs,
-        DefaultsKey.audioPriorityInputUIDs,
-        DefaultsKey.audioPriorityDeviceNames,
         DefaultsKey.menuBarCPU,
         DefaultsKey.menuBarGPU,
         DefaultsKey.menuBarMemory,
@@ -59,6 +56,10 @@ enum SettingsBackupSupport {
         DefaultsKey.panelPowerOrder,
         DefaultsKey.panelCollapsedSections,
         DefaultsKey.quickLauncherItemOrder,
+        // Legacy island layouts stay restorable; absence selects the new layout.
+        DefaultsKey.notchQuickAccessSide,
+        DefaultsKey.notchQuickAccessSecond,
+        DefaultsKey.notchQuickAccessThird,
         // Experience flags: a restored Mac must not replay onboarding or the
         // feature intros the user has already been through.
         DefaultsKey.hasOnboarded,
@@ -111,6 +112,7 @@ enum SettingsBackupSupport {
         // Restoring it elsewhere could search a different volume or trigger a
         // protected-folder prompt without a fresh choice.
         DefaultsKey.commandBarFileScopes,
+        DefaultsKey.notchDownloadsFolderBookmark,
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
         DefaultsKey.simulateUpdate,
@@ -235,6 +237,24 @@ enum SettingsBackupSupport {
 
     private static func portableMediaSettings(_ source: [String: Any]) -> [String: Any] {
         var settings = source
+        if let raw = settings[DefaultsKey.screenshotWatermarkStyle] as? String {
+            var style = raw.data(using: .utf8).flatMap {
+                try? JSONDecoder().decode(ScreenshotSupport.WatermarkStyle.self, from: $0)
+            } ?? ScreenshotSupport.WatermarkStyle()
+            style.imagePath = nil
+            settings[DefaultsKey.screenshotWatermarkStyle] = style.encoded()
+        }
+        if let raw = settings[DefaultsKey.screenshotWatermarkPresets] as? String {
+            let portable = ScreenshotSupport.decodedWatermarkPresets(raw)
+                .filter { $0.kind != .image }
+                .map { style in
+                    var style = style
+                    style.imagePath = nil
+                    return style
+                }
+            settings[DefaultsKey.screenshotWatermarkPresets] =
+                ScreenshotSupport.encodedWatermarkPresets(portable)
+        }
         // Preset pictures are private files on this Mac. A backup carries the
         // visual settings, never authority to read a caller-supplied image path.
         if let data = settings[DefaultsKey.recorderEditorPresets] as? Data,
@@ -268,6 +288,31 @@ enum SettingsBackupSupport {
         return settings
     }
 
+    /// Only a choice already made on this Mac can supply an image. A portable
+    /// image style keeps its appearance, but cannot select a file on another Mac.
+    static func restoredScreenshotWatermark(restored: String?, local: String?) -> String {
+        var style = restored?.data(using: .utf8).flatMap {
+            try? JSONDecoder().decode(ScreenshotSupport.WatermarkStyle.self, from: $0)
+        } ?? ScreenshotSupport.WatermarkStyle()
+        style.imagePath = ScreenshotSupport.WatermarkStyle.decoded(local).imagePath
+        return style.sanitized().encoded()
+    }
+
+    /// Image presets stay on their original Mac. Reserve their places before
+    /// taking portable text presets, so a restore never discards a local image.
+    static func restoredScreenshotWatermarkPresets(restored: String?, local: String?) -> String {
+        let pictures = ScreenshotSupport.decodedWatermarkPresets(local).filter { $0.kind == .image }
+        let text = ScreenshotSupport.decodedWatermarkPresets(restored)
+            .filter { $0.kind == .text }
+            .map { style in
+                var style = style
+                style.imagePath = nil
+                return style
+            }
+        return ScreenshotSupport.encodedWatermarkPresets(
+            Array(text.suffix(ScreenshotSupport.backdropPresetLimit - pictures.count)) + pictures)
+    }
+
     /// Restoring settings on the same Mac keeps the pictures already owned by
     /// matching presets, just as mouse exceptions keep their local paths.
     static func preservingLocalPresetImages(restored: Data, local: Data?) -> Data {
@@ -289,6 +334,11 @@ enum SettingsBackupSupport {
     /// switch belongs, or text where a number belongs, would otherwise reach
     /// code that trusts its own settings.
     static func valueLooksRight(_ key: String, _ value: Any) -> Bool {
+        switch key {
+        case DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird:
+            return value is String
+        default: break
+        }
         guard let expected = Defaults.registeredDefaults[key] else {
             // Not a registered setting, so there is nothing to compare
             // against; the allowed list is the only gate for these.

@@ -441,10 +441,10 @@ enum AppUpdatesSupport {
 
     /// Exact names take priority; a single identity also finds renamed apps
     /// and installer packages without confusing companion apps with the owner.
-    static func onlineCatalogUpdates(apps: [InstalledApp],
-                                     catalog: [CatalogEntry],
-                                     operatingSystemVersion: String,
-                                     ignoredTokens: Set<String> = []) -> [Item] {
+    static func onlineCatalogFindings(apps: [InstalledApp],
+                                      catalog: [CatalogEntry],
+                                      operatingSystemVersion: String,
+                                      ignoredTokens: Set<String> = []) -> (items: [Item], checkedPaths: Set<String>) {
         var entriesByName: [String: [CatalogEntry]] = [:]
         var entriesByID: [String: [CatalogEntry]] = [:]
         for entry in catalog where !ignoredTokens.contains(entry.token) {
@@ -458,7 +458,8 @@ enum AppUpdatesSupport {
             }
         }
 
-        return apps.compactMap { app in
+        var checkedPaths = Set<String>()
+        let items = apps.compactMap { app -> Item? in
             let installedName = URL(fileURLWithPath: app.path).lastPathComponent
             let named = entriesByName[installedName] ?? []
             let matches = named.isEmpty
@@ -468,6 +469,8 @@ enum AppUpdatesSupport {
             guard !isUncomparable(entry.version),
                   isCompatible(entry,
                                operatingSystemVersion: operatingSystemVersion) else { return nil }
+            // Current versions are covered too; absence of a row alone proves nothing.
+            if !isUncomparable(app.version) { checkedPaths.insert(app.path) }
             let latest = versionCore(entry.version)
             guard isNewer(latest, than: app.version) else { return nil }
             return Item(id: "\(Source.onlineCatalog.rawValue):\(app.path)",
@@ -479,6 +482,7 @@ enum AppUpdatesSupport {
                         bundlePath: app.path,
                         storePage: nil)
         }
+        return (items, checkedPaths)
     }
 
     private static func isCompatible(_ entry: CatalogEntry,
