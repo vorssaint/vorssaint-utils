@@ -175,6 +175,8 @@ def main():
             .replace("private func", "static func", 1) + "}\n")
     write("NotchActivationButton.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
+    write("NotchPanel.swift", "import AppKit\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchPanel:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
     write("ShelfDragCompletion.swift", "import Foundation\n\nextension ShelfDragCompletionContract {\n"
           + "final class Service {\nvar activeInternalDragIDs: [UUID] = []\n"
@@ -241,6 +243,7 @@ def main():
     write("NotchScreenRefresh.swift", "import Foundation\n\nextension NotchScreenRefreshContract {\nfinal class Service: State {\n"
           + declaration(notch, "    private func screenParametersDidChange()").replace("private func", "func", 1)
           + declaration(notch, "    private func invalidateMenuSpace(").replace("private func", "func", 1)
+          + declaration(notch, "    private func applicationDidActivate()").replace("private func", "func", 1)
           + declaration(notch, "    private func stopMenuSpaceMonitoring()")
           + declaration(notch, "    private func syncMenuSpaceMonitoring()").replace("private func", "func", 1)
               .replace("AXIsProcessTrusted()", "accessibilityGranted")
@@ -339,6 +342,16 @@ def main():
           + declaration(media_workspace, "    private var selectedToolBinding:").replace("private var", "var", 1)
           + "}\nfinal class FileView: HeightState {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchFilesView.swift", "    private func mediaHeightChanged(").replace("private func", "func", 1)
+          + "}\n}\n")
+    write("MediaDialogHost.swift", "import AppKit\n\nextension MediaDialogHostContract {\nenum Dialogs {\n"
+          + "static var panelModalActive = false\n"
+          + declaration(media_workspace, "    private static func runPanelModal(").replace("private static", "static", 1)
+          + "}\n}\n")
+    write("RecorderExportChip.swift", "import AppKit\nimport SwiftUI\n\nextension RecorderExportChipTests {\n"
+          + "struct Chip: View {\n@ObservedObject var model: Model\nlet strings = Strings()\n"
+          + "var exportProgressLabel: String { strings.exportingLabel }\n"
+          + "var body: some View { exportProgressChip }\n"
+          + declaration("Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift", "    private var exportProgressChip:")
           + "}\n}\n")
     switcher = "Sources/Vorssaint/UI/Switcher/SwitcherView.swift"
     switcher_service = "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift"
@@ -470,7 +483,7 @@ def main():
           + "func beginAutomation(_ command: Command, playback: NotchPlayback) -> Bool { false }\nfunc cancelAutomationAction() {}\n"
           + "var process: Process?\nvar input: Pipe?\nlet queue = Scheduler()\n"
           + "lazy var commandWriter = NotchMusicCommandWriter { [queue = self.queue] in queue.async(execute: $0) }\n"
-          + "var wantsPlayback = false\nvar restartCount = 0\nvar restartWork: DispatchWorkItem?\nvar launches = 0\n"
+          + "var wantsPlayback = false\nvar awaitingPlayback = false\nvar restartCount = 0\nvar restartWork: DispatchWorkItem?\nvar launches = 0\n"
           + "func launch() { guard wantsPlayback, process == nil else { return }; launches += 1; process = Process(); input = Pipe(); commandWriter.start() }\n"
           + "func disconnect() { generation = UUID(); commandWriter.stop(); process = nil; input = nil; playback = nil }\n"
           + declaration(music, "    func start()")

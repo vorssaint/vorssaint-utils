@@ -7,6 +7,9 @@ import Combine
 final class NotchMusicService: ObservableObject {
     static let shared = NotchMusicService()
     @Published private(set) var playback: NotchPlayback?
+    /// True from the first request until the adapter's first reply. Until then
+    /// a missing playback is unknown, not "nothing playing".
+    @Published private(set) var awaitingPlayback = false
     @Published private(set) var artwork: NSImage?
     @Published private(set) var artworkTint: NotchArtworkTint?
     @Published private(set) var commandFailed = false
@@ -55,6 +58,7 @@ final class NotchMusicService: ObservableObject {
     func start() {
         guard !wantsPlayback else { return }
         wantsPlayback = true
+        awaitingPlayback = true
         restartCount = 0
         launch()
     }
@@ -117,6 +121,7 @@ final class NotchMusicService: ObservableObject {
                 self.artwork = image
                 self.artworkTint = tint
                 self.playback = next
+                self.awaitingPlayback = false
                 self.updateAutomation(for: next)
                 NotchLyricsService.shared.playbackChanged(next)
                 self.updateQueue()
@@ -147,7 +152,7 @@ final class NotchMusicService: ObservableObject {
 
     private func connectionEnded() {
         disconnect()
-        guard wantsPlayback, restartCount < 2 else { return }
+        guard wantsPlayback, restartCount < 2 else { awaitingPlayback = false; return }
         restartCount += 1
         let requested = generation
         let work = DispatchWorkItem { [weak self] in
@@ -183,6 +188,7 @@ final class NotchMusicService: ObservableObject {
 
     func stop() {
         wantsPlayback = false
+        awaitingPlayback = false
         restartWork?.cancel()
         restartWork = nil
         restartCount = 0

@@ -243,6 +243,7 @@ struct FeatureHubSettings: View {
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
         }
     }
@@ -294,12 +295,20 @@ private struct FeatureHubRow: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var working = false
+    @State private var confirmingExtensions = false
     let feature: AppFeature
     let hub: FeatureHubStrings
     let symbolName: String
     var isHighlighted: Bool = false
 
     private var installed: Bool { feature.isAvailable }
+
+    /// Extensions still installed under this row's feature; only the Dynamic
+    /// Island has any. They do nothing without it, so its uninstall asks
+    /// whether they leave too.
+    private var installedExtensions: [AppFeature] {
+        feature == .notch ? AppFeature.dynamicIslandExtensions.filter(\.isAvailable) : []
+    }
 
     /// Set only while this Mac cannot run the feature and it is not yet
     /// installed, so an install that predates the check keeps an ordinary
@@ -346,10 +355,12 @@ private struct FeatureHubRow: View {
                 ProgressView()
                     .controlSize(.small)
             } else if installed {
-                Button(hub.uninstallButton) { flip(to: false) }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
+                Button(hub.uninstallButton) {
+                    if installedExtensions.isEmpty { flip(to: false) } else { confirmingExtensions = true }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
             } else if let reason = unsupportedReason {
                 // .help() never fires on a disabled control, so the tooltip
                 // has to sit on this wrapper. Flattening it loses the only
@@ -374,6 +385,15 @@ private struct FeatureHubRow: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Color.accentColor.opacity(isHighlighted ? 0.10 : 0))
                 .allowsHitTesting(false)
+        }
+        .alert(hub.notchUninstallTitle, isPresented: $confirmingExtensions) {
+            Button(hub.notchUninstallWithExtensions) { flip(to: false, alongside: installedExtensions) }
+            Button(hub.notchUninstallKeepExtensions) { flip(to: false) }
+            Button(hub.presetConfirmCancel, role: .cancel) {}
+        } message: {
+            Text(String(format: hub.notchUninstallMessageFormat,
+                        installedExtensions.map { $0.hubTitle(l10n.s, hub: hub) }
+                            .joined(separator: ", ")))
         }
     }
 
@@ -436,12 +456,12 @@ private struct FeatureHubRow: View {
 
     /// A quick, honest beat of feedback: the spinner shows the action landed,
     /// then the row fades to its new state. The flip itself is instant.
-    private func flip(to install: Bool) {
+    private func flip(to install: Bool, alongside companions: [AppFeature] = []) {
         guard !working else { return }
         working = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             withAnimation(.easeOut(duration: 0.22)) {
-                FeatureRuntime.shared.setAvailable(feature, install)
+                FeatureRuntime.shared.setAvailable([feature] + companions, install)
             }
             working = false
         }

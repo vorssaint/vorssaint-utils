@@ -28,7 +28,10 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, killProcess, notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics, notchQueue, notchDownloads
+         commandBar, screenRecorder, killProcess
+    // Dynamic Island, then its extensions
+    case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
+         notchQueue, notchDownloads
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
@@ -36,7 +39,7 @@ enum AppFeature: String, CaseIterable {
 
 /// Hub sections, in display order.
 enum FeatureGroup: String, CaseIterable {
-    case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, monitor
+    case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, dynamicIsland, monitor
 }
 
 /// System permissions surfaced by the hub's transparency portal.
@@ -109,8 +112,11 @@ extension AppFeature {
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .killProcess, .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads:
+             .scratchpad, .commandBar, .screenRecorder, .killProcess:
             return .tools
+        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
+             .notchLyrics, .notchQueue, .notchDownloads:
+            return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .fanControl:
             return .monitor
@@ -335,6 +341,13 @@ extension AppFeature {
 
     static func features(in group: FeatureGroup) -> [AppFeature] {
         allCases.filter { $0.group == group }
+    }
+
+    /// The Dynamic Island's extensions: everything else in its group. They
+    /// do nothing without the island, so uninstalling it offers to take them
+    /// along.
+    static var dynamicIslandExtensions: [AppFeature] {
+        features(in: .dynamicIsland).filter { $0 != .notch }
     }
 
     /// Registered defaults preserve existing features on update. New opt-in

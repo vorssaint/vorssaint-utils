@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume, pinned apps and remembered ordering; capture guides reveal repeat-region shortcuts, Dynamic Island improves music efficiency and interaction, panel buttons align correctly, Command Bar adds emoji skin tones and reliable Keep Awake durations, recent captures open promptly from other apps, and Window Layout adds a centered two-thirds placement.
+App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume, pinned apps and remembered ordering; capture guides reveal repeat-region shortcuts, Dynamic Island gets its own section in Features, can uninstall with its extensions and improves music efficiency and interaction, panel buttons align correctly, Command Bar adds emoji skin tones and reliable Keep Awake durations, recent captures open promptly from other apps, and Window Layout adds a centered two-thirds placement.
 
 ### Added
+- Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
 - Adjust microphone input volume from the mixer, with an editable percentage on supported devices. Thanks to @GolamRafi27oo.
 - Window Layout can center a window at two-thirds of the screen width in one action. Thanks to @Borisserz.
 - Command Bar offers a default emoji skin tone and one-off alternatives from each emoji’s actions. Thanks to @justin-chiam.
@@ -18,10 +19,12 @@ App Switcher makes multiple windows easier to see and brings selected windows fo
 - Dynamic Island’s timer page offers a stopwatch that counts up with pause and cancel, keeping its seconds visible beside the camera.
 
 ### Changed
+- Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
 - Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
 - Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
+- Dynamic Island shows Keep open directly in its header, and Settings appears there when its floating button is removed.
 
 ### Fixed
 - Dynamic Island shows a video playing in a browser even when a music app is open but stopped. Thanks to @ruvelro.
@@ -31,6 +34,11 @@ App Switcher makes multiple windows easier to see and brings selected windows fo
 - Panel permission and recent capture buttons align with the card text. Thanks to @COMEBACKISREAL.
 - App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
 - Dynamic Island offers playback controls when a music app is recognized and updates them after permission is granted.
+- Dynamic Island is no longer listed as a window by tiling window managers, which showed a ghost window on the current desktop. Thanks to @Yahddyyp.
+- On screens without a camera cutout, Dynamic Island no longer blinks when you switch apps or hides while a launcher has focus. Thanks to @Yahddyyp.
+- Now Playing in Dynamic Island no longer says nothing is playing while it fetches the current track. Thanks to @Yahddyyp.
+- File dialogs opened from the media tools inside Dynamic Island attach to it instead of opening behind it. Thanks to @Yahddyyp.
+- The recording editor keeps its saving indicator on one line in narrow windows. Thanks to @Yahddyyp.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 
