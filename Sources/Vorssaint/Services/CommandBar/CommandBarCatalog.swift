@@ -199,6 +199,7 @@ enum CommandBarCatalog {
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(L10n.shared.language).title
         case .monitor: return hub.groupMonitor
         }
     }
