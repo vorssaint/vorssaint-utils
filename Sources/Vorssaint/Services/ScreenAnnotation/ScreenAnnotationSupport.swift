@@ -67,13 +67,8 @@ struct AnnotationStroke: Codable, Equatable {
 enum ScreenAnnotationSupport {
     static let maxPointsPerStroke = 600
     static let defaultWidth = 6.0
-    /// Points are normalized before they reach `append`. This is roughly a
-    /// single physical pixel on ordinary desktop displays; comparing against
-    /// `0.25` here would instead require a half-screen movement.
     static let minimumPointDistanceSquared = 0.000_000_25
 
-    /// The canvas remains visible after Escape so existing strokes stay on
-    /// screen, but it must stop participating in hit testing outside drawing.
     static func canvasIgnoresMouseEvents(isDrawing: Bool) -> Bool { !isDrawing }
 
     static func normalized(point: AnnotationPoint, in size: (width: Double, height: Double)) -> AnnotationPoint {
@@ -96,8 +91,10 @@ enum ScreenAnnotationSupport {
 
     static func clear(_ strokes: [AnnotationStroke]) -> [AnnotationStroke] { [] }
 
-    /// Shortest distance from `point` to the segment `a`–`b`, used for hit
-    /// testing individual strokes instead of their overall bounding box.
+    static func textWrapWidth(originX: Double, boundsWidth: Double) -> Double {
+        max(200, boundsWidth - originX - 24)
+    }
+
     static func distance(from point: CGPoint, toSegmentFrom a: CGPoint, to b: CGPoint) -> CGFloat {
         let dx = b.x - a.x
         let dy = b.y - a.y

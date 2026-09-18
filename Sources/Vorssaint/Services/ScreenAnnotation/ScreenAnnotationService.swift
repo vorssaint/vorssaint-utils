@@ -327,18 +327,24 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
         drawingView?.needsDisplay = true
     }
 
-    /// Hit test restricted to text strokes, so clicking with the text tool
-    /// reopens an existing label instead of always starting a new one.
+    private func textStrokeSize(_ stroke: AnnotationStroke, originX: Double, boundsWidth: Double) -> CGSize {
+        let font = NSFont.systemFont(ofSize: max(14, stroke.width * 3), weight: .medium)
+        let wrapWidth = ScreenAnnotationSupport.textWrapWidth(originX: originX, boundsWidth: boundsWidth)
+        let bounding = (stroke.text as NSString).boundingRect(
+            with: NSSize(width: wrapWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin],
+            attributes: [.font: font])
+        return CGSize(width: max(40, bounding.width), height: max(24, bounding.height))
+    }
+
     private func textStrokeIndex(at p: NSPoint, bounds: CGRect) -> Int? {
         let point = CGPoint(x: p.x, y: p.y)
         for index in strokes.indices.reversed() {
             let stroke = strokes[index]
             guard stroke.tool == .text, let first = stroke.points.first else { continue }
             let origin = CGPoint(x: first.x * Double(bounds.width), y: first.y * Double(bounds.height))
-            let font = NSFont.systemFont(ofSize: max(14, stroke.width * 3), weight: .medium)
-            let textSize = (stroke.text as NSString).size(withAttributes: [.font: font])
-            let hit = CGRect(x: origin.x, y: origin.y, width: max(40, textSize.width),
-                             height: max(24, textSize.height))
+            let textSize = textStrokeSize(stroke, originX: Double(origin.x), boundsWidth: Double(bounds.width))
+            let hit = CGRect(x: origin.x, y: origin.y, width: textSize.width, height: textSize.height)
             if hit.contains(point) { return index }
         }
         return nil
@@ -354,10 +360,8 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
             guard let first = points.first else { continue }
             let tolerance = max(12, stroke.width * 2)
             if stroke.tool == .text {
-                let font = NSFont.systemFont(ofSize: max(14, stroke.width * 3), weight: .medium)
-                let textSize = (stroke.text as NSString).size(withAttributes: [.font: font])
-                let hit = CGRect(x: first.x, y: first.y, width: max(40, textSize.width),
-                                 height: max(24, textSize.height))
+                let textSize = textStrokeSize(stroke, originX: Double(first.x), boundsWidth: Double(bounds.width))
+                let hit = CGRect(x: first.x, y: first.y, width: textSize.width, height: textSize.height)
                 if hit.insetBy(dx: -tolerance, dy: -tolerance).contains(point) { return index }
                 continue
             }
@@ -509,7 +513,7 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
         let fontSize = CGFloat(max(14, (service?.width ?? ScreenAnnotationSupport.defaultWidth) * 3))
         // No fixed box: the field grows to the edge of the screen so typing
         // long or multi-line text is never clipped or scrolled.
-        let availableWidth = max(200, bounds.width - point.x - 24)
+        let availableWidth = ScreenAnnotationSupport.textWrapWidth(originX: point.x, boundsWidth: bounds.width)
         let availableHeight = max(fontSize + 16, bounds.height - point.y - 24)
         let field = NSTextField(frame: NSRect(x: point.x, y: point.y,
                                                width: availableWidth, height: availableHeight))
@@ -586,10 +590,13 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
                 let point = CGPoint(x: stroke.points[0].x * Double(bounds.width),
                                     y: stroke.points[0].y * Double(bounds.height))
                 let font = NSFont.systemFont(ofSize: max(14, stroke.width * 3), weight: .medium)
-                NSAttributedString(string: stroke.text,
+                let wrapWidth = ScreenAnnotationSupport.textWrapWidth(originX: Double(point.x), boundsWidth: Double(bounds.width))
+                let attributed = NSAttributedString(string: stroke.text,
                                     attributes: [.font: font,
                                                  .foregroundColor: svc.strokeColor(for: stroke)])
-                    .draw(at: point)
+                attributed.draw(with: NSRect(x: point.x, y: point.y, width: wrapWidth,
+                                             height: max(24, bounds.height - point.y)),
+                                options: [.usesLineFragmentOrigin])
                 continue
             }
             guard stroke.points.count > 1 else { continue }
