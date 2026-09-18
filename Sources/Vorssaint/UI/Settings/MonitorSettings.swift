@@ -306,6 +306,10 @@ private struct MenuBarMetricOrderEditor: View {
                         NetworkMenuBarOrderOption()
                     }
 
+                    if metric == .connectedDevices {
+                        ConnectedDevicesMenuBarOrderOptions()
+                    }
+
                     if metric != visibleOrder.last {
                         Divider()
                     }
@@ -392,6 +396,26 @@ private struct NetworkMenuBarOrderOption: View {
     var body: some View {
         if menuBarNetwork {
             MetricRowOptionToggle(label: l10n.s.monitorNetworkUploadFirst, isOn: $uploadFirst)
+        }
+    }
+}
+
+private struct ConnectedDevicesMenuBarOrderOptions: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarConnectedDevices) private var menuBarConnectedDevices = false
+    @AppStorage(DefaultsKey.usbExcludeChargersFromCount) private var excludeChargers = false
+    @AppStorage(DefaultsKey.usbExcludeHubsFromCount) private var excludeHubs = false
+    @AppStorage(DefaultsKey.usbExcludeEthernetFromCount) private var excludeEthernet = false
+    @AppStorage(DefaultsKey.usbExcludeStorageFromCount) private var excludeStorage = false
+
+    var body: some View {
+        if menuBarConnectedDevices {
+            VStack(spacing: 2) {
+                MetricRowOptionToggle(label: l10n.s.usbExcludeChargers, isOn: $excludeChargers)
+                MetricRowOptionToggle(label: l10n.s.usbExcludeHubs, isOn: $excludeHubs)
+                MetricRowOptionToggle(label: l10n.s.usbExcludeEthernet, isOn: $excludeEthernet)
+                MetricRowOptionToggle(label: l10n.s.usbExcludeStorage, isOn: $excludeStorage)
+            }
         }
     }
 }
