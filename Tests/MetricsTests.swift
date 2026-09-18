@@ -15310,6 +15310,12 @@ struct MetricsTests {
                "every feature belongs to exactly one group")
         expect(!FeatureGroup.allCases.contains { AppFeature.features(in: $0).isEmpty },
                "no hub group is empty")
+        expect(AppFeature.features(in: .dynamicIsland) == [
+            .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
+            .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads,
+        ], "the Dynamic Island heads its own hub section, followed by its extensions")
+        expect(AppFeature.dynamicIslandExtensions == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
+               "the Dynamic Island's extensions are every other feature of its section")
         expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
             "automationFinder", "automationTerminal", "automationPlayback", "audioCapture", "microphone", "camera",

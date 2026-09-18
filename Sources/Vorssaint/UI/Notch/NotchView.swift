@@ -171,6 +171,7 @@ struct NotchView: View {
 
     private var header: some View {
         HStack(spacing: 6) {
+            let quickActions = NotchQuickAccessConfiguration.current().actions
             if service.showingSections {
                 NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
                 Text(text.sectionsTitle)
@@ -185,7 +186,7 @@ struct NotchView: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                if !NotchQuickAccessConfiguration.current().actions.contains(.explore) {
+                if !quickActions.contains(.explore) {
                     NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
                 }
                 Text(service.selected.title(l10n.language))
@@ -201,27 +202,17 @@ struct NotchView: View {
                     withAnimation(.easeOut(duration: 0.15)) { launcher.isEditing.toggle() }
                 }
             }
-            Menu {
-                Button {
+            // Keeping the island open is one click, like the floating buttons;
+            // a header button steps aside when the same action floats beside it.
+            if !quickActions.contains(.pin) {
+                NotchIconButton(symbol: service.pinned ? "pin.fill" : "pin",
+                                title: service.pinned ? text.unpin : text.pin, selected: service.pinned) {
                     service.pinned.toggle()
-                } label: {
-                    Label(service.pinned ? text.unpin : text.pin, systemImage: service.pinned ? "pin.slash" : "pin")
                 }
-                Divider()
-                Button(action: service.openSettings) { Label(l10n.s.menuSettings, systemImage: "gearshape") }
-            } label: {
-                Label(l10n.s.keepAwakeOptions, systemImage: service.pinned ? "pin.fill" : "ellipsis")
-                    .labelStyle(.iconOnly)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(service.pinned ? .white : .secondary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(RoundedRectangle(cornerRadius: 10))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .accessibilityLabel(l10n.s.keepAwakeOptions)
-            .help(l10n.s.keepAwakeOptions)
+            if !quickActions.contains(.settings) {
+                NotchIconButton(symbol: "gearshape", title: l10n.s.menuSettings, action: service.openSettings)
+            }
             NotchIconButton(symbol: "chevron.up", title: text.collapse, action: service.collapse)
         }
         .frame(height: NotchLayout.headerHeight)
