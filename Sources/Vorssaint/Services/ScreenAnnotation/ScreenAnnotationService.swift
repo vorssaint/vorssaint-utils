@@ -436,7 +436,8 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.screenAnnotationShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.screenAnnotationShortcut,
                                             fallback: .screenAnnotationDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: on, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: on, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.screenAnnotationShortcut)
     }
 }
 
