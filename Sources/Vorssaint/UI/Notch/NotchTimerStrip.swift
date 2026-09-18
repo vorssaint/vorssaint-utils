@@ -51,7 +51,7 @@ struct NotchTimerStrip: View {
                                  : FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))
             Color.clear.frame(width: geometry.compactActivityCameraGap)
             if timer.session.isRunning {
-                TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.secondBoundaryOffset(
+                TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.tickScheduleOffset(
                     for: timer.session, at: timer.now)), by: 1)) { _ in reading }
             } else {
                 reading

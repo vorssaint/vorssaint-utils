@@ -240,6 +240,14 @@ enum NotchTimerSupport {
         return offset > 0 ? offset : 1
     }
 
+    /// Start of the periodic schedule that ticks the clock, relative to now.
+    /// A timeline renders its first entry at once and wakes only at the next,
+    /// so the schedule starts at the boundary already behind the reading: the
+    /// entry that fires is the boundary ahead, never one skipped past.
+    static func tickScheduleOffset(for session: NotchTimerSession, at now: TimeInterval) -> TimeInterval {
+        secondBoundaryOffset(for: session, at: now) - 1
+    }
+
     static func compactText(_ remaining: TimeInterval, locale: Locale) -> String {
         let seconds = remaining.isFinite ? ceil(min(timerLimit, max(0, remaining))) : 0
         let units: Set<Duration.UnitsFormatStyle.Unit> = seconds >= 3600

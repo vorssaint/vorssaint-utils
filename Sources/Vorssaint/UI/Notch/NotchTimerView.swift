@@ -134,7 +134,7 @@ struct NotchTimerView: View {
             }
             Spacer(minLength: 0)
             if service.session.isRunning {
-                TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.secondBoundaryOffset(
+                TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.tickScheduleOffset(
                     for: service.session, at: service.now)), by: 1)) { _ in reading }
             } else {
                 reading

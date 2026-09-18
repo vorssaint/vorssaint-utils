@@ -3,6 +3,7 @@
 
 import AppKit
 import Foundation
+import SwiftUI
 
 enum NotchActivityTests {
     static func run(expect: (Bool, String) -> Void) {
@@ -330,6 +331,23 @@ enum NotchActivityTests {
         }
         expect(NotchTimerSupport.secondBoundaryOffset(for: countdown, at: -.infinity) == 0,
                "an unreadable clock schedules an immediate tick instead of an invalid date")
+        // A timeline renders the first entry of its schedule at once and wakes
+        // only at the next one, so the boundary ahead has to be the second
+        // entry, with the first already behind now.
+        let reference = Date()
+        for (session, name) in [(countdown, "countdown"), (stopwatch, "stopwatch")] {
+            for now in stride(from: 0.0, through: 3.0, by: 0.23) {
+                let boundary = NotchTimerSupport.secondBoundaryOffset(for: session, at: now)
+                let start = reference.addingTimeInterval(NotchTimerSupport.tickScheduleOffset(for: session, at: now))
+                var entries = PeriodicTimelineSchedule(from: start, by: 1).entries(from: reference, mode: .normal).makeIterator()
+                let first = entries.next()?.timeIntervalSince(reference) ?? .nan
+                let second = entries.next()?.timeIntervalSince(reference) ?? .nan
+                let third = entries.next()?.timeIntervalSince(reference) ?? .nan
+                expect(first <= 0 && first > -1 && abs(second - boundary) < 1e-6 && abs(third - boundary - 1) < 1e-6,
+                       "the clock's schedule starts behind now, so its first wake lands on the \(name) boundary "
+                       + "instead of skipping it: \(now)")
+            }
+        }
 
         let stopwatchCases: [(TimeInterval, String)] = [
             (0, "00:00"), (0.999, "00:00"), (1, "00:01"), (59.9, "00:59"), (60, "01:00"),
