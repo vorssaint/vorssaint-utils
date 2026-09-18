@@ -895,6 +895,11 @@ struct Strings {
     let monitorShowGPUTemperature: String
     let monitorShowBatteryTemperature: String
     let monitorShowPeripheralBattery: String
+    let monitorShowConnectedDevices: String
+    let usbExcludeChargers: String
+    let usbExcludeHubs: String
+    let usbExcludeEthernet: String
+    let usbExcludeStorage: String
     let peripheralBatteryNoDevices: String
     let monitorGraphsSection: String
     let monitorGraphsCaption: String
@@ -1932,6 +1937,11 @@ extension Strings {
         monitorShowGPUTemperature: "Temperatura da GPU",
         monitorShowBatteryTemperature: "Temperatura da bateria",
         monitorShowPeripheralBattery: "Bateria dos periféricos",
+        monitorShowConnectedDevices: "Dispositivos conectados",
+        usbExcludeChargers: "Excluir fontes e carregadores",
+        usbExcludeHubs: "Excluir hubs e docks USB",
+        usbExcludeEthernet: "Excluir adaptadores de rede e Ethernet",
+        usbExcludeStorage: "Excluir armazenamento externo",
         peripheralBatteryNoDevices: "Nenhum periférico encontrado",
         monitorGraphsSection: "Gráficos",
         monitorGraphsCaption: "Escolha quais métricas mostram um gráfico ao longo do tempo.",
@@ -2959,6 +2969,11 @@ extension Strings {
         monitorShowGPUTemperature: "GPU temperature",
         monitorShowBatteryTemperature: "Battery temperature",
         monitorShowPeripheralBattery: "Peripheral battery",
+        monitorShowConnectedDevices: "Connected devices",
+        usbExcludeChargers: "Exclude power supplies and chargers",
+        usbExcludeHubs: "Exclude USB hubs and docks",
+        usbExcludeEthernet: "Exclude network and Ethernet adapters",
+        usbExcludeStorage: "Exclude external storage",
         peripheralBatteryNoDevices: "No devices found",
         monitorGraphsSection: "Graphs",
         monitorGraphsCaption: "Choose which metrics show a graph over time.",

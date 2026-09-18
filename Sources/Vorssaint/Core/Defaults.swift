@@ -328,6 +328,11 @@ enum DefaultsKey {
     static let menuBarPeripheralBattery = "menuBarPeripheralBattery"
     static let menuBarPower = "menuBarPower"
     static let menuBarFanSpeed = "menuBarFanSpeed"
+    static let menuBarConnectedDevices = "menuBarConnectedDevices"
+    static let usbExcludeChargersFromCount = "usbExcludeChargersFromCount"
+    static let usbExcludeHubsFromCount = "usbExcludeHubsFromCount"
+    static let usbExcludeEthernetFromCount = "usbExcludeEthernetFromCount"
+    static let usbExcludeStorageFromCount = "usbExcludeStorageFromCount"
     static let menuBarPreset = "menuBarPreset"           // dense
     static let menuBarMetricSpacing = "menuBarMetricSpacing" // standard | compact
     static let menuBarMetricAppearance = "menuBarMetricAppearance" // values | bars
@@ -931,6 +936,7 @@ enum Defaults {
         "memory",
         "battery", "batteryTime", "batteryTemperature", "peripheralBattery",
         "network", "diskUsage", "diskActivity", "power", "fanSpeed",
+        "connectedDevices",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
@@ -1269,6 +1275,11 @@ enum Defaults {
         DefaultsKey.menuBarDiskActivity: false,
         DefaultsKey.menuBarPeripheralBattery: false,
         DefaultsKey.menuBarFanSpeed: false,
+        DefaultsKey.menuBarConnectedDevices: false,
+        DefaultsKey.usbExcludeChargersFromCount: false,
+        DefaultsKey.usbExcludeHubsFromCount: false,
+        DefaultsKey.usbExcludeEthernetFromCount: false,
+        DefaultsKey.usbExcludeStorageFromCount: false,
         DefaultsKey.menuBarPreset: "dense",
         DefaultsKey.menuBarMetricSpacing: "compact",  // owner's call: compact by default in 3.1.8
         DefaultsKey.menuBarMetricAppearance: "values",
