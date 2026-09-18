@@ -218,7 +218,10 @@ final class BrightnessService: ObservableObject {
     /// last row so the panel still offers the button that brings it back.
     private var managedDisabledDisplays: [CGDirectDisplayID: BrightnessDisplay] = [:]
     private var running = false
-    private var keyboardLightLevel: Float?
+    @Published private(set) var keyboardLightLevel: Float?
+    /// `nil` where this Mac has no ambient sensor for the keyboard, which is
+    /// what hides the control rather than showing it dead.
+    @Published private(set) var keyboardAutoBrightness: Bool?
     private var keyboardNoticeWork: DispatchWorkItem?
     private var lastKeyboardLightLevel: Float = BrightnessSupport.defaultKeyboardLightLevel
     private var keyboardLightBridge: KeyboardLightBridge? { Self.sharedKeyboardLightBridge }
@@ -265,8 +268,36 @@ final class BrightnessService: ObservableObject {
         showKeyboardLightNotice(target)
     }
 
+    /// Writes an absolute level, for the sliders in the panel and in Settings.
+    /// The Quick toggles switch keeps to `setKeyboardLightEnabled`, which
+    /// restores the last level rather than naming one.
+    func setKeyboardLightLevel(_ level: Float) {
+        guard keyboardLightEnabled != nil, let keyboardLightBridge,
+              let target = BrightnessSupport.sliderKeyboardLightLevel(level)
+        else { return }
+        guard keyboardLightBridge.setBrightness(target) else {
+            refreshKeyboardLight()
+            return
+        }
+        keyboardLightLevel = target
+        if target > 0 { lastKeyboardLightLevel = target }
+        keyboardLightEnabled = target > 0
+        showKeyboardLightNotice(target)
+    }
+
+    /// The ambient sensor moves the backlight on its own, so leaving auto
+    /// brightness on would walk the slider back after a drag.
+    func setKeyboardAutoBrightness(_ enabled: Bool) {
+        guard keyboardAutoBrightness != nil, let keyboardLightBridge else { return }
+        keyboardLightBridge.setAutoBrightness(enabled)
+        refreshKeyboardLight()
+    }
+
     /// Reads this Mac's keyboard light only when its Quick toggles surface opens.
     func refreshKeyboardLight() {
+        keyboardAutoBrightness = keyboardLightBridge?.autoBrightnessSupported() == true
+            ? keyboardLightBridge?.autoBrightnessEnabled()
+            : nil
         guard let level = keyboardLightBridge?.brightness(), level >= 0, level <= 1 else {
             keyboardLightLevel = nil
             keyboardLightEnabled = nil
@@ -2103,6 +2134,9 @@ private final class KeyboardLightBridge {
         (NSObject, Selector, Float, Int32, Bool, UInt64) -> ObjCBool
     private typealias SuspendIdleDimmingFn = @convention(c)
         (NSObject, Selector, Bool, UInt64) -> ObjCBool
+    private typealias QueryFn = @convention(c) (NSObject, Selector, UInt64) -> ObjCBool
+    private typealias EnableAutoFn = @convention(c)
+        (NSObject, Selector, Bool, UInt64) -> ObjCBool
 
     private let client: NSObject
     private let keyboardID: UInt64
@@ -2113,6 +2147,11 @@ private final class KeyboardLightBridge {
     private let setSelector = NSSelectorFromString(
         "setBrightness:fadeSpeed:commit:forKeyboard:")
     private let suspendSelector = NSSelectorFromString("suspendIdleDimming:forKeyboard:")
+    private let ambientAvailableSelector = NSSelectorFromString(
+        "isAmbientFeatureAvailableOnKeyboard:")
+    private let autoEnabledSelector = NSSelectorFromString(
+        "isAutoBrightnessEnabledForKeyboard:")
+    private let enableAutoSelector = NSSelectorFromString("enableAutoBrightness:forKeyboard:")
 
     init?() {
         guard let framework = Bundle(
@@ -2156,6 +2195,32 @@ private final class KeyboardLightBridge {
         defer { _ = suspendIdleDimming(client, suspendSelector, false, keyboardID) }
         return setBrightnessValue(client, setSelector, min(max(value, 0), 1), 350,
                                   true, keyboardID).boolValue
+    }
+
+    /// Resolved on demand rather than in `init`, so an OS that drops the
+    /// ambient selectors keeps the slider and only loses this control.
+    func autoBrightnessSupported() -> Bool {
+        guard let available: QueryFn = Self.implementation(
+                client, selector: ambientAvailableSelector, as: QueryFn.self),
+              Self.implementation(client, selector: autoEnabledSelector,
+                                  as: QueryFn.self) != nil,
+              Self.implementation(client, selector: enableAutoSelector,
+                                  as: EnableAutoFn.self) != nil
+        else { return false }
+        return available(client, ambientAvailableSelector, keyboardID).boolValue
+    }
+
+    func autoBrightnessEnabled() -> Bool? {
+        guard let query: QueryFn = Self.implementation(
+            client, selector: autoEnabledSelector, as: QueryFn.self) else { return nil }
+        return query(client, autoEnabledSelector, keyboardID).boolValue
+    }
+
+    @discardableResult
+    func setAutoBrightness(_ enabled: Bool) -> Bool {
+        guard let enable: EnableAutoFn = Self.implementation(
+            client, selector: enableAutoSelector, as: EnableAutoFn.self) else { return false }
+        return enable(client, enableAutoSelector, enabled, keyboardID).boolValue
     }
 
     private static func implementation<Function>(
