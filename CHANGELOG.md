@@ -45,6 +45,7 @@ App Switcher makes multiple windows easier to see and brings selected windows fo
 - Now Playing in Dynamic Island no longer says nothing is playing while it fetches the current track. Thanks to @Yahddyyp.
 - File dialogs opened from the media tools inside Dynamic Island attach to it instead of opening behind it. Thanks to @Yahddyyp.
 - The recording editor keeps its saving indicator on one line in narrow windows. Thanks to @Yahddyyp.
+- After an in-app update, search no longer lists the app as “Vorssaint.app.update-new”. Thanks to @Yahddyyp.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 
