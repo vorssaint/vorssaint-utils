@@ -245,6 +245,11 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
     }
 
     func setTool(_ t: AnnotationTool) {
+        // The toolbar lives in its own panel, so picking a different tool
+        // never resigns the text field's first-responder status the normal
+        // way. Commit whatever was typed and give the keyboard back to the
+        // canvas before switching, or the field keeps eating every key.
+        if t != .text { drawingView?.commitTextEditor() }
         tool = t
         UserDefaults.standard.set(t.rawValue, forKey: DefaultsKey.screenAnnotationTool)
     }
@@ -281,7 +286,22 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
 
     fileprivate func beginStroke(at p: NSPoint, bounds: CGRect) {
         if tool == .text {
-            drawingView?.beginTextEditor(at: p)
+            // A click elsewhere while still editing must not silently
+            // discard what was already typed.
+            drawingView?.commitTextEditor()
+            if let index = textStrokeIndex(at: p, bounds: bounds) {
+                // Clicked an existing text: reopen it for editing instead of
+                // stacking a new one on top. Removed now; commitText below
+                // re-adds it (or drops it if left empty).
+                let existing = strokes.remove(at: index)
+                let origin = CGPoint(x: existing.points[0].x * Double(bounds.width),
+                                     y: existing.points[0].y * Double(bounds.height))
+                drawingView?.beginTextEditor(at: NSPoint(x: origin.x, y: origin.y),
+                                             existingText: existing.text)
+                drawingView?.needsDisplay = true
+                return
+            }
+            drawingView?.beginTextEditor(at: p, existingText: "")
             return
         }
         if tool == .eraser {
@@ -305,6 +325,23 @@ final class ScreenAnnotationService: NSObject, ObservableObject {
         strokes.append(AnnotationStroke(tool: .text, color: color, width: width,
                                         points: [n], text: text))
         drawingView?.needsDisplay = true
+    }
+
+    /// Hit test restricted to text strokes, so clicking with the text tool
+    /// reopens an existing label instead of always starting a new one.
+    private func textStrokeIndex(at p: NSPoint, bounds: CGRect) -> Int? {
+        let point = CGPoint(x: p.x, y: p.y)
+        for index in strokes.indices.reversed() {
+            let stroke = strokes[index]
+            guard stroke.tool == .text, let first = stroke.points.first else { continue }
+            let origin = CGPoint(x: first.x * Double(bounds.width), y: first.y * Double(bounds.height))
+            let font = NSFont.systemFont(ofSize: max(14, stroke.width * 3), weight: .medium)
+            let textSize = (stroke.text as NSString).size(withAttributes: [.font: font])
+            let hit = CGRect(x: origin.x, y: origin.y, width: max(40, textSize.width),
+                             height: max(24, textSize.height))
+            if hit.contains(point) { return index }
+        }
+        return nil
     }
 
     private func strokeIndex(at p: NSPoint, bounds: CGRect) -> Int? {
@@ -404,10 +441,16 @@ private final class AnnotationCanvasPanel: NSPanel {
     /// Route mouse events directly to the drawing view.
     /// Transparent panels may not deliver events through the normal
     /// responder chain, so the drawing view's handlers are invoked directly.
+    /// Exception: while the text field is up, a click inside it must reach
+    /// the field through the normal chain so it positions the caret there
+    /// instead of always being read as "start a new stroke".
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown, .leftMouseDragged, .leftMouseUp:
             if let view = contentView as? AnnotationDrawingView {
+                if event.type == .leftMouseDown, view.pointIsInsideActiveTextField(event) {
+                    break
+                }
                 switch event.type {
                 case .leftMouseDown:  view.mouseDown(with: event)
                 case .leftMouseDragged: view.mouseDragged(with: event)
@@ -452,11 +495,26 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
 
     required init?(coder: NSCoder) { nil }
 
-    func beginTextEditor(at point: NSPoint) {
-        textField?.removeFromSuperview()
+    /// Whether `event`'s location falls inside the live text field, so the
+    /// panel's `sendEvent` can let a click there reach the field normally
+    /// (positions the caret) instead of always routing to `mouseDown`
+    /// (always reads as "start a new stroke").
+    func pointIsInsideActiveTextField(_ event: NSEvent) -> Bool {
+        guard let textField else { return false }
+        let local = convert(event.locationInWindow, from: nil)
+        return textField.frame.contains(local)
+    }
+
+    func beginTextEditor(at point: NSPoint, existingText: String = "") {
+        let fontSize = CGFloat(max(14, (service?.width ?? ScreenAnnotationSupport.defaultWidth) * 3))
+        // No fixed box: the field grows to the edge of the screen so typing
+        // long or multi-line text is never clipped or scrolled.
+        let availableWidth = max(200, bounds.width - point.x - 24)
+        let availableHeight = max(fontSize + 16, bounds.height - point.y - 24)
         let field = NSTextField(frame: NSRect(x: point.x, y: point.y,
-                                               width: 300, height: 34))
-        field.font = NSFont.systemFont(ofSize: 18, weight: .medium)
+                                               width: availableWidth, height: availableHeight))
+        field.stringValue = existingText
+        field.font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
         field.textColor = service.map { NSColor(calibratedRed: $0.color.red, green: $0.color.green, blue: $0.color.blue, alpha: 1) } ?? .white
         field.backgroundColor = .clear
         field.drawsBackground = false
@@ -465,19 +523,30 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
         field.target = self
         field.action = #selector(commitTextEditor)
         field.delegate = self
+        field.usesSingleLineMode = false
+        field.cell?.wraps = true
+        field.cell?.isScrollable = false
+        field.maximumNumberOfLines = 0
         addSubview(field)
         textField = field
         textOrigin = point
         window?.makeFirstResponder(field)
+        if !existingText.isEmpty, let editor = field.currentEditor() {
+            editor.selectedRange = NSRange(location: existingText.utf16.count, length: 0)
+        }
     }
 
     func cancelTextEditor() {
         textField?.removeFromSuperview()
         textField = nil
         textOrigin = nil
+        // Removing the field leaves first responder nil until the next
+        // click; reclaim it now so the canvas — not the toolbar's own
+        // controls — is what a keystroke like Escape reaches.
+        window?.makeFirstResponder(self)
     }
 
-    @objc private func commitTextEditor() {
+    @objc fileprivate func commitTextEditor() {
         guard let field = textField, let origin = textOrigin, let service else { return }
         service.commitText(field.stringValue, at: origin, bounds: bounds)
         cancelTextEditor()
@@ -485,6 +554,15 @@ private final class AnnotationDrawingView: NSView, NSTextFieldDelegate {
 
     func controlTextDidEndEditing(_ notification: Notification) {
         commitTextEditor()
+    }
+
+    /// Return inserts a newline instead of committing — only a click
+    /// elsewhere, a tool switch or Escape ends editing.
+    func control(_ control: NSControl, textView: NSTextView,
+                 doCommandBy commandSelector: Selector) -> Bool {
+        guard commandSelector == #selector(NSResponder.insertNewline(_:)) else { return false }
+        textView.insertNewlineIgnoringFieldEditor(nil)
+        return true
     }
 
     override var acceptsFirstResponder: Bool { true }
