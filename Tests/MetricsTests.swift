@@ -4488,6 +4488,10 @@ struct MetricsTests {
                 && !WindowLayoutIgnoredApps.contains("com.example.editor", in: ["com.example.game"])
                 && !WindowLayoutIgnoredApps.contains(nil, in: ["com.example.game"]),
                "window layout only pauses for the focused app on its list")
+        expect(WindowLayoutIgnoredApps.matches(bundleID: nil,
+                                               executablePath: "/Applications/Game",
+                                               apps: ["/Applications/Game"]),
+               "window layout pauses for a focused executable without a bundle identifier")
         let assignedLayoutShortcutKeys = [
             DefaultsKey.windowLayoutShortcutLeft,
             DefaultsKey.windowLayoutShortcutRight,

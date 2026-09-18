@@ -88,42 +88,45 @@ final class WindowLayoutService: ObservableObject {
     func syncWithPreferences() {
         WindowLayoutIgnoredApps.shared.reload()
         let available = AppFeature.windowLayout.isAvailable
-        syncIgnoredAppsActivationObserver(available: available)
-        let inputAllowed = !WindowLayoutIgnoredApps.shared.contains(
-            NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         let trusted = SessionActivitySupport.tapShouldRun(
             featureWanted: available,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
-        let wantsShortcuts = available
-            && inputAllowed
+        let shortcutsEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
             && trusted
-        wantsShortcuts ? registerHotkeys() : unregisterHotkeys()
-
-        let wantsDirectional = available
-            && inputAllowed
+        let directionalEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
             && trusted
-        wantsDirectional ? registerDirectionalHotkey() : unregisterDirectionalHotkey()
-
-        let wantsGesture = available
-            && inputAllowed
+        let gestureEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
             && trusted
-        wantsGesture ? startGestureTap() : stopGestureTap()
-
-        let wantsEdgeSnap = available
-            && inputAllowed
+        let edgeSnapEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
             && !enabledEdgeSnapZones.isEmpty
             && !WindowEdgeSnapSupport.isSystemTilingEnabled
             && trusted
+        syncIgnoredAppsActivationObserver(inputsEnabled: shortcutsEnabled || directionalEnabled
+                                          || gestureEnabled || edgeSnapEnabled)
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let inputAllowed = !WindowLayoutIgnoredApps.shared.contains(
+            bundleID: frontmost?.bundleIdentifier,
+            executablePath: frontmost?.executableURL?.path)
+        let wantsShortcuts = shortcutsEnabled && inputAllowed
+        wantsShortcuts ? registerHotkeys() : unregisterHotkeys()
+
+        let wantsDirectional = directionalEnabled && inputAllowed
+        wantsDirectional ? registerDirectionalHotkey() : unregisterDirectionalHotkey()
+
+        let wantsGesture = gestureEnabled && inputAllowed
+        wantsGesture ? startGestureTap() : stopGestureTap()
+
+        let wantsEdgeSnap = edgeSnapEnabled && inputAllowed
         wantsEdgeSnap ? startEdgeSnapTap() : stopEdgeSnapTap()
     }
 
-    private func syncIgnoredAppsActivationObserver(available: Bool) {
-        let shouldObserve = available && !WindowLayoutIgnoredApps.shared.apps.isEmpty
+    private func syncIgnoredAppsActivationObserver(inputsEnabled: Bool) {
+        let shouldObserve = inputsEnabled && !WindowLayoutIgnoredApps.shared.apps.isEmpty
         if shouldObserve {
             guard ignoredAppsActivationObserver == nil else { return }
             ignoredAppsActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -197,10 +200,6 @@ final class WindowLayoutService: ObservableObject {
     func apply(_ action: WindowLayoutAction) -> WindowLayoutResult {
         guard AXIsProcessTrusted() else {
             return finish(.failure(.missingAccessibility))
-        }
-        guard !WindowLayoutIgnoredApps.shared.contains(
-            NSWorkspace.shared.frontmostApplication?.bundleIdentifier) else {
-            return finish(.failure(.noWindow))
         }
         guard let target = focusedTarget(for: action) else {
             return finish(.failure(.noWindow))

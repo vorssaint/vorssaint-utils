@@ -98,6 +98,9 @@ struct WindowLayoutSettings: View {
                         .foregroundStyle(.secondary)
                     Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
                 }
+            }
+
+            Section(FeatureStrings.windowLayoutIgnoredApps(l10n.language).sectionTitle) {
                 WindowLayoutIgnoredAppsList()
             }
 

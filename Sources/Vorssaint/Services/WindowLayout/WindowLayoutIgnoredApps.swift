@@ -38,12 +38,18 @@ final class WindowLayoutIgnoredApps: ObservableObject {
         reload()
     }
 
-    func contains(_ bundleID: String?) -> Bool {
-        Self.contains(bundleID, in: apps)
+    func contains(bundleID: String?, executablePath: @autoclosure () -> String?) -> Bool {
+        Self.matches(bundleID: bundleID, executablePath: executablePath(), apps: apps)
     }
 
     static func contains(_ bundleID: String?, in apps: [String]) -> Bool {
         guard let bundleID else { return false }
         return apps.contains(bundleID)
+    }
+
+    static func matches(bundleID: String?, executablePath: String?, apps: [String]) -> Bool {
+        contains(MouseAppExceptionSupport.identity(bundleID: bundleID,
+                                                   executablePath: executablePath),
+                 in: apps)
     }
 }

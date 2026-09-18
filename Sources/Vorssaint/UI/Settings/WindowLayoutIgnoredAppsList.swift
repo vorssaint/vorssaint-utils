@@ -17,6 +17,8 @@ struct WindowLayoutIgnoredAppsList: View {
                       addTitle: text.addButton,
                       removeLabel: text.removeButton,
                       bundleIDs: ignored.apps,
+                      reachesEveryApp: true,
+                      acceptsExecutables: true,
                       onAdd: {
                           ignored.add($0)
                           WindowLayoutService.shared.syncWithPreferences()
