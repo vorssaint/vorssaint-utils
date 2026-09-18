@@ -707,6 +707,7 @@ final class KeepAwakeManager: ObservableObject {
                         self.passwordlessClamshell = false
                     }
                     UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+                    self.sleepIfLidAlreadyClosed()
                 }
             }
         }
@@ -715,6 +716,31 @@ final class KeepAwakeManager: ObservableObject {
         } else {
             Sudoers.pmsetDisableSleep(false, completion: finish)
         }
+    }
+
+    /// Clearing `disablesleep` only clears a kernel flag. macOS evaluates the
+    /// lid when it opens or closes, so a lid that shut during the session is
+    /// never looked at again and the Mac stays awake until the battery runs
+    /// out (#1729). Request the sleep that closing the lid would have caused.
+    private func sleepIfLidAlreadyClosed() {
+        guard !isActive || sessionPausedForScreenLock, !clamshellActive else { return }
+        guard SudoersSupport.lidSleepIsDue(
+            lidClosed: Self.lidClosed(),
+            externalDisplay: Self.hasExternalDisplay() ?? true,
+            onBattery: SystemInfo.batterySnapshot()?.isOnBattery ?? false) else { return }
+        let rootDomain = IOPMFindPowerManagement(kIOMainPortDefault)
+        guard rootDomain != 0 else { return }
+        IOPMSleepSystem(rootDomain)
+        IOServiceClose(rootDomain)
+    }
+
+    private static func lidClosed() -> Bool? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        return IORegistryEntryCreateCFProperty(service, "AppleClamshellState" as CFString,
+                                               kCFAllocatorDefault, 0)?
+            .takeRetainedValue() as? Bool
     }
 
     /// If the app died unexpectedly while sleep was disabled, restores normal
