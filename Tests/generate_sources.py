@@ -216,6 +216,9 @@ def main():
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private var hiddenUntilHover:", "    func hover(",
+              "    private var holdsNotification:", "    private func holdNotification(",
+              "    private func releaseNotification(", "    private func scheduleNoticeDismissal(",
+              "    private func dismissNotice(", "    private var noticeCanPresent:",
               "    private func syncHiddenHoverMonitoring(", "    private func removeHiddenHoverMonitors("])
           + "}\n}\n")
     music_visibility = "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
@@ -285,6 +288,7 @@ def main():
               .replace("NotchSupport.modules()", "NotchSupport.modules(in: ReviewDefaults.current)")
           + declaration(notch, "    func open(_ module:")
               .replace("NotchSupport.isEnabled()", "NotchSupport.isEnabled(in: ReviewDefaults.current)")
+          + declaration(notch, "    var reopeningModule:")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + declaration(notch, "    private func updateSession(").replace("private func", "func", 1)
               .replace("AppFeature.mixer.isAvailable", "AppFeature.mixer.isAvailable(in: ReviewDefaults.current)")

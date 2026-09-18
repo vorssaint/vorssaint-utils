@@ -604,8 +604,12 @@ enum NotchSupport {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchAppPanel)
     }
 
-    static func shouldReplace(_ current: NotchEvent?, with incoming: NotchEvent) -> Bool {
-        current == nil || incoming.priority >= current!.priority
+    /// A notice the pointer holds open is being read. Only the same kind of
+    /// message or something the user just did may take its place.
+    static func shouldReplace(_ current: NotchEvent?, with incoming: NotchEvent, held: Bool = false) -> Bool {
+        guard let current else { return true }
+        if held { return incoming == current || incoming.priority > current.priority }
+        return incoming.priority >= current.priority
     }
 
     static func volumeLevel(current: Double, direction: Int, fine: Bool) -> Double {
@@ -801,6 +805,16 @@ struct NotchGeometry: Equatable {
 
     func noticeWingWidth(preferred: CGFloat) -> CGFloat {
         max(0, (noticeSize(wingWidth: preferred).width - noticeCameraGap) / 2)
+    }
+    /// A held notification opens as a card about as wide as a native banner,
+    /// never wider than the island itself.
+    var notificationPreviewWidth: CGFloat { min(max(400, cameraWidth + 200), expandedWidth) }
+    var notificationPreviewContentWidth: CGFloat {
+        max(0, notificationPreviewWidth - NotchLayout.horizontalInset * 2)
+    }
+    func notificationPreviewSize(contentHeight: CGFloat) -> CGSize {
+        let height = safeContentTop + max(0, contentHeight) + NotchLayout.bottomInset
+        return CGSize(width: notificationPreviewWidth, height: min(height, screen.height - 48))
     }
     var peek: CGSize {
         CGSize(width: min(screen.width - 24, max(cameraWidth + 110, 340)), height: safeContentTop + 52)

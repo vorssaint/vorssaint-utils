@@ -23,6 +23,7 @@ App Switcher makes multiple windows easier to see and brings selected windows fo
 - Command Bar's calculator completes missing brackets, adds scientific functions, constants and notation, and Tab continues from the answer. Thanks to @DarkEden-coding.
 - Scroll sideways in any app by holding a chosen key while turning the mouse wheel, installable from Features. Thanks to @cjscld.
 - Dynamic Island's music bars can follow the player's actual sound, off by default and needing system audio permission. Thanks to @ruvelro.
+- Dynamic Island holds a mirrored notification while the pointer is over it and opens the whole message on hover, with Open, Dismiss and a shortcut to the inbox.
 
 ### Changed
 - Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
@@ -31,6 +32,8 @@ App Switcher makes multiple windows easier to see and brings selected windows fo
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
 - Dynamic Island shows Keep open directly in its header, and Settings appears there when its floating button is removed.
+- Opening Dynamic Island while it shows music, a timer, a download or a notification goes to that activity, and the reopening preference applies only at rest.
+- Dismissing the original system banner waits for its sound to finish instead of cutting it off.
 
 ### Fixed
 - Dynamic Island shows a video playing in a browser even when a music app is open but stopped. Thanks to @ruvelro.

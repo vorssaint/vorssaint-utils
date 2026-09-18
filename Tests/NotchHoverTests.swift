@@ -44,12 +44,14 @@ enum NotchHoverTests {
                 .contains(CGPoint(x: point.x - rect.minX, y: rect.maxY - point.y))
         }
     }
-    enum Transition { case reveal }
+    enum NotchContentTransition { case none, reveal, dismiss }
     class State {
         var running = true, suspended = false, inside = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
-        var captureControls: Bool?, notice: Bool?
+        var captureControls: Bool?, notice: NotchNotice?
+        var noticeExpanded = false
+        var noticeWork: DispatchWorkItem?
         var compactActivity: NotchCompactActivity?
         var hoverState = NotchHoverState()
         var hiddenHoverMonitors: [Any] = []
@@ -60,7 +62,14 @@ enum NotchHoverTests {
         var geometry = NotchGeometry(screen: CGRect(x: -1920, y: 900, width: 1920, height: 1080),
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)
         var compactActivityGeometry: NotchGeometry { geometry.compactMusicGeometry }
-        var surfaceSize: CGSize { expanded ? geometry.expanded : peeking ? geometry.peek : geometry.collapsed }
+        var surfaceSize: CGSize {
+            if let notice {
+                guard noticeExpanded else { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }
+                return geometry.notificationPreviewSize(
+                    contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
+            }
+            return expanded ? geometry.expanded : peeking ? geometry.peek : geometry.collapsed
+        }
         var openings = 0, closures = 0, feedbacks = 0
         var requestedModule: NotchModule?
         func open(_ module: NotchModule? = nil, takeFocus: Bool) {
@@ -75,12 +84,13 @@ enum NotchHoverTests {
             hoverWork?.cancel(); hoverWork = nil
             updateBounds()
         }
-        func mutatePresentation(transitionContent: Transition, _ change: () -> Void) { change(); updateBounds() }
+        func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        let volume = NotchNotice(event: .volume, title: "Volume", detail: "50%", symbol: "speaker.wave.2.fill", level: 0.5)
         func fixture(physical: Bool = false) -> Service {
             DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
             UserDefaults.standard = UserDefaults.Preferences()
@@ -123,7 +133,7 @@ enum NotchHoverTests {
                 let hidden = fixture(physical: physical)
                 UserDefaults.standard.hides = true
                 hidden.windowHost?.visible = false
-                hidden.notice = true // A notice already present when the preference changes.
+                hidden.notice = volume // A notice already present when the preference changes.
                 hidden.syncHiddenHoverMonitoring()
                 for _ in 0..<100 { hidden.syncHiddenHoverMonitoring() }
                 expect(NSEvent.global.count == 1 && NSEvent.local.count == 1,
@@ -224,7 +234,7 @@ enum NotchHoverTests {
         active.hover(true)
         DispatchQueue.main.advance(0.26)
         expect(active.openings == 1 && active.requestedModule == nil,
-               "hover uses the saved reopening behavior instead of overriding it with compact music")
+               "hover opens without naming a page, so the island's own reopening rule decides")
 
         let returning = fixture()
         returning.hover(true)
@@ -250,7 +260,7 @@ enum NotchHoverTests {
         for protect: (Service) -> Void in [
             { $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true },
             { $0.captureControls = true }, { $0.hoverState.close(pointerInside: true) },
-            { $0.notice = true }, { $0.dragPlaceholder = true }, { $0.suspended = true }, { $0.running = false },
+            { $0.notice = volume }, { $0.dragPlaceholder = true }, { $0.suspended = true }, { $0.running = false },
             { _ in UserDefaults.standard.enabled = false }
         ] {
             let protected = fixture()
@@ -284,5 +294,135 @@ enum NotchHoverTests {
         AssistiveKeyboard.active = true
         DispatchQueue.main.advance(1)
         expect(keyboard.closures == 0, "moving to the Accessibility Keyboard preserves the working panel")
+        notificationContracts(fixture: fixture, leave: leave, expect: expect)
+    }
+
+    /// A mirrored banner arrives with its own dismissal pending, as `show`
+    /// leaves it when the pointer is elsewhere.
+    private static func notificationContracts(fixture: (Bool) -> Service, leave: (Service) -> Void,
+                                              expect: (Bool, String) -> Void) {
+        let volume = NotchNotice(event: .volume, title: "Volume", detail: "50%", symbol: "speaker.wave.2.fill", level: 0.5)
+        func banner(_ body: String = "Hello") -> NotchNotice {
+            NotchNotice(event: .systemNotification, title: "Alex", detail: body, symbol: "bell.fill",
+                        notification: NotchNotificationContent(app: "Chat", title: "Alex", subtitle: "", body: body),
+                        notificationID: UUID())
+        }
+        func arrive(_ service: Service, _ notice: NotchNotice = banner()) {
+            service.notice = notice
+            service.scheduleNoticeDismissal(after: notice.event.duration)
+            service.updateBounds()
+        }
+        for physical in [false, true] {
+            let service = fixture(physical)
+            arrive(service)
+            service.hover(true)
+            expect(service.noticeWork == nil && service.notice != nil,
+                   "a banner under the pointer waits there like a native one instead of timing out")
+            DispatchQueue.main.advance(0.20)
+            expect(!service.noticeExpanded && service.openings == 0, "the preview honors the activation delay")
+            DispatchQueue.main.advance(0.06)
+            expect(service.noticeExpanded && service.openings == 0 && service.feedbacks == 1 && service.hoverWork == nil,
+                   "a deliberate hover opens the whole message in place rather than the island's page")
+            expect(service.surfaceSize.width == service.geometry.notificationPreviewWidth
+                   && service.surfaceSize.height > service.geometry.notice.height,
+                   "the held preview grows into a card sized for its message")
+            DispatchQueue.main.advance(5)
+            expect(service.noticeExpanded && service.notice != nil, "an opened preview stays as long as the pointer does")
+            service.hover(true) // A tracking re-entry after the resize.
+            expect(service.hoverWork == nil && service.noticeWork == nil, "re-entry over an open preview schedules nothing")
+            leave(service)
+            DispatchQueue.main.advance(0.10)
+            expect(service.notice != nil, "leaving gives the same short grace an expanded island gets")
+            DispatchQueue.main.advance(0.09)
+            expect(service.notice == nil && !service.noticeExpanded && service.closures == 0,
+                   "leaving an opened preview closes it without touching the island's page")
+        }
+
+        let pass = fixture(false)
+        arrive(pass)
+        pass.hover(true)
+        DispatchQueue.main.advance(0.10)
+        leave(pass)
+        DispatchQueue.main.advance(0.20)
+        expect(!pass.noticeExpanded && pass.notice != nil && pass.noticeWork != nil,
+               "a quick pass neither opens the preview nor drops the banner")
+        DispatchQueue.main.advance(2.9)
+        expect(pass.notice != nil, "after a pass the banner gets its full time again")
+        DispatchQueue.main.advance(0.2)
+        expect(pass.notice == nil, "the restarted banner still ends on its own")
+
+        let clickOnly = fixture(false)
+        UserDefaults.standard.enabled = false
+        arrive(clickOnly)
+        clickOnly.hover(true)
+        DispatchQueue.main.advance(2)
+        expect(clickOnly.noticeWork == nil && clickOnly.notice != nil && !clickOnly.noticeExpanded && clickOnly.hoverWork == nil,
+               "click-only opening still holds the banner under the pointer without opening it")
+        leave(clickOnly)
+        DispatchQueue.main.advance(0.2)
+        expect(clickOnly.notice != nil && clickOnly.noticeWork != nil, "the resumed banner counts from the moment the pointer left")
+        DispatchQueue.main.advance(2.9)
+        expect(clickOnly.notice != nil, "the resumed banner keeps its full duration")
+        DispatchQueue.main.advance(0.2)
+        expect(clickOnly.notice == nil, "a held banner resumes its timer once the pointer leaves")
+
+        let preview = fixture(false)
+        UserDefaults.standard.expands = false
+        arrive(preview)
+        preview.hover(true)
+        DispatchQueue.main.advance(0.26)
+        expect(preview.noticeExpanded && !preview.peeking,
+               "hover-preview mode opens the message itself instead of the page strip")
+
+        let suppressed = fixture(false)
+        arrive(suppressed)
+        suppressed.hoverState.close(pointerInside: true)
+        suppressed.hover(true)
+        DispatchQueue.main.advance(1)
+        expect(!suppressed.noticeExpanded && suppressed.notice != nil && suppressed.noticeWork == nil,
+               "a hover suppressed by a click still holds the banner but does not open it")
+
+        let behind = fixture(false)
+        behind.open(nil, takeFocus: true)
+        arrive(behind)
+        behind.hover(true)
+        expect(behind.noticeWork != nil && !behind.noticeExpanded,
+               "a banner hidden behind the open island keeps its own timer")
+
+        for protect: (Service) -> Void in [{ $0.keepsWorkingSurface = true }, { _ in AssistiveKeyboard.active = true }] {
+            let held = fixture(false)
+            arrive(held)
+            held.hover(true)
+            DispatchQueue.main.advance(0.26)
+            expect(held.noticeExpanded, "precondition: the preview is open")
+            protect(held)
+            leave(held)
+            DispatchQueue.main.advance(0.2)
+            expect(held.notice == nil && held.closures == 0,
+                   "a dialog, menu or the Accessibility Keyboard keeps the island, never a banner the pointer left")
+            AssistiveKeyboard.active = false
+        }
+
+        let hidden = fixture(false)
+        UserDefaults.standard.hides = true
+        hidden.windowHost?.visible = false
+        arrive(hidden)
+        hidden.hover(true)
+        DispatchQueue.main.advance(0.26)
+        expect(hidden.noticeWork != nil && !hidden.noticeExpanded && hidden.openings == 1,
+               "hidden mode reveals the island as usual instead of holding a banner it cannot show")
+
+        let replaced = fixture(false)
+        arrive(replaced)
+        replaced.hover(true)
+        DispatchQueue.main.advance(0.26)
+        expect(replaced.noticeExpanded, "precondition: the preview is open")
+        replaced.notice = volume
+        replaced.noticeExpanded = false
+        replaced.scheduleNoticeDismissal(after: volume.event.duration)
+        leave(replaced)
+        DispatchQueue.main.advance(0.2)
+        expect(replaced.notice != nil && replaced.noticeWork != nil,
+               "leaving after a different notice took over never touches that notice")
     }
 }

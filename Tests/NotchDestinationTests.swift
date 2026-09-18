@@ -52,6 +52,10 @@ enum NotchDestinationContract {
         var pinned = false
         var openedByHover = false
         var inside = false
+        var notice: NotchNotice?
+        var noticeExpanded = false
+        var noticeWork: DispatchWorkItem?
+        var compactActivity: NotchCompactActivity?
         var hoverState = NotchHoverState()
         var hoverWork: DispatchWorkItem?
         var requestedDetail: MetricDetailKind?
@@ -226,6 +230,64 @@ enum NotchDestinationContract {
         invalid.open()
         expect(invalid.selected == .controls, "a malformed saved page falls back to Controls")
         defaults.set(NotchModule.controls.rawValue, forKey: DefaultsKey.notchHomeModule)
+        defaults.set(false, forKey: DefaultsKey.notchReturnHome)
+        activityContracts(defaults: defaults, expect: expect)
+    }
+
+    /// What the closed island is already showing is what opening it shows.
+    private static func activityContracts(defaults: UserDefaults, expect: (Bool, String) -> Void) {
+        let banner = NotchNotice(event: .systemNotification, title: "Alex", detail: "Hello", symbol: "bell.fill",
+                                 notification: NotchNotificationContent(app: "Chat", title: "Alex", subtitle: "", body: "Hello"),
+                                 notificationID: UUID())
+        defaults.set(true, forKey: DefaultsKey.notchNotificationsEnabled)
+        defer { defaults.set(false, forKey: DefaultsKey.notchNotificationsEnabled) }
+        for returnHome in [false, true] {
+            defaults.set(returnHome, forKey: DefaultsKey.notchReturnHome)
+            defaults.set(NotchModule.controls.rawValue, forKey: DefaultsKey.notchHomeModule)
+            for activity in [NotchCompactActivity.timer, .downloads, .music] {
+                let service = Service()
+                service.open(.files)
+                service.expanded = false
+                service.compactActivity = activity
+                expect(service.reopeningModule == activity.module, "a visible activity is what a peek names before opening")
+                service.open()
+                expect(service.selected == activity.module,
+                       "hovering or clicking an island that shows \(activity) opens that activity, not the reopening page")
+                service.open()
+                expect(service.selected == activity.module, "an already open island stays on the activity's page")
+                service.open(.files)
+                expect(service.selected == .files, "an explicit page still wins over the visible activity")
+                service.expanded = false
+                service.compactActivity = nil
+                service.open()
+                expect(service.selected == (returnHome ? .controls : .files),
+                       "once the activity ends, reopening follows the saved preference again")
+            }
+            let hidden = Service()
+            defaults.set("timer", forKey: DefaultsKey.notchHiddenModules)
+            hidden.syncWithPreferences()
+            hidden.compactActivity = .timer
+            hidden.open()
+            expect(hidden.selected == .controls && !hidden.modules.contains(.timer),
+                   "an activity whose page is hidden cannot open it and falls back to the reopening rule")
+            defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+
+            let mirrored = Service()
+            mirrored.syncWithPreferences()
+            mirrored.notice = banner
+            mirrored.noticeExpanded = true
+            mirrored.noticeWork = DispatchWorkItem {}
+            expect(mirrored.reopeningModule == .notifications, "a mirrored banner on the island points at the inbox")
+            mirrored.open()
+            expect(mirrored.selected == .notifications && mirrored.notice == nil && !mirrored.noticeExpanded
+                   && mirrored.noticeWork == nil,
+                   "opening over a held banner shows the inbox and retires the banner so it cannot return after collapsing")
+            let volume = Service()
+            volume.notice = NotchNotice(event: .volume, title: "Volume", detail: "50%", symbol: "speaker.wave.2.fill", level: 0.5)
+            volume.open()
+            expect(volume.notice != nil && volume.selected == .controls,
+                   "system feedback keeps its own timer and never redirects an opening")
+        }
         defaults.set(false, forKey: DefaultsKey.notchReturnHome)
     }
 

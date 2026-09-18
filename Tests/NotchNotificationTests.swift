@@ -1,12 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 
 enum NotchNotificationTests {
     static func run(expect: (Bool, String) -> Void) {
         expect(NotchEvent.systemNotification.duration == 3 && NotchEvent.timer.duration == 6,
                "message banners close sooner without shortening timers or other activities")
+        expect(NotchNotificationSupport.nativeCloseGrace >= 1.2
+               && NotchNotificationSupport.nativeCloseGrace < NotchEvent.systemNotification.duration,
+               "the native banner outlives every stock alert tone before it is dismissed, and goes before the island's banner does")
+        expect(NotchSupport.shouldReplace(.systemNotification, with: .systemNotification, held: true)
+               && NotchSupport.shouldReplace(.systemNotification, with: .volume, held: true)
+               && NotchSupport.shouldReplace(.systemNotification, with: .timer, held: true)
+               && !NotchSupport.shouldReplace(.systemNotification, with: .battery, held: true)
+               && !NotchSupport.shouldReplace(.systemNotification, with: .clipboard, held: true)
+               && NotchSupport.shouldReplace(.systemNotification, with: .battery),
+               "a preview held open yields only to the next message or to what the user just did")
+        previewLayoutContracts(expect: expect)
         expect(NotchNotificationSupport.closeAction(in: ["Name:Close\nTarget:0x0\nSelector:(null)"], title: "Close") != nil
                && NotchNotificationSupport.closeAction(in: ["Name:Close All\nTarget:0x0"], title: "Close") == nil,
                "native closing uses the exact system action label and cannot match a group action")
@@ -127,4 +139,52 @@ enum NotchNotificationTests {
         expect(AppFeature.notchNotifications.permissions == [.accessibility],
                "banner mirroring needs Accessibility rather than access to private notification databases")
     }
+
+    private static func previewLayoutContracts(expect: (Bool, String) -> Void) {
+        typealias Layout = NotchNotificationPreviewLayout
+        let width: CGFloat = 344
+        let short = NotchNotificationContent(app: "Chat", title: "Alex", subtitle: "", body: "Hi")
+        let conversation = NotchNotificationContent(app: "Chat", title: "Alex", subtitle: "Trip", body: "Hi")
+        let long = NotchNotificationContent(app: "Chat", title: "Alex", subtitle: "Trip",
+                                            body: String(repeating: "A longer message that wraps across the card. ", count: 12))
+        let flood = NotchNotificationContent(app: "Chat", title: String(repeating: "Title ", count: 100),
+                                             subtitle: String(repeating: "Context ", count: 100),
+                                             body: String(repeating: "Body ", count: 2_000))
+        let heights = [short, conversation, long, flood].map { Layout.contentHeight(for: $0, width: width) }
+        expect(heights[0] < heights[1] && heights[1] < heights[2] && heights[2] < heights[3],
+               "the held preview grows with the conversation line and the message instead of scrolling them")
+        let lines = CGFloat(Layout.titleLines + Layout.subtitleLines + Layout.bodyLines)
+        let tallestLine = [Layout.titleFont, Layout.subtitleFont, Layout.bodyFont]
+            .map { ceil($0.ascender - $0.descender + $0.leading) }.max()!
+        expect(heights[3] <= Layout.headerHeight + Layout.actionHeight + Layout.spacing * 4 + lines * tallestLine + 3,
+               "a flood of text stops at the line limits the preview draws with")
+        expect(Layout.textHeight("", font: Layout.bodyFont, lines: Layout.bodyLines, width: width) == 0
+               && Layout.textHeight("Hi", font: Layout.bodyFont, lines: Layout.bodyLines, width: 0) == 0,
+               "empty text and no room take no space")
+        let one = Layout.textHeight("Hi", font: Layout.bodyFont, lines: Layout.bodyLines, width: width)
+        let two = Layout.textHeight(String(repeating: "wrap ", count: 30), font: Layout.bodyFont, lines: Layout.bodyLines, width: width)
+        expect(one > 0 && two > one && two < one * 3, "wrapping is measured rather than estimated from the character count")
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        for physical in [false, true] {
+            for layout in NotchSize.allCases {
+                let geometry = NotchGeometry(screen: screen, safeAreaTop: physical ? 32 : 0,
+                                             cameraWidth: physical ? 180 : 0, layout: layout, customWidth: 360)
+                let size = geometry.notificationPreviewSize(contentHeight: 180)
+                expect(size.width == min(400, geometry.expandedWidth) && size.width <= geometry.expandedWidth
+                       && size.height == geometry.safeContentTop + 180 + NotchLayout.bottomInset
+                       && screen.contains(geometry.frame(for: size)),
+                       "the preview card is about a native banner wide, never wider than the island, and hugs its message")
+                expect(geometry.notificationPreviewContentWidth == size.width - NotchLayout.horizontalInset * 2,
+                       "the measured text width is the card width minus the island's insets")
+                expect(geometry.notificationPreviewSize(contentHeight: 5_000).height <= screen.height - 48,
+                       "an overlong message cannot push the card past the display")
+            }
+        }
+        let narrow = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 640, height: 480), safeAreaTop: 32, cameraWidth: 210)
+        let narrowSize = narrow.notificationPreviewSize(contentHeight: 180)
+        expect(narrowSize.width == max(400, narrow.cameraWidth + 200) && narrowSize.width <= narrow.expandedWidth
+               && narrow.screen.contains(narrow.frame(for: narrowSize)),
+               "a wide camera keeps its clearance on either side of the card within a narrow display")
+    }
 }
+
