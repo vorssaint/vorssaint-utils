@@ -46,6 +46,8 @@ enum DefaultsKey {
     static let focusFollowsMouseExceptions = "focusFollowsMouseExceptions"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
+    static let linearScrollEnabled = "linearScrollEnabled" // every mouse wheel notch scrolls the same lines (issue #403)
+    static let linearScrollLines = "linearScrollLines"     // lines per wheel notch while linear scrolling is on
     static let mouseAccelerationDisabled = "mouseAccelerationDisabled" // sets HIDMouseAcceleration to -1 for mice
     static let smoothScrollResponse = "smoothScrollResponse" // 0...100, higher follows the wheel sooner
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
@@ -279,6 +281,7 @@ enum DefaultsKey {
     static let panelControlRadialMenu = "panelControlRadialMenu"
     static let panelControlMouseButtonShortcuts = "panelControlMouseButtonShortcuts"
     static let panelControlMouseAcceleration = "panelControlMouseAcceleration"
+    static let panelControlLinearScroll = "panelControlLinearScroll"
     static let panelControlMouseClickDebounce = "panelControlMouseClickDebounce"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
@@ -959,6 +962,8 @@ enum Defaults {
         DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
+        DefaultsKey.linearScrollEnabled: false,
+        DefaultsKey.linearScrollLines: ScrollWheelSupport.defaultLinesPerNotch,
         DefaultsKey.mouseAccelerationDisabled: false,
         DefaultsKey.smoothScrollResponse: SmoothScrollSupport.defaultResponse,
         DefaultsKey.mouseNavigationEnabled: false,
@@ -1223,6 +1228,7 @@ enum Defaults {
         DefaultsKey.panelControlRadialMenu: true,
         DefaultsKey.panelControlMouseButtonShortcuts: true,
         DefaultsKey.panelControlMouseAcceleration: true,
+        DefaultsKey.panelControlLinearScroll: true,
         DefaultsKey.panelControlMouseClickDebounce: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,

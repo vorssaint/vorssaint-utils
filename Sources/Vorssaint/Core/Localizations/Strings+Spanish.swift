@@ -1014,6 +1014,9 @@ extension Strings {
         smoothScrollResponseLabel: "Respuesta",
         mouseAccelerationName: "Desactivar la aceleración del ratón",
         mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint.",
+        linearScrollName: "Desplazamiento lineal",
+        linearScrollCaption: "Cada paso de la rueda del ratón desplaza la misma distancia, sin importar la velocidad del giro. El trackpad no cambia.",
+        linearScrollLinesLabel: "Líneas por paso",
         shelfClearOnClose: "Borrar al cerrar",
         shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems."
     )

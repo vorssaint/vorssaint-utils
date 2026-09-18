@@ -1014,6 +1014,9 @@ extension Strings {
         smoothScrollResponseLabel: "Réactivité",
         mouseAccelerationName: "Désactiver l’accélération de la souris",
         mouseAccelerationCaption: "Supprime l’accélération du pointeur pour les souris connectées. Le réglage précédent est restauré à la désactivation ou à la fermeture de Vorssaint.",
+        linearScrollName: "Défilement linéaire",
+        linearScrollCaption: "Chaque cran de la molette de la souris fait défiler la même distance, quelle que soit la vitesse de rotation. Le trackpad ne change pas.",
+        linearScrollLinesLabel: "Lignes par cran",
         shelfClearOnClose: "Vider à la fermeture",
         shelfClearOnCloseCaption: "Vide l’étagère uniquement lorsque vous cliquez sur le bouton de fermeture. Le masquage automatique et la réduction conservent les éléments."
     )

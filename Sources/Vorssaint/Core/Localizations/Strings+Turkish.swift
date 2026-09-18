@@ -1014,6 +1014,9 @@ extension Strings {
         smoothScrollResponseLabel: "Tepki",
         mouseAccelerationName: "Fare hızlandırmasını kapat",
         mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir.",
+        linearScrollName: "Doğrusal kaydırma",
+        linearScrollCaption: "Fare tekerleğinin her adımı, ne kadar hızlı çevrilirse çevrilsin aynı mesafeyi kaydırır. İzleme dörtgeni değişmez.",
+        linearScrollLinesLabel: "Adım başına satır",
         shelfClearOnClose: "Kapatınca temizle",
         shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur."
     )

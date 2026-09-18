@@ -1014,6 +1014,9 @@ extension Strings {
         smoothScrollResponseLabel: "反応",
         mouseAccelerationName: "マウス加速を無効にする",
         mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。",
+        linearScrollName: "リニアスクロール",
+        linearScrollCaption: "マウスホイールの1目盛りで、回す速さに関係なく常に同じ距離をスクロールします。トラックパッドは変わりません。",
+        linearScrollLinesLabel: "1目盛りあたりの行数",
         shelfClearOnClose: "閉じるときに項目を消去",
         shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。"
     )

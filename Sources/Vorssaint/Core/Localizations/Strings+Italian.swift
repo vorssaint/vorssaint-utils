@@ -1014,6 +1014,9 @@ extension Strings {
         smoothScrollResponseLabel: "Reattività",
         mouseAccelerationName: "Disattiva l’accelerazione del mouse",
         mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
+        linearScrollName: "Scorrimento lineare",
+        linearScrollCaption: "Ogni scatto della rotellina del mouse scorre la stessa distanza, a prescindere dalla velocità di rotazione. Il trackpad non cambia.",
+        linearScrollLinesLabel: "Righe per scatto",
         shelfClearOnClose: "Svuota alla chiusura",
         shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano."
     )
