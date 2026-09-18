@@ -1519,6 +1519,44 @@ struct MetricsTests {
         expect(SmoothScrollSupport.sanitizedResponse(-1) == SmoothScrollSupport.responseRange.lowerBound
                 && SmoothScrollSupport.sanitizedResponse(500) == SmoothScrollSupport.responseRange.upperBound,
                "response clamps damaged preferences to its range")
+        expect(SmoothScrollSupport.defaultCoast == 0,
+               "coast ships off so every upgrade keeps the exact shipped curve")
+        expect(SmoothScrollSupport.sanitizedCoast(-1) == SmoothScrollSupport.coastRange.lowerBound
+                && SmoothScrollSupport.sanitizedCoast(500) == SmoothScrollSupport.coastRange.upperBound,
+               "coast clamps damaged preferences to its range")
+        expect(SmoothScrollSupport.frameDelta(
+            remaining: 100,
+            elapsed: SmoothScrollSupport.frameInterval,
+            response: SmoothScrollSupport.defaultResponse,
+            coast: SmoothScrollSupport.defaultCoast
+        ) == defaultFrameDelta,
+               "zero coast emits exactly the shipped first frame")
+        expect(SmoothScrollSupport.frameDelta(
+            remaining: 100,
+            elapsed: SmoothScrollSupport.frameInterval,
+            response: SmoothScrollSupport.defaultResponse,
+            coast: SmoothScrollSupport.coastRange.upperBound
+        ) < defaultFrameDelta,
+               "full coast stretches the same distance over more frames")
+        expect(SmoothScrollSupport.defaultInitialSpeed == 0,
+               "initial speed ships off so every upgrade keeps the exact shipped curve")
+        expect(SmoothScrollSupport.sanitizedInitialSpeed(-1) == SmoothScrollSupport.initialSpeedRange.lowerBound
+                && SmoothScrollSupport.sanitizedInitialSpeed(500) == SmoothScrollSupport.initialSpeedRange.upperBound,
+               "initial speed clamps damaged preferences to its range")
+        expect(SmoothScrollSupport.frameDelta(
+            remaining: 100,
+            elapsed: SmoothScrollSupport.frameInterval,
+            response: SmoothScrollSupport.defaultResponse,
+            initialSpeed: SmoothScrollSupport.defaultInitialSpeed
+        ) == defaultFrameDelta,
+               "zero initial speed emits exactly the shipped first frame")
+        expect(SmoothScrollSupport.frameDelta(
+            remaining: 3,
+            elapsed: SmoothScrollSupport.frameInterval,
+            response: SmoothScrollSupport.defaultResponse,
+            initialSpeed: SmoothScrollSupport.initialSpeedRange.upperBound
+        ) == 3,
+               "full initial speed punches a small tail out at once instead of the shipped one point")
         expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollEnabled] as? Bool == false,
                "smooth scrolling ships off by default")
         expect(Defaults.registeredDefaults[DefaultsKey.scrollInverterHorizontalEnabled] as? Bool == false,
@@ -1531,6 +1569,14 @@ struct MetricsTests {
                 == SmoothScrollSupport.defaultResponse
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.smoothScrollResponse),
                "smooth scrolling response registers its default and follows settings backups")
+        expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollCoast] as? Int
+                == SmoothScrollSupport.defaultCoast
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.smoothScrollCoast),
+               "smooth scrolling coast registers its default and follows settings backups")
+        expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollInitialSpeed] as? Int
+                == SmoothScrollSupport.defaultInitialSpeed
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.smoothScrollInitialSpeed),
+               "smooth scrolling initial speed registers its default and follows settings backups")
 
         var sixtyHertzEngine = SmoothScrollSupport.Engine()
         var oneTwentyHertzEngine = SmoothScrollSupport.Engine()
@@ -1563,6 +1609,48 @@ struct MetricsTests {
                 && abs(sixtyHertzEngine.remainingVertical - oneTwentyHertzEngine.remainingVertical) < 0.000001
                 && abs(sixtyHertzEngine.remainingHorizontal - oneTwentyHertzEngine.remainingHorizontal) < 0.000001,
                "equal elapsed time produces the same glide at 60 and 120 Hz")
+
+        // Full coast and full initial speed still travel every pixel the wheel
+        // asked for, on either cadence: the curve only stretches the response
+        // time and raises the speed floor, while the budget caps each frame.
+        var coastSixtyHertzEngine = SmoothScrollSupport.Engine()
+        var coastOneTwentyHertzEngine = SmoothScrollSupport.Engine()
+        coastSixtyHertzEngine.add(vertical: 80, horizontal: -80)
+        coastOneTwentyHertzEngine.add(vertical: 80, horizontal: -80)
+        var coastSixtyHertzTravelled = SmoothScrollSupport.Axes(vertical: 0, horizontal: 0)
+        var coastOneTwentyHertzTravelled = SmoothScrollSupport.Axes(vertical: 0, horizontal: 0)
+        for _ in 0..<600 {
+            let frame = coastSixtyHertzEngine.advance(
+                elapsed: 1.0 / 60.0,
+                response: SmoothScrollSupport.defaultResponse,
+                coast: SmoothScrollSupport.coastRange.upperBound,
+                initialSpeed: SmoothScrollSupport.initialSpeedRange.upperBound
+            )
+            coastSixtyHertzTravelled = SmoothScrollSupport.Axes(
+                vertical: coastSixtyHertzTravelled.vertical + frame.vertical,
+                horizontal: coastSixtyHertzTravelled.horizontal + frame.horizontal
+            )
+            if frame.finished { break }
+        }
+        for _ in 0..<1200 {
+            let frame = coastOneTwentyHertzEngine.advance(
+                elapsed: 1.0 / 120.0,
+                response: SmoothScrollSupport.defaultResponse,
+                coast: SmoothScrollSupport.coastRange.upperBound,
+                initialSpeed: SmoothScrollSupport.initialSpeedRange.upperBound
+            )
+            coastOneTwentyHertzTravelled = SmoothScrollSupport.Axes(
+                vertical: coastOneTwentyHertzTravelled.vertical + frame.vertical,
+                horizontal: coastOneTwentyHertzTravelled.horizontal + frame.horizontal
+            )
+            if frame.finished { break }
+        }
+        expect(!coastSixtyHertzEngine.isActive && !coastOneTwentyHertzEngine.isActive
+                && abs(coastSixtyHertzTravelled.vertical - 80) < 0.001
+                && abs(coastSixtyHertzTravelled.horizontal + 80) < 0.001
+                && abs(coastOneTwentyHertzTravelled.vertical - 80) < 0.001
+                && abs(coastOneTwentyHertzTravelled.horizontal + 80) < 0.001,
+               "a maxed-out glide lands on the full wheel distance at 60 and 120 Hz")
 
         expect(FocusFollowsMouseSupport.sanitizedDelay(0)
                 == FocusFollowsMouseSupport.delayRange.lowerBound
@@ -14167,8 +14255,12 @@ struct MetricsTests {
             let prefix = "localization \(language.rawValue)"
             expect(!strings.smoothScrollStepLabel.isEmpty
                    && !strings.smoothScrollResponseLabel.isEmpty
+                   && !strings.smoothScrollCoastLabel.isEmpty
+                   && !strings.smoothScrollInitialSpeedLabel.isEmpty
                    && !strings.smoothScrollStepLabel.contains("—")
-                   && !strings.smoothScrollResponseLabel.contains("—"),
+                   && !strings.smoothScrollResponseLabel.contains("—")
+                   && !strings.smoothScrollCoastLabel.contains("—")
+                   && !strings.smoothScrollInitialSpeedLabel.contains("—"),
                    "\(prefix) smooth scrolling controls are present without em dash")
             expectFormat(strings.secureInputHeldFormat, ["@"], "\(prefix) secure input holder format")
             expectFormat(strings.secureInputRevealFormat, ["@"], "\(prefix) secure input reveal format")

@@ -1021,6 +1021,8 @@ extension Strings {
         switcherCurrentDisplayOnly: "Afficher uniquement l’écran actuel",
         switcherCurrentDisplayOnlyCaption: "Affiche uniquement les fenêtres de l’écran sous le pointeur. Si cet écran ne contient aucune fenêtre, le sélecteur ne s’ouvre pas.",
         smoothScrollResponseLabel: "Réactivité",
+        smoothScrollCoastLabel: "Inertie",
+        smoothScrollInitialSpeedLabel: "Vitesse initiale",
         mouseAccelerationName: "Désactiver l’accélération de la souris",
         mouseAccelerationCaption: "Supprime l’accélération du pointeur pour les souris connectées. Le réglage précédent est restauré à la désactivation ou à la fermeture de Vorssaint.",
         shelfClearOnClose: "Vider à la fermeture",
