@@ -168,7 +168,7 @@ extension AppFeature {
         case .autoQuit: return FeatureSettingsDestination(.autoQuit)
         case .quitWindowProtection: return FeatureSettingsDestination(.quitProtection)
 
-        case .scrollInverter:
+        case .scrollInverter, .scrollHorizontal:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollDirection)
         case .focusFollowsMouse:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .focusFollowsMouse)
@@ -238,7 +238,7 @@ extension AppFeature {
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshot)
         case .cameraPreview:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
-        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads: return FeatureSettingsDestination(.notch)
+        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads: return FeatureSettingsDestination(.notch)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
@@ -268,7 +268,7 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
         case .monitor: return monitorFeatures
-        case .mouse: return [.scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
+        case .mouse: return [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
         case .switcher: return [.switcher, .dockPreview, .dockClick]
         case .windowLayout: return [.windowLayout]
@@ -290,7 +290,7 @@ enum FeatureVisibilitySupport {
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads]
+        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:

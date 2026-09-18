@@ -86,10 +86,10 @@ struct NotchMusicStrip: View {
                 .clipped()
                 HStack {
                     if geometry.compactActivityWingWidth >= 44 {
-                        NotchEqualizerBars(isPlaying: music.playback?.isPlaying == true,
-                                           bars: Self.barCount, barWidth: Self.barWidth,
-                                           height: barHeight,
-                                           tint: music.artworkTint?.color ?? .white)
+                        NotchLiveEqualizerBars(isPlaying: music.playback?.isPlaying == true,
+                                               bars: Self.barCount, barWidth: Self.barWidth,
+                                               height: barHeight,
+                                               tint: music.artworkTint?.color ?? .white)
                     }
                 }
                 .padding(.leading, 8)

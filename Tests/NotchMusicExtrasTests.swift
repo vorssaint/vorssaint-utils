@@ -200,12 +200,12 @@ enum NotchMusicExtrasTests {
         expect(!NotchLyricsSupport.onlineEnabled(in: defaults) && !NotchQueueSupport.isEnabled(in: defaults),
                "hidden music does not retain an optional lyrics or queue subscription")
         expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLyricsEnabled, DefaultsKey.notchLyricsOnline,
-                                                                 DefaultsKey.notchQueueEnabled, AppFeature.notchLyrics.availabilityKey,
+                                                                 DefaultsKey.notchQueueEnabled, DefaultsKey.notchLiveEqualizer, AppFeature.notchLyrics.availabilityKey,
                                                                  AppFeature.notchQueue.availabilityKey]),
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            expect(strings.count == 31 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            expect(strings.count == 35 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }

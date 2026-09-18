@@ -12,12 +12,16 @@ struct NotchEqualizerBars: View {
     var barWidth: CGFloat = 2.5
     var height: CGFloat = 14
     var tint: Color = .white
+    /// Band levels from 0 to 1 read from the player's audio. When present the
+    /// bars follow them instead of the compositor's synthetic motion.
+    var live: [Double]? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let count = max(1, bars)
         NotchEqualizerBridge(animates: isPlaying && !reduceMotion, bars: count,
-                             barWidth: barWidth, height: height, tint: NSColor(tint))
+                             barWidth: barWidth, height: height, tint: NSColor(tint),
+                             levels: isPlaying && !reduceMotion ? live : nil)
             .frame(width: CGFloat(count) * barWidth + CGFloat(count - 1) * barWidth * 0.85,
                    height: height)
             .accessibilityHidden(true)
@@ -31,11 +35,13 @@ private struct NotchEqualizerBridge: NSViewRepresentable {
     let barWidth: CGFloat
     let height: CGFloat
     let tint: NSColor
+    let levels: [Double]?
 
     func makeNSView(context: Context) -> NotchEqualizerView { NotchEqualizerView() }
 
     func updateNSView(_ view: NotchEqualizerView, context: Context) {
-        view.configure(animates: animates, bars: bars, barWidth: barWidth, height: height, tint: tint)
+        view.configure(animates: animates, bars: bars, barWidth: barWidth, height: height,
+                       tint: tint, levels: levels)
     }
 
     static func dismantleNSView(_ view: NotchEqualizerView, coordinator: ()) { view.stop() }
@@ -46,6 +52,7 @@ final class NotchEqualizerView: NSView {
     private var barWidth: CGFloat = 0
     private var height: CGFloat = 0
     private var animates = false
+    private var levels: [Double]?
     private var visibilityObserver: NSObjectProtocol?
     private static let animationKey = "notch.equalizer"
 
@@ -63,10 +70,12 @@ final class NotchEqualizerView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    func configure(animates: Bool, bars count: Int, barWidth: CGFloat, height: CGFloat, tint: NSColor) {
+    func configure(animates: Bool, bars count: Int, barWidth: CGFloat, height: CGFloat,
+                   tint: NSColor, levels: [Double]? = nil) {
         let count = max(1, count)
         let geometryChanged = bars.count != count || self.barWidth != barWidth || self.height != height
         self.animates = animates
+        self.levels = levels
         self.barWidth = barWidth
         self.height = height
         CATransaction.begin()
@@ -89,6 +98,7 @@ final class NotchEqualizerView: NSView {
 
     func stop() {
         animates = false
+        levels = nil
         updateBars()
         if let visibilityObserver { NotificationCenter.default.removeObserver(visibilityObserver) }
         visibilityObserver = nil
@@ -116,16 +126,25 @@ final class NotchEqualizerView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
+        let live = moving ? levels.flatMap { $0.isEmpty ? nil : $0 } : nil
         let center = Double(bars.count - 1) / 2
         for (index, bar) in bars.enumerated() {
             let distance = abs(Double(index) - center) / max(1, center)
             let envelope = pow(1 - distance, 1.5)
             let low = max(barWidth, height * (0.12 + envelope * 0.25))
             let high = max(barWidth, height * (0.12 + envelope * 0.88))
-            bar.bounds = CGRect(x: 0, y: 0, width: barWidth, height: moving ? low : barWidth)
+            // The reader already smooths its levels and sends thirty a
+            // second, so a live bar is set straight onto the layer: a
+            // repeating animation would fight the sound it is following.
+            var resting: CGFloat = moving ? low : barWidth
+            if let live {
+                let level = live[NotchAudioLevelSupport.barIndex(index, of: bars.count, bands: live.count)]
+                resting = max(barWidth, height * CGFloat(0.1 + 0.9 * min(1, max(0, level))))
+            }
+            bar.bounds = CGRect(x: 0, y: 0, width: barWidth, height: resting)
             bar.position = CGPoint(x: CGFloat(index) * barWidth * 1.85 + barWidth / 2, y: bounds.midY)
             bar.cornerRadius = barWidth / 2
-            guard moving, high > low else {
+            guard moving, live == nil, high > low else {
                 bar.removeAnimation(forKey: Self.animationKey)
                 continue
             }

@@ -732,6 +732,7 @@ extension AppFeature {
         case .autoQuit: return s.autoQuitName
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).name
         case .scrollInverter: return s.invertMouseScroll
+        case .scrollHorizontal: return s.scrollHorizontalName
         case .focusFollowsMouse: return s.focusFollowsMouseName
         case .smoothScroll: return s.smoothScrollName
         case .mouseAcceleration: return s.mouseAccelerationName
@@ -772,6 +773,7 @@ extension AppFeature {
         case .notchNotifications: return FeatureStrings.notchNotifications(L10n.shared.language).title
         case .notchLyrics: return FeatureStrings.notchMusicExtras(L10n.shared.language).lyrics
         case .notchQueue: return FeatureStrings.notchMusicExtras(L10n.shared.language).queue
+        case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(L10n.shared.language).liveEqualizer
         case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsTitle
         case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
@@ -805,6 +807,7 @@ extension AppFeature {
         case .autoQuit: return hub.descAutoQuit
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).description
         case .scrollInverter: return hub.descScrollInverter
+        case .scrollHorizontal: return L10n.shared.s.scrollHorizontalCaption
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll
         case .mouseAcceleration: return L10n.shared.s.mouseAccelerationCaption
@@ -845,6 +848,7 @@ extension AppFeature {
         case .notchNotifications: return FeatureStrings.notchNotifications(L10n.shared.language).description
         case .notchLyrics: return FeatureStrings.notchMusicExtras(L10n.shared.language).lyricsDescription
         case .notchQueue: return FeatureStrings.notchMusicExtras(L10n.shared.language).queueDescription
+        case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(L10n.shared.language).liveEqualizerDescription
         case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsDescription
         case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).description
         case .notch: return FeatureStrings.notch(L10n.shared.language).description

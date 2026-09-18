@@ -122,7 +122,7 @@ struct NotchMusicView: View {
                             .lineLimit(2).help(playback.track.title ?? text.mediaNowPlaying)
                         Spacer(minLength: 0)
                         if playback.isPlaying {
-                            NotchEqualizerBars(bars: 3, barWidth: 2.5, height: 12, tint: accent)
+                            NotchLiveEqualizerBars(bars: 3, barWidth: 2.5, height: 12, tint: accent)
                                 .transition(.opacity)
                         }
                     }

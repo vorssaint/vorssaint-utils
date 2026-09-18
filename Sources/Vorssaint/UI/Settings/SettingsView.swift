@@ -658,6 +658,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
     @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
+    @AppStorage(DefaultsKey.keepAwakeAutomationRequireAll) private var keepAwakeAutomationRequireAll = false
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
@@ -693,7 +694,7 @@ struct EnergySettings: View {
                 }
                 .settingsSectionAnchor(.keepAwake)
                 Section(automationStrings.automationSection) {
-                    SettingsCaptionText(automationStrings.automationCaption)
+                    SettingsCaptionText(automationStrings.caption(requireAll: keepAwakeAutomationRequireAll))
                     KeepAwakeAutomationEditor()
                 }
                 Section {
@@ -918,6 +919,9 @@ struct MouseSettings: View {
     @ObservedObject private var middleClick = MiddleClickService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
     @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
+    @AppStorage(DefaultsKey.scrollHorizontalEnabled) private var horizontalScrollEnabled = false
+    @AppStorage(DefaultsKey.scrollHorizontalModifier) private var horizontalScrollModifier =
+        ScrollHorizontalModifier.shift
     @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
     @AppStorage(DefaultsKey.focusFollowsMouseDelay) private var focusFollowsMouseDelay =
         FocusFollowsMouseSupport.defaultDelayMilliseconds
@@ -942,20 +946,41 @@ struct MouseSettings: View {
     }
 
     var body: some View {
+        let modifierStrings = FeatureStrings.quitProtection(l10n.language)
         Form {
-            if AppFeature.scrollInverter.isAvailable {
+            if AppFeature.scrollInverter.isAvailable || AppFeature.scrollHorizontal.isAvailable {
                 Section(l10n.s.scrollSection) {
-                    Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
-                        .onChange(of: invertVertical) { _, _ in
-                            ScrollInverter.shared.syncWithPreferences()
-                            if scrollDirectionEnabled { permissions.requestAccessibility() }
+                    if AppFeature.scrollInverter.isAvailable {
+                        Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
+                            .onChange(of: invertVertical) { _, _ in
+                                ScrollInverter.shared.syncWithPreferences()
+                                if scrollDirectionEnabled { permissions.requestAccessibility() }
+                            }
+                        Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
+                            .onChange(of: invertHorizontal) { _, _ in
+                                ScrollInverter.shared.syncWithPreferences()
+                                if scrollDirectionEnabled { permissions.requestAccessibility() }
+                            }
+                    }
+                    if AppFeature.scrollHorizontal.isAvailable {
+                        Toggle(l10n.s.scrollHorizontalName, isOn: $horizontalScrollEnabled)
+                            .onChange(of: horizontalScrollEnabled) { _, _ in
+                                ScrollInverter.shared.syncWithPreferences()
+                                if scrollDirectionEnabled { permissions.requestAccessibility() }
+                            }
+                        if horizontalScrollEnabled {
+                            Picker(l10n.s.scrollHorizontalModifierLabel, selection: $horizontalScrollModifier) {
+                                Text("\(modifierStrings.shiftKey) (⇧)").tag(ScrollHorizontalModifier.shift)
+                                Text("\(modifierStrings.optionKey) (⌥)").tag(ScrollHorizontalModifier.option)
+                                Text("\(modifierStrings.controlKey) (⌃)").tag(ScrollHorizontalModifier.control)
+                                Text("\(l10n.s.scrollHorizontalCommandKey) (⌘)").tag(ScrollHorizontalModifier.command)
+                            }
                         }
-                    Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
-                        .onChange(of: invertHorizontal) { _, _ in
-                            ScrollInverter.shared.syncWithPreferences()
-                            if scrollDirectionEnabled { permissions.requestAccessibility() }
-                        }
-                    if scrollDirectionEnabled, inverter.isRunning {
+                        Text(l10n.s.scrollHorizontalCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if scrollInversionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
@@ -1157,7 +1182,7 @@ struct MouseSettings: View {
     /// Only features that are on AND still available can ask for the
     /// permission note; a hub-disabled one no longer needs anything.
     private var accessibilityNoteVisible: Bool {
-        let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
+        let anyEngaged = scrollDirectionEnabled
             || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
@@ -1168,8 +1193,13 @@ struct MouseSettings: View {
         return anyEngaged && !permissions.accessibility
     }
 
+    private var scrollInversionEnabled: Bool {
+        AppFeature.scrollInverter.isAvailable && (invertVertical || invertHorizontal)
+    }
+
     private var scrollDirectionEnabled: Bool {
-        invertVertical || invertHorizontal
+        scrollInversionEnabled
+            || (AppFeature.scrollHorizontal.isAvailable && horizontalScrollEnabled)
     }
 
     private var smoothScrollStepBinding: Binding<Double> {
@@ -2062,6 +2092,82 @@ struct PermissionRow: View {
         .onDisappear {
             permissions.setActivePermissionSurface(pollingDemandID, visible: false)
         }
+    }
+}
+
+/// Secure Event Input blocks every synthetic keystroke. Typing a snippet
+/// trigger then does nothing at all, while the snippet library and the
+/// Command Bar's typing actions beep; none of the four paths says what is
+/// wrong or who is holding it. This row is the only place the app explains
+/// that, and it names the holder when the session can attribute it.
+///
+/// Both call sites instantiate it only once secure input is on, and the
+/// snippets page waits for one of its own toggles as well, so the `.off`
+/// branch below is there to keep the switch exhaustive and for nothing else.
+/// What drives the feature is the polling demand on each page; see
+/// `SecureInputObservation`.
+struct SecureInputRow: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var monitor = SecureInputMonitor.shared
+
+    var body: some View {
+        switch monitor.holder {
+        case .off:
+            EmptyView()
+        case .app(let name, _):
+            row(caption: String(format: l10n.s.secureInputHeldFormat, name)) {
+                Button(String(format: l10n.s.secureInputRevealFormat, name)) {
+                    monitor.revealHolder()
+                }
+                .controlSize(.small)
+            }
+        case .unattributed:
+            row(caption: l10n.s.secureInputUnattributed) { EmptyView() }
+        case .unknown:
+            row(caption: l10n.s.secureInputUnidentified) { EmptyView() }
+        }
+    }
+
+    private func row<Action: View>(caption: String,
+                                   @ViewBuilder action: () -> Action) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(.orange)
+                Text(l10n.s.secureInputTitle)
+                Spacer()
+            }
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            action()
+        }
+    }
+}
+
+/// Keeps secure input polled for as long as the page is on screen and
+/// `isActive` holds, e.g. the snippets page only while one of its own
+/// toggles is on, since with both off nothing this row could report can
+/// show. The demand cannot live on `SecureInputRow`: nothing would
+/// register it until the state it reports had already been reached.
+private struct SecureInputObservation: ViewModifier {
+    let isActive: Bool
+    @State private var demandID = UUID()
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { SecureInputMonitor.shared.setObservingSurface(demandID, visible: isActive) }
+            .onDisappear { SecureInputMonitor.shared.setObservingSurface(demandID, visible: false) }
+            .onChange(of: isActive) { _, active in
+                SecureInputMonitor.shared.setObservingSurface(demandID, visible: active)
+            }
+    }
+}
+
+extension View {
+    func observesSecureInput(isActive: Bool = true) -> some View {
+        modifier(SecureInputObservation(isActive: isActive))
     }
 }
 

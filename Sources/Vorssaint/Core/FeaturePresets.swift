@@ -89,7 +89,7 @@ enum FeatureEnergyProfile: String {
 extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
-        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .windowMaximizer, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .windowMaximizer, .middleClick,
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
              .dockPreview, .dockClick, .shelf:
             return .mouse
@@ -114,7 +114,7 @@ extension AppFeature {
                 ? .idle : .mouse
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         case .notchAccessories: return .periodic
-        case .notch, .notchCalendar, .notchLyrics: return .periodic
+        case .notch, .notchCalendar, .notchLyrics, .notchLiveEqualizer: return .periodic
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower:

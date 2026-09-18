@@ -16,7 +16,7 @@ enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
-    case scrollInverter, focusFollowsMouse, smoothScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
+    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
@@ -31,7 +31,7 @@ enum AppFeature: String, CaseIterable {
          commandBar, screenRecorder, killProcess
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
-         notchQueue, notchDownloads
+         notchQueue, notchLiveEqualizer, notchDownloads
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
@@ -100,7 +100,7 @@ extension AppFeature {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
-        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
@@ -115,7 +115,7 @@ extension AppFeature {
              .scratchpad, .commandBar, .screenRecorder, .killProcess:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
-             .notchLyrics, .notchQueue, .notchDownloads:
+             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .fanControl:
@@ -132,6 +132,7 @@ extension AppFeature {
         case .windowLayout: return "rectangle.3.group"
         case .autoQuit: return "xmark.rectangle"
         case .scrollInverter: return "arrow.up.arrow.down"
+        case .scrollHorizontal: return "arrow.triangle.swap"
         case .focusFollowsMouse: return "cursorarrow.and.square.on.square.dashed"
         case .smoothScroll: return "cursorarrow.motionlines"
         case .mouseAcceleration: return "cursorarrow.rays"
@@ -179,6 +180,7 @@ extension AppFeature {
         case .notchAccessories: return "battery.25percent"
         case .notchLyrics: return "quote.bubble"
         case .notchQueue: return "list.bullet"
+        case .notchLiveEqualizer: return "waveform"
         case .notchDownloads: return "arrow.down.circle"
         case .notchNotifications: return "bell"
         case .notchCalendar: return "calendar"
@@ -226,6 +228,7 @@ extension AppFeature {
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
                                       DefaultsKey.scrollInverterHorizontalEnabled]
+        case .scrollHorizontal: return [DefaultsKey.scrollHorizontalEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled]
@@ -244,6 +247,7 @@ extension AppFeature {
         case .notchAccessories: return [DefaultsKey.notchAccessoriesEnabled]
         case .notchLyrics: return [DefaultsKey.notchLyricsEnabled]
         case .notchQueue: return [DefaultsKey.notchQueueEnabled]
+        case .notchLiveEqualizer: return [DefaultsKey.notchLiveEqualizer]
         case .notchDownloads: return [DefaultsKey.notchDownloadsEnabled]
         case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
         case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
@@ -280,13 +284,16 @@ extension AppFeature {
         case .notchGestures: return []
         case .notchTimer, .notchAccessories: return []
         case .notchLyrics, .notchQueue: return []
+        // The bars read the player's own audio output, which macOS gates
+        // behind the same permission the mixer and the recorder ask for.
+        case .notchLiveEqualizer: return [.audioCapture]
         case .notchDownloads: return [.filesAndFolders]
         case .notchNotifications: return [.accessibility]
         case .notchCalendar: return [.calendar]
         case .notch: return [.accessibility, .automationPlayback]
         case .mouseAcceleration:
             return []
-        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
              .dockClick, .windowMaximizer, .windowLayout,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
@@ -356,7 +363,7 @@ extension AppFeature {
         Dictionary(uniqueKeysWithValues: allCases.map {
             ($0.availabilityKey,
              $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                && $0 != .killProcess)
+                && $0 != .killProcess && $0 != .scrollHorizontal)
         })
     }
 
@@ -428,6 +435,9 @@ extension AppFeature {
                         || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
                     && boolFor(DefaultsKey.whatsAppDownloadsNotify)
                 return cleanerNotifies || whatsAppNotifies
+            case (.notchLiveEqualizer, .audioCapture):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
             case (.screenRecorder, .audioCapture):
                 return boolFor(DefaultsKey.recorderSystemAudio)
             case (.screenRecorder, .microphone):

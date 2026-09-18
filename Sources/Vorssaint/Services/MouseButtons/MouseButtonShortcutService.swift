@@ -515,6 +515,7 @@ final class MouseButtonShortcutService: ObservableObject {
         guard Self.hasActiveSideWheelInterest,
               !isDraining,
               event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag,
+              event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.horizontalRedirectTag,
               let input = sideWheelInput(for: event) else {
             return Unmanaged.passUnretained(event)
         }

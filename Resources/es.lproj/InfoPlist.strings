@@ -2,7 +2,7 @@
 "NSAppleEventsUsageDescription" = "Vorssaint usa Automatización para mover archivos, enviar elementos a la Papelera, abrir los comandos solicitados y controlar la reproducción en tus apps multimedia.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint usa el audio de cada app para ajustar su volumen en el mezclador y para incluir el sonido del Mac en las grabaciones de pantalla que inicies. Nada sale de tu Mac.";
+"NSAudioCaptureUsageDescription" = "Vorssaint usa el audio de cada app para ajustar su volumen en el mezclador, para mover las barras de música de Dynamic Island y para incluir el sonido del Mac en las grabaciones de pantalla que inicies. Nada sale de tu Mac.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint usa Bluetooth solo para leer la batería de los periféricos conectados. Nada sale de tu Mac.";

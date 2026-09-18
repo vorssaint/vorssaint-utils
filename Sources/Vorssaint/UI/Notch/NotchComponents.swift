@@ -36,6 +36,22 @@ extension NotchArtworkTint {
     var color: Color { Color(.sRGB, red: red, green: green, blue: blue, opacity: 1) }
 }
 
+/// The bars with the live levels attached. Only this small view observes the
+/// audio service, so its thirty updates a second never re-render the island.
+struct NotchLiveEqualizerBars: View {
+    var isPlaying = true
+    var bars = 4
+    var barWidth: CGFloat = 2.5
+    var height: CGFloat = 14
+    var tint: Color = .white
+    @ObservedObject private var audio = NotchAudioLevelService.shared
+
+    var body: some View {
+        NotchEqualizerBars(isPlaying: isPlaying, bars: bars, barWidth: barWidth, height: height, tint: tint,
+                           live: audio.levels)
+    }
+}
+
 /// A level readout in the same language as the notch's sliders, instead of the
 /// thin system bar, so every meter in the panel matches.
 struct NotchMeter: View {

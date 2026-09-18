@@ -137,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .receive(on: DispatchQueue.main)
             .sink { _ in
                 FeatureRuntime.shared.sync([
-                    .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .switcher,
+                    .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
@@ -1406,6 +1406,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+        // Reopening on the very page that was showing at close never runs
+        // that page's own onAppear, since its view was never removed from
+        // the hierarchy; the window itself is the only reliable signal here.
+        SecureInputMonitor.shared.setSettingsWindowOpen(true)
         DispatchQueue.main.async { [weak self] in
             guard let self, let window = self.settingsWindow else { return }
             self.positionSettingsWindow(window, force: false)
@@ -1908,6 +1912,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 settingsKeepsAppRegular = false
                 WindowActivationPolicy.release()
             }
+            // Whatever page was showing, its own onDisappear does not always
+            // run before the window finishes closing; stop the poll from
+            // here too rather than let it run until the app quits. The
+            // page's own demand is left alone, so it resumes on its own the
+            // moment the window reopens, on this page or any other.
+            SecureInputMonitor.shared.setSettingsWindowOpen(false)
             return
         }
         if window === onboardingWindow {

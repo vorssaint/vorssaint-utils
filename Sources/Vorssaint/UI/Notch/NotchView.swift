@@ -115,8 +115,8 @@ struct NotchView: View {
                     switch service.idleContent {
                     case .music:
                         if music.playback?.isPlaying == true {
-                            NotchEqualizerBars(bars: 3, barWidth: 2, height: 11,
-                                               tint: music.artworkTint?.color ?? .white)
+                            NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
+                                                   tint: music.artworkTint?.color ?? .white)
                         }
                     case .battery:
                         if let percent = service.power.chargePercent {

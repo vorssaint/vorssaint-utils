@@ -519,6 +519,24 @@ def main():
           + "}\n}\nextension NotchMusicAutomationFlowContract.NotchMusicAutomation {\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift", "    static func send(") + "}\n")
 
+    keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"
+    write("KeepAwakeTimerHandoff.swift", "import Foundation\n\nextension KeepAwakeTimerHandoffContract {\n"
+          + "final class Service {\nvar sessionTrigger = SessionTrigger.manual\n"
+          + "var automationSuppressedUntilConditionsClear = false\n"
+          + "var activeAutomationConditions: Set<KeepAwakeAutomationCondition> = []\n"
+          + "var enabled: Set<KeepAwakeAutomationCondition> = []\n"
+          + "var matching: Set<KeepAwakeAutomationCondition> = []\n"
+          + "var requireAll = false\nvar batteryAllows = true\n"
+          + "var activations: [(minutes: Int, trigger: SessionTrigger)] = []\n"
+          + "func automaticSessionAllowedByBatteryProtection() -> Bool { batteryAllows }\n"
+          + "func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> { matching }\n"
+          + "func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> { enabled }\n"
+          + "func automationRequiresAllConditions() -> Bool { requireAll }\n"
+          + "func activate(minutes: Int, trigger: SessionTrigger) { activations.append((minutes, trigger)) }\n"
+          + declaration(keep_awake, "    private func continueAutomaticallyAfterTimerIfNeeded()")
+            .replace("private func", "func", 1)
+          + "}\n}\n")
+
     downloads = "Sources/Vorssaint/Services/Notch/NotchDownloadService.swift"
     write("NotchDownloadFolderChoice.swift", "import Foundation\n\nextension NotchDownloadFolderChoiceContract {\n"
           + "final class Service {\nvar chooser: NSOpenPanel?\nvar chooserID = UUID()\n"

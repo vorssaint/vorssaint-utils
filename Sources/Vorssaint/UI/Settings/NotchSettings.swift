@@ -25,6 +25,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = false
     @AppStorage(DefaultsKey.notchLyricsOnline) private var lyricsOnline = false
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = false
+    @AppStorage(DefaultsKey.notchLiveEqualizer) private var liveEqualizer = false
     @AppStorage(DefaultsKey.notchEnabled) private var enabled = false
     @AppStorage(DefaultsKey.notchDisplay) private var display = NotchDisplay.automatic.rawValue
     @AppStorage(DefaultsKey.notchOpenOnHover) private var hover = true
@@ -65,7 +66,7 @@ struct NotchSettings: View {
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     private var configuration: [String] {
-        [String(enabled), String(calendarEnabled), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
+        [String(enabled), String(calendarEnabled), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), display, String(hover), hidden, order, String(volume),
          String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), captureAction, String(showInCaptures), String(returnHome), homeModule]
     }
@@ -201,6 +202,10 @@ struct NotchSettings: View {
             }
             Toggle(music.enableQueue, isOn: $queueEnabled).disabled(!AppFeature.notchQueue.isAvailable)
             Text(music.queueDescription).font(.caption).foregroundStyle(.secondary)
+            Toggle(music.liveEqualizer, isOn: $liveEqualizer)
+                .disabled(!NotchAudioLevelSupport.isSupported || !AppFeature.notchLiveEqualizer.isAvailable)
+            Text(NotchAudioLevelSupport.isSupported ? music.liveEqualizerHint : music.liveEqualizerUnavailable)
+                .font(.caption).foregroundStyle(.secondary)
         case .notifications:
             let notifications = FeatureStrings.notchNotifications(l10n.language)
             Toggle(notifications.dismissSystemBanner, isOn: $dismissNativeNotifications)

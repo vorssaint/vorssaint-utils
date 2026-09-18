@@ -19,7 +19,11 @@ struct MetricsTests {
         let suite = TestSuite()
         let groups: [(String, () -> Void)] = [
             ("harness", { TestHarnessTests.run(suite) }),
-            ("core", { coreChecks(suite) }),
+            ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
+            ("core", {
+                coreChecks(suite)
+                KeepAwakeTimerHandoffTests.run { suite.expect($0, $1) }
+            }),
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
                 assistiveKeyboardChecks { suite.expect($0, $1) }
@@ -2197,6 +2201,10 @@ struct MetricsTests {
                "running-apps Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeRunningAppBundleIDs] as? [String] == [],
                "running-apps Keep Awake starts with an empty app list")
+        expect(registeredDefaults[DefaultsKey.keepAwakeAutomationRequireAll] as? Bool == false,
+               "matching every selected automation condition is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeAutomationRequireAll),
+               "the automation match mode follows settings backups")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRunningApps),
                "running-apps Keep Awake preference follows settings backups")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRunningAppBundleIDs),
@@ -2293,6 +2301,92 @@ struct MetricsTests {
             sessionActive: true,
             automaticSessionActive: false
         ) == .none, "clearing automatic conditions does not end a manual session")
+        // Match mode over the automation conditions (issue #1587).
+        let bothDockConditions = KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: true, powerEnabled: true, runningAppsEnabled: false)
+        expect(bothDockConditions == [.externalDisplay, .power],
+               "enabled conditions are collected whether or not they hold")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: false
+        ), "Any keeps today's behavior: one matching condition is enough")
+        expect(!KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: true
+        ), "All refuses a session while one enabled condition is unmet")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: bothDockConditions, enabled: bothDockConditions, requireAll: true
+        ), "All starts a session once every enabled condition is met")
+        expect(!KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [], enabled: [], requireAll: true
+        ), "All never treats an empty selection as satisfied")
+        let powerPlusUnnamedApps = KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: false, powerEnabled: true,
+            runningAppsEnabled: true, hasSelectedApps: false)
+        expect(powerPlusUnnamedApps == [.power],
+               "an app condition with no app named is not a condition All has to satisfy")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.power], enabled: powerPlusUnnamedApps, requireAll: true
+        ), "All stays usable while the app list is still empty")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.externalDisplay],
+            enabledConditions: bothDockConditions,
+            requireAll: true,
+            sessionActive: false,
+            automaticSessionActive: false
+        ) == .none, "a monitor on battery does not start an All session")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.runningApps],
+            enabledConditions: KeepAwakeAutomationSupport.enabledConditions(
+                externalDisplayEnabled: false, powerEnabled: true, runningAppsEnabled: true),
+            requireAll: true,
+            sessionActive: true,
+            automaticSessionActive: true
+        ) == .deactivate, "unplugging power ends an All session the running app alone would hold open")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.runningApps],
+            enabledConditions: KeepAwakeAutomationSupport.enabledConditions(
+                externalDisplayEnabled: false, powerEnabled: true, runningAppsEnabled: true),
+            requireAll: false,
+            sessionActive: true,
+            automaticSessionActive: true
+        ) == .none, "the same unplug leaves an Any session running, which is why All exists")
+        // The mode control in the panel card gets the panel's 308pt of content
+        // less the card's 10pt gutters, the Keep Awake indent and the
+        // disclosure indent. A segmented control wider than that truncates its
+        // labels, and the real control is what knows its own insets.
+        // The control cannot be rendered here, so its compact sizing is pinned
+        // as source shape: every tile, font and inset in that editor follows
+        // `compact`, and this one control keeping the regular size inside the
+        // panel card is the regression it is guarded against.
+        let automationEditor = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/KeepAwakeAutomationView.swift",
+            encoding: .utf8)) ?? ""
+        expect(automationEditor.contains(".pickerStyle(.segmented)")
+                && automationEditor.contains(".controlSize(compact ? .small : .regular)"),
+               "the match mode picker follows the compact layout of the panel card")
+        let matchModeWidth = 308.0 - 20 - 19 - 22
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.keepAwakeAutomation(language)
+            let control = NSSegmentedControl(labels: [strings.matchAny, strings.matchAll],
+                                             trackingMode: .selectOne, target: nil, action: nil)
+            control.controlSize = .small
+            control.font = NSFont.systemFont(ofSize: 10, weight: .medium)
+            control.sizeToFit()
+            let width = Double(control.fittingSize.width)
+            expect(width > 0 && width <= matchModeWidth,
+                   "\(language.rawValue): the match mode labels fit the panel card "
+                   + "(\(Int(width))pt of \(Int(matchModeWidth))pt)")
+        }
+        // The handoff a timed session makes when it runs out asks the same
+        // question, so a monitor alone must not carry it on under All.
+        expect(!KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: true
+        ), "a timer running out on battery hands nothing over to an All automation")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: false
+        ), "the same timer still hands over under Any")
         expect(KeepAwakeAutomationSupport.isScreenLocked(
             sessionDictionary: ["CGSSessionScreenIsLocked": true]
         ), "the Keep Awake lock guard reads a locked session")
@@ -14056,6 +14150,12 @@ struct MetricsTests {
                    && !strings.smoothScrollStepLabel.contains("—")
                    && !strings.smoothScrollResponseLabel.contains("—"),
                    "\(prefix) smooth scrolling controls are present without em dash")
+            expectFormat(strings.secureInputHeldFormat, ["@"], "\(prefix) secure input holder format")
+            expectFormat(strings.secureInputRevealFormat, ["@"], "\(prefix) secure input reveal format")
+            expect(!strings.secureInputTitle.isEmpty
+                   && !strings.secureInputUnattributed.isEmpty
+                   && !strings.secureInputUnidentified.isEmpty,
+                   "\(prefix) secure input copy is translated")
             expect(strings.quickToolsTab == strings.launcherName,
                    "\(prefix) Quick panel keeps the same name in Settings")
             expectFormat(strings.cutMovedPluralFormat, ["d"], "\(prefix) cut plural format")
@@ -15160,12 +15260,12 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 66, "feature catalog has 66 features")
+        expect(AppFeature.allCases.count == 68, "feature catalog has 68 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
-            "scrollInverter", "focusFollowsMouse", "smoothScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
@@ -15173,7 +15273,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchDownloads",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -15300,7 +15400,7 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .scrollHorizontal
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -15312,7 +15412,7 @@ struct MetricsTests {
                "no hub group is empty")
         expect(AppFeature.features(in: .dynamicIsland) == [
             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
-            .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads,
+            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads,
         ], "the Dynamic Island heads its own hub section, followed by its extensions")
         expect(AppFeature.dynamicIslandExtensions == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
                "the Dynamic Island's extensions are every other feature of its section")
@@ -15857,7 +15957,7 @@ struct MetricsTests {
                "horizontal-only inversion counts as using accessibility")
         expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
                                                           DefaultsKey.scrollInverterHorizontalEnabled],
-               "the scroll direction feature tracks both independent axes")
+               "the inversion feature tracks only its own axes")
         expect(activeSet(.accessibility, on: [DefaultsKey.focusFollowsMouseEnabled])
                 .contains(.focusFollowsMouse),
                "focus follows mouse reports its live accessibility use")
@@ -23328,8 +23428,8 @@ struct MetricsTests {
         expect(math("volume 20") == nil, "a command with a number is not a sum")
         expect(math("brilho 40") == nil, "neither is the same command in another language")
         expect(math("10/0") == nil, "dividing by zero has no answer to show")
-        expect(math("2+") == nil && math("(2+3") == nil && math("2++") == nil,
-               "an unfinished expression stays quiet")
+        expect(math("2+") == nil && math("(2+3") == "5" && math("2++") == nil,
+               "only missing closing brackets are supplied virtually")
         expect(math("2 * -3") == "-6", "a sign after an operator is read as a sign")
         expect(math(String(repeating: "(", count: 60) + "1" + String(repeating: ")", count: 60)) == nil,
                "a wall of parentheses is refused instead of eating the stack")
@@ -23350,6 +23450,46 @@ struct MetricsTests {
                "the comma is the decimal point where that is the custom")
         expect(math("1.500+1", decimal: ",", grouping: ".") == "1,501",
                "three digits after the grouping separator read as thousands")
+
+        expect(CommandBarMath.evaluate("([2+3")?.closingBrackets == "])"
+                && CommandBarMath.evaluate("2+3")?.closingBrackets == "",
+               "virtual closers preserve bracket kind and nesting")
+        expect(mathValue("sqrt(81") == 9 && mathValue("2*(3+[4") == 14,
+               "functions and nested brackets evaluate before closers are typed")
+        for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)",
+                           "sqrt(-1)", "log(0)", "acos(2)", "1e309+0", "7=+3", "7+3=="] {
+            expect(mathValue(expression) == nil && CommandBarMath.evaluate(expression)?.closingBrackets == nil,
+                   "invalid calculator input has neither an answer nor ghost brackets: \(expression)")
+        }
+        for (expression, expected) in [
+            ("sqrt(9)+abs(-3)", 6.0), ("sin(pi/2)+cos(0)+tan(0)", 2.0),
+            ("asin(1)+acos(1)+atan(1)", Double.pi * 0.75),
+            ("ln(exp(1))+log(100)+log10(100)", 5.0),
+            ("floor(1.9)+ceil(1.1)+round(1.5)", 5.0),
+            ("2pi", 2 * Double.pi), ("π+e", Double.pi + Foundation.exp(1)),
+            ("2x3+2 x 4", 14.0), ("2(3)+(2)(3)+2[3]", 18.0), ("1e-9*1e9", 1.0),
+        ] {
+            expect(mathValue(expression).map { abs($0 - expected) < 1e-7 } ?? false,
+                   "scientific calculator evaluates \(expression)")
+        }
+        expect(mathValue("1,5e-3*2", decimal: ",", grouping: ".") == 0.003,
+               "scientific mantissas respect decimal-comma locales")
+        for expression in ["0.1+0.2", "1/3", "-2^2", "1e-9+0", "2^100"] {
+            if let result = CommandBarMath.evaluate(expression, decimalSeparator: ".", groupingSeparator: ",") {
+                let reusable = CommandBarMath.reusableExpression(for: result, decimalSeparator: ".")
+                expect(mathValue(reusable + "+0") == result.value,
+                       "reusing \(expression) preserves its stored value")
+                if result.value == 0.3 { expect(reusable == "0.3", "reuse hides binary noise") }
+                if result.value == -4 {
+                    expect(mathValue(reusable + "^2") == 16, "negative reuse preserves power precedence")
+                }
+                let comma = CommandBarMath.reusableExpression(for: result, decimalSeparator: ",")
+                expect(mathValue(comma + "+0", decimal: ",", grouping: ".") == result.value,
+                       "reused answers also round-trip in decimal-comma locales")
+            } else {
+                expect(false, "calculator produces an answer to reuse for \(expression)")
+            }
+        }
 
         // MARK: Command bar, what the person controls
 
@@ -26850,6 +26990,107 @@ struct MetricsTests {
                "in-app uninstall aborts unless fans and normal sleep are restored before removal")
         expect(uninstallScriptSource.contains("SleepDisabled"),
                "script uninstall reads the sleep setting back for itself")
+
+        // MARK: Secure input
+        // The Carbon flag is the authority on whether secure input is on; the
+        // registry read only answers who. A holder the session still records
+        // after the flag cleared must never produce a warning.
+        expect(SecureInputSupport.holder(isEnabled: false,
+                                         read: .noHolder,
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .off,
+               "secure input off with no recorded holder is off")
+        var secureInputNameLookups = 0
+        let secureInputOffWithPid = SecureInputSupport.holder(
+            isEnabled: false,
+            read: .holder(4242),
+            runningApp: { pid in
+                secureInputNameLookups += 1
+                return ("SomeBrowser", pid)
+            },
+            isProcessAlive: { _ in true })
+        expect(secureInputOffWithPid == .off,
+               "secure input off stays off even with a pid still recorded")
+        expect(SecureInputSupport.holder(isEnabled: false,
+                                         read: .unavailable,
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .off,
+               "secure input off stays off when the session cannot be read")
+        expect(secureInputNameLookups == 0,
+               "the name lookup is skipped when secure input is off")
+
+        // The row names the holder and the reveal button activates it, so a
+        // helper pid has to resolve to its app for both.
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(999),
+                                         runningApp: { pid in
+                                             pid == 999 ? ("SomeBrowser", 4242) : nil
+                                         },
+                                         isProcessAlive: { _ in true })
+                   == .app(name: "SomeBrowser", pid: 4242),
+               "a helper pid is attributed to the app responsible for it")
+        // Liveness is what separates the two unnameable holders. Only a holder
+        // that has exited leaves a flag a new login session clears; a live one
+        // is a system prompt the user is looking at, and telling them to end
+        // the session is the worst answer this row could give.
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(4242),
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .unknown,
+               "a running holder that is no regular app is never sent to log out")
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(4242),
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in false }) == .unattributed,
+               "a holder that has exited is what a new login session clears")
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .noHolder,
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .unattributed,
+               "secure input on with no recorded holder is unattributed")
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(0),
+                                         runningApp: { pid in ("SomeBrowser", pid) },
+                                         isProcessAlive: { _ in true }) == .unattributed,
+               "a zero pid is not an attribution")
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(4242),
+                                         runningApp: { pid in ("", pid) },
+                                         isProcessAlive: { _ in false }) == .unattributed,
+               "an empty app name is not an attribution")
+
+        // Only `.unattributed` asks the user to log out, so a read that did
+        // not work must never land there.
+        var secureInputUnavailableLookups = 0
+        var secureInputUnavailableLivenessChecks = 0
+        let secureInputUnavailable = SecureInputSupport.holder(
+            isEnabled: true,
+            read: .unavailable,
+            runningApp: { pid in
+                secureInputUnavailableLookups += 1
+                return ("SomeBrowser", pid)
+            },
+            isProcessAlive: { _ in
+                secureInputUnavailableLivenessChecks += 1
+                return true
+            })
+        expect(secureInputUnavailable == .unknown,
+               "a session that cannot be read reports an unknown holder")
+        expect(secureInputUnavailableLookups == 0 && secureInputUnavailableLivenessChecks == 0,
+               "a session that cannot be read costs no name lookup and no liveness check")
+
+        expect(!SecureInputSupport.shouldPoll(observingSurfaceCount: 0, windowIsOpen: true),
+               "secure input keeps no timer without a visible surface")
+        expect(SecureInputSupport.shouldPoll(observingSurfaceCount: 1, windowIsOpen: true)
+                   && SecureInputSupport.shouldPoll(observingSurfaceCount: 3, windowIsOpen: true),
+               "a visible surface polls secure input while the window is open")
+        expect(SecureInputSupport.shouldPoll(observingSurfaceCount: 1, windowIsOpen: true)
+                   == SecureInputSupport.shouldPoll(observingSurfaceCount: 2, windowIsOpen: true),
+               "repeating a demand does not change whether secure input polls")
+        expect(!SecureInputSupport.shouldPoll(observingSurfaceCount: 1, windowIsOpen: false),
+               "a demand left over from before the window closed does not poll on its own")
+        expect(!SecureInputSupport.shouldPoll(observingSurfaceCount: 0, windowIsOpen: false),
+               "neither gate alone is enough")
 
         // MARK: Detached command reruns (counted last, so a late rerun still fails)
         // The `||` form reran the whole installer — as root — on every non-zero

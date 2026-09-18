@@ -1539,7 +1539,9 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - CoreAudio plumbing
 
-    private static func audioProcessObjects() -> [AudioObjectID] {
+    /// Every process object the audio HAL knows about. The island's level
+    /// reader groups them by responsible app the same way this mixer does.
+    static func audioProcessObjects() -> [AudioObjectID] {
         var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList,
                                                  mScope: kAudioObjectPropertyScopeGlobal,
                                                  mElement: kAudioObjectPropertyElementMain)

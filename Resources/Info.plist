@@ -56,7 +56,7 @@
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Vorssaint uses Automation to move files, send items to the Trash, open requested commands and control playback in your media apps.</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Vorssaint uses each app's audio to adjust its volume in the mixer and to include the Mac's sound in the screen recordings you start. Nothing leaves your Mac.</string>
+	<string>Vorssaint uses each app's audio to adjust its volume in the mixer, to move Dynamic Island's music bars and to include the Mac's sound in the screen recordings you start. Nothing leaves your Mac.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Vorssaint uses Bluetooth only to read the battery level of connected peripherals. Nothing leaves your Mac.</string>
 	<key>NSMicrophoneUsageDescription</key>
