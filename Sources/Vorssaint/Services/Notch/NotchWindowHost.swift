@@ -326,6 +326,14 @@ final class NotchPanel: NSPanel {
     // borderless overlays they leave alone are undescribed windows.
     override func accessibilitySubrole() -> NSAccessibility.Subrole? { .unknown }
 
+    // Ordering out a window detaches its sheet without ever running the
+    // sheet's completion, which would leave a dialog opened inside the island
+    // waiting forever after a lock, sleep or teardown. End it first.
+    override func orderOut(_ sender: Any?) {
+        if let sheet = attachedSheet { endSheet(sheet, returnCode: .cancel) }
+        super.orderOut(sender)
+    }
+
     override func sendEvent(_ event: NSEvent) {
         if event.type == .scrollWheel, handleScroll?(event) == true { return }
         super.sendEvent(event)
