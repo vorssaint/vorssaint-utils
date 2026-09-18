@@ -29,6 +29,9 @@ enum AppFeature: String, CaseIterable {
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
          commandBar, screenRecorder, killProcess
+    // Dynamic Island, then its extensions
+    case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
+         notchQueue, notchDownloads
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
@@ -36,13 +39,13 @@ enum AppFeature: String, CaseIterable {
 
 /// Hub sections, in display order.
 enum FeatureGroup: String, CaseIterable {
-    case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, monitor
+    case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, dynamicIsland, monitor
 }
 
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
     case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
-         automationFinder, automationTerminal, audioCapture, microphone, camera, appManagement
+         automationFinder, automationTerminal, automationPlayback, audioCapture, microphone, camera, appManagement, calendar
 }
 
 enum PermissionPollingSupport {
@@ -111,6 +114,9 @@ extension AppFeature {
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder, .killProcess:
             return .tools
+        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
+             .notchLyrics, .notchQueue, .notchDownloads:
+            return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .fanControl:
             return .monitor
@@ -168,6 +174,15 @@ extension AppFeature {
         case .screenshot: return "camera.viewfinder"
         case .screenRecorder: return "record.circle"
         case .cameraPreview: return "web.camera"
+        case .notchGestures: return "hand.draw"
+        case .notchTimer: return "timer"
+        case .notchAccessories: return "battery.25percent"
+        case .notchLyrics: return "quote.bubble"
+        case .notchQueue: return "list.bullet"
+        case .notchDownloads: return "arrow.down.circle"
+        case .notchNotifications: return "bell"
+        case .notchCalendar: return "calendar"
+        case .notch: return "macbook"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
         case .commandBar: return "command"
@@ -189,7 +204,11 @@ extension AppFeature {
     /// Availability read straight from defaults. Existing features stay
     /// available on update; explicit beta opt-ins may start unavailable.
     var isAvailable: Bool {
-        UserDefaults.standard.bool(forKey: availabilityKey)
+        isAvailable(in: .standard)
+    }
+
+    func isAvailable(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: availabilityKey)
     }
 
     /// The feature's own enable keys; any one being true means the feature is
@@ -220,6 +239,15 @@ extension AppFeature {
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]
         case .superKey: return [DefaultsKey.superKeyEnabled]
         case .mouseClickDebounce: return [DefaultsKey.mouseClickDebounceEnabled]
+        case .notchGestures: return [DefaultsKey.notchGesturesEnabled]
+        case .notchTimer: return [DefaultsKey.notchTimerEnabled]
+        case .notchAccessories: return [DefaultsKey.notchAccessoriesEnabled]
+        case .notchLyrics: return [DefaultsKey.notchLyricsEnabled]
+        case .notchQueue: return [DefaultsKey.notchQueueEnabled]
+        case .notchDownloads: return [DefaultsKey.notchDownloadsEnabled]
+        case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
+        case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
+        case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
@@ -249,6 +277,13 @@ extension AppFeature {
     /// monitor only notifies when an alert is on, and so on).
     var permissions: [AppPermission] {
         switch self {
+        case .notchGestures: return []
+        case .notchTimer, .notchAccessories: return []
+        case .notchLyrics, .notchQueue: return []
+        case .notchDownloads: return [.filesAndFolders]
+        case .notchNotifications: return [.accessibility]
+        case .notchCalendar: return [.calendar]
+        case .notch: return [.accessibility, .automationPlayback]
         case .mouseAcceleration:
             return []
         case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
@@ -308,6 +343,13 @@ extension AppFeature {
         allCases.filter { $0.group == group }
     }
 
+    /// The Dynamic Island's extensions: everything else in its group. They
+    /// do nothing without the island, so uninstalling it offers to take them
+    /// along.
+    static var dynamicIslandExtensions: [AppFeature] {
+        features(in: .dynamicIsland).filter { $0 != .notch }
+    }
+
     /// Registered defaults preserve existing features on update. New opt-in
     /// features and explicit betas ship uninstalled.
     static var availabilityDefaults: [String: Any] {
@@ -331,8 +373,26 @@ extension AppFeature {
             let keys = feature.enabledKeys
             guard keys.isEmpty || keys.contains(where: boolFor) else { return false }
             switch (feature, permission) {
+            case (.notch, .automationPlayback):
+                return !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
             case (.switcher, .screenRecording):
                 return !boolFor(DefaultsKey.switcherSimpleMode)
+            case (.notchNotifications, .accessibility):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("notifications")
+            case (.notchDownloads, .filesAndFolders):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && dataFor(DefaultsKey.notchDownloadsFolderBookmark) != nil
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("downloads")
+            case (.notchCalendar, .calendar):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("calendar")
+            case (.notch, .accessibility):
+                return (boolFor(DefaultsKey.notchVolume) && isAvailable(.mixer))
+                    || (boolFor(DefaultsKey.notchKeyboardLight) && isAvailable(.brightness))
+                    || (boolFor(DefaultsKey.notchBrightness) && isAvailable(.brightness)
+                        && boolFor(DefaultsKey.brightnessControlEnabled))
+                    || (boolFor(DefaultsKey.notchClipboardWindow) && isAvailable(.clipboardHistory))
             case (.radialMenu, .accessibility):
                 return RadialMenuSupport.needsAccessibility(
                     RadialMenuSupport.decode(dataFor(DefaultsKey.radialMenuItems)))
@@ -413,9 +473,10 @@ extension AppPermission {
         case .fullDiskAccess: return "externaldrive.badge.person.crop"
         case .filesAndFolders: return "folder.badge.person.crop"
         case .notifications: return "bell.badge"
-        case .automationFinder, .automationTerminal: return "gearshape.2"
+        case .automationFinder, .automationTerminal, .automationPlayback: return "gearshape.2"
         case .audioCapture: return "waveform"
         case .microphone: return "mic"
+        case .calendar: return "calendar"
         case .camera: return "camera"
         case .appManagement: return "app.badge"
         }

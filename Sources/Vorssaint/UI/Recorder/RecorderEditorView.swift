@@ -198,6 +198,7 @@ struct RecorderEditorView: View {
                 }
         }
         .menuStyle(.borderlessButton)
+        .disabled(model.isUpdatingPreset)
         .fixedSize()
     }
 
@@ -324,6 +325,13 @@ struct RecorderEditorView: View {
                         .frame(height: 30)
                 }
             }
+            if !model.document.images.isEmpty {
+                timelineRow(strings.imageLaneLabel) {
+                    RecorderZoomLane(model: model, kind: .image,
+                                     emptyHint: strings.imageLaneEmptyHint)
+                        .frame(height: 30)
+                }
+            }
             if !model.document.blurs.isEmpty {
                 timelineRow(strings.blurLaneLabel) {
                     RecorderZoomLane(model: model, kind: .blur,
@@ -388,6 +396,15 @@ struct RecorderEditorView: View {
                 model.addText(at: model.sourceTime)
             } label: {
                 Label(strings.addTextButton, systemImage: "textformat")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(Color(white: 0.8))
+
+            Button {
+                model.addImage(at: model.sourceTime)
+            } label: {
+                Label(strings.addImageButton, systemImage: "photo")
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.borderless)
@@ -483,6 +500,8 @@ struct RecorderEditorView: View {
 
     /// Saving keeps the picture visible: a scrim over the whole editor says
     /// "this is hard for me", and it is not.
+    /// In a narrow window the band squeezes this chip; the bar gives way
+    /// first, so the words never wrap letter by letter.
     private var exportProgressChip: some View {
         HStack(spacing: 8) {
             if model.exportPhase == .uploading {
@@ -492,15 +511,17 @@ struct RecorderEditorView: View {
             } else {
                 ProgressView(value: model.exportProgress)
                     .progressViewStyle(.linear)
-                    .frame(width: 110)
+                    .frame(minWidth: 24, idealWidth: 110, maxWidth: 110)
             }
             Text(exportProgressLabel)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color(white: 0.8))
+                .fixedSize()
             Button(strings.cancelButton) { model.cancelExport() }
                 .buttonStyle(.borderless)
                 .font(.system(size: 11))
                 .foregroundStyle(Color.accentColor)
+                .fixedSize()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

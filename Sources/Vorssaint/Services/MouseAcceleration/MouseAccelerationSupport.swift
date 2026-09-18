@@ -52,6 +52,14 @@ struct MouseAccelerationRecoveryJournal: Codable, Equatable {
         entries.first { $0.registryID == registryID && $0.identity.matches(identity) }
     }
 
+    func entriesToRestore(preserving connectedDevices: [UInt64: MouseAccelerationDeviceIdentity])
+        -> [MouseAccelerationRecoveryEntry] {
+        entries.filter { entry in
+            guard let identity = connectedDevices[entry.registryID] else { return true }
+            return !entry.identity.matches(identity)
+        }
+    }
+
     mutating func upsert(_ entry: MouseAccelerationRecoveryEntry) {
         entries.removeAll { $0.registryID == entry.registryID }
         entries.append(entry)
@@ -60,6 +68,37 @@ struct MouseAccelerationRecoveryJournal: Codable, Equatable {
 
     mutating func remove(registryID: UInt64) {
         entries.removeAll { $0.registryID == registryID }
+    }
+}
+
+/// A short settling window after hotplug, never a repeating idle timer.
+struct MouseAccelerationReapplySchedule {
+    private var generation: UUID?
+    private var delays: ArraySlice<TimeInterval> = []
+
+    mutating func restart() -> UUID {
+        let token = UUID()
+        generation = token
+        delays = [0, 0.25, 0.75, 1.5, 2.5]
+        return token
+    }
+
+    func isCurrent(_ token: UUID) -> Bool {
+        generation == token
+    }
+
+    mutating func nextDelay(for token: UUID) -> TimeInterval? {
+        guard isCurrent(token) else { return nil }
+        guard let delay = delays.popFirst() else {
+            cancel()
+            return nil
+        }
+        return delay
+    }
+
+    mutating func cancel() {
+        generation = nil
+        delays = []
     }
 }
 

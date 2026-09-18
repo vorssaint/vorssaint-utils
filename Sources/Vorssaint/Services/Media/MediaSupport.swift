@@ -13,6 +13,39 @@ enum MediaTool: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// A cancelled duration lookup remains resumable, while a successful lookup
+/// stays attached to its input and tool instead of resetting a user's trim.
+struct MediaDurationLoading {
+    struct Request: Equatable {
+        let id = UUID()
+        let url: URL
+        let tool: MediaTool
+    }
+    private var loaded: Request?
+    private(set) var pending: Request?
+
+    mutating func reset() { self = Self() }
+    mutating func cancel() { pending = nil }
+
+    mutating func start(url: URL?, tool: MediaTool) -> Request? {
+        guard let url, tool == .videoCompressor || tool == .gifMaker else { reset(); return nil }
+        guard loaded?.url != url || loaded?.tool != tool else { return nil }
+        let request = Request(url: url, tool: tool)
+        pending = request
+        return request
+    }
+
+    mutating func finish(_ request: Request, duration: Double?) -> Double? {
+        guard pending == request else { return nil }
+        pending = nil
+        guard let duration, duration.isFinite, duration > 0 else { return nil }
+        let rounded = (duration * 10).rounded() / 10
+        guard rounded.isFinite, rounded > 0 else { return nil }
+        loaded = request
+        return rounded
+    }
+}
+
 enum MediaImageFormat: String, CaseIterable, Codable, Identifiable {
     case jpeg, heic, png, pdf
 
@@ -674,10 +707,12 @@ enum MediaSupport {
 
     static func watermarkLogo(atPath path: String, maxPixel: Int = 2_048) -> CGImage? {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: trimmed) as CFURL, nil) else {
-            return nil
-        }
+        guard !trimmed.isEmpty else { return nil }
+        return imageThumbnail(at: URL(fileURLWithPath: trimmed), maxPixel: maxPixel)
+    }
+
+    static func imageThumbnail(at url: URL, maxPixel: Int) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         return CGImageSourceCreateThumbnailAtIndex(source, 0, [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -805,11 +840,13 @@ enum MediaSupport {
         try? fileManager.removeItem(at: stagedURL.deletingLastPathComponent())
     }
 
-    static func installStagedOutput(_ stagedURL: URL, at outputURL: URL) throws {
+    static func installStagedOutput(_ stagedURL: URL, at outputURL: URL,
+                                    replacingExisting: Bool = true) throws {
         let result: Int32 = stagedURL.withUnsafeFileSystemRepresentation { stagedPath in
             outputURL.withUnsafeFileSystemRepresentation { outputPath in
                 guard let stagedPath, let outputPath else { return Int32(-1) }
-                return rename(stagedPath, outputPath)
+                return replacingExisting ? rename(stagedPath, outputPath)
+                    : renamex_np(stagedPath, outputPath, UInt32(RENAME_EXCL))
             }
         }
         guard result == 0 else {

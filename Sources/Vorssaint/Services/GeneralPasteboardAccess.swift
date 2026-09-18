@@ -32,4 +32,45 @@ final class GeneralPasteboardAccess {
             DispatchQueue.main.async { completion(result) }
         }
     }
+
+    /// A deadline limits result delivery and prevents expired queued work
+    /// from starting. It cannot interrupt an AppKit call already in progress.
+    /// `didFinish` runs on main only when the actual queue operation ends,
+    /// even if `completion` already received nil at the deadline. Callers use
+    /// it to keep admission bounded while a provider is unresponsive.
+    func async<T>(timeout: TimeInterval,
+                  _ work: @escaping (_ isExpired: () -> Bool) -> T?,
+                  then completion: @escaping (T?) -> Void,
+                  didFinish: @escaping (T?) -> Void = { _ in }) {
+        let deadline = DispatchTime.now() + timeout
+        let delivery = PasteboardResultDelivery(completion)
+        let timeoutWork = DispatchWorkItem { delivery.complete(nil) }
+        DispatchQueue.main.asyncAfter(deadline: deadline, execute: timeoutWork)
+        queue.async {
+            let isExpired = { DispatchTime.now() >= deadline }
+            let value = isExpired() ? nil : work(isExpired)
+            DispatchQueue.main.async {
+                timeoutWork.cancel()
+                didFinish(value)
+                delivery.complete(isExpired() ? nil : value)
+            }
+        }
+    }
+}
+
+/// Both deadline and queue completion deliver on main. Clearing the callback
+/// before invoking it also makes reentrant callers safe.
+private final class PasteboardResultDelivery<Value> {
+    private var completion: ((Value?) -> Void)?
+
+    init(_ completion: @escaping (Value?) -> Void) {
+        self.completion = completion
+    }
+
+    func complete(_ value: Value?) {
+        precondition(Thread.isMainThread)
+        let callback = completion
+        completion = nil
+        callback?(value)
+    }
 }

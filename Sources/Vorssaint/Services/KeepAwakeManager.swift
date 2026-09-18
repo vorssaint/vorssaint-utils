@@ -18,6 +18,7 @@ final class KeepAwakeManager: ObservableObject {
     @Published private(set) var isActive = false
     @Published private(set) var endDate: Date? // nil = indefinite
     @Published private(set) var sessionTrigger: SessionTrigger?
+    @Published private(set) var runningAppBundleIDs: [String] = []
     @Published private(set) var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()
     @Published private(set) var clamshellActive = false
     @Published private(set) var passwordlessClamshell = false
@@ -56,6 +57,7 @@ final class KeepAwakeManager: ObservableObject {
     private var screenParametersObserver: NSObjectProtocol?
     private var screenLockObservers: [NSObjectProtocol] = []
     private var powerSourceRunLoopSource: CFRunLoopSource?
+    private var runningAppsObservers: [NSObjectProtocol] = []
     private var automationEvaluationWorkItem: DispatchWorkItem?
     private var lastExternalDisplayConnected: Bool?
     private var screenLocked = false
@@ -214,14 +216,21 @@ final class KeepAwakeManager: ObservableObject {
 
     private func syncAutomationMonitoring() {
         let available = AppFeature.keepAwake.isAvailable
+        let selectedApps = Defaults.sanitizedBundleIdentifierList(
+            UserDefaults.standard.stringArray(forKey: DefaultsKey.keepAwakeRunningAppBundleIDs) ?? [])
+        if runningAppBundleIDs != selectedApps { runningAppBundleIDs = selectedApps }
         syncScreenLockMonitoring()
         let observeScreens = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
         let observePower = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
+        let observeRunningApps = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
+            && !runningAppBundleIDs.isEmpty
 
         setScreenMonitoringEnabled(observeScreens)
         setPowerMonitoringEnabled(observePower)
+        setRunningAppsMonitoringEnabled(observeRunningApps)
         evaluateAutomation()
     }
 
@@ -333,6 +342,26 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    private func setRunningAppsMonitoringEnabled(_ enabled: Bool) {
+        let center = NSWorkspace.shared.notificationCenter
+        if enabled {
+            guard runningAppsObservers.isEmpty else { return }
+            let handler: (Notification) -> Void = { [weak self] _ in
+                self?.scheduleAutomationEvaluation(after: 0.1)
+            }
+            runningAppsObservers = [
+                center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification,
+                                   object: nil, queue: .main, using: handler),
+                center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification,
+                                   object: nil, queue: .main, using: handler),
+            ]
+        } else {
+            guard !runningAppsObservers.isEmpty else { return }
+            for observer in runningAppsObservers { center.removeObserver(observer) }
+            runningAppsObservers.removeAll()
+        }
+    }
+
     private func scheduleAutomationEvaluation(after delay: TimeInterval) {
         automationEvaluationWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -348,6 +377,7 @@ final class KeepAwakeManager: ObservableObject {
         automationEvaluationWorkItem = nil
         setScreenMonitoringEnabled(false)
         setPowerMonitoringEnabled(false)
+        setRunningAppsMonitoringEnabled(false)
         let center = DistributedNotificationCenter.default()
         for observer in screenLockObservers { center.removeObserver(observer) }
         screenLockObservers.removeAll()
@@ -413,11 +443,25 @@ final class KeepAwakeManager: ObservableObject {
         let connectedToPower = powerEnabled
             && (SystemInfo.batterySnapshot().map { !$0.isOnBattery } ?? false)
 
+        let runningAppsEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
+        let selectedAppsRunning: Bool
+        if runningAppsEnabled, !runningAppBundleIDs.isEmpty {
+            let running = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
+            selectedAppsRunning = KeepAwakeAutomationSupport.selectedAppsAreRunning(
+                selectedBundleIDs: runningAppBundleIDs,
+                runningBundleIDs: running
+            )
+        } else {
+            selectedAppsRunning = false
+        }
+
         return KeepAwakeAutomationSupport.matchingConditions(
             externalDisplayEnabled: externalDisplayEnabled,
             externalDisplayConnected: externalDisplayConnected,
             powerEnabled: powerEnabled,
-            connectedToPower: connectedToPower
+            connectedToPower: connectedToPower,
+            runningAppsEnabled: runningAppsEnabled,
+            selectedAppsRunning: selectedAppsRunning
         )
     }
 

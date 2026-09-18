@@ -500,7 +500,7 @@ extension KillProcessFeatureStrings {
         columnPID: "PID",
         groupToggle: "Групувати пов'язані процеси",
         groupCaption: "Групує допоміжні процеси під програмою, яка відповідає за них.",
-        commandBarToggle: "Показувати в Командному рядку",
+        commandBarToggle: "Показувати в Панелі команд",
         commandBarCaption: "Додає запущені процеси в Панель команд, щоб ви могли знаходити та завершувати їх без відкриття Налаштувань.",
         refreshTooltip: "Оновити",
         pidLabelFormat: "PID %d",

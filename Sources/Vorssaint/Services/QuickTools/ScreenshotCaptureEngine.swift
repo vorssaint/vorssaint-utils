@@ -24,7 +24,7 @@ enum ScreenshotCaptureEngine {
         guard let display = content.displays.first(where: { $0.displayID == displayID })
         else { return nil }
 
-        let ownWindows = excludedOwnWindows(in: content,
+        let ownWindows = await excludedOwnWindows(in: content,
                                             hideVorssaintWindows: hideVorssaintWindows,
                                             protectedWindowIDs: protectedWindowIDs)
         return await captureDisplay(display,
@@ -48,7 +48,7 @@ enum ScreenshotCaptureEngine {
                                    height: CGFloat(display.height) * scale)
         let clamped = ScreenshotSupport.clamp(pixelRect, to: displayPixels).integral
         guard !clamped.isEmpty else { return nil }
-        let ownWindows = excludedOwnWindows(in: content,
+        let ownWindows = await excludedOwnWindows(in: content,
                                             hideVorssaintWindows: hideVorssaintWindows,
                                             protectedWindowIDs: protectedWindowIDs)
         let filter = SCContentFilter(display: display, excludingWindows: ownWindows)
@@ -73,7 +73,7 @@ enum ScreenshotCaptureEngine {
         guard let content = try? await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: true)
         else { return [:] }
-        let ownWindows = excludedOwnWindows(in: content,
+        let ownWindows = await excludedOwnWindows(in: content,
                                             hideVorssaintWindows: hideVorssaintWindows,
                                             protectedWindowIDs: protectedWindowIDs)
         var result: [CGDirectDisplayID: CGImage] = [:]
@@ -94,16 +94,24 @@ enum ScreenshotCaptureEngine {
 
     /// The app's own windows a display capture must leave out, resolved
     /// against the same shareable-content snapshot the capture will use.
+    @MainActor
     private static func excludedOwnWindows(in content: SCShareableContent,
                                            hideVorssaintWindows: Bool,
                                            protectedWindowIDs: Set<CGWindowID>) -> [SCWindow] {
         let ownWindowIDs = Set(content.windows.compactMap { window in
             window.owningApplication?.processID == getpid() ? window.windowID : nil
         })
-        let excludedIDs = ScreenshotCapturePolicy.excludedWindowIDs(
+        var excludedIDs = ScreenshotCapturePolicy.excludedWindowIDs(
             hideVorssaintWindows: hideVorssaintWindows,
             ownWindowIDs: ownWindowIDs,
             protectedWindowIDs: protectedWindowIDs)
+        // The notch has its own explicit recording preference, independent
+        // of hiding the app's ordinary windows and capture tools. During an
+        // active on-screen selection it stays excluded regardless, since it is
+        // then part of the capture interface and what sits behind it is wanted.
+        if NotchSupport.isEnabled(), !ScreenshotSelectionController.isSessionOnScreen {
+            excludedIDs.subtract(NotchService.shared.captureVisibleWindowIDs)
+        }
         return content.windows.filter { excludedIDs.contains($0.windowID) }
     }
 
@@ -165,6 +173,11 @@ enum ScreenshotCaptureEngine {
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, Int((window.frame.width * scale).rounded()))
         configuration.height = max(1, Int((window.frame.height * scale).rounded()))
+        // The resolution choice only exists for an independent window, and
+        // its automatic setting may render below the window's own scale and
+        // stretch the result to the size asked for. The recorder already asks
+        // for the best one; this is the screenshot tool's only window stream.
+        configuration.captureResolution = .best
         configuration.showsCursor = false
         configuration.colorSpaceName = CGColorSpace.sRGB
         let filter = SCContentFilter(desktopIndependentWindow: window)

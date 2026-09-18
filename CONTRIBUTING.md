@@ -30,10 +30,10 @@ Hitting a build or permission snag while developing? See the
 By default `build.sh` signs ad hoc, and that code hash changes on every build.
 macOS ties Accessibility and Screen Recording grants to the hash, so each
 rebuild silently orphans them: System Settings keeps showing the app as
-granted, the app is no longer trusted, and no new prompt appears. Developer
-builds (`--dev`) therefore create a free, self signed identity called
-`Vorssaint Utils Signing` in a dedicated keychain automatically when no
-identity is installed. For plain local builds, run the same setup once
+granted, the app is no longer trusted, and no new prompt appears. Builds that
+install (`--dev` or `--install`) therefore create a free, self signed identity
+called `Vorssaint Utils Signing` in a dedicated keychain automatically when no
+identity is installed. For a build you do not install, run the same setup once
 yourself:
 
 ```sh

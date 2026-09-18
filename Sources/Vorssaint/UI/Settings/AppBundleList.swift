@@ -156,9 +156,16 @@ struct AppBundleList<Accessory: View>: View {
                   acceptsExecutables
                       || !MouseAppExceptionSupport.isExecutablePathIdentity(identity) else { return }
             onAdd(identity)
+        } onSelectApp: { app in
+            showingAppPicker = false
+            guard let identity = app.explicitIdentity ?? MouseAppExceptionSupport.pickedIdentity(for: app.url),
+                  acceptsExecutables
+                      || !MouseAppExceptionSupport.isExecutablePathIdentity(identity) else { return }
+            onAdd(identity)
         } loadApps: {
             InstalledApps.installedBundleApplications(excluding: listed,
-                                                       includeRunningApplications: reachesEveryApp)
+                                                       includeRunningApplications: reachesEveryApp,
+                                                       acceptsExecutables: acceptsExecutables)
         }
     }
 }

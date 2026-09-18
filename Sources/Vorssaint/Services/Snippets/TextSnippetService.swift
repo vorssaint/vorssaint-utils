@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import AudioToolbox
 import Carbon.HIToolbox
 import CoreGraphics
 
@@ -29,6 +30,9 @@ final class TextSnippetService {
     private var buffer = ""
     private var libraryVisible = false
     private var commandBarVisible = false
+    /// Registered once when the preferences change, so no expansion pays
+    /// for the file read. nil means no sound plays.
+    private var expansionSound: AlertSound?
     /// Split by expansion mode at load time; the tap callback only scans.
     private var immediateSnippets: [TextSnippet] = []
     private var delimiterSnippets: [TextSnippet] = []
@@ -46,6 +50,7 @@ final class TextSnippetService {
         let hasWork = inputLock.withLock {
             !(immediateSnippets.isEmpty && delimiterSnippets.isEmpty)
         }
+        syncExpansionSound(featureEnabled: enabled)
         if SessionActivitySupport.tapShouldRun(featureWanted: enabled && hasWork,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -60,6 +65,41 @@ final class TextSnippetService {
         } else {
             stop()
         }
+    }
+
+    /// Plays the sound an expansion would play, for the picker's preview.
+    /// Plays the retained one, so the preview cannot demonstrate a sound
+    /// other than the one that will fire; it resolves for itself only
+    /// when nothing is retained, which is when the feature is off.
+    func previewExpansionSound() {
+        let retained = inputLock.withLock { expansionSound }
+        (retained ?? Self.preferredExpansionSound())?.play()
+    }
+
+    /// The sound the stored preference resolves to. Both the preview and
+    /// the armed sound come through here, so they cannot disagree about
+    /// which name wins when the stored one is not available.
+    private static func preferredExpansionSound() -> AlertSound? {
+        TextSnippetSupport.resolvedSoundName(
+            stored: UserDefaults.standard.string(forKey: DefaultsKey.snippetSoundName))
+            .flatMap { AlertSound(name: $0) }
+    }
+
+    /// Picks up a change to the sound preferences on their own. The picker
+    /// fires on every arrow-key move through the list, and going through
+    /// syncWithPreferences would reload every snippet and tear down and
+    /// rebuild the event tap each time.
+    ///
+    /// `featureEnabled` is whether text snippets are on at all. Passed in
+    /// by syncWithPreferences, which has already worked it out, so the two
+    /// cannot answer that question differently.
+    func syncExpansionSound(featureEnabled: Bool? = nil) {
+        let featureOn = featureEnabled ?? (AppFeature.textSnippets.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled))
+        let soundEnabled = featureOn
+            && UserDefaults.standard.bool(forKey: DefaultsKey.snippetSoundEnabled)
+        let sound = soundEnabled ? Self.preferredExpansionSound() : nil
+        inputLock.withLock { expansionSound = sound }
     }
 
     func suspend() { stop() }
@@ -237,8 +277,8 @@ final class TextSnippetService {
         // Clicks move the caret somewhere unknown; the half-typed trigger is
         // no longer where the deletes would land. A click on the Accessibility
         // Keyboard is the exception: there the mouse is how a key is pressed,
-        // so the click types a character and leaves the caret alone. That check
-        // costs a nil test unless that keyboard is actually running.
+        // so the click types a character and leaves the caret alone. Window
+        // enumeration is skipped when the keyboard is not running.
         if type == .leftMouseDown || type == .rightMouseDown {
             if !AssistiveKeyboard.ownsPoint(event.location) { resetBuffer() }
             return Unmanaged.passUnretained(event)
@@ -345,6 +385,7 @@ final class TextSnippetService {
                         trailingText: String,
                         failureKeyCode: CGKeyCode?,
                         failureFlags: CGEventFlags = []) -> Bool {
+        let didExpand = expansionSoundCue()
         let post = { () -> Bool in
             // Variable expansion is decided while the triggering event still
             // belongs to this callback. Only an explicit clipboard variable
@@ -364,12 +405,29 @@ final class TextSnippetService {
                                       trailingFlags: trailingFlags,
                                       trailingText: trailingText,
                                       failureKeyCode: failureKeyCode,
-                                      failureFlags: failureFlags)
+                                      failureFlags: failureFlags,
+                                      didExpand: didExpand)
         }
-        if Thread.isMainThread {
-            return post()
+        return Thread.isMainThread ? post() : DispatchQueue.main.sync(execute: post)
+    }
+
+    /// Hung off the replacement going out rather than off `postExpansion`'s
+    /// return value: a transient paste reports success as soon as it reaches
+    /// the pasteboard lane, so its return cannot tell a paste that went out
+    /// from one that failed open to typing. It also keeps the sound behind
+    /// the paste instead of ahead of it, since the shortcut waits for the
+    /// modifiers to come up.
+    ///
+    /// Nil when no sound is retained, which is when the feature is off.
+    private func expansionSoundCue() -> (() -> Void)? {
+        guard let sound = inputLock.withLock({ expansionSound }) else { return nil }
+        return {
+            // Async because the typed path calls this while the tap callback
+            // may still be blocked on the main queue, and asking the sound
+            // server to play is a round trip that must not sit inside the
+            // window macOS disables the tap for.
+            DispatchQueue.main.async { sound.play() }
         }
-        return DispatchQueue.main.sync(execute: post)
     }
 
     /// Also the snippet library's insertion path (deleteCount 0): one typing
@@ -381,7 +439,8 @@ final class TextSnippetService {
                               trailingFlags: CGEventFlags,
                               trailingText: String = "",
                               failureKeyCode: CGKeyCode? = nil,
-                              failureFlags: CGEventFlags = []) -> Bool {
+                              failureFlags: CGEventFlags = [],
+                              didExpand: (() -> Void)? = nil) -> Bool {
         let source = CGEventSource(stateID: .hidSystemState)
         source?.userData = syntheticMarker
 
@@ -403,6 +462,7 @@ final class TextSnippetService {
                 willPostShortcut: {
                     for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
                 },
+                didPostShortcut: { didExpand?() },
                 didFail: {
                     if let failureKeyCode { postKey(failureKeyCode, flags: failureFlags) }
                 }
@@ -434,6 +494,33 @@ final class TextSnippetService {
         if let trailingKeyCode {
             postKey(trailingKeyCode, flags: trailingFlags)
         }
+        didExpand?()
         return true
+    }
+}
+
+/// One alert sound file registered with the system sound server, so it
+/// plays the way the Mac's own alert sounds do: through the sound effects
+/// output device, at the alert volume, with the screen flash Accessibility
+/// can ask for in place of a sound. NSSound would play it on the default
+/// output device at the main volume, ignoring all three.
+private final class AlertSound {
+    private let soundID: SystemSoundID
+
+    init?(name: String) {
+        var soundID: SystemSoundID = 0
+        let url = TextSnippetSupport.soundFileURL(for: name) as CFURL
+        guard AudioServicesCreateSystemSoundID(url, &soundID) == noErr else { return nil }
+        self.soundID = soundID
+    }
+
+    deinit {
+        AudioServicesDisposeSystemSoundID(soundID)
+    }
+
+    func play() {
+        // The completion holds this instance until playback ends, so a
+        // preview that resolved its own sound is not disposed mid-note.
+        AudioServicesPlayAlertSoundWithCompletion(soundID) { withExtendedLifetime(self) {} }
     }
 }

@@ -298,6 +298,22 @@ enum RecorderMotion {
         return x * x * x * (10 - 15 * x + 6 * x * x)
     }
 
+    /// How solid something laid over the picture is at a moment, eased at both
+    /// ends so it never appears or vanishes on a single frame. A block too
+    /// short to hold the whole ramp gets a shorter one rather than none.
+    static func overlayOpacity(at time: Double,
+                               start: Double,
+                               end: Double,
+                               fade: Double) -> Double {
+        let duration = end - start
+        guard duration > 0, time >= start, time <= end else { return 0 }
+        let ramp = min(fade, duration / 2)
+        guard ramp > 0 else { return 1 }
+        if time < start + ramp { return smoothstep((time - start) / ramp) }
+        if time > end - ramp { return smoothstep((end - time) / ramp) }
+        return 1
+    }
+
     // MARK: - Zoom segments
 
     struct ZoomSegment: Equatable {

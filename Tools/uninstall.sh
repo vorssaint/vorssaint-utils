@@ -57,6 +57,10 @@ tccutil reset All "$BUNDLE" >/dev/null 2>&1 || true
 echo "▸ Removing app, preferences, saved state and stored data (clipboard history, shelf files, share links)…"
 rm -rf "$APP" "$LEGACY_APP"
 defaults delete "$BUNDLE" >/dev/null 2>&1 || true
+# The query-learning key is stored separately from preferences. Scope the
+# deletion to this feature's service and account, leaving other items alone.
+/usr/bin/security delete-generic-password \
+    -s "$BUNDLE.command-bar-query-habits" -a "hmac-key" >/dev/null 2>&1 || true
 rm -f "$HOME/Library/Preferences/$BUNDLE.plist"
 rm -rf "$HOME/Library/Saved Application State/$BUNDLE.savedState"
 # Clipboard history, shelf files, captures and the share delete tokens live

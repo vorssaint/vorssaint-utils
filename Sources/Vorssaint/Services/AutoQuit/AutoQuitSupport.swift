@@ -129,6 +129,19 @@ enum AutoQuitSupport {
         keyCode == commandWKeyCode && command && !control
     }
 
+    /// Phone is kept as a mandatory quit exception for Continuity calls, but on
+    /// macOS builds without Phone.app a locked row would show the raw bundle
+    /// id. Hide it from the settings list while leaving protection in place.
+    static func shouldDisplayException(bundleID: String, isInstalled: Bool) -> Bool {
+        if bundleID == Defaults.phoneBundleIdentifier { return isInstalled }
+        return true
+    }
+
+    static func visibleExceptions(_ bundleIDs: [String],
+                                  isInstalled: (String) -> Bool) -> [String] {
+        bundleIDs.filter { shouldDisplayException(bundleID: $0, isInstalled: isInstalled($0)) }
+    }
+
     /// Whether a window the screen is not showing still counts as a window the
     /// user has. A window parked on another Space is one swipe away, so it
     /// keeps the app running; a window the app only hid sits on the Space that

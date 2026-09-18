@@ -261,14 +261,17 @@ enum DockClickSupport {
             || point.x >= screenFrame.maxX - fallbackMargin
     }
 
-    /// Whether the Dock is the first visible window that could receive the
-    /// click. Its layer window can cover a whole display even when fullscreen
-    /// content is drawn above it, so bounds alone are not ownership.
+    /// A visible Dock strip must contain the point. Windows above it may be
+    /// overlays that pass input through, so only Accessibility can settle
+    /// whether a covering window actually keeps the pointer from the Dock.
+    /// The fallback is lazy and never runs for a hidden or unobstructed Dock.
     static func dockOwnsPoint(_ point: CGPoint,
                               windows: [MouseAppExceptionSupport.Window],
                               dockProcessID: pid_t,
                               dockLayer: Int,
-                              ownProcessID: pid_t) -> Bool {
+                              ownProcessID: pid_t,
+                              accessibilityHitProcessID: () -> pid_t?) -> Bool {
+        var isCovered = false
         for window in windows where window.alpha > 0 {
             let isDockStrip = window.processID == dockProcessID && window.layer == dockLayer
             let contains = isDockStrip
@@ -276,7 +279,10 @@ enum DockClickSupport {
                 : window.frame.contains(point)
             guard contains else { continue }
             if window.processID == ownProcessID { continue }
-            return isDockStrip
+            if isDockStrip {
+                return !isCovered || accessibilityHitProcessID() == dockProcessID
+            }
+            isCovered = true
         }
         return false
     }

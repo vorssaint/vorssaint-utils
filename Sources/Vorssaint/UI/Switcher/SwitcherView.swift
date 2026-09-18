@@ -45,6 +45,7 @@ private extension View {
 struct SwitcherView: View {
     @EnvironmentObject private var switcher: AppSwitcher
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.switcherIconRowMode) private var iconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var simpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var mergeWindowsByApp = false
@@ -78,7 +79,7 @@ struct SwitcherView: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+                .strokeBorder(minimalPreviews ? Color.clear : SwitcherIconStyle.stroke, lineWidth: 1)
         )
     }
 
@@ -327,13 +328,19 @@ struct SwitcherView: View {
                                 }
                             .frame(height: SwitcherIconRowLayout.previewCardHeight, alignment: .center)
                         }
-                        .scrollDisabled(appWindows.count <= Int(switcher.iconRowLayout.previewContentWidth / SwitcherIconRowLayout.previewCardWidth))
+                        .scrollDisabled(switcher.iconRowLayout.previewFitsWithoutScrolling(cardCount: appWindows.count))
                         .frame(width: switcher.iconRowLayout.previewContentWidth,
                                height: SwitcherIconRowLayout.previewCardHeight)
-                        .onChange(of: switcher.selectedIndex) { _, newIndex in
-                            guard switcher.windows.indices.contains(newIndex) else { return }
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                proxy.scrollTo(switcher.windows[newIndex].id, anchor: .center)
+                        .onAppear { revealSelection(in: proxy, animated: false) }
+                        .onChange(of: switcher.selectedIndex) { _, _ in
+                            revealSelection(in: proxy, animated: true)
+                        }
+                        .onChange(of: appWindows.map(\.element.id)) { _, _ in
+                            revealSelection(in: proxy, animated: true)
+                        }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in
+                            DispatchQueue.main.async {
+                                revealSelection(in: proxy, animated: true)
                             }
                         }
                     }
@@ -347,7 +354,7 @@ struct SwitcherView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+                        .strokeBorder(minimalPreviews ? Color.clear : SwitcherIconStyle.stroke, lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.24), radius: 10, x: 0, y: 5)
                 .offset(x: placement.leading)
@@ -415,10 +422,16 @@ struct SwitcherView: View {
                         }
                         .padding(.horizontal, SwitcherIconRowLayout.simpleTitleScrollPadding)
                     }
-                    .onChange(of: switcher.selectedIndex) { _, newIndex in
-                        guard switcher.windows.indices.contains(newIndex) else { return }
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            proxy.scrollTo(switcher.windows[newIndex].id, anchor: .center)
+                    .onAppear { revealSelection(in: proxy, animated: false) }
+                    .onChange(of: switcher.selectedIndex) { _, _ in
+                        revealSelection(in: proxy, animated: true)
+                    }
+                    .onChange(of: appWindows.map(\.element.id)) { _, _ in
+                        revealSelection(in: proxy, animated: true)
+                    }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in
+                        DispatchQueue.main.async {
+                            revealSelection(in: proxy, animated: true)
                         }
                     }
                 }
@@ -546,6 +559,23 @@ struct SwitcherView: View {
     private var selectedWindow: SwitcherItem? {
         guard switcher.windows.indices.contains(switcher.selectedIndex) else { return nil }
         return switcher.windows[switcher.selectedIndex]
+    }
+
+    /// A search can resize the strip without moving the selection, and closing
+    /// a window can replace the selected item at the same index. Reveal after
+    /// the viewport's actual geometry changes, allowing its native scroll view
+    /// to finish resizing before the queued reveal reads the current selection.
+    private func revealSelection(in proxy: ScrollViewProxy, animated: Bool) {
+        let index = switcher.selectedIndex
+        guard switcher.windows.indices.contains(index) else { return }
+        let id = switcher.windows[index].id
+        guard animated else {
+            proxy.scrollTo(id, anchor: .center)
+            return
+        }
+        withAnimation(.easeOut(duration: 0.15)) {
+            proxy.scrollTo(id, anchor: .center)
+        }
     }
 
     private var selectedAppWindows: [(offset: Int, element: SwitcherItem)] {
@@ -727,6 +757,7 @@ private struct SwitcherWindowPreviewTile: View {
     let onClose: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @State private var isHovering = false
     @State private var isCloseHovering = false
     @State private var suppressNextCommit = false
@@ -736,14 +767,14 @@ private struct SwitcherWindowPreviewTile: View {
     }
 
     private var showsCloseButton: Bool {
-        isHovering && window.windowID != nil
+        !minimalPreviews && isHovering && window.windowID != nil
     }
 
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(SwitcherIconStyle.thumbnailBackground)
+                    .fill(minimalPreviews ? Color.clear : SwitcherIconStyle.thumbnailBackground)
 
                 if let preview {
                     Image(decorative: preview, scale: 2)
@@ -766,7 +797,7 @@ private struct SwitcherWindowPreviewTile: View {
                         .switcherHiddenAppBadge(window.isAppHidden, size: 20)
                 }
 
-                if hasStatusBadges {
+                if !minimalPreviews && hasStatusBadges {
                     VStack {
                         Spacer()
                         HStack(spacing: 5) {
@@ -787,12 +818,12 @@ private struct SwitcherWindowPreviewTile: View {
                 }
             }
             .frame(width: SwitcherIconRowLayout.previewCardWidth - 16,
-                   height: SwitcherIconRowLayout.previewCardHeight - 38)
+                   height: SwitcherIconRowLayout.previewCardHeight - (minimalPreviews ? 16 : 38))
 
             // The header above already names the app. A window with no name of
             // its own would only say it again under its own thumbnail, and two
             // such windows would say it twice, which tells nobody anything.
-            if let detail = window.windowDetail(noOpenWindow: l10n.s.switcherNoOpenWindow) {
+            if !minimalPreviews, let detail = window.windowDetail(noOpenWindow: l10n.s.switcherNoOpenWindow) {
                 Text(detail)
                     .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
@@ -806,11 +837,11 @@ private struct SwitcherWindowPreviewTile: View {
                height: SwitcherIconRowLayout.previewCardHeight)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isSelected ? SwitcherIconStyle.tileSelected : SwitcherIconStyle.tile)
+                .fill(isSelected ? SwitcherIconStyle.tileSelected : (minimalPreviews ? Color.clear : SwitcherIconStyle.tile))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor.opacity(0.9) : SwitcherIconStyle.stroke,
+                .strokeBorder(isSelected ? Color.accentColor.opacity(0.9) : (minimalPreviews ? Color.clear : SwitcherIconStyle.stroke),
                               lineWidth: isSelected ? 1.25 : 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -883,12 +914,13 @@ private struct WindowCard: View {
     let onClose: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @State private var isHovering = false
     @State private var isCloseHovering = false
     @State private var suppressNextCommit = false
 
     private var showsCloseButton: Bool {
-        isHovering && window.windowID != nil
+        !minimalPreviews && isHovering && window.windowID != nil
     }
 
     private var hasStatusBadges: Bool {
@@ -913,7 +945,7 @@ private struct WindowCard: View {
         VStack(spacing: SwitcherGridCard.titleSpacing) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(minimalPreviews ? Color.clear : Color.white.opacity(0.06))
 
                 if let preview {
                     Image(decorative: preview, scale: 2)
@@ -934,7 +966,7 @@ private struct WindowCard: View {
 
                 // One row along the bottom of the thumbnail: the app on the
                 // left, the window's state on the right, sharing a baseline.
-                if showsAppBadge || hasStatusBadges {
+                if !minimalPreviews && (showsAppBadge || hasStatusBadges) {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         HStack(alignment: .bottom, spacing: 8) {
@@ -968,24 +1000,28 @@ private struct WindowCard: View {
                 }
             }
             .frame(width: SwitcherGridCard.thumbnailWidth,
-                   height: SwitcherGridCard.thumbnailHeight)
+                   height: SwitcherGridCard.thumbnailHeight
+                       + (minimalPreviews ? SwitcherGridCard.titleSpacing + SwitcherGridCard.titleHeight : 0))
 
-            VStack(spacing: 2) {
-                ScrollingTitle(text: window.displayTitle,
-                               weight: isSelected ? .semibold : .regular,
-                               width: SwitcherGridCard.titleWidth,
-                               scrolls: isHovering)
-                    .foregroundStyle(isSelected ? .primary : .secondary)
-                if let subtitle = window.displaySubtitle {
-                    Text(subtitle)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(.tertiary)
+            if !minimalPreviews {
+                VStack(spacing: 2) {
+                    ScrollingTitle(text: window.displayTitle,
+                                   weight: isSelected ? .semibold : .regular,
+                                   width: SwitcherGridCard.titleWidth,
+                                   alignment: .center,
+                                   scrolls: isHovering)
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                    if let subtitle = window.displaySubtitle {
+                        Text(subtitle)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-            }
-            .frame(height: SwitcherGridCard.titleHeight, alignment: .top)
+                .frame(height: SwitcherGridCard.titleHeight, alignment: .top)
                 .frame(maxWidth: SwitcherGridCard.titleWidth)
+            }
         }
         .padding(SwitcherGridCard.padding)
         .frame(width: SwitcherGridCard.width, height: SwitcherGridCard.height)

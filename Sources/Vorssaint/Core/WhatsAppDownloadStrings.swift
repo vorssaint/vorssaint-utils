@@ -452,12 +452,12 @@ extension WhatsAppDownloadStrings {
                 notificationFormat: "%1$d 個檔案（%2$@）已移至垃圾桶。%3$d 個失敗。",
                 scanFailed: "無法掃描下載項目。請檢查系統設定中的「檔案與資料夾」。", manageButton: "管理…")
         case .uk: return OperationalStrings(
-            automaticCaption: uk.automaticCaption, retentionCaption: enUS.retentionCaption,
-            manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
-            selectRules: enUS.selectRules, cleanSelectedFormat: enUS.cleanSelectedFormat,
-            lastRunFormat: enUS.lastRunFormat, nextRunFormat: enUS.nextRunFormat,
-            firstMessageFormat: enUS.firstMessageFormat, localNote: enUS.localNote,
-            notificationFormat: enUS.notificationFormat, scanFailed: enUS.scanFailed, manageButton: enUS.manageButton)
+            automaticCaption: uk.automaticCaption, retentionCaption: uk.retentionCaption,
+            manualIntro: uk.manualIntro, resultsFormat: uk.resultsFormat,
+            selectRules: uk.selectRules, cleanSelectedFormat: uk.cleanSelectedFormat,
+            lastRunFormat: uk.lastRunFormat, nextRunFormat: uk.nextRunFormat,
+            firstMessageFormat: uk.firstMessageFormat, localNote: uk.localNote,
+            notificationFormat: uk.notificationFormat, scanFailed: uk.scanFailed, manageButton: uk.manageButton)
         case .enUS: return OperationalStrings(
             automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
             manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,

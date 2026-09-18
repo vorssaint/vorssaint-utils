@@ -11,6 +11,8 @@ struct BrightnessSection: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @State private var optionsExpanded = false
     var collapsible = true
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
@@ -44,9 +46,64 @@ struct BrightnessSection: View {
                             service.syncWithPreferences()
                         }
                 }
+                if AppFeature.extraBrightness.isAvailable {
+                    Divider()
+                    ExtraBrightnessPanelToggle()
+                }
+                Divider()
+                optionsDisclosure
             }
             .panelCard()
             .onAppear { service.refresh() }
+        }
+    }
+
+    private var optionsDisclosure: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                optionsExpanded.toggle()
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                    Text(l10n.s.keepAwakeOptions)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if optionsExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(strings.keysToggle, isOn: $brightnessKeysEnabled)
+                        .onChange(of: brightnessKeysEnabled) { _, isOn in
+                            if isOn { permissions.requestAccessibility() }
+                            service.syncWithPreferences()
+                        }
+                    Text(strings.keysCaption)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if brightnessKeysEnabled, !permissions.accessibility {
+                        Button {
+                            permissions.openAccessibilitySettings()
+                        } label: {
+                            Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
+                        }
+                        .buttonStyle(.link)
+                    }
+                    DisplayBrightnessShortcutControls()
+                }
+                .font(.system(size: 11.5, weight: .medium))
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
+                .padding(.leading, 19)
+            }
         }
     }
 
@@ -86,6 +143,23 @@ struct BrightnessSection: View {
         Binding(get: { display.brightness },
                 set: { service.setBrightness($0, for: display.id,
                                              showOSD: brightnessOSDEnabled) })
+    }
+}
+
+private struct ExtraBrightnessPanelToggle: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = ExtraBrightnessService.shared
+    @AppStorage(DefaultsKey.extraBrightnessEnabled) private var enabled = false
+
+    var body: some View {
+        Toggle(l10n.s.extraBrightnessName, isOn: $enabled)
+            .font(.system(size: 10.5, weight: .medium))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .disabled(!service.supported && !enabled)
+            .help(service.supported ? l10n.s.extraBrightnessCaption : l10n.s.extraBrightnessUnsupported)
+            .onChange(of: enabled) { _, _ in service.syncWithPreferences() }
+            .onAppear { service.syncWithPreferences() }
     }
 }
 

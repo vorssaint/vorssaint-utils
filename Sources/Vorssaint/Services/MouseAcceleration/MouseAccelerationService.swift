@@ -13,6 +13,8 @@ final class MouseAccelerationService {
     private let defaults = UserDefaults.standard
     private var client: IOHIDEventSystemClient?
     private var hidManager: IOHIDManager?
+    private var reapplySchedule = MouseAccelerationReapplySchedule()
+    private var reapplyWork: DispatchWorkItem?
     private var recoveryGuard: MouseAccelerationGuard.Handle?
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var sessionIsActive = false
@@ -64,6 +66,7 @@ final class MouseAccelerationService {
         self.client = client
         startDeviceObservation()
         applyLinearMode()
+        scheduleDeviceReapplication()
     }
 
     @discardableResult
@@ -146,14 +149,33 @@ final class MouseAccelerationService {
     private static let deviceChanged: IOHIDDeviceCallback = { context, _, _, _ in
         guard let context else { return }
         let service = Unmanaged<MouseAccelerationService>.fromOpaque(context).takeUnretainedValue()
-        // Let the event-system service settle after the physical-device callback.
-        DispatchQueue.main.async { [weak service] in service?.recoverAndApplyLinearMode() }
+        service.scheduleDeviceReapplication()
     }
 
-    private func recoverAndApplyLinearMode() {
-        guard let client else { return }
-        _ = MouseAccelerationRecovery.restorePending(using: client)
-        applyLinearMode()
+    private func scheduleDeviceReapplication() {
+        guard client != nil, featureWanted, sessionIsActive, systemIsAwake else { return }
+        reapplyWork?.cancel()
+        scheduleDeviceReapplication(for: reapplySchedule.restart())
+    }
+
+    private func scheduleDeviceReapplication(for token: UUID) {
+        guard let delay = reapplySchedule.nextDelay(for: token) else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.reapplySchedule.isCurrent(token) else { return }
+            self.reapplyWork = nil
+            guard self.client != nil, self.featureWanted,
+                  self.sessionIsActive, self.systemIsAwake else { return }
+            // Physical-device callbacks can precede the event-system service, and
+            // its initial settings can arrive later still. Read a fresh service list.
+            let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
+            self.client = client
+            _ = MouseAccelerationRecovery.restorePending(using: client,
+                                                          preservingConnectedEntries: true)
+            self.applyLinearMode()
+            self.scheduleDeviceReapplication(for: token)
+        }
+        reapplyWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func startDeviceObservation() {
@@ -180,6 +202,9 @@ final class MouseAccelerationService {
     }
 
     private func stopDeviceObservation() {
+        reapplyWork?.cancel()
+        reapplyWork = nil
+        reapplySchedule.cancel()
         guard let manager = hidManager else { return }
         IOHIDManagerUnscheduleFromRunLoop(manager,
                                           CFRunLoopGetMain(),

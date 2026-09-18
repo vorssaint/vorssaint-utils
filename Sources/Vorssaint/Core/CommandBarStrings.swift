@@ -126,6 +126,13 @@ struct CommandBarFeatureStrings {
     let shortcutCaptureHint: String
     let rowShortcutsTitle: String
     let rowShortcutsEmpty: String
+    let appCenterTitle: String
+    let appCenterCaption: String
+    let appAliasLabel: String
+    let appShortcutLabel: String
+    let appShortcutsFilter: String
+    let appShortcutRecord: String
+    let rowShortcutsLimitFormat: String
     let turnOnFormat: String
     let turnOffFormat: String
     let everythingTitle: String
@@ -158,6 +165,8 @@ struct CommandBarFeatureStrings {
     let filesIgnoreAdd: String
     let compactModeToggle: String
     let compactModeCaption: String
+    let emojiSkinToneLabel: String
+    let emojiSkinToneCaption: String
 }
 
 extension FeatureStrings {
@@ -302,6 +311,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "Press the keys you want · Delete clears it · Esc goes back",
         rowShortcutsTitle: "Rows with their own shortcut",
         rowShortcutsEmpty: "No row has its own shortcut yet. Open the actions on any row to give it one.",
+        appCenterTitle: "App shortcuts",
+        appCenterCaption: "Open apps with their own shortcuts, even when the bar is closed. Set search names and pin favorites here.",
+        appAliasLabel: "Alias",
+        appShortcutLabel: "Shortcut",
+        appShortcutsFilter: "With shortcuts",
+        appShortcutRecord: "Record…",
+        rowShortcutsLimitFormat: "You can assign up to %d shortcuts. Remove one to add another.",
         turnOnFormat: "Turn on %@",
         turnOffFormat: "Turn off %@",
         everythingTitle: "Everything it can do",
@@ -333,7 +349,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "A folder or file name",
         filesIgnoreAdd: "Add",
         compactModeToggle: "Compact mode",
-        compactModeCaption: "Bar opens without suggestions. Results appear as you type.")
+        compactModeCaption: "Bar opens without suggestions. Results appear as you type.",
+        emojiSkinToneLabel: "Skin tone",
+        emojiSkinToneCaption: "By default, emoji that can take a tone use this one. Open the actions on an emoji row to choose a different one.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -455,6 +473,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "Aperte as teclas que quiser · Delete limpa · Esc volta",
         rowShortcutsTitle: "Linhas com atalho próprio",
         rowShortcutsEmpty: "Nenhuma linha tem atalho ainda. Abra as ações de qualquer linha para dar um.",
+        appCenterTitle: "Atalhos de aplicativos",
+        appCenterCaption: "Abra aplicativos com atalhos próprios, mesmo com a barra fechada. Defina apelidos para a busca e fixe seus favoritos aqui.",
+        appAliasLabel: "Apelido",
+        appShortcutLabel: "Atalho",
+        appShortcutsFilter: "Com atalho",
+        appShortcutRecord: "Gravar…",
+        rowShortcutsLimitFormat: "Você pode definir até %d atalhos. Remova um para adicionar outro.",
         turnOnFormat: "Ligar %@",
         turnOffFormat: "Desligar %@",
         everythingTitle: "Tudo o que ela faz",
@@ -486,7 +511,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome de pasta ou arquivo",
         filesIgnoreAdd: "Adicionar",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.")
+        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.",
+        emojiSkinToneLabel: "Tom de pele",
+        emojiSkinToneCaption: "Por padrão, os emojis que aceitam tom usam este. Abra as ações em uma linha de emoji para escolher outro.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -608,6 +635,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "İstediğiniz tuşlara basın · Delete siler · Esc geri döner",
         rowShortcutsTitle: "Kendi kısayolu olan satırlar",
         rowShortcutsEmpty: "Henüz kısayolu olan satır yok. Herhangi bir satırın eylemlerini açıp bir tane verin.",
+        appCenterTitle: "Uygulama kısayolları",
+        appCenterCaption: "Çubuk kapalıyken bile uygulamaları kendi kısayollarıyla açın. Arama adlarını belirleyin ve favorilerinizi buraya sabitleyin.",
+        appAliasLabel: "Takma ad",
+        appShortcutLabel: "Kısayol",
+        appShortcutsFilter: "Kısayolu olanlar",
+        appShortcutRecord: "Kaydet…",
+        rowShortcutsLimitFormat: "En fazla %d kısayol atayabilirsiniz. Yenisini eklemek için birini kaldırın.",
         turnOnFormat: "%@ aç",
         turnOffFormat: "%@ kapat",
         everythingTitle: "Yapabildiği her şey",
@@ -639,7 +673,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Klasör veya dosya adı",
         filesIgnoreAdd: "Ekle",
         compactModeToggle: "Kompakt mod",
-        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.")
+        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.",
+        emojiSkinToneLabel: "Ten rengi",
+        emojiSkinToneCaption: "Ton alabilen emojiler varsayılan olarak bunu kullanır. Farklı birini seçmek için bir emoji satırında eylemleri açın.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -761,6 +797,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "Нажмите нужные клавиши · Delete очищает · Esc возвращает",
         rowShortcutsTitle: "Строки со своим сочетанием",
         rowShortcutsEmpty: "Пока ни у одной строки нет своего сочетания. Откройте действия любой строки и назначьте его.",
+        appCenterTitle: "Сочетания для приложений",
+        appCenterCaption: "Открывайте приложения их собственными сочетаниями клавиш, даже когда панель закрыта. Задавайте имена для поиска и закрепляйте избранное.",
+        appAliasLabel: "Псевдоним",
+        appShortcutLabel: "Сочетание",
+        appShortcutsFilter: "С сочетанием",
+        appShortcutRecord: "Записать…",
+        rowShortcutsLimitFormat: "Можно назначить до %d сочетаний. Удалите одно, чтобы добавить другое.",
         turnOnFormat: "Включить: %@",
         turnOffFormat: "Выключить: %@",
         everythingTitle: "Всё, что она умеет",
@@ -792,7 +835,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Имя папки или файла",
         filesIgnoreAdd: "Добавить",
         compactModeToggle: "Компактный режим",
-        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.")
+        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.",
+        emojiSkinToneLabel: "Тон кожи",
+        emojiSkinToneCaption: "По умолчанию эмодзи с поддержкой тона используют этот. Чтобы выбрать другой, откройте действия в строке эмодзи.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -914,6 +959,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "Pulsa las teclas que quieras · Suprimir lo borra · Esc vuelve",
         rowShortcutsTitle: "Filas con atajo propio",
         rowShortcutsEmpty: "Ninguna fila tiene atajo aún. Abre las acciones de cualquier fila para darle uno.",
+        appCenterTitle: "Atajos de aplicaciones",
+        appCenterCaption: "Abre aplicaciones con sus propios atajos, incluso con la barra cerrada. Define alias para la búsqueda y fija tus favoritas aquí.",
+        appAliasLabel: "Alias",
+        appShortcutLabel: "Atajo",
+        appShortcutsFilter: "Con atajo",
+        appShortcutRecord: "Grabar…",
+        rowShortcutsLimitFormat: "Puedes asignar hasta %d atajos. Elimina uno para añadir otro.",
         turnOnFormat: "Activar %@",
         turnOffFormat: "Desactivar %@",
         everythingTitle: "Todo lo que puede hacer",
@@ -945,7 +997,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nombre de carpeta o archivo",
         filesIgnoreAdd: "Añadir",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.")
+        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.",
+        emojiSkinToneLabel: "Tono de piel",
+        emojiSkinToneCaption: "De forma predeterminada, los emojis que admiten tono usan este. Abre las acciones en una fila de emoji para elegir otro.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1067,6 +1121,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "Gewünschte Tasten drücken · Entf löscht · Esc geht zurück",
         rowShortcutsTitle: "Zeilen mit eigenem Kurzbefehl",
         rowShortcutsEmpty: "Noch hat keine Zeile einen eigenen Kurzbefehl. Öffnen Sie die Aktionen einer Zeile, um einen zu vergeben.",
+        appCenterTitle: "App-Kurzbefehle",
+        appCenterCaption: "Öffne Apps mit eigenen Kurzbefehlen, auch bei geschlossener Leiste. Lege Suchnamen fest und hefte deine Favoriten hier an.",
+        appAliasLabel: "Alias",
+        appShortcutLabel: "Kurzbefehl",
+        appShortcutsFilter: "Mit Kurzbefehl",
+        appShortcutRecord: "Aufnehmen…",
+        rowShortcutsLimitFormat: "Du kannst bis zu %d Kurzbefehle zuweisen. Entferne einen, um einen weiteren hinzuzufügen.",
         turnOnFormat: "%@ einschalten",
         turnOffFormat: "%@ ausschalten",
         everythingTitle: "Alles, was sie kann",
@@ -1098,7 +1159,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Ordner- oder Dateiname",
         filesIgnoreAdd: "Hinzufügen",
         compactModeToggle: "Kompaktmodus",
-        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.")
+        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.",
+        emojiSkinToneLabel: "Hautton",
+        emojiSkinToneCaption: "Emojis mit Hautton verwenden standardmäßig diesen. Öffne die Aktionen in einer Emoji-Zeile, um einen anderen zu wählen.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1220,6 +1283,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "Appuyez sur les touches voulues · Suppr efface · Échap revient",
         rowShortcutsTitle: "Lignes avec leur raccourci",
         rowShortcutsEmpty: "Aucune ligne n’a encore de raccourci. Ouvrez les actions d’une ligne pour lui en donner un.",
+        appCenterTitle: "Raccourcis des apps",
+        appCenterCaption: "Ouvrez les apps avec leurs propres raccourcis, même lorsque la barre est fermée. Définissez des alias de recherche et épinglez vos favoris ici.",
+        appAliasLabel: "Alias",
+        appShortcutLabel: "Raccourci",
+        appShortcutsFilter: "Avec raccourci",
+        appShortcutRecord: "Enregistrer…",
+        rowShortcutsLimitFormat: "Vous pouvez attribuer jusqu’à %d raccourcis. Retirez-en un pour en ajouter un autre.",
         turnOnFormat: "Activer %@",
         turnOffFormat: "Désactiver %@",
         everythingTitle: "Tout ce qu’elle sait faire",
@@ -1251,7 +1321,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nom de dossier ou de fichier",
         filesIgnoreAdd: "Ajouter",
         compactModeToggle: "Mode compact",
-        compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.")
+        compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.",
+        emojiSkinToneLabel: "Teinte de peau",
+        emojiSkinToneCaption: "Par défaut, les émojis qui acceptent une teinte utilisent celle-ci. Ouvrez les actions sur une ligne d’émoji pour en choisir une autre.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1373,6 +1445,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "Premi i tasti che vuoi · Canc cancella · Esc torna indietro",
         rowShortcutsTitle: "Righe con scorciatoia propria",
         rowShortcutsEmpty: "Nessuna riga ha ancora una scorciatoia. Apri le azioni di una riga per dargliene una.",
+        appCenterTitle: "Scorciatoie delle app",
+        appCenterCaption: "Apri le app con scorciatoie dedicate, anche quando la barra è chiusa. Imposta alias per la ricerca e fissa qui le tue preferite.",
+        appAliasLabel: "Alias",
+        appShortcutLabel: "Scorciatoia",
+        appShortcutsFilter: "Con scorciatoia",
+        appShortcutRecord: "Registra…",
+        rowShortcutsLimitFormat: "Puoi assegnare fino a %d scorciatoie. Rimuovine una per aggiungerne un’altra.",
         turnOnFormat: "Attiva %@",
         turnOffFormat: "Disattiva %@",
         everythingTitle: "Tutto quello che sa fare",
@@ -1404,7 +1483,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome di cartella o file",
         filesIgnoreAdd: "Aggiungi",
         compactModeToggle: "Modalità compatta",
-        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.")
+        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.",
+        emojiSkinToneLabel: "Tonalità della pelle",
+        emojiSkinToneCaption: "Per impostazione predefinita, le emoji che accettano una tonalità usano questa. Apri le azioni su una riga di emoji per sceglierne un’altra.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1526,6 +1607,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "使いたいキーを押します · Delete で消去 · Esc で戻る",
         rowShortcutsTitle: "独自のショートカットがある行",
         rowShortcutsEmpty: "まだどの行にもショートカットがありません。行のアクションを開いて設定してください。",
+        appCenterTitle: "アプリのショートカット",
+        appCenterCaption: "バーを閉じていても、専用のショートカットでアプリを開けます。検索用の別名を付けたり、お気に入りを固定したりできます。",
+        appAliasLabel: "別名",
+        appShortcutLabel: "ショートカット",
+        appShortcutsFilter: "設定済み",
+        appShortcutRecord: "記録…",
+        rowShortcutsLimitFormat: "ショートカットは最大%d個まで設定できます。新しく追加するには、1つ削除してください。",
         turnOnFormat: "%@ をオン",
         turnOffFormat: "%@ をオフ",
         everythingTitle: "できること全部",
@@ -1557,7 +1645,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "フォルダまたはファイルの名前",
         filesIgnoreAdd: "追加",
         compactModeToggle: "コンパクトモード",
-        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。")
+        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。",
+        emojiSkinToneLabel: "肌の色",
+        emojiSkinToneCaption: "肌の色を持てる絵文字は標準でこの色になります。別の色を選ぶには、絵文字の行でアクションを開きます。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1679,6 +1769,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "원하는 키를 누르십시오 · Delete는 지웁니다 · Esc는 돌아갑니다",
         rowShortcutsTitle: "자체 단축키가 있는 항목",
         rowShortcutsEmpty: "아직 단축키가 있는 항목이 없습니다. 항목의 동작을 열어 지정하십시오.",
+        appCenterTitle: "앱 단축키",
+        appCenterCaption: "바가 닫혀 있어도 전용 단축키로 앱을 열 수 있습니다. 검색용 별칭을 지정하고 즐겨찾는 앱을 고정하세요.",
+        appAliasLabel: "별칭",
+        appShortcutLabel: "단축키",
+        appShortcutsFilter: "단축키 있음",
+        appShortcutRecord: "기록…",
+        rowShortcutsLimitFormat: "단축키는 최대 %d개까지 지정할 수 있습니다. 새로 추가하려면 하나를 삭제하세요.",
         turnOnFormat: "%@ 켜기",
         turnOffFormat: "%@ 끄기",
         everythingTitle: "할 수 있는 모든 것",
@@ -1710,7 +1807,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "폴더 또는 파일 이름",
         filesIgnoreAdd: "추가",
         compactModeToggle: "컴팩트 모드",
-        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.")
+        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.",
+        emojiSkinToneLabel: "피부색",
+        emojiSkinToneCaption: "기본적으로 피부색을 가질 수 있는 이모티콘은 이 색을 사용합니다. 다른 색을 선택하려면 이모티콘 행에서 동작을 여세요.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1832,6 +1931,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "按下想要的按键 · Delete 清除 · Esc 返回",
         rowShortcutsTitle: "有自己快捷键的条目",
         rowShortcutsEmpty: "还没有条目设置快捷键。打开任意条目的操作即可设置。",
+        appCenterTitle: "应用快捷键",
+        appCenterCaption: "即使关闭命令栏，也能用专属快捷键打开应用。在这里设置搜索别名并置顶常用应用。",
+        appAliasLabel: "别名",
+        appShortcutLabel: "快捷键",
+        appShortcutsFilter: "已设快捷键",
+        appShortcutRecord: "录制…",
+        rowShortcutsLimitFormat: "最多可以设置 %d 个快捷键。请移除一个后再添加。",
         turnOnFormat: "打开%@",
         turnOffFormat: "关闭%@",
         everythingTitle: "它能做的一切",
@@ -1863,7 +1969,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "文件夹或文件名",
         filesIgnoreAdd: "添加",
         compactModeToggle: "紧凑模式",
-        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。")
+        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。",
+        emojiSkinToneLabel: "肤色",
+        emojiSkinToneCaption: "支持肤色的表情默认使用此肤色。若要选择其他肤色，请在表情结果行打开操作。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1985,6 +2093,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "按下想要的按鍵 · Delete 清除 · Esc 返回",
         rowShortcutsTitle: "有自己快速鍵的項目",
         rowShortcutsEmpty: "還沒有項目設定快速鍵。開啟任一項目的操作即可設定。",
+        appCenterTitle: "App 快速鍵",
+        appCenterCaption: "即使命令列已關閉，也能用專屬快速鍵打開 App。在這裡設定搜尋別名並釘選常用 App。",
+        appAliasLabel: "別名",
+        appShortcutLabel: "快速鍵",
+        appShortcutsFilter: "已設快速鍵",
+        appShortcutRecord: "錄製…",
+        rowShortcutsLimitFormat: "最多可以設定 %d 個快速鍵。請先移除一個再新增。",
         turnOnFormat: "開啟%@",
         turnOffFormat: "關閉%@",
         everythingTitle: "它能做的一切",
@@ -2016,7 +2131,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
+        emojiSkinToneLabel: "膚色",
+        emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2138,6 +2255,13 @@ extension CommandBarFeatureStrings {
         shortcutCaptureHint: "按下想要的按鍵 · Delete 清除 · Esc 返回",
         rowShortcutsTitle: "有自己快速鍵的項目",
         rowShortcutsEmpty: "還沒有項目設定快速鍵。開啟任一項目的操作即可設定。",
+        appCenterTitle: "App 快速鍵",
+        appCenterCaption: "即使命令列已關閉，也能用專屬快速鍵開啟 App。在這裡設定搜尋別名並釘選常用 App。",
+        appAliasLabel: "別名",
+        appShortcutLabel: "快速鍵",
+        appShortcutsFilter: "已設快速鍵",
+        appShortcutRecord: "錄製…",
+        rowShortcutsLimitFormat: "最多可以設定 %d 個快速鍵。請先移除一個再新增。",
         turnOnFormat: "開啟%@",
         turnOffFormat: "關閉%@",
         everythingTitle: "它能做的一切",
@@ -2169,5 +2293,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
+        emojiSkinToneLabel: "膚色",
+        emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。")
 }

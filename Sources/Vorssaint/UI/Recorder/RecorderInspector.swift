@@ -36,6 +36,8 @@ struct RecorderInspector: View {
                 // swap is what teaches the selection model, without a word.
                 if let text = model.selectedText {
                     selectedTextSection(text)
+                } else if let image = model.selectedImage {
+                    selectedImageSection(image)
                 } else if model.selectedBlur != nil {
                     selectedBlurSection
                 } else if let selected = model.selectedZoom {
@@ -376,7 +378,9 @@ struct RecorderInspector: View {
                 Text(strings.textPositionLabel)
                     .font(.system(size: 11))
                     .foregroundStyle(Color(white: 0.72))
-                anchorGrid(overlay)
+                anchorGrid(selected: overlay.anchor) { anchor in
+                    model.updateSelectedText { $0.anchor = anchor }
+                }
             }
 
             VStack(alignment: .leading, spacing: 5) {
@@ -405,6 +409,75 @@ struct RecorderInspector: View {
             }
 
             Button(strings.removeText) { model.removeSelectedText() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - One picture
+
+    /// The picture itself was chosen when the block was made, so what is left
+    /// here is how big it is, how solid it is and where it sits.
+    private func selectedImageSection(_ overlay: RecorderImageOverlay) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                model.selectLaneItem(.image, id: nil)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(strings.backToOptions)
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(Color.accentColor)
+            .keyboardShortcut(.escape, modifiers: [])
+            sectionTitle(strings.thisImageLabel)
+
+            Text(URL(fileURLWithPath: overlay.path).lastPathComponent)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            valueSlider(title: strings.imageSizeLabel,
+                        value: overlay.size,
+                        range: RecorderImageOverlay.sizeRange,
+                        format: "%.0f%%",
+                        scale: 100,
+                        onChange: { value in model.updateSelectedImage { $0.size = value } },
+                        onCommit: { model.commitZoomEdit() },
+                        onReset: {
+                            model.updateSelectedImage { $0.size = RecorderImageOverlay.defaultSize }
+                            model.commitZoomEdit()
+                        })
+
+            valueSlider(title: strings.imageOpacityLabel,
+                        value: overlay.opacity,
+                        range: RecorderImageOverlay.opacityRange,
+                        format: "%.0f%%",
+                        scale: 100,
+                        onChange: { value in model.updateSelectedImage { $0.opacity = value } },
+                        onCommit: { model.commitZoomEdit() },
+                        onReset: {
+                            model.updateSelectedImage { $0.opacity = 1 }
+                            model.commitZoomEdit()
+                        })
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(strings.imagePositionLabel)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(white: 0.72))
+                anchorGrid(selected: overlay.anchor) { anchor in
+                    model.updateSelectedImage { $0.anchor = anchor }
+                }
+            }
+
+            Button(strings.removeText) { model.removeSelectedImage() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .frame(maxWidth: .infinity)
@@ -456,8 +529,11 @@ struct RecorderInspector: View {
     }
 
     /// Nine places instead of a drag: it reads at a glance, needs no gesture
-    /// on the picture, and covers what people actually do with a caption.
-    private func anchorGrid(_ overlay: RecorderTextOverlay) -> some View {
+    /// on the picture, and covers what people actually do with a caption or a
+    /// mark of their own.
+    private func anchorGrid(selected: RecorderTextOverlay.Anchor,
+                            onSelect: @escaping (RecorderTextOverlay.Anchor) -> Void)
+        -> some View {
         let rows: [[RecorderTextOverlay.Anchor]] = [
             [.topLeading, .top, .topTrailing],
             [.leading, .center, .trailing],
@@ -468,12 +544,12 @@ struct RecorderInspector: View {
                 HStack(spacing: 4) {
                     ForEach(rows[row], id: \.rawValue) { anchor in
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(overlay.anchor == anchor
+                            .fill(selected == anchor
                                   ? Color.accentColor.opacity(0.85)
                                   : Color.white.opacity(0.08))
                             .frame(height: 20)
                             .onTapGesture {
-                                model.updateSelectedText { $0.anchor = anchor }
+                                onSelect(anchor)
                                 model.commitZoomEdit()
                             }
                     }

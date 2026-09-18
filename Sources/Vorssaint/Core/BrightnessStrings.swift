@@ -23,8 +23,15 @@ struct BrightnessFeatureStrings {
     let keysCaption: String
     let osdToggle: String
     let osdCaption: String
+    let displayBrightnessShortcuts: String
+    let displayBrightnessShortcutCaption: String
+    let displayBrightnessDecrease: String
+    let displayBrightnessIncrease: String
     let keyboardLight: String
     let keyboardLightCaption: String
+    let keyboardBrightnessShortcuts: String
+    let keyboardBrightnessDecrease: String
+    let keyboardBrightnessIncrease: String
 }
 
 extension FeatureStrings {
@@ -66,8 +73,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "The keyboard brightness keys change the display under the pointer.",
         osdToggle: "Show brightness when adjusting",
         osdCaption: "Shows the brightness percentage when you use the brightness keys or sliders.",
+        displayBrightnessShortcuts: "Use display brightness shortcuts",
+        displayBrightnessShortcutCaption: "Shortcuts adjust the primary display, or the display under the pointer when pointer following is on.",
+        displayBrightnessDecrease: "Decrease display brightness",
+        displayBrightnessIncrease: "Increase display brightness",
         keyboardLight: "Keyboard light",
-        keyboardLightCaption: "Turns the keyboard backlight on or off."
+        keyboardLightCaption: "Turns the keyboard backlight on or off.",
+        keyboardBrightnessShortcuts: "Use keyboard brightness shortcuts",
+        keyboardBrightnessDecrease: "Decrease keyboard brightness",
+        keyboardBrightnessIncrease: "Increase keyboard brightness"
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -87,8 +101,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "As teclas de brilho do teclado mudam a tela onde o ponteiro está.",
         osdToggle: "Mostrar brilho ao ajustar",
         osdCaption: "Mostra a porcentagem de brilho ao usar as teclas ou os controles de brilho.",
+        displayBrightnessShortcuts: "Usar atalhos para o brilho da tela",
+        displayBrightnessShortcutCaption: "Os atalhos ajustam a tela principal ou a tela sob o cursor quando a opção de seguir o cursor está ativada.",
+        displayBrightnessDecrease: "Diminuir brilho da tela",
+        displayBrightnessIncrease: "Aumentar brilho da tela",
         keyboardLight: "Luz do teclado",
-        keyboardLightCaption: "Liga ou desliga a luz do teclado."
+        keyboardLightCaption: "Liga ou desliga a luz do teclado.",
+        keyboardBrightnessShortcuts: "Usar atalhos para o brilho do teclado",
+        keyboardBrightnessDecrease: "Diminuir brilho do teclado",
+        keyboardBrightnessIncrease: "Aumentar brilho do teclado"
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -108,8 +129,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "Klavyedeki parlaklık tuşları imlecin bulunduğu ekranı değiştirir.",
         osdToggle: "Parlaklık ayarlanırken göster",
         osdCaption: "Parlaklık tuşlarını veya kaydırıcıları kullandığınızda parlaklık yüzdesini gösterir.",
+        displayBrightnessShortcuts: "Ekran parlaklığı kısayollarını kullan",
+        displayBrightnessShortcutCaption: "Kısayollar ana ekranı veya işaretçiyi izleme açıkken işaretçinin altındaki ekranı ayarlar.",
+        displayBrightnessDecrease: "Ekran parlaklığını azalt",
+        displayBrightnessIncrease: "Ekran parlaklığını artır",
         keyboardLight: "Klavye ışığı",
-        keyboardLightCaption: "Klavye ışığını açar veya kapatır."
+        keyboardLightCaption: "Klavye ışığını açar veya kapatır.",
+        keyboardBrightnessShortcuts: "Klavye parlaklığı kısayollarını kullan",
+        keyboardBrightnessDecrease: "Klavye parlaklığını azalt",
+        keyboardBrightnessIncrease: "Klavye parlaklığını artır"
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -129,8 +157,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "Клавиши яркости на клавиатуре меняют экран, на котором находится указатель.",
         osdToggle: "Показывать яркость при регулировке",
         osdCaption: "Показывает яркость в процентах при использовании клавиш или ползунков яркости.",
+        displayBrightnessShortcuts: "Использовать сочетания клавиш для яркости экрана",
+        displayBrightnessShortcutCaption: "Сочетания клавиш меняют яркость основного экрана или экрана под указателем, если включено следование за указателем.",
+        displayBrightnessDecrease: "Уменьшить яркость экрана",
+        displayBrightnessIncrease: "Увеличить яркость экрана",
         keyboardLight: "Подсветка клавиатуры",
-        keyboardLightCaption: "Включает или выключает подсветку клавиатуры."
+        keyboardLightCaption: "Включает или выключает подсветку клавиатуры.",
+        keyboardBrightnessShortcuts: "Использовать сочетания клавиш для подсветки клавиатуры",
+        keyboardBrightnessDecrease: "Уменьшить яркость клавиатуры",
+        keyboardBrightnessIncrease: "Увеличить яркость клавиатуры"
     )
 
     static let es = BrightnessFeatureStrings(
@@ -150,8 +185,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "Las teclas de brillo del teclado cambian la pantalla donde está el puntero.",
         osdToggle: "Mostrar el brillo al ajustarlo",
         osdCaption: "Muestra el porcentaje de brillo al usar las teclas o los controles de brillo.",
+        displayBrightnessShortcuts: "Usar atajos para el brillo de la pantalla",
+        displayBrightnessShortcutCaption: "Los atajos ajustan la pantalla principal o la pantalla bajo el puntero cuando está activado el seguimiento del puntero.",
+        displayBrightnessDecrease: "Reducir el brillo de la pantalla",
+        displayBrightnessIncrease: "Aumentar el brillo de la pantalla",
         keyboardLight: "Luz del teclado",
-        keyboardLightCaption: "Enciende o apaga la luz del teclado."
+        keyboardLightCaption: "Enciende o apaga la luz del teclado.",
+        keyboardBrightnessShortcuts: "Usar atajos para el brillo del teclado",
+        keyboardBrightnessDecrease: "Reducir el brillo del teclado",
+        keyboardBrightnessIncrease: "Aumentar el brillo del teclado"
     )
 
     static let de = BrightnessFeatureStrings(
@@ -171,8 +213,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "Die Helligkeitstasten der Tastatur ändern das Display, auf dem der Zeiger steht.",
         osdToggle: "Helligkeit beim Anpassen anzeigen",
         osdCaption: "Zeigt den Helligkeitswert in Prozent bei Verwendung der Helligkeitstasten oder Regler.",
+        displayBrightnessShortcuts: "Kurzbefehle für die Bildschirmhelligkeit verwenden",
+        displayBrightnessShortcutCaption: "Kurzbefehle steuern den Hauptbildschirm oder bei aktivierter Zeigerverfolgung den Bildschirm unter dem Zeiger.",
+        displayBrightnessDecrease: "Bildschirmhelligkeit verringern",
+        displayBrightnessIncrease: "Bildschirmhelligkeit erhöhen",
         keyboardLight: "Tastaturbeleuchtung",
-        keyboardLightCaption: "Schaltet die Tastaturbeleuchtung ein oder aus."
+        keyboardLightCaption: "Schaltet die Tastaturbeleuchtung ein oder aus.",
+        keyboardBrightnessShortcuts: "Kurzbefehle für die Tastaturhelligkeit verwenden",
+        keyboardBrightnessDecrease: "Tastaturhelligkeit verringern",
+        keyboardBrightnessIncrease: "Tastaturhelligkeit erhöhen"
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -192,8 +241,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "Les touches de luminosité du clavier règlent l’écran où se trouve le pointeur.",
         osdToggle: "Afficher la luminosité pendant le réglage",
         osdCaption: "Affiche le pourcentage de luminosité avec les touches ou les curseurs de luminosité.",
+        displayBrightnessShortcuts: "Utiliser les raccourcis de luminosité de l’écran",
+        displayBrightnessShortcutCaption: "Les raccourcis règlent l’écran principal ou celui sous le pointeur lorsque le suivi du pointeur est activé.",
+        displayBrightnessDecrease: "Réduire la luminosité de l’écran",
+        displayBrightnessIncrease: "Augmenter la luminosité de l’écran",
         keyboardLight: "Éclairage du clavier",
-        keyboardLightCaption: "Allume ou éteint l’éclairage du clavier."
+        keyboardLightCaption: "Allume ou éteint l’éclairage du clavier.",
+        keyboardBrightnessShortcuts: "Utiliser les raccourcis de luminosité du clavier",
+        keyboardBrightnessDecrease: "Réduire la luminosité du clavier",
+        keyboardBrightnessIncrease: "Augmenter la luminosité du clavier"
     )
 
     static let it = BrightnessFeatureStrings(
@@ -213,8 +269,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "I tasti di luminosità della tastiera regolano lo schermo dove si trova il puntatore.",
         osdToggle: "Mostra la luminosità durante la regolazione",
         osdCaption: "Mostra la percentuale di luminosità quando usi i tasti o i cursori della luminosità.",
+        displayBrightnessShortcuts: "Usa le scorciatoie per la luminosità dello schermo",
+        displayBrightnessShortcutCaption: "Le scorciatoie regolano lo schermo principale o quello sotto il puntatore quando è attiva la relativa opzione.",
+        displayBrightnessDecrease: "Riduci luminosità schermo",
+        displayBrightnessIncrease: "Aumenta luminosità schermo",
         keyboardLight: "Illuminazione tastiera",
-        keyboardLightCaption: "Accende o spegne l’illuminazione della tastiera."
+        keyboardLightCaption: "Accende o spegne l’illuminazione della tastiera.",
+        keyboardBrightnessShortcuts: "Usa le scorciatoie per la luminosità della tastiera",
+        keyboardBrightnessDecrease: "Riduci luminosità tastiera",
+        keyboardBrightnessIncrease: "Aumenta luminosità tastiera"
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -234,8 +297,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "キーボードの輝度キーが、ポインタのあるディスプレイを調整します。",
         osdToggle: "明るさの調整時に表示",
         osdCaption: "輝度キーまたはスライダを使うと、明るさをパーセントで表示します。",
+        displayBrightnessShortcuts: "ディスプレイの明るさのショートカットを使用",
+        displayBrightnessShortcutCaption: "ショートカットでメインディスプレイを調整します。ポインタ追従がオンの場合は、ポインタのあるディスプレイを調整します。",
+        displayBrightnessDecrease: "ディスプレイの明るさを下げる",
+        displayBrightnessIncrease: "ディスプレイの明るさを上げる",
         keyboardLight: "キーボードのバックライト",
-        keyboardLightCaption: "キーボードのバックライトをオンまたはオフにします。"
+        keyboardLightCaption: "キーボードのバックライトをオンまたはオフにします。",
+        keyboardBrightnessShortcuts: "キーボードの明るさのショートカットを使用",
+        keyboardBrightnessDecrease: "キーボードの明るさを下げる",
+        keyboardBrightnessIncrease: "キーボードの明るさを上げる"
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -255,8 +325,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "키보드의 밝기 키로 포인터가 있는 디스플레이를 조절합니다.",
         osdToggle: "밝기 조절 시 표시",
         osdCaption: "밝기 키나 슬라이더를 사용할 때 밝기를 백분율로 표시합니다.",
+        displayBrightnessShortcuts: "디스플레이 밝기 단축키 사용",
+        displayBrightnessShortcutCaption: "단축키로 주 디스플레이를 조절합니다. 포인터 따라가기가 켜져 있으면 포인터가 있는 디스플레이를 조절합니다.",
+        displayBrightnessDecrease: "디스플레이 밝기 낮추기",
+        displayBrightnessIncrease: "디스플레이 밝기 높이기",
         keyboardLight: "키보드 백라이트",
-        keyboardLightCaption: "키보드 백라이트를 켜거나 끕니다."
+        keyboardLightCaption: "키보드 백라이트를 켜거나 끕니다.",
+        keyboardBrightnessShortcuts: "키보드 밝기 단축키 사용",
+        keyboardBrightnessDecrease: "키보드 밝기 낮추기",
+        keyboardBrightnessIncrease: "키보드 밝기 높이기"
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -276,8 +353,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "键盘上的亮度键调节指针所在的显示器。",
         osdToggle: "调节亮度时显示",
         osdCaption: "使用亮度键或滑块时显示亮度百分比。",
+        displayBrightnessShortcuts: "使用显示器亮度快捷键",
+        displayBrightnessShortcutCaption: "快捷键调整主显示器；开启跟随指针后，则调整指针所在的显示器。",
+        displayBrightnessDecrease: "降低显示器亮度",
+        displayBrightnessIncrease: "提高显示器亮度",
         keyboardLight: "键盘背光",
-        keyboardLightCaption: "打开或关闭键盘背光。"
+        keyboardLightCaption: "打开或关闭键盘背光。",
+        keyboardBrightnessShortcuts: "使用键盘亮度快捷键",
+        keyboardBrightnessDecrease: "降低键盘亮度",
+        keyboardBrightnessIncrease: "提高键盘亮度"
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -297,8 +381,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。",
         osdToggle: "調整亮度時顯示",
         osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比。",
+        displayBrightnessShortcuts: "使用顯示器亮度快捷鍵",
+        displayBrightnessShortcutCaption: "快捷鍵調整主顯示器；開啟跟隨指標後，則調整指標所在的顯示器。",
+        displayBrightnessDecrease: "降低顯示器亮度",
+        displayBrightnessIncrease: "提高顯示器亮度",
         keyboardLight: "鍵盤背光",
-        keyboardLightCaption: "開啟或關閉鍵盤背光。"
+        keyboardLightCaption: "開啟或關閉鍵盤背光。",
+        keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
+        keyboardBrightnessDecrease: "降低鍵盤亮度",
+        keyboardBrightnessIncrease: "提高鍵盤亮度"
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -318,8 +409,15 @@ extension BrightnessFeatureStrings {
         keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。",
         osdToggle: "調整亮度時顯示",
         osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比。",
+        displayBrightnessShortcuts: "使用顯示器亮度快捷鍵",
+        displayBrightnessShortcutCaption: "快捷鍵調整主顯示器；開啟跟隨游標後，則調整游標所在的顯示器。",
+        displayBrightnessDecrease: "降低顯示器亮度",
+        displayBrightnessIncrease: "提高顯示器亮度",
         keyboardLight: "鍵盤背光",
-        keyboardLightCaption: "開啟或關閉鍵盤背光。"
+        keyboardLightCaption: "開啟或關閉鍵盤背光。",
+        keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
+        keyboardBrightnessDecrease: "降低鍵盤亮度",
+        keyboardBrightnessIncrease: "提高鍵盤亮度"
     )
     static let uk = BrightnessFeatureStrings(
         pageTitle: "Дисплеї",
