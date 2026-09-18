@@ -46,6 +46,7 @@ struct CommandBarFeatureStrings {
     let kindMenu: String
     let actionsTitle: String
     let actionsHint: String
+    let reuseHint: String
     let actionPin: String
     let actionUnpin: String
     let actionName: String
@@ -165,6 +166,8 @@ struct CommandBarFeatureStrings {
     let filesIgnoreAdd: String
     let compactModeToggle: String
     let compactModeCaption: String
+    let emojiSkinToneLabel: String
+    let emojiSkinToneCaption: String
 }
 
 extension FeatureStrings {
@@ -228,6 +231,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "Menu command",
         actionsTitle: "Actions",
         actionsHint: "Actions",
+        reuseHint: "Continue",
         actionPin: "Pin to the top",
         actionUnpin: "Unpin",
         actionName: "Give it your own name",
@@ -346,7 +350,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "A folder or file name",
         filesIgnoreAdd: "Add",
         compactModeToggle: "Compact mode",
-        compactModeCaption: "Bar opens without suggestions. Results appear as you type.")
+        compactModeCaption: "Bar opens without suggestions. Results appear as you type.",
+        emojiSkinToneLabel: "Skin tone",
+        emojiSkinToneCaption: "By default, emoji that can take a tone use this one. Open the actions on an emoji row to choose a different one.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -388,6 +394,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "Comando de menu",
         actionsTitle: "Ações",
         actionsHint: "Ações",
+        reuseHint: "Continuar",
         actionPin: "Fixar no topo",
         actionUnpin: "Desafixar",
         actionName: "Dar um nome seu",
@@ -506,7 +513,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome de pasta ou arquivo",
         filesIgnoreAdd: "Adicionar",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.")
+        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.",
+        emojiSkinToneLabel: "Tom de pele",
+        emojiSkinToneCaption: "Por padrão, os emojis que aceitam tom usam este. Abra as ações em uma linha de emoji para escolher outro.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -548,6 +557,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "Menü komutu",
         actionsTitle: "Eylemler",
         actionsHint: "Eylemler",
+        reuseHint: "Devam et",
         actionPin: "En üste sabitle",
         actionUnpin: "Sabitlemeyi kaldır",
         actionName: "Kendi adını ver",
@@ -666,7 +676,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Klasör veya dosya adı",
         filesIgnoreAdd: "Ekle",
         compactModeToggle: "Kompakt mod",
-        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.")
+        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.",
+        emojiSkinToneLabel: "Ten rengi",
+        emojiSkinToneCaption: "Ton alabilen emojiler varsayılan olarak bunu kullanır. Farklı birini seçmek için bir emoji satırında eylemleri açın.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -708,6 +720,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "Команда меню",
         actionsTitle: "Действия",
         actionsHint: "Действия",
+        reuseHint: "Продолжить",
         actionPin: "Закрепить сверху",
         actionUnpin: "Открепить",
         actionName: "Дать своё имя",
@@ -826,7 +839,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Имя папки или файла",
         filesIgnoreAdd: "Добавить",
         compactModeToggle: "Компактный режим",
-        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.")
+        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.",
+        emojiSkinToneLabel: "Тон кожи",
+        emojiSkinToneCaption: "По умолчанию эмодзи с поддержкой тона используют этот. Чтобы выбрать другой, откройте действия в строке эмодзи.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -868,6 +883,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "Comando de menú",
         actionsTitle: "Acciones",
         actionsHint: "Acciones",
+        reuseHint: "Continuar",
         actionPin: "Fijar arriba",
         actionUnpin: "Dejar de fijar",
         actionName: "Ponerle tu propio nombre",
@@ -986,7 +1002,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nombre de carpeta o archivo",
         filesIgnoreAdd: "Añadir",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.")
+        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.",
+        emojiSkinToneLabel: "Tono de piel",
+        emojiSkinToneCaption: "De forma predeterminada, los emojis que admiten tono usan este. Abre las acciones en una fila de emoji para elegir otro.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1028,6 +1046,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "Menübefehl",
         actionsTitle: "Aktionen",
         actionsHint: "Aktionen",
+        reuseHint: "Weiter",
         actionPin: "Oben anheften",
         actionUnpin: "Loslösen",
         actionName: "Eigenen Namen geben",
@@ -1146,7 +1165,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Ordner- oder Dateiname",
         filesIgnoreAdd: "Hinzufügen",
         compactModeToggle: "Kompaktmodus",
-        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.")
+        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.",
+        emojiSkinToneLabel: "Hautton",
+        emojiSkinToneCaption: "Emojis mit Hautton verwenden standardmäßig diesen. Öffne die Aktionen in einer Emoji-Zeile, um einen anderen zu wählen.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1188,6 +1209,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "Commande de menu",
         actionsTitle: "Actions",
         actionsHint: "Actions",
+        reuseHint: "Continuer",
         actionPin: "Épingler en haut",
         actionUnpin: "Détacher",
         actionName: "Lui donner votre nom",
@@ -1306,7 +1328,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nom de dossier ou de fichier",
         filesIgnoreAdd: "Ajouter",
         compactModeToggle: "Mode compact",
-        compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.")
+        compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.",
+        emojiSkinToneLabel: "Teinte de peau",
+        emojiSkinToneCaption: "Par défaut, les émojis qui acceptent une teinte utilisent celle-ci. Ouvrez les actions sur une ligne d’émoji pour en choisir une autre.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1348,6 +1372,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "Comando di menu",
         actionsTitle: "Azioni",
         actionsHint: "Azioni",
+        reuseHint: "Continua",
         actionPin: "Fissa in alto",
         actionUnpin: "Togli dai fissati",
         actionName: "Dagli un nome tuo",
@@ -1466,7 +1491,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome di cartella o file",
         filesIgnoreAdd: "Aggiungi",
         compactModeToggle: "Modalità compatta",
-        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.")
+        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.",
+        emojiSkinToneLabel: "Tonalità della pelle",
+        emojiSkinToneCaption: "Per impostazione predefinita, le emoji che accettano una tonalità usano questa. Apri le azioni su una riga di emoji per sceglierne un’altra.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1508,6 +1535,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "メニュー項目",
         actionsTitle: "アクション",
         actionsHint: "アクション",
+        reuseHint: "続ける",
         actionPin: "上部に固定",
         actionUnpin: "固定を解除",
         actionName: "自分の名前を付ける",
@@ -1626,7 +1654,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "フォルダまたはファイルの名前",
         filesIgnoreAdd: "追加",
         compactModeToggle: "コンパクトモード",
-        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。")
+        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。",
+        emojiSkinToneLabel: "肌の色",
+        emojiSkinToneCaption: "肌の色を持てる絵文字は標準でこの色になります。別の色を選ぶには、絵文字の行でアクションを開きます。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1668,6 +1698,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "메뉴 명령",
         actionsTitle: "동작",
         actionsHint: "동작",
+        reuseHint: "계속",
         actionPin: "맨 위에 고정",
         actionUnpin: "고정 해제",
         actionName: "내 이름 지정",
@@ -1786,7 +1817,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "폴더 또는 파일 이름",
         filesIgnoreAdd: "추가",
         compactModeToggle: "컴팩트 모드",
-        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.")
+        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.",
+        emojiSkinToneLabel: "피부색",
+        emojiSkinToneCaption: "기본적으로 피부색을 가질 수 있는 이모티콘은 이 색을 사용합니다. 다른 색을 선택하려면 이모티콘 행에서 동작을 여세요.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1828,6 +1861,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "菜单命令",
         actionsTitle: "操作",
         actionsHint: "操作",
+        reuseHint: "继续",
         actionPin: "固定到顶部",
         actionUnpin: "取消固定",
         actionName: "起个自己的名字",
@@ -1946,7 +1980,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "文件夹或文件名",
         filesIgnoreAdd: "添加",
         compactModeToggle: "紧凑模式",
-        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。")
+        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。",
+        emojiSkinToneLabel: "肤色",
+        emojiSkinToneCaption: "支持肤色的表情默认使用此肤色。若要选择其他肤色，请在表情结果行打开操作。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1988,6 +2024,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "選單指令",
         actionsTitle: "動作",
         actionsHint: "動作",
+        reuseHint: "繼續",
         actionPin: "固定到最上方",
         actionUnpin: "取消固定",
         actionName: "取個自己的名字",
@@ -2106,7 +2143,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
+        emojiSkinToneLabel: "膚色",
+        emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2148,6 +2187,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "選單指令",
         actionsTitle: "動作",
         actionsHint: "動作",
+        reuseHint: "繼續",
         actionPin: "固定到最上方",
         actionUnpin: "取消固定",
         actionName: "取個自己的名字",
@@ -2266,5 +2306,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
+        emojiSkinToneLabel: "膚色",
+        emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。")
 }

@@ -1326,6 +1326,20 @@ struct MediaWorkspaceView: View {
                                       completion: @escaping (NSApplication.ModalResponse) -> Void) {
         guard !panelModalActive else { return }
         panelModalActive = true
+        if let island = NotchService.shared.presentationWindow, island.isVisible,
+           NSApp.currentEvent?.window === island || NSApp.keyWindow === island {
+            // The island floats above the modal panel level, so an
+            // application-modal dialog would open behind it. A sheet shares
+            // the island's level and keeps its working surface open.
+            panel.beginSheetModal(for: island) { response in
+                panelModalActive = false
+                // Dismissal restores the previous key window after this callback.
+                DispatchQueue.main.async { if NotchService.shared.expanded { island.makeKey() } }
+                completion(response)
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async {
             let response = panel.runModal()

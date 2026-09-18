@@ -1151,6 +1151,14 @@ struct CommandBarView: View {
             Text(service.isShowingSuggestions && !service.categoryChips.isEmpty ? "⌃P ⌃N ↑↓ ←→" : "⌃P ⌃N ↑↓")
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .foregroundStyle(.tertiary)
+            if service.selectedEntry?.id == "math.result" {
+                Text("⇥")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.tertiary)
+                Text(text.reuseHint)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
             Image(systemName: "return")
                 .font(.system(size: 8))
                 .foregroundStyle(.tertiary)

@@ -21,6 +21,14 @@ struct NotchCaptureControlsView: View {
                 Text(FeatureStrings.screenshot(l10n.language).screenCaptureTitle)
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
+                if options.offersRepeatLastRegion {
+                    Label("R", systemImage: "rectangle.dashed")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .frame(height: 26)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 7))
+                }
                 NotchIconButton(symbol: "chevron.up", title: FeatureStrings.notch(l10n.language).collapse,
                                 action: service.collapseCaptureControls)
                     .focused($focusedControl, equals: .collapse)

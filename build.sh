@@ -281,6 +281,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchSupport.swift
         Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift
         Sources/Vorssaint/Services/Notch/NotchMusicSupport.swift
+        Sources/Vorssaint/UI/Notch/NotchEqualizerBars.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift
         Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift
@@ -293,6 +294,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SettingsBackupSupport.swift
         Sources/Vorssaint/Core/BackupStrings.swift
         Sources/Vorssaint/Core/SnippetStrings.swift
+        Sources/Vorssaint/Core/AlertSoundStrings.swift
         Sources/Vorssaint/Core/BrightnessStrings.swift
         Sources/Vorssaint/Core/MediaImageStrings.swift
         Sources/Vorssaint/Core/QuickToggleStrings.swift
@@ -465,6 +467,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
+        Sources/Vorssaint/Core/SecureInputSupport.swift
         Tests/*.swift
         build/generated-tests/*.swift
     )

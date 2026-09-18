@@ -120,6 +120,11 @@ struct FeatureHubStrings {
     let onboardingNoSelectedPermissions: String
     let onboardingOtherPermissionsTitle: String
     let onboardingOtherPermissionsCaption: String
+    // Uninstalling the Dynamic Island while extensions of it are installed
+    let notchUninstallTitle: String
+    let notchUninstallMessageFormat: String   // "…: %@. …", the installed extensions' names
+    let notchUninstallWithExtensions: String
+    let notchUninstallKeepExtensions: String
 }
 
 extension FeatureStrings {
@@ -251,7 +256,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "선택한 기능에 필요한 권한",
         onboardingNoSelectedPermissions: "설정을 마치는 데 필요한 권한이 없습니다.",
         onboardingOtherPermissionsTitle: "기타 권한",
-        onboardingOtherPermissionsCaption: "선택 사항입니다. 기능에서 필요할 때 지금 또는 나중에 허용할 수 있습니다."
+        onboardingOtherPermissionsCaption: "선택 사항입니다. 기능에서 필요할 때 지금 또는 나중에 허용할 수 있습니다.",
+        notchUninstallTitle: "Dynamic Island 제거",
+        notchUninstallMessageFormat: "다음 확장 기능은 Dynamic Island 안에서만 작동합니다: %@. 함께 제거할까요? 아무것도 삭제되지 않으며 한 번의 클릭으로 모두 되돌릴 수 있습니다.",
+        notchUninstallWithExtensions: "확장 기능도 제거",
+        notchUninstallKeepExtensions: "확장 기능 유지"
     )
 }
 
@@ -364,7 +373,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permissions for your choices",
         onboardingNoSelectedPermissions: "You do not need to grant any permission to finish setup.",
         onboardingOtherPermissionsTitle: "Other permissions",
-        onboardingOtherPermissionsCaption: "Optional. Grant these now or later, when a feature needs them."
+        onboardingOtherPermissionsCaption: "Optional. Grant these now or later, when a feature needs them.",
+        notchUninstallTitle: "Uninstall Dynamic Island",
+        notchUninstallMessageFormat: "These extensions only work inside the Dynamic Island: %@. Uninstall them too? Nothing is deleted, and everything comes back with one click.",
+        notchUninstallWithExtensions: "Uninstall extensions too",
+        notchUninstallKeepExtensions: "Keep extensions"
     )
 
     static let ptBR = FeatureHubStrings(
@@ -475,7 +488,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permissões para suas escolhas",
         onboardingNoSelectedPermissions: "Você não precisa conceder nenhuma permissão para concluir a configuração.",
         onboardingOtherPermissionsTitle: "Outras permissões",
-        onboardingOtherPermissionsCaption: "Opcional. Você pode concedê-las agora ou depois, quando algum recurso precisar."
+        onboardingOtherPermissionsCaption: "Opcional. Você pode concedê-las agora ou depois, quando algum recurso precisar.",
+        notchUninstallTitle: "Desinstalar Dynamic Island",
+        notchUninstallMessageFormat: "Estas extensões só funcionam dentro da Dynamic Island: %@. Desinstalar também? Nada é apagado e tudo volta com um clique.",
+        notchUninstallWithExtensions: "Desinstalar extensões também",
+        notchUninstallKeepExtensions: "Manter extensões"
     )
 
     static let tr = FeatureHubStrings(
@@ -586,7 +603,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Seçimleriniz için gereken izinler",
         onboardingNoSelectedPermissions: "Kurulumu tamamlamak için izin vermeniz gerekmiyor.",
         onboardingOtherPermissionsTitle: "Diğer izinler",
-        onboardingOtherPermissionsCaption: "İsteğe bağlıdır. Bir özellik gerektiğinde şimdi veya daha sonra izin verebilirsiniz."
+        onboardingOtherPermissionsCaption: "İsteğe bağlıdır. Bir özellik gerektiğinde şimdi veya daha sonra izin verebilirsiniz.",
+        notchUninstallTitle: "Dynamic Island’ı kaldır",
+        notchUninstallMessageFormat: "Bu uzantılar yalnızca Dynamic Island içinde çalışır: %@. Onlar da kaldırılsın mı? Hiçbir şey silinmez, hepsi tek tıkla geri gelir.",
+        notchUninstallWithExtensions: "Uzantıları da kaldır",
+        notchUninstallKeepExtensions: "Uzantılar kalsın"
     )
 
     static let ru = FeatureHubStrings(
@@ -697,7 +718,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Разрешения для выбранных функций",
         onboardingNoSelectedPermissions: "Для завершения настройки разрешения не нужны.",
         onboardingOtherPermissionsTitle: "Другие разрешения",
-        onboardingOtherPermissionsCaption: "Необязательно. Их можно выдать сейчас или позже, когда они понадобятся функции."
+        onboardingOtherPermissionsCaption: "Необязательно. Их можно выдать сейчас или позже, когда они понадобятся функции.",
+        notchUninstallTitle: "Удалить Dynamic Island",
+        notchUninstallMessageFormat: "Эти расширения работают только внутри Dynamic Island: %@. Удалить и их? Ничего не стирается, всё возвращается одним кликом.",
+        notchUninstallWithExtensions: "Удалить и расширения",
+        notchUninstallKeepExtensions: "Оставить расширения"
     )
 
     static let es = FeatureHubStrings(
@@ -808,7 +833,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permisos para tus elecciones",
         onboardingNoSelectedPermissions: "No necesitas conceder permisos para terminar la configuración.",
         onboardingOtherPermissionsTitle: "Otros permisos",
-        onboardingOtherPermissionsCaption: "Opcional. Concédelos ahora o después, cuando una función los necesite."
+        onboardingOtherPermissionsCaption: "Opcional. Concédelos ahora o después, cuando una función los necesite.",
+        notchUninstallTitle: "Desinstalar Dynamic Island",
+        notchUninstallMessageFormat: "Estas extensiones solo funcionan dentro del Dynamic Island: %@. ¿Desinstalarlas también? No se borra nada y todo vuelve con un clic.",
+        notchUninstallWithExtensions: "Desinstalar también las extensiones",
+        notchUninstallKeepExtensions: "Conservar las extensiones"
     )
 
     static let de = FeatureHubStrings(
@@ -919,7 +948,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Berechtigungen für deine Auswahl",
         onboardingNoSelectedPermissions: "Zum Abschließen der Einrichtung ist keine Berechtigung nötig.",
         onboardingOtherPermissionsTitle: "Weitere Berechtigungen",
-        onboardingOtherPermissionsCaption: "Optional. Erlaube sie jetzt oder später, wenn eine Funktion sie benötigt."
+        onboardingOtherPermissionsCaption: "Optional. Erlaube sie jetzt oder später, wenn eine Funktion sie benötigt.",
+        notchUninstallTitle: "Dynamic Island deinstallieren",
+        notchUninstallMessageFormat: "Diese Erweiterungen funktionieren nur im Dynamic Island: %@. Auch deinstallieren? Nichts wird gelöscht, alles kommt mit einem Klick zurück.",
+        notchUninstallWithExtensions: "Erweiterungen auch deinstallieren",
+        notchUninstallKeepExtensions: "Erweiterungen behalten"
     )
 
     static let fr = FeatureHubStrings(
@@ -1030,7 +1063,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Autorisations pour vos choix",
         onboardingNoSelectedPermissions: "Aucune autorisation n’est nécessaire pour terminer la configuration.",
         onboardingOtherPermissionsTitle: "Autres autorisations",
-        onboardingOtherPermissionsCaption: "Facultatif. Accordez-les maintenant ou plus tard, lorsqu’une fonction en aura besoin."
+        onboardingOtherPermissionsCaption: "Facultatif. Accordez-les maintenant ou plus tard, lorsqu’une fonction en aura besoin.",
+        notchUninstallTitle: "Désinstaller Dynamic Island",
+        notchUninstallMessageFormat: "Ces extensions ne fonctionnent que dans Dynamic Island\u{00A0}: %@. Les désinstaller aussi\u{00A0}? Rien n’est effacé et tout revient en un clic.",
+        notchUninstallWithExtensions: "Désinstaller aussi les extensions",
+        notchUninstallKeepExtensions: "Conserver les extensions"
     )
 
     static let it = FeatureHubStrings(
@@ -1141,7 +1178,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permessi per le tue scelte",
         onboardingNoSelectedPermissions: "Non servono permessi per completare la configurazione.",
         onboardingOtherPermissionsTitle: "Altri permessi",
-        onboardingOtherPermissionsCaption: "Facoltativo. Concedili ora o più tardi, quando una funzione ne avrà bisogno."
+        onboardingOtherPermissionsCaption: "Facoltativo. Concedili ora o più tardi, quando una funzione ne avrà bisogno.",
+        notchUninstallTitle: "Disinstalla Dynamic Island",
+        notchUninstallMessageFormat: "Queste estensioni funzionano solo nel Dynamic Island: %@. Disinstallare anche loro? Nulla viene cancellato e tutto torna con un clic.",
+        notchUninstallWithExtensions: "Disinstalla anche le estensioni",
+        notchUninstallKeepExtensions: "Mantieni le estensioni"
     )
 
     static let ja = FeatureHubStrings(
@@ -1252,7 +1293,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "選んだ機能に必要な許可",
         onboardingNoSelectedPermissions: "設定を完了するための許可は必要ありません。",
         onboardingOtherPermissionsTitle: "その他の許可",
-        onboardingOtherPermissionsCaption: "任意です。機能で必要になったときに、今または後で許可できます。"
+        onboardingOtherPermissionsCaption: "任意です。機能で必要になったときに、今または後で許可できます。",
+        notchUninstallTitle: "Dynamic Islandをアンインストール",
+        notchUninstallMessageFormat: "次の拡張機能はDynamic Islandの中でのみ動作します：%@。これらもアンインストールしますか？何も削除されず、すべてワンクリックで戻ります。",
+        notchUninstallWithExtensions: "拡張機能もアンインストール",
+        notchUninstallKeepExtensions: "拡張機能を残す"
     )
 
     static let zhHans = FeatureHubStrings(
@@ -1363,7 +1408,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所选功能需要的权限",
         onboardingNoSelectedPermissions: "完成设置无需授予任何权限。",
         onboardingOtherPermissionsTitle: "其他权限",
-        onboardingOtherPermissionsCaption: "可选。你可以现在授予，也可以等功能需要时再授予。"
+        onboardingOtherPermissionsCaption: "可选。你可以现在授予，也可以等功能需要时再授予。",
+        notchUninstallTitle: "卸载 Dynamic Island",
+        notchUninstallMessageFormat: "以下扩展只能在 Dynamic Island 中使用：%@。要一并卸载吗？不会删除任何内容，一键即可全部恢复。",
+        notchUninstallWithExtensions: "一并卸载扩展",
+        notchUninstallKeepExtensions: "保留扩展"
     )
 
     static let zhTW = FeatureHubStrings(
@@ -1474,7 +1523,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所選功能需要的權限",
         onboardingNoSelectedPermissions: "完成設定不需要授予任何權限。",
         onboardingOtherPermissionsTitle: "其他權限",
-        onboardingOtherPermissionsCaption: "可選。你可以現在授予，也可以等功能需要時再授予。"
+        onboardingOtherPermissionsCaption: "可選。你可以現在授予，也可以等功能需要時再授予。",
+        notchUninstallTitle: "解除安裝 Dynamic Island",
+        notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
+        notchUninstallWithExtensions: "一併解除安裝延伸功能",
+        notchUninstallKeepExtensions: "保留延伸功能"
     )
 
     static let zhHK = FeatureHubStrings(
@@ -1585,6 +1638,10 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所選功能需要嘅權限",
         onboardingNoSelectedPermissions: "完成設定唔需要授予任何權限。",
         onboardingOtherPermissionsTitle: "其他權限",
-        onboardingOtherPermissionsCaption: "可選。你可以而家授予，亦可以等功能需要時再授予。"
+        onboardingOtherPermissionsCaption: "可選。你可以而家授予，亦可以等功能需要時再授予。",
+        notchUninstallTitle: "解除安裝 Dynamic Island",
+        notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
+        notchUninstallWithExtensions: "一併解除安裝延伸功能",
+        notchUninstallKeepExtensions: "保留延伸功能"
     )
 }

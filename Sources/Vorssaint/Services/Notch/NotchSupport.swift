@@ -824,7 +824,7 @@ struct NotchGeometry: Equatable {
                       sliderCount: Int = 2, controlsHaveMusic: Bool = false, musicHasContent: Bool = true, musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemRows: Int = 3,
                       capturePreviewHeight: CGFloat? = nil,
-                      timerHasSession: Bool = false, timerShowsPomodoro: Bool = false) -> CGSize {
+                      timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer) -> CGSize {
         let contentHeight: CGFloat
         switch module {
         case .controls:
@@ -846,8 +846,14 @@ struct NotchGeometry: Equatable {
         case .files: contentHeight = fileMediaHeight.map { NotchLayout.chromeHeight + $0 } ?? 336
         case .clipboard: contentHeight = 340
         case .captures: contentHeight = capturePreviewHeight.map { NotchLayout.chromeHeight + $0 + 4 } ?? 340
-        case .timer: contentHeight = NotchLayout.chromeHeight
-                + (timerHasSession ? (timerShowsPomodoro ? 118 : 96) : (timerShowsPomodoro ? 370 : 202))
+        case .timer:
+            let timer: CGFloat
+            switch timerMode {
+            case .timer: timer = timerHasSession ? 96 : 208
+            case .pomodoro: timer = timerHasSession ? 118 : 376
+            case .stopwatch: timer = timerHasSession ? 96 : 114
+            }
+            contentHeight = NotchLayout.chromeHeight + timer
         case .camera: contentHeight = NotchLayout.chromeHeight + (expandedWidth - NotchLayout.horizontalInset * 2) * 0.75 + 50
         case .tools, .calendar, .notifications, .downloads: contentHeight = 400
         }

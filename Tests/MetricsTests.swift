@@ -20,7 +20,10 @@ struct MetricsTests {
         let groups: [(String, () -> Void)] = [
             ("harness", { TestHarnessTests.run(suite) }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
-            ("core", { coreChecks(suite) }),
+            ("core", {
+                coreChecks(suite)
+                KeepAwakeTimerHandoffTests.run { suite.expect($0, $1) }
+            }),
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
                 assistiveKeyboardChecks { suite.expect($0, $1) }
@@ -34,6 +37,7 @@ struct MetricsTests {
             ("recording", {
                 RecorderSampleTimingTests.run { suite.expect($0, $1) }
                 RecorderWriterTests.run { suite.expect($0, $1) }
+                RecorderExportChipTests.run { suite.expect($0, $1) }
             }),
             ("network", { SpeedTestTests.run { suite.expect($0, $1) } }),
             ("app-updates", { AppUpdatesContract.run(suite) }),
@@ -41,7 +45,9 @@ struct MetricsTests {
             ("cleaner", { CleanerEligibilityTests.run(suite) }),
             ("uninstaller", { UninstallerFlowTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
-            ("switcher", { SwitcherScrollContract.run(suite) }),
+            ("switcher", { SwitcherScrollContract.run(suite); SwitcherActivationTests.run(suite) }),
+            ("keep-awake", { KeepAwakeCatalogContract.run(suite) }),
+            ("emoji", { CommandBarEmojiContract.run(suite) }),
         ]
         var selected = Set<String>()
         var listOnly = false
@@ -93,6 +99,7 @@ struct MetricsTests {
         NotchTests.run { expect($0, $1) }
         NotchVolumeKeyTests.run { expect($0, $1) }
         MixerOutputAdjustmentContract.run(suite)
+        MixerInputVolumeContract.run(suite)
 
         // MARK: Byte / rate formatting
 
@@ -2194,6 +2201,10 @@ struct MetricsTests {
                "running-apps Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeRunningAppBundleIDs] as? [String] == [],
                "running-apps Keep Awake starts with an empty app list")
+        expect(registeredDefaults[DefaultsKey.keepAwakeAutomationRequireAll] as? Bool == false,
+               "matching every selected automation condition is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeAutomationRequireAll),
+               "the automation match mode follows settings backups")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRunningApps),
                "running-apps Keep Awake preference follows settings backups")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRunningAppBundleIDs),
@@ -2290,6 +2301,92 @@ struct MetricsTests {
             sessionActive: true,
             automaticSessionActive: false
         ) == .none, "clearing automatic conditions does not end a manual session")
+        // Match mode over the automation conditions (issue #1587).
+        let bothDockConditions = KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: true, powerEnabled: true, runningAppsEnabled: false)
+        expect(bothDockConditions == [.externalDisplay, .power],
+               "enabled conditions are collected whether or not they hold")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: false
+        ), "Any keeps today's behavior: one matching condition is enough")
+        expect(!KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: true
+        ), "All refuses a session while one enabled condition is unmet")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: bothDockConditions, enabled: bothDockConditions, requireAll: true
+        ), "All starts a session once every enabled condition is met")
+        expect(!KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [], enabled: [], requireAll: true
+        ), "All never treats an empty selection as satisfied")
+        let powerPlusUnnamedApps = KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: false, powerEnabled: true,
+            runningAppsEnabled: true, hasSelectedApps: false)
+        expect(powerPlusUnnamedApps == [.power],
+               "an app condition with no app named is not a condition All has to satisfy")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.power], enabled: powerPlusUnnamedApps, requireAll: true
+        ), "All stays usable while the app list is still empty")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.externalDisplay],
+            enabledConditions: bothDockConditions,
+            requireAll: true,
+            sessionActive: false,
+            automaticSessionActive: false
+        ) == .none, "a monitor on battery does not start an All session")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.runningApps],
+            enabledConditions: KeepAwakeAutomationSupport.enabledConditions(
+                externalDisplayEnabled: false, powerEnabled: true, runningAppsEnabled: true),
+            requireAll: true,
+            sessionActive: true,
+            automaticSessionActive: true
+        ) == .deactivate, "unplugging power ends an All session the running app alone would hold open")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.runningApps],
+            enabledConditions: KeepAwakeAutomationSupport.enabledConditions(
+                externalDisplayEnabled: false, powerEnabled: true, runningAppsEnabled: true),
+            requireAll: false,
+            sessionActive: true,
+            automaticSessionActive: true
+        ) == .none, "the same unplug leaves an Any session running, which is why All exists")
+        // The mode control in the panel card gets the panel's 308pt of content
+        // less the card's 10pt gutters, the Keep Awake indent and the
+        // disclosure indent. A segmented control wider than that truncates its
+        // labels, and the real control is what knows its own insets.
+        // The control cannot be rendered here, so its compact sizing is pinned
+        // as source shape: every tile, font and inset in that editor follows
+        // `compact`, and this one control keeping the regular size inside the
+        // panel card is the regression it is guarded against.
+        let automationEditor = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/KeepAwakeAutomationView.swift",
+            encoding: .utf8)) ?? ""
+        expect(automationEditor.contains(".pickerStyle(.segmented)")
+                && automationEditor.contains(".controlSize(compact ? .small : .regular)"),
+               "the match mode picker follows the compact layout of the panel card")
+        let matchModeWidth = 308.0 - 20 - 19 - 22
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.keepAwakeAutomation(language)
+            let control = NSSegmentedControl(labels: [strings.matchAny, strings.matchAll],
+                                             trackingMode: .selectOne, target: nil, action: nil)
+            control.controlSize = .small
+            control.font = NSFont.systemFont(ofSize: 10, weight: .medium)
+            control.sizeToFit()
+            let width = Double(control.fittingSize.width)
+            expect(width > 0 && width <= matchModeWidth,
+                   "\(language.rawValue): the match mode labels fit the panel card "
+                   + "(\(Int(width))pt of \(Int(matchModeWidth))pt)")
+        }
+        // The handoff a timed session makes when it runs out asks the same
+        // question, so a monitor alone must not carry it on under All.
+        expect(!KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: true
+        ), "a timer running out on battery hands nothing over to an All automation")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: false
+        ), "the same timer still hands over under Any")
         expect(KeepAwakeAutomationSupport.isScreenLocked(
             sessionDictionary: ["CGSSessionScreenIsLocked": true]
         ), "the Keep Awake lock guard reads a locked session")
@@ -4764,6 +4861,14 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterHalf] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "center half starts with no combination of its own")
+        expect(WindowLayoutAction.allCases.contains(.centerTwoThirds)
+                && WindowLayoutAction.centerTwoThirds.shortcutID == 56
+                && WindowLayoutAction(shortcutID: 56) == .centerTwoThirds,
+               "center two thirds exists and answers to its own shortcut id")
+        expect(WindowLayoutAction.centerTwoThirds.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterTwoThirds] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "center two thirds starts with no combination of its own")
         expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
@@ -4771,7 +4876,8 @@ struct MetricsTests {
             let layoutStrings = FeatureStrings.windowLayout(language)
             expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
-                    && !layoutStrings.centerHalf.isEmpty,
+                    && !layoutStrings.centerHalf.isEmpty
+                    && !layoutStrings.centerTwoThirds.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
         expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
@@ -6440,6 +6546,9 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .centerHalf, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 360, y: 40, width: 720, height: 860),
                "window layout center half sits half wide in the middle of the screen")
+        expect(WindowLayoutGeometry.rect(for: .centerTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 240, y: 40, width: 960, height: 860),
+               "window layout center two thirds sits two thirds wide in the middle of the screen")
         expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
                                          windowGap: 16)
                == CGRect(x: 0, y: 40, width: 712, height: 860),
@@ -12567,6 +12676,17 @@ struct MetricsTests {
                "App Switcher activates only the selected window when a window target exists")
         expect(SwitcherSupport.shouldActivateAllWindows(targetsSpecificWindow: false),
                "App Switcher can activate the full app for app-only entries")
+        // App-level activation can raise sibling windows, so a window-scoped
+        // plan first asks the window server for the exact window (issue #1503).
+        let windowScopedPlan = SwitcherSupport.activationPlan(targetsSpecificWindow: true)
+        let appScopedPlan = SwitcherSupport.activationPlan(targetsSpecificWindow: false)
+        expect(SwitcherSupport.appActivationRoute(plan: windowScopedPlan, windowID: 77)
+               == .exactWindow(77),
+               "a selected window is fronted by the window server, not by activating its app")
+        expect(SwitcherSupport.appActivationRoute(plan: appScopedPlan, windowID: 77) == .wholeApp,
+               "an app entry still activates the whole app the way Command-Tab does")
+        expect(SwitcherSupport.appActivationRoute(plan: windowScopedPlan, windowID: nil) == .wholeApp,
+               "a window-scoped plan without a window id has only the app to activate")
         expect(SwitcherSupport.shouldRestoreSourceAfterTargetMinimize(targetPID: 10,
                                                                       sourcePID: 20,
                                                                       frontmostPID: 10,
@@ -14030,6 +14150,12 @@ struct MetricsTests {
                    && !strings.smoothScrollStepLabel.contains("—")
                    && !strings.smoothScrollResponseLabel.contains("—"),
                    "\(prefix) smooth scrolling controls are present without em dash")
+            expectFormat(strings.secureInputHeldFormat, ["@"], "\(prefix) secure input holder format")
+            expectFormat(strings.secureInputRevealFormat, ["@"], "\(prefix) secure input reveal format")
+            expect(!strings.secureInputTitle.isEmpty
+                   && !strings.secureInputUnattributed.isEmpty
+                   && !strings.secureInputUnidentified.isEmpty,
+                   "\(prefix) secure input copy is translated")
             expect(strings.quickToolsTab == strings.launcherName,
                    "\(prefix) Quick panel keeps the same name in Settings")
             expectFormat(strings.cutMovedPluralFormat, ["d"], "\(prefix) cut plural format")
@@ -15284,6 +15410,12 @@ struct MetricsTests {
                "every feature belongs to exactly one group")
         expect(!FeatureGroup.allCases.contains { AppFeature.features(in: $0).isEmpty },
                "no hub group is empty")
+        expect(AppFeature.features(in: .dynamicIsland) == [
+            .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
+            .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads,
+        ], "the Dynamic Island heads its own hub section, followed by its extensions")
+        expect(AppFeature.dynamicIslandExtensions == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
+               "the Dynamic Island's extensions are every other feature of its section")
         expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
             "automationFinder", "automationTerminal", "automationPlayback", "audioCapture", "microphone", "camera",
@@ -16865,6 +16997,74 @@ struct MetricsTests {
                "brightness overlay percentage rounds and clamps safely")
 
         // MARK: Text snippets engine (issue #201)
+
+        // Driven by synthetic listings rather than this machine's
+        // /System/Library/Sounds, so the assertions mean the same thing on
+        // every macOS the CI runners use.
+        expect(TextSnippetSupport.alertSoundNames(from: ["Tink.aiff", "Basso.aiff"]) == ["Basso", "Tink"],
+               "directory entries become sorted sound names without their extension")
+        expect(TextSnippetSupport.alertSoundNames(from: ["Glass.AIFF"]) == ["Glass"],
+               "an uppercase extension is still recognized")
+        expect(TextSnippetSupport.alertSoundNames(from: ["Readme.txt", "Sub.caf"]).isEmpty == false,
+               "a listing with no aiff falls back rather than emptying the picker")
+        expect(TextSnippetSupport.alertSoundNames(from: ["Readme.txt"])
+                == TextSnippetSupport.fallbackAlertSoundNames,
+               "an unreadable or foreign sounds directory falls back to the known names")
+        expect(TextSnippetSupport.alertSoundNames(from: []) == TextSnippetSupport.fallbackAlertSoundNames,
+               "an empty directory falls back to the known names")
+
+        expect(TextSnippetSupport.resolvedSoundName(stored: "Tink", available: ["Basso", "Tink"]) == "Tink",
+               "a stored sound the system still offers is kept")
+        expect(TextSnippetSupport.resolvedSoundName(stored: "Gone", available: ["Basso", "Tink"]) == "Tink",
+               "a stored sound this Mac no longer has falls back to the default instead of going silent")
+        expect(TextSnippetSupport.resolvedSoundName(stored: nil, available: ["Basso", "Tink"]) == "Tink",
+               "no stored sound uses the default")
+        expect(TextSnippetSupport.resolvedSoundName(stored: "Gone", available: ["Basso"]) == "Basso",
+               "with neither the stored sound nor the default present, the first offered one is used")
+        expect(TextSnippetSupport.resolvedSoundName(stored: "Gone", available: []) == nil,
+               "nothing to play resolves to nothing rather than a name that cannot load")
+
+
+        expect(Defaults.registeredDefaults[DefaultsKey.snippetSoundEnabled] as? Bool == false,
+               "sound on expansion stays off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.snippetSoundName] as? String
+                == Defaults.defaultSnippetSoundName,
+               "the registered default is the shared constant, not a second copy of the name")
+        expect(TextSnippetSupport.fallbackAlertSoundNames.contains(Defaults.defaultSnippetSoundName),
+               "the default sound is one the fallback list offers")
+        expect(FileManager.default.fileExists(
+                atPath: TextSnippetSupport.soundFileURL(for: Defaults.defaultSnippetSoundName).path),
+               "the default sound is played from the file macOS ships for it")
+        expect(Set(TextSnippetSupport.fallbackAlertSoundNames).count
+                == TextSnippetSupport.fallbackAlertSoundNames.count,
+               "no duplicate names in the fallback list")
+
+        expect(AlertSoundStrings.displayName(for: "Tink", language: .enUS) == "Boop",
+               "macOS has shown Tink as Boop in Sound settings since Big Sur")
+        expect(AlertSoundStrings.displayName(for: "Ping", language: .enUS) == "Sonar",
+               "macOS has shown Ping as Sonar in Sound settings since Big Sur")
+        expect(AlertSoundStrings.displayName(for: "Tink", language: .fr) == "Boop",
+               "a supported language other than English gets its own translated name")
+        expect(AlertSoundStrings.displayName(for: "Ping", language: .ru) == "Сонар",
+               "a supported language other than English gets its own translated name")
+        expect(AlertSoundStrings.displayName(for: "Tink", language: .ja) == "Boop",
+               "Apple's own table keeps the English display name for Japanese, Korean and Chinese")
+        expect(AlertSoundStrings.displayName(for: "Custom", language: .enUS) == "Custom",
+               "a name outside the table is shown unchanged rather than dropped")
+        expect(TextSnippetSupport.fallbackAlertSoundNames.allSatisfy {
+                AlertSoundStrings.displayName(for: $0, language: .enUS) != $0
+            },
+               "every shipped alert sound has a display name distinct from its file name")
+
+        expect(AlertSoundStrings.sortedNames(TextSnippetSupport.fallbackAlertSoundNames, language: .enUS)
+                == ["Tink", "Blow", "Pop", "Glass", "Funk", "Hero", "Frog",
+                    "Basso", "Bottle", "Purr", "Morse", "Ping", "Sosumi", "Submarine"],
+               "the picker orders by what each name shows (Boop, Breeze, Bubble, ...), not by the file name")
+        expect(AlertSoundStrings.sortedNames(["Basso", "Tink"], language: .enUS).first == "Tink",
+               "Boop sorts before Mezzo even though the file name Basso sorts before Tink")
+        expect(Set(AlertSoundStrings.sortedNames(TextSnippetSupport.fallbackAlertSoundNames, language: .enUS))
+                == Set(TextSnippetSupport.fallbackAlertSoundNames),
+               "sorting only reorders the list, it never drops or adds a name")
 
         expect(TextSnippetSupport.sanitizedTrigger("  ;e mail\n") == ";email", "triggers lose whitespace")
         expect(TextSnippetSupport.bufferAppending(String(repeating: "a", count: 64), typed: "b").count
@@ -18551,6 +18751,19 @@ struct MetricsTests {
                 && featureRuntimeSource.components(separatedBy:
                     "RecentCaptureService.shared.syncWithPreferences()").count == 3,
                "the history shortcut opens its window and follows both capture producers")
+        // A palette summoned from another app must appear at once, then leave
+        // when the user activates a different app instead of waiting for ours.
+        let recentCapturePaletteCode = recentCaptureServiceSource
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(recentCapturePaletteCode.contains("panel.hidesOnDeactivate = false")
+                && !recentCapturePaletteCode.contains("hidesOnDeactivate = true")
+                && recentCapturePaletteCode.contains("NSWorkspace.didActivateApplicationNotification")
+                && !recentCapturePaletteCode.contains("NSApplication.didResignActiveNotification")
+                && recentCapturePaletteCode.contains(
+                    "NSWorkspace.shared.notificationCenter.removeObserver("),
+               "a recent captures palette appears promptly and leaves when another app activates")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])
@@ -18663,6 +18876,15 @@ struct MetricsTests {
                                                             selectionInProgress: false,
                                                             capturePending: false),
                "the capture chooser disappears for the whole drag and while capture is pending")
+        expect(ScreenshotSupport.offersRepeatLastRegion(isPickingColor: false,
+                                                        storedRegionDisplayIsAvailable: true),
+               "the repeat hint is offered once a region is stored on a display still in the session")
+        expect(!ScreenshotSupport.offersRepeatLastRegion(isPickingColor: false,
+                                                         storedRegionDisplayIsAvailable: false),
+               "no repeat hint before the first capture, or when its display is gone")
+        expect(!ScreenshotSupport.offersRepeatLastRegion(isPickingColor: true,
+                                                         storedRegionDisplayIsAvailable: true),
+               "the colour picker has no region to repeat, matching repeatLastRegion's own guard")
         let captureSelectionSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
             encoding: .utf8)) ?? ""
@@ -23205,8 +23427,8 @@ struct MetricsTests {
         expect(math("volume 20") == nil, "a command with a number is not a sum")
         expect(math("brilho 40") == nil, "neither is the same command in another language")
         expect(math("10/0") == nil, "dividing by zero has no answer to show")
-        expect(math("2+") == nil && math("(2+3") == nil && math("2++") == nil,
-               "an unfinished expression stays quiet")
+        expect(math("2+") == nil && math("(2+3") == "5" && math("2++") == nil,
+               "only missing closing brackets are supplied virtually")
         expect(math("2 * -3") == "-6", "a sign after an operator is read as a sign")
         expect(math(String(repeating: "(", count: 60) + "1" + String(repeating: ")", count: 60)) == nil,
                "a wall of parentheses is refused instead of eating the stack")
@@ -23227,6 +23449,46 @@ struct MetricsTests {
                "the comma is the decimal point where that is the custom")
         expect(math("1.500+1", decimal: ",", grouping: ".") == "1,501",
                "three digits after the grouping separator read as thousands")
+
+        expect(CommandBarMath.evaluate("([2+3")?.closingBrackets == "])"
+                && CommandBarMath.evaluate("2+3")?.closingBrackets == "",
+               "virtual closers preserve bracket kind and nesting")
+        expect(mathValue("sqrt(81") == 9 && mathValue("2*(3+[4") == 14,
+               "functions and nested brackets evaluate before closers are typed")
+        for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)",
+                           "sqrt(-1)", "log(0)", "acos(2)", "1e309+0", "7=+3", "7+3=="] {
+            expect(mathValue(expression) == nil && CommandBarMath.evaluate(expression)?.closingBrackets == nil,
+                   "invalid calculator input has neither an answer nor ghost brackets: \(expression)")
+        }
+        for (expression, expected) in [
+            ("sqrt(9)+abs(-3)", 6.0), ("sin(pi/2)+cos(0)+tan(0)", 2.0),
+            ("asin(1)+acos(1)+atan(1)", Double.pi * 0.75),
+            ("ln(exp(1))+log(100)+log10(100)", 5.0),
+            ("floor(1.9)+ceil(1.1)+round(1.5)", 5.0),
+            ("2pi", 2 * Double.pi), ("π+e", Double.pi + Foundation.exp(1)),
+            ("2x3+2 x 4", 14.0), ("2(3)+(2)(3)+2[3]", 18.0), ("1e-9*1e9", 1.0),
+        ] {
+            expect(mathValue(expression).map { abs($0 - expected) < 1e-7 } ?? false,
+                   "scientific calculator evaluates \(expression)")
+        }
+        expect(mathValue("1,5e-3*2", decimal: ",", grouping: ".") == 0.003,
+               "scientific mantissas respect decimal-comma locales")
+        for expression in ["0.1+0.2", "1/3", "-2^2", "1e-9+0", "2^100"] {
+            if let result = CommandBarMath.evaluate(expression, decimalSeparator: ".", groupingSeparator: ",") {
+                let reusable = CommandBarMath.reusableExpression(for: result, decimalSeparator: ".")
+                expect(mathValue(reusable + "+0") == result.value,
+                       "reusing \(expression) preserves its stored value")
+                if result.value == 0.3 { expect(reusable == "0.3", "reuse hides binary noise") }
+                if result.value == -4 {
+                    expect(mathValue(reusable + "^2") == 16, "negative reuse preserves power precedence")
+                }
+                let comma = CommandBarMath.reusableExpression(for: result, decimalSeparator: ",")
+                expect(mathValue(comma + "+0", decimal: ",", grouping: ".") == result.value,
+                       "reused answers also round-trip in decimal-comma locales")
+            } else {
+                expect(false, "calculator produces an answer to reuse for \(expression)")
+            }
+        }
 
         // MARK: Command bar, what the person controls
 
@@ -23771,6 +24033,60 @@ struct MetricsTests {
                "popular emoji keep a predictable lead over the Unicode long tail")
         expect(emojiCharacters.count == CommandBarEmoji.emoji.count,
                "no emoji is offered twice")
+
+        // MARK: Skin tones
+
+        expect(CommandBarEmoji.SkinTone.allCases.count == 6
+                && CommandBarEmoji.SkinTone.none.modifier == nil
+                && CommandBarEmoji.SkinTone.allCases.dropFirst().allSatisfy {
+                    $0.modifier?.properties.isEmojiModifier == true
+                },
+               "the yellow default and the five tones Unicode defines, and nothing else")
+        expect(CommandBarEmoji.acceptsSkinTone("👍") && CommandBarEmoji.acceptsSkinTone("☝️"),
+               "a hand takes a tone whether or not it carries a presentation selector")
+        expect(!CommandBarEmoji.acceptsSkinTone("😀") && !CommandBarEmoji.acceptsSkinTone("🍕")
+                && !CommandBarEmoji.acceptsSkinTone("🤷\u{200D}♀️"),
+               "a face, an object and a sequence are all left alone")
+        expect(CommandBarEmoji.applying(.medium, to: "👍") == "👍\u{1F3FD}",
+               "a tone is the modifier appended to the emoji")
+        expect(CommandBarEmoji.applying(.medium, to: "☝️")
+                == "\u{261D}\u{1F3FD}",
+               "the presentation selector goes with the tone, which already implies it")
+        expect(CommandBarEmoji.SkinTone.allCases.allSatisfy {
+            CommandBarEmoji.applying($0, to: "☝️").count == 1
+        }, "every tone of an emoji is still one character to type and to delete")
+        expect(CommandBarEmoji.applying(.none, to: "👍") == "👍"
+                && CommandBarEmoji.applying(.dark, to: "🍕") == "🍕",
+               "the default and an emoji with no tone to give are returned untouched")
+        expect(Set(CommandBarEmoji.SkinTone.allCases.map(\.swatch)).count
+                == CommandBarEmoji.SkinTone.allCases.count,
+               "the picker shows a different hand for every tone it offers")
+        expect(CommandBarEmoji.emoji.contains { CommandBarEmoji.acceptsSkinTone($0.character) }
+                && CommandBarEmoji.emoji.contains { !CommandBarEmoji.acceptsSkinTone($0.character) },
+               "the offered set has emoji that take a tone and emoji that do not")
+        expect(CommandBarPreferences.skinTone(from: "") == CommandBarEmoji.SkinTone.none
+                && CommandBarPreferences.skinTone(from: "dark") == CommandBarEmoji.SkinTone.dark
+                && CommandBarPreferences.skinTone(from: "mauve") == CommandBarEmoji.SkinTone.none,
+               "a tone survives storage, and one this version does not know reads as the default")
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarEmojiSkinTone] as? String == "",
+               "emoji ship in the tone Unicode gives them until the person says otherwise")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarEmojiSkinTone),
+               "the chosen tone is configuration, so it travels with an exported setup")
+        expect(CommandBarPreferences.emojiIdentity(
+            fromRowID: CommandBarPreferences.emojiRowID(identity: "👍")) == "👍",
+               "the emoji comes back out of the id its row is stored under")
+        expect(CommandBarEmoji.SkinTone.allCases.filter { $0 != .none }.allSatisfy {
+            CommandBarEmoji.applying($0, to: "👍") != "👍"
+        }, "every tone changes the character, so an id carrying one would move with it")
+        expect(CommandBarPreferences.emojiIdentity(fromRowID: "app.finder") == nil
+                && CommandBarPreferences.emojiIdentity(fromRowID: "emoji.") == nil,
+               "a row of another kind, and an id with no emoji left in it, answer with nothing")
+        let catalogSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+            encoding: .utf8)) ?? ""
+        expect(catalogSource.contains("CommandBarPreferences.emojiRowID(identity: emoji.identity)"),
+               "the emoji rows take their id from the seam above, not from the toned character")
+
         expect(CommandBarSearch.emojiQuery(from: "fire") == nil,
                "an ordinary search never opens the emoji index")
         expect(CommandBarSearch.emojiQuery(from: ":fire") == "fire"
@@ -26673,6 +26989,107 @@ struct MetricsTests {
                "in-app uninstall aborts unless fans and normal sleep are restored before removal")
         expect(uninstallScriptSource.contains("SleepDisabled"),
                "script uninstall reads the sleep setting back for itself")
+
+        // MARK: Secure input
+        // The Carbon flag is the authority on whether secure input is on; the
+        // registry read only answers who. A holder the session still records
+        // after the flag cleared must never produce a warning.
+        expect(SecureInputSupport.holder(isEnabled: false,
+                                         read: .noHolder,
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .off,
+               "secure input off with no recorded holder is off")
+        var secureInputNameLookups = 0
+        let secureInputOffWithPid = SecureInputSupport.holder(
+            isEnabled: false,
+            read: .holder(4242),
+            runningApp: { pid in
+                secureInputNameLookups += 1
+                return ("SomeBrowser", pid)
+            },
+            isProcessAlive: { _ in true })
+        expect(secureInputOffWithPid == .off,
+               "secure input off stays off even with a pid still recorded")
+        expect(SecureInputSupport.holder(isEnabled: false,
+                                         read: .unavailable,
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .off,
+               "secure input off stays off when the session cannot be read")
+        expect(secureInputNameLookups == 0,
+               "the name lookup is skipped when secure input is off")
+
+        // The row names the holder and the reveal button activates it, so a
+        // helper pid has to resolve to its app for both.
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(999),
+                                         runningApp: { pid in
+                                             pid == 999 ? ("SomeBrowser", 4242) : nil
+                                         },
+                                         isProcessAlive: { _ in true })
+                   == .app(name: "SomeBrowser", pid: 4242),
+               "a helper pid is attributed to the app responsible for it")
+        // Liveness is what separates the two unnameable holders. Only a holder
+        // that has exited leaves a flag a new login session clears; a live one
+        // is a system prompt the user is looking at, and telling them to end
+        // the session is the worst answer this row could give.
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(4242),
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .unknown,
+               "a running holder that is no regular app is never sent to log out")
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(4242),
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in false }) == .unattributed,
+               "a holder that has exited is what a new login session clears")
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .noHolder,
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .unattributed,
+               "secure input on with no recorded holder is unattributed")
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(0),
+                                         runningApp: { pid in ("SomeBrowser", pid) },
+                                         isProcessAlive: { _ in true }) == .unattributed,
+               "a zero pid is not an attribution")
+        expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(4242),
+                                         runningApp: { pid in ("", pid) },
+                                         isProcessAlive: { _ in false }) == .unattributed,
+               "an empty app name is not an attribution")
+
+        // Only `.unattributed` asks the user to log out, so a read that did
+        // not work must never land there.
+        var secureInputUnavailableLookups = 0
+        var secureInputUnavailableLivenessChecks = 0
+        let secureInputUnavailable = SecureInputSupport.holder(
+            isEnabled: true,
+            read: .unavailable,
+            runningApp: { pid in
+                secureInputUnavailableLookups += 1
+                return ("SomeBrowser", pid)
+            },
+            isProcessAlive: { _ in
+                secureInputUnavailableLivenessChecks += 1
+                return true
+            })
+        expect(secureInputUnavailable == .unknown,
+               "a session that cannot be read reports an unknown holder")
+        expect(secureInputUnavailableLookups == 0 && secureInputUnavailableLivenessChecks == 0,
+               "a session that cannot be read costs no name lookup and no liveness check")
+
+        expect(!SecureInputSupport.shouldPoll(observingSurfaceCount: 0, windowIsOpen: true),
+               "secure input keeps no timer without a visible surface")
+        expect(SecureInputSupport.shouldPoll(observingSurfaceCount: 1, windowIsOpen: true)
+                   && SecureInputSupport.shouldPoll(observingSurfaceCount: 3, windowIsOpen: true),
+               "a visible surface polls secure input while the window is open")
+        expect(SecureInputSupport.shouldPoll(observingSurfaceCount: 1, windowIsOpen: true)
+                   == SecureInputSupport.shouldPoll(observingSurfaceCount: 2, windowIsOpen: true),
+               "repeating a demand does not change whether secure input polls")
+        expect(!SecureInputSupport.shouldPoll(observingSurfaceCount: 1, windowIsOpen: false),
+               "a demand left over from before the window closed does not poll on its own")
+        expect(!SecureInputSupport.shouldPoll(observingSurfaceCount: 0, windowIsOpen: false),
+               "neither gate alone is enough")
 
         // MARK: Detached command reruns (counted last, so a late rerun still fails)
         // The `||` form reran the whole installer — as root — on every non-zero

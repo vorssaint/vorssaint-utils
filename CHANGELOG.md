@@ -7,18 +7,42 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see with large icons, and the mixer remembers pinned apps and your preferred order. Dynamic Island improves compact spacing, hidden-until-hover transitions and access to music controls.
+App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume; Dynamic Island gets its own Features section and a stopwatch; Command Bar adds emoji skin tones and a scientific calculator; Keep Awake automation can require every condition, text snippets can sound on expansion and explain blocked typing, and Window Layout adds a centered two-thirds placement.
 
 ### Added
+- Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
+- Adjust microphone input volume from the mixer, with an editable percentage on supported devices. Thanks to @GolamRafi27oo.
+- Window Layout can center a window at two-thirds of the screen width in one action. Thanks to @Borisserz.
+- Command Bar offers a default emoji skin tone and one-off alternatives from each emoji’s actions. Thanks to @justin-chiam.
+- Capture guides show R to repeat the last selected area, including in Dynamic Island. Thanks to @marcelharinck.
 - Pin and reorder mixer apps, with positions remembered when apps reopen and included in settings backups.
+- Dynamic Island’s timer page offers a stopwatch that counts up with pause and cancel, keeping its seconds visible beside the camera.
+- Text snippets can play an alert sound of your choice each time a typed trigger expands. Thanks to @tenbux.
+- Keep Awake automation can require every selected condition, ending the session as soon as one stops holding. Thanks to @sarat03.
+- Snippet and Command Bar settings show which app holds secure input when typing is blocked, with a button to bring it forward. Thanks to @tenbux.
+- Command Bar's calculator completes missing brackets, adds scientific functions, constants and notation, and Tab continues from the answer. Thanks to @DarkEden-coding.
 
 ### Changed
+- Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
+- Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
+- Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
+- Dynamic Island shows Keep open directly in its header, and Settings appears there when its floating button is removed.
 
 ### Fixed
+- Dynamic Island shows a video playing in a browser even when a music app is open but stopped. Thanks to @ruvelro.
+- App Switcher brings the selected window forward while preserving focus recovery and the correct app menus. Thanks to @shlok1806.
+- Recent captures appear promptly when opened from another app and close when switching apps. Thanks to @iltonandrew.
+- Command Bar offers all Keep Awake durations without turning unsupported times into indefinite sessions. Thanks to @tuttopassastudios and @brandom.
+- Panel permission and recent capture buttons align with the card text. Thanks to @COMEBACKISREAL.
 - App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
 - Dynamic Island offers playback controls when a music app is recognized and updates them after permission is granted.
+- Dynamic Island is no longer listed as a window by tiling window managers, which showed a ghost window on the current desktop. Thanks to @Yahddyyp.
+- On screens without a camera cutout, Dynamic Island no longer blinks when you switch apps or hides while a launcher has focus. Thanks to @Yahddyyp.
+- Now Playing in Dynamic Island no longer says nothing is playing while it fetches the current track. Thanks to @Yahddyyp.
+- File dialogs opened from the media tools inside Dynamic Island attach to it instead of opening behind it. Thanks to @Yahddyyp.
+- The recording editor keeps its saving indicator on one line in narrow windows. Thanks to @Yahddyyp.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 

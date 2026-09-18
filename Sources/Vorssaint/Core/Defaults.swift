@@ -27,6 +27,10 @@ enum DefaultsKey {
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeRunningApps = "keepAwakeRunningApps"
     static let keepAwakeRunningAppBundleIDs = "keepAwakeRunningAppBundleIDs"
+    // Match mode over the automation conditions: false is Any (one matching
+    // condition starts a session), true is All (every enabled condition has
+    // to match, and losing one ends the session). Issue #1587.
+    static let keepAwakeAutomationRequireAll = "keepAwakeAutomationRequireAll"
     static let keepAwakePauseWhenLocked = "keepAwakePauseWhenLocked"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
@@ -511,6 +515,7 @@ enum DefaultsKey {
     static let commandBarLinks = "commandBarLinks"           // Data: [CommandBarLink] JSON
     static let commandBarRowShortcuts = "commandBarRowShortcuts" // {row key: shortcut}
     static let commandBarPositionOffset = "commandBarPositionOffset" // "dx,dy" from the default spot
+    static let commandBarEmojiSkinTone = "commandBarEmojiSkinTone" // "" is the yellow default
     // The folders a file search looks in, one per line, written with a tilde
     // so an exported list still points somewhere on another Mac. Empty means
     // the bar looks for no files at all, which is the setting out of the box.
@@ -643,6 +648,7 @@ enum DefaultsKey {
     static let windowLayoutShortcutRightThird = "windowLayoutShortcutRightThird"
     static let windowLayoutShortcutLeftTwoThirds = "windowLayoutShortcutLeftTwoThirds"
     static let windowLayoutShortcutRightTwoThirds = "windowLayoutShortcutRightTwoThirds"
+    static let windowLayoutShortcutCenterTwoThirds = "windowLayoutShortcutCenterTwoThirds"
     static let windowLayoutShortcutPreviousDisplay = "windowLayoutShortcutPreviousDisplay"
     static let windowLayoutShortcutNextDisplay = "windowLayoutShortcutNextDisplay"
     static let windowLayoutShortcutFullScreen = "windowLayoutShortcutFullScreen"
@@ -658,6 +664,8 @@ enum DefaultsKey {
     static let textSnippets = "textSnippets"              // Data: [TextSnippet] JSON
     static let snippetLibraryEnabled = "snippetLibraryEnabled"
     static let snippetLibraryShortcut = "snippetLibraryShortcut"
+    static let snippetSoundEnabled = "snippetSoundEnabled"
+    static let snippetSoundName = "snippetSoundName"
 
     // Optional top-of-screen workspace and activity presentations.
     static let notchShowPlayingMusic = "notchShowPlayingMusic"
@@ -906,6 +914,7 @@ enum Defaults {
     static let allowedBatteryLimits = [0, 5, 10, 15, 20]
     static let allowedMonitorIntervals = [1, 2, 5]
     static let defaultKeyboardDebounceWindowMs = 5
+    static let defaultSnippetSoundName = "Tink"
     static let allowedKeyboardDebounceWindowRange = 0...500
     static let defaultMouseClickDebounceWindowMs = 25
     static let allowedMouseClickDebounceWindowRange = 5...100
@@ -941,6 +950,7 @@ enum Defaults {
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeRunningApps: false,
         DefaultsKey.keepAwakeRunningAppBundleIDs: [String](),
+        DefaultsKey.keepAwakeAutomationRequireAll: false,
         DefaultsKey.keepAwakePauseWhenLocked: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
@@ -1114,6 +1124,8 @@ enum Defaults {
         DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.snippetLibraryEnabled: false,
         DefaultsKey.snippetLibraryShortcut: GlobalShortcut.snippetLibraryDefault.storageValue,
+        DefaultsKey.snippetSoundEnabled: false,
+        DefaultsKey.snippetSoundName: defaultSnippetSoundName,
         DefaultsKey.notchShowPlayingMusic: true,
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
@@ -1411,6 +1423,7 @@ enum Defaults {
         DefaultsKey.commandBarFileIgnores: "",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
         DefaultsKey.commandBarPositionOffset: "",
+        DefaultsKey.commandBarEmojiSkinTone: "",
         DefaultsKey.panelUtilityCommandBar: true,
         DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
         DefaultsKey.scratchpadCloseOnClickOutside: true,
@@ -1520,6 +1533,7 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutRightThird: GlobalShortcut.windowLayoutRightThirdDefault.storageValue,
         DefaultsKey.windowLayoutShortcutLeftTwoThirds: GlobalShortcut.windowLayoutLeftTwoThirdsDefault.storageValue,
         DefaultsKey.windowLayoutShortcutRightTwoThirds: GlobalShortcut.windowLayoutRightTwoThirdsDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutCenterTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutPreviousDisplay: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutNextDisplay: GlobalShortcut.windowLayoutNextDisplayDefault.storageValue,
         DefaultsKey.windowLayoutShortcutTopLeftSixth: WindowLayoutAction.clearedShortcutStorageValue,

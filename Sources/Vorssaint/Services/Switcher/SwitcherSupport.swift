@@ -18,6 +18,14 @@ struct SwitcherActivationPlan: Equatable {
     let restoreSourceWhenTargetMinimizes: Bool
 }
 
+/// How the owning app is brought forward. App-level activation can raise
+/// sibling windows even without activateAllWindows, so a plan
+/// scoped to one window asks the window server to front that window alone.
+enum SwitcherAppActivationRoute: Equatable {
+    case exactWindow(CGWindowID)
+    case wholeApp
+}
+
 /// Shared by the bounded focus passes on the main thread. Once a pass sees
 /// a newer user action, the remaining passes cannot reclaim the old target.
 final class SwitcherWindowFocusRetryState {
@@ -1254,6 +1262,14 @@ enum SwitcherSupport {
 
     static func shouldActivateAllWindows(targetsSpecificWindow: Bool) -> Bool {
         activationPlan(targetsSpecificWindow: targetsSpecificWindow).activateAllWindows
+    }
+
+    static func appActivationRoute(plan: SwitcherActivationPlan,
+                                   windowID: CGWindowID?) -> SwitcherAppActivationRoute {
+        if !plan.activateAllWindows, let windowID {
+            return .exactWindow(windowID)
+        }
+        return .wholeApp
     }
 
     static func shouldRestoreSourceAfterTargetMinimize(targetPID: pid_t,

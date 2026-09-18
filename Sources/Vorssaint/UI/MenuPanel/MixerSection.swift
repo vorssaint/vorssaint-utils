@@ -13,6 +13,7 @@ struct MixerSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
+    @ObservedObject private var micMute = MicMuteService.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
     @ObservedObject private var preciseVolumeRoller = PreciseVolumeRollerService.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -134,6 +135,7 @@ struct MixerSection: View {
                 } icon: {
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 10.5, weight: .semibold))
+                        .frame(width: 16)
                 }
                 .foregroundStyle(.secondary)
 
@@ -167,7 +169,7 @@ struct MixerSection: View {
                     Image(systemName: mixer.systemOutputMuted == true || volume <= 0.001
                           ? "speaker.slash.fill"
                           : "speaker.wave.2.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 16)
 
@@ -210,6 +212,7 @@ struct MixerSection: View {
                 } icon: {
                     Image(systemName: "bell.fill")
                         .font(.system(size: 10.5, weight: .semibold))
+                        .frame(width: 16)
                 }
                 .foregroundStyle(.secondary)
 
@@ -451,6 +454,7 @@ struct MixerSection: View {
                 } icon: {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 10.5, weight: .semibold))
+                        .frame(width: 16)
                 }
                 .foregroundStyle(.secondary)
 
@@ -477,6 +481,38 @@ struct MixerSection: View {
                 .help(l10n.s.mixerInputTooltip)
             }
 
+            if let volume = inputManager.inputVolume {
+                HStack(spacing: 8) {
+                    Image(systemName: volume <= 0.001 ? "mic.slash.fill" : "mic.fill")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+
+                    MixerVolumeSlider(value: inputVolumeBinding,
+                                      normalTint: normalSliderTint,
+                                      boostTint: normalSliderTint,
+                                      isBoosting: false,
+                                      accentRevision: accentRevision,
+                                      maximum: 1,
+                                      accessibilityLabel: l10n.s.mixerInputTitle)
+
+                    EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
+                                          maximumPercent: 100,
+                                          width: 36,
+                                          editorID: "microphone-input",
+                                          editingID: $editingVolumeID,
+                                          accessibilityLabel: l10n.s.mixerInputTitle) {
+                        Text("\(Int((volume * 100).rounded()))%")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    } onCommit: {
+                        inputManager.setInputVolume($0)
+                    }
+                }
+                .disabled(micMute.isMuted)
+            }
+
             if inputManager.inputDevices.isEmpty {
                 inputMessage(l10n.s.mixerInputNoDevices, systemImage: "mic.slash")
             } else if inputManager.preferredUnavailable {
@@ -495,6 +531,13 @@ struct MixerSection: View {
                 inputManager.setPreferredInputDeviceUID(
                     selection == MixerRoutingSupport.systemDefaultSelectionID ? nil : selection)
             }
+        )
+    }
+
+    private var inputVolumeBinding: Binding<Double> {
+        Binding(
+            get: { inputManager.inputVolume ?? 0 },
+            set: { inputManager.setInputVolume($0) }
         )
     }
 

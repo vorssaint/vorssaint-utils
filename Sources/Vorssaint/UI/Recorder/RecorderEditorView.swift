@@ -500,6 +500,8 @@ struct RecorderEditorView: View {
 
     /// Saving keeps the picture visible: a scrim over the whole editor says
     /// "this is hard for me", and it is not.
+    /// In a narrow window the band squeezes this chip; the bar gives way
+    /// first, so the words never wrap letter by letter.
     private var exportProgressChip: some View {
         HStack(spacing: 8) {
             if model.exportPhase == .uploading {
@@ -509,15 +511,17 @@ struct RecorderEditorView: View {
             } else {
                 ProgressView(value: model.exportProgress)
                     .progressViewStyle(.linear)
-                    .frame(width: 110)
+                    .frame(minWidth: 24, idealWidth: 110, maxWidth: 110)
             }
             Text(exportProgressLabel)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color(white: 0.8))
+                .fixedSize()
             Button(strings.cancelButton) { model.cancelExport() }
                 .buttonStyle(.borderless)
                 .font(.system(size: 11))
                 .foregroundStyle(Color.accentColor)
+                .fixedSize()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

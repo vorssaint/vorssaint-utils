@@ -199,6 +199,7 @@ enum CommandBarCatalog {
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(L10n.shared.language).title
         case .monitor: return hub.groupMonitor
         }
     }
@@ -462,21 +463,17 @@ enum CommandBarCatalog {
                 icon: .symbol(awake.isActive ? "bolt.fill" : "bolt"),
                 shortcut: roleShortcut(.keepAwake),
                 isActive: awake.isActive,
-                // A typed number is a duration in minutes; without one the row
-                // is the plain on and off switch.
-                numericRange: 1...480,
-                numericIsOptional: true,
-                run: { minutes in
-                    if let minutes {
-                        KeepAwakeManager.shared.activate(minutes: minutes)
-                    } else {
-                        KeepAwakeManager.shared.toggle()
-                    }
-                }))
+                // Keep awake only honours the preset durations and turns any
+                // other number into an indefinite session, so the plain row
+                // takes no number and each preset has a row of its own.
+                run: { _ in KeepAwakeManager.shared.toggle() }))
             let durations: [(String, String, Int)] = [
+                ("action.keepAwake.15", s.minutes15, 15),
                 ("action.keepAwake.30", s.minutes30, 30),
                 ("action.keepAwake.60", s.hour1, 60),
                 ("action.keepAwake.120", s.hours2, 120),
+                ("action.keepAwake.240", s.hours4, 240),
+                ("action.keepAwake.480", s.hours8, 480),
             ]
             for (id, label, minutes) in durations {
                 entries.append(CommandBarEntry(
@@ -1288,18 +1285,23 @@ enum CommandBarCatalog {
     // MARK: - Emoji
 
     /// Emoji rows, which type themselves at the caret the way a snippet does.
-    /// Built once and reused: the names come from Unicode and never change.
+    /// The names come from Unicode and never change.
+    /// The tone is read here, because the bar has to rebuild this on every
+    /// opening and a chosen tone has to arrive with it.
     static func emojiEntries(bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
-        CommandBarEmoji.emoji.map { emoji in
-            CommandBarEntry(
-                id: "emoji.\(emoji.identity)",
-                title: emoji.character + "  " + emoji.name,
+        let tone = CommandBarPreferences.skinTone(
+            from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "")
+        return CommandBarEmoji.emoji.map { emoji in
+            let character = CommandBarEmoji.applying(tone, to: emoji.character)
+            return CommandBarEntry(
+                id: CommandBarPreferences.emojiRowID(identity: emoji.identity),
+                title: character + "  " + emoji.name,
                 subtitle: bar.kindEmoji,
                 keywords: emoji.name + " " + emoji.keywords + " " + bar.kindEmoji,
                 icon: .symbol("face.smiling"),
                 trouble: Permissions.shared.accessibility ? nil : .needsPermission,
                 matchTitle: emoji.name,
-                run: { _ in typeAtCursor(emoji.character) })
+                run: { _ in typeAtCursor(character) })
         }
     }
 
@@ -1559,10 +1561,14 @@ enum CommandBarCatalog {
     /// Enter copies it.
     static func answerEntry(for query: String, bar: CommandBarFeatureStrings) -> CommandBarEntry? {
         if let result = CommandBarMath.evaluate(query) {
+            var expression = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if expression.hasSuffix("=") { expression.removeLast() }
+            let completed = result.closingBrackets.isEmpty ? ""
+                : expression.trimmingCharacters(in: .whitespaces) + result.closingBrackets + " · "
             return CommandBarEntry(
                 id: "math.result",
                 title: result.formatted,
-                subtitle: bar.copyHint,
+                subtitle: completed + bar.copyHint,
                 icon: .symbol("equal.square"),
                 isAnswer: true,
                 countsUsage: false,

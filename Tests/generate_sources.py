@@ -40,8 +40,27 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    activator = "Sources/Vorssaint/Services/Switcher/WindowActivator.swift"
+    write("SwitcherActivationBodies.swift", "import AppKit\nimport ApplicationServices\n"
+          + "extension SwitcherActivationTests.Activator {\n"
+          + "".join(declaration(activator, prefix).replace("private static", "static", 1)
+                    for prefix in ["    private static func activateApp(",
+                                   "    private static func activateAppCooperatively(",
+                                   "    private static func activateSource("])
+          + "}\nextension SwitcherActivationTests.Bridge {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
+                        "    static func frontWindow(") + "}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
+    write("CommandBarEmojiBodies.swift", "import Foundation\n"
+          + "extension CommandBarEmojiContract.Catalog {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                        "    static func emojiEntries(")
+          + "}\nextension CommandBarEmojiContract.Service {\n"
+          + "".join(declaration(bar, prefix).replace("private func", "func", 1)
+                    for prefix in ["    struct RowAction:", "    private func skinToneActions(",
+                                   "    private func recordUsage(", "    private func finish("])
+          + "}\n")
     write("UninstallerFlow.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
           + "extension UninstallerFlowTests {\n"
           + declaration(uninstall, "    enum Phase:")
@@ -67,6 +86,22 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
                         "    static func dockPreviewMayActivate(")
           + "}\n")
+    # Entire input/mute services retain their production control flow. Only
+    # visibility, scheduling, defaults and HAL transport are replaced by fixtures.
+    input_source = "Sources/Vorssaint/Services/Audio/AudioInputDeviceManager.swift"
+    mute_source = "Sources/Vorssaint/Services/QuickTools/MicMuteService.swift"
+    input_bodies = (declaration(input_source, "struct MixerInputDevice:")
+                    + declaration(input_source, "final class AudioInputDeviceManager:")
+                    + declaration(mute_source, "final class MicMuteService:"))
+    input_bodies = (input_bodies.replace("fileprivate ", "")
+                   .replace("private(set) ", "").replace("private ", "")
+                   .replace("static let shared =", "static var shared ="))
+    for operation in ("HasProperty", "IsPropertySettable", "GetPropertyDataSize",
+                      "GetPropertyData", "SetPropertyData", "AddPropertyListener",
+                      "RemovePropertyListener"):
+        input_bodies = input_bodies.replace("AudioObject" + operation + "(", "HAL." + operation + "(")
+    write("MixerInputVolume.swift", "import Foundation\nimport Combine\nimport CoreAudio\nimport AudioToolbox\n"
+          + "extension MixerInputVolumeContract {\n" + input_bodies + "}\n")
     mixer = "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift"
     write("MixerOutputAdjustment.swift", "import CoreAudio\nimport Foundation\n"
           + "extension MixerOutputAdjustmentContract {\nfinal class Mixer {\n"
@@ -140,6 +175,8 @@ def main():
             .replace("private func", "static func", 1) + "}\n")
     write("NotchActivationButton.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
+    write("NotchPanel.swift", "import AppKit\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchPanel:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
     write("ShelfDragCompletion.swift", "import Foundation\n\nextension ShelfDragCompletionContract {\n"
           + "final class Service {\nvar activeInternalDragIDs: [UUID] = []\n"
@@ -206,6 +243,7 @@ def main():
     write("NotchScreenRefresh.swift", "import Foundation\n\nextension NotchScreenRefreshContract {\nfinal class Service: State {\n"
           + declaration(notch, "    private func screenParametersDidChange()").replace("private func", "func", 1)
           + declaration(notch, "    private func invalidateMenuSpace(").replace("private func", "func", 1)
+          + declaration(notch, "    private func applicationDidActivate()").replace("private func", "func", 1)
           + declaration(notch, "    private func stopMenuSpaceMonitoring()")
           + declaration(notch, "    private func syncMenuSpaceMonitoring()").replace("private func", "func", 1)
               .replace("AXIsProcessTrusted()", "accessibilityGranted")
@@ -305,6 +343,16 @@ def main():
           + "}\nfinal class FileView: HeightState {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchFilesView.swift", "    private func mediaHeightChanged(").replace("private func", "func", 1)
           + "}\n}\n")
+    write("MediaDialogHost.swift", "import AppKit\n\nextension MediaDialogHostContract {\nenum Dialogs {\n"
+          + "static var panelModalActive = false\n"
+          + declaration(media_workspace, "    private static func runPanelModal(").replace("private static", "static", 1)
+          + "}\n}\n")
+    write("RecorderExportChip.swift", "import AppKit\nimport SwiftUI\n\nextension RecorderExportChipTests {\n"
+          + "struct Chip: View {\n@ObservedObject var model: Model\nlet strings = Strings()\n"
+          + "var exportProgressLabel: String { strings.exportingLabel }\n"
+          + "var body: some View { exportProgressChip }\n"
+          + declaration("Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift", "    private var exportProgressChip:")
+          + "}\n}\n")
     switcher = "Sources/Vorssaint/UI/Switcher/SwitcherView.swift"
     switcher_service = "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift"
     write("SwitcherScroll.swift", "import AppKit\nimport SwiftUI\n"
@@ -368,6 +416,8 @@ def main():
     write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\n"
           + "extension ScreenshotSelectionRefreshContract.Chooser {\n"
           + declaration(selection, "    fileprivate var acceptsCaptureInput:").replace("fileprivate var", "var", 1)
+          + declaration(selection, "    private var repeatTargetPanel:").replace("private var", "var", 1)
+          + declaration(selection, "    fileprivate var offersRepeatLastRegion:").replace("fileprivate var", "var", 1)
           + "".join(declaration(selection, prefix).replace("fileprivate func", "func", 1)
                     .replace("private func", "func", 1).replace("UserDefaults.standard", "ReviewDefaults.current")
                     for prefix in refresh_methods)
@@ -402,6 +452,8 @@ def main():
           + "static func isNudgeKey(_ event: NSEvent) -> Bool { false }\n"
           + "func toggleScrollingCapture() {}\nfunc toggleLoupe() {}\nfunc copyLoupeColor() {}\n"
           + "func nudgePointer(keyCode: Int, fast: Bool) {}\nfunc attach() { installKeyMonitor() }\n"
+          + declaration(selection, "    private static func isRepeatRegionKey(")
+          + declaration(selection, "    private static func matchesShortcutKey(")
           + declaration(selection, "    private func installKeyMonitor()")
           + "}\n}\n")
 
@@ -431,7 +483,7 @@ def main():
           + "func beginAutomation(_ command: Command, playback: NotchPlayback) -> Bool { false }\nfunc cancelAutomationAction() {}\n"
           + "var process: Process?\nvar input: Pipe?\nlet queue = Scheduler()\n"
           + "lazy var commandWriter = NotchMusicCommandWriter { [queue = self.queue] in queue.async(execute: $0) }\n"
-          + "var wantsPlayback = false\nvar restartCount = 0\nvar restartWork: DispatchWorkItem?\nvar launches = 0\n"
+          + "var wantsPlayback = false\nvar awaitingPlayback = false\nvar restartCount = 0\nvar restartWork: DispatchWorkItem?\nvar launches = 0\n"
           + "func launch() { guard wantsPlayback, process == nil else { return }; launches += 1; process = Process(); input = Pipe(); commandWriter.start() }\n"
           + "func disconnect() { generation = UUID(); commandWriter.stop(); process = nil; input = nil; playback = nil }\n"
           + declaration(music, "    func start()")
@@ -466,6 +518,24 @@ def main():
           + declaration(music, "    private func cancelAutomationAction()").replace("private func", "func", 1)
           + "}\n}\nextension NotchMusicAutomationFlowContract.NotchMusicAutomation {\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift", "    static func send(") + "}\n")
+
+    keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"
+    write("KeepAwakeTimerHandoff.swift", "import Foundation\n\nextension KeepAwakeTimerHandoffContract {\n"
+          + "final class Service {\nvar sessionTrigger = SessionTrigger.manual\n"
+          + "var automationSuppressedUntilConditionsClear = false\n"
+          + "var activeAutomationConditions: Set<KeepAwakeAutomationCondition> = []\n"
+          + "var enabled: Set<KeepAwakeAutomationCondition> = []\n"
+          + "var matching: Set<KeepAwakeAutomationCondition> = []\n"
+          + "var requireAll = false\nvar batteryAllows = true\n"
+          + "var activations: [(minutes: Int, trigger: SessionTrigger)] = []\n"
+          + "func automaticSessionAllowedByBatteryProtection() -> Bool { batteryAllows }\n"
+          + "func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> { matching }\n"
+          + "func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> { enabled }\n"
+          + "func automationRequiresAllConditions() -> Bool { requireAll }\n"
+          + "func activate(minutes: Int, trigger: SessionTrigger) { activations.append((minutes, trigger)) }\n"
+          + declaration(keep_awake, "    private func continueAutomaticallyAfterTimerIfNeeded()")
+            .replace("private func", "func", 1)
+          + "}\n}\n")
 
     downloads = "Sources/Vorssaint/Services/Notch/NotchDownloadService.swift"
     write("NotchDownloadFolderChoice.swift", "import Foundation\n\nextension NotchDownloadFolderChoiceContract {\n"

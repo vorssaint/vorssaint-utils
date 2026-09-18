@@ -35,6 +35,7 @@ enum NotchCaptureKeyboardContract {
         let keyCode: UInt16
         var modifierFlags: ModifierFlags = []
         var type: EventType = .keyDown
+        var charactersIgnoringModifiers: String?
         static var handler: ((Self) -> Self?)?
         static func addLocalMonitorForEvents(matching: EventTypeMask, handler: @escaping (Self) -> Self?) -> Any? {
             self.handler = handler
@@ -161,6 +162,24 @@ enum NotchCaptureKeyboardTests {
         expect(Event.handler?(Event(window: unrelated, keyCode: UInt16(kVK_Return))) != nil,
                "capture selection leaves unrelated windows alone")
         let overlay = Contract.ScreenshotOverlayPanel()
+        for destination in [panel, overlay] {
+            for flags in 0..<16 {
+                for (character, key, matches) in [("r", kVK_ANSI_X, true),
+                                                   ("R", kVK_ANSI_X, true),
+                                                   ("x", kVK_ANSI_R, true),
+                                                   ("x", kVK_ANSI_X, false)] {
+                    selection.actions = []
+                    let accepts = matches && flags & 7 == 0
+                    let event = Event(window: destination, keyCode: UInt16(key),
+                                      modifierFlags: .init(rawValue: flags),
+                                      charactersIgnoringModifiers: character)
+                    expect((Event.handler?(event) == nil) == accepts
+                           && selection.actions == (accepts ? ["repeat"] : []),
+                           "repeat follows the typed letter or physical key, but never command, control or option")
+                }
+            }
+        }
+        selection.actions = []
         selection.screenCaptureOptions?.controlsInNotch = false
         expect(Event.handler?(Event(window: overlay, keyCode: UInt16(kVK_Return))) == nil && selection.actions == ["fullDisplay"],
                "the original floating chooser keeps full-display capture")

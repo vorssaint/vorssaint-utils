@@ -159,8 +159,20 @@ enum NotchMusicHardeningTests {
         }
         expect(choose([browser, music]) == music, "a browser video cannot take controls from playing music")
         expect(choose([music, browser]) == music, "source discovery order does not change music priority")
-        expect(choose([browser, paused], previous: 10) == paused, "pausing music keeps its resume control reachable")
-        expect(choose([browser, paused]) == paused, "reopening the music surface can still reach paused music")
+        expect(choose([browser, paused], previous: 10) == browser,
+               "a video playing takes the island from music paused in the background")
+        expect(choose([browser, paused]) == browser,
+               "the same holds on a first read, with nothing remembered")
+        let idleBrowser = source(20, music: false, playing: false)
+        expect(choose([idleBrowser, paused], previous: 10) == paused,
+               "pausing music keeps its resume control reachable once nothing is playing")
+        expect(choose([idleBrowser, paused]) == paused, "reopening the music surface can still reach paused music")
+        expect(choose([browser, paused, other], previous: 10) == other,
+               "playing music still outranks a playing browser and a paused music app")
+        // A music app open but stopped, a video playing in the browser: the
+        // island used to go blank, since paused music outranked everything.
+        expect(choose([paused, browser], previous: nil, system: 20) == browser,
+               "a stopped music app left open never blanks the island over a playing video")
         expect(choose([browser, source(10, music: true, track: false)]) == browser,
                "an empty music app does not hide browser playback")
         expect(choose([browser], previous: 10) == browser, "closing the music app releases its priority")
@@ -522,12 +534,15 @@ enum NotchMusicHardeningTests {
         expect(pipe.fileHandleForWriting.written.count == before + 1,
                "closing the last music consumer cancels its still-unwritten controls")
 
+        expect(!service.awaitingPlayback, "a stopped subscription is not waiting for a reading")
         service.start()
         let launches = service.launches
+        expect(service.awaitingPlayback, "a fresh subscription waits for the adapter's first reply before reporting nothing playing")
         service.connectionEnded()
         for _ in 0..<100 { service.start() }
         expect(service.launches == launches && Contract.DispatchQueue.main.jobs.count == 1,
                "preference updates cannot bypass a pending recovery or launch extra helpers")
+        expect(service.awaitingPlayback, "a pending recovery keeps the first reading outstanding")
         Contract.DispatchQueue.main.drain()
         expect(service.launches == launches + 1, "unexpected termination receives one delayed recovery while music is wanted")
         service.connectionEnded()
@@ -536,13 +551,14 @@ enum NotchMusicHardeningTests {
         for _ in 0..<100 { service.start() }
         expect(service.launches == launches + 2 && Contract.DispatchQueue.main.jobs.isEmpty,
                "persistent failure stops after two retries even if preferences continue changing")
+        expect(!service.awaitingPlayback, "giving up on the adapter ends the wait so the empty state can show")
         service.stop()
         service.start()
         service.connectionEnded()
         let cancelledLaunches = service.launches
         service.stop()
         Contract.DispatchQueue.main.drain()
-        expect(service.launches == cancelledLaunches && !service.wantsPlayback,
+        expect(service.launches == cancelledLaunches && !service.wantsPlayback && !service.awaitingPlayback,
                "disabling, hiding the last consumer or suspending cancels delayed recovery")
         service.start()
         service.connectionEnded()

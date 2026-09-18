@@ -17,6 +17,15 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 MUTATIONS = [
+    ("emoji family offers unsupported tones", "emoji", "Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift",
+     "scalar.value != 0x1F46A && scalar.properties.isEmojiModifierBase", "scalar.properties.isEmojiModifierBase",
+     "family stays unchanged instead of offering unsupported skin tones"),
+    ("one-off emoji skips usage learning", "emoji", "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+     "                self.recordUsage(of: entry)\n", "",
+     "a one-off tone records exactly one use under the original emoji"),
+    ("one-off emoji learns the action field instead of its search", "emoji", "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+     "        case .argument, .actions:\n", "        case .argument:\n",
+     "a one-off tone learns the search saved before opening actions"),
     ("output switches reuse another device's volume baseline", "core", "Sources/Vorssaint/Services/Notch/NotchService.swift",
      "                self.volumeBaseline = nil\n                self.muteBaseline = nil\n", "",
      "switching output never replaces its connection notice with stored volume or mute"),
@@ -46,6 +55,17 @@ MUTATIONS = [
      "        removeEventMonitors()\n        syncVisibleConsumers()\n    }\n\n    func toggle()",
      "        removeEventMonitors()\n    }\n\n    func toggle()",
      "closing manually opened controls stops the reader and never leaves a music strip behind"),
+    ("a timed session hands over on one condition", "core", "Sources/Vorssaint/Services/KeepAwakeManager.swift",
+     "        guard KeepAwakeAutomationSupport.conditionsSatisfied(\n"
+     "                matching: matches,\n"
+     "                enabled: currentEnabledAutomationConditions(),\n"
+     "                requireAll: automationRequiresAllConditions()) else { return false }\n",
+     "        guard !matches.isEmpty else { return false }\n",
+     "a timer running out on battery hands nothing over to an All automation"),
+    ("match mode labels grow back into sentences", "core", "Sources/Vorssaint/Core/KeepAwakeStrings.swift",
+     "        matchAny: \"L\u2019une\",\n        matchAll: \"Toutes\",\n",
+     "        matchAny: \"N\u2019importe quelle condition\",\n        matchAll: \"Toutes les conditions\",\n",
+     "fr: the match mode labels fit the panel card"),
     ("recording metadata rebases after startup", "recording", "Sources/Vorssaint/Services/Recorder/RecorderSupport.swift",
      "return timeline.eventTime(time, since: origin)",
      "return timeline.eventTime(time, since: origin + 0.3)",
