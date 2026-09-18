@@ -7,15 +7,15 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume, pinned apps and remembered ordering; capture guides reveal repeat-region shortcuts, Dynamic Island adds a stopwatch and improves music efficiency and interaction, panel buttons align correctly, Command Bar adds emoji skin tones and reliable Keep Awake durations, recent captures open promptly from other apps, and Window Layout adds a centered two-thirds placement.
+App Switcher makes multiple windows easier to see and brings selected windows forward without raising siblings. The mixer adds microphone volume, pinned apps and remembered ordering; capture guides reveal repeat-region shortcuts, Dynamic Island improves music efficiency and interaction, panel buttons align correctly, Command Bar adds emoji skin tones and reliable Keep Awake durations, recent captures open promptly from other apps, and Window Layout adds a centered two-thirds placement.
 
 ### Added
-- Dynamic Island’s timer page offers a stopwatch that counts up with pause and cancel, keeping its seconds visible beside the camera.
 - Adjust microphone input volume from the mixer, with an editable percentage on supported devices. Thanks to @GolamRafi27oo.
 - Window Layout can center a window at two-thirds of the screen width in one action. Thanks to @Borisserz.
 - Command Bar offers a default emoji skin tone and one-off alternatives from each emoji’s actions. Thanks to @justin-chiam.
 - Capture guides show R to repeat the last selected area, including in Dynamic Island. Thanks to @marcelharinck.
 - Pin and reorder mixer apps, with positions remembered when apps reopen and included in settings backups.
+- Dynamic Island’s timer page offers a stopwatch that counts up with pause and cancel, keeping its seconds visible beside the camera.
 
 ### Changed
 - Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
