@@ -350,21 +350,21 @@ struct SwitcherSettings: View {
                             caption: l10n.s.dockPreviewQuitAppOnCloseCaption) {
                     Toggle(l10n.s.dockPreviewQuitAppOnClose, isOn: $dockPreviewQuitAppOnClose).labelsHidden()
                 }
-                SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewKeepDockVisible,
-                            caption: l10n.s.dockPreviewKeepDockVisibleCaption) {
-                    Toggle(l10n.s.dockPreviewKeepDockVisible, isOn: $dockPreviewKeepDockVisible)
-                        .labelsHidden()
-                        .disabled(!DockAutohideHold.isSupported && !dockPreviewKeepDockVisible)
-                        .onChange(of: dockPreviewKeepDockVisible) { _, _ in
-                            dockPreview.syncWithPreferences()
-                        }
-                }
                 DisclosureGroup(isExpanded: $dockPreviewMoreOptionsExpanded) {
+                    SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewKeepDockVisible,
+                                caption: l10n.s.dockPreviewKeepDockVisibleCaption) {
+                        Toggle(l10n.s.dockPreviewKeepDockVisible, isOn: $dockPreviewKeepDockVisible)
+                            .labelsHidden()
+                            .disabled(!DockAutohideHold.isSupported && !dockPreviewKeepDockVisible)
+                            .onChange(of: dockPreviewKeepDockVisible) { _, _ in
+                                dockPreview.syncWithPreferences()
+                            }
+                    }
+                    .padding(.top, 6)
                     SettingsRow(symbol: "clock.arrow.circlepath", title: l10n.s.dockPreviewOrderByCreation,
                                 caption: l10n.s.dockPreviewOrderByCreationCaption) {
                         Toggle(l10n.s.dockPreviewOrderByCreation, isOn: $dockPreviewOrderByCreation).labelsHidden()
                     }
-                    .padding(.top, 6)
                 } label: {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)
                         .font(.subheadline.weight(.medium))

@@ -36,6 +36,8 @@ final class DockPreviewService: ObservableObject {
     private var dockVisibilityTimer: Timer?
     private let dockAutohideHold = DockAutohideHold()
     private var dockHoldObservers: [NSObjectProtocol] = []
+    private var dockHoldInputTap: CFMachPort?
+    private var dockHoldInputSource: CFRunLoopSource?
     private var didReattachForSession = false
     private var reattachGraceFrame: CGRect?
     /// Where the pointer was when the panel moved out from under it. The grace
@@ -47,6 +49,7 @@ final class DockPreviewService: ObservableObject {
     private var lastMoveSampledAt: TimeInterval = 0
     private var pendingMove: DispatchWorkItem?
     private var pendingMovePoint: CGPoint?
+    private var pointerEventGeneration = 0
     private var lastAXMousePoint: CGPoint?
     private var lastAppKitMousePoint: CGPoint?
     private var panel: NSPanel?
@@ -424,8 +427,10 @@ final class DockPreviewService: ObservableObject {
         } else {
             cancelPendingMove()
         }
+        let generation = pointerEventGeneration
         DispatchQueue.main.async { [weak self] in
-            self?.handleOnMain(type: type, axPoint: point)
+            guard let self, self.pointerEventGeneration == generation else { return }
+            self.handleOnMain(type: type, axPoint: point)
         }
         return Unmanaged.passUnretained(event)
     }
@@ -997,7 +1002,11 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func beginDockAutohideHold() {
-        guard dockAutohideHold.begin(), dockHoldObservers.isEmpty else { return }
+        guard dockHoldObservers.isEmpty, startDockHoldInputTap() else { return }
+        guard dockAutohideHold.begin() else {
+            stopDockHoldInputTap()
+            return
+        }
         let workspace = NSWorkspace.shared.notificationCenter
         let events = [NSWorkspace.activeSpaceDidChangeNotification,
                       NSWorkspace.willSleepNotification,
@@ -1009,12 +1018,64 @@ final class DockPreviewService: ObservableObject {
         }
     }
 
+    // An active tap returns the original key only AFTER restoring the Dock.
+    // A passive monitor or an async dispatch can restore after a system shortcut
+    // has already changed auto-hide, overwriting the user's new choice.
+    private func startDockHoldInputTap() -> Bool {
+        guard dockHoldInputTap == nil else { return true }
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(1) << CGEventType.keyDown.rawValue,
+            callback: { _, type, event, userInfo in
+                guard let userInfo else { return Unmanaged.passUnretained(event) }
+                let service = Unmanaged<DockPreviewService>.fromOpaque(userInfo).takeUnretainedValue()
+                service.handleDockHoldInput(type: type)
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else { return false }
+        dockHoldInputTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        dockHoldInputSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        return true
+    }
+
+    private func handleDockHoldInput(type: CGEventType) {
+        guard dockAutohideHold.isHolding else { return }
+        if type == .keyDown || type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            // Discard a sampled mouse move that predates the key, so it cannot
+            // reopen the hover immediately after keyboard use ended it.
+            pointerEventGeneration &+= 1
+            cancelPendingMove()
+            endSession()
+        }
+    }
+
+    private func stopDockHoldInputTap() {
+        if let tap = dockHoldInputTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
+        }
+        if let source = dockHoldInputSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        dockHoldInputTap = nil
+        dockHoldInputSource = nil
+    }
+
     private func releaseDockAutohideHold() {
+        // Restore before invalidating an active input callback: detaching the
+        // tap must never let its key reach the system ahead of this write.
+        dockAutohideHold.end()
+        stopDockHoldInputTap()
         for observer in dockHoldObservers {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
         dockHoldObservers.removeAll()
-        dockAutohideHold.end()
     }
 
     /// Keep the original fallback even during an experimental hold: if macOS
