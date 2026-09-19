@@ -12,12 +12,12 @@ enum NotchLevelStyle {
 
 struct NotchControlsView: View {
     @ObservedObject var service: NotchService
+    let size: CGSize
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
 
     var body: some View {
         let items = NotchSupport.controls()
-        let size = service.contentSize
         let levels = items.filter { $0 == .volume || $0 == .brightness }
         let shortcuts = items.filter { $0 != .volume && $0 != .brightness && $0 != .music }
         let layout = NotchLayout.controls(hasCards: items.contains(.music) || !levels.isEmpty,
@@ -42,7 +42,21 @@ struct NotchControlsView: View {
 
     /// Playback shares the row with the levels: two of them fold into one
     /// slim card beside it, a single one keeps its full card.
-    private func cards(levels: [NotchControlItem], music: Bool, height: CGFloat) -> some View {
+    @ViewBuilder private func cards(levels: [NotchControlItem], music: Bool, height: CGFloat) -> some View {
+        let musicWidth = NotchLayout.musicCardMinimumWidth(height: height)
+        let required = music ? musicWidth + (levels.isEmpty ? 0 : 160 + NotchLayout.rowSpacing) : 0
+        if required > size.width {
+            ScrollView(.horizontal) {
+                cardRow(levels: levels, music: music, height: height).frame(width: required)
+            }
+            .scrollIndicators(.hidden)
+            .frame(height: height)
+        } else {
+            cardRow(levels: levels, music: music, height: height)
+        }
+    }
+
+    private func cardRow(levels: [NotchControlItem], music: Bool, height: CGFloat) -> some View {
         HStack(spacing: NotchLayout.rowSpacing) {
             if music {
                 NotchMusicControlsView(notch: service, height: height)
@@ -179,7 +193,7 @@ struct NotchAudioControls: View {
             HStack(spacing: 8) {
                 mute
                 slider
-                percent.frame(width: 34, alignment: .trailing)
+                outputMenu
             }
             .frame(height: 28)
             .help(mixer.outputSwitchError ?? deviceName)
@@ -187,7 +201,11 @@ struct NotchAudioControls: View {
             VStack(spacing: 6) {
                 HStack(spacing: 7) {
                     mute
-                    Text(FeatureStrings.notch(l10n.language).volume).lineLimit(1)
+                    if showsDevice {
+                        Text(FeatureStrings.notch(l10n.language).volume).lineLimit(1)
+                    } else {
+                        outputMenu
+                    }
                     Spacer(minLength: 0)
                     percent
                 }
@@ -264,10 +282,14 @@ struct NotchAudioControls: View {
     }
 
     @ViewBuilder private var outputMenu: some View {
-        if style == .inline {
+        if style != .card || !showsDevice {
             NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: outputItems) {
                 HStack(spacing: 5) {
-                    Image(systemName: "airplay.audio").font(.system(size: 14))
+                    if style == .row {
+                        percent
+                    } else {
+                        Image(systemName: "airplay.audio").font(.system(size: 14))
+                    }
                     Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
                 }
                 .foregroundStyle(.secondary)
@@ -300,7 +322,7 @@ private struct NotchBrightnessControls: View {
         Group {
             if style == .row {
                 HStack(spacing: 8) {
-                    Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium)).frame(width: 18)
+                    displayMenu
                     slider
                     percent.frame(width: 34, alignment: .trailing)
                 }
@@ -309,20 +331,19 @@ private struct NotchBrightnessControls: View {
             } else {
                 VStack(spacing: 6) {
                     HStack(spacing: 7) {
-                        Label(FeatureStrings.notch(l10n.language).brightness, systemImage: "sun.max.fill")
-                            .lineLimit(1)
+                        if showsDevice {
+                            Label(FeatureStrings.notch(l10n.language).brightness, systemImage: "sun.max.fill")
+                                .lineLimit(1)
+                        } else {
+                            displayMenu
+                        }
                         Spacer(minLength: 0)
                         percent
                     }
                     .font(.system(size: 12, weight: .semibold))
                     slider
-                    if showsDevice, let display {
-                        NotchDeviceMenu(title: FeatureStrings.notch(l10n.language).brightness, current: display.name,
-                                        width: 154, lines: 1, alignment: .leading,
-                                        items: displays.map { item in
-                                            NotchMenuItem(title: item.name, checked: item.id == display.id) { selectedID = item.id }
-                                        })
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if showsDevice {
+                        displayMenu.frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -332,6 +353,32 @@ private struct NotchBrightnessControls: View {
             }
         }
         .onAppear { service.refresh() }
+    }
+
+    @ViewBuilder private var displayMenu: some View {
+        if let display {
+            let title = FeatureStrings.notch(l10n.language).brightness
+            let items = displays.map { item in
+                NotchMenuItem(title: item.name, checked: item.id == display.id) { selectedID = item.id }
+            }
+            if style == .card && showsDevice {
+                NotchDeviceMenu(title: title, current: display.name,
+                                width: 154, lines: 1, alignment: .leading, items: items)
+            } else {
+                NotchMenuButton(title: title, items: items) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium))
+                        Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+                    }
+                    .frame(height: 24)
+                    .contentShape(Rectangle())
+                }
+                .help(display.name)
+                .accessibilityValue(display.name)
+            }
+        } else {
+            Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium)).frame(width: 18)
+        }
     }
 
     @ViewBuilder private var percent: some View {

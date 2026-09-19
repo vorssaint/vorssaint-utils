@@ -67,7 +67,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
-                    .monitorDisk, .monitorPower].contains { (feature: AppFeature) in
+                    .monitorDisk, .monitorPower, .fanControl].contains { (feature: AppFeature) in
                 feature.isAvailable(in: defaults)
             }
         }
@@ -110,7 +110,7 @@ enum NotchLayout {
     static let pageContentHeight: CGFloat = 320
     static let rowSpacing: CGFloat = 10
     static let cardHeight: CGFloat = 96
-    static let minimumCardHeight: CGFloat = 64
+    static let minimumCardHeight: CGFloat = 68
     static let shortcutHeight: CGFloat = 74
     static let shortcutWidth: CGFloat = 76
     static let shortcutSpacing: CGFloat = 8
@@ -140,6 +140,9 @@ enum NotchLayout {
     static let calendarMonthHeaderHeight: CGFloat = 28
     static let calendarMonthWeekdayHeight: CGFloat = 14
     static let calendarMonthSpacing: CGFloat = 4
+    static var calendarMonthMinimumHeight: CGFloat {
+        calendarMonthHeaderHeight + calendarMonthWeekdayHeight + calendarMonthSpacing * 2 + 6 * 16
+    }
     static func calendarMonthRowHeight(height: CGFloat) -> CGFloat {
         let room = height - calendarMonthHeaderHeight - calendarMonthWeekdayHeight - calendarMonthSpacing * 2
         return min(30, max(16, (room / 6).rounded(.down)))
@@ -188,6 +191,12 @@ enum NotchLayout {
 
     static func railHeight(rows: Int, rowHeight: CGFloat, spacing: CGFloat) -> CGFloat {
         CGFloat(max(1, rows)) * rowHeight + CGFloat(max(0, rows - 1)) * spacing
+    }
+
+    /// Square artwork, its gap, the three compact transport buttons, and
+    /// horizontal padding. Track titles truncate within the remaining space.
+    static func musicCardMinimumWidth(height: CGFloat) -> CGFloat {
+        max(40, height - 24) + 12 + 120 + 24
     }
 
     /// The home page: one row of cards (playback and levels) over a rail of

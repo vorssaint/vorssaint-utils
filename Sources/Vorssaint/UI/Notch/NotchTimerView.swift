@@ -221,7 +221,7 @@ struct NotchTimerView: View {
         let value = binding(option)
         let title = title(option)
         let current = value.wrappedValue
-        return NotchMenuButton(title: title, items: option.choices(including: current).map { choice in
+        return NotchMenuButton(title: title, items: option.range.map { choice in
             NotchMenuItem(title: display(option, choice), checked: choice == current) { value.wrappedValue = choice }
         }) {
             VStack(alignment: .leading, spacing: 1) {

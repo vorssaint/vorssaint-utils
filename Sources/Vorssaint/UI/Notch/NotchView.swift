@@ -155,6 +155,7 @@ struct NotchView: View {
                 } else if scrollsVertically {
                     ScrollView {
                         content
+                            .frame(height: contentOverflows ? pageSize.height : nil)
                             .frame(maxWidth: .infinity, alignment: .topLeading)
                             .padding(.bottom, 4)
                     }
@@ -172,12 +173,44 @@ struct NotchView: View {
         .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
     }
 
-    /// Every page lays itself out sideways inside the strip. Only surfaces
-    /// that are vertical by nature keep a vertical scroll: a metric detail,
-    /// a retained capture and the launcher while it edits.
+    /// Keep each page's minimum usable layout reachable when a custom height
+    /// or the display leaves less room. The outer silhouette stays unchanged.
+    private var pageSize: CGSize {
+        var size = service.contentSize
+        guard !showsDetail else { return size }
+        switch service.selected {
+        case .controls:
+            let items = NotchSupport.controls()
+            let shortcuts = items.filter { $0 != .music && $0 != .volume && $0 != .brightness }
+            size.height = max(size.height, NotchLayout.controls(
+                hasCards: items.contains(.music) || items.contains(.volume) || items.contains(.brightness),
+                shortcutCount: shortcuts.count, width: size.width, height: size.height).height)
+        case .timer:
+            let session = NotchTimerService.shared.session
+            size.height = max(size.height, NotchLayout.timer(
+                mode: session.hasSession ? session.mode : NotchTimerSupport.savedMode(),
+                hasSession: session.hasSession, width: size.width, height: size.height))
+        case .calendar:
+            size.height = max(size.height, NotchLayout.calendarMonthMinimumHeight)
+        case .music:
+            let controlsRow = AppFeature.mixer.isAvailable || NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
+                ? NotchLayout.musicControlsRowHeight + NotchLayout.rowSpacing : 0
+            let player = music.playback == nil ? NotchLayout.musicIdleHeight
+                : NotchLayout.musicPlayerHeight(layout: service.geometry.layout, height: size.height)
+            size.height = max(size.height, player + controlsRow)
+        case .files:
+            // One shelf tile, its vertical insets, the footer and their gap.
+            size.height = max(size.height, 88 + 8 + 28 + NotchLayout.rowSpacing)
+        default: break
+        }
+        return size
+    }
+
+    private var contentOverflows: Bool { pageSize.height > service.contentSize.height }
+
     private var scrollsVertically: Bool {
         guard !service.showingAppPanel else { return false }
-        return service.selectedMetric != nil
+        return contentOverflows || service.selectedMetric != nil
             || (service.selected == .captures && service.captureContent != nil)
             || (service.selected == .tools && launcher.isEditing && launcher.activeUtility == nil)
     }
@@ -291,32 +324,32 @@ struct NotchView: View {
 
     @ViewBuilder private var content: some View {
         if service.showingAppPanel {
-            MenuPanelView(notchSize: service.contentSize)
+            MenuPanelView(notchSize: pageSize)
         } else if let metric = service.selectedMetric {
             MetricDetailView(kind: metric)
         } else if service.modules.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: text.empty)
         } else {
             switch service.selected {
-            case .timer: NotchTimerView(size: service.contentSize)
-            case .camera: NotchCameraView(size: service.contentSize)
-            case .notifications: NotchNotificationsView(size: service.contentSize)
-            case .downloads: NotchDownloadsView(size: service.contentSize)
-            case .calendar: NotchCalendarView(size: service.contentSize)
-            case .controls: NotchControlsView(service: service)
-            case .mixer: NotchMixerView(size: service.contentSize)
-            case .music: NotchMusicView(size: service.contentSize, extrasHeight: service.geometry.musicExtrasHeight)
-            case .clipboard: NotchClipboardView(service: service, size: service.contentSize)
+            case .timer: NotchTimerView(size: pageSize)
+            case .camera: NotchCameraView(size: pageSize)
+            case .notifications: NotchNotificationsView(size: pageSize)
+            case .downloads: NotchDownloadsView(size: pageSize)
+            case .calendar: NotchCalendarView(size: pageSize)
+            case .controls: NotchControlsView(service: service, size: pageSize)
+            case .mixer: NotchMixerView(size: pageSize)
+            case .music: NotchMusicView(size: pageSize, extrasHeight: service.geometry.musicExtrasHeight)
+            case .clipboard: NotchClipboardView(service: service, size: pageSize)
             case .captures:
                 if let capture = service.captureContent {
                     capture.frame(maxWidth: .infinity)
                 } else {
-                    RecentCapturesView(onClose: nil, notchSize: service.contentSize)
+                    RecentCapturesView(onClose: nil, notchSize: pageSize)
                 }
             case .files: NotchFilesView(service: service)
             case .system:
-                NotchSystemView(size: service.contentSize) { service.showMetric($0) }
-            case .tools: QuickLauncherView(notchSize: service.contentSize)
+                NotchSystemView(size: pageSize) { service.showMetric($0) }
+            case .tools: QuickLauncherView(notchSize: pageSize)
             case .scratchpad: NotchScratchpadView(service: service)
             }
         }

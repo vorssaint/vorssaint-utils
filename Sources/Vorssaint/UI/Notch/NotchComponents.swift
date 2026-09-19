@@ -182,6 +182,13 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
         CGFloat(starts.count) * itemWidth + CGFloat(max(0, starts.count - 1)) * spacing <= width
     }
 
+    // Scroll to the column itself: its identity is known before lazy children
+    // are created, including a target well outside the current viewport.
+    private var targetColumn: Int? {
+        guard let scrollTarget, let index = items.firstIndex(where: { $0.id == scrollTarget }) else { return nil }
+        return index / max(1, rows) * max(1, rows)
+    }
+
     var body: some View {
         if fits {
             HStack(alignment: .top, spacing: spacing) {
@@ -192,15 +199,15 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
                 // Legacy scroll bars would take a row's worth of height; the
                 // column cut at the edge is the cue that more follows.
                 ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: spacing) {
-                        ForEach(starts, id: \.self) { start in column(start).frame(width: itemWidth) }
+                    LazyHStack(alignment: .top, spacing: spacing) {
+                        ForEach(starts, id: \.self) { start in column(start).frame(width: itemWidth).id(start) }
                     }
                 }
                 .scrollIndicators(.hidden)
                 .onAppear {
-                    if let scrollTarget { proxy.scrollTo(scrollTarget, anchor: .center) }
+                    if let targetColumn { proxy.scrollTo(targetColumn, anchor: .center) }
                 }
-                .onChange(of: scrollTarget) { _, target in
+                .onChange(of: targetColumn) { _, target in
                     guard let target else { return }
                     withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
                         proxy.scrollTo(target, anchor: .center)
@@ -213,7 +220,7 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     private func column(_ start: Int) -> some View {
         VStack(spacing: rowSpacing) {
             ForEach(items[start..<min(items.count, start + max(1, rows))]) { item in
-                content(item).id(item.id)
+                content(item)
             }
         }
     }

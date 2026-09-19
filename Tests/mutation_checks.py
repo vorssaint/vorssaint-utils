@@ -17,6 +17,18 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 MUTATIONS = [
+    ("compact rail eagerly builds history", "notch", "Sources/Vorssaint/UI/Notch/NotchComponents.swift",
+     "                    LazyHStack(alignment: .top, spacing: spacing) {",
+     "                    HStack(alignment: .top, spacing: spacing) {",
+     "a thousand history entries create only the visible rail neighborhood"),
+    ("preview recreates the scratchpad editor", "notch", "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift",
+     "                        .opacity(pad.isPreviewing ? 0 : 1)",
+     "                        .id(pad.isPreviewing)\n                        .opacity(pad.isPreviewing ? 0 : 1)",
+     "preview preserves the same editor and undo history"),
+    ("floating scratchpad takes another host's focus", "notch", "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
+     "guard let panel, panel.isVisible, !requiresKeyWindow || panel.isKeyWindow else { return }",
+     "guard let panel, panel.isVisible else { return }",
+     "document actions preserve island focus with the floating host visible or hidden"),
     ("emoji family offers unsupported tones", "emoji", "Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift",
      "scalar.value != 0x1F46A && scalar.properties.isEmojiModifierBase", "scalar.properties.isEmojiModifierBase",
      "family stays unchanged instead of offering unsupported skin tones"),

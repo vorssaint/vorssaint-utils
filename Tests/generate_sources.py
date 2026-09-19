@@ -232,6 +232,23 @@ def main():
               "    private func bindVolumeEvents(", "    private func volumeChanged(",
               "    private func showVolume(", "    func showCurrentVolume("])
           + "}\n}\n")
+    scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
+    scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
+    write("NotchCompact.swift", "import AppKit\nimport SwiftUI\nextension NotchCompactTests {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchComponents.swift", "struct NotchRail<")
+          + declaration("Sources/Vorssaint/UI/PlainTextEditor.swift", "struct PlainTextEditor:")
+          + declaration(scratchpad_view, "struct NotchScratchpadView:")
+          + "}\nextension NotchCompactTests.ScratchpadService {\n"
+          + declaration(scratchpad_service, "    func clear(")
+          + "}\nextension NotchCompactTests.Floating {\n"
+          + declaration(scratchpad_service, "    private func focusText(").replace("private func", "func", 1)
+          + "}\nextension NotchCompactTests.Embedded {\n"
+          + declaration(scratchpad_view, "    private func focusEditor(").replace("private func", "func", 1)
+          + "}\nextension NotchCompactTests.Page {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    private var pageSize:")
+              .replace("private var", "var", 1).replace("NotchSupport.controls()", "controls")
+              .replace("NotchTimerService.shared", "NotchCompactTests.NotchTimerService.shared")
+          + "}\n")
     update = "Sources/Vorssaint/Services/Update/UpdateService.swift"
     update_view = "Sources/Vorssaint/UI/Notch/NotchUpdateControl.swift"
     write("NotchUpdate.swift", "import AppKit\nimport SwiftUI\nimport Combine\nextension NotchUpdateTests {\n"

@@ -7,6 +7,20 @@ import AppKit
 
 enum NotchTests {
     private static func railContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-fan-only"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for feature in AppFeature.allCases { defaults.set(false, forKey: feature.availabilityKey) }
+        suite.expect(!NotchModule.system.isAvailable(in: defaults), "System stays unavailable without an installed monitor")
+        defaults.set(true, forKey: AppFeature.fanControl.availabilityKey)
+        suite.expect(NotchModule.system.isAvailable(in: defaults)
+                     && NotchSupport.systemCardCount(hasBattery: false, fans: 1, in: defaults) == 1,
+                     "fan control alone makes its containing System page reachable")
+        suite.expect(NotchModule.system.isAvailable(in: defaults)
+                     && NotchSupport.systemCardCount(hasBattery: false, fans: 0, in: defaults) == 0,
+                     "System remains reachable while waiting for the first fan sample")
+
         suite.expect(NotchLayout.railCapacity(width: 424, itemWidth: 76, spacing: 8) == 5
                && NotchLayout.railCapacity(width: 304, itemWidth: 76, spacing: 8) == 3
                && NotchLayout.railCapacity(width: 20, itemWidth: 76, spacing: 8) == 1

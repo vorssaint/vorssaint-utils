@@ -45,23 +45,24 @@ struct NotchScratchpadView: View {
                 VStack(spacing: 6) {
                     toolbar
                     ZStack(alignment: .topLeading) {
+                        PlainTextEditor(text: $pad.text, textColor: .white, textContainerInset: Self.editorInset) { view in
+                            view.insertionPointColor = .white
+                            editor.view = view
+                            DispatchQueue.main.async { focusEditor() }
+                        }
+                        .opacity(pad.isPreviewing ? 0 : 1)
+                        .allowsHitTesting(!pad.isPreviewing)
+                        .accessibilityHidden(pad.isPreviewing)
                         if pad.isPreviewing {
                             MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(pad.text))
-                        } else {
-                            PlainTextEditor(text: $pad.text, textColor: .white, textContainerInset: Self.editorInset) { view in
-                                view.insertionPointColor = .white
-                                editor.view = view
-                                DispatchQueue.main.async { focusEditor() }
-                            }
-                            if pad.text.isEmpty {
-                                Text(text.placeholder)
-                                    .font(.system(size: PlainTextEditor.fontSize))
-                                    .foregroundStyle(.white.opacity(0.35))
-                                    .padding(.leading, Self.editorInset.width + PlainTextEditor.lineFragmentPadding)
-                                    .padding(.top, Self.editorInset.height)
-                                    .allowsHitTesting(false)
-                                    .accessibilityHidden(true)
-                            }
+                        } else if pad.text.isEmpty {
+                            Text(text.placeholder)
+                                .font(.system(size: PlainTextEditor.fontSize))
+                                .foregroundStyle(.white.opacity(0.35))
+                                .padding(.leading, Self.editorInset.width + PlainTextEditor.lineFragmentPadding)
+                                .padding(.top, Self.editorInset.height)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,6 +75,15 @@ struct NotchScratchpadView: View {
         .onDisappear { pad.commitEdits() }
         .onChange(of: pad.selectedPadID) { _, _ in
             DispatchQueue.main.async { focusEditor() }
+        }
+        .onChange(of: pad.isPreviewing) { _, previewing in
+            if previewing {
+                if let view = editor.view, view.window?.firstResponder === view {
+                    view.window?.makeFirstResponder(nil)
+                }
+            } else {
+                DispatchQueue.main.async { focusEditor() }
+            }
         }
         .onChange(of: service.scratchpadCloseSerial) { _, _ in
             guard let selectedPad else { return }
@@ -229,7 +239,7 @@ struct NotchScratchpadView: View {
     /// The caret lands at the end of the pad's text, as the floating pad
     /// puts it after a tab change.
     private func focusEditor() {
-        guard let view = editor.view, let window = view.window else { return }
+        guard !pad.isPreviewing, let view = editor.view, let window = view.window, window.isKeyWindow else { return }
         window.makeFirstResponder(view)
         let end = NSRange(location: (view.string as NSString).length, length: 0)
         view.setSelectedRange(end)

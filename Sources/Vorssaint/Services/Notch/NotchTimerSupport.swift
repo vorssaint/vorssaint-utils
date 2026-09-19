@@ -57,8 +57,7 @@ struct NotchPomodoroConfiguration: Equatable {
     }
 }
 
-/// One pomodoro setting as the island offers it: a menu of usual values,
-/// with whatever is stored kept on the list so a custom choice never vanishes.
+/// Every value accepted by the saved configuration remains selectable.
 enum NotchPomodoroOption: CaseIterable, Identifiable {
     case focus, shortBreak, longBreak, longBreakInterval, totalSessions
     var id: Self { self }
@@ -76,21 +75,6 @@ enum NotchPomodoroOption: CaseIterable, Identifiable {
         case .focus, .shortBreak, .longBreak: return true
         case .longBreakInterval, .totalSessions: return false
         }
-    }
-
-    /// Every minute where people actually land, then the round numbers: the
-    /// menu is the only control for these, so it must reach what the old
-    /// stepper reached.
-    func choices(including current: Int) -> [Int] {
-        let usual: [Int]
-        switch self {
-        case .focus: usual = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120, 180]
-        case .shortBreak: usual = Array(1...15) + [20, 25, 30, 45, 60]
-        case .longBreak: usual = Array(1...20) + [25, 30, 45, 60]
-        case .longBreakInterval, .totalSessions: usual = Array(1...12) + [16, 20, 24]
-        }
-        let bounded = min(range.upperBound, max(range.lowerBound, current))
-        return Array(Set(usual + [bounded])).sorted()
     }
 }
 

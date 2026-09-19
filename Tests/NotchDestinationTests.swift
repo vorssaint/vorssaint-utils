@@ -132,8 +132,8 @@ enum NotchDestinationContract {
                "removing the last system family selects an available module without keeping its old detail")
         defaults.set(true, forKey: AppFeature.fanControl.availabilityKey)
         service.open(.system, metric: .fan)
-        suite.expect(!service.modules.contains(.system) && service.selectedMetric == .fan,
-               "a separately installed fan feature retains its direct detail without other system modules")
+        suite.expect(service.modules.contains(.system) && service.selectedMetric == .fan,
+               "a separately installed fan feature exposes System and retains its direct detail")
 
         QuickLauncherService.shared = QuickLauncherContract.Launcher()
         let launcher = QuickLauncherService.shared

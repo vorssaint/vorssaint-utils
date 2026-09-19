@@ -91,7 +91,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     func show() {
         guard AppFeature.scratchpad.isAvailable, !modalInteractionActive else { return }
         if isVisible {
-            focusText()
+            focusText(requiresKeyWindow: false)
             return
         }
         isPreviewing = false
@@ -111,7 +111,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         }
         panel.alphaValue = 0
         panel.orderFrontRegardless()
-        focusText()
+        focusText(requiresKeyWindow: false)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.13
             panel.animator().alphaValue = 1
@@ -302,6 +302,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         savePanel.isExtensionHidden = false
         savePanel.nameFieldStringValue = suggestedName
         let content = text
+        let sourceWindow = NSApp.keyWindow
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async { [weak self] in
             let response = savePanel.runModal()
@@ -317,8 +318,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                         message: FeatureStrings.scratchpad(L10n.shared.language).exportFailed)
                 }
             }
-            guard let self, let panel = self.panel, panel.isVisible else { return }
-            panel.makeKey()
+            if sourceWindow?.isVisible == true { sourceWindow?.makeKey() }
         }
     }
 
@@ -330,13 +330,13 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         textView = view
     }
 
-    /// Only a pad on screen takes the keyboard: with the island editing the
-    /// same document, a hidden pad made key would take the typing from it.
-    private func focusText() {
-        guard let panel, panel.isVisible else { return }
+    /// Document actions keep focus in their host. Only an explicit show may
+    /// bring the floating pad forward while the island or another app is key.
+    private func focusText(requiresKeyWindow: Bool = true) {
+        guard let panel, panel.isVisible, !requiresKeyWindow || panel.isKeyWindow else { return }
         panel.makeKey()
         DispatchQueue.main.async { [weak self] in
-            guard let self, let panel = self.panel, panel.isVisible,
+            guard let self, let panel = self.panel, panel.isVisible, panel.isKeyWindow,
                   let textView = self.textView else { return }
             panel.makeFirstResponder(textView)
             let end = NSRange(location: (textView.string as NSString).length, length: 0)
