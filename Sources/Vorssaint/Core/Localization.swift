@@ -365,6 +365,8 @@ struct Strings {
     let dockPreviewOpenDelayCaption: String
     let dockPreviewQuitAppOnClose: String
     let dockPreviewQuitAppOnCloseCaption: String
+    let dockPreviewOrderByCreation: String
+    let dockPreviewOrderByCreationCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -593,6 +595,9 @@ struct Strings {
     let mediaCompressionLow: String
     let mediaCompressionMedium: String
     let mediaCompressionHigh: String
+    let mediaCompressionLowDescription: String
+    let mediaCompressionMediumDescription: String
+    let mediaCompressionHighDescription: String
     let mediaMaxSize: String
     let mediaSizingResolution: String
     let mediaSizingFileSize: String
@@ -1039,6 +1044,10 @@ struct Strings {
     let shortcutDeleteHint: String
     let shortcutNotCaptured: String
     let shortcutConflictFormat: String
+    let shortcutTakeOverOffer: String
+    let shortcutTakeOverAction: String
+    let shortcutTakeOverCaption: String
+    let shortcutTakeOverDismiss: String
     let shortcutUnavailable: String
     let shelfShortcutToggle: String
     let switcherUsageHintFormat: String
@@ -1426,6 +1435,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Quanto tempo o ponteiro precisa ficar sobre um ícone antes de o painel abrir.",
         dockPreviewQuitAppOnClose: "Encerrar o app com o botão ×",
         dockPreviewQuitAppOnCloseCaption: "No Dock Preview, × encerra o app inteiro em vez de fechar apenas aquela janela.",
+        dockPreviewOrderByCreation: "Ordenar janelas por criação",
+        dockPreviewOrderByCreationCaption: "Mostra primeiro as janelas mais antigas em vez das usadas mais recentemente.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -1648,6 +1659,9 @@ extension Strings {
         mediaCompressionLow: "Baixa",
         mediaCompressionMedium: "Média",
         mediaCompressionHigh: "Alta",
+        mediaCompressionLowDescription: "Alta qualidade, arquivo grande",
+        mediaCompressionMediumDescription: "Equilíbrio entre qualidade e tamanho do arquivo",
+        mediaCompressionHighDescription: "Baixa qualidade, arquivo pequeno",
         mediaMaxSize: "Tamanho",
         mediaSizingResolution: "Resolução",
         mediaSizingFileSize: "Tamanho do arquivo",
@@ -2069,6 +2083,10 @@ extension Strings {
         shortcutDeleteHint: "Delete remove.",
         shortcutNotCaptured: "Nada foi capturado. O macOS ou outro app já usa essa combinação. Tente outra.",
         shortcutConflictFormat: "Este atalho já está em uso por %@.",
+        shortcutTakeOverOffer: "O macOS usa %@ em um atalho próprio.",
+        shortcutTakeOverAction: "Assumir enquanto o Vorssaint estiver aberto",
+        shortcutTakeOverCaption: "O macOS recupera a tecla sempre que o Vorssaint não estiver aberto ou este recurso estiver desligado.",
+        shortcutTakeOverDismiss: "Não assumir",
         shortcutUnavailable: "O macOS recusou este atalho. Escolha outro.",
         shelfShortcutToggle: "Atalho da área temporária",
         switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
@@ -2453,6 +2471,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "How long the pointer has to rest on an icon before its panel opens.",
         dockPreviewQuitAppOnClose: "Quit the app with the × button",
         dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × quits the whole app instead of closing only that window.",
+        dockPreviewOrderByCreation: "Order windows by creation time",
+        dockPreviewOrderByCreationCaption: "Show older windows first instead of the ones you used most recently.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app’s windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
@@ -2675,6 +2695,9 @@ extension Strings {
         mediaCompressionLow: "Low",
         mediaCompressionMedium: "Medium",
         mediaCompressionHigh: "High",
+        mediaCompressionLowDescription: "High quality, large file size",
+        mediaCompressionMediumDescription: "Balanced quality and file size",
+        mediaCompressionHighDescription: "Low quality, small file size",
         mediaMaxSize: "Size",
         mediaSizingResolution: "Resolution",
         mediaSizingFileSize: "File size",
@@ -3096,6 +3119,10 @@ extension Strings {
         shortcutDeleteHint: "Delete clears.",
         shortcutNotCaptured: "Nothing was captured. macOS or another app already uses that combination. Try another one.",
         shortcutConflictFormat: "This shortcut is already used by %@.",
+        shortcutTakeOverOffer: "macOS uses %@ for one of its own shortcuts.",
+        shortcutTakeOverAction: "Take over while Vorssaint runs",
+        shortcutTakeOverCaption: "macOS gets the key back whenever Vorssaint is not running or this feature is off.",
+        shortcutTakeOverDismiss: "Don’t take over",
         shortcutUnavailable: "macOS rejected this shortcut. Choose another one.",
         shelfShortcutToggle: "Shelf shortcut",
         switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",

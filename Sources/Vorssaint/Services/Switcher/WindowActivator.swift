@@ -74,6 +74,7 @@ enum WindowActivator {
            SpaceHop.beginIfNeeded(windowID: windowID,
                                   appPID: item.pid,
                                   windowOwnerPID: windowOwnerPID,
+                                  sourcePID: sourcePID,
                                   app: app) {
             return
         }
@@ -502,7 +503,8 @@ enum WindowActivator {
                                                  targetPID: pid_t,
                                                  targetWindowOwnerPID: pid_t,
                                                  sourcePID: pid_t?,
-                                                 state: SwitcherWindowFocusRetryState) -> Bool {
+                                                 state: SwitcherWindowFocusRetryState,
+                                                 ignoresForeground: Bool = false) -> Bool {
         guard state.isActive else { return false }
         func currentFrontmostPID() -> pid_t? {
             let reported = NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -515,8 +517,15 @@ enum WindowActivator {
             sourcePID: sourcePID,
             frontmostPID: currentFrontmostPID(),
             targetMinimizedState: minimizedState,
-            targetAppWindowIDs: windowIDs(ownerPID: targetWindowOwnerPID, options: .optionOnScreenOnly),
-            targetAppFocusedWindowID: focusedWindowID(for: targetWindowOwnerPID)
+            // The same scope the snapshot used. The on-screen list lags: a
+            // window the app has just opened is focused, and answered as
+            // focused by Accessibility, before the window server composites
+            // it — so comparing on-screen windows against an all-windows
+            // snapshot reported nothing new in exactly the race this guard
+            // exists for, and the focus reading below was never taken.
+            targetAppWindowIDs: windowIDs(ownerPID: targetWindowOwnerPID, options: .optionAll),
+            targetAppFocusedWindowID: focusedWindowID(for: targetWindowOwnerPID),
+            ignoresForeground: ignoresForeground
         )
     }
 
@@ -708,10 +717,34 @@ enum WindowActivator {
         return raised == .success
     }
 
+    /// Every window the owner has right now, in the scope the retry guard
+    /// compares against. Taken by a hop at the moment it begins.
+    static func focusSnapshot(ownerPID: pid_t) -> Set<CGWindowID> {
+        windowIDs(ownerPID: ownerPID, options: .optionAll)
+    }
+
     /// Focus pass run by SpaceHop once the target window's Space became
     /// visible and Accessibility can finally describe the window.
-    static func focusAfterSpaceHop(windowID: CGWindowID, appPID: pid_t, windowOwnerPID: pid_t) {
+    ///
+    /// Its pulses run up to a second after the switch, long enough for the
+    /// user to open a window in the app they just reached — Command-N right
+    /// after switching away from a fullscreen app lands here. They consult the
+    /// same guard as every other delayed pass, so a window the app did not
+    /// have when the hop began ends them instead of being covered.
+    static func focusAfterSpaceHop(windowID: CGWindowID,
+                                   appPID: pid_t,
+                                   windowOwnerPID: pid_t,
+                                   sourcePID: pid_t?,
+                                   state: SwitcherWindowFocusRetryState) {
         guard let app = NSRunningApplication(processIdentifier: appPID), !app.isTerminated else { return }
+        // Travelling fronts whatever tops each desktop on the way, so this
+        // pass judges the app's own focus rather than who is in front.
+        guard shouldContinueFocusRetry(windowID: windowID,
+                                       targetPID: appPID,
+                                       targetWindowOwnerPID: windowOwnerPID,
+                                       sourcePID: sourcePID,
+                                       state: state,
+                                       ignoresForeground: true) else { return }
         prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID)
         activateApp(app,
                     plan: SwitcherSupport.activationPlan(targetsSpecificWindow: true),

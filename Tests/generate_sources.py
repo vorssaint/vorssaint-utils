@@ -40,6 +40,32 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    panel = "Sources/Vorssaint/App/AppDelegate.swift"
+    write("MenuPanelRecovery.swift", "import AppKit\nimport Foundation\n"
+          + "extension MenuPanelRecoveryTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration(panel, prefix).replace("private ", "") for prefix in [
+              "    private struct PanelAnchor", "    private func statusButtonMidX(",
+              "    private func correctedPopoverMidX(", "    private func resolvePanelAnchor(",
+              "    private func frameStillDescribesMenuBar(", "    private func statusFrameNeedsAnchorOverride(",
+              "    private func anchorVisibleFrame(", "    private func applyPopoverDriftFrame(",
+              "    private func beginPopoverDriftCorrection(window: NSWindow, anchor: PanelAnchor) {",
+              "    private func armPopoverDriftCorrection(", "    private func endPopoverDriftCorrection(",
+              "    private func showPopover(", "    func popoverDidClose(",
+              "    private func releasePanelResources(", "    private func anchorAfterForeignClose(",
+              "    private func reopenPanelAfterForeignClose("])
+          + "var popoverAnchor: PanelAnchor?\nvar lastGoodPanelAnchor: PanelAnchor?\n"
+          + "}\n}\n")
+    brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
+    write("DisplayRestoration.swift", "import CoreGraphics\nimport Foundation\n"
+          + "extension DisplayRestorationTests {\nfinal class BrightnessService: Fixture {\n"
+          + declaration(brightness, "    enum DisplayControlFailure:")
+          + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
+              "    private static func configureDisplay(", "    private func restoreDisplay(",
+              "    private func syncLidObserver(", "    private func restoreDeferredDisplays(",
+              "    private func restoreManagedDisplays(", "    func restoreDisplaysLeftOff(",
+              "    private func commitDisplayToggle(", "    private func finishDisplayToggle(",
+              "    private func restoreManagedDisplayIfHeadless("])
+          + "}\n}\n")
     activator = "Sources/Vorssaint/Services/Switcher/WindowActivator.swift"
     write("SwitcherActivationBodies.swift", "import AppKit\nimport ApplicationServices\n"
           + "extension SwitcherActivationTests.Activator {\n"
@@ -522,6 +548,29 @@ def main():
           + declaration(music, "    private func cancelAutomationAction()").replace("private func", "func", 1)
           + "}\n}\nextension NotchMusicAutomationFlowContract.NotchMusicAutomation {\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift", "    static func send(") + "}\n")
+
+    brightness_row = "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift"
+    write("SoftwareDimmingRow.swift", "import CoreGraphics\nimport Foundation\n\n"
+          + "extension SoftwareDimmingRouteContract {\n"
+          + "final class Row {\nvar display = Display()\nvar chosen = false\n"
+          + declaration(brightness_row, "    private var offered:").replace("private var", "var", 1)
+          + "}\n}\n")
+
+    brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
+    write("SoftwareDimmingRoute.swift", "import CoreGraphics\nimport Foundation\n\n"
+          + "extension SoftwareDimmingRouteContract {\n"
+          + "final class Service {\nlet stateLock = NSLock()\nlet workQueue = Queue()\n"
+          + "static let log = Log()\n"
+          + "var routes: [CGDirectDisplayID: Route] = [:]\n"
+          + "var lastApplied: [CGDirectDisplayID: Double] = [:]\n"
+          + "var levelKnownAt: [CGDirectDisplayID: Foundation.Date] = [:]\n"
+          + "var softwareDims: [(id: CGDirectDisplayID, value: Double)] = []\n"
+          + "var forgottenWriteOnlyPaths: [String] = []\nvar refreshes = 0\n"
+          + "func forgetWriteOnlyDDCPath(_ path: String?) { forgottenWriteOnlyPaths.append(path ?? \"\") }\n"
+          + "func applySoftwareDim(_ id: CGDirectDisplayID, value: Double) { softwareDims.append((id, value)) }\n"
+          + "func refresh(force: Bool = false) { refreshes += 1 }\n"
+          + declaration(brightness, "    func setSoftwareDimmingPreferred(")
+          + "}\n}\n")
 
     keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"
     write("KeepAwakeTimerHandoff.swift", "import Foundation\n\nextension KeepAwakeTimerHandoffContract {\n"

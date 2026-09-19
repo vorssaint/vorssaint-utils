@@ -24,8 +24,25 @@ final class ClipboardHistoryService: ObservableObject {
     static let quickPanelPreviewSize = NSSize(width: 840, height: 500)
 
     @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
-        didSet { entriesStamp &+= 1 }
+        didSet {
+            entriesStamp &+= 1
+            // Keeps latestPasteboardEntry from outliving the entry it points
+            // to: removing it, clearing recent/all, or trimming to a smaller
+            // limit must stop the preview from claiming stale content is
+            // still the latest copy. Re-reading it here (rather than nil-ing
+            // it) also picks up an edit to that same entry's text.
+            if let current = latestPasteboardEntry {
+                latestPasteboardEntry = entries.first(where: { $0.id == current.id })
+            }
+        }
     }
+    /// The entry most recently put on the system pasteboard, whether from a
+    /// fresh external copy or from reusing an existing entry. `touch()`
+    /// deliberately leaves `entries`' own order alone when reusing one, so
+    /// this is what the optional "show latest copy" menu bar item follows
+    /// instead of `entries.first` (which is also wrong on its own whenever
+    /// anything is pinned, since pinned entries always sort first there).
+    @Published private(set) var latestPasteboardEntry: ClipboardHistoryEntry?
     let capturedEntry = PassthroughSubject<ClipboardHistoryEntry, Never>()
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
@@ -99,9 +116,22 @@ final class ClipboardHistoryService: ObservableObject {
         lastChangeCount = max(lastChangeCount, changeCount)
     }
 
+    /// ClipboardAutoClearService calls this after it actually empties the
+    /// system pasteboard, so the menu bar preview stops showing content that
+    /// is no longer there. Deliberately separate from ignoreNextChange:
+    /// a transient rewrite-then-restore (paste as plain text) also calls
+    /// that, but the pasteboard's real content never changed there, so the
+    /// preview must not clear in that case.
+    func pasteboardWasCleared() {
+        latestPasteboardEntry = nil
+    }
+
     func copy(_ entry: ClipboardHistoryEntry, completion: @escaping (Bool) -> Void) {
         writeToPasteboard([entry]) { [weak self] copied in
-            if copied { self?.touch([entry.id]) }
+            if copied {
+                self?.touch([entry.id])
+                self?.latestPasteboardEntry = entry
+            }
             completion(copied)
         }
     }
@@ -112,7 +142,14 @@ final class ClipboardHistoryService: ObservableObject {
             return
         }
         writeToPasteboard(selectedEntries) { [weak self] copied in
-            if copied { self?.touch(selectedEntries.map(\.id)) }
+            if copied {
+                self?.touch(selectedEntries.map(\.id))
+                // A single-entry selection mirrors the entry above; a real
+                // batch no longer matches any one saved entry's text, so the
+                // menu bar preview goes blank instead of keeping a stale
+                // single-entry snapshot on display.
+                self?.latestPasteboardEntry = selectedEntries.count == 1 ? selectedEntries[0] : nil
+            }
             completion(copied)
         }
     }
@@ -232,6 +269,13 @@ final class ClipboardHistoryService: ObservableObject {
     func togglePin(_ entry: ClipboardHistoryEntry) {
         guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
         let previousEntries = entries
+        // entries.remove(at:) below drops the entry for a moment before it is
+        // reinserted, and entries' own didSet reconciles latestPasteboardEntry
+        // against whatever is there right then — so if this is the entry it
+        // points to, that intermediate absence nils it out and nothing here
+        // sets it back, since a pin change is not a new promoted copy.
+        // Restored by looking it up again once the move actually lands.
+        let wasLatestPasteboardEntry = latestPasteboardEntry?.id == entry.id
         var updated = entries.remove(at: index)
         if updated.isPinned {
             updated.pinnedAt = nil
@@ -242,12 +286,18 @@ final class ClipboardHistoryService: ObservableObject {
         }
         normalizeEntryOrder()
         trimToLimit()
-        guard entries.contains(where: { $0.id == entry.id }),
-              ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries)
-        else {
+        let reverted: Bool
+        if entries.contains(where: { $0.id == entry.id }),
+           ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries) {
+            reverted = false
+        } else {
             entries = previousEntries
-            return
+            reverted = true
         }
+        if wasLatestPasteboardEntry {
+            latestPasteboardEntry = entries.first(where: { $0.id == entry.id })
+        }
+        guard !reverted else { return }
         save()
     }
 
@@ -536,6 +586,11 @@ final class ClipboardHistoryService: ObservableObject {
         isRunning = false
         ClipboardIgnoredApps.shared.setHistoryRunning(false)
         captureState.invalidate()
+        // Otherwise the last known copy keeps showing in the menu bar preview
+        // for the moment between history starting to watch again and the
+        // baseline check actually answering, instead of going blank right
+        // away like the rest of the feature does while stopped.
+        latestPasteboardEntry = nil
     }
 
     /// What the background pasteboard read hands back to the main thread.
@@ -557,7 +612,13 @@ final class ClipboardHistoryService: ObservableObject {
             -> (changeCount: Int, content: CapturedContent?)? in
             let changeCount = NSPasteboard.general.changeCount
             guard !isExpired() else { return nil }
-            let content: CapturedContent? = !baseline && changeCount != sinceChangeCount
+            // Read during a baseline too, not only on a detected change: a
+            // fresh baseline (history starting to watch again, at launch or
+            // the feature toggled back on) is exactly when latestPasteboardEntry
+            // is most likely wrong — stale from before a toggle-off, or still
+            // nil right after launch even though the last real copy is still
+            // sitting there. Matched against the saved entries below.
+            let content: CapturedContent? = (baseline || changeCount != sinceChangeCount)
                 ? Self.readPasteboard(includeImagesFiles: includeImagesFiles)
                 : nil
             return (changeCount, content)
@@ -573,6 +634,11 @@ final class ClipboardHistoryService: ObservableObject {
             if baseline {
                 self.lastChangeCount = max(self.lastChangeCount, result.changeCount)
                 self.captureState.didBaseline()
+                // A match means the current clipboard content is a real,
+                // previously captured entry; no match (nothing recorded it,
+                // or it was copied while history was off) leaves the preview
+                // blank rather than guessing.
+                self.latestPasteboardEntry = result.content.flatMap(self.matchingEntry)
                 return
             }
             // Preserve exclusion over the whole time since the previous
@@ -580,6 +646,12 @@ final class ClipboardHistoryService: ObservableObject {
             let excludedSource = ClipboardIgnoredApps.shared.excludedSourceSinceLastCheck()
             guard result.changeCount > self.lastChangeCount else { return }
             self.lastChangeCount = result.changeCount
+            // The pasteboard changed to something this check is about to
+            // decide not to record (an ignored app, a concealed/secret copy,
+            // or an image with the images toggle off): the menu bar preview
+            // must not keep advertising the previous entry as still current.
+            // A recording path below sets this back.
+            self.latestPasteboardEntry = nil
             guard !excludedSource, let content = result.content else { return }
             switch content {
             case .files(let paths): self.promoteFiles(paths)
@@ -589,6 +661,21 @@ final class ClipboardHistoryService: ObservableObject {
         }, didFinish: { [weak self] _ in
             self?.captureState.finish()
         })
+    }
+
+    /// The saved entry, if any, whose content is exactly what was just read
+    /// off the pasteboard — the same field comparisons promote/promoteImage/
+    /// promoteFiles use to recognize a re-copy of something already saved.
+    private func matchingEntry(for content: CapturedContent) -> ClipboardHistoryEntry? {
+        switch content {
+        case .text(let text):
+            return entries.first(where: { $0.kind == .text && $0.text == text })
+        case .image(let image):
+            let hash = Self.sha256Hex(image.data)
+            return entries.first(where: { $0.kind == .image && $0.imageHash == hash })
+        case .files(let paths):
+            return entries.first(where: { $0.kind == .files && $0.filePaths == paths })
+        }
     }
 
     /// Runs on the shared pasteboard lane: everything in here may block behind
@@ -770,6 +857,7 @@ final class ClipboardHistoryService: ObservableObject {
         } else {
             entries.insert(entry, at: firstRecentIndex)
         }
+        latestPasteboardEntry = entry
         capturedEntry.send(entry)
     }
 
@@ -842,6 +930,15 @@ final class ClipboardHistoryService: ObservableObject {
         entries = decoded
         normalizeEntryOrder()
         trimToLimit()
+        // latestPasteboardEntry is deliberately left nil here rather than
+        // seeded from recentEntries.first: entries just came off disk and
+        // nothing has checked them against the pasteboard's actual content
+        // yet, so a blind seed could easily be wrong (nothing was copied
+        // since the last launch, or the top saved entry isn't the one that
+        // was on the clipboard when this quit). start() triggers the first
+        // captureIfChanged() right after, whose baseline branch matches the
+        // pasteboard's real content against entries and sets this correctly
+        // — or leaves it nil when nothing matches.
         // Sweep image files that lost their entry (crash between write and save).
         ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)),
                                     filePaths: Set(entries.flatMap(\.filePaths)))
@@ -958,6 +1055,7 @@ final class ClipboardHistoryService: ObservableObject {
             hotKeyRef = ref
             registeredShortcut = shortcut
             shortcutRegistrationFailed = false
+            SystemShortcutTakeover.claim(DefaultsKey.clipboardHistoryShortcut, shortcut: shortcut)
         } else {
             hotKeyRef = nil
             registeredShortcut = nil
@@ -971,7 +1069,10 @@ final class ClipboardHistoryService: ObservableObject {
     func suspendShortcut() { unregisterHotkey() }
 
     private func unregisterHotkey() {
-        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        if let hotKeyRef {
+            UnregisterEventHotKey(hotKeyRef)
+            SystemShortcutTakeover.release(DefaultsKey.clipboardHistoryShortcut)
+        }
         hotKeyRef = nil
         registeredShortcut = nil
         shortcutRegistrationFailed = false

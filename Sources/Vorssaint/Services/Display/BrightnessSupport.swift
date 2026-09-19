@@ -42,15 +42,21 @@ enum BrightnessSupport {
     static let retryAttempts = 4
     static let replyLength = 11
 
-    /// Discovery keeps the normal number of reply chances but sends only one
-    /// request before each read. The read and retry pauses put every request
-    /// more than 50ms apart instead of sending pairs 10ms apart.
+    /// Discovery keeps the normal number of reply chances. Every attempt but
+    /// the last sends one request before its read, so the read and retry
+    /// pauses keep those requests more than 50ms apart instead of pairing
+    /// them 10ms apart.
     static func ddcProbeAttempts() -> Int {
         retryAttempts + 1
     }
 
-    static func ddcProbeWriteCycles(classifyingChannel: Bool) -> Int {
-        classifyingChannel ? 1 : writeCycles
+    /// Some monitors answer NULL until a second request arrives a few
+    /// milliseconds behind the first, which is why field implementations pair
+    /// theirs. The last discovery attempt pairs them too, before a channel
+    /// that never answered is written off and cached as write-only.
+    static func ddcProbeWriteCycles(classifyingChannel: Bool,
+                                    isFinalAttempt: Bool = false) -> Int {
+        classifyingChannel && !isFinalAttempt ? 1 : writeCycles
     }
 
     static let defaultKeyboardLightLevel: Float = 0.5
@@ -175,6 +181,60 @@ enum BrightnessSupport {
     }
 
     // MARK: - Display switching
+
+    enum DisplayConfigurationResult: Equatable {
+        case success, closedLid, failed
+    }
+
+    /// An enable the closed lid denied waits here until the lid opens. A
+    /// request a person tapped for, or one a restore-all owes, is kept when a
+    /// headless recovery brings another display back instead; a request only
+    /// that recovery made is dropped then.
+    struct DeferredDisplayRestoration {
+        private(set) var ids = Set<UInt32>()
+        private var headlessIDs = Set<UInt32>()
+        private var keptIDs = Set<UInt32>()
+        private var lastLidClosed: Bool? = true
+
+        mutating func record(_ id: UInt32, result: DisplayConfigurationResult) {
+            if result == .closedLid {
+                ids.insert(id)
+                lastLidClosed = true
+            }
+            if result == .success {
+                ids.remove(id)
+                headlessIDs.remove(id)
+                keptIDs.remove(id)
+            }
+        }
+
+        mutating func keep(_ id: UInt32) {
+            keptIDs.insert(id)
+        }
+
+        mutating func recordHeadless(_ id: UInt32,
+                                     result: DisplayConfigurationResult) {
+            record(id, result: result)
+            if result == .closedLid && !keptIDs.contains(id) {
+                headlessIDs.insert(id)
+            }
+        }
+
+        mutating func cancelHeadless() {
+            ids.subtract(headlessIDs.subtracting(keptIDs))
+            headlessIDs.removeAll()
+        }
+
+        mutating func candidates(lidClosed: Bool?) -> Set<UInt32> {
+            let opened = lidClosed == false && lastLidClosed != false
+            if let lidClosed { lastLidClosed = lidClosed }
+            return opened ? ids : []
+        }
+    }
+
+    static func canConfigureDisplay(enabled: Bool, isBuiltIn: Bool, lidClosed: Bool?) -> Bool {
+        !(enabled && isBuiltIn && lidClosed == true)
+    }
 
     /// Turning off the final drawable display would leave no UI path to turn
     /// it back on. The target must be active and another active display must

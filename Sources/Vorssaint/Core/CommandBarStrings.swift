@@ -168,6 +168,8 @@ struct CommandBarFeatureStrings {
     let compactModeCaption: String
     let emojiSkinToneLabel: String
     let emojiSkinToneCaption: String
+    let asciiLayoutToggle: String
+    let asciiLayoutCaption: String
 }
 
 extension FeatureStrings {
@@ -352,7 +354,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Compact mode",
         compactModeCaption: "Bar opens without suggestions. Results appear as you type.",
         emojiSkinToneLabel: "Skin tone",
-        emojiSkinToneCaption: "By default, emoji that can take a tone use this one. Open the actions on an emoji row to choose a different one.")
+        emojiSkinToneCaption: "By default, emoji that can take a tone use this one. Open the actions on an emoji row to choose a different one.",
+        asciiLayoutToggle: "Switch to an ABC layout while the bar is open",
+        asciiLayoutCaption: "The field types Latin characters whatever layout was active, and the previous layout comes back when the bar closes.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -515,7 +519,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Modo compacto",
         compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.",
         emojiSkinToneLabel: "Tom de pele",
-        emojiSkinToneCaption: "Por padrão, os emojis que aceitam tom usam este. Abra as ações em uma linha de emoji para escolher outro.")
+        emojiSkinToneCaption: "Por padrão, os emojis que aceitam tom usam este. Abra as ações em uma linha de emoji para escolher outro.",
+        asciiLayoutToggle: "Mudar para um layout ABC enquanto a barra está aberta",
+        asciiLayoutCaption: "O campo digita caracteres latinos independente do layout ativo, e o layout anterior volta quando a barra fecha.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -678,7 +684,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Kompakt mod",
         compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.",
         emojiSkinToneLabel: "Ten rengi",
-        emojiSkinToneCaption: "Ton alabilen emojiler varsayılan olarak bunu kullanır. Farklı birini seçmek için bir emoji satırında eylemleri açın.")
+        emojiSkinToneCaption: "Ton alabilen emojiler varsayılan olarak bunu kullanır. Farklı birini seçmek için bir emoji satırında eylemleri açın.",
+        asciiLayoutToggle: "Çubuk açıkken ABC düzene geç",
+        asciiLayoutCaption: "Alan, etkin düzen ne olursa olsun Latin karakterler yazar; çubuk kapandığında önceki düzen geri gelir.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -841,7 +849,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Компактный режим",
         compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.",
         emojiSkinToneLabel: "Тон кожи",
-        emojiSkinToneCaption: "По умолчанию эмодзи с поддержкой тона используют этот. Чтобы выбрать другой, откройте действия в строке эмодзи.")
+        emojiSkinToneCaption: "По умолчанию эмодзи с поддержкой тона используют этот. Чтобы выбрать другой, откройте действия в строке эмодзи.",
+        asciiLayoutToggle: "Переключаться на ABC-раскладку, пока открыта строка",
+        asciiLayoutCaption: "Поле набирает латиницу, какая бы раскладка ни была активна; при закрытии строки прежняя раскладка возвращается.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -1004,7 +1014,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Modo compacto",
         compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.",
         emojiSkinToneLabel: "Tono de piel",
-        emojiSkinToneCaption: "De forma predeterminada, los emojis que admiten tono usan este. Abre las acciones en una fila de emoji para elegir otro.")
+        emojiSkinToneCaption: "De forma predeterminada, los emojis que admiten tono usan este. Abre las acciones en una fila de emoji para elegir otro.",
+        asciiLayoutToggle: "Cambiar a una disposición ABC mientras la barra esté abierta",
+        asciiLayoutCaption: "El campo escribe caracteres latinos aunque haya otra disposición activa, y la anterior vuelve al cerrar la barra.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1167,7 +1179,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Kompaktmodus",
         compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.",
         emojiSkinToneLabel: "Hautton",
-        emojiSkinToneCaption: "Emojis mit Hautton verwenden standardmäßig diesen. Öffne die Aktionen in einer Emoji-Zeile, um einen anderen zu wählen.")
+        emojiSkinToneCaption: "Emojis mit Hautton verwenden standardmäßig diesen. Öffne die Aktionen in einer Emoji-Zeile, um einen anderen zu wählen.",
+        asciiLayoutToggle: "Bei geöffneter Leiste zum ABC-Layout wechseln",
+        asciiLayoutCaption: "Das Feld tippt lateinische Zeichen, egal welches Layout aktiv ist; beim Schließen kehrt das vorherige Layout zurück.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1330,7 +1344,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Mode compact",
         compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.",
         emojiSkinToneLabel: "Teinte de peau",
-        emojiSkinToneCaption: "Par défaut, les émojis qui acceptent une teinte utilisent celle-ci. Ouvrez les actions sur une ligne d’émoji pour en choisir une autre.")
+        emojiSkinToneCaption: "Par défaut, les émojis qui acceptent une teinte utilisent celle-ci. Ouvrez les actions sur une ligne d’émoji pour en choisir une autre.",
+        asciiLayoutToggle: "Passer en disposition ABC quand la barre est ouverte",
+        asciiLayoutCaption: "Le champ saisit des caractères latins quelle que soit la disposition active, et la précédente revient à la fermeture de la barre.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1493,7 +1509,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Modalità compatta",
         compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.",
         emojiSkinToneLabel: "Tonalità della pelle",
-        emojiSkinToneCaption: "Per impostazione predefinita, le emoji che accettano una tonalità usano questa. Apri le azioni su una riga di emoji per sceglierne un’altra.")
+        emojiSkinToneCaption: "Per impostazione predefinita, le emoji che accettano una tonalità usano questa. Apri le azioni su una riga di emoji per sceglierne un’altra.",
+        asciiLayoutToggle: "Passa a un layout ABC mentre la barra è aperta",
+        asciiLayoutCaption: "Il campo digita caratteri latini indipendentemente dal layout attivo; alla chiusura torna il layout precedente.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1656,7 +1674,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "コンパクトモード",
         compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。",
         emojiSkinToneLabel: "肌の色",
-        emojiSkinToneCaption: "肌の色を持てる絵文字は標準でこの色になります。別の色を選ぶには、絵文字の行でアクションを開きます。")
+        emojiSkinToneCaption: "肌の色を持てる絵文字は標準でこの色になります。別の色を選ぶには、絵文字の行でアクションを開きます。",
+        asciiLayoutToggle: "バーを開いている間はABCレイアウトに切り替える",
+        asciiLayoutCaption: "アクティブなレイアウトに関係なく、フィールドにはラテン文字が入力されます。バーを閉じると元のレイアウトに戻ります。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1819,7 +1839,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "컴팩트 모드",
         compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.",
         emojiSkinToneLabel: "피부색",
-        emojiSkinToneCaption: "기본적으로 피부색을 가질 수 있는 이모티콘은 이 색을 사용합니다. 다른 색을 선택하려면 이모티콘 행에서 동작을 여세요.")
+        emojiSkinToneCaption: "기본적으로 피부색을 가질 수 있는 이모티콘은 이 색을 사용합니다. 다른 색을 선택하려면 이모티콘 행에서 동작을 여세요.",
+        asciiLayoutToggle: "막대가 열려 있는 동안 ABC 자판으로 전환",
+        asciiLayoutCaption: "활성 자판과 관계없이 입력 필드에는 라틴 문자가 입력되고, 막대를 닫으면 이전 자판으로 돌아갑니다.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1982,7 +2004,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "紧凑模式",
         compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。",
         emojiSkinToneLabel: "肤色",
-        emojiSkinToneCaption: "支持肤色的表情默认使用此肤色。若要选择其他肤色，请在表情结果行打开操作。")
+        emojiSkinToneCaption: "支持肤色的表情默认使用此肤色。若要选择其他肤色，请在表情结果行打开操作。",
+        asciiLayoutToggle: "命令栏打开时切换到 ABC 布局",
+        asciiLayoutCaption: "无论当前布局为何，输入栏都会键入拉丁字符；命令栏关闭后恢复原布局。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2145,7 +2169,9 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "精簡模式",
         compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
         emojiSkinToneLabel: "膚色",
-        emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。")
+        emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。",
+        asciiLayoutToggle: "指令列開啟時切換到 ABC 配置",
+        asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2308,5 +2334,7 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "精簡模式",
         compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
         emojiSkinToneLabel: "膚色",
-        emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。")
+        emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。",
+        asciiLayoutToggle: "指令列開啟時切換到 ABC 配置",
+        asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。")
 }

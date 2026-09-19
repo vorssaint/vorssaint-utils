@@ -240,7 +240,8 @@ final class CommandBarService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarShortcut,
                                             fallback: .commandBarDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.commandBarShortcut)
         reloadPreferenceCaches()
         syncRowHotkeys()
         if available {
@@ -320,6 +321,7 @@ final class CommandBarService: ObservableObject {
                 self.refreshResults()
             }
         }
+        adoptASCIIInputSource()
         present(panel)
         // Ordering the prepared panel is the keystroke path. Home is filled on
         // the next main-loop turn, when a close or newer opening can supersede it.
@@ -419,6 +421,7 @@ final class CommandBarService: ObservableObject {
             rows = []
             sectionTitles = [:]
         }
+        restoreSuspendedInputSource()
         removeMonitors()
         panel?.orderOut(nil)
         // Leaving mid-review through this path (global shortcut, outside
@@ -461,6 +464,58 @@ final class CommandBarService: ObservableObject {
         query = ""
         presentationLifecycle.hide()
         clearIndex()
+    }
+
+    // MARK: - The bar's own keyboard layout
+
+    /// The input source the bar switched away from on open, put back on
+    /// close. Recorded whenever TIS accepts the switch: a switch that never
+    /// landed restores a source the bar never left — a no-op — while a
+    /// missing record would strand the typist on the borrowed layout.
+    private var suspendedInputSourceID: String?
+
+    /// One-shot switch to the first enabled ASCII layout, read fresh on every
+    /// open like every other preference on this path. TIS talks to the
+    /// text-input server from the main thread, the way the Super key switch
+    /// already does.
+    private func adoptASCIIInputSource() {
+        let apply = {
+            guard UserDefaults.standard.bool(forKey: DefaultsKey.commandBarASCIILayoutEnabled) else { return }
+            let currentID = InputSourceSelection.currentSourceID()
+            guard let target = InputSourceSelection.asciiLayoutID(
+                currentID: currentID,
+                snapshots: InputSourceSelection.snapshots())
+            else { return }
+            // The record belongs to acceptance, not the landing: a switch
+            // that never landed only restores a source the bar never left —
+            // a no-op — while a missed record strands the typist on the
+            // borrowed layout.
+            guard InputSourceSelection.select(sourceID: target) else { return }
+            self.suspendedInputSourceID = currentID
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.sync(execute: apply)
+        }
+    }
+
+    private func restoreSuspendedInputSource() {
+        guard let sourceID = suspendedInputSourceID else { return }
+        suspendedInputSourceID = nil
+        // The switch waits for the next turn of the main loop. A close reached
+        // through a key (Esc, Return, ⌘,) runs inside that key event's own
+        // dispatch, and TIS quietly ignores a source switch asked for there —
+        // the same hide() restores fine from a click or the hotkey, which
+        // stand outside any key event. Waiting is safe: the presentation id
+        // is captured now, and beginPresentation replaces it on the next
+        // open, so a bar reopened before this block lands has already
+        // borrowed its own layout and a stale restore stands down.
+        let presentationID = self.presentationID
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.presentationID == presentationID else { return }
+            _ = InputSourceSelection.select(sourceID: sourceID)
+        }
     }
 
     /// Re-fits the panel to its content as the result list grows and
@@ -572,7 +627,12 @@ final class CommandBarService: ObservableObject {
             hotkey.onPress = { [weak self] in self?.runRow(withStableKey: key) }
             // A combination another app already holds is refused by the system.
             // Saying so beats a row that shows a key it will never answer to.
-            if !hotkey.sync(enabled: true, shortcut: shortcut) { refused.insert(key) }
+            // Row combinations live inside one dictionary, so a claim is
+            // named by the row it belongs to.
+            if !hotkey.sync(enabled: true, shortcut: shortcut,
+                            storageKey: "\(DefaultsKey.commandBarRowShortcuts).\(key)") {
+                refused.insert(key)
+            }
             rowHotkeys.append(hotkey)
             index += 1
         }
