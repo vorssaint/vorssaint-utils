@@ -583,12 +583,12 @@ def main():
           + "var enabled: Set<KeepAwakeAutomationCondition> = []\n"
           + "var matching: Set<KeepAwakeAutomationCondition> = []\n"
           + "var requireAll = false\nvar batteryAllows = true\n"
-          + "var activations: [(minutes: Int, trigger: SessionTrigger)] = []\n"
+          + "var activations: [(end: Date?, trigger: SessionTrigger)] = []\n"
           + "func automaticSessionAllowedByBatteryProtection() -> Bool { batteryAllows }\n"
           + "func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> { matching }\n"
           + "func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> { enabled }\n"
           + "func automationRequiresAllConditions() -> Bool { requireAll }\n"
-          + "func activate(minutes: Int, trigger: SessionTrigger) { activations.append((minutes, trigger)) }\n"
+          + "func activate(end: Date?, trigger: SessionTrigger) { activations.append((end, trigger)) }\n"
           + declaration(keep_awake, "    private func continueAutomaticallyAfterTimerIfNeeded()")
             .replace("private func", "func", 1)
           + "}\n}\n")

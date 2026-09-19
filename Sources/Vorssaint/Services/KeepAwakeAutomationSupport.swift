@@ -86,6 +86,20 @@ enum KeepAwakeAutomationSupport {
         return requireAll ? matching == enabled : true
     }
 
+    /// Maps the wall-clock time of `picked` onto the next occurrence after
+    /// `now`, so a time already past today lands on tomorrow.
+    static func resolvedUntilDate(picked: Date, now: Date) -> Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute], from: picked)
+        guard let candidate = calendar.nextDate(after: now.addingTimeInterval(-60),
+                                                matching: components,
+                                                matchingPolicy: .nextTime) else {
+            return picked
+        }
+        if candidate > now { return candidate }
+        return calendar.date(byAdding: .day, value: 1, to: candidate) ?? candidate.addingTimeInterval(24 * 3600)
+    }
+
     static func action(featureAvailable: Bool,
                        matchingConditions: Set<KeepAwakeAutomationCondition>,
                        enabledConditions: Set<KeepAwakeAutomationCondition> = [],

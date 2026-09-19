@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher improves multi-window browsing and keeps newly opened windows in front, while shortcut fields can take over macOS shortcuts. The mixer adds microphone volume; Dynamic Island gains notification previews, discovery, a stopwatch, sound-following bars and a Scratchpad shortcut; Command Bar expands emoji, calculations and keyboard layouts; utilities add clipboard previews, port management, arrow styles, home-folder installs and sideways scrolling, alongside stricter Keep Awake automation, snippet sounds, menu panel recovery and redesigned settings.
+App Switcher improves multi-window browsing and keeps newly opened windows in front, while shortcut fields can take over macOS shortcuts. The mixer adds microphone volume; Dynamic Island gains notification previews, discovery, a stopwatch, sound-following bars and a Scratchpad shortcut; Command Bar expands emoji, calculations and keyboard layouts; utilities add clipboard previews, port management, arrow styles, home-folder installs and sideways scrolling, alongside Keep Awake until a chosen time with stricter automation, snippet sounds, menu panel recovery, Settings back and forward, and redesigned settings.
 
 ### Added
 - Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
@@ -31,6 +31,8 @@ App Switcher improves multi-window browsing and keeps newly opened windows in fr
 - Port Manager, installable from Features, lists the ports your processes are listening on, filters them, and can end a process through Kill Process when that tool is installed. Thanks to @MrDXTR and @Yash121l.
 - The screenshot editor's arrow comes in solid, outline, open, double-ended and scribbly styles, chosen from a menu and remembered for the next capture. Thanks to @kxnstandin.
 - The disk image installer can put the app in the Applications folder inside your home folder, a remembered choice in the install prompt that also names the destination. Thanks to @JashRashne.
+- Keep Awake can run until a time you pick in the panel; a time already past today counts for tomorrow. Thanks to @EdenRochmanSharabi.
+- Settings remembers the pages you visit and goes back and forward with the mouse side buttons, a Go menu or ⌘[ and ⌘]. Thanks to @pergioa.
 - Dynamic Island's controls can show a Scratchpad shortcut that opens the pad in one click, enabled under Content in its settings. Thanks to @sarat03.
 
 ### Changed
@@ -68,6 +70,7 @@ App Switcher improves multi-window browsing and keeps newly opened windows in fr
 - A window opened right after an App Switcher switch, even from a fullscreen app, stays in front. Thanks to @akune.
 - Picking a mark in the screenshot editor shows its own color and thickness, so changing one no longer carries the other over from the last mark. Thanks to @kxnstandin.
 - The menu bar panel can recover an unexpected close during a click inside it while preserving its position.
+- Clearing all permissions now also stops the text snippet, quit protection and brightness key listeners before the reset, which could otherwise freeze input, while brightness settings stay untouched. Thanks to @dajiaohuang.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 

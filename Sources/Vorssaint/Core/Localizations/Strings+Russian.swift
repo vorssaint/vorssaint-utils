@@ -55,6 +55,8 @@ extension Strings {
         keepAwakeEndsIn: "Завершится через",
         keepAwakeUntilDisabled: "Активно, пока вы не отключите режим",
         keepAwakeNormalRules: "Mac следует обычным правилам энергосбережения",
+        keepAwakeUntilLabel: "До",
+        keepAwakeUntilStart: "Начать",
         keepAwakeOptions: "Параметры",
         keepAwakeMouseJiggle: "Слегка двигать указатель",
         keepAwakeMouseJiggleCaption: "Во время сеанса слегка двигает указатель с выбранным интервалом.",

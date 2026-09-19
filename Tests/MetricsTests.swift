@@ -2464,6 +2464,17 @@ struct MetricsTests {
         ), "the Keep Awake lock guard accepts the session dictionary's numeric bridge")
         expect(!KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: nil),
                "an unreadable lock state does not strand Keep Awake in a pause")
+        let cal = Calendar.current
+        let now10 = cal.date(from: DateComponents(year: 2026, month: 1, day: 15, hour: 10, minute: 0))!
+        let pick14 = cal.date(from: DateComponents(year: 2026, month: 1, day: 15, hour: 14, minute: 30))!
+        let resolved1 = KeepAwakeAutomationSupport.resolvedUntilDate(picked: pick14, now: now10)
+        expect(cal.component(.hour, from: resolved1) == 14 && cal.component(.day, from: resolved1) == 15,
+               "resolvedUntilDate keeps a time still ahead today on today")
+        let now22 = cal.date(from: DateComponents(year: 2026, month: 1, day: 15, hour: 22, minute: 0))!
+        let pick7 = cal.date(from: DateComponents(year: 2026, month: 1, day: 15, hour: 7, minute: 0))!
+        let resolved2 = KeepAwakeAutomationSupport.resolvedUntilDate(picked: pick7, now: now22)
+        expect(cal.component(.hour, from: resolved2) == 7 && cal.component(.day, from: resolved2) == 16,
+               "resolvedUntilDate rolls a time already past today to tomorrow")
         let sleepDisabledReport = """
         System-wide power settings:
          SleepDisabled\t\t1
@@ -16939,6 +16950,81 @@ struct MetricsTests {
         settingsRouter.page = .general
         withExtendedLifetime(settingsRequestObservation) {}
 
+        let historyRouter = SettingsRouter()
+        let initialHistoryRequestID = historyRouter.requestID
+        historyRouter.goBack()
+        historyRouter.goForward()
+        expect(historyRouter.page == .general && historyRouter.requestID == initialHistoryRequestID,
+               "an empty Settings history does not navigate or publish requests")
+        historyRouter.page = .about
+        historyRouter.request(repeatedDestination)
+        historyRouter.goBack()
+        expect(historyRouter.page == .about
+                && historyRouter.destination == FeatureSettingsDestination(.about),
+               "Settings Back includes direct sidebar-style page assignments")
+        historyRouter.goBack()
+        expect(historyRouter.page == .general, "Settings Back reaches the initial page")
+        let oldestHistoryRequestID = historyRouter.requestID
+        historyRouter.goBack()
+        expect(historyRouter.requestID == oldestHistoryRequestID,
+               "Settings Back stops at the oldest visit")
+        historyRouter.goForward()
+        expect(historyRouter.page == .about, "Settings Forward retraces the visited pages")
+        historyRouter.goForward()
+        expect(historyRouter.destination == repeatedDestination
+                && historyRouter.pendingDestinationRequest?.destination == repeatedDestination,
+               "Settings history restores section anchors with a fresh focus request")
+        let newestHistoryRequestID = historyRouter.requestID
+        historyRouter.goForward()
+        expect(historyRouter.requestID == newestHistoryRequestID,
+               "Settings Forward stops at the newest visit")
+
+        historyRouter.page = .mouse
+        let refinedDestination = FeatureSettingsDestination(.mouse, sectionAnchor: .smoothScroll)
+        historyRouter.request(refinedDestination)
+        historyRouter.request(refinedDestination)
+        historyRouter.goBack()
+        expect(historyRouter.page == .about,
+               "repeated page selections and same-page section requests do not duplicate history")
+        historyRouter.goForward()
+        expect(historyRouter.destination == refinedDestination,
+               "same-page section requests refine the destination restored by history")
+        historyRouter.goBack()
+        historyRouter.page = .support
+        let branchedHistoryRequestID = historyRouter.requestID
+        historyRouter.goForward()
+        expect(historyRouter.page == .support && historyRouter.requestID == branchedHistoryRequestID,
+               "a new sidebar visit after Back discards forward history")
+        historyRouter.goBack()
+        historyRouter.request(FeatureSettingsDestination(.features), targetFeature: .homebrew)
+        historyRouter.goForward()
+        expect(historyRouter.page == .features,
+               "a destination request after Back also discards forward history")
+        historyRouter.page = .advanced
+        expect(historyRouter.destination == FeatureSettingsDestination(.advanced)
+                && historyRouter.pendingDestinationRequest == nil
+                && historyRouter.pendingFeatureTarget == nil,
+               "direct page navigation synchronizes the destination and clears stale reveal requests")
+
+        let hiddenHistoryRouter = SettingsRouter()
+        hiddenHistoryRouter.page = .mouse
+        hiddenHistoryRouter.page = .about
+        hiddenHistoryRouter.goBack(isPageVisible: { $0 != .mouse })
+        expect(hiddenHistoryRouter.page == .general,
+               "Settings Back skips pages whose features are no longer available")
+        hiddenHistoryRouter.goForward(isPageVisible: { $0 != .mouse })
+        expect(hiddenHistoryRouter.page == .about,
+               "skipping a hidden page preserves forward history")
+        let visibleHistoryRequestID = hiddenHistoryRouter.requestID
+        hiddenHistoryRouter.goBack(isPageVisible: { _ in false })
+        expect(hiddenHistoryRouter.page == .about
+                && hiddenHistoryRouter.requestID == visibleHistoryRequestID,
+               "Settings history stays put when no earlier page is visible")
+        hiddenHistoryRouter.cleanerTool = "stale-tool"
+        hiddenHistoryRouter.goBack()
+        expect(hiddenHistoryRouter.page == .mouse && hiddenHistoryRouter.cleanerTool == nil,
+               "history can revisit re-enabled pages without replaying a stale Cleaner tool hint")
+
         // MARK: Display brightness (DDC/CI helpers)
 
         // Every section of the service below its "Rebuild (work queue)" MARK
@@ -27589,6 +27675,33 @@ struct MetricsTests {
                "in-app uninstall aborts unless fans and normal sleep are restored before removal")
         expect(uninstallScriptSource.contains("SleepDisabled"),
                "script uninstall reads the sleep setting back for itself")
+        // The roster in `suspendInputInterceptors` has to cover every service
+        // that keeps a session-level head-insert tap alive, since one still
+        // live when Accessibility is revoked is the freeze that teardown
+        // exists to prevent. Quit protection and text snippets both keep one
+        // and all three were missing. BrightnessService keeps both a
+        // system-defined media tap and a function-key tap that sees every key
+        // press, so it belongs in the same teardown. Only those taps come
+        // down: display routes and gamma state must survive the reset.
+        let brightnessTapMethod = brightnessSource
+            .components(separatedBy: "    func suspendInputTaps()").dropFirst().first?
+            .components(separatedBy: "    private func installFunctionKeyTap").first ?? ""
+        let brightnessTapCode = stripCommentLines(brightnessTapMethod)
+        expect(selfUninstallSource.contains("TextSnippetService.shared.suspend()")
+                && selfUninstallSource.contains("QuitProtectionService.shared.suspend()")
+                && selfUninstallSource.contains("BrightnessService.shared.suspendInputTaps()")
+                && selfUninstallSource.contains("BrightnessService.shared.resumeInputTaps()")
+                && brightnessTapCode.contains("inputTapsSuspended = true")
+                && brightnessTapCode.contains("removeKeyTap()")
+                && brightnessTapCode.contains("removeFunctionKeyTap()")
+                && !brightnessTapCode.contains("restoreManagedDisplays")
+                && !brightnessTapCode.contains("restoreAllGamma"),
+               "the permission teardown stops every persistent keyboard tap")
+        let quitProtectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift",
+            encoding: .utf8)) ?? ""
+        expect(quitProtectionSource.contains("func suspend()"),
+               "quit protection exposes the teardown the permission reset calls")
 
         // MARK: Secure input
         // The Carbon flag is the authority on whether secure input is on; the
@@ -28082,6 +28195,8 @@ struct MetricsTests {
         expect(diskExclusionsListCode.contains(".volumeUUIDStringKey")
                 && diskExclusionsListCode.contains("QuickTogglesSupport.isExcluded("),
                "the exclusions picker asks the shared exclusion test, UUID included, not a name-only one")
+
+        SettingsWindowTests.run { expect($0, $1) }
 
         scratchPaths.forEach { try? FileManager.default.removeItem(at: $0) }
 

@@ -55,6 +55,8 @@ extension Strings {
         keepAwakeEndsIn: "Kalan süre",
         keepAwakeUntilDisabled: "Sen kapatana kadar etkin",
         keepAwakeNormalRules: "Mac normal enerji kurallarını izler",
+        keepAwakeUntilLabel: "Şu saate kadar",
+        keepAwakeUntilStart: "Başlat",
         keepAwakeOptions: "Seçenekler",
         keepAwakeMouseJiggle: "İmleci hafifçe oynat",
         keepAwakeMouseJiggleCaption: "Oturum sırasında seçilen aralıkta imleci biraz oynatır.",

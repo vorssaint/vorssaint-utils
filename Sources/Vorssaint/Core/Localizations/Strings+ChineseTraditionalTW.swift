@@ -55,6 +55,8 @@ extension Strings {
         keepAwakeEndsIn: "剩餘時間",
         keepAwakeUntilDisabled: "保持開啟，直到你手動關閉",
         keepAwakeNormalRules: "Mac 會遵循正常的電源規則",
+        keepAwakeUntilLabel: "直到",
+        keepAwakeUntilStart: "開始",
         keepAwakeOptions: "選項",
         keepAwakeMouseJiggle: "輕微移動游標",
         keepAwakeMouseJiggleCaption: "工作階段期間按所選間隔輕微移動游標。",

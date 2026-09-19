@@ -55,6 +55,8 @@ extension Strings {
         keepAwakeEndsIn: "Se termine dans",
         keepAwakeUntilDisabled: "Actif jusqu’à ce que vous le désactiviez",
         keepAwakeNormalRules: "Le Mac suit ses règles d’énergie normales",
+        keepAwakeUntilLabel: "Jusqu’à",
+        keepAwakeUntilStart: "Démarrer",
         keepAwakeOptions: "Options",
         keepAwakeMouseJiggle: "Déplacer légèrement le pointeur",
         keepAwakeMouseJiggleCaption: "Pendant une session, déplace un peu le pointeur à l’intervalle choisi.",
