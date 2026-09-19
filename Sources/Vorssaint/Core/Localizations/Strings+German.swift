@@ -559,6 +559,14 @@ extension Strings {
         shelfActionOpen: "Öffnen",
         shelfActionOpenWith: "Öffnen mit",
         shelfActionShare: "Teilen",
+        shelfActionRename: "Umbenennen…",
+        shelfActionMoveToTrash: "In den Papierkorb legen",
+        shelfRenamePromptTitle: "„%@“ umbenennen",
+        shelfRenameConfirm: "Umbenennen",
+        shelfRenameCancel: "Abbrechen",
+        shelfRenameCollisionMessage: "Eine Datei namens „%@“ ist hier bereits vorhanden.",
+        shelfRenameFailedMessage: "Dieses Element konnte nicht umbenannt werden.",
+        shelfTrashFailedMessage: "Dieses Element konnte nicht in den Papierkorb gelegt werden.",
 
         breakdownMeasuring: "Wird gemessen…",
 
