@@ -4264,6 +4264,8 @@ struct MetricsTests {
         expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1240, reportedMidX: 1144, buttonWidth: 197) == nil,
                "clicks near the edge of a wide metrics item stay anchored to the item")
 
+        MenuPanelRecoveryTests.run { expect($0, $1) }
+
         // The built-in display and a taller one placed to its left.
         let builtInScreen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         let secondScreen = CGRect(x: -1920, y: 100, width: 1920, height: 1080)

@@ -65,6 +65,9 @@ enum NotchNotificationSupport {
     static let bannerRoles: Set<String> = ["AXNotificationCenterAlert", "AXNotificationCenterBanner"]
     static let stackRoles: Set<String> = ["AXNotificationCenterAlertStack", "AXNotificationCenterBannerStack"]
     static let maximumItems = 50
+    /// A brief grace avoids cutting off short alert tones when closing the
+    /// original banner. This does not observe playback; longer sounds may stop.
+    static let nativeCloseGrace: TimeInterval = 1.2
 
     /// Resolve only an unambiguous installed source. Formatting marks used by
     /// localized app labels are not part of the application's name.
@@ -137,5 +140,38 @@ enum NotchNotificationSupport {
               identifier.range(of: "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",
                                options: .regularExpression) != nil else { return nil }
         return identifier
+    }
+}
+
+/// The held preview is sized from the same fonts and line limits it draws
+/// with, so the island fits the message rather than scrolling or padding it.
+enum NotchNotificationPreviewLayout {
+    static let iconSize: CGFloat = 26
+    static let headerHeight: CGFloat = 28
+    static let spacing: CGFloat = 8
+    static let actionHeight: CGFloat = 28
+    static let titleFont = NSFont.systemFont(ofSize: 14, weight: .semibold)
+    static let subtitleFont = NSFont.systemFont(ofSize: 13, weight: .medium)
+    static let bodyFont = NSFont.systemFont(ofSize: 13)
+    static let titleLines = 2
+    static let subtitleLines = 1
+    static let bodyLines = 6
+
+    static func contentHeight(for content: NotchNotificationContent, width: CGFloat) -> CGFloat {
+        let blocks = [textHeight(content.title, font: titleFont, lines: titleLines, width: width),
+                      textHeight(content.subtitle, font: subtitleFont, lines: subtitleLines, width: width),
+                      textHeight(content.body, font: bodyFont, lines: bodyLines, width: width)].filter { $0 > 0 }
+        return headerHeight + (blocks + [actionHeight]).reduce(0) { $0 + spacing + $1 }
+    }
+
+    static func textHeight(_ text: String, font: NSFont, lines: Int, width: CGFloat) -> CGFloat {
+        guard !text.isEmpty, width > 0 else { return 0 }
+        let line = ceil(font.ascender - font.descender + font.leading)
+        let measured = (text as NSString).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font]).height
+        // Layout may round a wrapped line differently; a point of slack keeps
+        // the last line inside the island instead of under its edge.
+        return min(ceil(measured) + 1, line * CGFloat(max(1, lines)) + 1)
     }
 }

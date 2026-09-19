@@ -63,19 +63,27 @@ struct NotchView: View {
                 .padding(.horizontal, 18)
                 .padding(.top, service.geometry.safeContentTop)
         } else if let notice = service.notice {
-            Button {
-                service.activateNotice(notice)
-            } label: {
-                NotchNoticeView(notice: notice, geometry: service.geometry)
-                    .contentShape(Rectangle())
+            if service.noticeExpanded, let content = notice.notification {
+                NotchNotificationPreviewView(notice: notice, content: content, service: service)
+                    .padding(.horizontal, NotchLayout.horizontalInset)
+                    .padding(.top, service.geometry.safeContentTop)
+                    .padding(.bottom, NotchLayout.bottomInset)
+                    .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
+            } else {
+                Button {
+                    service.activateNotice(notice)
+                } label: {
+                    NotchNoticeView(notice: notice, geometry: service.geometry)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(notice.accessibilityText)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { service.activateNotice(notice) }
+                .accessibilityHint(text.open)
+                .transition(.opacity)
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(notice.accessibilityText)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { service.activateNotice(notice) }
-            .accessibilityHint(text.open)
-            .transition(.opacity)
         } else if service.peeking {
             HStack {
                 navigation
@@ -225,7 +233,7 @@ struct NotchView: View {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white.opacity(0.7))
-                Text(service.selected.title(l10n.language))
+                Text(service.reopeningModule.title(l10n.language))
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
             }
@@ -235,7 +243,7 @@ struct NotchView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
         .accessibilityLabel(text.switchSection)
-        .accessibilityValue(service.selected.title(l10n.language))
+        .accessibilityValue(service.reopeningModule.title(l10n.language))
         .accessibilityIdentifier("notch.navigation")
         .help(text.switchSection + "  ⌘K")
     }

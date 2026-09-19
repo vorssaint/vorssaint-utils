@@ -65,7 +65,7 @@ struct MenuBarMetricsPreview: View {
         // The steady state of the hide option: a pending update or a muted
         // microphone brings the real icon back, and the preview does not
         // pretend to know about either.
-        let iconHidden = hideIconWithMetrics && !separateMetrics && !lines.isEmpty
+        let iconHidden = hideIconWithMetrics && (!lines.isEmpty || !items.isEmpty)
 
         HStack(spacing: 12) {
             Spacer()
@@ -78,14 +78,16 @@ struct MenuBarMetricsPreview: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 linesView(item)
             }
-            HStack(spacing: 5) {
-                if !iconHidden {
-                    glyph
-                        .frame(width: BlackHoleGlyph.pointSize.width,
-                               height: BlackHoleGlyph.pointSize.height)
-                }
-                if !lines.isEmpty {
-                    linesView(lines)
+            if !iconHidden || !lines.isEmpty {
+                HStack(spacing: 5) {
+                    if !iconHidden {
+                        glyph
+                            .frame(width: BlackHoleGlyph.pointSize.width,
+                                   height: BlackHoleGlyph.pointSize.height)
+                    }
+                    if !lines.isEmpty {
+                        linesView(lines)
+                    }
                 }
             }
         }

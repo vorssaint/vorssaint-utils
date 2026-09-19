@@ -139,9 +139,14 @@ final class NotchNotificationService: ObservableObject {
     }
 
     func closeNative(_ id: UUID) {
-        guard monitoring, NotchNotificationSupport.dismissesNative(), let reader,
+        guard monitoring, NotchNotificationSupport.dismissesNative(),
               items.contains(where: { $0.id == id }) else { return }
-        queue.async { _ = reader.closeNative(id) }
+        let requested = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + NotchNotificationSupport.nativeCloseGrace) { [weak self] in
+            guard let self, self.generation == requested, self.monitoring, let reader = self.reader,
+                  NotchNotificationSupport.dismissesNative() else { return }
+            self.queue.async { _ = reader.closeNative(id) }
+        }
     }
 
     func canOpen(_ item: NotchSystemNotification) -> Bool {

@@ -62,6 +62,8 @@ enum NotchMusicVisibilityTests {
         var captureControlsSubscription: Bool?
         var captureControlsCancel: (() -> Void)?
         var notice: NotchNotice?
+        var noticeExpanded = false
+        var noticeWork: DispatchWorkItem?
         var dragPlaceholder = false
         var hasTimerActivity = false
         var hasDownloadActivity = false

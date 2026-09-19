@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see and keeps a window opened after a switch in front, and shortcut fields can take over macOS keys like the screenshot shortcuts. The mixer adds microphone volume; Dynamic Island gets a Features section, a stopwatch and sound-following bars; Command Bar adds emoji skin tones, a scientific calculator and an ABC layout; the menu bar shows your latest copy; a Port Manager tool, arrow styles in the screenshot editor, installing disk image apps in your home folder, sideways wheel scrolling, stricter Keep Awake automation and snippet sounds round it out.
+App Switcher improves multi-window browsing and keeps newly opened windows in front, while shortcut fields can take over macOS shortcuts. The mixer adds microphone volume; Dynamic Island gains notification previews, discovery, a stopwatch and sound-following bars; Command Bar expands emoji, calculations and keyboard layouts; utilities add clipboard previews, port management, arrow styles, home-folder installs and sideways scrolling, alongside stricter Keep Awake automation, snippet sounds, menu panel recovery and redesigned settings.
 
 ### Added
 - Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
@@ -23,6 +23,7 @@ App Switcher makes multiple windows easier to see and keeps a window opened afte
 - Command Bar's calculator completes missing brackets, adds scientific functions, constants and notation, and Tab continues from the answer. Thanks to @DarkEden-coding.
 - Scroll sideways in any app by holding a chosen key while turning the mouse wheel, installable from Features. Thanks to @cjscld.
 - Dynamic Island's music bars can follow the player's actual sound, off by default and needing system audio permission. Thanks to @ruvelro.
+- Dynamic Island holds notifications under the pointer and previews messages on hover, with actions to open, dismiss or browse the inbox.
 - Shortcut fields offer to take over a macOS key, such as ⌘⇧3, while the app runs and the feature is on. Thanks to @owendaw.
 - Command Bar can switch to an ABC layout while open and restore the previous one on close, under More options. Thanks to @iva-zhu.
 - Clipboard History can show the latest copy next to the menu bar icon, with an adjustable length; clicking it opens the history. Thanks to @adnn-alc.
@@ -32,20 +33,16 @@ App Switcher makes multiple windows easier to see and keeps a window opened afte
 - The disk image installer can put the app in the Applications folder inside your home folder, a remembered choice in the install prompt that also names the destination. Thanks to @JashRashne.
 
 ### Changed
-- General settings are redesigned around pictures: appearance is picked from desktop thumbnails, and the menu bar panel is arranged against a live miniature of itself, with an icon, a one-line explanation and a switch for each section.
-- Features is redesigned as cards: a bar shows how much is installed, each group has its own icon and bar, every feature installs with a switch instead of a button, and permissions show their status by color.
-- Energy is redesigned as cards: Keep Awake opens with its live status and switch, the default duration is picked from chips, and displays, extra brightness and Bluetooth on sleep each get a row with an icon and one line of explanation.
-- Monitor is redesigned around its live menu bar preview, which now follows spacing, the hidden icon and separate items and stays in view while you pick readings from tiles, choose values or bars from drawn samples, and set alerts, panel blocks and graphs from tiles.
-- Mouse & Trackpad opens with a legend of its features, lit when on, each a click away from its card; the sideways-scroll key is picked from keycaps and the middle-click tap from finger chips.
-- Landing on a setting from search, the Command Bar, Features or a page legend centers it and lights it with an outline and glow for a moment, so the eye finds it.
-- Switcher is redesigned around three drawn layouts (window previews, large icons, simple list), with shortcuts, options and Dock features as rows with icons, choices as chips, and preview sizes drawn at their size.
-- Dynamic Island settings use the same rows with icons and switches as the other redesigned pages for its module, opening and privacy options.
+- Settings use visual choices, cards and switches across the main pages, with live previews for the menu bar and panel.
+- Settings search highlights the selected section, and Mouse & Trackpad offers direct links to each available feature.
 - Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
 - Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
 - Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
 - Dynamic Island shows Keep open directly in its header, and Settings appears there when its floating button is removed.
+- Opening Dynamic Island while it shows music, a timer, a download or a notification goes to that activity; the reopening preference applies only at rest.
+- Dismissing the original system banner now waits briefly, allowing short alert sounds to finish.
 - Keyboard debounce windows adjust in 1 ms steps, reaching values below 5 ms for magnetic keyboards. Thanks to @Borisserz.
 - The media tools describe each compression level under the Low, Medium and High buttons. Thanks to @samanyudas.
 
@@ -69,6 +66,7 @@ App Switcher makes multiple windows easier to see and keeps a window opened afte
 - The built-in display is no longer switched back on while the lid is closed; it comes back when the lid opens, and the panel says to open the lid when a switch has to wait. Thanks to @rkrkrkk.
 - A window opened right after an App Switcher switch, even from a fullscreen app, stays in front. Thanks to @akune.
 - Picking a mark in the screenshot editor shows its own color and thickness, so changing one no longer carries the other over from the last mark. Thanks to @kxnstandin.
+- The menu bar panel can recover an unexpected close during a click inside it while preserving its position.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 

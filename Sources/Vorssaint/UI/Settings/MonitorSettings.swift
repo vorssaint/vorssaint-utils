@@ -204,7 +204,7 @@ struct MonitorSettings: View {
     private var panelCard: some View {
         SettingsCard(title: l10n.s.monitorPanelSection) {
             MonitorPanelConfig(tiles: true)
-            Text(FeatureStrings.notchEditor(l10n.language).reorderHint)
+            Text(l10n.s.monitorPanelConfigHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
