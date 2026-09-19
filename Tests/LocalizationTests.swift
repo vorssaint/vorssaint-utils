@@ -40,7 +40,22 @@ enum LocalizationTests {
                      && languages.count == AppLanguage.allCases.count,
                      "the base strings cover each app language exactly once")
         suite.expect(!factories.isEmpty, "feature localization factories were discovered")
+        func diskPickerText(_ strings: Strings) -> [String] {
+            [strings.diskMenuBarStyleLabel, strings.diskMenuBarUsedPercentage,
+             strings.diskMenuBarAvailableSpace, strings.diskMenuBarUsedSpace]
+        }
+        let diskEnglish = diskPickerText(.enUS)
+        suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
+                     "disk picker uses a dedicated label and complete option names")
         for (language, strings) in languages {
+            suite.expect(strings.diskMenuBarStyleLabel != FeatureStrings.menuBarAppearance(language).label,
+                         "disk picker label is distinct from usage display in \(language.rawValue)")
+            suite.expect(Set(diskPickerText(strings).dropFirst()).count == 3,
+                         "disk picker options are distinct in \(language.rawValue)")
+            if language != .enUS {
+                suite.expect(zip(diskPickerText(strings), diskEnglish).allSatisfy { $0 != $1 },
+                             "disk picker translates every field in \(language.rawValue)")
+            }
             check(strings, against: Strings.enUS, name: "strings/\(language.rawValue)", suite: suite)
             let additional: [(String, (AppLanguage) -> Any)] = [
                 ("imageConverter", { MediaImageConverterStrings.localized($0) }),
