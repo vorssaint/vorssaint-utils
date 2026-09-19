@@ -222,7 +222,8 @@ final class ScreenCaptureService: ObservableObject {
             purpose: FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle,
             mode: policy.usesGeometry ? .geometry : .image,
             supportsScrollingCapture: options.availableTools.contains(.screenshot),
-            screenCaptureOptions: options)
+            screenCaptureOptions: options,
+            sourceAppName: ScreenshotService.shared.noteCaptureAppAtPickerOpen())
         if options.controlsInNotch {
             options.onPresentationReady = { [weak self, weak options] in
                 guard let self, let options, self.options === options else { return }

@@ -22,6 +22,18 @@ final class ScreenshotSelectionController {
         let scale: CGFloat
         /// The captured area in Cocoa global coordinates.
         let anchorRect: CGRect
+        /// Frontmost app when the capture picker opened; used for %app.
+        let appName: String
+
+        init(image: CGImage,
+             scale: CGFloat,
+             anchorRect: CGRect,
+             appName: String = "") {
+            self.image = image
+            self.scale = scale
+            self.anchorRect = anchorRect
+            self.appName = appName
+        }
     }
 
     /// What the caller wants out of the same gesture. The screenshot tool
@@ -155,6 +167,8 @@ final class ScreenshotSelectionController {
     /// Named at the head of the hint bar so the surface never leaves the
     /// person guessing what the area they are about to pick is for.
     private let purpose: String?
+    /// Frontmost app when this picker opened; stamped onto every Capture.
+    private let sourceAppName: String
 
     init(freeze: Bool,
          includePointer: Bool,
@@ -165,7 +179,8 @@ final class ScreenshotSelectionController {
          mode: Mode = .image,
          supportsScrollingCapture: Bool = false,
          requiresDraggedRegion: Bool = false,
-         screenCaptureOptions: ScreenCaptureSelectionOptions? = nil) {
+         screenCaptureOptions: ScreenCaptureSelectionOptions? = nil,
+         sourceAppName: String = "") {
         self.freeze = freeze
         self.includePointer = includePointer
         self.showLastRegion = showLastRegion
@@ -176,6 +191,7 @@ final class ScreenshotSelectionController {
         self.supportsScrollingCapture = supportsScrollingCapture
         self.requiresDraggedRegion = requiresDraggedRegion
         self.screenCaptureOptions = screenCaptureOptions
+        self.sourceAppName = sourceAppName
         let defaults = UserDefaults.standard
         self.loupeZoom = ScreenshotSupport.captureLoupeInitialZoom(
             rememberLast: defaults.bool(forKey: DefaultsKey.screenshotLoupeRememberZoom),
@@ -638,7 +654,8 @@ final class ScreenshotSelectionController {
                 scale: panel.pixelScale,
                 anchorRect: ScreenshotSupport.cocoaRect(
                     fromFlippedView: viewRect,
-                    screenFrame: panel.screenFrame))))
+                    screenFrame: panel.screenFrame),
+                appName: sourceAppName)))
         } else {
             captureLive(displayID: panel.displayID,
                         pixelRect: pixelRect,
@@ -674,7 +691,8 @@ final class ScreenshotSelectionController {
                 scale: panel.pixelScale,
                 anchorRect: ScreenshotSupport.cocoaRect(
                     fromFlippedView: frame,
-                    screenFrame: panel.screenFrame))))
+                    screenFrame: panel.screenFrame),
+                appName: self.sourceAppName)))
         }
     }
 
@@ -690,7 +708,8 @@ final class ScreenshotSelectionController {
         if let frozen = panel.frozenImage {
             finish(.captured(Capture(image: frozen,
                                      scale: panel.pixelScale,
-                                     anchorRect: panel.screenFrame)))
+                                     anchorRect: panel.screenFrame,
+                                     appName: sourceAppName)))
         } else {
             captureLive(displayID: panel.displayID,
                         pixelRect: nil,
@@ -757,7 +776,8 @@ final class ScreenshotSelectionController {
             }
             self.finish(.captured(Capture(image: image,
                                           scale: scale,
-                                          anchorRect: anchorRect)))
+                                          anchorRect: anchorRect,
+                                          appName: self.sourceAppName)))
         }
     }
 

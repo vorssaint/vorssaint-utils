@@ -361,7 +361,12 @@ struct ScreenshotCaptureSettings: View {
         guard !trimmed.isEmpty else {
             return ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
         }
-        return ScreenshotSupport.expandFileNamePattern(trimmed, date: Date(), number: nextNumber) + ".png"
+        let expanded = ScreenshotSupport.expandFileNamePattern(
+            trimmed, date: Date(), number: nextNumber)
+        if ScreenshotSupport.expandedFileNameNeedsDefault(expanded) {
+            return ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        }
+        return expanded + ".png"
     }
 
     private var currentFolderName: String {

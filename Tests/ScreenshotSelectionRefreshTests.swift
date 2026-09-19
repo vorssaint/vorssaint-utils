@@ -101,6 +101,13 @@ enum ScreenshotSelectionRefreshContract {
             let image: CGImage
             let scale: CGFloat
             let anchorRect: CGRect
+            let appName: String
+            init(image: CGImage, scale: CGFloat, anchorRect: CGRect, appName: String = "") {
+                self.image = image
+                self.scale = scale
+                self.anchorRect = anchorRect
+                self.appName = appName
+            }
         }
         enum Outcome {
             case captured(Capture), region(RecorderSupport.Region), scrollingRegion(
@@ -117,6 +124,7 @@ enum ScreenshotSelectionRefreshContract {
         var freeze: Bool
         var includePointer: Bool
         var hideVorssaintWindows: Bool
+        var sourceAppName = ""
         var sourceRefreshPending = false
         var sourceGeneration = 0, finished = false, scrollingCaptureEnabled = false,
             loupeEnabled = false, selectionInProgress = false

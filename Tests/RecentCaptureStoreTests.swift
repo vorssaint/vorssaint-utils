@@ -27,7 +27,7 @@ enum RecentCaptureStoreTests {
                 id: id, kind: .screenshot, createdAt: Date(timeIntervalSince1970: 1),
                 screenshotName: screenshot.lastPathComponent, recordingPath: nil,
                 thumbnailName: thumbnail.lastPathComponent, scale: 2,
-                anchorX: 0, anchorY: 0, anchorWidth: 1, anchorHeight: 1)
+                anchorX: 0, anchorY: 0, anchorWidth: 1, anchorHeight: 1, appName: nil)
             fresh.entries = [entry]
             expect(fresh.persist(), "a capture is committed before old files can be cleaned")
             let validIndex = try Data(contentsOf: index)
@@ -98,7 +98,7 @@ enum RecentCaptureStoreTests {
                 id: recordingID, kind: .recording, createdAt: Date(),
                 screenshotName: nil, recordingPath: video.path,
                 thumbnailName: recordingThumbnail.lastPathComponent, scale: nil,
-                anchorX: nil, anchorY: nil, anchorWidth: nil, anchorHeight: nil)]
+                anchorX: nil, anchorY: nil, anchorWidth: nil, anchorHeight: nil, appName: nil)]
             expect(unreadable.persist(), "a recording history entry can be saved")
             unreadable.entries = []
             expect(unreadable.persist() && manager.fileExists(atPath: video.path)

@@ -238,14 +238,15 @@ final class ScreenshotService: ObservableObject {
     }
 
     private func beginCapture(_ mode: CaptureMode) {
+        let appName = noteCaptureAppAtPickerOpen()
         if mode == .fullScreen {
-            beginFullScreenCapture()
+            beginFullScreenCapture(appName: appName)
         } else {
-            beginSelection(mode)
+            beginSelection(mode, appName: appName)
         }
     }
 
-    private func beginSelection(_ mode: CaptureMode) {
+    private func beginSelection(_ mode: CaptureMode, appName: String) {
         guard session == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
         preview?.close()
         preview = nil
@@ -260,7 +261,8 @@ final class ScreenshotService: ObservableObject {
             protectedWindowIDs: { [weak self] in self?.protectedWindowIDs ?? [] },
             purpose: mode == .scrolling ? strings.scrollingCaptureTitle : nil,
             mode: mode == .scrolling ? .geometry : .image,
-            supportsScrollingCapture: mode == .standard)
+            supportsScrollingCapture: mode == .standard,
+            sourceAppName: appName)
         session = controller
         controller.begin { [weak self] outcome in
             guard let self else { return }
@@ -270,9 +272,9 @@ final class ScreenshotService: ObservableObject {
                 self.route(capture)
             case .region(let region):
                 guard mode == .scrolling else { break }
-                self.captureScrolling(region)
+                self.captureScrolling(region, appName: appName)
             case .scrollingRegion(let region):
-                self.captureScrolling(region)
+                self.captureScrolling(region, appName: appName)
             case .color:
                 break
             case .cancelled:
@@ -288,10 +290,10 @@ final class ScreenshotService: ObservableObject {
     }
 
     func receiveUnifiedScrollingRegion(_ region: RecorderSupport.Region) {
-        captureScrolling(region)
+        captureScrolling(region, appName: pendingCaptureAppName)
     }
 
-    private func beginFullScreenCapture() {
+    private func beginFullScreenCapture(appName: String) {
         guard directCaptureTask == nil, !ScreenshotSelectionController.isSessionOnScreen else {
             return
         }
@@ -325,11 +327,12 @@ final class ScreenshotService: ObservableObject {
             self.route(ScreenshotSelectionController.Capture(
                 image: image,
                 scale: scale,
-                anchorRect: frame))
+                anchorRect: frame,
+                appName: appName))
         }
     }
 
-    private func captureScrolling(_ region: RecorderSupport.Region) {
+    private func captureScrolling(_ region: RecorderSupport.Region, appName: String) {
         guard scrollingTask == nil else { return }
         let finishSignal = ScreenshotScrollingCapture.FinishSignal()
         scrollingFinishSignal = finishSignal
@@ -352,6 +355,7 @@ final class ScreenshotService: ObservableObject {
                 includePointer: false,
                 hideVorssaintWindows: hideWindows,
                 protectedWindowIDs: protectedIDs,
+                appName: appName,
                 finishSignal: finishSignal,
                 onProgress: { height in
                     QuickToolHUD.updateScrollingCapture(height: height)
@@ -642,7 +646,7 @@ final class ScreenshotService: ObservableObject {
         guard let export = flatten(capture),
               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return nil }
-        let (url, consumedNumber) = Self.saveDestination(strings: strings)
+        let (url, consumedNumber) = Self.saveDestination(strings: strings, appName: capture.appName)
         do {
             try data.write(to: url, options: .atomic)
             QuickToolHUD.show(icon: "camera.viewfinder",
@@ -666,7 +670,7 @@ final class ScreenshotService: ObservableObject {
         guard let export = flatten(capture),
               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return nil }
-        let (url, consumedNumber) = Self.saveDestination(strings: strings)
+        let (url, consumedNumber) = Self.saveDestination(strings: strings, appName: capture.appName)
         do {
             try data.write(to: url, options: .atomic)
         } catch {
@@ -737,8 +741,10 @@ final class ScreenshotService: ObservableObject {
     // MARK: - Save location
 
     /// The configured folder when it still exists, otherwise the Desktop,
-    /// with a unique dated file name.
-    static func saveDestination(strings: ScreenshotFeatureStrings) -> (url: URL, consumedNumber: Int?) {
+    /// with a unique dated file name. `appName` is the frontmost app when
+    /// that capture's picker opened, carried on the Capture itself.
+    static func saveDestination(strings: ScreenshotFeatureStrings,
+                                appName: String = "") -> (url: URL, consumedNumber: Int?) {
         let manager = FileManager.default
         var folder: URL?
         let stored = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveFolder) ?? ""
@@ -754,7 +760,7 @@ final class ScreenshotService: ObservableObject {
             ?? manager.urls(for: .desktopDirectory, in: .userDomainMask).first
             ?? manager.homeDirectoryForCurrentUser
         let subfolderPattern = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveSubfolder) ?? ""
-        let subfolder = ScreenshotSupport.expandSaveSubfolder(subfolderPattern, date: Date())
+        let subfolder = ScreenshotSupport.expandSaveSubfolder(subfolderPattern, date: Date(), appName: appName)
         if !subfolder.isEmpty {
             let dated = destination.appendingPathComponent(subfolder, isDirectory: true)
             // Only descend into the dated subfolder if we can actually create
@@ -764,7 +770,7 @@ final class ScreenshotService: ObservableObject {
                 destination = dated
             }
         }
-        let (name, consumedNumber) = Self.fileName(strings: strings)
+        let (name, consumedNumber) = Self.fileName(strings: strings, appName: appName)
         let unique = ScreenshotSupport.uniqueFileName(name) { candidate in
             manager.fileExists(atPath: destination.appendingPathComponent(candidate).path)
         }
@@ -774,24 +780,55 @@ final class ScreenshotService: ObservableObject {
     /// The default localized "Screenshot yyyy-MM-dd at HH.mm.ss.png" name
     /// when no pattern is set, otherwise the pattern with date tokens and
     /// an optional "%#" number sequence expanded. Advances and persists the
-    /// number sequence when the pattern actually uses it.
-    private static func fileName(strings: ScreenshotFeatureStrings) -> (name: String, consumedNumber: Int?) {
+    /// number sequence when the pattern actually uses it. When an expanded
+    /// pattern is empty (for example "%app" with no app), the default name
+    /// takes over and the number sequence is left alone.
+    private static func fileName(strings: ScreenshotFeatureStrings,
+                                 appName: String) -> (name: String, consumedNumber: Int?) {
         let defaults = UserDefaults.standard
         let pattern = (defaults.string(forKey: DefaultsKey.screenshotFileNamePattern) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaultName = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
         guard !pattern.isEmpty else {
-            return (ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date()), nil)
+            return (defaultName, nil)
         }
 
         if ScreenshotSupport.fileNamePatternUsesNumber(pattern) {
             let number = defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext)
-            let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: number)
+            let expanded = ScreenshotSupport.expandFileNamePattern(
+                pattern, date: Date(), number: number, appName: appName)
+            if ScreenshotSupport.expandedFileNameNeedsDefault(expanded) {
+                return (defaultName, nil)
+            }
             defaults.set(number + 1, forKey: DefaultsKey.screenshotFileNumberNext)
             return (expanded + ".png", number)
         } else {
-            let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: 0)
+            let expanded = ScreenshotSupport.expandFileNamePattern(
+                pattern, date: Date(), number: 0, appName: appName)
+            if ScreenshotSupport.expandedFileNameNeedsDefault(expanded) {
+                return (defaultName, nil)
+            }
             return (expanded + ".png", nil)
         }
+    }
+
+    /// Frontmost app when the capture picker opened. Kept only long enough
+    /// for a scrolling capture that leaves the picker as a region rather
+    /// than a Capture; finished Captures carry their own copy.
+    private var pendingCaptureAppName = ""
+
+    /// Records the frontmost app at picker open for every capture path,
+    /// including the unified screen-capture shortcut.
+    @discardableResult
+    func noteCaptureAppAtPickerOpen() -> String {
+        let own = Bundle.main.bundleIdentifier ?? "com.vorssaint.utils"
+        let app = NSWorkspace.shared.frontmostApplication
+        let name = ScreenshotSupport.captureAppName(
+            frontmostBundleID: app?.bundleIdentifier,
+            frontmostName: app?.localizedName,
+            ownBundleID: own)
+        pendingCaptureAppName = name
+        return name
     }
 
     /// Gives a consumed "%#" number back after its save failed or was

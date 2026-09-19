@@ -1066,14 +1066,37 @@ enum ScreenshotSupport {
         }
     }
 
+    /// One path component from an app name. Slashes and colons stay inside
+    /// the component so "%app" cannot nest extra folders or escape the base.
+    static func pathComponent(forAppName raw: String) -> String {
+        let cleaned = raw
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "\\", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.isEmpty || cleaned == "." || cleaned == ".." { return "" }
+        return cleaned
+    }
+
+    /// App name to stamp on a capture. Ignores this app so the overlay
+    /// (or a later save from the preview) does not become the folder name.
+    static func captureAppName(frontmostBundleID: String?,
+                               frontmostName: String?,
+                               ownBundleID: String) -> String {
+        guard let frontmostName, !frontmostName.isEmpty else { return "" }
+        if let frontmostBundleID, frontmostBundleID == ownBundleID { return "" }
+        return pathComponent(forAppName: frontmostName)
+    }
+
     /// Expands a date-token pattern into a relative subfolder path, e.g.
     /// "%y-%mo" becomes "24-03" and "%year/%month" becomes "2024/March".
-    /// Slashes in the pattern become nested folders. The result never
+    /// "%app" is the app that was in front when the capture started (issue
+    /// #1622). Slashes in the pattern become nested folders. The result never
     /// escapes the base folder: empty, "." and ".." components are dropped.
     /// An empty pattern expands to an empty string, meaning no subfolder.
-    static func expandSaveSubfolder(_ pattern: String, date: Date) -> String {
+    static func expandSaveSubfolder(_ pattern: String, date: Date, appName: String = "") -> String {
         guard !pattern.isEmpty else { return "" }
-        return applyingDateTokens(pattern, date: date)
+        return applyingDateTokens(pattern, date: date, appName: appName)
             .split(separator: "/")
             .map(String.init)
             .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
@@ -1085,18 +1108,25 @@ enum ScreenshotSupport {
     /// folders or fail the write, so they become dashes. Callers are
     /// responsible for falling back to the default name when the pattern is
     /// blank, and for appending the file extension.
-    static func expandFileNamePattern(_ pattern: String, date: Date, number: Int) -> String {
-        let withDate = applyingDateTokens(pattern, date: date)
+    static func expandFileNamePattern(_ pattern: String, date: Date, number: Int, appName: String = "") -> String {
+        let withDate = applyingDateTokens(pattern, date: date, appName: appName)
         return applyingNumberTokens(withDate, number: number)
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
     }
+    /// Whether an expanded file-name pattern left nothing usable — empty —
+    /// so the default localized name should take over instead of writing
+    /// a hidden ".png". Digit-only results from "%#" or date tokens stay.
+    static func expandedFileNameNeedsDefault(_ expanded: String) -> Bool {
+        expanded.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// Whether a file name pattern actually uses the number sequence, so
     /// callers know whether to advance and persist it.
     static func fileNamePatternUsesNumber(_ pattern: String) -> Bool {
         pattern.contains("%#")
     }
-    private static func applyingDateTokens(_ pattern: String, date: Date) -> String {
+    private static func applyingDateTokens(_ pattern: String, date: Date, appName: String) -> String {
         let calendar = Calendar(identifier: .gregorian)
         let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let year = parts.year ?? 0
@@ -1105,6 +1135,7 @@ enum ScreenshotSupport {
         let tokens: [(String, String)] = [
             ("%year", String(format: "%04d", year)),
             ("%month", monthName(parts.month ?? 1)),
+            ("%app", pathComponent(forAppName: appName)),
             ("%y", String(format: "%02d", year % 100)),
             ("%mo", String(format: "%02d", parts.month ?? 0)),
             ("%d", String(format: "%02d", parts.day ?? 0)),
