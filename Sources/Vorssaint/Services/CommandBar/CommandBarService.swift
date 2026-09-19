@@ -659,15 +659,60 @@ final class CommandBarService: ObservableObject {
             NSSound.beep()
             return
         }
-        // A row that would confirm, ask for input, or keep the field visible
-        // needs a real presentation just as it does when chosen from the bar.
-        // Emptying the Trash on one keypress with nothing asked is not a
-        // shortcut, it is an accident with a name.
-        guard !entry.needsPrompt, !entry.keepsBarOpen else {
+        dispatch(entry, argument: nil, key: key)
+    }
+
+    /// Runs a row requested by an external `vorssaint://` deep link.
+    /// Uses the same execution path as row shortcuts, including any required
+    /// confirmation or setup steps.
+    func runExternalRow(withStableKey key: String, argument: Int?) {
+        guard let entry = freshFullEntry(forStableKey: key) else {
+            DeepLinkSupport.log.error("no row answers deep link \(key, privacy: .private)")
+            NSSound.beep()
+            return
+        }
+        // With the bar off there is nowhere to ask, and show(promptingFor:)
+        // would return without a sound. Missing setup still has its Settings
+        // page; anything else that needs the bar beeps.
+        if !AppFeature.commandBar.isAvailable {
+            if case .needsSetup(_, let page) = entry.trouble {
+                SettingsRouter.shared.page = page
+                appDelegate()?.openSettingsWindow()
+                return
+            }
+            let answered = entry.numericRange != nil && argument != nil
+                && entry.confirmationPrompt == nil && entry.trouble == nil
+            if !answered, entry.needsPrompt || entry.keepsBarOpen {
+                DeepLinkSupport.log.error("deep link \(key, privacy: .private) needs the Command Bar, which is off")
+                NSSound.beep()
+                return
+            }
+        }
+        dispatch(entry, argument: argument, key: key)
+    }
+
+    /// A row that would confirm, ask for input, or keep the field visible
+    /// needs a real presentation just as it does when chosen from the bar.
+    /// Emptying the Trash on one keypress with nothing asked is not a
+    /// shortcut, it is an accident with a name.
+    private func dispatch(_ entry: CommandBarEntry, argument: Int?, key: String) {
+        // An argument answers only the numeric prompt. A row that also
+        // confirms, or whose switch is off, still gets the bar, whose run(_)
+        // asks in the bar's own order.
+        let answeredByArgument = entry.numericRange != nil && argument != nil
+            && entry.confirmationPrompt == nil && entry.trouble == nil
+        guard answeredByArgument || (!entry.needsPrompt && !entry.keepsBarOpen) else {
             show(promptingFor: key)
             return
         }
+        // The bar closes before the row runs, so text that happened to be
+        // typed is not learned as the way to reach the row — the same as
+        // when a link carries no number.
         if isVisible { hide() }
+        if answeredByArgument, let range = entry.numericRange, let argument {
+            finish(entry, value: min(max(argument, range.lowerBound), range.upperBound))
+            return
+        }
         finish(entry, value: nil)
     }
 

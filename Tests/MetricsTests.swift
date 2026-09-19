@@ -50,6 +50,7 @@ struct MetricsTests {
             ("switcher", { SwitcherScrollContract.run(suite); SwitcherActivationTests.run(suite) }),
             ("keep-awake", { KeepAwakeCatalogContract.run(suite) }),
             ("emoji", { CommandBarEmojiContract.run(suite) }),
+            ("deep-links", { DeepLinkTests.run(suite) }),
         ]
         var selected = Set<String>()
         var listOnly = false
