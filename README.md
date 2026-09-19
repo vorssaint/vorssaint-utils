@@ -91,7 +91,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Dock Preview.** Hover a Dock icon to see adjustable window thumbnails with clear titles from all desktops by default. Click one to switch to its desktop or drag it to move and snap the window. Turn on “Show only the current desktop” to limit previews. Middle-click closes only the pointed window, including in pinned previews. Optional minimal previews hide titles, controls and decoration.
 - **Dock clicks.** Click the Dock icon of the active app to minimize its windows, hide the app, or cycle through its windows.
 - **Maximize windows.** The green button fills the screen without creating another Space, and puts the window back on the next click.
-- **Quit on close.** Apps you choose quit when their last window closes.
+- **Quit on close.** Apps you choose quit when their last window closes. A fullscreen window closes from its red button in one click instead of first returning to its desktop.
 - **Quit and close protection.** Protect ⌘Q and ⌘W with a hold, double press or extra modifier, independently and only for the apps you choose.
 
 <p align="center">

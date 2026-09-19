@@ -6361,6 +6361,19 @@ struct MetricsTests {
         expect(missingCloseCheckOffsetCode.isEmpty,
                "AutoQuit close checks remain offsets from one origin: missing \(missingCloseCheckOffsetCode)")
 
+        let fullscreenCloseCode = [
+            "CGEventMask(1 << CGEventType.leftMouseUp.rawValue)",
+            "options: .defaultTap",
+            "pendingFullscreenClose = target",
+            "Self.boolAttribute(target.window, \"AXFullScreen\")",
+            "AXUIElementPerformAction(target.button, kAXPressAction as CFString)",
+        ]
+        let missingFullscreenCloseCode = fullscreenCloseCode.filter {
+            autoQuitServiceCodeLines(containing: $0).isEmpty
+        }
+        expect(missingFullscreenCloseCode.isEmpty,
+               "AutoQuit consumes a verified fullscreen red-button click and closes its window directly: missing \(missingFullscreenCloseCode)")
+
         // Attaching to a watched app must never ask its application element for
         // a role. A Chromium app (Electron, and the browsers) answers that by
         // switching its renderers into full accessibility mode, and then pays

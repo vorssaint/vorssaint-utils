@@ -54,6 +54,7 @@ final class AutoQuitService: ObservableObject {
     private var spaceChangeToken: NSObjectProtocol?
     private var closeRequestTap: CFMachPort?
     private var closeRequestRunLoopSource: CFRunLoopSource?
+    private var pendingFullscreenClose: FullscreenCloseTarget?
     private var recentCloseButtonRequests: [pid_t: Date] = [:]
     private var lastScheduledChecks: [pid_t: Date] = [:]
     /// Apps whose attach is waiting on a retry, so a second round never starts.
@@ -152,6 +153,7 @@ final class AutoQuitService: ObservableObject {
         observers.removeAll()
         hadWindows.removeAll()
         recentCloseButtonRequests.removeAll()
+        pendingFullscreenClose = nil
         lastScheduledChecks.removeAll()
         retryingApps.removeAll()
         minimizedWindows.removeAll()
@@ -648,11 +650,12 @@ final class AutoQuitService: ObservableObject {
     private func startCloseRequestMonitor() {
         guard closeRequestTap == nil else { return }
         let mask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
+            | CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
             | CGEventMask(1 << CGEventType.keyDown.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .tailAppendEventTap,
-            options: .listenOnly,
+            options: .defaultTap,
             eventsOfInterest: mask,
             callback: { _, type, event, userInfo in
                 guard let userInfo else { return Unmanaged.passUnretained(event) }
@@ -679,10 +682,12 @@ final class AutoQuitService: ObservableObject {
         if let closeRequestTap { CFMachPortInvalidate(closeRequestTap) }
         closeRequestTap = nil
         closeRequestRunLoopSource = nil
+        pendingFullscreenClose = nil
     }
 
     private func handleCloseRequestEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            pendingFullscreenClose = nil
             if let closeRequestTap { CGEvent.tapEnable(tap: closeRequestTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
@@ -691,6 +696,20 @@ final class AutoQuitService: ObservableObject {
             handleCloseRequestKeyDown(event: event)
             return Unmanaged.passUnretained(event)
         }
+
+        if type == .leftMouseUp, let target = pendingFullscreenClose {
+            pendingFullscreenClose = nil
+            guard AXIsProcessTrusted(),
+                  target.buttonFrame.insetBy(dx: -4, dy: -4).contains(event.location),
+                  Self.boolAttribute(target.window, "AXFullScreen") else { return nil }
+            // Accessibility pressing the verified button bypasses macOS's
+            // first-click fullscreen exit while preserving the app's close
+            // handling, including save prompts.
+            markCloseButtonRequest(pid: target.pid)
+            AXUIElementPerformAction(target.button, kAXPressAction as CFString)
+            return nil
+        }
+        pendingFullscreenClose = nil
 
         // Accessibility gone (e.g. reset): the AX hit-test below would hang
         // inside the tap and freeze clicks, so let the click through untouched.
@@ -716,13 +735,21 @@ final class AutoQuitService: ObservableObject {
                 }
               ),
               AXIsProcessTrusted(),
-              let pid = closeButtonPID(at: event.location, candidate: candidate) else {
+              let hit = closeButtonHit(at: event.location, candidate: candidate) else {
             return Unmanaged.passUnretained(event)
         }
-        if let observer = observers[pid] {
-            refreshWindows(pid: pid, observer: observer)
+        if let target = hit.fullscreenTarget,
+           let app = NSRunningApplication(processIdentifier: hit.pid),
+           !AutoQuitSupport.isExcepted(bundleIdentifier: app.bundleIdentifier,
+                                       bundleURL: app.bundleURL,
+                                       exceptions: exceptions) {
+            pendingFullscreenClose = target
+            return nil
         }
-        markCloseButtonRequest(pid: pid)
+        if let observer = observers[hit.pid] {
+            refreshWindows(pid: hit.pid, observer: observer)
+        }
+        markCloseButtonRequest(pid: hit.pid)
         return Unmanaged.passUnretained(event)
     }
 
@@ -826,24 +853,31 @@ final class AutoQuitService: ObservableObject {
         return minimizedWindows[pid]?.isEmpty == false || appsWithUnresolvedMinimizedWindows.contains(pid)
     }
 
-    private func closeButtonPID(at point: CGPoint, candidate: TrafficLightCandidate) -> pid_t? {
+    private func closeButtonHit(at point: CGPoint, candidate: TrafficLightCandidate) -> CloseButtonHit? {
         guard candidate.pid != getpid(), observers[candidate.pid] != nil else { return nil }
         guard let element = elementAt(point: point),
               let window = Self.topLevelWindow(from: element)
-        else { return candidate.pid }
+        else { return CloseButtonHit(pid: candidate.pid) }
 
         var pid: pid_t = 0
         AXUIElementGetPid(window, &pid)
-        if pid == 0 { return candidate.pid }
+        if pid == 0 { return CloseButtonHit(pid: candidate.pid) }
         guard pid == candidate.pid else { return nil }
 
         guard Self.isStandardWindow(window),
               let closeButton = Self.windowAttribute(window, kAXCloseButtonAttribute as String),
               Self.boolAttribute(closeButton, kAXEnabledAttribute as String, default: true),
               let buttonFrame = Self.frame(of: closeButton)
-        else { return candidate.pid }
+        else { return CloseButtonHit(pid: candidate.pid) }
 
-        return buttonFrame.insetBy(dx: -4, dy: -4).contains(point) ? pid : nil
+        guard buttonFrame.insetBy(dx: -4, dy: -4).contains(point) else { return nil }
+        guard Self.boolAttribute(window, "AXFullScreen") else { return CloseButtonHit(pid: pid) }
+        AXUIElementSetMessagingTimeout(closeButton, 0.35)
+        return CloseButtonHit(pid: pid,
+                              fullscreenTarget: FullscreenCloseTarget(pid: pid,
+                                                                      window: window,
+                                                                      button: closeButton,
+                                                                      buttonFrame: buttonFrame))
     }
 
     private func elementAt(point: CGPoint) -> AXUIElement? {
@@ -998,5 +1032,22 @@ private struct AutoQuitAXFrame {
     func insetBy(dx: CGFloat, dy: CGFloat) -> AutoQuitAXFrame {
         AutoQuitAXFrame(origin: CGPoint(x: origin.x + dx, y: origin.y + dy),
                         size: CGSize(width: size.width - dx * 2, height: size.height - dy * 2))
+    }
+}
+
+private struct FullscreenCloseTarget {
+    let pid: pid_t
+    let window: AXUIElement
+    let button: AXUIElement
+    let buttonFrame: AutoQuitAXFrame
+}
+
+private struct CloseButtonHit {
+    let pid: pid_t
+    let fullscreenTarget: FullscreenCloseTarget?
+
+    init(pid: pid_t, fullscreenTarget: FullscreenCloseTarget? = nil) {
+        self.pid = pid
+        self.fullscreenTarget = fullscreenTarget
     }
 }
