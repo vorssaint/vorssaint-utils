@@ -90,7 +90,7 @@ struct ClipboardQuickPanelView: View {
                 history.toggleQuickPreview()
             } label: {
                 Label(text.previewLabel,
-                      systemImage: history.quickPreviewPresented ? "sidebar.right" : "eye")
+                      systemImage: history.quickPreviewPresented ? "sidebar.trailing" : "eye")
                     .foregroundStyle(history.quickPreviewPresented ? Color.accentColor : Color.secondary)
             }
             .buttonStyle(.bordered)

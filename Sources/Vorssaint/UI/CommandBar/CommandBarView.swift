@@ -13,7 +13,7 @@ struct CommandBarView: View {
     ///
     /// The battery one is the localized word, because that is the word the
     /// answer is titled with. As a fixed English "battery" the chip matched
-    /// nothing in the other twelve languages and led to an empty list, which
+    /// nothing in every other language and led to an empty list, which
     /// teaches the opposite of what an example is for. The other three hold
     /// everywhere: the maths is language-free, the conversion parser already
     /// takes each language's own word for "to", and the emoji names come from

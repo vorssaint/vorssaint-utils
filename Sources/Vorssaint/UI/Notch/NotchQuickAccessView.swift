@@ -83,6 +83,10 @@ struct NotchQuickAccessView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Each bubble sits on a physical side of the camera, and the host
+        // hit-tests and tracks hover against those same physical rects, so
+        // the placements are drawn unmirrored in every language.
+        .environment(\.layoutDirection, .leftToRight)
         .environment(\.colorScheme, .dark)
         .environment(\.notchPresentation, true)
         .foregroundStyle(.white)
@@ -124,6 +128,9 @@ struct NotchQuickAccessView: View {
             service.activateQuickAction(action)
         } label: {
             Image(systemName: symbol)
+                // The bubbles are pinned left to right; a back arrow in one
+                // still points along the reading order.
+                .localizedLayoutDirection()
                 .font(.system(size: 17, weight: .medium))
                 .frame(width: NotchQuickAccessLayout.diameter, height: NotchQuickAccessLayout.diameter)
                 .background(.black, in: Circle())

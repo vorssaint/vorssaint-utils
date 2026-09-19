@@ -1182,7 +1182,7 @@ final class DockPreviewService: ObservableObject {
         panel.isReleasedWhenClosed = false
         panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: DockPreviewPanelView(service: self))
+        panel.contentViewController = NSHostingController(rootView: DockPreviewPanelView(service: self).localizedLayoutDirection())
         self.panel = panel
         return panel
     }
@@ -1225,7 +1225,7 @@ final class DockPreviewService: ObservableObject {
         panel.isReleasedWhenClosed = false
         panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: DockPreviewPinnedPanelView(panel: pinned))
+        panel.contentViewController = NSHostingController(rootView: DockPreviewPinnedPanelView(panel: pinned).localizedLayoutDirection())
         return panel
     }
 

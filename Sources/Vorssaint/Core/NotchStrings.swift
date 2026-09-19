@@ -88,6 +88,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -160,6 +161,75 @@ extension NotchStrings {
         sectionKeyboardHint: "Use the arrow keys, then press Return",
         quickAccessLeft: "Left",
         quickAccessRight: "Right"
+    )
+
+    static let he = NotchStrings(
+        title: "Dynamic Island",
+        enable: "הפעל את Dynamic Island",
+        description: "המוזיקה, הפקדים והכלים היומיומיים שלך, יחד בראש המסך. אופציונלי. כבה אותו כדי להמשיך להשתמש בחלוניות הנפרדות.",
+        menuBarAccessHint: "אפשר נגישות כדי ש-Dynamic Island יוכל להופיע במסך הזה בלי לכסות את התפריטים.",
+        display: "מסך",
+        automatic: "אוטומטי",
+        builtIn: "מסך מובנה",
+        mainDisplay: "מסך ראשי",
+        hover: "פתח כשהסמן נח על Dynamic Island",
+        modules: "מה מופיע",
+        events: "אפשרויות נוספות",
+        clipboardActivity: "הודע כשמשהו מועתק",
+        captureActivity: "הצג כאן תצוגות מקדימות של צילומי מסך",
+        privacy: "תוכן שהועתק נשאר פרטי עד שתפתח את לוח הגזירים. האפשרויות האלה עוקבות אחרי ההגדרות של התכונה המקורית.",
+        open: "פתח את Dynamic Island",
+        collapse: "כווץ",
+        pin: "השאר פתוח",
+        unpin: "אפשר סגירה אוטומטית",
+        panel: "פתח את חלונית האפליקציה",
+        dropHint: "שחרר קבצים כאן",
+        empty: "בחר מה מופיע בהגדרות Dynamic Island.",
+        volume: "עוצמת שמע",
+        brightness: "בהירות",
+        battery: "סוללה",
+        onBattery: "על סוללה",
+        charging: "בטעינה",
+        charged: "טעון במלואו",
+        lowBattery: "סוללה חלשה",
+        controls: "פקדים",
+        system: "מערכת",
+        disabled: "הפעל את התכונה המתאימה כדי להשתמש בה כאן.",
+        files: "קבצים",
+        showInCaptures: "הצג בצילומי מסך ובסרטונים",
+        clipboardWindow: "פתח את היסטוריית לוח הגזירים ב-Dynamic Island",
+        tools: "כלים",
+        size: "גודל",
+        compact: "קומפקטי",
+        spacious: "מרווח",
+        hoverExpand: "הרחב במלואו במעבר עכבר",
+        shelfWindow: "פתח את מדף הקבצים ב-Dynamic Island",
+        dragReveal: "הצג יעד שחרור בזמן גרירה",
+        captureControls: "הצג פקדי לכידת מסך ב-Dynamic Island",
+        quickPanel: "פתח את החלונית המהירה ב-Dynamic Island",
+        appPanel: "פתח את חלונית האפליקציה ב-Dynamic Island",
+        idleContent: "כשלא פעיל",
+        idleNone: "כלום",
+        controlShortcuts: "פקדים וקיצורים",
+        activity: "פעילות",
+        playingMusic: "הצג מוזיקה בזמן ניגון",
+        custom: "מותאם אישית",
+        width: "רוחב",
+        maximumHeight: "גובה מרבי",
+        sizeHint: "הפקדים נשארים קומפקטיים. רשימות ארוכות משתמשות בגובה עד הערך הזה.",
+        hapticFeedback: "משוב הפטי",
+        hapticHint: "נקישות עדינות בפתיחה, במעבר בין מקטעים או בכיוון דקות הטיימר, במשטח מגע תואם.",
+        playbackPosition: "מיקום בניגון",
+        musicHint: "המוזיקה ופקדי הניגון שלך מופיעים כאן.",
+        music: "מוזיקה",
+        captures: "לכידות",
+        customizeTools: "התאם אישית את הכלים",
+        switchSection: "החלף מקטע",
+        sectionsTitle: "גלה",
+        searchSections: "מצא מקטע",
+        sectionKeyboardHint: "השתמש במקשי החיצים, ואז לחץ Return",
+        quickAccessLeft: "שמאל",
+        quickAccessRight: "ימין"
     )
 
     static let ptBR = NotchStrings(

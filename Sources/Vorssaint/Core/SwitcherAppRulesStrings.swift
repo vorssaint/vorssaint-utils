@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -176,5 +177,16 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "僅有視窗時顯示",
         hidden: "一律不顯示",
         caption: "選擇每個 App 的顯示方式。沒有規則的 App 使用上方選項。"
+    )
+
+    static let he = SwitcherAppRulesStrings(
+        listTitle: "כללים לפי אפליקציה",
+        addButton: "הוסף אפליקציה…",
+        removeButton: "הסר",
+        behaviorLabel: "התנהגות במחליף",
+        showWithoutWindows: "הצג ללא חלונות",
+        windowsOnly: "עם חלונות בלבד",
+        hidden: "לעולם אל תציג",
+        caption: "בחר כיצד כל אפליקציה מופיעה. אפליקציות ללא כלל משתמשות בבחירה למעלה."
     )
 }

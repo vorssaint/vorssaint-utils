@@ -165,6 +165,9 @@ struct ShelfTilesView: NSViewRepresentable {
                 && selection == $0.lastRebuiltSelection
                 && expandedBatches == $0.lastRebuiltExpandedBatches
                 && scroll.contentSize == $0.lastRebuiltContentSize
+                // The grid is laid out for a reading direction, so switching
+                // to or from Hebrew with the shelf open has to lay it out again.
+                && L10n.shared.language.isRTL == $0.lastRebuiltRightToLeft
         } ?? false
         if unchanged {
             // Revealing does not require rebuilding any tile, so keep the
@@ -179,6 +182,7 @@ struct ShelfTilesView: NSViewRepresentable {
         coordinator?.lastRebuiltSelection = selection
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
         coordinator?.lastRebuiltContentSize = scroll.contentSize
+        coordinator?.lastRebuiltRightToLeft = L10n.shared.language.isRTL
 
         document.subviews.forEach { $0.removeFromSuperview() }
 
@@ -192,7 +196,8 @@ struct ShelfTilesView: NSViewRepresentable {
                                                     columns: columns,
                                                     tileSize: tile,
                                                     spacing: Self.spacing,
-                                                    inset: inset)
+                                                    inset: inset,
+                                                    mirroredIn: L10n.shared.language.isRTL ? contentWidth : nil)
             document.addSubview(view)
         }
         let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * Self.spacing
@@ -220,6 +225,7 @@ struct ShelfTilesView: NSViewRepresentable {
         var lastRebuiltSelection: Set<UUID>?
         var lastRebuiltExpandedBatches: Set<UUID>?
         var lastRebuiltContentSize: NSSize?
+        var lastRebuiltRightToLeft: Bool?
     }
 
     /// Brings a newly added tile into view. scrollToVisible already does
@@ -243,7 +249,8 @@ struct ShelfTilesView: NSViewRepresentable {
                                                columns: columns,
                                                tileSize: Self.tileSize,
                                                spacing: Self.spacing,
-                                               inset: Self.inset)
+                                               inset: Self.inset,
+                                               mirroredIn: L10n.shared.language.isRTL ? document.bounds.width : nil)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.allowsImplicitAnimation = true
@@ -344,7 +351,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
             addSubview(badge)
 
             let expand = NSButton(frame: NSRect(x: 4, y: 4, width: 17, height: 17))
-            expand.image = NSImage(systemSymbolName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle.fill",
+            // An AppKit tile never sees SwiftUI's layout direction, so the
+            // collapsed glyph is picked by hand to point into the reading order.
+            let collapsedSymbol = L10n.shared.language.isRTL ? "chevron.left.circle.fill" : "chevron.right.circle.fill"
+            expand.image = NSImage(systemSymbolName: isExpanded ? "chevron.down.circle.fill" : collapsedSymbol,
                                    accessibilityDescription: nil)
             expand.isBordered = false
             expand.bezelStyle = .regularSquare

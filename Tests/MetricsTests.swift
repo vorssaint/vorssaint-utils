@@ -151,7 +151,7 @@ struct MetricsTests {
         expectEqual(MetricFormat.bytes(512), "512 B", "bytes < 1K")
         expectEqual(MetricFormat.bytes(1024), "1.0 KB", "bytes 1K")
         expectEqual(MetricFormat.bytes(1536), "1.5 KB", "bytes 1.5K")
-        // Seven of the thirteen languages here are spoken where a decimal is
+        // Seven of the fourteen languages here are spoken where a decimal is
         // written with a comma, and the panel wrote a point at everyone.
         MetricFormat.locale = Locale(identifier: "pt_BR")
         expectEqual(MetricFormat.bytes(1536), "1,5 KB", "a comma region reads its own decimal")
@@ -425,6 +425,7 @@ struct MetricsTests {
             (.zhHans, "剪贴板", "窗口布局", "实用工具", "提醒"),
             (.zhTW, "剪貼簿", "視窗排列", "工具程式", "提醒"),
             (.zhHK, "剪貼簿", "視窗排列", "工具", "提示"),
+            (.he, "לוח גזירים", "סידור חלונות", "כלי עזר", "התראות"),
         ]
         for (language, clipboardTitle, windowTitle, utilitiesTitle, alertsTitle) in featureTitles {
             expect(FeatureStrings.clipboard(language).title == clipboardTitle,
@@ -9225,6 +9226,45 @@ struct MetricsTests {
                                          spacing: 10,
                                          inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
                "a single column puts every tile in its own row")
+        // Absolute frames in an AppKit document view mirror for nobody, so the
+        // grid is reflected across the document's width. A width of 52 fits
+        // four columns with 5 points to spare, which is where a reflection
+        // that only reordered the columns would show: the slack has to move
+        // to the left, not stay on the right.
+        let mirrorTile = CGSize(width: 10, height: 10)
+        expect(ShelfTileLayout.tileFrame(index: 0, columns: 4, tileSize: mirrorTile,
+                                         spacing: 2, inset: 1, mirroredIn: 52)
+                == CGRect(x: 41, y: 1, width: 10, height: 10)
+                && ShelfTileLayout.tileFrame(index: 4, columns: 4, tileSize: mirrorTile,
+                                             spacing: 2, inset: 1, mirroredIn: 52)
+                    == CGRect(x: 41, y: 13, width: 10, height: 10),
+               "a mirrored shelf grid starts each row at the right edge")
+        expect((0..<8).allSatisfy { index in
+                   let plain = ShelfTileLayout.tileFrame(index: index, columns: 4, tileSize: mirrorTile,
+                                                         spacing: 2, inset: 1)
+                   let mirrored = ShelfTileLayout.tileFrame(index: index, columns: 4, tileSize: mirrorTile,
+                                                            spacing: 2, inset: 1, mirroredIn: 52)
+                   return mirrored.minX == 52 - plain.maxX && mirrored.minY == plain.minY
+               },
+               "a mirrored shelf grid is the left-to-right one reflected, rows unmoved")
+
+        // The notch level bars are drawn by hand inside an NSSliderCell, so
+        // AppKit mirrors the slider's tracking but not this fill. A quarter
+        // full reads from the trailing edge, and an empty or full bar looks the
+        // same either way.
+        let levelTrack = CGRect(x: 10, y: 0, width: 100, height: 6)
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: 0.25, mirrored: false)
+                == CGRect(x: 10, y: 0, width: 25, height: 6)
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 0.25, mirrored: true)
+                == CGRect(x: 85, y: 0, width: 25, height: 6),
+               "a mirrored level bar fills from the trailing edge")
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: 1, mirrored: true)
+                == NotchLevelBar.fillRect(track: levelTrack, fraction: 1, mirrored: false)
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 0, mirrored: true).width == 0,
+               "a full bar covers the track either way and an empty one draws nothing")
+        expect(NotchLevelBar.fillRect(track: levelTrack, fraction: Double.nan, mirrored: true).width == 0
+               && NotchLevelBar.fillRect(track: levelTrack, fraction: 3, mirrored: true).minX == 10,
+               "a level bar clamps a value it cannot use")
 
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
@@ -9593,7 +9633,7 @@ struct MetricsTests {
                    "a language without a middle form still only chooses between one and many at \(count)")
         }
         expect(AppLanguage.allCases.filter(\.usesFewCountForm) == [.ru],
-               "Russian is the one language of the thirteen that asks for the middle form")
+               "Russian is the one language of the fourteen that asks for the middle form")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",
@@ -14461,9 +14501,11 @@ struct MetricsTests {
         // Quotation marks are part of looking native and each language has its
         // own. Checked against what the system itself ships on this Mac: French
         // and Russian use the angled pair, German pairs a low opening mark with
-        // a high closing one, and every other language here uses the curly
-        // pair. Spanish, Italian, Portuguese and Turkish had picked up the
-        // angled pair, which reads as a translation from somewhere else.
+        // a high closing one, Hebrew quotes a name between gershayim and keeps
+        // the curly pair for a bare placeholder, and every other language here
+        // uses the curly pair. Spanish, Italian, Portuguese and Turkish had
+        // picked up the angled pair, which reads as a translation from
+        // somewhere else.
         // A label that says work is under way ends with the ellipsis character,
         // the way the system's own do, not with three periods. Ten of the
         // thirteen languages had the periods while three already had the
@@ -14484,6 +14526,13 @@ struct MetricsTests {
             let lowOpenUsed = values.contains { $0.contains("„") }
             expect(lowOpenUsed == (language == .de),
                    "only German opens a quote with the low mark (\(language.rawValue))")
+            if language == .he {
+                let curledName = values.first {
+                    $0.range(of: "“(?!%(\\d\\$)?@”)", options: .regularExpression) != nil
+                }
+                expect(curledName == nil,
+                       "Hebrew quotes a name with gershayim, as the system does (\(curledName ?? ""))")
+            }
         }
         for (language, strings) in localizedStrings {
             let prefix = "localization \(language.rawValue)"
@@ -16727,6 +16776,7 @@ struct MetricsTests {
                 case .zhHans: return .zhHans
                 case .zhTW: return .zhTW
                 case .zhHK: return .zhHK
+                case .he: return .he
                 }
             }()
             expect(!strings.obPurposeTitle.isEmpty && !strings.obPurposeBody.isEmpty
@@ -27362,6 +27412,103 @@ struct MetricsTests {
         expect(privateMode(privateRoot) == 0o700,
                "a container an earlier version left world readable is tightened on the next write")
         try? FileManager.default.removeItem(at: privateRoot)
+
+        // MARK: Every SwiftUI hosting root mirrors for a right-to-left language
+        // The app is AppKit-hosted, so every `NSHostingController`/`NSHostingView`
+        // starts a fresh SwiftUI environment: a root that forgets
+        // `localizedLayoutDirection()` draws Hebrew text in an unmirrored layout,
+        // and nothing in the type system says so. This walks `Sources/` rather
+        // than one named file, because the gap opens with the *next* root
+        // somebody adds, in a file this test cannot know the name of yet.
+        let layoutModifier = ".localizedLayoutDirection()"
+        let swiftSources: [String] = {
+            guard let walker = FileManager.default.enumerator(atPath: "Sources") else { return [] }
+            return walker.compactMap { $0 as? String }
+                .filter { $0.hasSuffix(".swift") }
+                .map { "Sources/" + $0 }
+                .sorted()
+        }()
+        expect(swiftSources.count > 1, "the hosting root sweep reads Sources/ back")
+
+        // The text from `open` through the paired `close`, starting at the first
+        // `open` at or after `start`, so a root spread over several lines is read
+        // as the one expression it is.
+        func balancedSlice(_ text: String, from start: String.Index,
+                           open: Character, close: Character) -> String {
+            guard let begin = text[start...].firstIndex(of: open) else { return "" }
+            var depth = 0
+            var index = begin
+            while index < text.endIndex {
+                if text[index] == open { depth += 1 }
+                if text[index] == close {
+                    depth -= 1
+                    if depth == 0 { return String(text[begin...index]) }
+                }
+                index = text.index(after: index)
+            }
+            return String(text[begin...])
+        }
+
+        // A hosting subclass whose generic parameter is pre-declared cannot take
+        // the modifier at its construction site without breaking its own type, so
+        // the modifier lives in the hosted view's `body` instead.
+        func structBody(_ name: String) -> String {
+            for path in swiftSources {
+                let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+                guard let hit = text.range(of: "struct \(name)") else { continue }
+                return balancedSlice(text, from: hit.upperBound, open: "{", close: "}")
+            }
+            return ""
+        }
+
+        var hostingRoots = 0
+        for path in swiftSources {
+            let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            var cursor = text.startIndex
+            while let hit = text.range(of: "(rootView:", range: cursor..<text.endIndex) {
+                cursor = hit.upperBound
+                let prefix = text[..<hit.lowerBound]
+                // `init(rootView:)` and the `super` call inside it are a
+                // subclass's own plumbing: they forward what a site built.
+                if prefix.hasSuffix("init") { continue }
+                hostingRoots += 1
+                let call = balancedSlice(text, from: hit.lowerBound, open: "(", close: ")")
+                if call.contains(layoutModifier) { continue }
+                let argument = String(call.dropFirst("(rootView:".count).dropLast())
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let head = String(argument.prefix { $0.isLetter || $0.isNumber || $0 == "_" })
+                if argument == head, !head.isEmpty {
+                    // A local the modifier was applied to a few lines up.
+                    let binding = prefix.range(of: "let \(head) =", options: .backwards)
+                        ?? prefix.range(of: "var \(head) =", options: .backwards)
+                    if let binding, prefix[binding.lowerBound...].contains(layoutModifier) { continue }
+                } else if !head.isEmpty, structBody(head).contains(layoutModifier) {
+                    continue
+                }
+                // `HeightReportingHostingView` is generic and hands on whatever
+                // it is given, so the requirement moves out to the call sites of
+                // the `OverlayScrollView` that wraps it — all of them.
+                if prefix.hasSuffix("HeightReportingHostingView") {
+                    var wrapped = 0
+                    var mirrored = 0
+                    var scan = text.startIndex
+                    while let site = text.range(of: "OverlayScrollView(measuredHeight:",
+                                                range: scan..<text.endIndex) {
+                        scan = site.upperBound
+                        wrapped += 1
+                        if balancedSlice(text, from: site.upperBound, open: "{", close: "}")
+                            .contains(layoutModifier) { mirrored += 1 }
+                    }
+                    expect(wrapped > 0 && wrapped == mirrored,
+                           "every OverlayScrollView call site mirrors the content it hosts "
+                           + "(\(mirrored) of \(wrapped))")
+                    continue
+                }
+                expect(false, "\(path) hosts a SwiftUI root that never mirrors layout direction: "
+                       + "\(call.prefix(72).split(separator: "\n").first ?? "")")
+            }
+        }
+        expect(hostingRoots > 30, "the hosting root sweep found the roots it guards (\(hostingRoots))")
 
         // MARK: Result
 

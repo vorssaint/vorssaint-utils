@@ -60,6 +60,7 @@ struct WhatsAppDownloadStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -319,6 +320,18 @@ extension WhatsAppDownloadStrings {
         existing: "包括現有檔案", firstTitle: "如何處理現有檔案？",
         trash: "檔案會移至垃圾桶，清空前仍可還原。", notificationTitle: "WhatsApp 清理")
 
+    static let he = translated(language: .he,
+        title: "הורדות WhatsApp", hub: "שומר על קבצי WhatsApp בהורדות בשליטה",
+        intro: "מאתר קבצים ש-macOS מאשר שהגיעו מ-WhatsApp. תוכן הקבצים והשיחות לעולם לא נקראים.",
+        automatic: "ניקוי אוטומטי", folder: "תיקייה במעקב", accessReady: "תיקיית ההורדות נגישה",
+        accessDenied: "Vorssaint לא יכול לגשת להורדות. אפשר גישה בקבצים ותיקיות.",
+        types: "סוגי קבצים", all: "הכל", image: "תמונות", video: "סרטונים", audio: "אודיו והודעות קוליות",
+        document: "מסמכים", archive: "ארכיונים", other: "אחר", retention: "לשמור למשך", days: "%d ימים",
+        noFiles: "לא נמצאו קבצי WhatsApp מאושרים בהורדות.", keep: "לשמור", manage: "נהל שוב",
+        activity: "פעילות", never: "טרם בוצע ניקוי.", future: "רק הורדות עתידיות",
+        existing: "לכלול קבצים קיימים", firstTitle: "מה לגבי קבצים קיימים?",
+        trash: "קבצים מועברים לאשפה וניתנים לשחזור עד לריקון האשפה.", notificationTitle: "ניקוי WhatsApp")
+
     private struct OperationalStrings {
         let automaticCaption: String
         let retentionCaption: String
@@ -471,6 +484,21 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: es.lastRunFormat, nextRunFormat: es.nextRunFormat,
             firstMessageFormat: es.firstMessageFormat, localNote: es.localNote,
             notificationFormat: es.notificationFormat, scanFailed: es.scanFailed, manageButton: es.manageButton)
+        case .he:
+            return OperationalStrings(
+                automaticCaption: "בודק פעם ביום ושולח קבצים תואמים שעברו את המגבלה לאשפה.",
+                retentionCaption: "קבצים שנערכו לאחרונה ממתינים שוב לתקופה המלאה.",
+                manualIntro: "סרוק בכל עת. הבחירה הראשונית עוקבת אחר הסוגים והגיל שלך; תוכל לסקור כל קובץ מאושר.",
+                resultsFormat: "%1$d קבצים מאושרים · %2$@",
+                selectRules: "בחר לפי הכללים שלי",
+                cleanSelectedFormat: "העבר %1$d לאשפה · %2$@",
+                lastRunFormat: "ניקוי אחרון %@: %d קבצים · %@ · %d נכשלו",
+                nextRunFormat: "בדיקה אוטומטית הבאה %@.",
+                firstMessageFormat: "%d קבצים קיימים כבר תואמים את הכללים שלך. בחר אם האוטומציה יכולה לנהל אותם או רק הורדות עתידיות.",
+                localNote: "רק מטא-נתונים מקומיים נבדקים. Vorssaint לעולם לא קורא שיחות או תוכן קבצים.",
+                notificationFormat: "%1$d קבצים (%2$@) הועברו לאשפה. %3$d נכשלו.",
+                scanFailed: "לא ניתן לסרוק את ההורדות. בדוק קבצים ותיקיות בהגדרות המערכת.",
+                manageButton: "נהל…")
         }
     }
 

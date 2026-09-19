@@ -288,6 +288,26 @@ extension FeatureStrings {
             nextMonth: "下個月",
             emptyDay: "當天沒有行程",
             hasEvents: "有行程")
+        case .he: return NotchCalendarStrings(
+            title: "לוח שנה",
+            description: "עיין בחודש ובפגישות הקרובות שלך ב-Dynamic Island.",
+            permission: "קורא את לוחות השנה שלך כדי להציג פגישות קרובות. האירועים נשארים ב-Mac הזה.",
+            allow: "אפשר גישה ללוח השנה",
+            denied: "אפשר גישה ללוח השנה בהגדרות המערכת כדי לראות את הפגישות שלך.",
+            settings: "פתח את הגדרות המערכת",
+            empty: "אין פגישות קרובות",
+            next: "הבא בתור",
+            ongoing: "מתרחש עכשיו",
+            allDay: "כל היום",
+            untitled: "אירוע ללא שם",
+            openCalendar: "פתח את לוח השנה",
+            week: "7 הימים הבאים",
+            today: "היום",
+            requestFailed: "לא ניתן לבקש גישה ללוח השנה. נסה שוב.",
+            previousMonth: "החודש הקודם",
+            nextMonth: "החודש הבא",
+            emptyDay: "אין פגישות ביום הזה",
+            hasEvents: "יש פגישות")
         }
     }
 }

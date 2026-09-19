@@ -34,12 +34,15 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
 
 extension PortManagerFeatureStrings {
     static let enUS = PortManagerFeatureStrings(title: "Port Manager", filter: "Filter by port, process, or PID", openFormat: "%d open", empty: "No listening ports found", emptyHint: "Try refreshing or changing your search.", listeningCaption: "Your listening ports", kill: "Kill", forceKill: "Force Kill", refresh: "Refresh", terminateFormat: "Terminate %@?", terminateMessageFormat: "This closes port %d by terminating PID %d.", hubDescription: "View active listening ports and terminate the processes using them")
+
+    static let he = PortManagerFeatureStrings(title: "מנהל פורטים", filter: "סנן לפי פורט, תהליך או PID", openFormat: "%d פתוחים", empty: "לא נמצאו פורטים מאזינים", emptyHint: "נסה לרענן או לשנות את החיפוש.", listeningCaption: "הפורטים המאזינים שלך", kill: "סיים", forceKill: "אלץ סיום", refresh: "רענן", terminateFormat: "לסיים את %@?", terminateMessageFormat: "פעולה זו סוגרת את פורט %d על ידי סיום PID %d.", hubDescription: "הצג פורטים מאזינים פעילים וסיים את התהליכים שמשתמשים בהם")
     static let ptBR = PortManagerFeatureStrings(title: "Gerenciador de portas", filter: "Filtrar por porta, processo ou PID", openFormat: "%d abertas", empty: "Nenhuma porta de escuta encontrada", emptyHint: "Atualize ou altere a busca.", listeningCaption: "Suas portas de escuta", kill: "Encerrar", forceKill: "Forçar encerramento", refresh: "Atualizar", terminateFormat: "Encerrar %@?", terminateMessageFormat: "Isso fecha a porta %d encerrando o PID %d.", hubDescription: "Visualize portas de escuta ativas e encerre os processos que as utilizam")
     static let tr = PortManagerFeatureStrings(title: "Port Yöneticisi", filter: "Port, işlem veya PID ile filtrele", openFormat: "%d açık", empty: "Dinleyen port bulunamadı", emptyHint: "Yenilemeyi veya aramanızı değiştirmeyi deneyin.", listeningCaption: "Kullanıcınızın dinleyen portları", kill: "Sonlandır", forceKill: "Zorla sonlandır", refresh: "Yenile", terminateFormat: "%@ sonlandırılsın mı?", terminateMessageFormat: "Bu işlem PID %2$d sonlandırılarak %1$d portunu kapatır.", hubDescription: "Etkin dinleyen portları görüntüleyin ve bunları kullanan işlemleri sonlandırın")
     static let ru = PortManagerFeatureStrings(title: "Диспетчер портов", filter: "Фильтр по порту, процессу или PID", openFormat: "%d открыто", empty: "Прослушиваемые порты не найдены", emptyHint: "Обновите список или измените поиск.", listeningCaption: "Ваши прослушиваемые порты", kill: "Завершить", forceKill: "Завершить принудительно", refresh: "Обновить", terminateFormat: "Завершить %@?", terminateMessageFormat: "Порт %d будет закрыт завершением PID %d.", hubDescription: "Просмотр активных прослушиваемых портов и завершение использующих их процессов")

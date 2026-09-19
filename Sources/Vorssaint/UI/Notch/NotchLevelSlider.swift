@@ -23,6 +23,13 @@ struct NotchLevelSlider: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSSlider {
         let slider = NSSlider()
+        // The environment does cross into a representable, but an AppKit
+        // control does nothing with it on its own. Handed the direction, the
+        // cell mirrors its own tracking, so a click near an edge means what a
+        // reader of the language expects; the fill below is drawn here and has
+        // to be mirrored by hand.
+        slider.userInterfaceLayoutDirection = context.environment.layoutDirection == .rightToLeft
+            ? .rightToLeft : .leftToRight
         let cell = NotchLevelCell()
         cell.trackingChanged = { [weak coordinator = context.coordinator] editing in
             coordinator?.trackingChanged(editing)
@@ -40,6 +47,9 @@ struct NotchLevelSlider: NSViewRepresentable {
 
     func updateNSView(_ slider: NSSlider, context: Context) {
         context.coordinator.parent = self
+        let wanted: NSUserInterfaceLayoutDirection =
+            context.environment.layoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
+        if slider.userInterfaceLayoutDirection != wanted { slider.userInterfaceLayoutDirection = wanted }
         let lower = range.lowerBound
         let upper = max(lower, range.upperBound)
         if slider.minValue != lower { slider.minValue = lower }
@@ -100,7 +110,8 @@ private final class NotchLevelCell: NSSliderCell {
         track.fill()
         let fraction = maxValue > minValue ? min(1, max(0, (doubleValue - minValue) / (maxValue - minValue))) : 0
         fill.withAlphaComponent(isEnabled ? 0.92 : 0.3).setFill()
-        NSRect(x: track.minX, y: track.minY, width: track.width * fraction, height: track.height).fill()
+        let mirrored = (controlView?.userInterfaceLayoutDirection ?? userInterfaceLayoutDirection) == .rightToLeft
+        NotchLevelBar.fillRect(track: track, fraction: fraction, mirrored: mirrored).fill()
         NSGraphicsContext.restoreGraphicsState()
     }
 

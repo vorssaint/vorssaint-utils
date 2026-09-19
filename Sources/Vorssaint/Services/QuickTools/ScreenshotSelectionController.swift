@@ -1604,18 +1604,21 @@ private struct CaptureGuideView: View {
     let screenCaptureOptions: ScreenCaptureSelectionOptions?
 
     var body: some View {
-        if let screenCaptureOptions {
-            UnifiedCaptureGuideContent(strings: strings,
-                                       options: screenCaptureOptions,
-                                       offersScrollingCapture: offersScrollingCapture,
-                                       offersRepeatLastRegion: offersRepeatLastRegion,
-                                       scrollingCaptureEnabled: scrollingCaptureEnabled,
-                                       loupeEnabled: loupeEnabled)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(true)
-        } else {
-            standardGuide
+        Group {
+            if let screenCaptureOptions {
+                UnifiedCaptureGuideContent(strings: strings,
+                                           options: screenCaptureOptions,
+                                           offersScrollingCapture: offersScrollingCapture,
+                                           offersRepeatLastRegion: offersRepeatLastRegion,
+                                           scrollingCaptureEnabled: scrollingCaptureEnabled,
+                                           loupeEnabled: loupeEnabled)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(true)
+            } else {
+                standardGuide
+            }
         }
+        .localizedLayoutDirection()
     }
 
     private var standardGuide: some View {

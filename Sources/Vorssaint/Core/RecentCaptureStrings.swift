@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -176,5 +177,16 @@ extension RecentCaptureStrings {
         open: "開啟",
         remove: "從記錄移除",
         clear: "清除記錄"
+    )
+
+    static let he = RecentCaptureStrings(
+        title: "לכידות אחרונות",
+        empty: "צלם צילום מסך או שמור הקלטה כדי למצוא אותם כאן.",
+        screenshot: "צילום מסך",
+        recording: "הקלטה",
+        restore: "שחזר",
+        open: "פתח",
+        remove: "הסר מההיסטוריה",
+        clear: "נקה היסטוריה"
     )
 }

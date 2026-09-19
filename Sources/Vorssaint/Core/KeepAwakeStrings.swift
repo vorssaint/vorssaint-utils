@@ -60,6 +60,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 
@@ -78,6 +79,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -146,6 +148,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let zhHK = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "允許顯示器進入睡眠",
         allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。"
+    )
+
+    static let he = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "אפשר למסך להיכבות",
+        allowDisplaySleepCaption: "ה-Mac נשאר ער בעוד המסך פועל לפי זמן הכיבוי הרגיל שלו."
     )
 }
 
@@ -434,5 +441,27 @@ extension KeepAwakeAutomationStrings {
         matchAny: "任一",
         matchAll: "所有",
         automationCaptionAll: "只有當所有已選條件都符合時才啟動。"
+    )
+
+    static let he = KeepAwakeAutomationStrings(
+        automationSection: "אוטומציה",
+        automationCaption: "מתחיל כאשר כל תנאי שנבחר מתקיים.",
+        automationOff: "כבוי",
+        externalDisplayToggle: "מסך חיצוני",
+        externalDisplayActive: "פעיל בזמן שמסך חיצוני מחובר",
+        powerToggle: "חשמל",
+        powerActive: "פעיל בזמן שמחובר לחשמל",
+        runningAppsToggle: "אפליקציות",
+        runningAppsActive: "פעיל כשאפליקציה נבחרת פועלת",
+        runningAppsListTitle: "אפליקציות נבחרות",
+        runningAppsAddButton: "הוסף אפליקציה…",
+        runningAppsRemoveButton: "הסר",
+        runningAppsListCaption: "״שמור ערנות״ מתחיל כשאחת מהאפליקציות האלה פתוחה, גם ברקע.",
+        automationActive: "פעיל כי תנאי אוטומטי מתקיים",
+        pauseWhenLockedToggle: "השהה כשה-Mac נעול",
+        pauseWhenLockedCaption: "בזמן נעילה חלים כללי השינה הרגילים, ויתרת הסשן ממשיכה אחרי שתבטל את הנעילה.",
+        matchAny: "כל אחד",
+        matchAll: "כולם",
+        automationCaptionAll: "מתחיל רק כשכל התנאים שנבחרו פעילים."
     )
 }

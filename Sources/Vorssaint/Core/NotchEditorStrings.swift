@@ -455,6 +455,38 @@ extension FeatureStrings {
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
             activationTimeFormat: "%.2f 秒"
         )
+        case .he: return NotchEditorStrings(
+            layout: "פריסה",
+            content: "תוכן",
+            activity: "פעילות",
+            behavior: "התנהגות",
+            layoutHint: "לחץ על + כדי להוסיף כפתור. גרור כפתורים סביב האי. לחץ על כפתור כדי לערוך אותו.",
+            addButton: "הוסף כפתור",
+            editButton: "ערוך כפתור",
+            removeButton: "הסר כפתור",
+            buttonName: "שם",
+            position: "מיקום",
+            bottom: "למטה",
+            sectionActions: "פתח מקטע",
+            quickActions: "פעולות מהירות",
+            findAction: "מצא פעולה",
+            reorderHint: "גרור כדי לשנות סדר. לחץ על סימן הווי כדי להציג או להסתיר.",
+            opening: "פתיחה",
+            clickOpen: "לחץ כדי לפתוח",
+            hoverPreview: "תצוגה מקדימה במעבר עכבר",
+            hoverExpand: "הרחב במעבר עכבר",
+            hiddenUntilHover: "מוסתר עד מעבר עכבר",
+            resting: "במנוחה",
+            destinations: "היכן דברים נפתחים",
+            separate: "חלון נפרד",
+            feedback: "מחוונים",
+            privacy: "פרטיות",
+            reopening: "בפתיחה מחדש",
+            lastPage: "העמוד האחרון",
+            activationTime: "זמן הפעלה",
+            activationTimeHint: "השאר את הסמן מעל האי למשך הזמן הזה כדי לפתוח אותו.",
+            activationTimeFormat: "%.2f שנ׳"
+        )
         }
     }
 }

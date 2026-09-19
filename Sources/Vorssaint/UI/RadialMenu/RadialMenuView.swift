@@ -42,6 +42,10 @@ struct RadialMenuView: View {
             ring.id(service.stack.count)
             hub
         }
+        // The service picks a slice from where the pointer physically is, so
+        // the wheel is drawn the same way in every language: mirrored, the
+        // chip under the pointer would not be the one that fires.
+        .environment(\.layoutDirection, .leftToRight)
         .frame(width: RadialMenuLayout.panelSize, height: RadialMenuLayout.panelSize)
         // The whole panel is tappable; the service decides by distance, so a
         // click on the transparent corners dismisses instead of dying.
@@ -239,6 +243,9 @@ struct RadialMenuView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
             }
+            // The wheel is pinned left to right; the way back is not a place
+            // on it, so it points along the reading order.
+            .localizedLayoutDirection()
             .accessibilityLabel(text.backButton)
         } else {
             // Black on the light theme, white on the dark one: the owner

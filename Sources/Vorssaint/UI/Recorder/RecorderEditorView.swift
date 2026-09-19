@@ -233,6 +233,9 @@ struct RecorderEditorView: View {
                     blurPicker(in: proxy.size)
                 }
             }
+            // The picture is never mirrored, so what is drawn over it (the
+            // blur being picked, the aim of a zoom) stays in its coordinates.
+            .environment(\.layoutDirection, .leftToRight)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -372,7 +375,11 @@ struct RecorderEditorView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .trailing)
                 .lineLimit(1)
+            // Time runs left to right in every language, the way the player
+            // and every other media timeline draw it, and the lanes place
+            // their blocks and read their drags in that same space.
             content()
+                .environment(\.layoutDirection, .leftToRight)
         }
     }
 
@@ -669,29 +676,34 @@ private struct RecorderAudioLane: View {
                 .frame(maxWidth: .infinity)
                 .opacity(isKept ? 1 : 0.3)
 
-            Slider(value: Binding(get: { gain },
-                                  set: { model.setAudioGain($0, for: source) }),
-                   in: RecorderSupport.audioGainRange)
-                .frame(width: 92)
-                .disabled(!isKept)
-                .screenshotSafeHelp(strings.audioVolumeLabel)
-                .accessibilityLabel(strings.audioVolumeLabel)
+            // Only the waveform is time; the gain slider, its reading and the
+            // restore arrow are controls and follow the reading order.
+            HStack(spacing: 8) {
+                Slider(value: Binding(get: { gain },
+                                      set: { model.setAudioGain($0, for: source) }),
+                       in: RecorderSupport.audioGainRange)
+                    .frame(width: 92)
+                    .disabled(!isKept)
+                    .screenshotSafeHelp(strings.audioVolumeLabel)
+                    .accessibilityLabel(strings.audioVolumeLabel)
 
-            Text("\(Int((gain * 100).rounded()))%")
-                .font(.system(size: 10, weight: .medium))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .frame(width: 34, alignment: .trailing)
+                Text("\(Int((gain * 100).rounded()))%")
+                    .font(.system(size: 10, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34, alignment: .trailing)
 
-            Button { model.toggleAudio(source) } label: {
-                Image(systemName: isKept ? "xmark" : "arrow.uturn.backward")
-                    .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 18, height: 18)
+                Button { model.toggleAudio(source) } label: {
+                    Image(systemName: isKept ? "xmark" : "arrow.uturn.backward")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(isKept ? Color.secondary : tint)
+                .screenshotSafeHelp(isKept ? strings.removeAudio : strings.restoreAudio)
+                .accessibilityLabel(isKept ? strings.removeAudio : strings.restoreAudio)
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(isKept ? Color.secondary : tint)
-            .screenshotSafeHelp(isKept ? strings.removeAudio : strings.restoreAudio)
-            .accessibilityLabel(isKept ? strings.removeAudio : strings.restoreAudio)
+            .localizedLayoutDirection()
         }
         .padding(.horizontal, 8)
         .background(tint.opacity(isKept ? 0.11 : 0.04),

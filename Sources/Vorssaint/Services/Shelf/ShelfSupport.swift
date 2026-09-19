@@ -80,15 +80,24 @@ enum ShelfTileLayout {
     }
 
     /// Where the tile at `index` sits in the flipped document view.
+    ///
+    /// These are absolute frames in an AppKit document view, so nothing mirrors
+    /// them on its own: the grid would keep filling from the left inside a
+    /// panel whose chrome had already flipped. Given the document's width, the
+    /// grid is reflected across it instead: rows fill from the right edge, and
+    /// the slack a width leaves over after the last whole column lands on the
+    /// left, exactly where it sits on the right in a left-to-right layout.
     static func tileFrame(index: Int,
                           columns: Int,
                           tileSize: CGSize,
                           spacing: CGFloat,
-                          inset: CGFloat) -> CGRect {
+                          inset: CGFloat,
+                          mirroredIn documentWidth: CGFloat? = nil) -> CGRect {
         let safeColumns = max(1, columns)
         let column = index % safeColumns
         let row = index / safeColumns
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let leading = inset + CGFloat(column) * (tileSize.width + spacing)
+        return CGRect(x: documentWidth.map { $0 - leading - tileSize.width } ?? leading,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)

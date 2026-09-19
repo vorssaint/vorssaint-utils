@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -213,5 +214,18 @@ extension PermissionGuideStrings {
         staleHint: "清單裡已經開啟了？那筆項目屬於此 App 的早期副本。重新開始以取代它。",
         startOver: "重新開始",
         relaunch: "重新啟動以套用"
+    )
+
+    static let he = PermissionGuideStrings(
+        title: "נותרה רק פעולה אחת",
+        stepOpen: "macOS פתח את הגדרות המערכת ברשימה הנכונה.",
+        stepToggle: "הפעל את Vorssaint ברשימה הזו.",
+        stepReturn: "חזור לכאן. הכרטיס הזה מבחין בעצמו.",
+        waiting: "ממתין להרשאה…",
+        granted: "ההרשאה ניתנה!",
+        closeHelp: "סגור",
+        staleHint: "כבר מופעל ברשימה? הרשומה הזו שייכת לעותק קודם של האפליקציה. התחילו מחדש כדי להחליף אותה.",
+        startOver: "להתחיל מחדש",
+        relaunch: "הפעלה מחדש כדי להחיל"
     )
 }

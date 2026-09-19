@@ -899,7 +899,7 @@ final class RadialMenuService: ObservableObject {
         panel.hasShadow = false
         panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: RadialMenuView())
+        panel.contentViewController = NSHostingController(rootView: RadialMenuView().localizedLayoutDirection())
         self.panel = panel
         return panel
     }

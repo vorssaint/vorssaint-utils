@@ -93,7 +93,7 @@ struct MixerSection: View {
                 optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
@@ -595,7 +595,7 @@ struct MixerSection: View {
                          : "\(l10n.s.mixerHiddenCountLabel): \(mixer.hiddenApps.count)")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(showListChooser ? 90 : 0))
@@ -1289,6 +1289,7 @@ private struct LiquidGlassMixerSlider: View {
     let accessibilityLabel: String
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.layoutDirection) private var layoutDirection
 
     private let knobWidth: CGFloat = 24
     private let knobHeight: CGFloat = 15
@@ -1378,6 +1379,10 @@ private struct LiquidGlassMixerSlider: View {
     }
 
     private func updateValue(at x: CGFloat, width: CGFloat) {
+        // The track and knob mirror in a right-to-left layout, the way the
+        // system slider beside it does, but a drag reports where the pointer
+        // physically is; measured from the other edge, the two agree again.
+        let x = layoutDirection == .rightToLeft ? width - x : x
         let travel = max(width - knobWidth, 1)
         let normalized = min(max((x - knobWidth / 2) / travel, 0), 1)
         value = Double(normalized) * maximum
