@@ -461,6 +461,7 @@ private struct NetworkMenuBarOrderOption: View {
 private struct MenuBarUsageBarSettings: View {
     let strings: MenuBarAppearanceStrings
 
+    @AppStorage(DefaultsKey.menuBarUsageBarUseSystemColor) private var useSystemColor = false
     @AppStorage(DefaultsKey.menuBarUsageBarNormalColor) private var normalColor = MenuBarUsageBarSupport.defaultNormalColor
     @AppStorage(DefaultsKey.menuBarUsageBarElevatedColor) private var elevatedColor = MenuBarUsageBarSupport.defaultElevatedColor
     @AppStorage(DefaultsKey.menuBarUsageBarCriticalColor) private var criticalColor = MenuBarUsageBarSupport.defaultCriticalColor
@@ -472,18 +473,24 @@ private struct MenuBarUsageBarSettings: View {
             Text(strings.customize)
                 .font(.subheadline.weight(.semibold))
 
-            ColorPicker(strings.normalColor,
-                        selection: colorBinding($normalColor,
-                                                fallback: MenuBarUsageBarSupport.defaultNormalColor),
-                        supportsOpacity: false)
-            ColorPicker(strings.mediumColor,
-                        selection: colorBinding($elevatedColor,
-                                                fallback: MenuBarUsageBarSupport.defaultElevatedColor),
-                        supportsOpacity: false)
-            ColorPicker(strings.highColor,
-                        selection: colorBinding($criticalColor,
-                                                fallback: MenuBarUsageBarSupport.defaultCriticalColor),
-                        supportsOpacity: false)
+            Toggle(strings.useSystemColor, isOn: $useSystemColor)
+
+            Group {
+                ColorPicker(strings.normalColor,
+                            selection: colorBinding($normalColor,
+                                                    fallback: MenuBarUsageBarSupport.defaultNormalColor),
+                            supportsOpacity: false)
+                ColorPicker(strings.mediumColor,
+                            selection: colorBinding($elevatedColor,
+                                                    fallback: MenuBarUsageBarSupport.defaultElevatedColor),
+                            supportsOpacity: false)
+                ColorPicker(strings.highColor,
+                            selection: colorBinding($criticalColor,
+                                                    fallback: MenuBarUsageBarSupport.defaultCriticalColor),
+                            supportsOpacity: false)
+            }
+            .disabled(useSystemColor)
+            .opacity(useSystemColor ? 0.45 : 1)
 
             Divider()
 
