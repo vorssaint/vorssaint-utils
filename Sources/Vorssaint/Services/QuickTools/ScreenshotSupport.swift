@@ -2442,6 +2442,10 @@ enum ScreenshotDefaultAction: String, CaseIterable {
     case copy
     case edit
 
+    func automaticOutputAction(copyToClipboard: Bool) -> ScreenshotDefaultAction {
+        self == .save && copyToClipboard ? .saveAndCopy : self
+    }
+
     /// The persisted choice; an unknown raw value reads as `.none`.
     static var current: ScreenshotDefaultAction {
         let raw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""

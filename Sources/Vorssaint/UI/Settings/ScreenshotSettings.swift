@@ -39,6 +39,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = true
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
+    @AppStorage(DefaultsKey.screenshotShowPreview) private var showPreview = true
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
 
@@ -155,8 +156,20 @@ struct ScreenshotCaptureSettings: View {
                     Text(strings.loupeZoomOptionCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    previewPositionRow
-                    previewFocusRow
+                    Toggle(strings.previewToggle, isOn: $showPreview)
+                    if showPreview {
+                        Text(strings.previewEscapeCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if !permissions.accessibility {
+                            Button(strings.previewAccessibilityButton) {
+                                permissions.requestAccessibility()
+                                permissions.openAccessibilitySettings()
+                            }
+                        }
+                        previewPositionRow
+                        previewFocusRow
+                    }
                     defaultActionRow
                 } label: {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)

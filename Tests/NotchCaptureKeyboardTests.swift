@@ -15,6 +15,8 @@ enum NotchCaptureKeyboardContract {
     final class NSText {}
     final class ScreenshotOverlayPanel: NSPanel { var overlayView = Overlay() }
     final class Overlay { var isDragging = false }
+    static var accessibilityTrusted = true
+    static func AXIsProcessTrusted() -> Bool { accessibilityTrusted }
     enum ShortcutCapture { static var isCapturing = false }
     struct NSEvent {
         struct ModifierFlags: OptionSet {
@@ -37,11 +39,15 @@ enum NotchCaptureKeyboardContract {
         var type: EventType = .keyDown
         var charactersIgnoringModifiers: String?
         static var handler: ((Self) -> Self?)?
+        static var globalHandler: ((Self) -> Void)?
         static func addLocalMonitorForEvents(matching: EventTypeMask, handler: @escaping (Self) -> Self?) -> Any? {
             self.handler = handler
             return 1
         }
-        static func addGlobalMonitorForEvents(matching: EventTypeMask, handler: @escaping (Self) -> Void) -> Any? { nil }
+        static func addGlobalMonitorForEvents(matching: EventTypeMask, handler: @escaping (Self) -> Void) -> Any? {
+            globalHandler = handler
+            return 2
+        }
     }
 }
 
@@ -52,11 +58,35 @@ enum NotchCaptureKeyboardTests {
     static func run(expect: (Bool, String) -> Void) {
         defer {
             Event.handler = nil
+            Event.globalHandler = nil
             Contract.ShortcutCapture.isCapturing = false
             Contract.NotchService.shared = Contract.NotchService()
         }
+        permissionFallback(expect: expect)
         preview(expect: expect)
         chooser(expect: expect)
+    }
+
+    private static func permissionFallback(expect: (Bool, String) -> Void) {
+        let preview = Contract.Preview()
+        let panel = Contract.NSPanel()
+        preview.shownInNotch = false
+        Event.globalHandler = nil
+        Contract.accessibilityTrusted = false
+        preview.attach(panel)
+        expect(Event.globalHandler == nil,
+               "without Accessibility no global Escape monitor is installed")
+        expect(Event.handler != nil && !preview.closed,
+               "without Accessibility the preview and local keyboard monitor remain available")
+        _ = Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Escape)))
+        expect(preview.closed && preview.actions.isEmpty,
+               "without Accessibility focused Escape still dismisses without deleting output")
+        Contract.accessibilityTrusted = true
+        Event.globalHandler = nil
+        let granted = Contract.Preview()
+        granted.attach(panel)
+        expect(Event.globalHandler != nil,
+               "the next preview installs global Escape after Accessibility is granted")
     }
 
     private static func preview(expect: (Bool, String) -> Void) {
@@ -109,6 +139,28 @@ enum NotchCaptureKeyboardTests {
         Contract.ShortcutCapture.isCapturing = true
         check("shortcut recording cannot execute preview actions", accepts: false)
         Contract.ShortcutCapture.isCapturing = false
+        let escape = Event(window: nil, keyCode: UInt16(kVK_Escape))
+        notch.expanded = false
+        expect(Event.handler?(escape) != nil && !preview.closed,
+               "local Escape leaves a hidden notch capture alone")
+        Event.globalHandler?(escape)
+        expect(!preview.closed, "global Escape leaves a hidden notch capture alone")
+        notch.expanded = true
+        Contract.ShortcutCapture.isCapturing = true
+        Event.globalHandler?(escape)
+        expect(!preview.closed, "global Escape respects shortcut recording")
+        Contract.ShortcutCapture.isCapturing = false
+        Event.globalHandler?(escape)
+        expect(preview.closed && preview.actions.isEmpty,
+               "global Escape dismisses a visible notch capture without deleting output")
+        preview.closed = false
+        expect(Event.handler?(escape) != nil && preview.closed,
+               "local Escape dismisses an unfocused visible capture")
+        preview.closed = false
+        let dialog = Contract.NSPanel()
+        expect(Event.handler?(Event(window: dialog, keyCode: UInt16(kVK_Escape))) != nil && preview.closed,
+               "Escape dismisses an unfocused preview and still reaches another window's dialog")
+        preview.closed = false
         preview.shownInNotch = false
         notch.expanded = false
         check("floating previews retain shortcuts independently of notch state", accepts: true)
