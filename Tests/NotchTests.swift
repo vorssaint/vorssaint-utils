@@ -733,14 +733,17 @@ enum NotchTests {
         }
         for frame in frames {
             for width in [360.0, 470.0, 600.0] {
-                for height in [400.0, 520.0, 640.0] {
+                for height in [NotchSize.heightRange.lowerBound, 400.0, 520.0, 640.0] {
                     let custom = NotchGeometry(screen: frame, safeAreaTop: 32, cameraWidth: 210,
                                                layout: .custom, customWidth: width, customHeight: height)
+                    let available = height - custom.safeContentTop - NotchLayout.chromeHeight
                     for module in NotchModule.allCases {
                         let size = custom.expandedSize(module: module)
                         expect(size.width == min(width, frame.width - 24 - NotchQuickAccessLayout.gutter * 2) && size.height <= height
                                && frame.contains(custom.frame(for: size)),
                                "custom dimensions fit every module and respect the display and height limit")
+                        expect(custom.contentSize(for: size).height >= 130,
+                               "even the smallest custom height leaves every page a usable content area")
                     }
                     for count in [0, 1, 9, allModules.count] {
                         let picker = custom.sectionPickerSize(count: count)
@@ -750,8 +753,10 @@ enum NotchTests {
                     }
                     expect(custom.expandedSize(module: .clipboard).height == min(height, frame.height - 48),
                            "long lists use the chosen height without overflowing a shorter display")
-                    expect(custom.contentSize(for: custom.expandedSize(module: .music)).height >= 212,
-                           "custom sizes retain space for music and its essential volume controls")
+                    expect(custom.contentSize(for: custom.expandedSize(module: .music)).height >= min(212, available),
+                           "custom sizes retain space for music and its essential volume controls, scrolling only below that")
+                    expect(custom.contentSize(for: custom.expandedSize(module: .music, musicHasContent: false)).height >= 130,
+                           "empty music keeps its message and volume controls at every custom height")
                 }
             }
         }

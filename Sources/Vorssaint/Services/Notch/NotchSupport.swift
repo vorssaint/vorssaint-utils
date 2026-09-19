@@ -79,7 +79,7 @@ enum NotchSize: String, CaseIterable {
     case compact, spacious, custom
 
     static let widthRange = 360.0...600.0
-    static let heightRange = 400.0...640.0
+    static let heightRange = 260.0...640.0
     static let defaultWidth = 440.0
     static let defaultHeight = 480.0
 

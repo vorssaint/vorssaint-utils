@@ -41,6 +41,7 @@ App Switcher improves multi-window browsing and keeps newly opened windows in fr
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
 - Dynamic Island shows Keep open directly in its header, and Settings appears there when its floating button is removed.
+- Dynamic Island's custom height goes down to 260 points, so the island can stay small; pages that need more room scroll inside it.
 - Opening Dynamic Island while it shows music, a timer, a download or a notification goes to that activity; the reopening preference applies only at rest.
 - Dismissing the original system banner now waits briefly, allowing short alert sounds to finish.
 - Keyboard debounce windows adjust in 1 ms steps, reaching values below 5 ms for magnetic keyboards. Thanks to @Borisserz.

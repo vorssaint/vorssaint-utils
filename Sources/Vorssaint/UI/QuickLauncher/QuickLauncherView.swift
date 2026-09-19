@@ -111,7 +111,7 @@ struct QuickLauncherView: View {
                 }
             }
         }
-        .frame(height: notchSize.map { max(160, $0.height - 64) } ?? 470)
+        .frame(height: notchSize.map { max(0, $0.height - 64) } ?? 470)
     }
 
     private var header: some View {
