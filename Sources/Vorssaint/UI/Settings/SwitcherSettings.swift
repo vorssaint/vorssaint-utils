@@ -31,6 +31,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
     @AppStorage(DefaultsKey.dockPreviewOrderByCreation) private var dockPreviewOrderByCreation = false
+    @AppStorage(DefaultsKey.dockPreviewKeepDockVisible) private var dockPreviewKeepDockVisible = false
     @State private var dockPreviewMoreOptionsExpanded = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
@@ -350,11 +351,20 @@ struct SwitcherSettings: View {
                     Toggle(l10n.s.dockPreviewQuitAppOnClose, isOn: $dockPreviewQuitAppOnClose).labelsHidden()
                 }
                 DisclosureGroup(isExpanded: $dockPreviewMoreOptionsExpanded) {
+                    SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewKeepDockVisible,
+                                caption: l10n.s.dockPreviewKeepDockVisibleCaption) {
+                        Toggle(l10n.s.dockPreviewKeepDockVisible, isOn: $dockPreviewKeepDockVisible)
+                            .labelsHidden()
+                            .disabled(!DockAutohideHold.isSupported && !dockPreviewKeepDockVisible)
+                            .onChange(of: dockPreviewKeepDockVisible) { _, _ in
+                                dockPreview.syncWithPreferences()
+                            }
+                    }
+                    .padding(.top, 6)
                     SettingsRow(symbol: "clock.arrow.circlepath", title: l10n.s.dockPreviewOrderByCreation,
                                 caption: l10n.s.dockPreviewOrderByCreationCaption) {
                         Toggle(l10n.s.dockPreviewOrderByCreation, isOn: $dockPreviewOrderByCreation).labelsHidden()
                     }
-                    .padding(.top, 6)
                 } label: {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)
                         .font(.subheadline.weight(.medium))
