@@ -2504,6 +2504,21 @@ struct MetricsTests {
         expect(SudoersSupport.clamshellRule(uid: uid_t.max)
                .range(of: #"^#[0-9]+ [A-Za-z0-9()=:,./ ]+$"#, options: .regularExpression) != nil,
                "the closed-lid sudoers rule never contains shell or sudoers metacharacters")
+        // Restoring lid sleep does not make macOS re-check a lid that is
+        // already shut (#1729), so the app asks for the sleep a lid close
+        // would have caused, and only that sleep.
+        expect(SudoersSupport.lidSleepIsDue(lidClosed: true, externalDisplay: false, onBattery: true),
+               "a shut lid on battery sleeps once lid sleep is restored")
+        expect(SudoersSupport.lidSleepIsDue(lidClosed: true, externalDisplay: true, onBattery: true),
+               "an external display does not keep a shut lid awake on battery")
+        expect(SudoersSupport.lidSleepIsDue(lidClosed: true, externalDisplay: false, onBattery: false),
+               "a shut lid on AC without an external display sleeps")
+        expect(!SudoersSupport.lidSleepIsDue(lidClosed: true, externalDisplay: true, onBattery: false),
+               "a shut lid on AC with an external display stays in closed-display mode")
+        expect(!SudoersSupport.lidSleepIsDue(lidClosed: false, externalDisplay: false, onBattery: true),
+               "an open lid never triggers a sleep request")
+        expect(!SudoersSupport.lidSleepIsDue(lidClosed: nil, externalDisplay: false, onBattery: false),
+               "a Mac without a lid never triggers a sleep request")
         expect(registeredDefaults[DefaultsKey.switcherEnabled] as? Bool == true,
                "window switcher is on for clean installs")
         expect(registeredDefaults[DefaultsKey.switcherShortcut] as? String == "command:48",
