@@ -26,6 +26,7 @@ enum SwitcherScrollContract {
         var sessionItems: [Item] = []
         var searchQuery = ""
         var screenWidth: CGFloat = 1440
+        var sessionScope: SwitcherSessionScope = .allApps
         func seed(_ counts: [Int], selected: Int, simple: Bool = false) {
             windows = counts.enumerated().flatMap { p, n in (0..<n).map { Item(id: "\(p)-\($0)", pid: p) } }
             sessionItems = windows
@@ -37,6 +38,7 @@ enum SwitcherScrollContract {
             let count = windows.indices.contains(selectedIndex) ? windows.filter { $0.pid == windows[selectedIndex].pid }.count : 1
             iconRowLayout = .compute(appCount: Set(windows.map(\.pid)).count, selectedWindowCount: count,
                                     maximumWindowCount: Dictionary(grouping: windows, by: \.pid).values.map(\.count).max() ?? 1,
+                                    sessionScope: sessionScope,
                                     screenVisibleFrame: CGRect(x: 0, y: 0, width: screenWidth, height: 900))
         }
         func recomputeLayouts(for items: [Item]) { recompute() }
@@ -119,6 +121,12 @@ enum SwitcherScrollContract {
                     suite.expect(clip.minX <= 0.5 && clip.maxX >= width * 2 + spacing - 0.5,
                                  "\(name)/\(step): both windows must be visible together")
                 }
+                if !model.simple && model.sessionScope == .frontmostApp && model.screenWidth >= 1440 {
+                    let count = model.windows.filter { $0.pid == selected.pid }.count
+                    let naturalWidth = SwitcherIconRowLayout.naturalPreviewWidth(cardCount: count)
+                    suite.expect(clip.minX <= 0.5 && clip.maxX >= naturalWidth - 0.5,
+                                 "\(name)/\(step): all focused-app previews fit together")
+                }
                 suite.expect(!window.isVisible, "scroll tests never show a window")
                 suite.expect(start >= clip.minX - 0.5 && start + width <= clip.maxX + 0.5,
                              "\(name)/\(step): selected \(selected.id) at \(start)...\(start + width) must fit \(clip.minX)...\(clip.maxX)")
@@ -165,6 +173,16 @@ enum SwitcherScrollContract {
             }
             for size in Defaults.allowedPreviewSizes {
                 UserDefaults.standard.set(size, forKey: DefaultsKey.previewSize)
+                if !simple {
+                    run("focused app \(size)") { model, check, _ in
+                        model.sessionScope = .frontmostApp
+                        model.seed([4], selected: 1); check("four previews")
+                        model.select(index: 3); check("last window")
+                        model.screenWidth = 640
+                        model.recompute(); check("narrow display overflow")
+                        model.select(index: 0); check("overflow wraps to first")
+                    }
+                }
                 run("\(mode) \(size)") { model, check, _ in
                     model.screenWidth = 800
                     model.seed([2], selected: 1, simple: simple); check("single app pair")

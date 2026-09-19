@@ -12517,6 +12517,19 @@ struct MetricsTests {
         expect(WindowUseOrder.reconciled([90, 91], running: [91, 92], frontToBack: [92, 91])
                == [91, 92],
                "App Switcher application history drops closed apps and files new ones behind")
+        let focusedWindowLayout = SwitcherIconRowLayout.compute(
+            appCount: 1, selectedWindowCount: 4, maximumWindowCount: 4,
+            sessionScope: .frontmostApp,
+            screenVisibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 900))
+        expect(focusedWindowLayout.previewFitsWithoutScrolling(cardCount: 4),
+               "Focused-app switcher shows all four previews when the display has room")
+        let crowdedFocusedLayout = SwitcherIconRowLayout.compute(
+            appCount: 1, selectedWindowCount: 20, maximumWindowCount: 20,
+            sessionScope: .frontmostApp,
+            screenVisibleFrame: CGRect(x: 0, y: 0, width: 640, height: 900))
+        expect(!crowdedFocusedLayout.previewFitsWithoutScrolling(cardCount: 20)
+               && crowdedFocusedLayout.panelSize.width <= 640,
+               "Focused-app previews keep overflow scrollable within the display")
         let groupedIconLayout = SwitcherIconRowLayout.compute(appCount: appGroups.count,
                                                               selectedWindowCount: appGroups[0].windowCount,
                                                               screenVisibleFrame: screen)
