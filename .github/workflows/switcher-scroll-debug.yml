@@ -17,4 +17,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - run: ./build.sh --test-suite=switcher
+      - run: |
+          for mode in no-animation double delay; do
+            echo "DIAGNOSTIC MODE: $mode"
+            VORSS_SCROLL_DIAGNOSTIC="$mode" ./build.sh --test-suite=switcher || true
+          done

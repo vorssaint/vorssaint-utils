@@ -341,7 +341,14 @@ struct SwitcherView: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in
                             print("GEOMETRY width=\(switcher.iconRowLayout.previewContentWidth)")
                             DispatchQueue.main.async {
-                                revealSelection(in: proxy, animated: true)
+                                switch ProcessInfo.processInfo.environment["VORSS_SCROLL_DIAGNOSTIC"] {
+                                case "double":
+                                    DispatchQueue.main.async { revealSelection(in: proxy, animated: true) }
+                                case "delay":
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { revealSelection(in: proxy, animated: true) }
+                                default:
+                                    revealSelection(in: proxy, animated: false)
+                                }
                             }
                         }
                     }
