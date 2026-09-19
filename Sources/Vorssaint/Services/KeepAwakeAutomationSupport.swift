@@ -22,6 +22,14 @@ enum KeepAwakeAutomationSupport {
         builtInFlags.contains(false)
     }
 
+    /// Whether macOS would put the Mac to sleep if its lid closed right now:
+    /// lid shut, unless an external display is attached on AC power. A nil
+    /// lid state is a Mac without one.
+    static func lidSleepIsDue(lidClosed: Bool?, externalDisplay: Bool, onBattery: Bool) -> Bool {
+        guard lidClosed == true else { return false }
+        return onBattery || !externalDisplay
+    }
+
     static func isScreenLocked(sessionDictionary: [String: Any]?) -> Bool {
         guard let value = sessionDictionary?[screenLockedKey] else { return false }
         if let locked = value as? Bool { return locked }

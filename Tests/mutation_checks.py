@@ -86,7 +86,7 @@ MUTATIONS = [
      "                requireAll: automationRequiresAllConditions()) else { return false }\n",
      "        guard !matches.isEmpty else { return false }\n",
      "a timer running out on battery hands nothing over to an All automation"),
-    ("closed-display mode sleeps when lid sleep is restored", "core", "Sources/Vorssaint/Services/SudoersSupport.swift",
+    ("closed-display mode sleeps when lid sleep is restored", "core", "Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift",
      "        return onBattery || !externalDisplay\n", "        return true\n",
      "a shut lid on AC with an external display stays in closed-display mode"),
     ("match mode labels grow back into sentences", "core", "Sources/Vorssaint/Core/KeepAwakeStrings.swift",

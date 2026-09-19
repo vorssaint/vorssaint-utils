@@ -722,25 +722,22 @@ final class KeepAwakeManager: ObservableObject {
     /// lid when it opens or closes, so a lid that shut during the session is
     /// never looked at again and the Mac stays awake until the battery runs
     /// out (#1729). Request the sleep that closing the lid would have caused.
-    private func sleepIfLidAlreadyClosed() {
+    /// `pmset` returns before powerd has handed the cleared flag to the
+    /// kernel, which refuses sleep until it has, so a refusal is retried.
+    private func sleepIfLidAlreadyClosed(attemptsLeft: Int = 10) {
         guard !isActive || sessionPausedForScreenLock, !clamshellActive else { return }
-        guard SudoersSupport.lidSleepIsDue(
-            lidClosed: Self.lidClosed(),
+        guard KeepAwakeAutomationSupport.lidSleepIsDue(
+            lidClosed: BrightnessService.lidClosed(),
             externalDisplay: Self.hasExternalDisplay() ?? true,
             onBattery: SystemInfo.batterySnapshot()?.isOnBattery ?? false) else { return }
         let rootDomain = IOPMFindPowerManagement(kIOMainPortDefault)
         guard rootDomain != 0 else { return }
-        IOPMSleepSystem(rootDomain)
+        let result = IOPMSleepSystem(rootDomain)
         IOServiceClose(rootDomain)
-    }
-
-    private static func lidClosed() -> Bool? {
-        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
-        guard service != 0 else { return nil }
-        defer { IOObjectRelease(service) }
-        return IORegistryEntryCreateCFProperty(service, "AppleClamshellState" as CFString,
-                                               kCFAllocatorDefault, 0)?
-            .takeRetainedValue() as? Bool
+        guard result != kIOReturnSuccess, attemptsLeft > 1 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.sleepIfLidAlreadyClosed(attemptsLeft: attemptsLeft - 1)
+        }
     }
 
     /// If the app died unexpectedly while sleep was disabled, restores normal

@@ -719,7 +719,7 @@ final class BrightnessService: ObservableObject {
         return CGCompleteDisplayConfiguration(configuration, .forAppOnly) == .success ? .success : .failed
     }
 
-    private static func lidClosed() -> Bool? {
+    static func lidClosed() -> Bool? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault,
                                                   IOServiceMatching("IOPMrootDomain"))
         guard service != 0 else { return nil }

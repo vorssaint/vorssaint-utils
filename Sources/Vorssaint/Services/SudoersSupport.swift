@@ -17,12 +17,4 @@ enum SudoersSupport {
     static func clamshellRule(uid: uid_t) -> String {
         "#\(uid) ALL=(root) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0"
     }
-
-    /// Whether macOS would put the Mac to sleep if its lid closed right now:
-    /// lid shut, unless an external display is attached on AC power. A nil
-    /// lid state is a Mac without one.
-    static func lidSleepIsDue(lidClosed: Bool?, externalDisplay: Bool, onBattery: Bool) -> Bool {
-        guard lidClosed == true else { return false }
-        return onBattery || !externalDisplay
-    }
 }
