@@ -19,9 +19,7 @@ final class DockPreviewService: ObservableObject {
 
     @Published private(set) var isRunning = false
     @Published private(set) var blockedReason: DockPreviewBlockedReason?
-    /// Whether the Dock currently uses auto-hide. Surfaced so the UI can warn
-    /// that this still-beta feature is rougher in that mode (the native Dock
-    /// slides away mid-interaction and no public API can hold it open).
+    /// The user’s auto-hide preference, excluding our temporary session hold.
     @Published private(set) var dockAutohide = false
     @Published private(set) var windows: [SwitcherItem] = []
     @Published private(set) var previews: [CGWindowID: CGImage] = [:]
@@ -36,6 +34,8 @@ final class DockPreviewService: ObservableObject {
     private var runLoopSource: CFRunLoopSource?
     private var settingsTimer: Timer?
     private var dockVisibilityTimer: Timer?
+    private let dockAutohideHold = DockAutohideHold()
+    private var dockHoldObservers: [NSObjectProtocol] = []
     private var didReattachForSession = false
     private var reattachGraceFrame: CGRect?
     /// Where the pointer was when the panel moved out from under it. The grace
@@ -77,6 +77,10 @@ final class DockPreviewService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        if !UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewKeepDockVisible),
+           dockAutohideHold.isHolding {
+            endSession()
+        }
         let freshScope = UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly)
         if freshScope != currentSpaceOnly {
             currentSpaceOnly = freshScope
@@ -277,6 +281,7 @@ final class DockPreviewService: ObservableObject {
         else { return }
 
         isDraggingWindow = true
+        releaseDockAutohideHold()
         cancelPendingHide()
         cancelPendingHover()
         DockPreviewDragGhost.shared.begin(image: image, at: NSEvent.mouseLocation)
@@ -763,6 +768,10 @@ final class DockPreviewService: ObservableObject {
             self.previews[windowID] = image
         }
 
+        if hit.preferences.autohide,
+           UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewKeepDockVisible) {
+            beginDockAutohideHold()
+        }
         showPanel(for: hit, itemCount: list.count)
     }
 
@@ -778,6 +787,7 @@ final class DockPreviewService: ObservableObject {
         // Remove the surface before publishing empty content. During a Space
         // transition, an animated dismissal can otherwise carry a blank panel.
         panel?.orderOut(nil)
+        releaseDockAutohideHold()
         tearDownVisuals()
         isPinned = false
     }
@@ -986,10 +996,30 @@ final class DockPreviewService: ObservableObject {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
     }
 
-    /// The Dock owns its auto-hide reveal region; another process cannot extend
-    /// it to cover this panel. Once the cursor reaches the panel, watch the
-    /// Dock's real on-screen window and pull the preview to the vacated edge if
-    /// the Dock slides away, so the interaction remains attached and usable.
+    private func beginDockAutohideHold() {
+        guard dockAutohideHold.begin(), dockHoldObservers.isEmpty else { return }
+        let workspace = NSWorkspace.shared.notificationCenter
+        let events = [NSWorkspace.activeSpaceDidChangeNotification,
+                      NSWorkspace.willSleepNotification,
+                      NSWorkspace.sessionDidResignActiveNotification]
+        dockHoldObservers = events.map { name in
+            workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.endSession()
+            }
+        }
+    }
+
+    private func releaseDockAutohideHold() {
+        for observer in dockHoldObservers {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+        dockHoldObservers.removeAll()
+        dockAutohideHold.end()
+    }
+
+    /// Keep the original fallback even during an experimental hold: if macOS
+    /// ignores the request or the user re-enables auto-hide, follow the Dock's
+    /// actual visibility rather than leaving the preview floating in mid-air.
     private func startDockVisibilityTimerIfNeeded() {
         guard DockPreviewSupport.shouldStartDockVisibilityTimer(
             hasActiveTimer: dockVisibilityTimer != nil,
@@ -1293,7 +1323,7 @@ final class DockPreviewService: ObservableObject {
         }
         return DockPreviewPreferences.sanitized(
             orientation: domain["orientation"] as? String,
-            autohide: boolValue(domain["autohide"]),
+            autohide: dockAutohideHold.isHolding ? true : boolValue(domain["autohide"]),
             tileSize: doubleValue(domain["tilesize"]),
             magnification: boolValue(domain["magnification"]),
             magnifiedTileSize: doubleValue(domain["largesize"])

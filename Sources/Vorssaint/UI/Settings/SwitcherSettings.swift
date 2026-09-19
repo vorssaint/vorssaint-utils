@@ -31,6 +31,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
     @AppStorage(DefaultsKey.dockPreviewOrderByCreation) private var dockPreviewOrderByCreation = false
+    @AppStorage(DefaultsKey.dockPreviewKeepDockVisible) private var dockPreviewKeepDockVisible = false
     @State private var dockPreviewMoreOptionsExpanded = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
@@ -348,6 +349,15 @@ struct SwitcherSettings: View {
                 SettingsRow(symbol: "xmark.circle", title: l10n.s.dockPreviewQuitAppOnClose,
                             caption: l10n.s.dockPreviewQuitAppOnCloseCaption) {
                     Toggle(l10n.s.dockPreviewQuitAppOnClose, isOn: $dockPreviewQuitAppOnClose).labelsHidden()
+                }
+                SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewKeepDockVisible,
+                            caption: l10n.s.dockPreviewKeepDockVisibleCaption) {
+                    Toggle(l10n.s.dockPreviewKeepDockVisible, isOn: $dockPreviewKeepDockVisible)
+                        .labelsHidden()
+                        .disabled(!DockAutohideHold.isSupported && !dockPreviewKeepDockVisible)
+                        .onChange(of: dockPreviewKeepDockVisible) { _, _ in
+                            dockPreview.syncWithPreferences()
+                        }
                 }
                 DisclosureGroup(isExpanded: $dockPreviewMoreOptionsExpanded) {
                     SettingsRow(symbol: "clock.arrow.circlepath", title: l10n.s.dockPreviewOrderByCreation,
