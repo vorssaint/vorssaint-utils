@@ -339,16 +339,8 @@ struct SwitcherView: View {
                             revealSelection(in: proxy, animated: true)
                         }
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in
-                            print("GEOMETRY width=\(switcher.iconRowLayout.previewContentWidth)")
                             DispatchQueue.main.async {
-                                switch ProcessInfo.processInfo.environment["VORSS_SCROLL_DIAGNOSTIC"] {
-                                case "double":
-                                    DispatchQueue.main.async { revealSelection(in: proxy, animated: true) }
-                                case "delay":
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { revealSelection(in: proxy, animated: true) }
-                                default:
-                                    revealSelection(in: proxy, animated: false)
-                                }
+                                revealSelection(in: proxy, animated: false)
                             }
                         }
                     }
@@ -439,7 +431,7 @@ struct SwitcherView: View {
                     }
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in
                         DispatchQueue.main.async {
-                            revealSelection(in: proxy, animated: true)
+                            revealSelection(in: proxy, animated: false)
                         }
                     }
                 }
@@ -573,8 +565,9 @@ struct SwitcherView: View {
     /// a window can replace the selected item at the same index. Reveal after
     /// the viewport's actual geometry changes, allowing its native scroll view
     /// to finish resizing before the queued reveal reads the current selection.
+    /// Resize corrections are unanimated: on macOS 15 an animated scroll can
+    /// retain the pre-resize offset and leave the selected window clipped.
     private func revealSelection(in proxy: ScrollViewProxy, animated: Bool) {
-        print("REVEAL width=\(switcher.iconRowLayout.previewContentWidth) selected=\(switcher.selectedIndex) animated=\(animated)")
         let index = switcher.selectedIndex
         guard switcher.windows.indices.contains(index) else { return }
         let id = switcher.windows[index].id

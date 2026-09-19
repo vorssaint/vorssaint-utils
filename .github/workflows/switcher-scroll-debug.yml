@@ -18,7 +18,7 @@ jobs:
         with:
           persist-credentials: false
       - run: |
-          for mode in no-animation double delay; do
-            echo "DIAGNOSTIC MODE: $mode"
-            VORSS_SCROLL_DIAGNOSTIC="$mode" ./build.sh --test-suite=switcher || true
+          for attempt in 1 2 3 4 5; do
+            echo "SCROLL REGRESSION RUN: $attempt"
+            ./build.sh --test-suite=switcher
           done

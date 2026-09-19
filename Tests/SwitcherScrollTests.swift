@@ -112,7 +112,6 @@ enum SwitcherScrollContract {
                 return view.subviews.compactMap { findScroll($0) }.first
             }
             func check(_ step: String) {
-                print("STEP \(name)/\(step)")
                 settle {
                     guard let scroll = findScroll(hosting),
                           model.windows.indices.contains(model.selectedIndex) else { return false }
@@ -149,7 +148,6 @@ enum SwitcherScrollContract {
                 let padding = model.simple ? SwitcherIconRowLayout.simpleTitleScrollPadding : 0
                 let start = padding + CGFloat(localIndex) * (width + spacing)
                 let clip = scroll.contentView.bounds
-                print("RESULT \(name)/\(step): selected \(start)...\(start + width), clip \(clip)")
                 if !model.simple && model.windows.filter({ $0.pid == selected.pid }).count == 2
                     && model.screenWidth >= 800 {
                     suite.expect(clip.minX <= 0.5 && clip.maxX >= width * 2 + spacing - 0.5,
