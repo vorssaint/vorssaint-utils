@@ -32,6 +32,13 @@ final class MicMuteService: ObservableObject {
     /// A sweep that finished after a newer one started must not publish what
     /// it saw.
     private var applyGeneration = 0
+    /// What the last request asked for, kept from the moment it is queued.
+    /// `isMuted` and the persisted flag only follow once the sweep has
+    /// published, so a device change or a preference sync that lands while a
+    /// sweep is still running must re-assert the request in flight, never the
+    /// state it is replacing: read from the flag, a mute still being applied
+    /// looked like "unmuted, with claims to release" and was silently undone.
+    private var wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
     private let inputVolumeLock = NSLock()
     private var inputVolumeBlocked = false
     private var inputVolumeLifetime = UUID()
@@ -67,7 +74,6 @@ final class MicMuteService: ObservableObject {
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
                                                   storageKey: DefaultsKey.micMuteShortcut)
 
-        let wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
         if available {
             if wantsMute {
                 apply(muted: true, announce: false)
@@ -139,10 +145,13 @@ final class MicMuteService: ObservableObject {
     /// failure this feature cannot afford, so this one waits.
     func unmuteForTeardown() {
         let defaults = UserDefaults.standard
-        guard defaults.bool(forKey: DefaultsKey.micMuteActive) else { return }
+        // A mute still being applied has not reached the flag yet, and a claim
+        // is a device this app owes its level back whatever the flag says.
+        guard wantsMute || defaults.bool(forKey: DefaultsKey.micMuteActive) || hasOutstandingClaims else { return }
         // Any sweep still in flight loses its right to publish, and this one
         // runs behind it on the same serial queue.
         applyGeneration += 1
+        wantsMute = false
         _ = halQueue.sync { Self.sweep(muted: false) }
         defaults.set(false, forKey: DefaultsKey.micMuteActive)
         isMuted = false
@@ -153,12 +162,12 @@ final class MicMuteService: ObservableObject {
         removeListeners()
     }
 
-    /// Silently re-asserts the persisted state; used when the set of input
+    /// Silently re-asserts the wanted state; used when the set of input
     /// devices, or the default one, changes underneath us. Unmuted, the same
     /// change is the moment a device this app still has to release may have
     /// come back.
     private func reapplyIfNeeded() {
-        if UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) {
+        if wantsMute {
             apply(muted: true, announce: false)
         } else if hasOutstandingClaims {
             apply(muted: false, announce: false)
@@ -170,6 +179,7 @@ final class MicMuteService: ObservableObject {
     /// Hands the sweep to the audio queue and keeps the published state, the
     /// wanted state and the HUD on the main thread, where they belong.
     private func apply(muted: Bool, announce: Bool) {
+        wantsMute = muted
         inputVolumeLock.withLock {
             inputVolumeBlocked = muted
             inputVolumeLifetime = UUID()
@@ -214,6 +224,9 @@ final class MicMuteService: ObservableObject {
     private func finish(_ outcome: MuteOutcome, muted: Bool, announce: Bool, generation: Int) {
         guard generation == applyGeneration else { return }
         guard outcome.applied else {
+            // Nothing was reached, so the request is dropped as it always was:
+            // the published state stays what it is, and so does the wanted one.
+            wantsMute = isMuted
             inputVolumeLock.withLock { inputVolumeBlocked = isMuted }
             return
         }
