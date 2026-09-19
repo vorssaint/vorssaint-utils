@@ -78,6 +78,13 @@ extension Strings {
         clamshellNeedsSession: "「スリープ防止」がオンのあいだ常に適用されます",
         clamshellReady: "準備完了。パスワードなしで切り替えられます",
         clamshellNeedsPassword: "管理者パスワードは一度だけ求められます",
+        clamshellExternalDisplayToggle: "外部ディスプレイ",
+        clamshellExternalDisplayCaption: "選択した条件が満たされているあいだだけふた閉じモードを適用します（いずれか／すべて）。「スリープ防止」はそのままです。",
+        clamshellGatePowerToggle: "電源接続時",
+        clamshellGateNetworkToggle: "ネットワーク利用可",
+        clamshellGateModeAny: "いずれか",
+        clamshellGateModeAll: "すべて",
+        clamshellGateMatchLabel: "条件の組み合わせ",
 
         systemSection: "システム",
         temperatures: "温度",
