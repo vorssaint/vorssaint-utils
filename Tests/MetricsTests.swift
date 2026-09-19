@@ -41,7 +41,10 @@ struct MetricsTests {
                 RecorderWriterTests.run { suite.expect($0, $1) }
                 RecorderExportChipTests.run { suite.expect($0, $1) }
             }),
-            ("network", { SpeedTestTests.run { suite.expect($0, $1) } }),
+            ("network", {
+                SpeedTestTests.run { suite.expect($0, $1) }
+                NetworkAddressTests.run { suite.expect($0, $1) }
+            }),
             ("app-updates", { AppUpdatesContract.run(suite) }),
             ("localization", { LocalizationTests.run(suite) }),
             ("cleaner", { CleanerEligibilityTests.run(suite) }),

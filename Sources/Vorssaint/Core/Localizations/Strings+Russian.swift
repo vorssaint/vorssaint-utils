@@ -703,6 +703,8 @@ extension Strings {
         betaFeatureWarning: "Бета. Возможны ошибки.",
 
         networkSection: "Сеть",
+        networkIPAddresses: "IP-адреса",
+        networkLocalIP: "Локальный IPv4",
         networkDownload: "Загрузка",
         networkUpload: "Отдача",
         networkThisSession: "Этот сеанс",

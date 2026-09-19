@@ -702,6 +702,8 @@ extension Strings {
         betaFeatureWarning: "ベータ版です。一部の不具合が残っている場合があります。",
 
         networkSection: "ネットワーク",
+        networkIPAddresses: "IP アドレス",
+        networkLocalIP: "ローカル IPv4",
         networkDownload: "ダウンロード",
         networkUpload: "アップロード",
         networkThisSession: "このセッション",

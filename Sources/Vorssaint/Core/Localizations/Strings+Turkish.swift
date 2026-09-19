@@ -702,6 +702,8 @@ extension Strings {
         betaFeatureWarning: "Beta. Bazı hatalarla karşılaşabilirsin.",
 
         networkSection: "Ağ",
+        networkIPAddresses: "IP adresleri",
+        networkLocalIP: "Yerel IPv4",
         networkDownload: "İndirme",
         networkUpload: "Yükleme",
         networkThisSession: "Bu oturum",

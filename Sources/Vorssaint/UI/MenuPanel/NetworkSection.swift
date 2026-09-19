@@ -9,6 +9,7 @@ struct NetworkSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var speed = SpeedTest.shared
+    @StateObject private var addresses = NetworkAddressService()
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
     @AppStorage(DefaultsKey.monitorGraphNetwork) private var showGraph = true
@@ -16,6 +17,7 @@ struct NetworkSection: View {
     @AppStorage(DefaultsKey.monitorNetApps) private var netApps = true
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
+    @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
     @AppStorage(DefaultsKey.panelNetworkOrder) private var networkOrderRaw = ""
     @State private var draggingBlock: Block?
     @State private var appRows: [ProcessUsage] = []
@@ -49,12 +51,14 @@ struct NetworkSection: View {
             .panelCard()
         }
         .onAppear {
+            if netAddresses { addresses.refreshLocalAddresses() }
             if netApps {
                 startNetworkMonitoringIfNeeded()
             }
             refreshAppRows(force: true, delay: 0.2)
         }
         .onReceive(monitor.$snapshot) { _ in
+            if netAddresses { addresses.refreshLocalAddresses() }
             refreshAppRows(force: false, delay: 0.2)
         }
         .onChange(of: netApps) { _, visible in
@@ -68,7 +72,12 @@ struct NetworkSection: View {
                 stopNetworkMonitoringIfNeeded()
             }
         }
+        .onChange(of: netAddresses) { _, visible in
+            if visible { addresses.refreshLocalAddresses() }
+            else { addresses.cancel() }
+        }
         .onDisappear {
+            addresses.cancel()
             appRefreshSerial &+= 1
             appRows = []
             appRowsLoading = false
@@ -76,7 +85,7 @@ struct NetworkSection: View {
         }
     }
 
-    private enum Block: String, PanelOrderItem { case speed, apps, totals, test }
+    private enum Block: String, PanelOrderItem { case speed, apps, totals, addresses, test }
 
     private var visibleBlocks: [Block] {
         orderedBlocks.filter(isVisible)
@@ -104,6 +113,7 @@ struct NetworkSection: View {
         case .speed: return netSpeed
         case .apps: return netApps
         case .totals: return netTotals
+        case .addresses: return netAddresses
         case .test: return netTest
         }
     }
@@ -114,6 +124,7 @@ struct NetworkSection: View {
         netSpeed = true
         netApps = true
         netTotals = true
+        netAddresses = true
         netTest = true
     }
 
@@ -123,6 +134,7 @@ struct NetworkSection: View {
         case .speed: speedBlock(editing: editing)
         case .apps: appUsageBlock(editing: editing)
         case .totals: totalsRow(editing: editing)
+        case .addresses: NetworkAddressBlock(service: addresses, isVisible: $netAddresses, editing: editing)
         case .test: speedTestRow(editing: editing)
         }
     }
@@ -362,5 +374,34 @@ struct NetworkSection: View {
         let down = row.networkDownBytesPerSec ?? 0
         let up = row.networkUpBytesPerSec ?? 0
         return "↓\(MetricFormat.bytesPerSecCompact(down)) ↑\(MetricFormat.bytesPerSecCompact(up))"
+    }
+}
+
+/// The local address block. Nothing here leaves the machine.
+private struct NetworkAddressBlock: View {
+    @ObservedObject var service: NetworkAddressService
+    @Binding var isVisible: Bool
+    var editing: Bool
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        if !isVisible {
+            PanelHiddenItemRow(title: l10n.s.networkIPAddresses,
+                               systemImage: "network", isVisible: $isVisible)
+        } else {
+            HStack(alignment: .top) {
+                Text(l10n.s.networkLocalIP).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                // Nothing connected: the value is left out, like the totals block.
+                if !service.localAddresses.isEmpty {
+                    Text(service.localAddresses.joined(separator: "\n"))
+                        .multilineTextAlignment(.trailing)
+                        .textSelection(.enabled)
+                }
+                if editing { PanelInlineHideButton(isVisible: $isVisible) }
+            }
+            .font(.system(size: 10.5))
+            .monospacedDigit()
+        }
     }
 }
