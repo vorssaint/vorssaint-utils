@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Combine
 import Darwin
 import Foundation
@@ -329,21 +330,19 @@ final class HomebrewManager: ObservableObject {
 
     @discardableResult
     private func openTerminal(command: String) -> Bool {
-        let source = """
-        tell application "Terminal"
-            activate
-            do script \(appleScriptString(command))
-        end tell
-        """
-        // In-process Apple Events (see AppleScriptRunner): the Terminal Automation
-        // consent is attributed to this app and re-requested if it was lost,
-        // instead of a fragile osascript subprocess. Same permission as before.
-        let result = AppleScriptRunner.run(source)
-        if !result.ok {
-            errorMessage = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Write a `.command` and open it via NSWorkspace. The default handler for
+        // that type runs the script; this app never names a terminal.
+        do {
+            let url = try HomebrewCommandScript.write(command: command)
+            guard NSWorkspace.shared.open(url) else {
+                errorMessage = "Failed to open the Homebrew command."
+                return false
+            }
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
             return false
         }
-        return true
     }
 
     private func perform(_ action: HomebrewOperation.Action,
@@ -817,12 +816,6 @@ final class HomebrewManager: ObservableObject {
         log.append(text)
     }
 
-    private func appleScriptString(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
-    }
 }
 
 private struct PopularityCacheEntry {

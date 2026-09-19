@@ -206,6 +206,27 @@ struct HomebrewPendingAction {
     }
 }
 
+/// Executable `.command` script for interactive Homebrew work.
+///
+/// Opened through `NSWorkspace` so the user's default handler (or any app that
+/// claims `.command`) runs it — Vorssaint never names Terminal, iTerm, or Ghostty.
+enum HomebrewCommandScript {
+    static func contents(command: String) -> String {
+        "#!/bin/zsh\n\(command)\n"
+    }
+
+    /// Writes `command` as an executable `.command` file under `directory`.
+    static func write(command: String,
+                      toDirectory directory: URL = FileManager.default.temporaryDirectory,
+                      fileManager: FileManager = .default) throws -> URL {
+        let name = "vorssaint-homebrew-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString).command"
+        let url = directory.appendingPathComponent(name)
+        try contents(command: command).write(to: url, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url
+    }
+}
+
 enum HomebrewCommandBuilder {
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#
