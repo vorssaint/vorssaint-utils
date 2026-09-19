@@ -13917,6 +13917,37 @@ struct MetricsTests {
                     "https://www.reddit.com/r/swift/comments/abc/?sort=new",
                     "URL cleaner strips Reddit's deep-link tracking in either spelling")
 
+        // The silent rewrite keeps only text and URL, so it runs when nothing
+        // else on the pasteboard would be lost.
+        expect(URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "public.url", "public.url-name",
+                                                        "NSStringPboardType", "NSURLPboardType"]),
+               "a plain link copy can be rewritten")
+        expect(!URLCleaning.canRewritePasteboard(types: []),
+               "an empty pasteboard is left alone")
+        expect(URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "public.html", "public.rtf",
+                                                        "com.apple.flat-rtfd", "public.utf16-external-plain-text"]),
+               "formatted copies of the same link are dropped by the rewrite, not protected")
+        expect(URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "public.url",
+                                                        "org.chromium.source-url", "org.chromium.web-custom-data",
+                                                        "com.apple.WebKit.custom-pasteboard-data",
+                                                        "dyn.ah62d4rv4gu8y6y4grf0gn5xbrzw1gydcr7u1e3cytf2gn"]),
+               "a browser's or a messaging app's private notes about the copy do not block the rewrite")
+        expect(!URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "public.url", "public.tiff", "public.png"]),
+               "a copied picture with its source link as text is left alone")
+        expect(!URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "public.file-url", "NSFilenamesPboardType"])
+                && !URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "NSFilenamesPboardType"])
+                && !URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text",
+                                                             "com.apple.pasteboard.promised-file-url",
+                                                             "com.apple.pasteboard.promised-file-content-type"]),
+               "a copied or promised file is left alone")
+        expect(!URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "com.adobe.pdf"])
+                && !URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "public.mpeg-4"])
+                && !URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "com.apple.webarchive"]),
+               "a document, a movie or a web archive next to the text is left alone")
+        expect(!URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "org.nspasteboard.ConcealedType"])
+                && !URLCleaning.canRewritePasteboard(types: ["public.utf8-plain-text", "org.nspasteboard.TransientType"]),
+               "a concealed or transient copy is never rewritten")
+
         // MARK: Homebrew command building and parsing
 
         let homebrewManagerSource = (try? String(
@@ -15555,14 +15586,21 @@ struct MetricsTests {
                "brightness keys do not arm the blocker")
         expect(!MusicLaunchSupport.isMusicLaunchTrigger(subtype: 1, data1: musicKeyData(keyCode: 16)),
                "other system-defined subtypes do not arm the blocker")
-        expect(!MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: nil),
-               "without a recent media key the music app may open")
-        expect(MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 9.5),
-               "a launch in the arm window after a media key is blocked")
-        expect(MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 8.0),
+        expect(MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 9.5, secondsSinceUserGesture: 0.1),
+               "a launch in the arm window after a media key is blocked even right after a click")
+        expect(MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 8.0, secondsSinceUserGesture: 0.1),
                "a launch on the arm-window edge is still blocked")
-        expect(!MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 7.9),
-               "a launch after the arm window is left alone")
+        expect(!MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 7.9, secondsSinceUserGesture: 0.1),
+               "a launch after the arm window that follows a click is left alone")
+        expect(!MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: nil, secondsSinceUserGesture: 0.3),
+               "a launch right after a click or a key press is the user's, with no media key seen")
+        expect(!MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: nil,
+                                                     secondsSinceUserGesture: MusicLaunchSupport.userGestureWindow),
+               "a launch on the gesture-window edge is still the user's")
+        expect(MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: nil, secondsSinceUserGesture: 2.1),
+               "a launch with no recent click or key press came from headphones or a remote command and is blocked")
+        expect(MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: nil, secondsSinceUserGesture: .infinity),
+               "a launch in a session with no gesture at all is blocked, without any media key tap")
 
         // MARK: Features hub catalog
 
@@ -21256,6 +21294,11 @@ struct MetricsTests {
                                                  present: ["mic-a", "mic-b"]).isEmpty
                 && MicMuteSupport.restoreTargets(recorded: ["mic-a"], present: []).isEmpty,
                "unmuting touches the microphones this app muted, every one with no record, and none when the record is empty")
+        expect(MicMuteSupport.absentClaims(recorded: ["mic-a", "headset"], present: ["mic-a"]) == ["headset"]
+                && MicMuteSupport.absentClaims(recorded: ["mic-a"], present: ["mic-a", "mic-b"]).isEmpty
+                && MicMuteSupport.absentClaims(recorded: nil, present: ["mic-a"]).isEmpty
+                && MicMuteSupport.absentClaims(recorded: ["headset"], present: []) == ["headset"],
+               "a sweep keeps the claim on a microphone this app muted that is unplugged right now, so it is released when it returns")
 
         expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")

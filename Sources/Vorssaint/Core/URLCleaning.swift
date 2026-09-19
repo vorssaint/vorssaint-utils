@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import UniformTypeIdentifiers
 
 enum URLCleaning {
     private static let trackedParameters: Set<String> = [
@@ -280,5 +281,61 @@ enum URLCleaning {
             .split(whereSeparator: { $0 == "," || $0.isNewline })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    // MARK: - Automatic rewrite
+
+    /// Whether the clipboard can be rewritten with a cleaned link without
+    /// losing anything the user copied. The rewrite keeps only the text and
+    /// the URL, so it is allowed when every type on the pasteboard is text, a
+    /// link, or an app's private note about the copy, and refused when the
+    /// pasteboard also carries content of its own: a picture, a file or a
+    /// promise to deliver one, a document. A link next to such content is only
+    /// its textual fallback (a browser's "Copy Image" also carries the image
+    /// URL as text). A copy an app marked concealed or transient is not an
+    /// ordinary copy either, and is left alone.
+    static func canRewritePasteboard(types: [String]) -> Bool {
+        guard !types.isEmpty else { return false }
+        return types.allSatisfy(typeSurvivesRewrite)
+    }
+
+    private static let plainPasteboardTypes: Set<String> = [
+        "public.utf8-plain-text", "public.url", "public.url-name",
+        "NSStringPboardType", "NSURLPboardType",
+    ]
+
+    /// Marks from the nspasteboard.org convention: concealed is a password
+    /// manager handing over a secret, transient is content about to be put
+    /// back by whoever placed it.
+    private static let untouchablePasteboardTypes: Set<String> = [
+        "org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType",
+    ]
+
+    /// A file being copied or promised, under the names that are not types
+    /// the system knows and would otherwise pass as private notes.
+    private static let filePasteboardTypes: Set<String> = [
+        "NSFilenamesPboardType",
+        "com.apple.NSFilePromiseItemMetaData",
+        "Apple files promise pasteboard type",
+    ]
+
+    private static func typeSurvivesRewrite(_ rawValue: String) -> Bool {
+        if plainPasteboardTypes.contains(rawValue) { return true }
+        if untouchablePasteboardTypes.contains(rawValue) || filePasteboardTypes.contains(rawValue) {
+            return false
+        }
+        // Unknown to the system, or a dynamic stand-in for a legacy name: an
+        // app's private note about the copy, such as a browser's source page
+        // or a messaging app's reference to the message. The text does not
+        // depend on it, and real content always comes with a type of its own
+        // next to it.
+        guard let type = UTType(rawValue), type.isDeclared else { return true }
+        if type.conforms(to: .fileURL) { return false }
+        // Formatted text of the same link: dropped by the rewrite, and
+        // nothing is lost that the cleaned link does not say better. An RTFD
+        // with an attachment would put an attachment mark in the plain text,
+        // which is then no longer a link to clean.
+        return type.conforms(to: .text) || type.conforms(to: .url)
+            || type.conforms(to: .rtfd) || type.conforms(to: .flatRTFD)
     }
 }

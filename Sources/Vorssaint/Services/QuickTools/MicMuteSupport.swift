@@ -48,4 +48,13 @@ enum MicMuteSupport {
         let wanted = Set(recorded)
         return present.filter { wanted.contains($0) }
     }
+
+    /// The claims a sweep carries forward untouched: the devices this app
+    /// silenced that are not here right now. A headset unplugged while muted
+    /// comes back still silenced, and it is still this app's to release;
+    /// dropping the claim would leave it muted with nothing left to unmute it.
+    static func absentClaims(recorded: [String]?, present: [String]) -> [String] {
+        let here = Set(present)
+        return (recorded ?? []).filter { !here.contains($0) }
+    }
 }

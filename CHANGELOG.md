@@ -51,6 +51,9 @@ App Switcher improves multi-window browsing and keeps newly opened windows in fr
 
 ### Fixed
 - Dynamic Island shows a video playing in a browser even when a music app is open but stopped. Thanks to @ruvelro.
+- Stopping Music from opening on its own again catches launches from headphones connecting or their buttons, and no longer needs Accessibility.
+- Muting every microphone now releases a headset that connected while muted, and one unplugged during the mute once it returns.
+- Automatic link cleaning now handles links copied from browsers and messaging apps along with their formatting, while leaving pictures and files alone.
 - App Switcher brings the selected window forward while preserving focus recovery and the correct app menus. Thanks to @shlok1806.
 - Recent captures appear promptly when opened from another app and close when switching apps. Thanks to @iltonandrew.
 - Command Bar offers all Keep Awake durations without turning unsupported times into indefinite sessions. Thanks to @tuttopassastudios and @brandom.
