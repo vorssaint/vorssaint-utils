@@ -100,6 +100,10 @@ struct WindowLayoutSettings: View {
                 }
             }
 
+            Section(FeatureStrings.windowLayoutIgnoredApps(l10n.language).sectionTitle) {
+                WindowLayoutIgnoredAppsList()
+            }
+
             Section(text.gapsSection) {
                 gapPicker(text.windowGap, selection: $windowGap)
                 gapPicker(text.screenGap, selection: $screenGap)
