@@ -575,6 +575,16 @@ private final class FanControlListenerDelegate: NSObject, NSXPCListenerDelegate 
 }
 
 private func runSelfTest() -> Bool {
+    // Exercise each absent private symbol without touching hardware. All other
+    // symbols resolve normally, so partial API availability also fails closed.
+    for missing in ["IOHIDEventSystemClientCreate", "IOHIDEventSystemClientSetMatching",
+                    "IOHIDServiceClientCopyEvent", "IOHIDEventGetFloatValue"] {
+        let sampler = HIDTemperatureSampler(resolve: { name in
+            name == missing ? nil : dlsym(UnsafeMutableRawPointer(bitPattern: -2), name)
+        })
+        guard sampler.readings(platform: .appleM1Family).isEmpty else { return false }
+    }
+
     guard FanControlIdentifiers.helperID.hasSuffix(".fan-control"),
           FanControlPolicy.coolingDuration == 900,
           FanControlPolicy.validCoolingLevel(FanControlPolicy.defaultCoolingLevel),
@@ -587,6 +597,27 @@ private func runSelfTest() -> Bool {
 
 if CommandLine.arguments.contains("--selftest") {
     exit(runSelfTest() ? EXIT_SUCCESS : EXIT_FAILURE)
+}
+
+// A one-shot diagnostic can run in launchd's system domain without starting
+// XPC, taking fan ownership, or writing SMC values. Use the real platform gate.
+if CommandLine.arguments.contains("--temperature-diagnostics") {
+    let platform = TemperatureSensorSelector.currentPlatform()
+    print("platform=\(platform) uid=\(geteuid())")
+    let hid = HIDTemperatureSampler().readings(platform: platform)
+    for reading in hid {
+        print("hid \(reading.key)=\(reading.value)")
+    }
+    guard let hardware = FanControlHardware() else {
+        print("SMC unavailable")
+        exit(EXIT_FAILURE)
+    }
+    let temperatures = hardware.readTemperatures()
+    for reading in temperatures {
+        print("curve \(reading.source.rawValue)=\(reading.celsius)")
+    }
+    print("hid-count=\(hid.count) curve-count=\(temperatures.count)")
+    exit(temperatures.isEmpty ? EXIT_FAILURE : EXIT_SUCCESS)
 }
 
 guard geteuid() == 0 else {
