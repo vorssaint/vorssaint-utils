@@ -565,13 +565,13 @@ struct SwitcherView: View {
     /// a window can replace the selected item at the same index. Reveal after
     /// the viewport's actual geometry changes, allowing its native scroll view
     /// to finish resizing before the queued reveal reads the current selection.
-    /// Resize corrections are unanimated: on macOS 15 an animated scroll can
-    /// retain the pre-resize offset and leave the selected window clipped.
+    /// Resize corrections are unanimated. SwiftUI before macOS 26 can also drop
+    /// animated reveals during rapid navigation, so use immediate scrolling there.
     private func revealSelection(in proxy: ScrollViewProxy, animated: Bool) {
         let index = switcher.selectedIndex
         guard switcher.windows.indices.contains(index) else { return }
         let id = switcher.windows[index].id
-        guard animated else {
+        guard animated, #available(macOS 26, *) else {
             proxy.scrollTo(id, anchor: .center)
             return
         }
