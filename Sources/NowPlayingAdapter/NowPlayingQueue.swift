@@ -206,7 +206,7 @@ enum NotchNativeQueue {
             rows.append(["id": identifier, "offset": offset, "title": String(title.prefix(1024)),
                          "artist": String((object(metadata, "trackArtistName") as? String ?? "").prefix(1024))])
         }
-        let canPlay = supportsPlayItem(target: target)
+        let canPlay = target.allowsDirectCommands && target.itemIdentifier != nil && supportsPlayItem(target: target)
         guard currentIdentity(target: target) == before, NotchNativePlayback.target?.pid == target.pid else { return nil }
         return Snapshot(target: target, identity: before, items: rows, canPlay: canPlay)
     }

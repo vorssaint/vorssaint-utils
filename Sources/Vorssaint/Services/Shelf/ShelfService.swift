@@ -411,6 +411,7 @@ final class ShelfService: ObservableObject {
             hotKeyRef = ref
             registeredShortcut = shortcut
             hotkeyRegistrationFailed = false
+            SystemShortcutTakeover.claim(DefaultsKey.shelfShortcut, shortcut: shortcut)
         } else {
             hotKeyRef = nil
             registeredShortcut = nil
@@ -424,7 +425,10 @@ final class ShelfService: ObservableObject {
     func suspendShortcut() { unregisterHotkey() }
 
     private func unregisterHotkey() {
-        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        if let hotKeyRef {
+            UnregisterEventHotKey(hotKeyRef)
+            SystemShortcutTakeover.release(DefaultsKey.shelfShortcut)
+        }
         hotKeyRef = nil
         registeredShortcut = nil
         hotkeyRegistrationFailed = false
@@ -1800,7 +1804,7 @@ final class ShelfService: ObservableObject {
         return []
     }
 
-    private func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
+    func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
         let fileOptions: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: fileOptions) as? [NSURL],
            !urls.isEmpty {

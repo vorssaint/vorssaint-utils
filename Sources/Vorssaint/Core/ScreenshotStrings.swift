@@ -39,6 +39,12 @@ struct ScreenshotFeatureStrings {
     let toolShortcutReserved: String
     let toolSelect: String
     let toolArrow: String
+    let arrowStyleLabel: String
+    let arrowStyleFilled: String
+    let arrowStyleOutline: String
+    let arrowStyleOpen: String
+    let arrowStyleDoubleEnded: String
+    let arrowStyleScribbly: String
     let toolLine: String
     let toolRect: String
     let toolEllipse: String
@@ -153,6 +159,58 @@ struct ScreenshotFeatureStrings {
     let loupeZoomFast: String
     let loupeZoomStepped: String
     let loupeZoomOptionCaption: String
+    let watermarkLabel: String
+    let watermarkImageLabel: String
+    let watermarkTextPlaceholder: String
+    let watermarkPositionLabel: String
+    let watermarkSizeLabel: String
+    let watermarkOpacityLabel: String
+    let watermarkRotationLabel: String
+    let watermarkSavePreset: String
+    let watermarkColorRed: String
+    let watermarkColorOrange: String
+    let watermarkColorYellow: String
+    let watermarkColorGreen: String
+    let watermarkColorBlue: String
+    let watermarkColorPurple: String
+    let watermarkColorBlack: String
+    let watermarkColorWhite: String
+    let watermarkPositionTopLeading: String
+    let watermarkPositionTop: String
+    let watermarkPositionTopTrailing: String
+    let watermarkPositionLeading: String
+    let watermarkPositionCenter: String
+    let watermarkPositionTrailing: String
+    let watermarkPositionBottomLeading: String
+    let watermarkPositionBottom: String
+    let watermarkPositionBottomTrailing: String
+
+    func watermarkColorName(_ color: ScreenshotSupport.ColorID) -> String {
+        switch color {
+        case .red: return watermarkColorRed
+        case .orange: return watermarkColorOrange
+        case .yellow: return watermarkColorYellow
+        case .green: return watermarkColorGreen
+        case .blue: return watermarkColorBlue
+        case .purple: return watermarkColorPurple
+        case .black: return watermarkColorBlack
+        case .white: return watermarkColorWhite
+        }
+    }
+
+    func watermarkPositionName(_ anchor: ScreenshotSupport.WatermarkStyle.Anchor) -> String {
+        switch anchor {
+        case .topLeading: return watermarkPositionTopLeading
+        case .top: return watermarkPositionTop
+        case .topTrailing: return watermarkPositionTopTrailing
+        case .leading: return watermarkPositionLeading
+        case .center: return watermarkPositionCenter
+        case .trailing: return watermarkPositionTrailing
+        case .bottomLeading: return watermarkPositionBottomLeading
+        case .bottom: return watermarkPositionBottom
+        case .bottomTrailing: return watermarkPositionBottomTrailing
+        }
+    }
 }
 
 extension FeatureStrings {
@@ -211,6 +269,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "This key belongs to the editor.",
         toolSelect: "Select",
         toolArrow: "Arrow",
+        arrowStyleLabel: "Arrow style",
+        arrowStyleFilled: "Solid",
+        arrowStyleOutline: "Outline",
+        arrowStyleOpen: "Open",
+        arrowStyleDoubleEnded: "Double-ended",
+        arrowStyleScribbly: "Scribbly",
         toolLine: "Line",
         toolRect: "Rectangle",
         toolEllipse: "Ellipse",
@@ -324,7 +388,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Wheel zoom",
         loupeZoomFast: "Fast",
         loupeZoomStepped: "Step by step",
-        loupeZoomOptionCaption: "Hold ⌥ to temporarily use the other mode."
+        loupeZoomOptionCaption: "Hold ⌥ to temporarily use the other mode.",
+        watermarkLabel: "Watermark",
+        watermarkImageLabel: "Image",
+        watermarkTextPlaceholder: "Watermark text",
+        watermarkPositionLabel: "Position",
+        watermarkSizeLabel: "Size",
+        watermarkOpacityLabel: "Opacity",
+        watermarkRotationLabel: "Rotation",
+        watermarkSavePreset: "Save watermark",
+        watermarkColorRed: "Red",
+        watermarkColorOrange: "Orange",
+        watermarkColorYellow: "Yellow",
+        watermarkColorGreen: "Green",
+        watermarkColorBlue: "Blue",
+        watermarkColorPurple: "Purple",
+        watermarkColorBlack: "Black",
+        watermarkColorWhite: "White",
+        watermarkPositionTopLeading: "Top left",
+        watermarkPositionTop: "Top center",
+        watermarkPositionTopTrailing: "Top right",
+        watermarkPositionLeading: "Center left",
+        watermarkPositionCenter: "Center",
+        watermarkPositionTrailing: "Center right",
+        watermarkPositionBottomLeading: "Bottom left",
+        watermarkPositionBottom: "Bottom center",
+        watermarkPositionBottomTrailing: "Bottom right"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -362,6 +451,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Esta tecla está reservada para o editor.",
         toolSelect: "Selecionar",
         toolArrow: "Seta",
+        arrowStyleLabel: "Estilo da seta",
+        arrowStyleFilled: "Sólida",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Aberta",
+        arrowStyleDoubleEnded: "Duas pontas",
+        arrowStyleScribbly: "Rabiscada",
         toolLine: "Linha",
         toolRect: "Retângulo",
         toolEllipse: "Elipse",
@@ -475,7 +570,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom com a roda",
         loupeZoomFast: "Rápido",
         loupeZoomStepped: "Passo a passo",
-        loupeZoomOptionCaption: "Mantenha ⌥ pressionado para usar temporariamente o outro modo."
+        loupeZoomOptionCaption: "Mantenha ⌥ pressionado para usar temporariamente o outro modo.",
+        watermarkLabel: "Marca d’água",
+        watermarkImageLabel: "Imagem",
+        watermarkTextPlaceholder: "Texto da marca d’água",
+        watermarkPositionLabel: "Posição",
+        watermarkSizeLabel: "Tamanho",
+        watermarkOpacityLabel: "Opacidade",
+        watermarkRotationLabel: "Rotação",
+        watermarkSavePreset: "Salvar marca d’água",
+        watermarkColorRed: "Vermelho",
+        watermarkColorOrange: "Laranja",
+        watermarkColorYellow: "Amarelo",
+        watermarkColorGreen: "Verde",
+        watermarkColorBlue: "Azul",
+        watermarkColorPurple: "Roxo",
+        watermarkColorBlack: "Preto",
+        watermarkColorWhite: "Branco",
+        watermarkPositionTopLeading: "Superior esquerdo",
+        watermarkPositionTop: "Superior central",
+        watermarkPositionTopTrailing: "Superior direito",
+        watermarkPositionLeading: "Centro à esquerda",
+        watermarkPositionCenter: "Centro",
+        watermarkPositionTrailing: "Centro à direita",
+        watermarkPositionBottomLeading: "Inferior esquerdo",
+        watermarkPositionBottom: "Inferior central",
+        watermarkPositionBottomTrailing: "Inferior direito"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -513,6 +633,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Bu tuş düzenleyiciye ayrılmıştır.",
         toolSelect: "Seç",
         toolArrow: "Ok",
+        arrowStyleLabel: "Ok stili",
+        arrowStyleFilled: "Dolu",
+        arrowStyleOutline: "Kontur",
+        arrowStyleOpen: "Açık",
+        arrowStyleDoubleEnded: "Çift uçlu",
+        arrowStyleScribbly: "Karalama",
         toolLine: "Çizgi",
         toolRect: "Dikdörtgen",
         toolEllipse: "Elips",
@@ -626,7 +752,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Tekerlekle yakınlaştırma",
         loupeZoomFast: "Hızlı",
         loupeZoomStepped: "Adım adım",
-        loupeZoomOptionCaption: "Diğer modu geçici olarak kullanmak için ⌥ tuşunu basılı tutun."
+        loupeZoomOptionCaption: "Diğer modu geçici olarak kullanmak için ⌥ tuşunu basılı tutun.",
+        watermarkLabel: "Filigran",
+        watermarkImageLabel: "Görsel",
+        watermarkTextPlaceholder: "Filigran metni",
+        watermarkPositionLabel: "Konum",
+        watermarkSizeLabel: "Boyut",
+        watermarkOpacityLabel: "Opaklık",
+        watermarkRotationLabel: "Döndürme",
+        watermarkSavePreset: "Filigranı kaydet",
+        watermarkColorRed: "Kırmızı",
+        watermarkColorOrange: "Turuncu",
+        watermarkColorYellow: "Sarı",
+        watermarkColorGreen: "Yeşil",
+        watermarkColorBlue: "Mavi",
+        watermarkColorPurple: "Mor",
+        watermarkColorBlack: "Siyah",
+        watermarkColorWhite: "Beyaz",
+        watermarkPositionTopLeading: "Sol üst",
+        watermarkPositionTop: "Üst orta",
+        watermarkPositionTopTrailing: "Sağ üst",
+        watermarkPositionLeading: "Orta sol",
+        watermarkPositionCenter: "Orta",
+        watermarkPositionTrailing: "Orta sağ",
+        watermarkPositionBottomLeading: "Sol alt",
+        watermarkPositionBottom: "Alt orta",
+        watermarkPositionBottomTrailing: "Sağ alt"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -664,6 +815,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Эта клавиша зарезервирована редактором.",
         toolSelect: "Выбор",
         toolArrow: "Стрелка",
+        arrowStyleLabel: "Стиль стрелки",
+        arrowStyleFilled: "Сплошная",
+        arrowStyleOutline: "Контурная",
+        arrowStyleOpen: "Открытая",
+        arrowStyleDoubleEnded: "Двунаправленная",
+        arrowStyleScribbly: "Набросок",
         toolLine: "Линия",
         toolRect: "Прямоугольник",
         toolEllipse: "Эллипс",
@@ -777,7 +934,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Масштабирование колёсиком",
         loupeZoomFast: "Быстро",
         loupeZoomStepped: "Пошагово",
-        loupeZoomOptionCaption: "Удерживайте ⌥, чтобы временно использовать другой режим."
+        loupeZoomOptionCaption: "Удерживайте ⌥, чтобы временно использовать другой режим.",
+        watermarkLabel: "Водяной знак",
+        watermarkImageLabel: "Изображение",
+        watermarkTextPlaceholder: "Текст водяного знака",
+        watermarkPositionLabel: "Положение",
+        watermarkSizeLabel: "Размер",
+        watermarkOpacityLabel: "Непрозрачность",
+        watermarkRotationLabel: "Поворот",
+        watermarkSavePreset: "Сохранить водяной знак",
+        watermarkColorRed: "Красный",
+        watermarkColorOrange: "Оранжевый",
+        watermarkColorYellow: "Жёлтый",
+        watermarkColorGreen: "Зелёный",
+        watermarkColorBlue: "Синий",
+        watermarkColorPurple: "Фиолетовый",
+        watermarkColorBlack: "Чёрный",
+        watermarkColorWhite: "Белый",
+        watermarkPositionTopLeading: "Сверху слева",
+        watermarkPositionTop: "Сверху по центру",
+        watermarkPositionTopTrailing: "Сверху справа",
+        watermarkPositionLeading: "Слева по центру",
+        watermarkPositionCenter: "По центру",
+        watermarkPositionTrailing: "Справа по центру",
+        watermarkPositionBottomLeading: "Снизу слева",
+        watermarkPositionBottom: "Снизу по центру",
+        watermarkPositionBottomTrailing: "Снизу справа"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -815,6 +997,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "El editor ya usa esta tecla.",
         toolSelect: "Seleccionar",
         toolArrow: "Flecha",
+        arrowStyleLabel: "Estilo de flecha",
+        arrowStyleFilled: "Sólida",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Abierta",
+        arrowStyleDoubleEnded: "De doble punta",
+        arrowStyleScribbly: "Garabato",
         toolLine: "Línea",
         toolRect: "Rectángulo",
         toolEllipse: "Elipse",
@@ -928,7 +1116,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom con la rueda",
         loupeZoomFast: "Rápido",
         loupeZoomStepped: "Por pasos",
-        loupeZoomOptionCaption: "Mantén pulsado ⌥ para usar temporalmente el otro modo."
+        loupeZoomOptionCaption: "Mantén pulsado ⌥ para usar temporalmente el otro modo.",
+        watermarkLabel: "Marca de agua",
+        watermarkImageLabel: "Imagen",
+        watermarkTextPlaceholder: "Texto de la marca de agua",
+        watermarkPositionLabel: "Posición",
+        watermarkSizeLabel: "Tamaño",
+        watermarkOpacityLabel: "Opacidad",
+        watermarkRotationLabel: "Rotación",
+        watermarkSavePreset: "Guardar marca de agua",
+        watermarkColorRed: "Rojo",
+        watermarkColorOrange: "Naranja",
+        watermarkColorYellow: "Amarillo",
+        watermarkColorGreen: "Verde",
+        watermarkColorBlue: "Azul",
+        watermarkColorPurple: "Morado",
+        watermarkColorBlack: "Negro",
+        watermarkColorWhite: "Blanco",
+        watermarkPositionTopLeading: "Arriba a la izquierda",
+        watermarkPositionTop: "Arriba en el centro",
+        watermarkPositionTopTrailing: "Arriba a la derecha",
+        watermarkPositionLeading: "Centro a la izquierda",
+        watermarkPositionCenter: "Centro",
+        watermarkPositionTrailing: "Centro a la derecha",
+        watermarkPositionBottomLeading: "Abajo a la izquierda",
+        watermarkPositionBottom: "Abajo en el centro",
+        watermarkPositionBottomTrailing: "Abajo a la derecha"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -966,6 +1179,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Diese Taste ist für den Editor reserviert.",
         toolSelect: "Auswählen",
         toolArrow: "Pfeil",
+        arrowStyleLabel: "Pfeilstil",
+        arrowStyleFilled: "Voll",
+        arrowStyleOutline: "Umriss",
+        arrowStyleOpen: "Offen",
+        arrowStyleDoubleEnded: "Beidseitig",
+        arrowStyleScribbly: "Gekritzelt",
         toolLine: "Linie",
         toolRect: "Rechteck",
         toolEllipse: "Ellipse",
@@ -1079,7 +1298,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom mit dem Mausrad",
         loupeZoomFast: "Schnell",
         loupeZoomStepped: "Schrittweise",
-        loupeZoomOptionCaption: "Halte ⌥ gedrückt, um vorübergehend den anderen Modus zu verwenden."
+        loupeZoomOptionCaption: "Halte ⌥ gedrückt, um vorübergehend den anderen Modus zu verwenden.",
+        watermarkLabel: "Wasserzeichen",
+        watermarkImageLabel: "Bild",
+        watermarkTextPlaceholder: "Wasserzeichentext",
+        watermarkPositionLabel: "Position",
+        watermarkSizeLabel: "Größe",
+        watermarkOpacityLabel: "Deckkraft",
+        watermarkRotationLabel: "Drehung",
+        watermarkSavePreset: "Wasserzeichen sichern",
+        watermarkColorRed: "Rot",
+        watermarkColorOrange: "Orange",
+        watermarkColorYellow: "Gelb",
+        watermarkColorGreen: "Grün",
+        watermarkColorBlue: "Blau",
+        watermarkColorPurple: "Lila",
+        watermarkColorBlack: "Schwarz",
+        watermarkColorWhite: "Weiß",
+        watermarkPositionTopLeading: "Oben links",
+        watermarkPositionTop: "Oben mittig",
+        watermarkPositionTopTrailing: "Oben rechts",
+        watermarkPositionLeading: "Links mittig",
+        watermarkPositionCenter: "Mitte",
+        watermarkPositionTrailing: "Rechts mittig",
+        watermarkPositionBottomLeading: "Unten links",
+        watermarkPositionBottom: "Unten mittig",
+        watermarkPositionBottomTrailing: "Unten rechts"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1117,6 +1361,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Cette touche est réservée à l’éditeur.",
         toolSelect: "Sélectionner",
         toolArrow: "Flèche",
+        arrowStyleLabel: "Style de flèche",
+        arrowStyleFilled: "Pleine",
+        arrowStyleOutline: "Contour",
+        arrowStyleOpen: "Ouverte",
+        arrowStyleDoubleEnded: "À deux pointes",
+        arrowStyleScribbly: "Gribouillée",
         toolLine: "Ligne",
         toolRect: "Rectangle",
         toolEllipse: "Ellipse",
@@ -1230,7 +1480,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom à la molette",
         loupeZoomFast: "Rapide",
         loupeZoomStepped: "Pas à pas",
-        loupeZoomOptionCaption: "Maintenez ⌥ pour utiliser temporairement l’autre mode."
+        loupeZoomOptionCaption: "Maintenez ⌥ pour utiliser temporairement l’autre mode.",
+        watermarkLabel: "Filigrane",
+        watermarkImageLabel: "Image",
+        watermarkTextPlaceholder: "Texte du filigrane",
+        watermarkPositionLabel: "Position",
+        watermarkSizeLabel: "Taille",
+        watermarkOpacityLabel: "Opacité",
+        watermarkRotationLabel: "Rotation",
+        watermarkSavePreset: "Enregistrer le filigrane",
+        watermarkColorRed: "Rouge",
+        watermarkColorOrange: "Orange",
+        watermarkColorYellow: "Jaune",
+        watermarkColorGreen: "Vert",
+        watermarkColorBlue: "Bleu",
+        watermarkColorPurple: "Violet",
+        watermarkColorBlack: "Noir",
+        watermarkColorWhite: "Blanc",
+        watermarkPositionTopLeading: "En haut à gauche",
+        watermarkPositionTop: "En haut au centre",
+        watermarkPositionTopTrailing: "En haut à droite",
+        watermarkPositionLeading: "Au centre à gauche",
+        watermarkPositionCenter: "Centre",
+        watermarkPositionTrailing: "Au centre à droite",
+        watermarkPositionBottomLeading: "En bas à gauche",
+        watermarkPositionBottom: "En bas au centre",
+        watermarkPositionBottomTrailing: "En bas à droite"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1268,6 +1543,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Questo tasto è riservato all’editor.",
         toolSelect: "Seleziona",
         toolArrow: "Freccia",
+        arrowStyleLabel: "Stile freccia",
+        arrowStyleFilled: "Piena",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Aperta",
+        arrowStyleDoubleEnded: "A doppia punta",
+        arrowStyleScribbly: "Scarabocchio",
         toolLine: "Linea",
         toolRect: "Rettangolo",
         toolEllipse: "Ellisse",
@@ -1381,7 +1662,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom con la rotella",
         loupeZoomFast: "Rapido",
         loupeZoomStepped: "Passo per passo",
-        loupeZoomOptionCaption: "Tieni premuto ⌥ per usare temporaneamente l’altra modalità."
+        loupeZoomOptionCaption: "Tieni premuto ⌥ per usare temporaneamente l’altra modalità.",
+        watermarkLabel: "Filigrana",
+        watermarkImageLabel: "Immagine",
+        watermarkTextPlaceholder: "Testo della filigrana",
+        watermarkPositionLabel: "Posizione",
+        watermarkSizeLabel: "Dimensione",
+        watermarkOpacityLabel: "Opacità",
+        watermarkRotationLabel: "Rotazione",
+        watermarkSavePreset: "Salva filigrana",
+        watermarkColorRed: "Rosso",
+        watermarkColorOrange: "Arancione",
+        watermarkColorYellow: "Giallo",
+        watermarkColorGreen: "Verde",
+        watermarkColorBlue: "Blu",
+        watermarkColorPurple: "Viola",
+        watermarkColorBlack: "Nero",
+        watermarkColorWhite: "Bianco",
+        watermarkPositionTopLeading: "In alto a sinistra",
+        watermarkPositionTop: "In alto al centro",
+        watermarkPositionTopTrailing: "In alto a destra",
+        watermarkPositionLeading: "Al centro a sinistra",
+        watermarkPositionCenter: "Centro",
+        watermarkPositionTrailing: "Al centro a destra",
+        watermarkPositionBottomLeading: "In basso a sinistra",
+        watermarkPositionBottom: "In basso al centro",
+        watermarkPositionBottomTrailing: "In basso a destra"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1419,6 +1725,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "このキーはエディタで使用されています。",
         toolSelect: "選択",
         toolArrow: "矢印",
+        arrowStyleLabel: "矢印のスタイル",
+        arrowStyleFilled: "塗りつぶし",
+        arrowStyleOutline: "アウトライン",
+        arrowStyleOpen: "開いた矢印",
+        arrowStyleDoubleEnded: "両矢印",
+        arrowStyleScribbly: "手描き",
         toolLine: "直線",
         toolRect: "長方形",
         toolEllipse: "楕円",
@@ -1532,7 +1844,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "ホイールズーム",
         loupeZoomFast: "高速",
         loupeZoomStepped: "段階的",
-        loupeZoomOptionCaption: "⌥を押している間は一時的にもう一方のモードを使用します。"
+        loupeZoomOptionCaption: "⌥を押している間は一時的にもう一方のモードを使用します。",
+        watermarkLabel: "透かし",
+        watermarkImageLabel: "画像",
+        watermarkTextPlaceholder: "透かしテキスト",
+        watermarkPositionLabel: "位置",
+        watermarkSizeLabel: "サイズ",
+        watermarkOpacityLabel: "不透明度",
+        watermarkRotationLabel: "回転",
+        watermarkSavePreset: "透かしを保存",
+        watermarkColorRed: "レッド",
+        watermarkColorOrange: "オレンジ",
+        watermarkColorYellow: "イエロー",
+        watermarkColorGreen: "グリーン",
+        watermarkColorBlue: "ブルー",
+        watermarkColorPurple: "パープル",
+        watermarkColorBlack: "黒",
+        watermarkColorWhite: "白",
+        watermarkPositionTopLeading: "左上",
+        watermarkPositionTop: "上中央",
+        watermarkPositionTopTrailing: "右上",
+        watermarkPositionLeading: "左中央",
+        watermarkPositionCenter: "中央",
+        watermarkPositionTrailing: "右中央",
+        watermarkPositionBottomLeading: "左下",
+        watermarkPositionBottom: "下中央",
+        watermarkPositionBottomTrailing: "右下"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1570,6 +1907,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "이 키는 편집기에서 사용 중입니다.",
         toolSelect: "선택",
         toolArrow: "화살표",
+        arrowStyleLabel: "화살표 스타일",
+        arrowStyleFilled: "채움",
+        arrowStyleOutline: "윤곽선",
+        arrowStyleOpen: "열린 화살표",
+        arrowStyleDoubleEnded: "양방향",
+        arrowStyleScribbly: "낙서풍",
         toolLine: "직선",
         toolRect: "사각형",
         toolEllipse: "타원",
@@ -1683,7 +2026,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "휠 확대",
         loupeZoomFast: "빠르게",
         loupeZoomStepped: "단계별",
-        loupeZoomOptionCaption: "⌥를 누르는 동안 다른 모드를 임시로 사용합니다."
+        loupeZoomOptionCaption: "⌥를 누르는 동안 다른 모드를 임시로 사용합니다.",
+        watermarkLabel: "워터마크",
+        watermarkImageLabel: "이미지",
+        watermarkTextPlaceholder: "워터마크 텍스트",
+        watermarkPositionLabel: "위치",
+        watermarkSizeLabel: "크기",
+        watermarkOpacityLabel: "불투명도",
+        watermarkRotationLabel: "회전",
+        watermarkSavePreset: "워터마크 저장",
+        watermarkColorRed: "빨간색",
+        watermarkColorOrange: "주황색",
+        watermarkColorYellow: "노란색",
+        watermarkColorGreen: "초록색",
+        watermarkColorBlue: "파란색",
+        watermarkColorPurple: "보라색",
+        watermarkColorBlack: "검은색",
+        watermarkColorWhite: "흰색",
+        watermarkPositionTopLeading: "왼쪽 위",
+        watermarkPositionTop: "위쪽 가운데",
+        watermarkPositionTopTrailing: "오른쪽 위",
+        watermarkPositionLeading: "왼쪽 가운데",
+        watermarkPositionCenter: "가운데",
+        watermarkPositionTrailing: "오른쪽 가운데",
+        watermarkPositionBottomLeading: "왼쪽 아래",
+        watermarkPositionBottom: "아래쪽 가운데",
+        watermarkPositionBottomTrailing: "오른쪽 아래"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1721,6 +2089,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "此按键已由编辑器使用。",
         toolSelect: "选择",
         toolArrow: "箭头",
+        arrowStyleLabel: "箭头样式",
+        arrowStyleFilled: "实心",
+        arrowStyleOutline: "轮廓",
+        arrowStyleOpen: "开口",
+        arrowStyleDoubleEnded: "双向",
+        arrowStyleScribbly: "涂鸦",
         toolLine: "直线",
         toolRect: "矩形",
         toolEllipse: "椭圆",
@@ -1834,7 +2208,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "滚轮缩放",
         loupeZoomFast: "快速",
         loupeZoomStepped: "逐步",
-        loupeZoomOptionCaption: "按住 ⌥ 可暂时使用另一种模式。"
+        loupeZoomOptionCaption: "按住 ⌥ 可暂时使用另一种模式。",
+        watermarkLabel: "水印",
+        watermarkImageLabel: "图片",
+        watermarkTextPlaceholder: "水印文字",
+        watermarkPositionLabel: "位置",
+        watermarkSizeLabel: "大小",
+        watermarkOpacityLabel: "不透明度",
+        watermarkRotationLabel: "旋转",
+        watermarkSavePreset: "保存水印",
+        watermarkColorRed: "红色",
+        watermarkColorOrange: "橙色",
+        watermarkColorYellow: "黄色",
+        watermarkColorGreen: "绿色",
+        watermarkColorBlue: "蓝色",
+        watermarkColorPurple: "紫色",
+        watermarkColorBlack: "黑色",
+        watermarkColorWhite: "白色",
+        watermarkPositionTopLeading: "左上",
+        watermarkPositionTop: "顶部居中",
+        watermarkPositionTopTrailing: "右上",
+        watermarkPositionLeading: "左侧居中",
+        watermarkPositionCenter: "居中",
+        watermarkPositionTrailing: "右侧居中",
+        watermarkPositionBottomLeading: "左下",
+        watermarkPositionBottom: "底部居中",
+        watermarkPositionBottomTrailing: "右下"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1872,6 +2271,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "此按鍵已由編輯器使用。",
         toolSelect: "選取",
         toolArrow: "箭頭",
+        arrowStyleLabel: "箭頭樣式",
+        arrowStyleFilled: "實心",
+        arrowStyleOutline: "輪廓",
+        arrowStyleOpen: "開口",
+        arrowStyleDoubleEnded: "雙向",
+        arrowStyleScribbly: "塗鴉",
         toolLine: "直線",
         toolRect: "矩形",
         toolEllipse: "橢圓",
@@ -1985,7 +2390,32 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "滾輪縮放",
         loupeZoomFast: "快速",
         loupeZoomStepped: "逐步",
-        loupeZoomOptionCaption: "按住 ⌥ 可暫時使用另一種模式。"
+        loupeZoomOptionCaption: "按住 ⌥ 可暫時使用另一種模式。",
+        watermarkLabel: "浮水印",
+        watermarkImageLabel: "圖片",
+        watermarkTextPlaceholder: "浮水印文字",
+        watermarkPositionLabel: "位置",
+        watermarkSizeLabel: "大小",
+        watermarkOpacityLabel: "不透明度",
+        watermarkRotationLabel: "旋轉",
+        watermarkSavePreset: "儲存浮水印",
+        watermarkColorRed: "紅色",
+        watermarkColorOrange: "橙色",
+        watermarkColorYellow: "黃色",
+        watermarkColorGreen: "綠色",
+        watermarkColorBlue: "藍色",
+        watermarkColorPurple: "紫色",
+        watermarkColorBlack: "黑色",
+        watermarkColorWhite: "白色",
+        watermarkPositionTopLeading: "左上",
+        watermarkPositionTop: "上方中央",
+        watermarkPositionTopTrailing: "右上",
+        watermarkPositionLeading: "左側中央",
+        watermarkPositionCenter: "置中",
+        watermarkPositionTrailing: "右側中央",
+        watermarkPositionBottomLeading: "左下",
+        watermarkPositionBottom: "下方中央",
+        watermarkPositionBottomTrailing: "右下"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -2023,6 +2453,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "此按鍵已由編輯器使用。",
         toolSelect: "選取",
         toolArrow: "箭嘴",
+        arrowStyleLabel: "箭嘴樣式",
+        arrowStyleFilled: "實心",
+        arrowStyleOutline: "輪廓",
+        arrowStyleOpen: "開口",
+        arrowStyleDoubleEnded: "雙向",
+        arrowStyleScribbly: "塗鴉",
         toolLine: "直線",
         toolRect: "矩形",
         toolEllipse: "橢圓",
@@ -2136,6 +2572,43 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "滾輪縮放",
         loupeZoomFast: "快速",
         loupeZoomStepped: "逐步",
-        loupeZoomOptionCaption: "撳住 ⌥ 可暫時使用另一個模式。"
+        loupeZoomOptionCaption: "撳住 ⌥ 可暫時使用另一個模式。",
+        watermarkLabel: "水印",
+        watermarkImageLabel: "圖片",
+        watermarkTextPlaceholder: "水印文字",
+        watermarkPositionLabel: "位置",
+        watermarkSizeLabel: "大小",
+        watermarkOpacityLabel: "不透明度",
+        watermarkRotationLabel: "旋轉",
+        watermarkSavePreset: "儲存水印",
+        watermarkColorRed: "紅色",
+        watermarkColorOrange: "橙色",
+        watermarkColorYellow: "黃色",
+        watermarkColorGreen: "綠色",
+        watermarkColorBlue: "藍色",
+        watermarkColorPurple: "紫色",
+        watermarkColorBlack: "黑色",
+        watermarkColorWhite: "白色",
+        watermarkPositionTopLeading: "左上",
+        watermarkPositionTop: "上方中央",
+        watermarkPositionTopTrailing: "右上",
+        watermarkPositionLeading: "左邊中央",
+        watermarkPositionCenter: "置中",
+        watermarkPositionTrailing: "右邊中央",
+        watermarkPositionBottomLeading: "左下",
+        watermarkPositionBottom: "下方中央",
+        watermarkPositionBottomTrailing: "右下"
     )
+}
+
+extension ScreenshotFeatureStrings {
+    func arrowStyleTitle(_ style: ScreenshotSupport.ArrowStyleID) -> String {
+        switch style {
+        case .filled: return arrowStyleFilled
+        case .outline: return arrowStyleOutline
+        case .open: return arrowStyleOpen
+        case .doubleEnded: return arrowStyleDoubleEnded
+        case .scribbly: return arrowStyleScribbly
+        }
+    }
 }

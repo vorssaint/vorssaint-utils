@@ -121,36 +121,49 @@ struct NotchDownloadStrip: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
 
+    /// The arrow keeps the shared gap from the top and bottom edges too.
+    private var iconSize: CGFloat {
+        min(17, service.geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
+    }
+    private var iconInset: CGFloat {
+        service.geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
+    }
+
     var body: some View {
         let item = downloads.items.first { $0.active && !$0.completed }
         Button { service.open(.downloads) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 6) {
                     if service.geometry.compactActivityWingWidth >= 40 {
-                        Image(systemName: "arrow.down.circle.fill").font(.system(size: 17))
+                        Image(systemName: "arrow.down.circle.fill").font(.system(size: iconSize))
                         if service.geometry.compactActivityWingWidth >= 94 {
                             Text(item?.name ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle)
                                 .font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.middle)
                         }
                     }
                 }
-                .padding(.leading, service.geometry.compactActivityWingWidth >= 40 ? 10 : 0)
+                .padding(.leading, service.geometry.compactActivityWingWidth >= 40 ? iconInset : 0)
                 .padding(.trailing, 4)
-                .frame(width: service.geometry.compactActivityWingWidth).clipped()
+                // Each wing anchors to its own edge, so the silhouette's curve
+                // decides the margin instead of the content's own width.
+                .frame(width: service.geometry.compactActivityWingWidth, alignment: .leading).clipped()
                 Color.clear.frame(width: service.geometry.compactActivityCameraGap)
                 HStack {
                     Spacer(minLength: 0)
                     if service.geometry.compactActivityWingWidth >= 36 {
                         if let fraction = item?.fraction {
-                            Text(fraction, format: .percent.precision(.fractionLength(0)))
-                                .font(.system(size: 10, weight: .medium)).monospacedDigit()
+                            Text(fraction, format: NotchDownloadSupport.percentFormat(l10n.language))
+                                .font(.system(size: NotchDownloadSupport.percentSize, weight: .medium))
+                                .monospacedDigit()
+                                .lineLimit(1).minimumScaleFactor(NotchDownloadSupport.percentMinimumScale)
                         } else {
                             ProgressView().controlSize(.mini)
                         }
                     }
                 }
-                .padding(.trailing, service.geometry.compactActivityWingWidth >= 36 ? 10 : 0)
-                .frame(width: service.geometry.compactActivityWingWidth).clipped()
+                .padding(.trailing, service.geometry.compactActivityWingWidth >= 36
+                                    ? NotchDownloadSupport.percentInset(in: service.geometry) : 0)
+                .frame(width: service.geometry.compactActivityWingWidth, alignment: .trailing).clipped()
             }
             .frame(height: service.geometry.compactActivityContentHeight)
             .padding(.horizontal, service.geometry.compactActivityHorizontalPadding)

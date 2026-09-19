@@ -17,6 +17,91 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 MUTATIONS = [
+    ("emoji family offers unsupported tones", "emoji", "Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift",
+     "scalar.value != 0x1F46A && scalar.properties.isEmojiModifierBase", "scalar.properties.isEmojiModifierBase",
+     "family stays unchanged instead of offering unsupported skin tones"),
+    ("one-off emoji skips usage learning", "emoji", "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+     "                self.recordUsage(of: entry)\n", "",
+     "a one-off tone records exactly one use under the original emoji"),
+    ("one-off emoji learns the action field instead of its search", "emoji", "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+     "        case .argument, .actions:\n", "        case .argument:\n",
+     "a one-off tone learns the search saved before opening actions"),
+    ("output switches reuse another device's volume baseline", "core", "Sources/Vorssaint/Services/Notch/NotchService.swift",
+     "                self.volumeBaseline = nil\n                self.muteBaseline = nil\n", "",
+     "switching output never replaces its connection notice with stored volume or mute"),
+    ("volume observation reads partially published controls", "core", "Sources/Vorssaint/Services/Notch/NotchService.swift",
+     ".receive(on: DispatchQueue.main)\n            .sink { [weak self, weak mixer] _ in",
+     ".sink { [weak self, weak mixer] _ in",
+     "switching output never replaces its connection notice with stored volume or mute"),
+    ("device alerts return to the fixed level width", "core", "Sources/Vorssaint/Services/Notch/NotchService.swift",
+     "return min(240, max(112, ceil(max(leading + 18 + 8, trailing)) + 32))", "return 112",
+     "power and accessory labels fit beside their icon without truncation"),
+    ("device alert window ignores its content width", "core", "Sources/Vorssaint/Services/Notch/NotchService.swift",
+     "if let notice { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }",
+     "if notice != nil { return geometry.notice }",
+     "a device notice widens the actual presentation beyond the compact level indicator"),
+    ("Nothing loses its music gate", "core", "Sources/Vorssaint/Services/Notch/NotchSupport.swift",
+     "            && idleContent(in: defaults) != .none\n", "",
+     "selecting Nothing retracts already visible music and stops its reader with cached playback still present"),
+    ("resting music bypasses automatic opt-out", "core", "Sources/Vorssaint/Services/Notch/NotchSupport.swift",
+     "return choice == .music && !showsMusicActivity(isPlaying: isPlaying, in: defaults) ? .none : choice",
+     "return choice == .music && !isPlaying ? .none : choice",
+     "disabled automatic music stops the reader even when resting content is Music"),
+    ("resting music retains a disabled reader", "core", "Sources/Vorssaint/Services/Notch/NotchService.swift",
+     "            || NotchSupport.watchesMusicActivity())",
+     "            || NotchSupport.idleContent() == .music || NotchSupport.watchesMusicActivity())",
+     "disabled automatic music stops the reader even when resting content is Music"),
+    ("closing music retains its on-demand reader", "core", "Sources/Vorssaint/Services/Notch/NotchService.swift",
+     "        removeEventMonitors()\n        syncVisibleConsumers()\n    }\n\n    func toggle()",
+     "        removeEventMonitors()\n    }\n\n    func toggle()",
+     "closing manually opened controls stops the reader and never leaves a music strip behind"),
+    ("the software route keeps the picture dimmed when it is turned off", "core",
+     "Sources/Vorssaint/Services/Display/BrightnessService.swift",
+     "        guard !preferred else {\n"
+     "            refresh(force: true)\n"
+     "            return\n"
+     "        }\n"
+     "        // Handing the display back to DDC has to hand the picture back with\n"
+     "        // it. The scaled curve belongs to this app, and the level behind it\n"
+     "        // describes the gamma route, not the monitor: left in place they show\n"
+     "        // a dark screen the monitor's own controls cannot explain, and the\n"
+     "        // first write to the panel then dims what is already dimmed. The\n"
+     "        // curve goes back before the rebuild, so the probe reads a display\n"
+     "        // showing its own picture.\n"
+     "        stateLock.lock()\n"
+     "        lastApplied[id] = nil\n"
+     "        levelKnownAt[id] = nil\n"
+     "        stateLock.unlock()\n"
+     "        workQueue.async { [weak self] in\n"
+     "            guard let self else { return }\n"
+     "            self.applySoftwareDim(id, value: 1)\n"
+     "            DispatchQueue.main.async { [weak self] in self?.refresh(force: true) }\n"
+     "        }\n",
+     "        refresh(force: true)\n",
+     "the picture goes back to its own curve when the choice goes off"),
+    ("a timed session hands over on one condition", "core", "Sources/Vorssaint/Services/KeepAwakeManager.swift",
+     "        guard KeepAwakeAutomationSupport.conditionsSatisfied(\n"
+     "                matching: matches,\n"
+     "                enabled: currentEnabledAutomationConditions(),\n"
+     "                requireAll: automationRequiresAllConditions()) else { return false }\n",
+     "        guard !matches.isEmpty else { return false }\n",
+     "a timer running out on battery hands nothing over to an All automation"),
+    ("match mode labels grow back into sentences", "core", "Sources/Vorssaint/Core/KeepAwakeStrings.swift",
+     "        matchAny: \"L\u2019une\",\n        matchAll: \"Toutes\",\n",
+     "        matchAny: \"N\u2019importe quelle condition\",\n        matchAll: \"Toutes les conditions\",\n",
+     "fr: the match mode labels fit the panel card"),
+    ("recording metadata rebases after startup", "recording", "Sources/Vorssaint/Services/Recorder/RecorderSupport.swift",
+     "return timeline.eventTime(time, since: origin)",
+     "return timeline.eventTime(time, since: origin + 0.3)",
+     "stored pointer, click and typing markers align with decoded video after delayed startup and pauses"),
+    ("microphone returns to its changing native format", "recording", "Sources/Vorssaint/Services/Recorder/RecorderWriter.swift",
+     "let interleaved = Self.interleavedAudioSample(sampleBuffer, converter: &microphoneConverter)",
+     "let interleaved = Optional(sampleBuffer)",
+     "the multitrack MOV survives an audio buffer-layout change across a pause"),
+    ("system audio returns to its changing native format", "recording", "Sources/Vorssaint/Services/Recorder/RecorderWriter.swift",
+     "let interleaved = Self.interleavedAudioSample(sampleBuffer, converter: &systemAudioConverter)",
+     "let interleaved = Optional(sampleBuffer)",
+     "the multitrack MOV survives an audio buffer-layout change across a pause"),
     ("missing feed loses fallback requirement", "app-updates", "Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift",
      "return Findings(catalogFallbackPaths: Set(apps.map(\\.path)))", "return Findings()",
      "manifest 404 missing: only usable catalog coverage clears a missing-feed warning"),

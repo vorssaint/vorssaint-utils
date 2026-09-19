@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
+import SwiftUI
 
 enum NotchActivityTests {
     static func run(expect: (Bool, String) -> Void) {
         timerContracts(expect: expect)
         alertContracts(expect: expect)
         pomodoroContracts(expect: expect)
+        stopwatchContracts(expect: expect)
+        modePickerContracts(expect: expect)
         rulerContracts(expect: expect)
         compactTimerContracts(expect: expect)
+        compactMarginContracts(expect: expect)
         accessoryContracts(expect: expect)
         PeripheralBatteryLifecycleTests.run(expect: expect)
         gateContracts(expect: expect)
@@ -90,13 +95,13 @@ enum NotchActivityTests {
         var session = NotchTimerSession()
         expect(!session.hasSession, "an unused timer has no active session")
         session.start(mode: .timer, minutes: 5, now: 100)
-        expect(session.remaining(at: 101.25) == 298.75, "countdown uses an absolute deadline, including fractional elapsed time")
+        expect(session.reading(at: 101.25) == 298.75, "countdown uses an absolute deadline, including fractional elapsed time")
         session.start(mode: .pomodoro, minutes: 25, now: 105)
         expect(session.mode == .timer && session.deadline == 400, "starting twice cannot replace an active timer")
         session.pause(at: 160)
-        expect(session.isPaused && session.remaining(at: 10_000) == 240, "paused time stays fixed across sleep")
+        expect(session.isPaused && session.reading(at: 10_000) == 240, "paused time stays fixed across sleep")
         session.resume(at: 10_000)
-        expect(session.deadline == 10_240 && session.remaining(at: 10_100) == 140, "resume preserves only the remaining duration")
+        expect(session.deadline == 10_240 && session.reading(at: 10_100) == 140, "resume preserves only the remaining duration")
         expect(!session.finishIfDue(at: 10_239.999), "fractional time before the deadline is not complete")
         expect(session.finishIfDue(at: 100_000) && session.completed, "returning from sleep finishes an overdue timer once")
         expect(!session.finishIfDue(at: 100_001), "repeated callbacks cannot announce the same completion twice")
@@ -111,6 +116,15 @@ enum NotchActivityTests {
         expect(session.duration == 10_800, "corrupt duration input stays within three hours")
         expect(NotchTimerSupport.clockText(0.01) == "00:01" && NotchTimerSupport.clockText(-1) == "00:00"
                && NotchTimerSupport.clockText(.nan) == "00:00", "display rounds up and safely handles invalid remaining time")
+        let clockCases: [(TimeInterval, String)] = [
+            (59, "00:59"), (60, "01:00"), (3599, "59:59"), (3599.01, "1:00:00"),
+            (3600, "1:00:00"), (3601, "1:00:01"), (8580, "2:23:00"),
+            (10800, "3:00:00"), (.greatestFiniteMagnitude, "3:00:00"), (.infinity, "00:00")
+        ]
+        for (seconds, expected) in clockCases {
+            expect(NotchTimerSupport.clockText(seconds) == expected,
+                   "timer clocks show hours at the hour boundary while preserving seconds: \(seconds)")
+        }
         let locale = Locale(identifier: "en_US")
         expect(NotchTimerSupport.compactText(870, locale: locale) == "14m"
                && NotchTimerSupport.compactText(60, locale: locale) == "1m",
@@ -118,15 +132,33 @@ enum NotchActivityTests {
         expect(NotchTimerSupport.compactText(59, locale: locale) == "59s"
                && NotchTimerSupport.compactText(0.01, locale: locale) == "1s",
                "compact timers switch to seconds for the final minute and never finish early")
+        let compactCases: [(TimeInterval, String)] = [
+            (3599, "59m"), (3599.01, "1h"), (3600, "1h"), (3659, "1h"),
+            (3660, "1h 1m"), (8580, "2h 23m"), (10800, "3h")
+        ]
+        for (seconds, expected) in compactCases {
+            expect(NotchTimerSupport.compactText(seconds, locale: locale) == expected,
+                   "compact timers and focus durations show hours and whole minutes: \(seconds)")
+        }
         for invalid in [Double.nan, .infinity, -1, 0] {
             expect(NotchTimerSupport.compactText(invalid, locale: locale) == "0s",
                    "invalid or expired compact times remain safe to display")
         }
-        expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "180m",
+        expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "3h",
                "compact duration formatting preserves the timer's upper limit")
+        let hourCases: [(TimeInterval, String)] = [
+            (3600, "1h00"), (3659.9, "1h00"), (3660, "1h01"), (5700, "1h35"),
+            (8580, "2h23"), (10800, "3h00"), (.greatestFiniteMagnitude, "3h00"), (.nan, "0h00")
+        ]
+        for (seconds, expected) in hourCases {
+            expect(NotchTimerSupport.compactHoursText(seconds) == expected,
+                   "the compact strip writes hours as 1h35, never as a colon that reads like minutes and seconds: \(seconds)")
+        }
         for language in AppLanguage.allCases {
             expect(!NotchTimerSupport.compactText(870, locale: Locale(identifier: language.rawValue)).isEmpty,
                    "remaining time has a compact unit in every supported language")
+            expect(!NotchTimerSupport.compactText(8580, locale: Locale(identifier: language.rawValue)).isEmpty,
+                   "hour and minute units are available in every supported language")
         }
         for width: CGFloat in [320, 480, 560] {
             for notched in [false, true] {
@@ -136,9 +168,9 @@ enum NotchActivityTests {
                                              layout: .custom, customWidth: width, customHeight: 400)
                 let setup = geometry.expandedSize(module: .timer)
                 let active = geometry.expandedSize(module: .timer, timerHasSession: true)
-                expect(geometry.contentSize(for: setup).height >= 202
+                expect(geometry.contentSize(for: setup).height >= 208
                        && geometry.contentSize(for: active).height >= 96 && active.height < setup.height,
-                       "timer setup has room for its ruler and active controls use a shorter horizontal surface")
+                       "timer setup has room for its mode pill and ruler; active controls use a shorter horizontal surface")
                 expect(screen.contains(geometry.frame(for: setup)) && screen.contains(geometry.frame(for: active))
                        && geometry.frame(for: setup).maxY == geometry.frame(for: active).maxY,
                        "starting a timer preserves the screen's top edge and keeps both sizes on screen")
@@ -241,13 +273,171 @@ enum NotchActivityTests {
         expect(session.configuration == saved && session.duration == 2_700,
                "changes to saved preferences never rewrite an already running cycle")
         let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180)
-        let setup = geometry.expandedSize(module: .timer, timerShowsPomodoro: true)
-        let active = geometry.expandedSize(module: .timer, timerHasSession: true, timerShowsPomodoro: true)
-        expect(geometry.contentSize(for: setup).height >= 370 && geometry.contentSize(for: active).height >= 118,
+        let setup = geometry.expandedSize(module: .timer, timerMode: .pomodoro)
+        let active = geometry.expandedSize(module: .timer, timerHasSession: true, timerMode: .pomodoro)
+        expect(geometry.contentSize(for: setup).height >= 376 && geometry.contentSize(for: active).height >= 118,
                "the Pomodoro setup and progress row receive their own content budget")
     }
 
+    private static func stopwatchContracts(expect: (Bool, String) -> Void) {
+        var session = NotchTimerSession()
+        expect(session.reading(at: 5) == 300 && !session.countsUp, "an idle page still previews the countdown it would start")
+        session.start(mode: .stopwatch, minutes: 15, now: 100)
+        expect(session.countsUp && session.phase == .stopwatch && session.isRunning && session.deadline == nil
+               && session.duration == 0, "a stopwatch runs from zero with no deadline or preset duration")
+        expect(session.reading(at: 100) == 0 && session.reading(at: 161.25) == 61.25,
+               "elapsed time grows from the anchor, including fractional seconds")
+        expect(session.reading(at: 99) == 0, "a clock that reads before its anchor never shows negative time")
+        expect(!session.finishIfDue(at: 1_000_000) && session.isRunning && !session.completed,
+               "a stopwatch never completes on its own, however long it runs")
+        session.start(mode: .timer, minutes: 5, now: 200)
+        expect(session.countsUp && session.anchor == 100, "starting twice cannot replace a running stopwatch")
+        session.pause(at: 160)
+        expect(session.isPaused && !session.isRunning && session.reading(at: 10_000) == 60,
+               "pausing holds the elapsed reading across sleep")
+        session.pause(at: 170)
+        expect(session.reading(at: 10_000) == 60, "pausing a paused stopwatch changes nothing")
+        session.resume(at: 10_000)
+        expect(session.isRunning && session.reading(at: 10_040.5) == 100.5,
+               "resuming continues from the held reading, never from the wall clock gap")
+        session.resume(at: 20_000)
+        expect(session.reading(at: 20_000) == 10_060, "resuming a running stopwatch changes nothing")
+        session.pause(at: .nan)
+        expect(session.isRunning, "an invalid clock cannot pause a stopwatch")
+        session.cancel()
+        expect(!session.hasSession && session.reading(at: 0) == 300 && !session.countsUp,
+               "cancel discards the stopwatch and returns the page to its countdown preview")
+
+        var countdown = NotchTimerSession()
+        countdown.start(mode: .timer, minutes: 1, now: 0)
+        for (elapsed, expected) in [(0.0, 1.0), (0.25, 0.75), (0.999, 0.001)] {
+            let offset = NotchTimerSupport.secondBoundaryOffset(for: countdown, at: elapsed)
+            expect(abs(offset - expected) < 1e-9, "countdown ticks align to whole remaining seconds: \(elapsed)")
+        }
+        var stopwatch = NotchTimerSession()
+        stopwatch.start(mode: .stopwatch, minutes: 1, now: 0)
+        for (elapsed, expected) in [(0.0, 1.0), (0.25, 0.75), (61.999, 0.001)] {
+            let offset = NotchTimerSupport.secondBoundaryOffset(for: stopwatch, at: elapsed)
+            expect(abs(offset - expected) < 1e-9, "stopwatch ticks align to whole elapsed seconds: \(elapsed)")
+        }
+        for (session, name) in [(countdown, "countdown"), (stopwatch, "stopwatch")] {
+            for now in stride(from: 0.0, through: 59.0, by: 0.37) {
+                let offset = NotchTimerSupport.secondBoundaryOffset(for: session, at: now)
+                let before = NotchTimerSupport.clockText(for: session, at: now + offset - 0.001)
+                let after = NotchTimerSupport.clockText(for: session, at: now + offset + 0.001)
+                expect(offset > 0 && offset <= 1 && before != after,
+                       "the next tick lands just after the \(name) reading changes: \(now)")
+            }
+        }
+        expect(NotchTimerSupport.secondBoundaryOffset(for: countdown, at: -.infinity) == 0,
+               "an unreadable clock schedules an immediate tick instead of an invalid date")
+        // A timeline renders the first entry of its schedule at once and wakes
+        // only at the next one, so the boundary ahead has to be the second
+        // entry, with the first already behind now.
+        let reference = Date()
+        for (session, name) in [(countdown, "countdown"), (stopwatch, "stopwatch")] {
+            for now in stride(from: 0.0, through: 3.0, by: 0.23) {
+                let boundary = NotchTimerSupport.secondBoundaryOffset(for: session, at: now)
+                let start = reference.addingTimeInterval(NotchTimerSupport.tickScheduleOffset(for: session, at: now))
+                var entries = PeriodicTimelineSchedule(from: start, by: 1).entries(from: reference, mode: .normal).makeIterator()
+                let first = entries.next()?.timeIntervalSince(reference) ?? .nan
+                let second = entries.next()?.timeIntervalSince(reference) ?? .nan
+                let third = entries.next()?.timeIntervalSince(reference) ?? .nan
+                expect(first <= 0 && first > -1 && abs(second - boundary) < 1e-6 && abs(third - boundary - 1) < 1e-6,
+                       "the clock's schedule starts behind now, so its first wake lands on the \(name) boundary "
+                       + "instead of skipping it: \(now)")
+            }
+        }
+
+        let stopwatchCases: [(TimeInterval, String)] = [
+            (0, "00:00"), (0.999, "00:00"), (1, "00:01"), (59.9, "00:59"), (60, "01:00"),
+            (3599.99, "59:59"), (3600, "1:00:00"), (3661, "1:01:01"), (10_800, "3:00:00"),
+            (86_399, "23:59:59"), (359_999, "99:59:59"), (400_000, "99:59:59"),
+            (.greatestFiniteMagnitude, "99:59:59"), (-1, "00:00"), (.nan, "00:00"), (.infinity, "00:00")
+        ]
+        for (seconds, expected) in stopwatchCases {
+            expect(NotchTimerSupport.stopwatchText(seconds) == expected,
+                   "elapsed clocks round down, grow past the timer's three hours and saturate safely: \(seconds)")
+        }
+        let compactStopwatchCases: [(TimeInterval, String)] = [
+            (0, "00:00"), (42.7, "00:42"), (599, "09:59"), (754, "12:34"), (3599.9, "59:59"),
+            (3600, "1h00"), (3720, "1h02"), (5700, "1h35"), (36_000, "10h00"),
+            (.greatestFiniteMagnitude, "99h59"), (-1, "00:00"), (.nan, "00:00")
+        ]
+        for (seconds, expected) in compactStopwatchCases {
+            expect(NotchTimerSupport.compactStopwatchText(seconds) == expected,
+                   "the compact strip keeps a stopwatch's seconds until hours take their place: \(seconds)")
+        }
+        let locale = Locale(identifier: "en_US")
+        expect(NotchTimerSupport.clockText(for: stopwatch, at: 61.9) == "01:01"
+               && NotchTimerSupport.clockText(for: countdown, at: 0.1) == "01:00",
+               "session clocks read elapsed time up and remaining time down")
+        expect(NotchTimerSupport.compactText(for: stopwatch, at: 61.9, locale: locale) == "01:01"
+               && NotchTimerSupport.compactText(for: countdown, at: 0.1, locale: locale) == "1m",
+               "compact session readings keep each mode's own notation")
+        var hours = NotchTimerSession()
+        hours.start(mode: .timer, minutes: 120, now: 0)
+        expect(NotchTimerSupport.compactText(for: hours, at: 1, locale: locale) == "1h59"
+               && NotchTimerSupport.compactText(for: hours, at: 3600, locale: locale) == "1h00"
+               && NotchTimerSupport.compactText(for: hours, at: 3601, locale: locale) == "59m",
+               "compact countdowns still switch from hours to minutes at the hour boundary")
+
+        let suite = "com.vorssaint.tests.timer-mode"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        expect(NotchTimerSupport.savedMode(in: defaults) == .timer, "a fresh install opens the countdown")
+        for mode in NotchTimerMode.allCases {
+            defaults.set(mode.rawValue, forKey: DefaultsKey.notchTimerMode)
+            expect(NotchTimerSupport.savedMode(in: defaults) == mode, "the chosen mode survives reload: \(mode)")
+        }
+        defaults.set("countdown", forKey: DefaultsKey.notchTimerMode)
+        expect(NotchTimerSupport.savedMode(in: defaults) == .timer, "an unknown saved mode falls back to the countdown")
+        expect(NotchTimerMode.allCases.last == .stopwatch && NotchTimerMode.allCases.first == .timer,
+               "the stopwatch joins the pill after the existing modes, keeping their positions")
+
+        for width: CGFloat in [360, 480, 560] {
+            let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
+                                         cameraWidth: 180, layout: .custom, customWidth: width, customHeight: 400)
+            let setup = geometry.expandedSize(module: .timer, timerMode: .stopwatch)
+            let active = geometry.expandedSize(module: .timer, timerHasSession: true, timerMode: .stopwatch)
+            expect(geometry.contentSize(for: setup).height >= 114
+                   && setup.height < geometry.expandedSize(module: .timer).height,
+                   "a stopwatch has no ruler, so its page is shorter than the countdown's")
+            expect(active == geometry.expandedSize(module: .timer, timerHasSession: true),
+                   "a running stopwatch shares the countdown's control row")
+        }
+    }
+
+    /// The pill sizes each label to its word. Its contract is that the three
+    /// translated modes fit the narrowest island, with a legacy scroll bar.
+    private static func modePickerContracts(expect: (Bool, String) -> Void) {
+        let layout = NotchTimerSupport.ModePicker.self
+        let font = NSFont.systemFont(ofSize: layout.labelSize, weight: .medium)
+        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
+                                     cameraWidth: 180, layout: .custom, customWidth: NotchSize.widthRange.lowerBound,
+                                     customHeight: NotchSize.heightRange.lowerBound)
+        let available = geometry.contentSize(for: geometry.expandedSize(module: .timer)).width
+            - NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+        expect(layout.height > layout.inset * 2 + layout.labelSize && layout.labelPadding > 0,
+               "every mode label keeps room around its text inside the pill")
+        for language in AppLanguage.allCases {
+            let text = FeatureStrings.notchActivities(language)
+            let labels = [text.timer, text.pomodoro, text.stopwatch]
+            expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
+                   "each mode has its own name: \(language)")
+            let width = labels.reduce(0) { $0 + ($1 as NSString).size(withAttributes: [.font: font]).width + layout.labelPadding * 2 }
+                + layout.spacing * CGFloat(labels.count - 1) + layout.inset * 2
+            expect(width <= available, "the three modes fit the narrowest island in \(language): \(Int(width)) of \(Int(available))")
+        }
+    }
+
     private static func rulerContracts(expect: (Bool, String) -> Void) {
+        for (minute, expected) in [(1, "1"), (55, "55"), (60, "1h00"), (65, "1h05"),
+                                   (140, "2h20"), (143, "2h23"), (180, "3h00")] {
+            expect(NotchTimerRulerScale.label(for: minute) == expected,
+                   "ruler labels write hours with an h, so an hour mark never reads like the minute clock")
+        }
         for minute in [1, 15, 90, 180] {
             expect(NotchTimerRulerScale.offset(of: minute, selected: minute) == 0,
                    "the chosen minute stays under the center pointer, including the initial value and both endpoints")
@@ -278,27 +468,98 @@ enum NotchActivityTests {
 
     private static func compactTimerContracts(expect: (Bool, String) -> Void) {
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
-        for notched in [false, true] {
-            for layout in NotchSize.allCases {
-                for room: CGFloat in [0, 27, 43, 44, 52, 64, 100, 200, .nan, .infinity] {
-                    let original = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
-                                                 cameraWidth: notched ? 180 : 0, layout: layout,
-                                                 compactSideRoom: room)
-                    for downloads in [false, true] {
-                        let compact = original.compactTimerGeometry(showsDownloads: downloads)
-                        if room.isFinite && room >= 44 {
-                            expect(!compact.compactActivityUsesFooter
-                                   && compact.compactActivityWingWidth == min(room, downloads ? 64 : 52),
-                                   "timer wings reserve only a small readable width, including simultaneous downloads")
-                            expect(compact.compactActivityCameraGap == original.cameraWidth
-                                   && compact.compactActivityContentHeight == original.menuBarHeight,
-                                   "narrower timer wings still clear the camera and preserve the menu bar height")
-                        } else {
-                            expect(compact.compactActivityUsesFooter,
-                                   "insufficient or unknown menu space keeps the timer readable in its existing footer")
+        for barHeight: CGFloat in [16, 22, 24, 32, 40, 64] {
+            for notched in [false, true] {
+                for layout in NotchSize.allCases {
+                    for room: CGFloat in [-1, 0, 27, 36, 43, 44, 52, 64, 71, 72, 72.9, 79, 80, 100, 200, .nan, .infinity] {
+                        let original = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                     cameraWidth: notched ? 180 : 0, layout: layout,
+                                                     menuBarHeight: barHeight, compactSideRoom: room)
+                        for downloads in [false, true] {
+                            let compact = original.compactTimerGeometry(showsDownloads: downloads)
+                            if room.isFinite && room >= 72 {
+                                expect(!compact.compactActivityUsesFooter
+                                       && compact.compactActivityWingWidth == min(room, downloads ? 80 : 72).rounded(.down),
+                                       "timer wings keep their readable width around larger cameras, including simultaneous downloads")
+                                expect(compact.compactActivityCameraGap == original.cameraWidth
+                                       && compact.compactActivityContentHeight == original.menuBarHeight,
+                                       "narrower timer wings still clear the camera and preserve the menu bar height")
+                            } else if notched {
+                                expect(!compact.compactActivityUsesFooter && compact.compactActivityWingWidth == 0,
+                                       "unavailable menu space retracts timer wings without drawing over adjacent menus")
+                                expect(compact.activationArea(in: compact.compactActivitySize, hasHeader: false,
+                                                             compactActivity: true).size == compact.compactActivitySize,
+                                       "a retracted timer keeps the whole camera region available to open its controls")
+                            } else {
+                                expect(!compact.compactActivityUsesFooter,
+                                       "a simulated timer never falls back below the menu bar")
+                                expect(compact.compactActivityWingWidth == 0
+                                       && compact.compactActivitySize.height == original.menuBarHeight,
+                                       "a simulated timer with no side room keeps only the camera profile within the menu bar")
+                            }
+                            let positioned = compact.frame(for: compact.compactActivitySize)
+                            expect(screen.contains(positioned), "compact timer placement stays within the screen")
+                            if notched {
+                                expect(positioned.maxY == screen.maxY && positioned.height == original.menuBarHeight
+                                       && compact.compactActivityTopPadding == 0,
+                                       "timer and simultaneous downloads stay beside the camera through menu-space changes")
+                            }
                         }
-                        let positioned = compact.compactActivityGeometry.frame(for: compact.compactActivitySize)
-                        expect(screen.contains(positioned), "compact timer placement stays within the screen")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Compact strips measure their margins from the silhouette rather than
+    /// from a flat padding, so the promise is geometric: whatever a wing draws
+    /// keeps the shared gap from the curve, and the download reading still
+    /// fits the narrowest wing in every language.
+    private static func compactMarginContracts(expect: (Bool, String) -> Void) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let gap = NotchLayout.compactEdgeGap
+        /// Distance from a centred box, anchored at `inset`, to the silhouette.
+        func clearance(_ geometry: NotchGeometry, inset: CGFloat, boxHeight: CGFloat, radius: CGFloat) -> CGFloat {
+            let surface = geometry.compactActivitySize
+            let shoulder = geometry.compactActivityShoulder
+            let corner = min(NotchLayout.surfaceRadius(height: surface.height),
+                             (surface.width - shoulder * 2) / 2)
+            let centre = CGPoint(x: shoulder + corner, y: surface.height - corner)
+            let x = inset + geometry.compactActivityHorizontalPadding + radius
+            let y = surface.height - (geometry.compactActivityContentHeight - boxHeight) / 2 - radius
+            if y <= centre.y { return x - radius - shoulder }
+            if x >= centre.x { return surface.height - y - radius }
+            return corner - hypot(x - centre.x, y - centre.y) - radius
+        }
+        let font = NSFont.monospacedDigitSystemFont(ofSize: NotchDownloadSupport.percentSize, weight: .medium)
+        for barHeight: CGFloat in [24, 32, 37, 40, 44, 64] {
+            for room: CGFloat in [44, 52, 56, 72, 100, 200] {
+                for notched in [true, false] {
+                    let geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                 cameraWidth: notched ? 180 : 160, layout: .compact,
+                                                 menuBarHeight: barHeight, compactSideRoom: room)
+                    let wing = geometry.compactActivityWingWidth
+                    expect(wing == 0 || wing >= 44,
+                           "a compact strip either retracts its wings or keeps them wide enough to fill")
+                    // Cover, equalizer bar, timer icon, download arrow and the
+                    // ink of a percentage. A box too tall for the strip has no
+                    // inset that can clear the curve, and keeps the flat margin.
+                    for (box, radius) in [(26.0, 26.0 * 0.28), (16.0, 0.9), (20.0, 10.0), (17.0, 8.5),
+                                          (NotchDownloadSupport.percentSize * 0.72, 0.0)] {
+                        let side = min(box, geometry.compactActivityContentHeight - gap * 2)
+                        guard side > 0 else { continue }
+                        let corner = min(radius, side / 2)
+                        let inset = geometry.compactActivityEdgeInset(boxHeight: side, radius: corner)
+                        expect(clearance(geometry, inset: inset, boxHeight: side, radius: corner) >= gap - 0.01,
+                               "compact strip content keeps its breathing room from the curved edge")
+                    }
+                    guard wing >= 44 else { continue }
+                    let inset = NotchDownloadSupport.percentInset(in: geometry)
+                    for language in AppLanguage.allCases {
+                        let reading = (1.0).formatted(NotchDownloadSupport.percentFormat(language)) as NSString
+                        let width = reading.size(withAttributes: [.font: font]).width
+                        expect(wing - inset >= width * NotchDownloadSupport.percentMinimumScale,
+                               "a download reading its last percent keeps one whole line in every language")
                     }
                 }
             }
@@ -306,6 +567,15 @@ enum NotchActivityTests {
     }
 
     private static func accessoryContracts(expect: (Bool, String) -> Void) {
+        for (name, symbol) in [("airpods", "airpods"), ("AIRPODS PRO", "airpodspro"),
+                               ("My airpods pro 2", "airpodspro"), ("airpods max", "airpodsmax"),
+                               ("Max's airpods", "airpods"), ("Wireless Headphones", "headphones")] {
+            expect(NotchAccessorySupport.symbol(for: .audio, name: name) == symbol,
+                   "recognized headset families use their native symbol, with generic audio as fallback")
+        }
+        expect(NotchAccessorySupport.symbol(for: .keyboard, name: "Keyboard") == "keyboard"
+               && NotchAccessorySupport.symbol(for: .device, name: "Device") == "battery.25percent",
+               "model-specific audio symbols preserve other accessory types")
         func device(_ percent: Int, id: String = "HID:1", name: String = "Keyboard") -> PeripheralBatteryDevice {
             PeripheralBatteryDevice(id: id, name: name, percent: percent, kind: .keyboard)
         }

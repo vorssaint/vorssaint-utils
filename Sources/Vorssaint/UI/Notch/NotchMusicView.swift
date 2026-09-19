@@ -28,7 +28,7 @@ struct NotchMusicView: View {
                         .scrollIndicators(.automatic)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            } else {
+            } else if !service.awaitingPlayback {
                 HStack(spacing: 20) {
                     Image(systemName: "music.note")
                         .font(.system(size: 30, weight: .light))
@@ -48,7 +48,7 @@ struct NotchMusicView: View {
             if AppFeature.mixer.isAvailable { NotchAudioControls(inline: true) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear { syncExtras() }
+        .onAppear { syncExtras(); service.refreshAutomation() }
         .onChange(of: extra) { syncExtras() }
         .onChange(of: service.playback.map(NotchMusicIdentity.init)) { syncExtras() }
         .onChange(of: features.revision) { syncExtras() }
@@ -122,11 +122,12 @@ struct NotchMusicView: View {
                             .lineLimit(2).help(playback.track.title ?? text.mediaNowPlaying)
                         Spacer(minLength: 0)
                         if playback.isPlaying {
-                            NotchEqualizerBars(bars: 3, barWidth: 2.5, height: 12, tint: accent)
+                            NotchLiveEqualizerBars(bars: 3, barWidth: 2.5, height: 12, tint: accent)
                                 .transition(.opacity)
                         }
                     }
-                    Text(service.commandFailed ? l10n.s.monitorUnavailable : playback.track.artist ?? playback.track.album ?? text.mediaNowPlaying)
+                    Text(service.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
+                         : playback.track.artist ?? playback.track.album ?? text.mediaNowPlaying)
                         .font(.system(size: 13))
                         .foregroundStyle(service.commandFailed ? .orange : .secondary)
                         .lineLimit(1)
@@ -142,15 +143,38 @@ struct NotchMusicView: View {
 
 private struct NotchMusicTransport: View {
     let playback: NotchPlayback
-    private let service = NotchMusicService.shared
+    // Automation discovery and consent finish after the first render while the
+    // track stays the same, so this row must observe the service itself.
+    @ObservedObject private var service = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
 
     var body: some View {
+        if !playback.canSendCommandsDirectly, service.automationAvailability?.access != .granted {
+            HStack(spacing: 10) {
+                if service.automationAvailability?.access == .consent {
+                    Button(FeatureStrings.notchMusicExtras(l10n.language).allowPlayback) { service.requestAutomationAccess() }
+                        .disabled(service.requestingAutomation)
+                    if service.requestingAutomation { ProgressView().controlSize(.small) }
+                } else if service.automationAvailability?.access == .denied {
+                    Button(l10n.s.permissionOpenSettings) { Permissions.shared.openAutomationSettings() }
+                    Button { service.refreshAutomation() } label: { Image(systemName: "arrow.clockwise") }
+                        .accessibilityLabel(FeatureStrings.notchMusicExtras(l10n.language).refresh)
+                } else {
+                    Button(FeatureStrings.notchMusicExtras(l10n.language).openPlayer) { RadialNowPlayingApplication.open(playback.track) }
+                }
+            }
+            .buttonStyle(.borderless).font(.caption).frame(height: 44)
+        } else {
+            transportButtons
+        }
+    }
+
+    private var transportButtons: some View {
         HStack(spacing: 22) {
             playbackButton("backward.end.fill", title: text.mediaPrevious, command: .previous)
-            Button { service.send(.toggle) } label: {
+            Button { service.send(.toggle, context: playback.commandContext) } label: {
                 Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.black)
@@ -161,6 +185,7 @@ private struct NotchMusicTransport: View {
                     .contentShape(Circle())
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 20))
+            .disabled(!service.canPerform(.toggle))
             .keyboardShortcut(.space, modifiers: [])
             .accessibilityLabel(text.mediaPlayPause)
             .help(text.mediaPlayPause)
@@ -170,7 +195,7 @@ private struct NotchMusicTransport: View {
     }
 
     private func playbackButton(_ symbol: String, title: String, command: NotchMusicService.Command) -> some View {
-        Button { service.send(command) } label: {
+        Button { service.send(command, context: playback.commandContext) } label: {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(.white.opacity(0.85))
@@ -178,6 +203,7 @@ private struct NotchMusicTransport: View {
                 .contentShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(NotchButtonStyle())
+        .disabled(!service.canPerform(command))
         .accessibilityLabel(title)
         .help(title)
     }
@@ -185,11 +211,12 @@ private struct NotchMusicTransport: View {
 
 private struct NotchMusicTimeline: View {
     let playback: NotchPlayback
-    let service: NotchMusicService
+    @ObservedObject var service: NotchMusicService
     var tint: Color = .white
     @ObservedObject private var l10n = L10n.shared
     @State private var scrubPosition: Double?
     @State private var scrubTrack: RadialNowPlayingSnapshot?
+    @State private var scrubContext: NotchPlaybackContext?
     @State private var pendingSeek: UUID?
 
     var body: some View {
@@ -197,10 +224,13 @@ private struct NotchMusicTimeline: View {
             TimelineView(.animation(minimumInterval: 1, paused: !playback.isPlaying)) { context in
                 let position = scrubPosition ?? playback.position(at: context.date)
                 VStack(spacing: 3) {
-                    if playback.canSeek {
+                    if service.canSeek {
                         NotchLevelSlider(
                             value: Binding(get: { position }, set: {
-                                if scrubTrack == nil { scrubTrack = playback.track }
+                                if scrubTrack == nil {
+                                    scrubTrack = playback.track
+                                    scrubContext = playback.commandContext
+                                }
                                 scrubPosition = $0
                             }),
                             label: FeatureStrings.notch(l10n.language).playbackPosition,
@@ -211,11 +241,12 @@ private struct NotchMusicTimeline: View {
                                 if editing {
                                     pendingSeek = nil
                                 } else if let scrubPosition, let scrubTrack {
-                                    service.seek(to: scrubPosition, in: scrubTrack)
+                                    service.seek(to: scrubPosition, in: scrubTrack, context: scrubContext)
                                     pendingSeek = UUID()
                                 }
                             })
                             .frame(height: 10)
+                            .disabled(service.commandPending)
                     } else {
                         NotchMeter(value: position / playback.duration, height: 6, tint: tint)
                     }
@@ -231,6 +262,7 @@ private struct NotchMusicTimeline: View {
             }
             .frame(height: 30)
             .onChange(of: playback.track) { clearScrub() }
+            .onChange(of: playback.commandContext) { clearScrub() }
             .onChange(of: playback.sampledAt) {
                 if pendingSeek != nil, let scrubPosition,
                    abs(playback.position(at: Date()) - scrubPosition) <= 2 { clearScrub() }
@@ -250,6 +282,7 @@ private struct NotchMusicTimeline: View {
         pendingSeek = nil
         scrubPosition = nil
         scrubTrack = nil
+        scrubContext = nil
     }
 
     private func timestamp(_ interval: TimeInterval) -> String {
@@ -278,11 +311,11 @@ struct NotchMusicControlsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Button { notch.select(.music) } label: {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(music.playback?.track.title ?? text.mediaNothingPlaying)
+                        Text(music.playback?.track.title ?? (music.awaitingPlayback ? text.mediaNowPlaying : text.mediaNothingPlaying))
                             .font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                        Text(music.commandFailed ? l10n.s.monitorUnavailable
+                        Text(music.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
                              : music.playback?.track.artist ?? music.playback?.track.album
-                                ?? FeatureStrings.notch(l10n.language).musicHint)
+                                ?? (music.awaitingPlayback ? "" : FeatureStrings.notch(l10n.language).musicHint))
                             .font(.system(size: 11))
                             .foregroundStyle(music.commandFailed ? .orange : .secondary)
                             .lineLimit(1)
@@ -301,5 +334,6 @@ struct NotchMusicControlsView: View {
         .frame(maxWidth: .infinity)
         .frame(height: NotchLayout.musicControlHeight)
         .modifier(NotchControlSurface(cornerRadius: 18))
+        .onAppear { music.refreshAutomation() }
     }
 }

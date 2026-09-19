@@ -50,6 +50,7 @@ enum NotchQueueSupport {
             items.append(NotchQueueItem(id: id, offset: offset, title: title, artist: artist, duration: duration))
         }
         return NotchQueueSnapshot(requestID: requestID, currentIdentifier: current, pid: pid,
-                                  items: items.sorted { $0.offset < $1.offset }, canPlay: object["queueCanPlay"] as? Bool == true)
+                                  items: items.sorted { $0.offset < $1.offset },
+                                  canPlay: playback.canSendCommandsDirectly && object["queueCanPlay"] as? Bool == true)
     }
 }

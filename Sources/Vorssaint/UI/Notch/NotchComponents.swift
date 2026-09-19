@@ -36,41 +36,19 @@ extension NotchArtworkTint {
     var color: Color { Color(.sRGB, red: red, green: green, blue: blue, opacity: 1) }
 }
 
-/// Bars that rise and fall while something is playing — the one moving thing
-/// in the resting notch. Purely decorative, so it is hidden from assistive
-/// technology, holds still when motion is reduced and stops dead when paused.
-struct NotchEqualizerBars: View {
+/// The bars with the live levels attached. Only this small view observes the
+/// audio service, so its thirty updates a second never re-render the island.
+struct NotchLiveEqualizerBars: View {
     var isPlaying = true
     var bars = 4
     var barWidth: CGFloat = 2.5
     var height: CGFloat = 14
     var tint: Color = .white
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var animates: Bool { isPlaying && !reduceMotion }
+    @ObservedObject private var audio = NotchAudioLevelService.shared
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !animates)) { context in
-            HStack(alignment: .center, spacing: barWidth * 0.85) {
-                ForEach(0..<max(1, bars), id: \.self) { index in
-                    Capsule(style: .continuous)
-                        .fill(tint)
-                        .frame(width: barWidth,
-                               height: barHeight(index, at: context.date.timeIntervalSinceReferenceDate))
-                }
-            }
-            .frame(height: height)
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func barHeight(_ index: Int, at phase: Double) -> CGFloat {
-        guard animates else { return barWidth }
-        let center = Double(max(1, bars) - 1) / 2
-        let distance = abs(Double(index) - center) / max(1, center)
-        let envelope = pow(1 - distance, 1.5)
-        let wave = (sin(phase * (5.2 + Double(index) * 0.61) + Double(index) * 1.7) + 1) / 2
-        return max(barWidth, height * (0.12 + envelope * (0.25 + 0.63 * wave)))
+        NotchEqualizerBars(isPlaying: isPlaying, bars: bars, barWidth: barWidth, height: height, tint: tint,
+                           live: audio.levels)
     }
 }
 
@@ -196,6 +174,7 @@ struct NotchTileGrid<Item: Identifiable, Content: View>: View {
 struct NotchControlSurface: ViewModifier {
     let cornerRadius: CGFloat
     var selected = false
+    var interactive = true
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
@@ -206,7 +185,7 @@ struct NotchControlSurface: ViewModifier {
 #if compiler(>=6.2)
             if #available(macOS 26, *), glass, !reduceTransparency {
                 content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
-                    .glassEffect(.regular.interactive(), in: shape)
+                    .glassEffect(.regular.interactive(interactive), in: shape)
             } else {
                 content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
             }

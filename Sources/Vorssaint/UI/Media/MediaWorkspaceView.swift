@@ -54,6 +54,7 @@ struct MediaWorkspaceView: View {
     @ObservedObject private var media: MediaService
     @ObservedObject private var featureRuntime = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.notchPresentation) private var inNotch
 
     @AppStorage(DefaultsKey.mediaLastTool) private var toolRaw = MediaTool.videoCompressor.rawValue
     @AppStorage(DefaultsKey.mediaVideoStart) private var videoStart = 0.0
@@ -89,6 +90,7 @@ struct MediaWorkspaceView: View {
     @AppStorage(DefaultsKey.mediaImageRenamePattern) private var imageRenamePattern = ""
     @AppStorage(DefaultsKey.mediaImageBackground) private var imageBackgroundRaw = MediaImageBackground.transparent.rawValue
     @AppStorage(DefaultsKey.mediaImagePreserveModificationDate) private var imagePreserveModificationDate = false
+    @AppStorage(DefaultsKey.mediaImageSaveInSubfolder) private var imageSaveInSubfolder = false
     @AppStorage(DefaultsKey.mediaImageProfiles) private var imageProfilesRaw = "[]"
     @AppStorage(DefaultsKey.mediaImageSelectedProfileID) private var imageSelectedProfileID = ""
 
@@ -129,21 +131,32 @@ struct MediaWorkspaceView: View {
     private let initialInputs: [URL]
     private let initialTool: MediaTool?
     private let preservesServiceState: Bool
+    private let onContentHeightChange: ((CGFloat) -> Void)?
+    private let onToolChange: (() -> Void)?
 
     init(compact: Bool, onClose: (() -> Void)? = nil,
          media: MediaService = .shared, initialInputs: [URL] = [],
          initialTool: MediaTool? = nil, preservesServiceState: Bool = false,
-         workspace: MediaWorkspaceSelection? = nil) {
+         workspace: MediaWorkspaceSelection? = nil,
+         onContentHeightChange: ((CGFloat) -> Void)? = nil,
+         onToolChange: (() -> Void)? = nil) {
         self.compact = compact
         self.onClose = onClose
         self.media = media
         self.initialInputs = initialInputs
         self.initialTool = initialTool
         self.preservesServiceState = preservesServiceState
+        self.onContentHeightChange = onContentHeightChange
+        self.onToolChange = onToolChange
         _workspace = StateObject(wrappedValue: workspace ?? MediaWorkspaceSelection())
     }
 
     private var inputURL: URL? { inputURLs.first }
+    private static let imageOutputSubfolderName = "Converted"
+    private static let imageRenameTokens = [
+        "{name}", "{index}", "{index:03}", "{counter}", "{date}",
+        "{time}", "{datetime}", "{width}", "{height}", "{format}",
+    ]
     private var imageText: MediaImageConverterStrings {
         MediaImageConverterStrings.localized(l10n.language)
     }
@@ -173,6 +186,8 @@ struct MediaWorkspaceView: View {
         Binding {
             selectedTool
         } set: { newValue in
+            guard newValue != selectedTool else { return }
+            onToolChange?()
             selectedTool = newValue
         }
     }
@@ -183,15 +198,7 @@ struct MediaWorkspaceView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
-            header
-            toolPicker
-            ScrollView {
-                content
-                    .padding(.trailing, 1)
-            }
-            .frame(maxHeight: compact && !preservesServiceState ? 430 : .infinity)
-        }
+        layout
         .onAppear {
             if !workspace.loadedInitialInputs {
                 workspace.loadedInitialInputs = true
@@ -228,6 +235,33 @@ struct MediaWorkspaceView: View {
                 mediaDefaultsTask?.cancel()
                 workspace.durationLoading.cancel()
                 cancelVideoImport()
+            }
+        }
+    }
+
+    private var layout: some View {
+        Group {
+            if let onContentHeightChange {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+                        header
+                        toolPicker
+                        content.padding(.trailing, 1)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        onContentHeightChange($0)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+                    header
+                    toolPicker
+                    ScrollView {
+                        content.padding(.trailing, 1)
+                    }
+                    .frame(maxHeight: compact ? 430 : .infinity)
+                }
             }
         }
     }
@@ -272,63 +306,74 @@ struct MediaWorkspaceView: View {
         }
     }
 
-    private var fileCard: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            ZStack(alignment: .trailing) {
-                Button {
-                    chooseInput()
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: selectedTool == .textExtractor ? "doc.text.viewfinder" : "doc.badge.plus")
-                            .font(.system(size: 16, weight: .semibold))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(inputTitle)
-                                .font(.system(size: compact ? 11.5 : 12.5, weight: .semibold))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Text(l10n.s.mediaDropHint)
-                                .font(.system(size: compact ? 9.5 : 10.5))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(compact ? 9 : 12)
-                    .padding(.trailing, inputURLs.isEmpty ? 0 : (compact ? 30 : 34))
-                    .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
-                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
-
-                if !inputURLs.isEmpty {
-                    Button {
-                        clearInput()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: compact ? 14 : 16, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: compact ? 24 : 28, height: compact ? 24 : 28)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(l10n.s.mediaCancel)
-                    .padding(.trailing, compact ? 8 : 10)
-                }
-            }
-            .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isDropTargeted ? Color.accentColor.opacity(0.16) : PanelSurface.controlFill(for: colorScheme))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(isDropTargeted ? Color.accentColor.opacity(0.7) : PanelSurface.border(for: colorScheme),
-                                  lineWidth: isDropTargeted ? 1.2 : 0.8)
-            )
-            .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+    @ViewBuilder private var inputDropTarget: some View {
+        if inNotch {
+            inputSelector
+        } else {
+            inputSelector.onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
                 acceptDrop(providers)
             }
+        }
+    }
+
+    private var inputSelector: some View {
+        ZStack(alignment: .trailing) {
+            Button {
+                chooseInput()
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: selectedTool == .textExtractor ? "doc.text.viewfinder" : "doc.badge.plus")
+                        .font(.system(size: 16, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(inputTitle)
+                            .font(.system(size: compact ? 11.5 : 12.5, weight: .semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Text(l10n.s.mediaDropHint)
+                            .font(.system(size: compact ? 9.5 : 10.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(compact ? 9 : 12)
+                .padding(.trailing, inputURLs.isEmpty ? 0 : (compact ? 30 : 34))
+                .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
+                .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
+
+            if !inputURLs.isEmpty {
+                Button {
+                    clearInput()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: compact ? 14 : 16, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: compact ? 24 : 28, height: compact ? 24 : 28)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(l10n.s.mediaCancel)
+                .padding(.trailing, compact ? 8 : 10)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isDropTargeted ? Color.accentColor.opacity(0.16) : PanelSurface.controlFill(for: colorScheme))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isDropTargeted ? Color.accentColor.opacity(0.7) : PanelSurface.border(for: colorScheme),
+                              lineWidth: isDropTargeted ? 1.2 : 0.8)
+        )
+    }
+
+    private var fileCard: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            inputDropTarget
 
             HStack(spacing: 7) {
                 Text(l10n.s.mediaOutput)
@@ -346,6 +391,11 @@ struct MediaWorkspaceView: View {
                 }
                 .controlSize(.small)
                 .disabled(inputURLs.isEmpty || isRunning)
+            }
+            if selectedTool == .imageCompressor, inputURLs.count > 1 {
+                Toggle(imageText.saveInSubfolder, isOn: $imageSaveInSubfolder)
+                    .toggleStyle(.checkbox)
+                    .disabled(isRunning)
             }
         }
         .panelCard()
@@ -696,20 +746,20 @@ struct MediaWorkspaceView: View {
 
     private var imagePreviewSection: some View {
         HStack(spacing: 10) {
-            ZStack(alignment: previewAlignment) {
+            ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(previewBackgroundColor)
                 if let thumbnail = inputURL.flatMap({ ImageThumbnailer.thumbnail(for: $0, pointSize: compact ? 96 : 128) }) {
                     previewImage(thumbnail)
-                        .padding(4)
+                        .frame(width: previewFrameSize.width,
+                               height: previewFrameSize.height,
+                               alignment: .center)
+                        .clipped()
                 } else {
                     Image(systemName: "photo")
                         .font(.system(size: compact ? 26 : 32))
                         .foregroundStyle(.secondary)
                 }
-                previewWatermarkOverlay
-                    .padding(previewWatermarkMargin)
-                    .opacity(imageWatermarkOpacity)
             }
             .task(id: currentWatermark.usesLogo ? imageWatermarkLogoPath : "") {
                 watermarkLogo = currentWatermark.usesLogo
@@ -717,6 +767,12 @@ struct MediaWorkspaceView: View {
                     : nil
             }
             .frame(width: previewFrameSize.width, height: previewFrameSize.height)
+            .overlay(alignment: previewAlignment) {
+                previewWatermarkOverlay
+                    .padding(previewWatermarkMargin)
+                    .opacity(currentWatermark.opacity)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
@@ -879,12 +935,24 @@ struct MediaWorkspaceView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(imageText.rename)
                 .font(.system(size: compact ? 10 : 11, weight: .semibold))
-            TextField("{name}-{index:03}", text: $imageRenamePattern)
-                .textFieldStyle(.roundedBorder)
-            Text("{name} {index} {index:03} {counter} {date} {time} {datetime} {width} {height} {format}")
-                .font(.system(size: compact ? 8.5 : 9.5, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                TextField("{name}-{index:03}", text: $imageRenamePattern)
+                    .textFieldStyle(.roundedBorder)
+                Menu {
+                    ForEach(Self.imageRenameTokens, id: \.self) { token in
+                        Button(token) {
+                            imageRenamePattern.append(token)
+                        }
+                    }
+                } label: {
+                    Text("{…}")
+                        .font(.system(size: compact ? 10 : 11, design: .monospaced))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help(imageText.rename)
+                .accessibilityLabel(imageText.rename)
+            }
         }
     }
 
@@ -933,6 +1001,10 @@ struct MediaWorkspaceView: View {
                     compressionButton(level, value: value)
                 }
             }
+            Text(compressionDescription(for: MediaCompressionLevel.nearest(to: value.wrappedValue)))
+                .font(.system(size: compact ? 9.5 : 10.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1195,6 +1267,14 @@ struct MediaWorkspaceView: View {
         }
     }
 
+    private func compressionDescription(for level: MediaCompressionLevel) -> String {
+        switch level {
+        case .low: return l10n.s.mediaCompressionLowDescription
+        case .medium: return l10n.s.mediaCompressionMediumDescription
+        case .high: return l10n.s.mediaCompressionHighDescription
+        }
+    }
+
     private func compressionTitle(for level: MediaCompressionLevel) -> String {
         switch level {
         case .low: return l10n.s.mediaCompressionLow
@@ -1222,7 +1302,7 @@ struct MediaWorkspaceView: View {
             panel.canChooseFiles = false
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = false
-            panel.directoryURL = (outputURL ?? inputURL.deletingLastPathComponent())
+            panel.directoryURL = outputURL ?? inputURL.deletingLastPathComponent()
             Self.runPanelModal(panel) { response in
                 if response == .OK, let url = panel.url {
                     outputURL = url
@@ -1258,6 +1338,20 @@ struct MediaWorkspaceView: View {
                                       completion: @escaping (NSApplication.ModalResponse) -> Void) {
         guard !panelModalActive else { return }
         panelModalActive = true
+        if let island = NotchService.shared.presentationWindow, island.isVisible,
+           NSApp.currentEvent?.window === island || NSApp.keyWindow === island {
+            // The island floats above the modal panel level, so an
+            // application-modal dialog would open behind it. A sheet shares
+            // the island's level and keeps its working surface open.
+            panel.beginSheetModal(for: island) { response in
+                panelModalActive = false
+                // Dismissal restores the previous key window after this callback.
+                DispatchQueue.main.async { if NotchService.shared.expanded { island.makeKey() } }
+                completion(response)
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async {
             let response = panel.runModal()
@@ -1465,8 +1559,12 @@ struct MediaWorkspaceView: View {
                                                        megabytes: gifTargetMegabytes)))
         case .imageCompressor:
             if inputURLs.count > 1 {
+                let outputDirectory = imageSaveInSubfolder
+                    ? outputURL.appendingPathComponent(Self.imageOutputSubfolderName,
+                                                       isDirectory: true)
+                    : outputURL
                 media.processImages(inputURLs: inputURLs,
-                                    outputDirectory: outputURL,
+                                    outputDirectory: outputDirectory,
                                     options: currentImageOptions)
             } else {
                 media.compressImage(inputURL: inputURL,

@@ -78,8 +78,8 @@ final class NotchTimerService: ObservableObject {
 
     private func scheduleCompletion() {
         completionTask?.cancel(); completionTask = nil
-        guard !suspended, session.isRunning else { return }
-        let remaining = session.remaining(at: now)
+        guard !suspended, let deadline = session.deadline else { return }
+        let remaining = max(0, deadline - now)
         completionTask = Task { @MainActor [weak self] in
             do { try await Task.sleep(for: .seconds(remaining), clock: .continuous) }
             catch { return }

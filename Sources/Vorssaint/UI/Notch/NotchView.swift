@@ -29,14 +29,25 @@ struct NotchView: View {
     }
 
     private var shape: NotchShape {
-        NotchShape(attached: service.geometry.isNotched,
-                   radius: min(28, service.surfaceSize.height / 2))
+        NotchShape(attached: true,
+                   radius: NotchLayout.surfaceRadius(height: service.surfaceSize.height))
     }
 
     @ViewBuilder private var surface: some View {
         if let options = service.captureControls {
-            NotchCaptureControlsView(options: options, service: service)
-                .padding(.horizontal, 18).padding(.top, service.geometry.safeContentTop)
+            if service.captureControlsCollapsed {
+                HStack(spacing: 0) {
+                    Image(systemName: options.selectedTool.systemImageName).frame(width: 28)
+                    Color.clear.frame(width: service.geometry.cameraWidth)
+                    Image(systemName: "chevron.down").frame(width: 28)
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .frame(maxHeight: .infinity)
+                .accessibilityHidden(true)
+            } else {
+                NotchCaptureControlsView(options: options, service: service)
+                    .padding(.horizontal, 18).padding(.top, service.geometry.safeContentTop)
+            }
         } else if service.expanded {
             expanded
         } else if service.dragPlaceholder {
@@ -52,19 +63,27 @@ struct NotchView: View {
                 .padding(.horizontal, 18)
                 .padding(.top, service.geometry.safeContentTop)
         } else if let notice = service.notice {
-            Button {
-                service.activateNotice(notice)
-            } label: {
-                NotchNoticeView(notice: notice, geometry: service.geometry)
-                    .contentShape(Rectangle())
+            if service.noticeExpanded, let content = notice.notification {
+                NotchNotificationPreviewView(notice: notice, content: content, service: service)
+                    .padding(.horizontal, NotchLayout.horizontalInset)
+                    .padding(.top, service.geometry.safeContentTop)
+                    .padding(.bottom, NotchLayout.bottomInset)
+                    .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
+            } else {
+                Button {
+                    service.activateNotice(notice)
+                } label: {
+                    NotchNoticeView(notice: notice, geometry: service.geometry)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(notice.accessibilityText)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { service.activateNotice(notice) }
+                .accessibilityHint(text.open)
+                .transition(.opacity)
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(notice.accessibilityText)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { service.activateNotice(notice) }
-            .accessibilityHint(text.open)
-            .transition(.opacity)
         } else if service.peeking {
             HStack {
                 navigation
@@ -104,8 +123,8 @@ struct NotchView: View {
                     switch service.idleContent {
                     case .music:
                         if music.playback?.isPlaying == true {
-                            NotchEqualizerBars(bars: 3, barWidth: 2, height: 11,
-                                               tint: music.artworkTint?.color ?? .white)
+                            NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
+                                                   tint: music.artworkTint?.color ?? .white)
                         }
                     case .battery:
                         if let percent = service.power.chargePercent {
@@ -160,6 +179,7 @@ struct NotchView: View {
 
     private var header: some View {
         HStack(spacing: 6) {
+            let quickActions = NotchQuickAccessConfiguration.current().actions
             if service.showingSections {
                 NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
                 Text(text.sectionsTitle)
@@ -174,7 +194,7 @@ struct NotchView: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                if !NotchQuickAccessConfiguration.current().actions.contains(.explore) {
+                if !quickActions.contains(.explore) {
                     NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
                 }
                 Text(service.selected.title(l10n.language))
@@ -182,6 +202,7 @@ struct NotchView: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            NotchUpdateControl(action: service.showUpdate)
             if service.selected == .tools, !service.showingAppPanel, !service.showingSections, service.selectedMetric == nil,
                !service.modules.isEmpty, launcher.activeUtility == nil {
                 NotchIconButton(symbol: launcher.isEditing ? "checkmark" : "slider.horizontal.3",
@@ -189,30 +210,21 @@ struct NotchView: View {
                     withAnimation(.easeOut(duration: 0.15)) { launcher.isEditing.toggle() }
                 }
             }
-            Menu {
-                Button {
+            // Keeping the island open is one click, like the floating buttons;
+            // a header button steps aside when the same action floats beside it.
+            if !quickActions.contains(.pin) {
+                NotchIconButton(symbol: service.pinned ? "pin.fill" : "pin",
+                                title: service.pinned ? text.unpin : text.pin, selected: service.pinned) {
                     service.pinned.toggle()
-                } label: {
-                    Label(service.pinned ? text.unpin : text.pin, systemImage: service.pinned ? "pin.slash" : "pin")
                 }
-                Divider()
-                Button(action: service.openSettings) { Label(l10n.s.menuSettings, systemImage: "gearshape") }
-            } label: {
-                Label(l10n.s.keepAwakeOptions, systemImage: service.pinned ? "pin.fill" : "ellipsis")
-                    .labelStyle(.iconOnly)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(service.pinned ? .white : .secondary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(RoundedRectangle(cornerRadius: 10))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .accessibilityLabel(l10n.s.keepAwakeOptions)
-            .help(l10n.s.keepAwakeOptions)
+            if !quickActions.contains(.settings) {
+                NotchIconButton(symbol: "gearshape", title: l10n.s.menuSettings, action: service.openSettings)
+            }
             NotchIconButton(symbol: "chevron.up", title: text.collapse, action: service.collapse)
         }
         .frame(height: NotchLayout.headerHeight)
+        .onAppear { UpdateService.shared.checkIfStale() }
     }
 
     private var navigation: some View {
@@ -221,7 +233,7 @@ struct NotchView: View {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white.opacity(0.7))
-                Text(service.selected.title(l10n.language))
+                Text(service.reopeningModule.title(l10n.language))
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
             }
@@ -231,7 +243,7 @@ struct NotchView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
         .accessibilityLabel(text.switchSection)
-        .accessibilityValue(service.selected.title(l10n.language))
+        .accessibilityValue(service.reopeningModule.title(l10n.language))
         .accessibilityIdentifier("notch.navigation")
         .help(text.switchSection + "  ⌘K")
     }

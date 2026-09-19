@@ -20,9 +20,9 @@ final class NotchMusicCommandWriter: @unchecked Sendable {
     func setQueueRequest(_ id: UUID?) { lock.lock(); queueRequest = id; lock.unlock() }
 
     @discardableResult
-    func submit(_ command: NotchPlaybackCommand, write: @escaping (Data) throws -> Void,
+    func submit(_ command: NotchPlaybackCommand, context: NotchPlaybackContext? = nil, write: @escaping (Data) throws -> Void,
                 failed: @escaping () -> Void) -> Bool {
-        guard let message = command.message else { return false }
+        guard let message = NotchPlaybackRequest(command: command, context: context).message else { return false }
         lock.lock()
         let requestedGeneration = generation
         let accepted = active && (command.queueRequest == nil || command.queueRequest == queueRequest)

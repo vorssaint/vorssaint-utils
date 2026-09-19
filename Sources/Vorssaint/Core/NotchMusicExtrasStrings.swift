@@ -23,6 +23,10 @@ struct NotchMusicExtrasStrings {
     let later: String
     let reset: String
     let actionFailed: String
+    let playbackFailed: String
+    let allowPlayback: String
+    let automationPermission: String
+    let automationExplanation: String
     let queue: String
     let queueDescription: String
     let enableQueue: String
@@ -31,6 +35,11 @@ struct NotchMusicExtrasStrings {
     let playNow: String
     let refresh: String
     let openPlayer: String
+    let liveEqualizer: String
+    /// One line for the features hub, where the hint below would not fit.
+    let liveEqualizerDescription: String
+    let liveEqualizerHint: String
+    let liveEqualizerUnavailable: String
 }
 
 extension FeatureStrings {
@@ -56,6 +65,10 @@ extension FeatureStrings {
             later: "Later",
             reset: "Reset",
             actionFailed: "The player did not switch to this song.",
+            playbackFailed: "Could not change playback.",
+            allowPlayback: "Allow playback control",
+            automationPermission: "Playback automation",
+            automationExplanation: "Some music apps require permission for their playback controls. Authorize the selected player from Dynamic Island; access is granted separately for each app.",
             queue: "Up next",
             queueDescription: "See the actual upcoming songs shared by your player.",
             enableQueue: "Show upcoming songs",
@@ -63,7 +76,11 @@ extension FeatureStrings {
             queueEmpty: "No upcoming songs",
             playNow: "Play now",
             refresh: "Refresh",
-            openPlayer: "Open player")
+            openPlayer: "Open player",
+            liveEqualizer: "Bars follow the music",
+            liveEqualizerDescription: "Move the Dynamic Island bars with the sound your player makes.",
+            liveEqualizerHint: "Listens to the player’s own audio output to move the bars. macOS asks once to allow system audio recording. Nothing is stored or sent. Without it, the bars keep their usual motion.",
+            liveEqualizerUnavailable: "Needs macOS 14.4 or later.")
         case .ptBR: return NotchMusicExtrasStrings(
             lyrics: "Letra",
             lyricsDescription: "Acompanhe a letra da música atual no Dynamic Island.",
@@ -84,6 +101,10 @@ extension FeatureStrings {
             later: "Atrasar",
             reset: "Redefinir",
             actionFailed: "O reprodutor não mudou para esta música.",
+            playbackFailed: "Não foi possível alterar a reprodução.",
+            allowPlayback: "Permitir controle da reprodução",
+            automationPermission: "Automação da reprodução",
+            automationExplanation: "Alguns reprodutores precisam de permissão para seus controles. Autorize o reprodutor escolhido na Dynamic Island; o acesso é concedido separadamente para cada app.",
             queue: "A seguir",
             queueDescription: "Veja as próximas músicas informadas pelo reprodutor.",
             enableQueue: "Mostrar próximas músicas",
@@ -91,7 +112,11 @@ extension FeatureStrings {
             queueEmpty: "Nenhuma música a seguir",
             playNow: "Reproduzir agora",
             refresh: "Atualizar",
-            openPlayer: "Abrir reprodutor")
+            openPlayer: "Abrir reprodutor",
+            liveEqualizer: "Barras seguem a música",
+            liveEqualizerDescription: "Mova as barras do Dynamic Island com o som do seu reprodutor.",
+            liveEqualizerHint: "Ouve a saída de áudio do próprio player para mover as barras. O macOS pede uma vez permissão para gravar o áudio do sistema. Nada é guardado nem enviado. Sem ela, as barras mantêm o movimento habitual.",
+            liveEqualizerUnavailable: "Requer macOS 14.4 ou posterior.")
         case .es: return NotchMusicExtrasStrings(
             lyrics: "Letra",
             lyricsDescription: "Sigue la letra de la canción actual en el Dynamic Island.",
@@ -112,6 +137,10 @@ extension FeatureStrings {
             later: "Retrasar",
             reset: "Restablecer",
             actionFailed: "El reproductor no cambió a esta canción.",
+            playbackFailed: "No se pudo cambiar la reproducción.",
+            allowPlayback: "Permitir controlar la reproducción",
+            automationPermission: "Automatización de reproducción",
+            automationExplanation: "Algunos reproductores necesitan permiso para sus controles. Autoriza el reproductor elegido desde Dynamic Island; el acceso se concede por separado para cada app.",
             queue: "A continuación",
             queueDescription: "Ve las próximas canciones que comparte el reproductor.",
             enableQueue: "Mostrar próximas canciones",
@@ -119,7 +148,11 @@ extension FeatureStrings {
             queueEmpty: "No hay próximas canciones",
             playNow: "Reproducir ahora",
             refresh: "Actualizar",
-            openPlayer: "Abrir reproductor")
+            openPlayer: "Abrir reproductor",
+            liveEqualizer: "Las barras siguen la música",
+            liveEqualizerDescription: "Mueve las barras del Dynamic Island con el sonido del reproductor.",
+            liveEqualizerHint: "Escucha la salida de audio del propio reproductor para mover las barras. macOS pide una vez permiso para grabar el audio del sistema. No se guarda ni se envía nada. Sin él, las barras mantienen su movimiento habitual.",
+            liveEqualizerUnavailable: "Necesita macOS 14.4 o posterior.")
         case .de: return NotchMusicExtrasStrings(
             lyrics: "Liedtext",
             lyricsDescription: "Verfolge den Text des aktuellen Songs im Dynamic Island.",
@@ -140,6 +173,10 @@ extension FeatureStrings {
             later: "Später",
             reset: "Zurücksetzen",
             actionFailed: "Der Player hat nicht zu diesem Song gewechselt.",
+            playbackFailed: "Wiedergabe konnte nicht geändert werden.",
+            allowPlayback: "Wiedergabesteuerung erlauben",
+            automationPermission: "Wiedergabeautomation",
+            automationExplanation: "Einige Musik-Apps benötigen eine Erlaubnis für die Steuerung. Erlaube den ausgewählten Player in Dynamic Island; der Zugriff wird für jede App einzeln erteilt.",
             queue: "Als Nächstes",
             queueDescription: "Sieh die nächsten Songs, die dein Player bereitstellt.",
             enableQueue: "Nächste Songs anzeigen",
@@ -147,7 +184,11 @@ extension FeatureStrings {
             queueEmpty: "Keine nächsten Songs",
             playNow: "Jetzt abspielen",
             refresh: "Aktualisieren",
-            openPlayer: "Player öffnen")
+            openPlayer: "Player öffnen",
+            liveEqualizer: "Balken folgen der Musik",
+            liveEqualizerDescription: "Bewege die Balken im Dynamic Island mit dem Klang deines Players.",
+            liveEqualizerHint: "Hört die Audioausgabe des Players ab, um die Balken zu bewegen. macOS fragt einmal nach der Erlaubnis, Systemaudio aufzunehmen. Nichts wird gespeichert oder gesendet. Ohne sie behalten die Balken ihre gewohnte Bewegung.",
+            liveEqualizerUnavailable: "Benötigt macOS 14.4 oder neuer.")
         case .fr: return NotchMusicExtrasStrings(
             lyrics: "Paroles",
             lyricsDescription: "Suivez les paroles du morceau en cours dans le Dynamic Island.",
@@ -168,6 +209,10 @@ extension FeatureStrings {
             later: "Retarder",
             reset: "Réinitialiser",
             actionFailed: "Le lecteur n’a pas lancé ce morceau.",
+            playbackFailed: "Impossible de modifier la lecture.",
+            allowPlayback: "Autoriser le contrôle de la lecture",
+            automationPermission: "Automatisation de la lecture",
+            automationExplanation: "Certains lecteurs demandent une autorisation pour leurs commandes. Autorisez le lecteur choisi dans Dynamic Island ; chaque app reçoit une autorisation distincte.",
             queue: "À suivre",
             queueDescription: "Consultez les prochains morceaux partagés par votre lecteur.",
             enableQueue: "Afficher les prochains morceaux",
@@ -175,7 +220,11 @@ extension FeatureStrings {
             queueEmpty: "Aucun morceau à suivre",
             playNow: "Lire maintenant",
             refresh: "Actualiser",
-            openPlayer: "Ouvrir le lecteur")
+            openPlayer: "Ouvrir le lecteur",
+            liveEqualizer: "Les barres suivent la musique",
+            liveEqualizerDescription: "Animez les barres du Dynamic Island avec le son de votre lecteur.",
+            liveEqualizerHint: "Écoute la sortie audio du lecteur pour animer les barres. macOS demande une fois l’autorisation d’enregistrer l’audio du système. Rien n’est conservé ni envoyé. Sans elle, les barres gardent leur mouvement habituel.",
+            liveEqualizerUnavailable: "Nécessite macOS 14.4 ou ultérieur.")
         case .it: return NotchMusicExtrasStrings(
             lyrics: "Testo",
             lyricsDescription: "Segui il testo del brano attuale nel Dynamic Island.",
@@ -196,6 +245,10 @@ extension FeatureStrings {
             later: "Ritarda",
             reset: "Ripristina",
             actionFailed: "Il lettore non è passato a questo brano.",
+            playbackFailed: "Impossibile modificare la riproduzione.",
+            allowPlayback: "Consenti il controllo della riproduzione",
+            automationPermission: "Automazione della riproduzione",
+            automationExplanation: "Alcuni lettori richiedono il permesso per i controlli. Autorizza il lettore scelto da Dynamic Island; l’accesso viene concesso separatamente per ogni app.",
             queue: "In coda",
             queueDescription: "Vedi i prossimi brani condivisi dal lettore.",
             enableQueue: "Mostra prossimi brani",
@@ -203,7 +256,11 @@ extension FeatureStrings {
             queueEmpty: "Nessun brano in coda",
             playNow: "Riproduci ora",
             refresh: "Aggiorna",
-            openPlayer: "Apri lettore")
+            openPlayer: "Apri lettore",
+            liveEqualizer: "Le barre seguono la musica",
+            liveEqualizerDescription: "Muovi le barre nel Dynamic Island con il suono del lettore.",
+            liveEqualizerHint: "Ascolta l’uscita audio del lettore per muovere le barre. macOS chiede una volta il permesso di registrare l’audio di sistema. Nulla viene salvato o inviato. Senza, le barre mantengono il movimento abituale.",
+            liveEqualizerUnavailable: "Richiede macOS 14.4 o successivo.")
         case .ru: return NotchMusicExtrasStrings(
             lyrics: "Текст песни",
             lyricsDescription: "Следите за текстом текущей песни в вырезе.",
@@ -224,6 +281,10 @@ extension FeatureStrings {
             later: "Позже",
             reset: "Сбросить",
             actionFailed: "Плеер не переключился на эту песню.",
+            playbackFailed: "Не удалось изменить воспроизведение.",
+            allowPlayback: "Разрешить управление воспроизведением",
+            automationPermission: "Автоматизация воспроизведения",
+            automationExplanation: "Некоторым плеерам нужно разрешение для управления. Разрешите управление выбранным плеером в Dynamic Island; доступ предоставляется отдельно каждому приложению.",
             queue: "Далее",
             queueDescription: "Просматривайте следующие песни, переданные плеером.",
             enableQueue: "Показывать следующие песни",
@@ -231,7 +292,11 @@ extension FeatureStrings {
             queueEmpty: "Следующих песен нет",
             playNow: "Воспроизвести сейчас",
             refresh: "Обновить",
-            openPlayer: "Открыть плеер")
+            openPlayer: "Открыть плеер",
+            liveEqualizer: "Полоски следуют музыке",
+            liveEqualizerDescription: "Двигайте полоски в вырезе звуком самого плеера.",
+            liveEqualizerHint: "Слушает вывод звука самого плеера, чтобы двигать полоски. macOS один раз попросит разрешение на запись системного звука. Ничего не сохраняется и не отправляется. Без него полоски двигаются как обычно.",
+            liveEqualizerUnavailable: "Требуется macOS 14.4 или новее.")
         case .tr: return NotchMusicExtrasStrings(
             lyrics: "Şarkı sözleri",
             lyricsDescription: "Çalan şarkının sözlerini çentikte takip edin.",
@@ -252,6 +317,10 @@ extension FeatureStrings {
             later: "Geciktir",
             reset: "Sıfırla",
             actionFailed: "Oynatıcı bu şarkıya geçmedi.",
+            playbackFailed: "Oynatma değiştirilemedi.",
+            allowPlayback: "Oynatma denetimine izin ver",
+            automationPermission: "Oynatma otomasyonu",
+            automationExplanation: "Bazı müzik uygulamaları denetimler için izin ister. Seçilen oynatıcıya Dynamic Island’dan izin verin; erişim her uygulama için ayrı verilir.",
             queue: "Sıradaki",
             queueDescription: "Oynatıcının paylaştığı sıradaki şarkıları görün.",
             enableQueue: "Sıradaki şarkıları göster",
@@ -259,7 +328,11 @@ extension FeatureStrings {
             queueEmpty: "Sırada şarkı yok",
             playNow: "Şimdi çal",
             refresh: "Yenile",
-            openPlayer: "Oynatıcıyı aç")
+            openPlayer: "Oynatıcıyı aç",
+            liveEqualizer: "Çubuklar müziği izler",
+            liveEqualizerDescription: "Çentikteki çubukları oynatıcının sesiyle hareket ettirin.",
+            liveEqualizerHint: "Çubukları hareket ettirmek için oynatıcının kendi ses çıkışını dinler. macOS sistem sesini kaydetme iznini bir kez sorar. Hiçbir şey saklanmaz veya gönderilmez. İzin verilmezse çubuklar her zamanki hareketini sürdürür.",
+            liveEqualizerUnavailable: "macOS 14.4 veya üstü gerekir.")
         case .ja: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "再生中の曲の歌詞をDynamic Islandに表示します。",
@@ -280,6 +353,10 @@ extension FeatureStrings {
             later: "遅らせる",
             reset: "リセット",
             actionFailed: "プレーヤーがこの曲に切り替わりませんでした。",
+            playbackFailed: "再生を変更できませんでした。",
+            allowPlayback: "再生の操作を許可",
+            automationPermission: "再生のオートメーション",
+            automationExplanation: "一部の音楽アプリでは操作の許可が必要です。Dynamic Islandで選択したプレーヤーを許可してください。アクセスはアプリごとに付与されます。",
             queue: "次に再生",
             queueDescription: "プレーヤーが共有する次の曲を表示します。",
             enableQueue: "次の曲を表示",
@@ -287,7 +364,11 @@ extension FeatureStrings {
             queueEmpty: "次の曲はありません",
             playNow: "今すぐ再生",
             refresh: "更新",
-            openPlayer: "プレーヤーを開く")
+            openPlayer: "プレーヤーを開く",
+            liveEqualizer: "バーが音楽に合わせて動く",
+            liveEqualizerDescription: "Dynamic Islandのバーをプレーヤーの音に合わせて動かします。",
+            liveEqualizerHint: "プレーヤー自身の音声出力を聞き取ってバーを動かします。macOS はシステム音声の録音許可を一度だけ求めます。何も保存や送信はされません。許可がない場合、バーは通常の動きのままです。",
+            liveEqualizerUnavailable: "macOS 14.4 以降が必要です。")
         case .ko: return NotchMusicExtrasStrings(
             lyrics: "가사",
             lyricsDescription: "현재 곡의 가사를 Dynamic Island에서 확인합니다.",
@@ -308,6 +389,10 @@ extension FeatureStrings {
             later: "늦추기",
             reset: "재설정",
             actionFailed: "플레이어가 이 곡으로 전환하지 않았습니다.",
+            playbackFailed: "재생을 변경할 수 없습니다.",
+            allowPlayback: "재생 제어 허용",
+            automationPermission: "재생 자동화",
+            automationExplanation: "일부 음악 앱은 제어 권한이 필요합니다. Dynamic Island에서 선택한 플레이어를 허용하세요. 접근 권한은 앱마다 별도로 부여됩니다.",
             queue: "다음 곡",
             queueDescription: "플레이어가 공유하는 다음 곡을 확인합니다.",
             enableQueue: "다음 곡 표시",
@@ -315,7 +400,11 @@ extension FeatureStrings {
             queueEmpty: "다음 곡이 없습니다",
             playNow: "지금 재생",
             refresh: "새로 고침",
-            openPlayer: "플레이어 열기")
+            openPlayer: "플레이어 열기",
+            liveEqualizer: "막대가 음악을 따라 움직임",
+            liveEqualizerDescription: "Dynamic Island의 막대를 플레이어의 소리에 맞춰 움직입니다.",
+            liveEqualizerHint: "플레이어의 오디오 출력을 듣고 막대를 움직입니다. macOS가 시스템 오디오 녹음 권한을 한 번 요청합니다. 아무것도 저장하거나 전송하지 않습니다. 권한이 없으면 막대는 평소처럼 움직입니다.",
+            liveEqualizerUnavailable: "macOS 14.4 이상이 필요합니다.")
         case .zhHans: return NotchMusicExtrasStrings(
             lyrics: "歌词",
             lyricsDescription: "在Dynamic Island中跟随当前歌曲的歌词。",
@@ -336,6 +425,10 @@ extension FeatureStrings {
             later: "延后",
             reset: "重置",
             actionFailed: "播放器未切换到这首歌曲。",
+            playbackFailed: "无法更改播放状态。",
+            allowPlayback: "允许控制播放",
+            automationPermission: "播放自动化",
+            automationExplanation: "部分音乐应用需要授权才能控制播放。请在 Dynamic Island 中授权所选播放器；每个应用需单独授权。",
             queue: "接下来",
             queueDescription: "查看播放器共享的后续歌曲。",
             enableQueue: "显示后续歌曲",
@@ -343,7 +436,11 @@ extension FeatureStrings {
             queueEmpty: "没有后续歌曲",
             playNow: "立即播放",
             refresh: "刷新",
-            openPlayer: "打开播放器")
+            openPlayer: "打开播放器",
+            liveEqualizer: "音柱跟随音乐",
+            liveEqualizerDescription: "让Dynamic Island的音柱随播放器的声音起伏。",
+            liveEqualizerHint: "监听播放器自身的音频输出来驱动音柱。macOS 会请求一次系统音频录制权限。不会保存或发送任何内容。未授权时音柱保持原有动画。",
+            liveEqualizerUnavailable: "需要 macOS 14.4 或更高版本。")
         case .zhTW: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "在Dynamic Island中跟隨目前歌曲的歌詞。",
@@ -364,6 +461,10 @@ extension FeatureStrings {
             later: "延後",
             reset: "重設",
             actionFailed: "播放器未切換至這首歌曲。",
+            playbackFailed: "無法更改播放狀態。",
+            allowPlayback: "允許控制播放",
+            automationPermission: "播放自動化",
+            automationExplanation: "部分音樂 App 需要授權才能控制播放。請在 Dynamic Island 中授權所選播放器；每個 App 皆需個別授權。",
             queue: "接著播放",
             queueDescription: "查看播放器分享的後續歌曲。",
             enableQueue: "顯示後續歌曲",
@@ -371,7 +472,11 @@ extension FeatureStrings {
             queueEmpty: "沒有後續歌曲",
             playNow: "立即播放",
             refresh: "重新整理",
-            openPlayer: "開啟播放器")
+            openPlayer: "開啟播放器",
+            liveEqualizer: "音柱跟隨音樂",
+            liveEqualizerDescription: "讓Dynamic Island的音柱隨播放器的聲音起伏。",
+            liveEqualizerHint: "監聽播放器本身的音訊輸出來驅動音柱。macOS 會請求一次系統音訊錄製權限。不會儲存或傳送任何內容。未授權時音柱保持原有動畫。",
+            liveEqualizerUnavailable: "需要 macOS 14.4 或更新版本。")
         case .zhHK: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "在Dynamic Island中跟隨目前歌曲的歌詞。",
@@ -392,6 +497,10 @@ extension FeatureStrings {
             later: "延後",
             reset: "重設",
             actionFailed: "播放器未切換至這首歌曲。",
+            playbackFailed: "無法更改播放狀態。",
+            allowPlayback: "允許控制播放",
+            automationPermission: "播放自動化",
+            automationExplanation: "部分音樂 App 需要授權才能控制播放。請在 Dynamic Island 中授權所選播放器；每個 App 都需要獨立授權。",
             queue: "接著播放",
             queueDescription: "查看播放器分享的後續歌曲。",
             enableQueue: "顯示後續歌曲",
@@ -399,7 +508,11 @@ extension FeatureStrings {
             queueEmpty: "沒有後續歌曲",
             playNow: "立即播放",
             refresh: "重新整理",
-            openPlayer: "開啟播放器")
+            openPlayer: "開啟播放器",
+            liveEqualizer: "音柱跟隨音樂",
+            liveEqualizerDescription: "讓Dynamic Island的音柱隨播放器的聲音起伏。",
+            liveEqualizerHint: "監聽播放器本身的音訊輸出來驅動音柱。macOS 會請求一次系統音訊錄製權限。不會儲存或傳送任何內容。未授權時音柱保持原有動畫。",
+            liveEqualizerUnavailable: "需要 macOS 14.4 或更新版本。")
         }
     }
 }

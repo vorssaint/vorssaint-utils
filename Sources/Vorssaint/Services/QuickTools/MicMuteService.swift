@@ -31,6 +31,9 @@ final class MicMuteService: ObservableObject {
     /// A sweep that finished after a newer one started must not publish what
     /// it saw.
     private var applyGeneration = 0
+    private let inputVolumeLock = NSLock()
+    private var inputVolumeBlocked = false
+    private var inputVolumeLifetime = UUID()
 
     private init() {
         hotkey.onPress = { [weak self] in self?.toggle() }
@@ -60,7 +63,8 @@ final class MicMuteService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.micMuteShortcut,
                                             fallback: .micMuteDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.micMuteShortcut)
 
         let wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
         if available {
@@ -102,6 +106,21 @@ final class MicMuteService: ObservableObject {
         apply(muted: muted, announce: true)
     }
 
+    var inputVolumeAdjustmentLifetime: UUID? {
+        guard !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) else { return nil }
+        return inputVolumeLock.withLock { inputVolumeBlocked ? nil : inputVolumeLifetime }
+    }
+
+    /// Called from the input manager's audio queue, never the main thread.
+    /// Sharing the mute queue prevents an older gain write from reopening a
+    /// microphone after the mute sweep has already silenced it.
+    func withUnmutedInput(lifetime: UUID, _ adjustment: () -> Void) {
+        halQueue.sync {
+            guard inputVolumeAdjustmentLifetime == lifetime else { return }
+            adjustment()
+        }
+    }
+
     /// Unmute for a caller that is about to tear the app down. The queue that
     /// carries a normal sweep may never be drained once the app is going away,
     /// and a microphone left cut by an app that no longer exists is the one
@@ -128,6 +147,10 @@ final class MicMuteService: ObservableObject {
         defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
         defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
         isMuted = false
+        inputVolumeLock.withLock {
+            inputVolumeBlocked = false
+            inputVolumeLifetime = UUID()
+        }
         removeListeners()
     }
 
@@ -143,6 +166,10 @@ final class MicMuteService: ObservableObject {
     /// Hands the sweep to the audio queue and keeps the published state, the
     /// persisted state and the HUD on the main thread, where they belong.
     private func apply(muted: Bool, announce: Bool) {
+        inputVolumeLock.withLock {
+            inputVolumeBlocked = muted
+            inputVolumeLifetime = UUID()
+        }
         let defaults = UserDefaults.standard
         let savedVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:]
         let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
@@ -165,7 +192,11 @@ final class MicMuteService: ObservableObject {
     private func finish(_ outcome: MuteOutcome, muted: Bool, announce: Bool, generation: Int) {
         // A sweep that reached nothing leaves the recorded state alone: it is
         // what a later unmute needs to put every level back.
-        guard generation == applyGeneration, outcome.applied else { return }
+        guard generation == applyGeneration else { return }
+        guard outcome.applied else {
+            inputVolumeLock.withLock { inputVolumeBlocked = isMuted }
+            return
+        }
         let defaults = UserDefaults.standard
         defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
         defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)

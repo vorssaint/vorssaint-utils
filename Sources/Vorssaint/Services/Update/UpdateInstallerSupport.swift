@@ -90,11 +90,16 @@ enum UpdateInstallerSupport {
             # Install under the name the DMG ships, in the same folder. A rebrand
             # changes the bundle filename, so this renames it on disk too; a plain
             # update keeps the same name and replaces it in place.
-            DEST="$(/usr/bin/dirname "$APP")/$(/usr/bin/basename "$SRC")"
+            DIR="$(/usr/bin/dirname "$APP")"
+            NAME="$(/usr/bin/basename "$SRC")"
+            DEST="$DIR/$NAME"
             # Stage the full copy FIRST; the old app is only removed after the
             # copy completed, so a failure mid-copy never leaves the user with no
-            # app at all.
-            STAGE="$DEST.update-new"
+            # app at all. The staging name is hidden: Spotlight recognizes the
+            # copy as an app bundle whatever its suffix, and when the swap lands
+            # while that copy is still being indexed, the installed app keeps
+            # showing up in search as "Vorssaint.app.update-new".
+            STAGE="$DIR/.$NAME.update-new"
             /bin/rm -rf "$STAGE"
             note fail-copy
             if /usr/bin/ditto "$SRC" "$STAGE"; then

@@ -173,6 +173,11 @@ enum ScreenshotCaptureEngine {
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, Int((window.frame.width * scale).rounded()))
         configuration.height = max(1, Int((window.frame.height * scale).rounded()))
+        // The resolution choice only exists for an independent window, and
+        // its automatic setting may render below the window's own scale and
+        // stretch the result to the size asked for. The recorder already asks
+        // for the best one; this is the screenshot tool's only window stream.
+        configuration.captureResolution = .best
         configuration.showsCursor = false
         configuration.colorSpaceName = CGColorSpace.sRGB
         let filter = SCContentFilter(desktopIndependentWindow: window)

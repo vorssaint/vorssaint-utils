@@ -12,8 +12,10 @@ final class ScreenCaptureSelectionOptions: ObservableObject {
     let controlsInNotch: Bool
     var hasFocusedControl = false
     var onPresentationReady: (() -> Void)?
+    var onSelectionProgressChange: ((Bool) -> Void)?
     let recorderAudio = RecorderSelectionAudioOptions()
     @Published private(set) var selectedTool: ScreenCaptureTool
+    @Published var offersRepeatLastRegion = false
     var onSelectionChange: (() -> Void)?
 
     init(availableTools: [ScreenCaptureTool], selectedTool: ScreenCaptureTool,
@@ -95,7 +97,8 @@ final class ScreenCaptureService: ObservableObject {
         for (tool, hotkey) in toolHotkeys {
             let keys = tool.dedicatedShortcut
             let enabled = availableTools.contains(tool) && defaults.bool(forKey: keys.enabledKey)
-            if !hotkey.sync(enabled: enabled, shortcut: keys.role.savedShortcut) {
+            if !hotkey.sync(enabled: enabled, shortcut: keys.role.savedShortcut,
+                            storageKey: keys.role.storageKey) {
                 failures.insert(tool)
             }
         }

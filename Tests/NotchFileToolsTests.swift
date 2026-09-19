@@ -6,6 +6,7 @@ import Foundation
 enum NotchFileToolsTests {
     static func run(expect: (Bool, String) -> Void) {
         NotchDownloadFolderChoiceTests.run(expect: expect)
+        MediaDialogHostTests.run(expect: expect)
         ShelfDragCompletionTests.run(expect: expect)
         let suite = "com.vorssaint.tests.notch-files"
         let defaults = UserDefaults(suiteName: suite)!
@@ -73,6 +74,30 @@ enum NotchFileToolsTests {
         renamedPublicationContracts(expect: expect)
         archiveCancellationContracts(expect: expect)
         durationLoadingContracts(expect: expect)
+        dropGeometryContracts(expect: expect)
+        MediaWorkspaceLayoutTests.run(expect: expect)
+    }
+
+    private static func dropGeometryContracts(expect: (Bool, String) -> Void) {
+        for safeArea: CGFloat in [0, 32] {
+            for layout in NotchSize.allCases {
+                for width in [360.0, 440, 600] {
+                    let geometry = NotchGeometry(screen: CGRect(x: -1440, y: 200, width: 1440, height: 900),
+                                                 safeAreaTop: safeArea, cameraWidth: safeArea == 0 ? 0 : 180,
+                                                 layout: layout, customWidth: width, customHeight: 400)
+                    let size = geometry.expandedSize(module: .files)
+                    let area = NotchFileToolsSupport.mediaDropArea(in: geometry, size: size)
+                    let content = geometry.contentSize(for: size)
+                    expect(area.minX > size.width / 2 && area.maxX == size.width - NotchLayout.horizontalInset,
+                           "the media target is confined to the right-hand card at every island width")
+                    expect(area.minY == geometry.safeContentTop + NotchLayout.headerHeight + NotchLayout.spacing
+                           && area.maxY == size.height - NotchLayout.bottomInset,
+                           "the target excludes the header and margins on both physical and simulated cutouts")
+                    expect(area.width * 2 + NotchFileToolsSupport.dropSpacing == content.width && area.height == content.height,
+                           "native hit testing and the two equal SwiftUI cards share the same content bounds")
+                }
+            }
+        }
     }
 
     private static func archiveContainmentContracts(expect: (Bool, String) -> Void) {

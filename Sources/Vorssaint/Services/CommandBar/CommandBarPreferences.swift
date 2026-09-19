@@ -12,6 +12,9 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
     case menus
     case windows
     case quitApps
+    /// Apps offered for uninstalling, browsed one at a time from the
+    /// "Uninstall Application" row - never in the flat search pool.
+    case uninstallApps
     case settingsPages
     /// The Mac's own Settings panes, which are not Vorssaint's and can be
     /// switched off on their own.
@@ -44,6 +47,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .menus: return "filemenu.and.selection"
         case .windows: return "macwindow"
         case .quitApps: return "xmark.circle"
+        case .uninstallApps: return "trash"
         case .settingsPages: return "gearshape"
         case .macSettings: return "gearshape.2"
         case .snippets: return "text.append"
@@ -67,6 +71,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .menus: return "menu."
         case .windows: return "window."
         case .quitApps: return "quit."
+        case .uninstallApps: return "uninstall."
         case .settingsPages: return "settings."
         case .macSettings: return "macsettings."
         case .snippets: return "snippet."
@@ -105,6 +110,22 @@ enum CommandBarPreferences {
         sources.filter { !$0.isAlwaysOn }.map(\.rawValue).sorted().joined(separator: ",")
     }
 
+    static func emojiRowID(identity: String) -> String {
+        (CommandBarSource.emoji.idPrefix ?? "") + identity
+    }
+
+    static func emojiIdentity(fromRowID id: String) -> String? {
+        guard let prefix = CommandBarSource.emoji.idPrefix, id.hasPrefix(prefix),
+              id.count > prefix.count else { return nil }
+        return String(id.dropFirst(prefix.count))
+    }
+
+    /// The tone the person chose for emoji that can carry one. An unknown
+    /// value reads as the default.
+    static func skinTone(from raw: String) -> CommandBarEmoji.SkinTone {
+        CommandBarEmoji.SkinTone(rawValue: raw) ?? .none
+    }
+
     static func isEnabled(_ source: CommandBarSource, disabledRaw: String) -> Bool {
         source.isAlwaysOn || !disabledSources(from: disabledRaw).contains(source)
     }
@@ -135,7 +156,7 @@ enum CommandBarPreferences {
         // better match than a command to lead the list, never merely as good.
         case .files, .settingsPages: return -40
         case .apps: return 80
-        case .actions, .windows, .quitApps, .macSettings, .snippets,
+        case .actions, .windows, .quitApps, .uninstallApps, .macSettings, .snippets,
              .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links, .killProcess:
             return 0
         }
@@ -165,7 +186,7 @@ enum CommandBarPreferences {
     /// pinned to one would silently point somewhere else tomorrow.
     static func acceptsAlias(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .windows, .clipboard, .selection, .files, .killProcess: return false
+        case .menus, .windows, .clipboard, .selection, .files, .killProcess, .uninstallApps: return false
         case .actions, .apps, .quitApps, .settingsPages, .macSettings, .snippets, .emoji,
              .folders, .answers, .calculator, .links:
             return true
@@ -238,7 +259,8 @@ enum CommandBarPreferences {
     /// again, which reads as the pin being broken.
     static func acceptsPin(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .quitApps, .clipboard, .emoji, .selection, .files, .killProcess: return false
+        case .menus, .quitApps, .uninstallApps, .clipboard, .emoji, .selection, .files, .killProcess:
+            return false
         case .actions, .apps, .windows, .settingsPages, .macSettings, .snippets, .folders,
              .links, .answers, .calculator:
             return true
@@ -292,7 +314,7 @@ enum CommandBarPreferences {
     private static func isHubOwned(_ rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
         case .actions, .settingsPages, .snippets: return true
-        case .apps, .menus, .windows, .quitApps, .macSettings, .clipboard, .emoji,
+        case .apps, .uninstallApps, .menus, .windows, .quitApps, .macSettings, .clipboard, .emoji,
              .folders, .answers, .calculator, .selection, .links, .files, .killProcess:
             return false
         }

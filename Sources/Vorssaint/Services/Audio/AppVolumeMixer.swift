@@ -153,10 +153,17 @@ final class AppVolumeMixer: ObservableObject {
     /// Deliberately not `buildQueue`: creating a tap and its aggregate device
     /// takes far longer than reading a property, and the panel must never wait
     /// behind one to learn which devices exist.
-    private var pendingOutputVolume: Double?
-    private var pendingOutputMute: Bool?
-    private var pendingOutputCompletion: ((Bool) -> Void)?
-    private var outputWriteInFlight = false
+    private struct OutputAdjustment {
+        let device: AudioObjectID
+        let lifetime: UUID
+        var volume: Double?
+        var muted: Bool?
+        var completion: (Bool) -> Void
+    }
+    private var pendingOutputAdjustment: OutputAdjustment?
+    private var outputWriteInFlight: OutputAdjustment?
+    private let outputControlLock = NSLock()
+    private var outputControlLifetime = UUID()
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
 
     private init() {}
@@ -344,6 +351,11 @@ final class AppVolumeMixer: ObservableObject {
         outputControlListenerDevice = nil
         outputControlListenerAddresses.removeAll()
         outputControlRefreshGeneration &+= 1
+        outputControlLock.withLock { outputControlLifetime = UUID() }
+        let pending = pendingOutputAdjustment
+        pendingOutputAdjustment = nil
+        // Superseded keys are handled: replaying them would adjust the new output.
+        pending?.completion(true)
     }
 
     private func scheduleOutputControlRefresh(for device: AudioObjectID) {
@@ -367,10 +379,8 @@ final class AppVolumeMixer: ObservableObject {
                     guard let self,
                           self.listenerInstalled,
                           self.outputControlListenerDevice == device,
-                          self.outputControlRefreshGeneration == generation,
-                          !self.outputWriteInFlight else { return }
-                    if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
-                    if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
+                          self.outputControlRefreshGeneration == generation else { return }
+                    self.applyOutputControls(volume: volume, muted: muted)
                 }
             }
         }
@@ -438,53 +448,71 @@ final class AppVolumeMixer: ObservableObject {
     /// a write intended for the previous output.
     func requestOutputAdjustment(volume: Double? = nil, muted: Bool? = nil,
                                  completion: @escaping (Bool) -> Void = { _ in }) {
-        guard outputControlListenerDevice != nil,
+        guard let device = outputControlListenerDevice,
               volume?.isFinite != false,
               volume == nil || systemOutputVolume != nil,
               muted == nil || systemOutputMuted != nil else { completion(false); return }
         outputControlRefreshGeneration &+= 1
-        pendingOutputCompletion?(true)
-        pendingOutputCompletion = completion
+        let previous = pendingOutputAdjustment
+        var adjustment = previous ?? OutputAdjustment(device: device,
+            lifetime: outputControlLock.withLock { outputControlLifetime }, completion: completion)
+        adjustment.completion = completion
         if let volume {
             let value = min(1, max(0, volume))
-            pendingOutputVolume = value
+            adjustment.volume = value
             systemOutputVolume = value
             if value > 0, systemOutputMuted != nil {
-                pendingOutputMute = false
+                adjustment.muted = false
                 systemOutputMuted = false
             }
         }
-        if let muted { pendingOutputMute = muted; systemOutputMuted = muted }
+        if let muted { adjustment.muted = muted; systemOutputMuted = muted }
+        pendingOutputAdjustment = adjustment
+        previous?.completion(true)
         drainOutputAdjustment()
     }
 
+    private func isCurrentOutputAdjustment(_ adjustment: OutputAdjustment) -> Bool {
+        outputControlLock.withLock { outputControlLifetime == adjustment.lifetime }
+    }
+
+    private var hasCurrentOutputAdjustment: Bool {
+        pendingOutputAdjustment != nil || outputWriteInFlight.map(isCurrentOutputAdjustment) == true
+    }
+
+    private func applyOutputControls(volume: Double?, muted: Bool?) {
+        guard !hasCurrentOutputAdjustment else { return }
+        if systemOutputVolume != volume { systemOutputVolume = volume }
+        if systemOutputMuted != muted { systemOutputMuted = muted }
+    }
+
     private func drainOutputAdjustment() {
-        guard !outputWriteInFlight, let completion = pendingOutputCompletion else { return }
-        guard let device = outputControlListenerDevice else {
-            pendingOutputCompletion = nil; pendingOutputVolume = nil; pendingOutputMute = nil
-            completion(false); return
+        guard outputWriteInFlight == nil, let adjustment = pendingOutputAdjustment else { return }
+        pendingOutputAdjustment = nil
+        guard isCurrentOutputAdjustment(adjustment), outputControlListenerDevice == adjustment.device else {
+            adjustment.completion(true)
+            return
         }
-        let volume = pendingOutputVolume
-        let muted = pendingOutputMute
-        pendingOutputVolume = nil; pendingOutputMute = nil; pendingOutputCompletion = nil
-        outputWriteInFlight = true
+        outputWriteInFlight = adjustment
         halQueue.async { [weak self] in
-            var success = Self.defaultOutputDeviceID() == device
-            if success, let volume { success = Self.setOutputVolume(Float(volume), for: device) }
-            if success, let muted { success = Self.setOutputMuted(muted, for: device) }
+            guard let self else { return }
+            let device = adjustment.device
+            var success = self.isCurrentOutputAdjustment(adjustment) && Self.defaultOutputDeviceID() == device
+            if success, let volume = adjustment.volume { success = Self.setOutputVolume(Float(volume), for: device) }
+            if success, let muted = adjustment.muted, self.isCurrentOutputAdjustment(adjustment) {
+                success = Self.setOutputMuted(muted, for: device)
+            }
             DispatchQueue.main.async {
-                guard let self else { return }
-                self.outputWriteInFlight = false
-                // A new output invalidates queued values from the old device.
-                if self.outputControlListenerDevice != device {
-                    self.pendingOutputVolume = nil; self.pendingOutputMute = nil
-                    self.pendingOutputCompletion = nil
+                self.outputWriteInFlight = nil
+                let current = self.isCurrentOutputAdjustment(adjustment)
+                adjustment.completion(!current || success)
+                if self.pendingOutputAdjustment != nil {
+                    self.drainOutputAdjustment()
+                } else if current {
+                    self.scheduleOutputControlRefresh(for: device)
+                } else {
                     self.scheduleListenerRefresh()
-                    return
                 }
-                completion(success)
-                if self.pendingOutputCompletion != nil { self.drainOutputAdjustment() }
-                else { self.scheduleOutputControlRefresh(for: device) }
             }
         }
     }
@@ -914,12 +942,7 @@ final class AppVolumeMixer: ObservableObject {
             outputDevices = snapshot.outputDevices
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
-        if !outputWriteInFlight, systemOutputVolume != snapshot.systemOutputVolume {
-            systemOutputVolume = snapshot.systemOutputVolume
-        }
-        if !outputWriteInFlight, systemOutputMuted != snapshot.systemOutputMuted {
-            systemOutputMuted = snapshot.systemOutputMuted
-        }
+        applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
 
         guard let next = snapshot.apps else {
             if !apps.isEmpty {
@@ -1516,7 +1539,9 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - CoreAudio plumbing
 
-    private static func audioProcessObjects() -> [AudioObjectID] {
+    /// Every process object the audio HAL knows about. The island's level
+    /// reader groups them by responsible app the same way this mixer does.
+    static func audioProcessObjects() -> [AudioObjectID] {
         var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList,
                                                  mScope: kAudioObjectPropertyScopeGlobal,
                                                  mElement: kAudioObjectPropertyElementMain)

@@ -8,6 +8,7 @@ import SwiftUI
 struct NotchTimerRuler: NSViewRepresentable {
     @Binding var minutes: Int
     let label: String
+    let locale: Locale
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -28,11 +29,12 @@ struct NotchTimerRuler: NSViewRepresentable {
 
     func updateNSView(_ control: NotchTimerRulerControl, context: Context) {
         context.coordinator.parent = self
+        control.durationLocale = locale
         control.synchronize(minutes: minutes)
         control.isEnabled = context.environment.isEnabled
         control.increasedContrast = context.environment.colorSchemeContrast == .increased
         control.setAccessibilityLabel(label)
-        control.setAccessibilityValueDescription("\(minutes) \(label)")
+        control.setAccessibilityValueDescription(NotchTimerSupport.compactText(Double(minutes) * 60, locale: locale))
         control.needsDisplay = true
     }
 
@@ -49,6 +51,7 @@ struct NotchTimerRuler: NSViewRepresentable {
 
 final class NotchTimerRulerControl: NSSlider {
     var increasedContrast = false
+    var durationLocale = Locale.current
     private var drag: (x: CGFloat, value: Double)?
     private var didDrag = false
     private var showsKeyboardFocus = false
@@ -146,7 +149,7 @@ final class NotchTimerRulerControl: NSSlider {
         let minute = NotchTimerRulerScale.minute(value)
         guard integerValue != minute else { return }
         integerValue = minute
-        setAccessibilityValueDescription("\(minute) \(accessibilityLabel() ?? "")")
+        setAccessibilityValueDescription(NotchTimerSupport.compactText(Double(minute) * 60, locale: durationLocale))
         needsDisplay = true
         sendAction(action, to: target)
     }
@@ -162,7 +165,7 @@ final class NotchTimerRulerControl: NSSlider {
             color.setFill()
             NSBezierPath(roundedRect: NSRect(x: x - 2, y: 26, width: 4, height: 38), xRadius: 2, yRadius: 2).fill()
             if minute.isMultiple(of: 5) || minute == 1 {
-                let title = NSAttributedString(string: String(minute), attributes: [
+                let title = NSAttributedString(string: NotchTimerRulerScale.label(for: minute), attributes: [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .medium), .foregroundColor: color
                 ])
                 title.draw(at: NSPoint(x: x - title.size().width / 2, y: 0))

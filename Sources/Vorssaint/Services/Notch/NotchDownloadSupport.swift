@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Darwin
 import Foundation
 
@@ -94,6 +95,21 @@ struct NotchDownloadPublication {
 enum NotchDownloadSupport {
     static let maximumObservedFiles = 32
     static let maximumDirectoryEntries = 4096
+    static let percentSize: CGFloat = 10
+    /// Progress rounds up to a full hundred near the end, and four of the
+    /// languages part the number from its sign, so the narrowest wing cannot
+    /// hold the widest reading at full size. It shrinks rather than wrap or
+    /// lose a digit.
+    static let percentMinimumScale: CGFloat = 0.75
+
+    static func percentFormat(_ language: AppLanguage) -> FloatingPointFormatStyle<Double>.Percent {
+        .percent.precision(.fractionLength(0)).locale(Locale(identifier: language.rawValue))
+    }
+
+    /// Digits carry no descenders, so their ink is about the cap height.
+    static func percentInset(in geometry: NotchGeometry) -> CGFloat {
+        geometry.compactActivityEdgeInset(boxHeight: percentSize * 0.72, radius: 0)
+    }
 
     struct FileSnapshot: Equatable {
         let identity: String

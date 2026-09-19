@@ -4,13 +4,63 @@
 import Foundation
 
 enum NotchMusicExtrasTests {
+    private static func lyricScheduleContracts(expect: (Bool, String) -> Void) {
+        let track = RadialNowPlayingSnapshot(title: "Timed verses", artist: nil, album: nil,
+                                            artworkData: nil, appBundleIdentifier: nil, appPID: nil)
+        let sampledAt = Date(timeIntervalSinceReferenceDate: 811_234_567.123)
+        let lyrics = NotchLyrics(lines: [0.0, 2.25, 6.625, 12.0, 18.5].map {
+            NotchLyricLine(time: $0, text: "Verse \($0)")
+        }, plain: "", instrumental: false)
+        func playback(elapsed: Double = 1, rate: Double = 1, playing: Bool = true,
+                      hasPosition: Bool = true) -> NotchPlayback {
+            NotchPlayback(track: track, isPlaying: playing, elapsed: elapsed, duration: 20,
+                          rate: rate, sampledAt: sampledAt, canSeek: false, hasPosition: hasPosition)
+        }
+        for rate in [0.25, 0.75, 1, 1.25, 2, 16] {
+            for offset in [-10.0, -0.25, 0, 0.25, 10] {
+                for elapsed in [0.0, 1, 7, 19, 20] {
+                    let playback = playback(elapsed: elapsed, rate: rate)
+                    let now = sampledAt.addingTimeInterval(0.123)
+                    let position = playback.position(at: now)
+                    let upcoming = lyrics.lines.enumerated().filter {
+                        $0.element.time + offset > position && $0.element.time + offset <= playback.duration
+                    }
+                    let dates = lyrics.changeDates(for: playback, offset: offset, from: now)
+                        .filter { $0 != .distantFuture }
+                    expect(dates.first == now && dates.count == upcoming.count + 1,
+                           "lyrics refresh immediately after a seek or timing change and only at reachable future verses")
+                    expect(zip(dates, dates.dropFirst()).allSatisfy { $0 < $1 },
+                           "lyric deadlines stay ordered at every supported rate and timing offset")
+                    for (date, line) in zip(dates.dropFirst(), upcoming) {
+                        expect(lyrics.activeIndex(at: playback.position(at: date), offset: offset) == line.offset,
+                               "scheduled lyric dates highlight the new verse despite floating-point rate and date rounding")
+                        expect(abs(playback.position(at: date) - (line.element.time + offset)) < 0.0001,
+                               "verse updates retain sub-millisecond precision when playback speed changes")
+                    }
+                }
+            }
+        }
+        for stopped in [playback(playing: false), playback(rate: 0), playback(rate: .nan),
+                        playback(rate: .infinity), playback(hasPosition: false), playback(elapsed: 20)] {
+            expect(lyrics.changeDates(for: stopped, offset: 0, from: sampledAt) == [sampledAt],
+                   "paused, completed or unpositioned playback leaves no recurring lyric updates")
+        }
+        expect(lyrics.changeDates(for: playback(), offset: .nan, from: sampledAt) == [sampledAt],
+               "an invalid lyric offset cannot schedule a wakeup")
+        let resumed = lyrics.changeDates(for: playback(elapsed: 6), offset: 0, from: sampledAt)
+            .filter { $0 != .distantFuture }
+        expect(resumed.count == 4 && resumed[1].timeIntervalSince(sampledAt) < 0.626,
+               "resuming or seeking back schedules the next verse from the new playback position")
+    }
+
     static func run(expect: (Bool, String) -> Void) {
+        lyricScheduleContracts(expect: expect)
         NotchMusicHardeningTests.run(expect: expect)
         let track = RadialNowPlayingSnapshot(title: "A & B + C", artist: "Artist / Example", album: "Studio Recording",
                                             artworkData: nil, appBundleIdentifier: "org.example.player", appPID: 42)
-        let playback = NotchPlayback(track: track, isPlaying: true, elapsed: 0, duration: 180, rate: 1,
+        var playback = NotchPlayback(track: track, isPlaying: true, elapsed: 0, duration: 180, rate: 1,
                                      sampledAt: Date(timeIntervalSinceReferenceDate: 0), canSeek: false,
-                                     itemIdentifier: "current-item")
+                                     itemIdentifier: "current-item", canSendCommandsDirectly: true)
         let identity = NotchMusicIdentity(playback)
         let lines = NotchLyricsSupport.parse("""
         [ar:Example]
@@ -77,6 +127,10 @@ enum NotchMusicExtrasTests {
         func decodeQueue() -> NotchQueueSnapshot? { NotchQueueSupport.decode(queue, requestID: request, playback: playback) }
         expect(decodeQueue()?.items.first?.offset == 2 && decodeQueue()?.canPlay == true,
                "omitting an incomplete native queue item never renumbers a later playback action")
+        playback.canSendCommandsDirectly = false
+        expect(decodeQueue()?.items.count == 1 && decodeQueue()?.canPlay == false,
+               "a cached queue preserves its songs but revokes actions when native routing becomes unavailable")
+        playback.canSendCommandsDirectly = true
         queue["queueRequest"] = UUID().uuidString
         expect(decodeQueue() == nil, "an old queue request cannot overwrite a reopened surface")
         queue["queueRequest"] = request.uuidString
@@ -146,12 +200,12 @@ enum NotchMusicExtrasTests {
         expect(!NotchLyricsSupport.onlineEnabled(in: defaults) && !NotchQueueSupport.isEnabled(in: defaults),
                "hidden music does not retain an optional lyrics or queue subscription")
         expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLyricsEnabled, DefaultsKey.notchLyricsOnline,
-                                                                 DefaultsKey.notchQueueEnabled, AppFeature.notchLyrics.availabilityKey,
+                                                                 DefaultsKey.notchQueueEnabled, DefaultsKey.notchLiveEqualizer, AppFeature.notchLyrics.availabilityKey,
                                                                  AppFeature.notchQueue.availabilityKey]),
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            expect(strings.count == 27 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            expect(strings.count == 35 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }

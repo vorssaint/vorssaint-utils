@@ -13,6 +13,8 @@ enum NotchNativePlayback {
         let pid: Int32
         let bundleIdentifier: String
         let path: NSObject
+        var itemIdentifier: String?
+        var allowsDirectCommands = false
 
         var isRunning: Bool {
             guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return false }
@@ -24,6 +26,27 @@ enum NotchNativePlayback {
     private static let callbacks = DispatchQueue(label: "com.vorssaint.now-playing-selection-callbacks")
     private static let lock = NSLock()
     private static var selected: Target?
+    private static var identity: Identity?
+    private static var context: NotchPlaybackContext?
+
+    private struct Identity: Equatable {
+        let item: String?
+        let metadata: [String]
+
+        init?(_ info: [String: Any]) {
+            let title = (info["kMRMediaRemoteNowPlayingInfoTitle"] as? String ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { return nil }
+            let identifier = info["itemIdentifier"] as? String
+                ?? info["kMRMediaRemoteNowPlayingInfoContentItemIdentifier"] as? String
+            item = identifier.flatMap { NotchPlaybackCommand.validIdentifier($0) ? $0 : nil }
+            if item != nil { metadata = []; return }
+            let duration = (info["kMRMediaRemoteNowPlayingInfoDuration"] as? NSNumber)?.doubleValue
+            metadata = [title, info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? "",
+                        info["kMRMediaRemoteNowPlayingInfoAlbum"] as? String ?? "",
+                        duration.flatMap { $0.isFinite ? String($0.rounded()) : nil } ?? ""]
+        }
+    }
 
     static var target: Target? {
         lock.lock()
@@ -77,13 +100,66 @@ enum NotchNativePlayback {
         let ready = candidates
         resultsLock.unlock()
         let source = NotchPlaybackSource.preferred(in: ready.map(\.1), previousPID: target?.pid, systemPID: currentPID)
-        return ready.first { $0.1 == source }?.0
+        guard var chosen = ready.first(where: { $0.1 == source })?.0 else { return nil }
+        typealias IsSystemPlayer = @convention(c) (AnyObject, Selector) -> Bool
+        let systemPlayer = ["isSystemMediaApplication", "isSystemPodcastsApplication", "isSystemBooksApplication"].contains { name in
+            let selector = NSSelectorFromString(name)
+            guard chosen.path.responds(to: selector) else { return false }
+            return unsafeBitCast(chosen.path.method(for: selector), to: IsSystemPlayer.self)(chosen.path, selector)
+        }
+        // A third-party client can stop being the global player while a command
+        // is in flight. Its declared per-process automation avoids that race.
+        chosen.allowsDirectCommands = systemPlayer
+            && stringConstant("kMRMediaRemoteOptionNowPlayingContentItemID") != nil
+        return chosen
     }
 
-    static func publish(_ target: Target?) {
+    @discardableResult
+    static func publish(_ target: Target?, info: [String: Any] = [:]) -> NotchPlaybackContext? {
         lock.lock()
+        defer { lock.unlock() }
+        guard var target, let next = Identity(info) else {
+            selected = target; identity = nil; context = nil
+            return nil
+        }
+        // Position and play/pause updates do not end a recording. Without an
+        // item ID, use only observable recording metadata for its revision.
+        if selected?.pid != target.pid || selected?.bundleIdentifier != target.bundleIdentifier
+            || identity != next {
+            context = NotchPlaybackContext(pid: target.pid, revision: UUID())
+        }
+        target.itemIdentifier = next.item
         selected = target
+        identity = next
+        return context
+    }
+
+    static func validatedTarget(for requested: NotchPlaybackContext) -> Target? {
+        lock.lock()
+        let target = context == requested ? selected : nil
+        let expected = identity
         lock.unlock()
+        guard let target, let expected, target.isRunning else { return nil }
+        // The actual player can advance before its change notification reaches
+        // our reader. Re-read this path without changing music source selection.
+        let group = DispatchGroup()
+        let resultLock = NSLock()
+        var fresh: Identity?
+        group.enter()
+        readInfo(target, artwork: false, queue: callbacks) { info in
+            resultLock.lock()
+            fresh = (info as? [String: Any]).flatMap(Identity.init)
+            resultLock.unlock()
+            group.leave()
+        }
+        guard group.wait(timeout: .now() + 1) == .success else { return nil }
+        resultLock.lock()
+        let matches = fresh == expected
+        resultLock.unlock()
+        lock.lock()
+        defer { lock.unlock() }
+        guard matches, context == requested, identity == expected, target.isRunning else { return nil }
+        return target
     }
 
     static func readInfo(_ target: Target, artwork: Bool, queue: DispatchQueue,
@@ -118,9 +194,25 @@ enum NotchNativePlayback {
     static func send(_ command: Int32, options: CFDictionary? = nil, to target: Target) -> Bool {
         typealias Send = @convention(c) (Int32, CFDictionary?, AnyObject, UInt32, DispatchQueue,
             @escaping @convention(block) (UInt32, NSArray?) -> Void) -> Bool
-        guard target.isRunning,
+        guard target.isRunning, target.allowsDirectCommands, let item = target.itemIdentifier,
+              let itemKey = stringConstant("kMRMediaRemoteOptionNowPlayingContentItemID"),
               let send = function(handle, "MRMediaRemoteSendCommandToPlayer", as: Send.self) else { return false }
-        return send(command, options, target.path, 0, callbacks) { _, _ in }
+        // The service may redirect unprivileged requests to the global player.
+        // The receiver must reject a different item instead of acting on it.
+        var scoped = (options as? [String: Any]) ?? [:]
+        scoped[itemKey] = item
+        let group = DispatchGroup()
+        let resultLock = NSLock()
+        var delivered = false
+        group.enter()
+        guard send(command, scoped as CFDictionary, target.path, 0, callbacks, { error, responses in
+            resultLock.lock()
+            delivered = error == 0 && (responses as? [NSNumber])?.contains(where: { $0.intValue == 0 }) == true
+            resultLock.unlock()
+            group.leave()
+        }) else { return false }
+        guard group.wait(timeout: .now() + 2) == .success else { return false }
+        return resultLock.withLock { delivered }
     }
 
     static func stringConstant(_ name: String) -> String? {

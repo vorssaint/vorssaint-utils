@@ -162,9 +162,14 @@ public func vorssaintNowPlayingGet() {
     } else { group.wait() }
     if watching { _ = capabilities.wait(timeout: .now() + 0.2) }
     lock.lock()
-    let snapshot = reply
+    var snapshot = reply
     lock.unlock()
-    if watching { NotchNativePlayback.publish(selected) }
+    if watching, let context = NotchNativePlayback.publish(selected, info: snapshot) {
+        snapshot["playbackRevision"] = context.revision.uuidString
+        snapshot["canSendCommandsDirectly"] = NotchNativePlayback.target.map {
+            $0.allowsDirectCommands && $0.itemIdentifier != nil
+        } == true
+    }
     emit(snapshot)
     if watching { NotchNativeQueue.observe(snapshot) }
 }
@@ -215,14 +220,20 @@ public func vorssaintNowPlayingWatch() {
     withExtendedLifetime((observers, termination)) { RunLoop.main.run() }
 }
 
-private func sendPlaybackCommand(_ command: NotchPlaybackCommand) {
+private func sendPlaybackCommand(_ request: NotchPlaybackRequest) {
+    let command = request.command
     switch command {
+    case .validate(let id, let context):
+        emit(["validationRequest": id.uuidString,
+              "validationOK": NotchNativePlayback.validatedTarget(for: context) != nil])
+        return
     case .queue(let request): NotchNativeQueue.configure(request); return
     case .queueStop: NotchNativeQueue.configure(nil); return
     case .queuePlay(let selected): NotchNativeQueue.play(selected); return
     default: break
     }
-    guard let target = NotchNativePlayback.target else { emit(["sent": false]); return }
+    guard let context = request.context,
+          let target = NotchNativePlayback.validatedTarget(for: context) else { emit(["sent": false]); return }
     let identifier: Int32
     var options: CFDictionary?
     switch command {
@@ -235,7 +246,7 @@ private func sendPlaybackCommand(_ command: NotchPlaybackCommand) {
         }
         identifier = 24
         options = [key: position] as CFDictionary
-    case .queue, .queueStop, .queuePlay: return
+    case .queue, .queueStop, .queuePlay, .validate: return
     }
     emit(["sent": NotchNativePlayback.send(identifier, options: options, to: target)])
 }

@@ -111,6 +111,8 @@ enum ScreenshotSelectionRefreshContract {
             activeTool == .recording ? .geometry : activeTool == .color ? .color : .image
         }
         var isPickingColor: Bool { activeMode == .color }
+        final class Options { var offersRepeatLastRegion = false }
+        var screenCaptureOptions: Options? = Options()
         var capturePolicy: ScreenshotSupport.UnifiedCapturePolicy
         var freeze: Bool
         var includePointer: Bool
@@ -185,6 +187,22 @@ enum ScreenshotSelectionRefreshContract {
         func expect(_ condition: Bool, _ message: String) { suite.expect(condition, message) }
         ReviewDefaults.current = ReviewDefaults()
         ScreenshotCaptureEngine.requests = []
+        let previousRegion = Chooser.lastRegion
+        defer { Chooser.lastRegion = previousRegion }
+        for tool in ScreenCaptureTool.allCases {
+            for display in [nil, 1, 2, 3] as [CGDirectDisplayID?] {
+                let c = Chooser(tool)
+                Chooser.lastRegion = display.map { ($0, CGRect(x: 0, y: 0, width: 20, height: 20)) }
+                let available = display == 1 || display == 2
+                expect(c.offersRepeatLastRegion == (available && tool != .color),
+                       "repeat is offered only for a stored display and a tool that accepts regions")
+                expect(c.repeatTargetPanel?.displayID == (available ? display : nil),
+                       "repeat targets its stored display even when the pointer is on another display")
+                c.repeatLastRegion()
+                expect((c.outcome != nil) == (available && tool != .color),
+                       "the repeat hint agrees with the production confirmation path")
+            }
+        }
         for other in [ScreenCaptureTool.screenshot, .text, .color] {
             for (from, to) in [
                 (ScreenCaptureTool.recording, other), (other, ScreenCaptureTool.recording),
@@ -192,6 +210,8 @@ enum ScreenshotSelectionRefreshContract {
                 let c = Chooser(from)
                 let request = ScreenshotCaptureEngine.requests.count
                 c.select(to)
+                expect(c.screenCaptureOptions?.offersRepeatLastRegion == c.offersRepeatLastRegion,
+                       "changing capture tool updates the island hint from the same decision as the overlay")
                 expect(
                     !c.acceptsCaptureInput, "changing tool blocks capture before the refresh task starts")
                 c.confirmRegion(CGRect(x: 0, y: 0, width: 20, height: 20), on: c.panels[0])

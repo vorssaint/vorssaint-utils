@@ -89,8 +89,6 @@ struct FeatureHubStrings {
     let descMonitorDisk: String
     let descMonitorPower: String
     // Install metaphor and the restart-to-unload card
-    let installButton: String
-    let uninstallButton: String
     let footerNote: String
     let restartNote: String
     let restartButton: String
@@ -120,6 +118,11 @@ struct FeatureHubStrings {
     let onboardingNoSelectedPermissions: String
     let onboardingOtherPermissionsTitle: String
     let onboardingOtherPermissionsCaption: String
+    // Uninstalling the Dynamic Island while extensions of it are installed
+    let notchUninstallTitle: String
+    let notchUninstallMessageFormat: String   // "…: %@. …", the installed extensions' names
+    let notchUninstallWithExtensions: String
+    let notchUninstallKeepExtensions: String
 }
 
 extension FeatureStrings {
@@ -184,7 +187,7 @@ extension FeatureHubStrings {
         explainNotifications: "켜 둔 경고를 앱에서 알릴 수 있게 합니다.",
         explainAutomationFinder: "앱이 Finder에 파일 이동을 요청할 수 있게 합니다.",
         explainAutomationTerminal: "Homebrew 명령을 Terminal에서 열 수 있게 합니다.",
-        explainAudioCapture: "믹서가 앱별 볼륨을 조절하고 화면 기록에 Mac의 소리를 담을 수 있게 합니다.",
+        explainAudioCapture: "믹서가 앱별 볼륨을 조절하고, Dynamic Island의 음악 막대가 음악을 따라 움직이며, 화면 기록에 Mac의 소리를 담을 수 있게 합니다.",
         descSwitcher: "미리보기로 앱과 윈도우 전환",
         descDockPreview: "Dock에 포인터를 올리면 윈도우 미리보기",
         descDockClick: "Dock 아이콘 클릭으로 최소화 또는 윈도우 전환",
@@ -201,7 +204,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Finder에서 파일 잘라내기 및 붙여넣기",
         descShelf: "파일을 메뉴 막대에 놓아 보관",
         descURLCleaner: "복사한 링크에서 추적 요소 제거",
-        descMixer: "앱별 볼륨 슬라이더",
+        descMixer: "앱별 음량 조절, 고정 및 순서 변경",
         descSoundOutputSwitcher: "단축키로 사운드 출력 순환",
         descMicMute: "어디서나 마이크 음소거",
         descMusicBlock: "음악 앱이 저절로 실행되지 않게 차단",
@@ -221,8 +224,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "네트워크 속도 및 사용량",
         descMonitorDisk: "디스크 공간 및 활동",
         descMonitorPower: "배터리, 전원 및 충전",
-        installButton: "설치",
-        uninstallButton: "제거",
         footerNote: "제거해도 아무것도 삭제되지 않습니다. 기능이 앱에서 빠지고 더 이상 불러와지지 않을 뿐입니다. 언제든 다시 설치하면 이전처럼 모두 돌아옵니다.",
         restartNote: "이 세션에서 제거한 기능은 앱을 다시 시작할 때까지 불러온 상태로 남습니다. 지금 메모리에서 해제하려면 다시 시작하세요.",
         restartButton: "지금 다시 시작",
@@ -251,7 +252,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "선택한 기능에 필요한 권한",
         onboardingNoSelectedPermissions: "설정을 마치는 데 필요한 권한이 없습니다.",
         onboardingOtherPermissionsTitle: "기타 권한",
-        onboardingOtherPermissionsCaption: "선택 사항입니다. 기능에서 필요할 때 지금 또는 나중에 허용할 수 있습니다."
+        onboardingOtherPermissionsCaption: "선택 사항입니다. 기능에서 필요할 때 지금 또는 나중에 허용할 수 있습니다.",
+        notchUninstallTitle: "Dynamic Island 제거",
+        notchUninstallMessageFormat: "다음 확장 기능은 Dynamic Island 안에서만 작동합니다: %@. 함께 제거할까요? 아무것도 삭제되지 않으며 한 번의 클릭으로 모두 되돌릴 수 있습니다.",
+        notchUninstallWithExtensions: "확장 기능도 제거",
+        notchUninstallKeepExtensions: "확장 기능 유지"
     )
 }
 
@@ -297,7 +302,7 @@ extension FeatureHubStrings {
         explainNotifications: "Lets the app notify you about alerts you turned on.",
         explainAutomationFinder: "Lets the app ask Finder to move files for you.",
         explainAutomationTerminal: "Lets Homebrew commands open in Terminal.",
-        explainAudioCapture: "Lets the mixer adjust each app’s volume and screen recordings include the Mac’s sound.",
+        explainAudioCapture: "Lets the mixer adjust each app’s volume, the Dynamic Island bars follow the music and screen recordings include the Mac’s sound.",
         descSwitcher: "Switch apps and windows with previews",
         descDockPreview: "Window previews when hovering the Dock",
         descDockClick: "Click a Dock icon to minimize or cycle windows",
@@ -314,7 +319,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Cut and paste files in Finder",
         descShelf: "Drop files on the menu bar to hold them",
         descURLCleaner: "Copied links lose their tracking junk",
-        descMixer: "A volume slider for each app",
+        descMixer: "Per-app volume, pinning and custom order",
         descSoundOutputSwitcher: "Cycle sound outputs with a shortcut",
         descMicMute: "Mute the microphone from anywhere",
         descMusicBlock: "Stop the Music app from launching itself",
@@ -334,8 +339,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "Network speed and usage",
         descMonitorDisk: "Disk space and activity",
         descMonitorPower: "Battery, power and charging",
-        installButton: "Install",
-        uninstallButton: "Uninstall",
         footerNote: "Uninstalling deletes nothing: the feature just leaves the app and stops loading. Install it again anytime and everything returns as it was.",
         restartNote: "Features uninstalled in this session stay loaded until the app restarts. Restart to unload them from memory now.",
         restartButton: "Restart now",
@@ -364,7 +367,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permissions for your choices",
         onboardingNoSelectedPermissions: "You do not need to grant any permission to finish setup.",
         onboardingOtherPermissionsTitle: "Other permissions",
-        onboardingOtherPermissionsCaption: "Optional. Grant these now or later, when a feature needs them."
+        onboardingOtherPermissionsCaption: "Optional. Grant these now or later, when a feature needs them.",
+        notchUninstallTitle: "Uninstall Dynamic Island",
+        notchUninstallMessageFormat: "These extensions only work inside the Dynamic Island: %@. Uninstall them too? Nothing is deleted, and everything comes back with one click.",
+        notchUninstallWithExtensions: "Uninstall extensions too",
+        notchUninstallKeepExtensions: "Keep extensions"
     )
 
     static let ptBR = FeatureHubStrings(
@@ -408,7 +415,7 @@ extension FeatureHubStrings {
         explainNotifications: "Deixa o app avisar você sobre os alertas que ligou.",
         explainAutomationFinder: "Deixa o app pedir ao Finder para mover arquivos por você.",
         explainAutomationTerminal: "Deixa os comandos do Homebrew abrirem no Terminal.",
-        explainAudioCapture: "Deixa o mixer ajustar o volume de cada app e as gravações de tela incluírem o som do Mac.",
+        explainAudioCapture: "Deixa o mixer ajustar o volume de cada app, as barras da Dynamic Island seguirem a música e as gravações de tela incluírem o som do Mac.",
         descSwitcher: "Troque de app e janela com miniaturas",
         descDockPreview: "Miniaturas das janelas ao passar o mouse no Dock",
         descDockClick: "Clique no ícone do Dock para minimizar ou alternar",
@@ -425,7 +432,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Recorte e cole arquivos no Finder",
         descShelf: "Solte arquivos na barra de menus para segurar",
         descURLCleaner: "Links copiados perdem os rastreadores",
-        descMixer: "Um controle de volume para cada app",
+        descMixer: "Volume por app, fixação e ordem personalizada",
         descSoundOutputSwitcher: "Troque a saída de som com um atalho",
         descMicMute: "Silencie o microfone de qualquer lugar",
         descMusicBlock: "Impede o app Música de abrir sozinho",
@@ -445,8 +452,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "Velocidade e uso da rede",
         descMonitorDisk: "Espaço e atividade do disco",
         descMonitorPower: "Bateria, energia e carregamento",
-        installButton: "Instalar",
-        uninstallButton: "Desinstalar",
         footerNote: "Desinstalar não apaga nada: a feature só some do app e deixa de carregar. Instale de novo quando quiser e tudo volta como estava.",
         restartNote: "Features desinstaladas nesta sessão continuam carregadas até o app reiniciar. Reinicie para tirar tudo da memória agora.",
         restartButton: "Reiniciar agora",
@@ -475,7 +480,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permissões para suas escolhas",
         onboardingNoSelectedPermissions: "Você não precisa conceder nenhuma permissão para concluir a configuração.",
         onboardingOtherPermissionsTitle: "Outras permissões",
-        onboardingOtherPermissionsCaption: "Opcional. Você pode concedê-las agora ou depois, quando algum recurso precisar."
+        onboardingOtherPermissionsCaption: "Opcional. Você pode concedê-las agora ou depois, quando algum recurso precisar.",
+        notchUninstallTitle: "Desinstalar Dynamic Island",
+        notchUninstallMessageFormat: "Estas extensões só funcionam dentro da Dynamic Island: %@. Desinstalar também? Nada é apagado e tudo volta com um clique.",
+        notchUninstallWithExtensions: "Desinstalar extensões também",
+        notchUninstallKeepExtensions: "Manter extensões"
     )
 
     static let tr = FeatureHubStrings(
@@ -519,7 +528,7 @@ extension FeatureHubStrings {
         explainNotifications: "Uygulamanın açtığınız uyarılar için sizi bilgilendirmesini sağlar.",
         explainAutomationFinder: "Uygulamanın Finder’dan sizin için dosya taşımasını istemesini sağlar.",
         explainAutomationTerminal: "Homebrew komutlarının Terminal’de açılmasını sağlar.",
-        explainAudioCapture: "Mikserin her uygulamanın sesini ayarlamasını ve ekran kayıtlarının Mac’in sesini içermesini sağlar.",
+        explainAudioCapture: "Mikserin her uygulamanın sesini ayarlamasını, çentikteki çubukların müziği izlemesini ve ekran kayıtlarının Mac’in sesini içermesini sağlar.",
         descSwitcher: "Önizlemelerle uygulama ve pencere değiştirin",
         descDockPreview: "Dock üzerine gelince pencere önizlemeleri",
         descDockClick: "Dock simgesine tıklayarak küçültün veya geçiş yapın",
@@ -536,7 +545,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Finder’da dosyaları kesip yapıştırın",
         descShelf: "Dosyaları menü çubuğuna bırakıp bekletin",
         descURLCleaner: "Kopyalanan bağlantılar izleyicilerden arınır",
-        descMixer: "Her uygulama için ayrı ses düzeyi",
+        descMixer: "Uygulama başına ses, sabitleme ve özel sıralama",
         descSoundOutputSwitcher: "Kısayolla ses çıkışları arasında geçin",
         descMicMute: "Mikrofonu her yerden sessize alın",
         descMusicBlock: "Müzik uygulamasının kendiliğinden açılmasını engeller",
@@ -556,8 +565,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "Ağ hızı ve kullanımı",
         descMonitorDisk: "Disk alanı ve etkinliği",
         descMonitorPower: "Pil, güç ve şarj",
-        installButton: "Yükle",
-        uninstallButton: "Kaldır",
         footerNote: "Kaldırmak hiçbir şeyi silmez: özellik yalnızca uygulamadan kaybolur ve yüklenmeyi bırakır. İstediğinizde yeniden yükleyin, her şey olduğu gibi geri gelir.",
         restartNote: "Bu oturumda kaldırılan özellikler uygulama yeniden başlayana kadar yüklü kalır. Şimdi bellekten atmak için yeniden başlatın.",
         restartButton: "Şimdi yeniden başlat",
@@ -586,7 +593,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Seçimleriniz için gereken izinler",
         onboardingNoSelectedPermissions: "Kurulumu tamamlamak için izin vermeniz gerekmiyor.",
         onboardingOtherPermissionsTitle: "Diğer izinler",
-        onboardingOtherPermissionsCaption: "İsteğe bağlıdır. Bir özellik gerektiğinde şimdi veya daha sonra izin verebilirsiniz."
+        onboardingOtherPermissionsCaption: "İsteğe bağlıdır. Bir özellik gerektiğinde şimdi veya daha sonra izin verebilirsiniz.",
+        notchUninstallTitle: "Dynamic Island’ı kaldır",
+        notchUninstallMessageFormat: "Bu uzantılar yalnızca Dynamic Island içinde çalışır: %@. Onlar da kaldırılsın mı? Hiçbir şey silinmez, hepsi tek tıkla geri gelir.",
+        notchUninstallWithExtensions: "Uzantıları da kaldır",
+        notchUninstallKeepExtensions: "Uzantılar kalsın"
     )
 
     static let ru = FeatureHubStrings(
@@ -630,7 +641,7 @@ extension FeatureHubStrings {
         explainNotifications: "Позволяет приложению сообщать о включённых вами оповещениях.",
         explainAutomationFinder: "Позволяет приложению просить Finder перемещать файлы за вас.",
         explainAutomationTerminal: "Позволяет командам Homebrew открываться в Терминале.",
-        explainAudioCapture: "Позволяет микшеру настраивать громкость каждого приложения, а записям экрана включать звук Mac.",
+        explainAudioCapture: "Позволяет микшеру настраивать громкость каждого приложения, полоскам в вырезе следовать музыке, а записям экрана включать звук Mac.",
         descSwitcher: "Переключайте приложения и окна с миниатюрами",
         descDockPreview: "Миниатюры окон при наведении на Dock",
         descDockClick: "Клик по значку в Dock сворачивает или переключает окна",
@@ -647,7 +658,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Вырезайте и вставляйте файлы в Finder",
         descShelf: "Бросайте файлы на строку меню на хранение",
         descURLCleaner: "Скопированные ссылки очищаются от трекеров",
-        descMixer: "Отдельная громкость для каждого приложения",
+        descMixer: "Громкость приложений, закрепление и порядок",
         descSoundOutputSwitcher: "Переключайте выходы звука сочетанием клавиш",
         descMicMute: "Отключайте микрофон откуда угодно",
         descMusicBlock: "Не даёт приложению Музыка запускаться самому",
@@ -667,8 +678,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "Скорость и трафик сети",
         descMonitorDisk: "Место и активность диска",
         descMonitorPower: "Батарея, питание и зарядка",
-        installButton: "Установить",
-        uninstallButton: "Удалить",
         footerNote: "Удаление ничего не стирает: функция просто исчезает из приложения и перестаёт загружаться. Установите её снова, и всё вернётся как было.",
         restartNote: "Функции, удалённые в этой сессии, остаются в памяти до перезапуска приложения. Перезапустите, чтобы выгрузить их прямо сейчас.",
         restartButton: "Перезапустить сейчас",
@@ -697,7 +706,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Разрешения для выбранных функций",
         onboardingNoSelectedPermissions: "Для завершения настройки разрешения не нужны.",
         onboardingOtherPermissionsTitle: "Другие разрешения",
-        onboardingOtherPermissionsCaption: "Необязательно. Их можно выдать сейчас или позже, когда они понадобятся функции."
+        onboardingOtherPermissionsCaption: "Необязательно. Их можно выдать сейчас или позже, когда они понадобятся функции.",
+        notchUninstallTitle: "Удалить Dynamic Island",
+        notchUninstallMessageFormat: "Эти расширения работают только внутри Dynamic Island: %@. Удалить и их? Ничего не стирается, всё возвращается одним кликом.",
+        notchUninstallWithExtensions: "Удалить и расширения",
+        notchUninstallKeepExtensions: "Оставить расширения"
     )
 
     static let es = FeatureHubStrings(
@@ -741,7 +754,7 @@ extension FeatureHubStrings {
         explainNotifications: "Permite que la app te avise de las alertas que activaste.",
         explainAutomationFinder: "Permite que la app pida al Finder mover archivos por ti.",
         explainAutomationTerminal: "Permite que los comandos de Homebrew se abran en Terminal.",
-        explainAudioCapture: "Permite que el mezclador ajuste el volumen de cada app y que las grabaciones de pantalla incluyan el sonido del Mac.",
+        explainAudioCapture: "Permite que el mezclador ajuste el volumen de cada app, que las barras del Dynamic Island sigan la música y que las grabaciones de pantalla incluyan el sonido del Mac.",
         descSwitcher: "Cambia de app y ventana con miniaturas",
         descDockPreview: "Miniaturas de ventanas al pasar por el Dock",
         descDockClick: "Clic en un icono del Dock para minimizar o alternar",
@@ -758,7 +771,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Corta y pega archivos en el Finder",
         descShelf: "Suelta archivos en la barra de menús para guardarlos",
         descURLCleaner: "Los enlaces copiados pierden los rastreadores",
-        descMixer: "Un control de volumen para cada app",
+        descMixer: "Volumen por app, fijación y orden personalizado",
         descSoundOutputSwitcher: "Cambia la salida de sonido con un atajo",
         descMicMute: "Silencia el micrófono desde cualquier lugar",
         descMusicBlock: "Evita que la app Música se abra sola",
@@ -778,8 +791,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "Velocidad y uso de la red",
         descMonitorDisk: "Espacio y actividad del disco",
         descMonitorPower: "Batería, energía y carga",
-        installButton: "Instalar",
-        uninstallButton: "Desinstalar",
         footerNote: "Desinstalar no borra nada: la función solo desaparece de la app y deja de cargarse. Instálala de nuevo cuando quieras y todo vuelve como estaba.",
         restartNote: "Las funciones desinstaladas en esta sesión siguen cargadas hasta reiniciar la app. Reinicia para sacarlas de la memoria ahora.",
         restartButton: "Reiniciar ahora",
@@ -808,7 +819,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permisos para tus elecciones",
         onboardingNoSelectedPermissions: "No necesitas conceder permisos para terminar la configuración.",
         onboardingOtherPermissionsTitle: "Otros permisos",
-        onboardingOtherPermissionsCaption: "Opcional. Concédelos ahora o después, cuando una función los necesite."
+        onboardingOtherPermissionsCaption: "Opcional. Concédelos ahora o después, cuando una función los necesite.",
+        notchUninstallTitle: "Desinstalar Dynamic Island",
+        notchUninstallMessageFormat: "Estas extensiones solo funcionan dentro del Dynamic Island: %@. ¿Desinstalarlas también? No se borra nada y todo vuelve con un clic.",
+        notchUninstallWithExtensions: "Desinstalar también las extensiones",
+        notchUninstallKeepExtensions: "Conservar las extensiones"
     )
 
     static let de = FeatureHubStrings(
@@ -852,7 +867,7 @@ extension FeatureHubStrings {
         explainNotifications: "Lässt die App dich über aktivierte Warnungen informieren.",
         explainAutomationFinder: "Lässt die App den Finder bitten, Dateien für dich zu bewegen.",
         explainAutomationTerminal: "Lässt Homebrew-Befehle im Terminal öffnen.",
-        explainAudioCapture: "Lässt den Mixer die Lautstärke jeder App regeln und Bildschirmaufnahmen den Ton des Mac aufnehmen.",
+        explainAudioCapture: "Lässt den Mixer die Lautstärke jeder App regeln, die Balken im Dynamic Island der Musik folgen und Bildschirmaufnahmen den Ton des Mac aufnehmen.",
         descSwitcher: "Apps und Fenster mit Vorschauen wechseln",
         descDockPreview: "Fenstervorschauen beim Zeigen aufs Dock",
         descDockClick: "Dock-Symbol klicken, um zu minimieren oder zu wechseln",
@@ -869,7 +884,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Dateien im Finder ausschneiden und einsetzen",
         descShelf: "Dateien auf der Menüleiste ablegen und festhalten",
         descURLCleaner: "Kopierte Links verlieren ihre Tracker",
-        descMixer: "Ein Lautstärkeregler für jede App",
+        descMixer: "App-Lautstärke, Anheften und eigene Reihenfolge",
         descSoundOutputSwitcher: "Tonausgänge per Kurzbefehl durchschalten",
         descMicMute: "Das Mikrofon von überall stummschalten",
         descMusicBlock: "Hindert die Musik-App am Selbststart",
@@ -889,8 +904,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "Netzwerkgeschwindigkeit und Verbrauch",
         descMonitorDisk: "Speicherplatz und Festplattenaktivität",
         descMonitorPower: "Batterie, Strom und Laden",
-        installButton: "Installieren",
-        uninstallButton: "Deinstallieren",
         footerNote: "Deinstallieren löscht nichts: Die Funktion verschwindet nur aus der App und lädt nicht mehr. Installiere sie jederzeit wieder, alles kommt zurück wie es war.",
         restartNote: "In dieser Sitzung deinstallierte Funktionen bleiben bis zum Neustart der App geladen. Starte neu, um sie jetzt aus dem Speicher zu nehmen.",
         restartButton: "Jetzt neu starten",
@@ -919,7 +932,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Berechtigungen für deine Auswahl",
         onboardingNoSelectedPermissions: "Zum Abschließen der Einrichtung ist keine Berechtigung nötig.",
         onboardingOtherPermissionsTitle: "Weitere Berechtigungen",
-        onboardingOtherPermissionsCaption: "Optional. Erlaube sie jetzt oder später, wenn eine Funktion sie benötigt."
+        onboardingOtherPermissionsCaption: "Optional. Erlaube sie jetzt oder später, wenn eine Funktion sie benötigt.",
+        notchUninstallTitle: "Dynamic Island deinstallieren",
+        notchUninstallMessageFormat: "Diese Erweiterungen funktionieren nur im Dynamic Island: %@. Auch deinstallieren? Nichts wird gelöscht, alles kommt mit einem Klick zurück.",
+        notchUninstallWithExtensions: "Erweiterungen auch deinstallieren",
+        notchUninstallKeepExtensions: "Erweiterungen behalten"
     )
 
     static let fr = FeatureHubStrings(
@@ -963,7 +980,7 @@ extension FeatureHubStrings {
         explainNotifications: "Permet à l’app de vous prévenir des alertes que vous avez activées.",
         explainAutomationFinder: "Permet à l’app de demander au Finder de déplacer des fichiers pour vous.",
         explainAutomationTerminal: "Permet aux commandes Homebrew de s’ouvrir dans le Terminal.",
-        explainAudioCapture: "Permet au mixeur d’ajuster le volume de chaque app et aux enregistrements d’écran d’inclure le son du Mac.",
+        explainAudioCapture: "Permet au mixeur d’ajuster le volume de chaque app, aux barres du Dynamic Island de suivre la musique et aux enregistrements d’écran d’inclure le son du Mac.",
         descSwitcher: "Changez d’app et de fenêtre avec des aperçus",
         descDockPreview: "Aperçus des fenêtres au survol du Dock",
         descDockClick: "Cliquez une icône du Dock pour réduire ou alterner",
@@ -980,7 +997,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Coupez et collez des fichiers dans le Finder",
         descShelf: "Déposez des fichiers sur la barre des menus",
         descURLCleaner: "Les liens copiés perdent leurs traqueurs",
-        descMixer: "Un volume pour chaque app",
+        descMixer: "Volume par app, épinglage et ordre personnalisé",
         descSoundOutputSwitcher: "Changez de sortie audio avec un raccourci",
         descMicMute: "Coupez le micro depuis n’importe où",
         descMusicBlock: "Empêche l’app Musique de se lancer toute seule",
@@ -1000,8 +1017,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "Vitesse et usage du réseau",
         descMonitorDisk: "Espace et activité du disque",
         descMonitorPower: "Batterie, alimentation et charge",
-        installButton: "Installer",
-        uninstallButton: "Désinstaller",
         footerNote: "Désinstaller n’efface rien\u{00A0}: la fonction disparaît simplement de l’app et ne se charge plus. Réinstallez-la quand vous voulez, tout revient comme avant.",
         restartNote: "Les fonctions désinstallées pendant cette session restent chargées jusqu’au redémarrage de l’app. Redémarrez pour les décharger maintenant.",
         restartButton: "Redémarrer maintenant",
@@ -1030,7 +1045,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Autorisations pour vos choix",
         onboardingNoSelectedPermissions: "Aucune autorisation n’est nécessaire pour terminer la configuration.",
         onboardingOtherPermissionsTitle: "Autres autorisations",
-        onboardingOtherPermissionsCaption: "Facultatif. Accordez-les maintenant ou plus tard, lorsqu’une fonction en aura besoin."
+        onboardingOtherPermissionsCaption: "Facultatif. Accordez-les maintenant ou plus tard, lorsqu’une fonction en aura besoin.",
+        notchUninstallTitle: "Désinstaller Dynamic Island",
+        notchUninstallMessageFormat: "Ces extensions ne fonctionnent que dans Dynamic Island\u{00A0}: %@. Les désinstaller aussi\u{00A0}? Rien n’est effacé et tout revient en un clic.",
+        notchUninstallWithExtensions: "Désinstaller aussi les extensions",
+        notchUninstallKeepExtensions: "Conserver les extensions"
     )
 
     static let it = FeatureHubStrings(
@@ -1074,7 +1093,7 @@ extension FeatureHubStrings {
         explainNotifications: "Permette all’app di avvisarti degli allarmi che hai attivato.",
         explainAutomationFinder: "Permette all’app di chiedere al Finder di spostare file per te.",
         explainAutomationTerminal: "Permette ai comandi Homebrew di aprirsi nel Terminale.",
-        explainAudioCapture: "Permette al mixer di regolare il volume di ogni app e alle registrazioni dello schermo di includere l’audio del Mac.",
+        explainAudioCapture: "Permette al mixer di regolare il volume di ogni app, alle barre del Dynamic Island di seguire la musica e alle registrazioni dello schermo di includere l’audio del Mac.",
         descSwitcher: "Cambia app e finestra con le anteprime",
         descDockPreview: "Anteprime delle finestre passando sul Dock",
         descDockClick: "Clic su un’icona del Dock per ridurre o alternare",
@@ -1091,7 +1110,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Taglia e incolla i file nel Finder",
         descShelf: "Trascina file sulla barra dei menu per tenerli lì",
         descURLCleaner: "I link copiati perdono i tracciatori",
-        descMixer: "Un volume per ogni app",
+        descMixer: "Volume per app, app fissate e ordine personalizzato",
         descSoundOutputSwitcher: "Cambia uscita audio con una scorciatoia",
         descMicMute: "Silenzia il microfono da ovunque",
         descMusicBlock: "Impedisce all’app Musica di aprirsi da sola",
@@ -1111,8 +1130,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "Velocità e uso della rete",
         descMonitorDisk: "Spazio e attività del disco",
         descMonitorPower: "Batteria, alimentazione e ricarica",
-        installButton: "Installa",
-        uninstallButton: "Disinstalla",
         footerNote: "Disinstallare non cancella nulla: la funzione sparisce dall’app e smette di caricarsi. Reinstallala quando vuoi e tutto torna com’era.",
         restartNote: "Le funzioni disinstallate in questa sessione restano caricate finché l’app non si riavvia. Riavvia per scaricarle dalla memoria ora.",
         restartButton: "Riavvia ora",
@@ -1141,7 +1158,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "Permessi per le tue scelte",
         onboardingNoSelectedPermissions: "Non servono permessi per completare la configurazione.",
         onboardingOtherPermissionsTitle: "Altri permessi",
-        onboardingOtherPermissionsCaption: "Facoltativo. Concedili ora o più tardi, quando una funzione ne avrà bisogno."
+        onboardingOtherPermissionsCaption: "Facoltativo. Concedili ora o più tardi, quando una funzione ne avrà bisogno.",
+        notchUninstallTitle: "Disinstalla Dynamic Island",
+        notchUninstallMessageFormat: "Queste estensioni funzionano solo nel Dynamic Island: %@. Disinstallare anche loro? Nulla viene cancellato e tutto torna con un clic.",
+        notchUninstallWithExtensions: "Disinstalla anche le estensioni",
+        notchUninstallKeepExtensions: "Mantieni le estensioni"
     )
 
     static let ja = FeatureHubStrings(
@@ -1185,7 +1206,7 @@ extension FeatureHubStrings {
         explainNotifications: "オンにした警告をアプリが通知できるようにします。",
         explainAutomationFinder: "アプリがFinderにファイル移動を頼めるようにします。",
         explainAutomationTerminal: "Homebrewのコマンドをターミナルで開けるようにします。",
-        explainAudioCapture: "ミキサーがアプリごとの音量を調整し、画面収録にMacの音声を含められるようにします。",
+        explainAudioCapture: "ミキサーがアプリごとの音量を調整し、Dynamic Islandのバーが音楽に合わせて動き、画面収録にMacの音声を含められるようにします。",
         descSwitcher: "プレビュー付きでアプリとウインドウを切り替え",
         descDockPreview: "Dockにポインタを重ねるとウインドウをプレビュー",
         descDockClick: "Dockアイコンのクリックで最小化や切り替え",
@@ -1202,7 +1223,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "Finderでファイルをカット&ペースト",
         descShelf: "メニューバーにファイルをドロップして一時置き",
         descURLCleaner: "コピーしたリンクからトラッカーを除去",
-        descMixer: "アプリごとの音量スライダ",
+        descMixer: "アプリ別の音量、固定、並べ替え",
         descSoundOutputSwitcher: "ショートカットで出力先を切り替え",
         descMicMute: "どこからでもマイクをミュート",
         descMusicBlock: "ミュージックアプリの勝手な起動を防止",
@@ -1222,8 +1243,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "ネットワークの速度と使用量",
         descMonitorDisk: "ディスクの空きとアクティビティ",
         descMonitorPower: "バッテリー、電力、充電",
-        installButton: "インストール",
-        uninstallButton: "アンインストール",
         footerNote: "アンインストールしても何も消えません。機能がアプリから消えて読み込まれなくなるだけです。いつでもインストールし直せば、すべて元どおりに戻ります。",
         restartNote: "このセッションでアンインストールした機能は、アプリを再起動するまで読み込まれたままです。今すぐメモリから外すには再起動してください。",
         restartButton: "今すぐ再起動",
@@ -1252,7 +1271,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "選んだ機能に必要な許可",
         onboardingNoSelectedPermissions: "設定を完了するための許可は必要ありません。",
         onboardingOtherPermissionsTitle: "その他の許可",
-        onboardingOtherPermissionsCaption: "任意です。機能で必要になったときに、今または後で許可できます。"
+        onboardingOtherPermissionsCaption: "任意です。機能で必要になったときに、今または後で許可できます。",
+        notchUninstallTitle: "Dynamic Islandをアンインストール",
+        notchUninstallMessageFormat: "次の拡張機能はDynamic Islandの中でのみ動作します：%@。これらもアンインストールしますか？何も削除されず、すべてワンクリックで戻ります。",
+        notchUninstallWithExtensions: "拡張機能もアンインストール",
+        notchUninstallKeepExtensions: "拡張機能を残す"
     )
 
     static let zhHans = FeatureHubStrings(
@@ -1296,7 +1319,7 @@ extension FeatureHubStrings {
         explainNotifications: "让 App 就你开启的警报发出通知。",
         explainAutomationFinder: "让 App 请访达替你移动文件。",
         explainAutomationTerminal: "让 Homebrew 命令在终端中打开。",
-        explainAudioCapture: "让混音器调整每个 App 的音量，并让屏幕录制包含 Mac 的声音。",
+        explainAudioCapture: "让混音器调整每个 App 的音量，让 Dynamic Island 的音柱跟随音乐，并让屏幕录制包含 Mac 的声音。",
         descSwitcher: "带预览地切换 App 和窗口",
         descDockPreview: "悬停程序坞时显示窗口预览",
         descDockClick: "点按程序坞图标以最小化或切换窗口",
@@ -1313,7 +1336,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "在访达中剪切和粘贴文件",
         descShelf: "把文件放到菜单栏上暂存",
         descURLCleaner: "拷贝的链接自动去除跟踪参数",
-        descMixer: "每个 App 独立的音量滑块",
+        descMixer: "各 App 音量、置顶和自定义排序",
         descSoundOutputSwitcher: "用快捷键切换声音输出",
         descMicMute: "随时随地静音麦克风",
         descMusicBlock: "阻止「音乐」App 自动启动",
@@ -1333,8 +1356,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "网络速度与用量",
         descMonitorDisk: "磁盘空间与活动",
         descMonitorPower: "电池、功耗与充电",
-        installButton: "安装",
-        uninstallButton: "卸载",
         footerNote: "卸载不会删除任何数据：功能只是从 App 中消失并不再加载。随时重新安装，一切都会原样恢复。",
         restartNote: "本次会话中卸载的功能在 App 重启前仍会驻留。立即重启即可把它们从内存中卸下。",
         restartButton: "立即重启",
@@ -1363,7 +1384,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所选功能需要的权限",
         onboardingNoSelectedPermissions: "完成设置无需授予任何权限。",
         onboardingOtherPermissionsTitle: "其他权限",
-        onboardingOtherPermissionsCaption: "可选。你可以现在授予，也可以等功能需要时再授予。"
+        onboardingOtherPermissionsCaption: "可选。你可以现在授予，也可以等功能需要时再授予。",
+        notchUninstallTitle: "卸载 Dynamic Island",
+        notchUninstallMessageFormat: "以下扩展只能在 Dynamic Island 中使用：%@。要一并卸载吗？不会删除任何内容，一键即可全部恢复。",
+        notchUninstallWithExtensions: "一并卸载扩展",
+        notchUninstallKeepExtensions: "保留扩展"
     )
 
     static let zhTW = FeatureHubStrings(
@@ -1407,7 +1432,7 @@ extension FeatureHubStrings {
         explainNotifications: "讓 App 就你開啟的警示發出通知。",
         explainAutomationFinder: "讓 App 請 Finder 替你移動檔案。",
         explainAutomationTerminal: "讓 Homebrew 指令在終端機中打開。",
-        explainAudioCapture: "讓混音器調整每個 App 的音量，並讓螢幕錄製包含 Mac 的聲音。",
+        explainAudioCapture: "讓混音器調整每個 App 的音量，讓 Dynamic Island 的音柱跟隨音樂，並讓螢幕錄製包含 Mac 的聲音。",
         descSwitcher: "帶預覽地切換 App 和視窗",
         descDockPreview: "游標停在 Dock 上時顯示視窗預覽",
         descDockClick: "點按 Dock 圖像以縮到最小或切換視窗",
@@ -1424,7 +1449,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "在 Finder 中剪下和貼上檔案",
         descShelf: "把檔案放到選單列上暫存",
         descURLCleaner: "拷貝的連結自動移除追蹤參數",
-        descMixer: "每個 App 獨立的音量滑桿",
+        descMixer: "各 App 音量、置頂和自訂排序",
         descSoundOutputSwitcher: "用快速鍵切換聲音輸出",
         descMicMute: "隨時隨地將麥克風靜音",
         descMusicBlock: "阻止音樂 App 自行啟動",
@@ -1444,8 +1469,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "網路速度與用量",
         descMonitorDisk: "磁碟空間與活動",
         descMonitorPower: "電池、功耗與充電",
-        installButton: "安裝",
-        uninstallButton: "解除安裝",
         footerNote: "解除安裝不會刪除任何資料：功能只是從 App 中消失並不再載入。隨時重新安裝，一切都會原樣恢復。",
         restartNote: "本次工作階段解除安裝的功能在 App 重新啟動前仍會駐留。立即重新啟動即可將它們從記憶體卸下。",
         restartButton: "立即重新啟動",
@@ -1474,7 +1497,11 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所選功能需要的權限",
         onboardingNoSelectedPermissions: "完成設定不需要授予任何權限。",
         onboardingOtherPermissionsTitle: "其他權限",
-        onboardingOtherPermissionsCaption: "可選。你可以現在授予，也可以等功能需要時再授予。"
+        onboardingOtherPermissionsCaption: "可選。你可以現在授予，也可以等功能需要時再授予。",
+        notchUninstallTitle: "解除安裝 Dynamic Island",
+        notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
+        notchUninstallWithExtensions: "一併解除安裝延伸功能",
+        notchUninstallKeepExtensions: "保留延伸功能"
     )
 
     static let zhHK = FeatureHubStrings(
@@ -1518,7 +1545,7 @@ extension FeatureHubStrings {
         explainNotifications: "讓 App 就你開啟的警示發出通知。",
         explainAutomationFinder: "讓 App 請 Finder 代你移動檔案。",
         explainAutomationTerminal: "讓 Homebrew 指令在終端機開啟。",
-        explainAudioCapture: "讓混音器調整每個 App 的音量，並讓螢幕錄製包含 Mac 的聲音。",
+        explainAudioCapture: "讓混音器調整每個 App 的音量，讓 Dynamic Island 的音柱跟隨音樂，並讓螢幕錄製包含 Mac 的聲音。",
         descSwitcher: "帶預覽地切換 App 和視窗",
         descDockPreview: "游標停在 Dock 上時顯示視窗預覽",
         descDockClick: "點按 Dock 圖示以縮到最小或切換視窗",
@@ -1535,7 +1562,7 @@ extension FeatureHubStrings {
         descFinderCutPaste: "在 Finder 剪下和貼上檔案",
         descShelf: "把檔案放到選單列暫存",
         descURLCleaner: "複製的連結自動移除追蹤參數",
-        descMixer: "每個 App 獨立的音量滑桿",
+        descMixer: "各 App 音量、置頂和自訂排序",
         descSoundOutputSwitcher: "用快速鍵切換聲音輸出",
         descMicMute: "隨時隨地將咪高風靜音",
         descMusicBlock: "阻止音樂 App 自行啟動",
@@ -1555,8 +1582,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "網絡速度與用量",
         descMonitorDisk: "磁碟空間與活動",
         descMonitorPower: "電池、功耗與充電",
-        installButton: "安裝",
-        uninstallButton: "解除安裝",
         footerNote: "解除安裝不會刪除任何資料：功能只是從 App 消失並不再載入。隨時重新安裝，一切都會原樣恢復。",
         restartNote: "本次工作階段解除安裝的功能在 App 重新啟動前仍會駐留。立即重新啟動即可將它們從記憶體卸下。",
         restartButton: "立即重新啟動",
@@ -1585,6 +1610,10 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "所選功能需要嘅權限",
         onboardingNoSelectedPermissions: "完成設定唔需要授予任何權限。",
         onboardingOtherPermissionsTitle: "其他權限",
-        onboardingOtherPermissionsCaption: "可選。你可以而家授予，亦可以等功能需要時再授予。"
+        onboardingOtherPermissionsCaption: "可選。你可以而家授予，亦可以等功能需要時再授予。",
+        notchUninstallTitle: "解除安裝 Dynamic Island",
+        notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
+        notchUninstallWithExtensions: "一併解除安裝延伸功能",
+        notchUninstallKeepExtensions: "保留延伸功能"
     )
 }

@@ -136,6 +136,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         let action = notchKeyGate.handle(
             keyCode: code, state: state, isRepeat: nsEvent.data1 & 1 != 0,
             enabled: NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback,
+            acceptsNewPress: NotchService.shared.showsSystemFeedback,
             hasVolume: mixer.systemOutputVolume != nil, hasMute: mixer.systemOutputMuted != nil,
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift),
             commandOrControl: event.flags.contains(.maskCommand) || event.flags.contains(.maskControl))

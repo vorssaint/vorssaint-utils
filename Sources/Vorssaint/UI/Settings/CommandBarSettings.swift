@@ -7,8 +7,11 @@ import SwiftUI
 struct CommandBarSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CommandBarService.shared
+    @ObservedObject private var secureInput = SecureInputMonitor.shared
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
+    @AppStorage(DefaultsKey.commandBarEmojiSkinTone) private var emojiSkinTone = ""
+    @AppStorage(DefaultsKey.commandBarASCIILayoutEnabled) private var asciiLayoutEnabled = false
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
     @AppStorage(DefaultsKey.commandBarPins) private var pinsRaw = ""
@@ -20,6 +23,7 @@ struct CommandBarSettings: View {
     @State private var editing: CommandBarLink?
     @State private var ignoreDraft = ""
     @State private var showsFileOptions = false
+    @State private var showsLayoutOptions = false
     @State private var showsAppShortcuts = false
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
@@ -80,6 +84,17 @@ struct CommandBarSettings: View {
                 Text(text.compactModeCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if CommandBarPreferences.isEnabled(.emoji, disabledRaw: disabledSources) {
+                    Picker(text.emojiSkinToneLabel, selection: $emojiSkinTone) {
+                        ForEach(CommandBarEmoji.SkinTone.allCases) { tone in
+                            Text(tone.swatch).tag(tone.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(text.emojiSkinToneCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 // Not the shared "Global shortcut" label the other feature
                 // pages use: this page already has an "open the bar" button at
                 // the top, so the toggle has to say which of the two it arms.
@@ -94,6 +109,22 @@ struct CommandBarSettings: View {
                     Text(l10n.s.shortcutUnavailable)
                         .font(.caption)
                         .foregroundStyle(.orange)
+                }
+                if secureInput.holder != .off {
+                    SecureInputRow()
+                }
+                DisclosureHeaderRow(isExpanded: $showsLayoutOptions) {
+                    Text(FeatureStrings.recorder(l10n.language).moreOptions)
+                    Spacer()
+                }
+                if showsLayoutOptions {
+                    // Like compact mode this needs no callback: the bar reads
+                    // the toggle on every open, so there is no live state to
+                    // sync.
+                    Toggle(text.asciiLayoutToggle, isOn: $asciiLayoutEnabled)
+                    Text(text.asciiLayoutCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             } header: {
                 Text(text.pageTitle)
@@ -335,6 +366,7 @@ struct CommandBarSettings: View {
             }
         }
         .formStyle(.grouped)
+        .observesSecureInput()
         .sheet(isPresented: $showsAppShortcuts) {
             CommandBarAppShortcutsView()
         }
@@ -431,6 +463,7 @@ struct CommandBarSettings: View {
         case .menus: return text.sourceMenus
         case .windows: return text.sourceWindows
         case .quitApps: return text.sourceQuitApps
+        case .uninstallApps: return l10n.s.uninstallerName
         case .settingsPages: return text.sourceSettingsPages
         case .macSettings: return text.sourceMacSettings
         case .snippets: return text.sourceSnippets

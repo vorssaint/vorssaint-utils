@@ -3,12 +3,12 @@
 
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// The "Monitor" settings page: pick what shows next to the menu bar icon, how
-/// often it refreshes, which blocks appear in the panel, and which metrics draw
-/// a history graph. Everything is opt-in or reversible, so users keep only what
-/// they find useful.
+/// it looks and how often it refreshes, which blocks appear in the panel, when
+/// to warn, and which metrics draw a history graph. Everything is opt-in or
+/// reversible, so users keep only what they find useful. The live menu bar
+/// preview stays pinned while the choices that change it scroll under it.
 struct MonitorSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
@@ -32,127 +32,39 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.monitorGraphBattery) private var graphBattery = true
 
     var body: some View {
-        Form {
-            Section(l10n.s.monitorMenuBarSection) {
-                let appearanceStrings = FeatureStrings.menuBarAppearance(l10n.language)
-                let appearance = MenuBarMetricAppearance(
-                    rawValue: Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)
-                ) ?? .values
-                MenuBarMetricsPreview()
-                    .padding(.vertical, 4)
-                Picker(appearanceStrings.label, selection: $metricAppearance) {
-                    Text(appearanceStrings.values).tag("values")
-                    Text(appearanceStrings.bars).tag("bars")
-                }
-                .pickerStyle(.segmented)
-                Text(appearanceStrings.caption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if appearance == .bars {
-                    MenuBarUsageBarSettings(strings: appearanceStrings)
-                } else {
-                    Toggle(l10n.s.monitorCombineTemperatures, isOn: $combineTemperatures)
-                    Text(l10n.s.monitorCombineTemperaturesCaption)
-                        .font(.caption)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20, pinnedViews: [.sectionHeaders]) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(l10n.s.tabMonitor).font(.title2.bold())
+                    Text(FeatureStrings.settingsPages(l10n.language).monitorDescription)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Picker(l10n.s.menuBarSpacingLabel, selection: $metricSpacing) {
-                    Text(l10n.s.menuBarSpacingStandard).tag("standard")
-                    Text(l10n.s.menuBarSpacingCompact).tag("compact")
-                }
-                .pickerStyle(.segmented)
-                Toggle(l10n.s.menuBarHideIconToggle, isOn: $hideIconWithMetrics)
-                Text(l10n.s.menuBarHideIconCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle(l10n.s.monitorSeparateMenuBarMetrics, isOn: $separateMetrics)
-                if appearance.allowsCombinedTemperatures {
-                    Text(l10n.s.monitorSeparateMenuBarMetricsCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                MenuBarMetricOrderEditor()
-                Text(l10n.s.monitorMenuBarCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Section {
-                Picker(l10n.s.monitorIntervalLabel, selection: $interval) {
-                    Text(l10n.s.monitorInterval1).tag(1)
-                    Text(l10n.s.monitorInterval2).tag(2)
-                    Text(l10n.s.monitorInterval5).tag(5)
-                }
-                Picker(l10n.s.temperatures, selection: $temperatureUnit) {
-                    Text("°C").tag(TemperatureUnit.celsius.rawValue)
-                    Text("°F").tag(TemperatureUnit.fahrenheit.rawValue)
-                }
-                .pickerStyle(.segmented)
-                if AppFeature.monitorMemory.isAvailable {
-                    Picker(l10n.s.monitorMemoryMetricLabel, selection: $memoryMetric) {
-                        Text(l10n.s.memoryMetricUsed).tag("used")
-                        Text(l10n.s.memoryMetricApp).tag("app")
-                    }
-                    .pickerStyle(.segmented)
-                }
-            }
-            monitorAlertsSection
-            Section(l10n.s.monitorPanelSection) {
-                MonitorPanelConfig()
-                Text(l10n.s.monitorPanelConfigHint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if AppFeature.fanControl.isAvailable {
-                let fanStrings = FeatureStrings.fanControl(l10n.language)
+                // Everything under this header changes what the header
+                // shows, so it stays in view until the section ends.
                 Section {
-                    Toggle(fanStrings.showInPanel, isOn: $showFanControl)
-                    Text(fanStrings.settingsCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(l10n.s.betaFeatureWarning)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    menuBarCard
+                    menuBarStyleCard
+                    readingsCard
                 } header: {
-                    HStack(spacing: 6) {
-                        Text(fanStrings.title)
-                        Text(l10n.s.betaBadge)
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.accentColor))
-                    }
+                    MenuBarMetricsPreview()
+                        .padding(.vertical, 8)
+                        .background(Color(nsColor: .windowBackgroundColor))
                 }
-                .settingsSectionAnchor(.fanControl)
+                alertsCard
+                panelCard
+                if AppFeature.fanControl.isAvailable {
+                    fanControlCard
+                        .settingsSectionAnchor(.fanControl, cornerRadius: 16)
+                }
+                graphsCard
             }
-            Section(l10n.s.monitorGraphsSection) {
-                if AppFeature.monitorCPU.isAvailable {
-                    Toggle(l10n.s.monitorShowCPU, isOn: $graphCPU)
-                }
-                if AppFeature.monitorGPU.isAvailable {
-                    Toggle(l10n.s.monitorShowGPU, isOn: $graphGPU)
-                }
-                if AppFeature.monitorMemory.isAvailable {
-                    Toggle(l10n.s.monitorShowMemory, isOn: $graphMemory)
-                }
-                if AppFeature.monitorNetwork.isAvailable {
-                    Toggle(l10n.s.monitorShowNetwork, isOn: $graphNetwork)
-                }
-                if AppFeature.monitorDisk.isAvailable {
-                    Toggle(l10n.s.diskSection, isOn: $graphDisk)
-                }
-                if AppFeature.monitorPower.isAvailable {
-                    Toggle(l10n.s.monitorShowPowerLabel, isOn: $graphPower)
-                    if PowerSampler.hasInternalBattery {
-                        Toggle(l10n.s.batteryLabel, isOn: $graphBattery)
-                    }
-                }
-                Text(l10n.s.monitorGraphsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
+            .padding(22)
         }
-        .formStyle(.grouped)
+        .toggleStyle(.switch)
         .onAppear {
             interval = Defaults.sanitizedMonitorInterval(interval)
             metricAppearance = Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)
@@ -163,10 +75,385 @@ struct MonitorSettings: View {
         }
     }
 
-    private var monitorAlertsSection: some View {
-        let text = FeatureStrings.monitorAlerts(l10n.language)
-        return Section(text.section) {
+    private var appearanceStrings: MenuBarAppearanceStrings {
+        FeatureStrings.menuBarAppearance(l10n.language)
+    }
+
+    private var appearance: MenuBarMetricAppearance {
+        MenuBarMetricAppearance(rawValue: Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)) ?? .values
+    }
+
+    /// The readings that can sit in the menu bar, as tiles in the order they
+    /// appear there.
+    private var menuBarCard: some View {
+        SettingsCard(title: l10n.s.monitorMenuBarSection) {
+            Text(l10n.s.monitorMenuBarCaption)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            MenuBarMetricTiles()
+            Text(FeatureStrings.notchEditor(l10n.language).reorderHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var menuBarStyleCard: some View {
+        SettingsCard(title: appearanceStrings.label) {
+            HStack(spacing: 10) {
+                MenuBarStyleChoice(appearance: .values, title: appearanceStrings.values,
+                                   selected: appearance == .values) { metricAppearance = "values" }
+                MenuBarStyleChoice(appearance: .bars, title: appearanceStrings.bars,
+                                   selected: appearance == .bars) { metricAppearance = "bars" }
+            }
+            Text(appearanceStrings.caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if appearance == .bars {
+                MenuBarUsageBarSettings(strings: appearanceStrings)
+            } else {
+                SettingsRow(symbol: "thermometer.medium", title: l10n.s.monitorCombineTemperatures,
+                            caption: l10n.s.monitorCombineTemperaturesCaption) {
+                    Toggle(l10n.s.monitorCombineTemperatures, isOn: $combineTemperatures).labelsHidden()
+                }
+            }
+            Divider()
+            SettingsRow(symbol: "arrow.left.and.right", title: l10n.s.menuBarSpacingLabel) {
+                Picker(l10n.s.menuBarSpacingLabel, selection: $metricSpacing) {
+                    Text(l10n.s.menuBarSpacingStandard).tag("standard")
+                    Text(l10n.s.menuBarSpacingCompact).tag("compact")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+            SettingsRow(symbol: "eye.slash", title: l10n.s.menuBarHideIconToggle,
+                        caption: l10n.s.menuBarHideIconCaption) {
+                Toggle(l10n.s.menuBarHideIconToggle, isOn: $hideIconWithMetrics).labelsHidden()
+            }
+            SettingsRow(symbol: "rectangle.split.3x1", title: l10n.s.monitorSeparateMenuBarMetrics,
+                        caption: appearance.allowsCombinedTemperatures
+                            ? l10n.s.monitorSeparateMenuBarMetricsCaption : nil) {
+                Toggle(l10n.s.monitorSeparateMenuBarMetrics, isOn: $separateMetrics).labelsHidden()
+            }
+        }
+    }
+
+    private var readingsCard: some View {
+        SettingsCard {
+            SettingsRow(symbol: "timer", title: l10n.s.monitorIntervalLabel) {
+                HStack(spacing: 6) {
+                    intervalChip(1, title: l10n.s.monitorInterval1)
+                    intervalChip(2, title: l10n.s.monitorInterval2)
+                    intervalChip(5, title: l10n.s.monitorInterval5)
+                }
+            }
+            SettingsRow(symbol: "thermometer.medium", title: l10n.s.temperatures) {
+                Picker(l10n.s.temperatures, selection: $temperatureUnit) {
+                    Text("°C").tag(TemperatureUnit.celsius.rawValue)
+                    Text("°F").tag(TemperatureUnit.fahrenheit.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+            if AppFeature.monitorMemory.isAvailable {
+                SettingsRow(symbol: "memorychip", title: l10n.s.monitorMemoryMetricLabel) {
+                    Picker(l10n.s.monitorMemoryMetricLabel, selection: $memoryMetric) {
+                        Text(l10n.s.memoryMetricUsed).tag("used")
+                        Text(l10n.s.memoryMetricApp).tag("app")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+            }
+        }
+    }
+
+    private func intervalChip(_ seconds: Int, title: String) -> some View {
+        let selected = interval == seconds
+        return Button {
+            interval = seconds
+        } label: {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .foregroundStyle(selected ? Color.accentColor : .primary)
+                .padding(.horizontal, 10)
+                .frame(height: 26)
+                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var alertsCard: some View {
+        SettingsCard(title: FeatureStrings.monitorAlerts(l10n.language).section) {
             MonitorAlertsControls(compact: false)
+        }
+    }
+
+    private var panelCard: some View {
+        SettingsCard(title: l10n.s.monitorPanelSection) {
+            MonitorPanelConfig(tiles: true)
+            Text(l10n.s.monitorPanelConfigHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var fanControlCard: some View {
+        let fanStrings = FeatureStrings.fanControl(l10n.language)
+        return SettingsCard {
+            SettingsRow(symbol: "fanblades.fill", title: fanStrings.title, badge: l10n.s.betaBadge,
+                        caption: fanStrings.settingsCaption) {
+                Toggle(fanStrings.showInPanel, isOn: $showFanControl).labelsHidden()
+            }
+            Text(l10n.s.betaFeatureWarning)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+        }
+    }
+
+    /// One tile per metric family, ticked when its history graph is drawn.
+    private var graphsCard: some View {
+        SettingsCard(title: l10n.s.monitorGraphsSection) {
+            Text(l10n.s.monitorGraphsCaption)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
+                if AppFeature.monitorCPU.isAvailable {
+                    graphTile(l10n.s.monitorShowCPU, symbol: MenuBarMetric.cpu.symbolName, value: $graphCPU)
+                }
+                if AppFeature.monitorGPU.isAvailable {
+                    graphTile(l10n.s.monitorShowGPU, symbol: MenuBarMetric.gpu.symbolName, value: $graphGPU)
+                }
+                if AppFeature.monitorMemory.isAvailable {
+                    graphTile(l10n.s.monitorShowMemory, symbol: MenuBarMetric.memory.symbolName, value: $graphMemory)
+                }
+                if AppFeature.monitorNetwork.isAvailable {
+                    graphTile(l10n.s.monitorShowNetwork, symbol: MenuBarMetric.network.symbolName, value: $graphNetwork)
+                }
+                if AppFeature.monitorDisk.isAvailable {
+                    graphTile(l10n.s.diskSection, symbol: MenuBarMetric.diskUsage.symbolName, value: $graphDisk)
+                }
+                if AppFeature.monitorPower.isAvailable {
+                    graphTile(l10n.s.monitorShowPowerLabel, symbol: MenuBarMetric.power.symbolName, value: $graphPower)
+                    if PowerSampler.hasInternalBattery {
+                        graphTile(l10n.s.batteryLabel, symbol: MenuBarMetric.battery.symbolName, value: $graphBattery)
+                    }
+                }
+            }
+        }
+    }
+
+    private func graphTile(_ title: String, symbol: String, value: Binding<Bool>) -> some View {
+        NotchEditorItem(symbol: symbol, title: title, included: value) {
+            value.wrappedValue.toggle()
+        }
+    }
+}
+
+/// Values or bars, each drawn the way the menu bar would draw a CPU reading.
+private struct MenuBarStyleChoice: View {
+    let appearance: MenuBarMetricAppearance
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                mockup
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                    .background(Color.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(selected ? Color.accentColor : .primary)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity)
+            .background(selected ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.05),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(selected ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // The same proportions the real blocks use (MenuBarRenderer), reduced to
+    // a CPU sample so the two styles read as themselves.
+    @ViewBuilder
+    private var mockup: some View {
+        switch appearance {
+        case .values:
+            HStack(spacing: 10) {
+                block(label: "CPU", value: "42%")
+                block(label: "MEM", value: "61%")
+            }
+        case .bars:
+            HStack(spacing: 10) {
+                bar(label: "CPU", fraction: 0.42)
+                bar(label: "MEM", fraction: 0.61)
+            }
+        }
+    }
+
+    private func block(label: String, value: String) -> some View {
+        VStack(spacing: -1) {
+            Text(label)
+                .font(.system(size: 6.6, weight: .medium))
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+        }
+        .foregroundStyle(.white)
+    }
+
+    private func bar(label: String, fraction: CGFloat) -> some View {
+        HStack(spacing: 2) {
+            VStack(spacing: -1.8) {
+                ForEach(Array(label.enumerated()), id: \.offset) { _, character in
+                    Text(String(character))
+                        .font(.system(size: 6.1, weight: .semibold))
+                }
+            }
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 2.2, style: .continuous)
+                    .stroke(Color.white, lineWidth: 1.15)
+                RoundedRectangle(cornerRadius: 1.2, style: .continuous)
+                    .fill(Color(red: 0.39, green: 0.82, blue: 1.0))
+                    .frame(width: 4.8, height: 13.8 * fraction)
+                    .padding(.bottom, 2.1)
+            }
+            .frame(width: 9, height: 18)
+        }
+        .foregroundStyle(.white)
+    }
+}
+
+/// The menu bar readings as tiles: drag to put them in order, click the
+/// checkmark to show or hide one. The order stays independent from which
+/// metrics are visible, so toggles do not reshuffle it.
+private struct MenuBarMetricTiles: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
+    @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
+    @State private var order: [MenuBarMetric] = MenuBarMetric.order(in: .standard)
+    @State private var dragging: MenuBarMetric?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
+                ForEach(visibleOrder) { metric in
+                    // Dragging moves within the full saved order, so metrics
+                    // hidden by the hub keep their slot for their return.
+                    PanelReorderableItem(item: metric, order: $order, dragging: $dragging) {
+                        MenuBarMetricTile(metric: metric)
+                    }
+                }
+            }
+            MemoryMenuBarOrderOption()
+            NetworkMenuBarOrderOption()
+        }
+        .onAppear { order = MenuBarMetric.order(in: .standard) }
+        .onChange(of: order) { _, order in
+            // Only a drag writes; reloading the saved order must not.
+            if order != MenuBarMetric.order(in: .standard) { MenuBarMetric.setOrder(order) }
+        }
+        .onChange(of: metricOrder) { _, _ in order = MenuBarMetric.order(in: .standard) }
+    }
+
+    /// Metrics whose family left the hub keep their saved slot but stay out
+    /// of the editor until they return.
+    private var visibleOrder: [MenuBarMetric] {
+        order.filter { $0.feature.isAvailable && $0.isAvailableOnCurrentHardware }
+    }
+}
+
+extension MenuBarMetric: PanelOrderItem {}
+
+/// One reading, backed by its own key so the preview above updates the
+/// moment it is ticked.
+private struct MenuBarMetricTile: View {
+    @ObservedObject private var l10n = L10n.shared
+    let metric: MenuBarMetric
+    @AppStorage private var shown: Bool
+
+    init(metric: MenuBarMetric) {
+        self.metric = metric
+        _shown = AppStorage(wrappedValue: false, metric.defaultsKey)
+    }
+
+    var body: some View {
+        NotchEditorItem(symbol: metric.symbolName, title: metric.title(l10n.s), included: $shown) {
+            shown.toggle()
+        }
+    }
+}
+
+/// An option that only makes sense for one reading, shown while it is on.
+private struct MetricRowOption: View {
+    let symbol: String
+    let label: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        SettingsRow(symbol: symbol, title: label) {
+            Toggle(label, isOn: $isOn)
+                .labelsHidden()
+                .controlSize(.small)
+        }
+    }
+}
+
+// Contributed in PR #179: the memory pressure-dot option lives with the
+// Memory reading, matching the Network reading's inline option.
+private struct MemoryMenuBarOrderOption: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarMemory) private var menuBarMemory = false
+    @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
+
+    var body: some View {
+        if menuBarMemory {
+            MetricRowOption(symbol: MenuBarMetric.memory.symbolName,
+                            label: l10n.s.monitorMemoryPressureDot,
+                            isOn: Binding(
+                                get: { Defaults.sanitizedMenuBarMemoryStyle(memoryStyle) != "percent" },
+                                set: { memoryStyle = $0 ? "both" : "percent" }))
+                .onAppear {
+                    memoryStyle = Defaults.sanitizedMenuBarMemoryStyle(memoryStyle)
+                }
+        }
+    }
+}
+
+private struct NetworkMenuBarOrderOption: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarNetwork) private var menuBarNetwork = false
+    @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var uploadFirst = false
+
+    var body: some View {
+        if menuBarNetwork {
+            MetricRowOption(symbol: MenuBarMetric.network.symbolName,
+                            label: l10n.s.monitorNetworkUploadFirst,
+                            isOn: $uploadFirst)
         }
     }
 }
@@ -217,7 +504,6 @@ private struct MenuBarUsageBarSettings: View {
                 }
             }
         }
-        .padding(.leading, 12)
         .onAppear(perform: sanitize)
     }
 
@@ -254,340 +540,5 @@ private struct MenuBarUsageBarSettings: View {
                                                            high: highThreshold)
         mediumThreshold = thresholds.medium
         highThreshold = thresholds.high
-    }
-}
-
-/// Drag-to-reorder and show/hide list for the menu bar metrics. The order stays
-/// independent from which metrics are visible, so toggles do not reshuffle it.
-private struct MenuBarMetricOrderEditor: View {
-    @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var features = FeatureRuntime.shared
-    @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
-    @State private var order: [MenuBarMetric] = MenuBarMetric.order(in: .standard)
-    @State private var dragging: MenuBarMetric?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(visibleOrder) { metric in
-                VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "line.3.horizontal")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.tertiary)
-                            Image(systemName: metric.symbolName)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 18)
-                            Text(metric.title(l10n.s))
-                            Spacer(minLength: 0)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
-                        .opacity(dragging == metric ? 0.45 : 1)
-                        .onDrag {
-                            dragging = metric
-                            return NSItemProvider(object: metric.rawValue as NSString)
-                        }
-                        .onDrop(of: [UTType.text],
-                                delegate: MenuBarMetricOrderDropDelegate(target: metric,
-                                                                         order: $order,
-                                                                         dragging: $dragging))
-
-                        MenuBarMetricVisibilityToggle(metric: metric)
-                    }
-                    .frame(height: 32)
-
-                    if metric == .memory {
-                        MemoryMenuBarOrderOption()
-                    }
-
-                    if metric == .network {
-                        NetworkMenuBarOrderOption()
-                    }
-
-                    if metric != visibleOrder.last {
-                        Divider()
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 2)
-        .onAppear { order = MenuBarMetric.order(in: .standard) }
-        .onChange(of: metricOrder) { _, _ in order = MenuBarMetric.order(in: .standard) }
-    }
-
-    /// Metrics whose family left the hub keep their saved slot but stay out
-    /// of the editor until they return.
-    private var visibleOrder: [MenuBarMetric] {
-        order.filter { $0.feature.isAvailable && $0.isAvailableOnCurrentHardware }
-    }
-}
-
-// Contributed in PR #179: the memory pressure-dot option lives under the
-// Memory row, matching the Network row's inline option.
-/// Inline per-metric option row: caption on the left, a switch on the right,
-/// indented under its metric. The switch is a hand-rolled capsule Button on
-/// purpose: a native Toggle inside the reorderable metric list never receives
-/// the click (the row's drag handling swallows it), while a plain Button does.
-private struct MetricRowOptionToggle: View {
-    let label: String
-    @Binding var isOn: Bool
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-            Button {
-                isOn.toggle()
-            } label: {
-                ZStack(alignment: isOn ? .trailing : .leading) {
-                    Capsule()
-                        .fill(isOn ? Color.accentColor : Color.secondary.opacity(0.28))
-                        .frame(width: 28, height: 16)
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 12, height: 12)
-                        .padding(2)
-                }
-                .frame(width: 30, height: 20)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(label)
-            .accessibilityLabel(label)
-            .accessibilityValue(isOn ? "1" : "0")
-        }
-        .padding(.leading, 58)
-        .padding(.trailing, 4)
-        .padding(.bottom, 7)
-    }
-}
-
-private struct MemoryMenuBarOrderOption: View {
-    @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.menuBarMemory) private var menuBarMemory = false
-    @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
-
-    var body: some View {
-        if menuBarMemory {
-            MetricRowOptionToggle(label: l10n.s.monitorMemoryPressureDot,
-                                  isOn: Binding(
-                                      get: { Defaults.sanitizedMenuBarMemoryStyle(memoryStyle) != "percent" },
-                                      set: { memoryStyle = $0 ? "both" : "percent" }))
-                .onAppear {
-                    memoryStyle = Defaults.sanitizedMenuBarMemoryStyle(memoryStyle)
-                }
-        }
-    }
-}
-
-private struct NetworkMenuBarOrderOption: View {
-    @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.menuBarNetwork) private var menuBarNetwork = false
-    @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var uploadFirst = false
-
-    var body: some View {
-        if menuBarNetwork {
-            MetricRowOptionToggle(label: l10n.s.monitorNetworkUploadFirst, isOn: $uploadFirst)
-        }
-    }
-}
-
-private struct MenuBarMetricVisibilityToggle: View {
-    @ObservedObject private var l10n = L10n.shared
-    let metric: MenuBarMetric
-    @AppStorage private var shown: Bool
-
-    init(metric: MenuBarMetric) {
-        self.metric = metric
-        _shown = AppStorage(wrappedValue: false, metric.defaultsKey)
-    }
-
-    var body: some View {
-        Button {
-            shown.toggle()
-        } label: {
-            Image(systemName: shown ? "eye.fill" : "eye.slash.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(shown ? Color.accentColor : Color.secondary)
-                .frame(width: 30, height: 24)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(shown ? l10n.s.panelHideItem : l10n.s.panelShowItem)
-        .accessibilityLabel(shown ? l10n.s.panelHideItem : l10n.s.panelShowItem)
-        .accessibilityValue(metric.title(l10n.s))
-    }
-}
-
-private struct MenuBarMetricOrderDropDelegate: DropDelegate {
-    let target: MenuBarMetric
-    @Binding var order: [MenuBarMetric]
-    @Binding var dragging: MenuBarMetric?
-
-    func dropEntered(info: DropInfo) {
-        guard let dragging,
-              dragging != target,
-              let from = order.firstIndex(of: dragging),
-              let to = order.firstIndex(of: target) else { return }
-
-        withAnimation(.easeInOut(duration: 0.12)) {
-            order.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-        }
-        MenuBarMetric.setOrder(order)
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        dragging = nil
-        MenuBarMetric.setOrder(order)
-        return true
-    }
-}
-
-/// Drag-to-reorder and show/hide list for the panel's major sections. Writes the
-/// order to `PanelLayout` and each section's visibility to its own key, both of
-/// which the live panel observes. A bounded, non-scrolling list so it sits inside
-/// the grouped Form without its own scroll area.
-/// Lives on the General page (the panel hosts more than monitoring); also
-/// consulted by the Monitor page for the Fan Control toggle placement.
-struct PanelOrderEditor: View {
-    @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var features = FeatureRuntime.shared
-    @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
-    @State private var order: [PanelSectionID] = PanelLayout.order
-    @State private var dragging: PanelSectionID?
-    /// Bumped whenever a section is shown/hidden so the dimmed titles and the
-    /// "can't hide the last one" guard recompute.
-    @State private var visibilityChanges = 0
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(editableOrder) { id in
-                VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "line.3.horizontal")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.tertiary)
-                            Text(id.title(l10n.s))
-                                .foregroundStyle(isShown(id) ? .primary : .secondary)
-                            Spacer(minLength: 0)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
-                        .opacity(dragging == id ? 0.45 : 1)
-                        .onDrag {
-                            dragging = id
-                            return NSItemProvider(object: id.rawValue as NSString)
-                        }
-                        .onDrop(of: [UTType.text],
-                                delegate: PanelOrderDropDelegate(target: id,
-                                                                 order: $order,
-                                                                 dragging: $dragging))
-
-                        // Fan Control is governed by its own toggle on Monitor, so
-                        // it has no separate show/hide here.
-                        if id != .fanControl {
-                            SectionVisibilityEye(id: id,
-                                                 canHide: visibleCount > 1,
-                                                 onChange: { visibilityChanges += 1 })
-                        }
-                    }
-                    .frame(height: 32)
-
-                    if id != editableOrder.last {
-                        Divider()
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 2)
-        .onAppear { order = PanelLayout.order }
-        .onChange(of: showFanControl) { _, _ in order = PanelLayout.order }
-    }
-
-    private var editableOrder: [PanelSectionID] {
-        order.filter { ($0 != .fanControl || showFanControl) && $0.isAvailable }
-    }
-
-    private func isShown(_ id: PanelSectionID) -> Bool {
-        _ = visibilityChanges
-        return PanelLayout.isShown(id)
-    }
-
-    /// How many sections are currently visible in the panel, so the last one
-    /// can't be hidden (which would leave an empty panel).
-    private var visibleCount: Int {
-        _ = visibilityChanges
-        return editableOrder.reduce(0) { $0 + (PanelLayout.isShown($1) ? 1 : 0) }
-    }
-}
-
-/// An eye button that shows/hides one panel section, backed by that section's
-/// own visibility key so the live panel updates immediately.
-private struct SectionVisibilityEye: View {
-    @ObservedObject private var l10n = L10n.shared
-    let id: PanelSectionID
-    let canHide: Bool
-    let onChange: () -> Void
-    @AppStorage private var shown: Bool
-
-    init(id: PanelSectionID, canHide: Bool, onChange: @escaping () -> Void) {
-        self.id = id
-        self.canHide = canHide
-        self.onChange = onChange
-        _shown = AppStorage(wrappedValue: id.shownByDefault, id.visibilityKey)
-    }
-
-    var body: some View {
-        Button {
-            shown.toggle()
-            onChange()
-        } label: {
-            Image(systemName: shown ? "eye.fill" : "eye.slash.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(shown ? Color.accentColor : Color.secondary)
-                .frame(width: 30, height: 24)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        // Keep at least one section visible.
-        .disabled(shown && !canHide)
-        .help(shown ? l10n.s.panelHideItem : l10n.s.panelShowItem)
-    }
-}
-
-private struct PanelOrderDropDelegate: DropDelegate {
-    let target: PanelSectionID
-    @Binding var order: [PanelSectionID]
-    @Binding var dragging: PanelSectionID?
-
-    func dropEntered(info: DropInfo) {
-        guard let dragging,
-              dragging != target,
-              let from = order.firstIndex(of: dragging),
-              let to = order.firstIndex(of: target) else { return }
-
-        withAnimation(.easeInOut(duration: 0.12)) {
-            order.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-        }
-        PanelLayout.setOrder(order)
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        dragging = nil
-        PanelLayout.setOrder(order)
-        return true
     }
 }

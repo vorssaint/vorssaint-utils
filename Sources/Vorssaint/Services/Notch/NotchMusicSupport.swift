@@ -35,17 +35,21 @@ struct NotchPlayback: Equatable {
     let canSeek: Bool
     var hasPosition: Bool = true
     var itemIdentifier: String? = nil
+    var commandContext: NotchPlaybackContext? = nil
+    var canSendCommandsDirectly = false
 
     func position(at date: Date) -> TimeInterval {
         min(duration, max(0, elapsed + (isPlaying ? max(0, date.timeIntervalSince(sampledAt)) * rate : 0)))
     }
 
-    func seekPosition(_ proposed: Double) -> Double? {
-        guard canSeek, duration > 0, proposed.isFinite else { return nil }
+    func seekPosition(_ proposed: Double, allowed: Bool? = nil) -> Double? {
+        guard allowed ?? canSeek, duration > 0, proposed.isFinite else { return nil }
         return min(duration, max(0, proposed))
     }
 
-    static func decode(_ data: Data, now: Date = Date(), previousArtwork: Data? = nil) -> NotchPlayback? {
+    static func decode(_ data: Data, now: Date = Date(), previousArtwork: Data? = nil,
+                       commandContext: NotchPlaybackContext? = nil,
+                       canSendCommandsDirectly: Bool = false) -> NotchPlayback? {
         guard let reply = RadialNowPlayingSupport.adapterReply(from: data) else { return nil }
         var info = reply.info
         if info["artworkUnchanged"] as? Bool == true {
@@ -72,6 +76,8 @@ struct NotchPlayback: Equatable {
                              canSeek: reply.info["canSeek"] as? Bool == true,
                              hasPosition: (reply.info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? NSNumber)
                                 .map { $0.doubleValue.isFinite && $0.doubleValue >= 0 } == true,
-                             itemIdentifier: reply.info["itemIdentifier"] as? String)
+                             itemIdentifier: reply.info["itemIdentifier"] as? String,
+                             commandContext: commandContext?.pid == track.appPID ? commandContext : nil,
+                             canSendCommandsDirectly: canSendCommandsDirectly)
     }
 }

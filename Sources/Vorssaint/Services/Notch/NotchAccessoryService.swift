@@ -52,7 +52,7 @@ final class NotchAccessoryService: NSObject {
                 for device in self.batteryState.consume(sample, observedAfter: self.activationTime) {
                     self.enqueue(NotchNotice(event: .accessory, title: device.name,
                         detail: text.lowBattery + " · \(device.percent)%",
-                        symbol: NotchAccessorySupport.symbol(for: device.kind),
+                        symbol: NotchAccessorySupport.symbol(for: device.kind, name: device.name),
                         level: Double(device.percent) / 100))
                 }
             }
@@ -94,7 +94,7 @@ final class NotchAccessoryService: NSObject {
             let kind = PeripheralBatterySupport.kind(product: name,
                 primaryUsagePage: nil, primaryUsage: nil, usagePairs: [])
             self.enqueue(NotchNotice(event: .accessory, title: name,
-                detail: text.connected, symbol: NotchAccessorySupport.symbol(for: kind)))
+                detail: text.connected, symbol: NotchAccessorySupport.symbol(for: kind, name: name)))
         }
     }
 

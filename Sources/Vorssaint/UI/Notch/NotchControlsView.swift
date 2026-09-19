@@ -72,6 +72,8 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.select(.mixer) }
         case .commandBar:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { CommandBarService.shared.show() } }
+        case .scratchpad:
+            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { ScratchpadService.shared.show() } }
         case .timer, .calendar:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {
                 service.select(item == .timer ? .timer : .calendar)
@@ -94,6 +96,7 @@ extension NotchControlItem {
         case .panel: return FeatureStrings.notch(l10n.language).panel
         case .mixer: return l10n.s.mixerSection
         case .commandBar: return FeatureStrings.commandBar(l10n.language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
         case .music: return NotchModule.music.title(l10n.language)
         case .timer: return NotchModule.timer.title(l10n.language)
         case .calendar: return NotchModule.calendar.title(l10n.language)

@@ -107,7 +107,7 @@ final class KeepAwakeManager: ObservableObject {
 
     func toggle() {
         if isActive {
-            if sessionTrigger == .automation || !currentMatchingAutomationConditions().isEmpty {
+            if sessionTrigger == .automation || automationConditionsHold() {
                 automationSuppressedUntilConditionsClear = true
             }
             deactivate(reason: .manual)
@@ -143,12 +143,19 @@ final class KeepAwakeManager: ObservableObject {
     /// `minutes <= 0` activates indefinitely.
     func activate(minutes: Int) {
         automationSuppressedUntilConditionsClear = false
-        activate(minutes: minutes, trigger: .manual)
+        let minutes = Defaults.sanitizedDefaultDuration(minutes)
+        let end = minutes > 0 ? Date().addingTimeInterval(TimeInterval(minutes) * 60) : nil
+        activate(end: end, trigger: .manual)
     }
 
-    private func activate(minutes: Int, trigger: SessionTrigger) {
+    func activate(until date: Date) {
+        guard date > Date() else { return }
+        automationSuppressedUntilConditionsClear = false
+        activate(end: date, trigger: .manual)
+    }
+
+    private func activate(end: Date?, trigger: SessionTrigger) {
         guard AppFeature.keepAwake.isAvailable else { return }
-        let minutes = Defaults.sanitizedDefaultDuration(minutes)
         endTimer?.invalidate()
         endTimer = nil
         syncScreenLockMonitoring()
@@ -160,8 +167,7 @@ final class KeepAwakeManager: ObservableObject {
             activeAutomationConditions.removeAll()
         }
         isActive = true
-        if minutes > 0 {
-            let end = Date().addingTimeInterval(TimeInterval(minutes) * 60)
+        if let end {
             endDate = end
             scheduleEnd(at: end)
         } else {
@@ -294,7 +300,7 @@ final class KeepAwakeManager: ObservableObject {
             if !continueAutomaticallyAfterTimerIfNeeded() { deactivate(reason: .timer) }
             return
         }
-        if sessionTrigger == .automation, currentMatchingAutomationConditions().isEmpty {
+        if sessionTrigger == .automation, !automationConditionsHold() {
             deactivate(reason: .manual)
             return
         }
@@ -389,9 +395,13 @@ final class KeepAwakeManager: ObservableObject {
     private func evaluateAutomation() {
         guard recoveryCompleted else { return }
         let matches = currentMatchingAutomationConditions()
+        let enabled = currentEnabledAutomationConditions()
+        let requireAll = automationRequiresAllConditions()
+        let satisfied = KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: matches, enabled: enabled, requireAll: requireAll)
 
         if automationSuppressedUntilConditionsClear {
-            if matches.isEmpty {
+            if !satisfied {
                 automationSuppressedUntilConditionsClear = false
             }
             if sessionTrigger == .automation {
@@ -412,6 +422,8 @@ final class KeepAwakeManager: ObservableObject {
         let action = KeepAwakeAutomationSupport.action(
             featureAvailable: AppFeature.keepAwake.isAvailable,
             matchingConditions: matches,
+            enabledConditions: enabled,
+            requireAll: requireAll,
             sessionActive: isActive,
             automaticSessionActive: isActive && sessionTrigger == .automation
         )
@@ -421,10 +433,34 @@ final class KeepAwakeManager: ObservableObject {
         case .activate:
             guard automaticSessionAllowedByBatteryProtection() else { return }
             activeAutomationConditions = matches
-            activate(minutes: 0, trigger: .automation)
+            activate(end: nil, trigger: .automation)
         case .deactivate:
             deactivate(reason: .manual)
         }
+    }
+
+    private func automationRequiresAllConditions() -> Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutomationRequireAll)
+    }
+
+    private func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> {
+        KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay),
+            powerEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower),
+            runningAppsEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps),
+            hasSelectedApps: !runningAppBundleIDs.isEmpty
+        )
+    }
+
+    /// Whether the automation currently asks for a session, in either match
+    /// mode. Every caller that used to read "any condition matches" has to ask
+    /// this instead: under All, a session that stops being wanted still has a
+    /// non-empty matching set (issue #1587).
+    private func automationConditionsHold() -> Bool {
+        KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: currentMatchingAutomationConditions(),
+            enabled: currentEnabledAutomationConditions(),
+            requireAll: automationRequiresAllConditions())
     }
 
     private func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> {
@@ -491,10 +527,16 @@ final class KeepAwakeManager: ObservableObject {
               AppFeature.keepAwake.isAvailable,
               !automationSuppressedUntilConditionsClear,
               automaticSessionAllowedByBatteryProtection() else { return false }
+        // The same full match the automation itself would need to start a
+        // session: under All, a timed session must not be handed over on one
+        // condition the automation would never have acted on (issue #1587).
         let matches = currentMatchingAutomationConditions()
-        guard !matches.isEmpty else { return false }
+        guard KeepAwakeAutomationSupport.conditionsSatisfied(
+                matching: matches,
+                enabled: currentEnabledAutomationConditions(),
+                requireAll: automationRequiresAllConditions()) else { return false }
         activeAutomationConditions = matches
-        activate(minutes: 0, trigger: .automation)
+        activate(end: nil, trigger: .automation)
         return true
     }
 
