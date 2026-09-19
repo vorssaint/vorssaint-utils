@@ -9043,6 +9043,41 @@ struct MetricsTests {
             keyCode: 36, hasSelectionModifiers: false),
                "shelf does not clear selection for an unrelated key")
 
+        expect(ShelfKeyboardSupport.move(for: 123) == .previous && ShelfKeyboardSupport.move(for: 124) == .next
+                   && ShelfKeyboardSupport.move(for: 126) == .up && ShelfKeyboardSupport.move(for: 125) == .down,
+               "shelf maps the four arrow keys to moves")
+        expect(ShelfKeyboardSupport.move(for: 36) == nil, "shelf does not move for an unrelated key")
+        expect(ShelfKeyboardSupport.isRemoveKey(51) && ShelfKeyboardSupport.isRemoveKey(117),
+               "shelf removes on Delete and forward delete")
+        expect(!ShelfKeyboardSupport.isRemoveKey(53), "shelf does not remove on Escape")
+        // Seven tiles, three per row: rows 0-2, 3-5 and a short last row of 6.
+        expect(ShelfKeyboardSupport.destinationIndex(from: nil, move: .up, count: 7, columns: 3) == 0,
+               "shelf arrows start at the first tile when nothing is selected")
+        expect(ShelfKeyboardSupport.destinationIndex(from: nil, move: .next, count: 0, columns: 3) == nil,
+               "shelf arrows have nowhere to go on an empty shelf")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 1, move: .next, count: 7, columns: 3) == 2,
+               "shelf right arrow moves to the next tile")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 2, move: .next, count: 7, columns: 3) == 3,
+               "shelf right arrow continues onto the next row")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 6, move: .next, count: 7, columns: 3) == 6,
+               "shelf right arrow stays on the last tile")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 0, move: .previous, count: 7, columns: 3) == 0,
+               "shelf left arrow stays on the first tile")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 4, move: .up, count: 7, columns: 3) == 1,
+               "shelf up arrow moves a row up")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 1, move: .up, count: 7, columns: 3) == 1,
+               "shelf up arrow stays on the first row")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 1, move: .down, count: 7, columns: 3) == 4,
+               "shelf down arrow moves a row down")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 5, move: .down, count: 7, columns: 3) == 6,
+               "shelf down arrow onto a shorter last row lands on its last tile")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 6, move: .down, count: 7, columns: 3) == 6,
+               "shelf down arrow stays on the last row")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 9, move: .previous, count: 7, columns: 3) == 0,
+               "shelf arrows recover from an anchor that is no longer shown")
+        expect(ShelfKeyboardSupport.destinationIndex(from: 2, move: .down, count: 4, columns: 0) == 3,
+               "shelf arrows treat a zero column count as one column")
+
         expect(ShelfInteractionSupport.allowsAutomaticOpen(
             sourceBundleIdentifier: "com.example.Editor",
             excludedBundleIdentifiers: ["com.example.Browser"]),

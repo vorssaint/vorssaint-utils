@@ -37,6 +37,9 @@ class ShelfPanelMoveView: NSView {
     override func mouseDown(with event: NSEvent) {
         ShelfService.shared.beginInteraction()
         defer { ShelfService.shared.endInteraction() }
+        // A click anywhere on the shelf is what makes its keys work, not
+        // only a click on a tile.
+        window?.makeKey()
         window?.performDrag(with: event)
     }
 
@@ -95,6 +98,8 @@ struct ShelfTilesView: NSViewRepresentable {
     var expandedBatches: Set<UUID>
     var revealID: UUID?
     var revealSerial: Int
+    /// The tile the keyboard moves from; kept in view as the selection moves.
+    var focusID: UUID? = nil
 
     static let tileSize = NSSize(width: 78, height: 88)
     static let spacing: CGFloat = 10
@@ -120,7 +125,8 @@ struct ShelfTilesView: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         Self.rebuildTiles(scroll: scroll, items: items, selection: selection, expandedBatches: expandedBatches,
-                          revealID: revealID, revealSerial: revealSerial, coordinator: context.coordinator)
+                          revealID: revealID, revealSerial: revealSerial, focusID: focusID,
+                          coordinator: context.coordinator)
     }
 
     /// Lays out every tile from scratch. Shared with `ShelfTileView`, which
@@ -142,6 +148,7 @@ struct ShelfTilesView: NSViewRepresentable {
                              expandedBatches: Set<UUID>,
                              revealID: UUID? = nil,
                              revealSerial: Int = 0,
+                             focusID: UUID? = nil,
                              coordinator: Coordinator? = nil) {
         guard let document = scroll.documentView else { return }
 
@@ -175,6 +182,8 @@ struct ShelfTilesView: NSViewRepresentable {
             }
             return
         }
+        let selectionChanged = selection != coordinator?.lastRebuiltSelection
+        ShelfService.shared.tileColumns = columns
         coordinator?.lastRebuiltItems = items
         coordinator?.lastRebuiltSelection = selection
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
@@ -204,6 +213,13 @@ struct ShelfTilesView: NSViewRepresentable {
         if let coordinator {
             revealIfNeeded(in: document, columns: columns, items: items,
                            revealID: revealID, revealSerial: revealSerial, coordinator: coordinator)
+        }
+        // A selection the arrow keys just moved off screen has to follow the
+        // keys; a click already happened where the pointer was, and
+        // scrollToVisible does nothing for a tile already on screen.
+        if selectionChanged, let focusID, let index = items.firstIndex(where: { $0.id == focusID }) {
+            document.scrollToVisible(ShelfTileLayout.tileFrame(index: index, columns: columns, tileSize: tile,
+                                                               spacing: Self.spacing, inset: inset))
         }
     }
 

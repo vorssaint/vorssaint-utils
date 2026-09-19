@@ -48,7 +48,8 @@ struct NotchFilesView: View {
                                selection: shelf.selection,
                                expandedBatches: shelf.expandedBatches,
                                revealID: shelf.revealTargetID,
-                               revealSerial: shelf.addSerial)
+                               revealSerial: shelf.addSerial,
+                               focusID: shelf.selectionAnchor)
                     .frame(maxHeight: .infinity)
                 HStack {
                     Text(l10n.s.shelfHint).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)

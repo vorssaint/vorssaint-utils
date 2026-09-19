@@ -128,8 +128,12 @@ final class ShelfService: ObservableObject {
     /// Ids of tiles the user has selected; a drag of any selected tile drags
     /// the whole selection out together.
     @Published private(set) var selection: Set<UUID> = []
-    /// Last tile explicitly touched, used as the start of a Shift-click range.
-    private var selectionAnchor: UUID?
+    /// Last tile explicitly touched, used as the start of a Shift-click range
+    /// and as the tile the arrow keys move away from.
+    @Published private(set) var selectionAnchor: UUID?
+    /// How many tiles the shelf on screen fits per row, reported by the tiles
+    /// view as it lays out, so the up and down arrows know how far a row is.
+    var tileColumns = 1
     @Published private(set) var expandedBatches: Set<UUID> = []
     /// The item most recently put on the shelf, so the tiles can scroll it
     /// into view. Not persisted: it means "just now", and a relaunch has no
@@ -1024,7 +1028,32 @@ final class ShelfService: ObservableObject {
                 ShelfService.shared.selectAllVisibleItems()
                 return true
             }
+            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "v",
+               ShelfService.shared.pasteFromClipboard() {
+                return true
+            }
+            // ⌘O and ⌘↓ open, as in Finder; Return stays free for what
+            // Finder uses it for.
+            if modifiers == [.command],
+               event.charactersIgnoringModifiers?.lowercased() == "o" || event.keyCode == 125 {
+                return ShelfService.shared.openSelectedItems()
+            }
             return super.performKeyEquivalent(with: event)
+        }
+
+        /// Arrows and Delete arrive here once nothing in the panel wanted
+        /// them; performKeyEquivalent only sees modifier-bearing keys reliably.
+        override func keyDown(with event: NSEvent) {
+            let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if let move = ShelfKeyboardSupport.move(for: event.keyCode), modifiers.isSubset(of: [.shift]) {
+                ShelfService.shared.moveSelection(move, extending: modifiers.contains(.shift))
+                return
+            }
+            if ShelfKeyboardSupport.isRemoveKey(event.keyCode), modifiers.isEmpty,
+               ShelfService.shared.removeSelectedItems() {
+                return
+            }
+            super.keyDown(with: event)
         }
 
         override func cancelOperation(_ sender: Any?) {
@@ -1107,6 +1136,66 @@ final class ShelfService: ObservableObject {
         selection.formUnion(range)
         selectionAnchor = id
         noteInteraction()
+    }
+
+    /// Moves the selection with an arrow key: to a neighbour, or a row up or
+    /// down, from the tile last touched. Plain moves select that one tile;
+    /// a Shift move extends the range the way a Shift-click does.
+    func moveSelection(_ move: ShelfKeyboardSupport.Move, extending: Bool) {
+        let visibleIDs = visibleItems.map(\.id)
+        let current = selectionAnchor.flatMap { visibleIDs.firstIndex(of: $0) }
+        guard let index = ShelfKeyboardSupport.destinationIndex(from: current, move: move,
+                                                                count: visibleIDs.count,
+                                                                columns: tileColumns) else { return }
+        let target = visibleIDs[index]
+        if extending, current != nil {
+            extendSelection(to: target)
+        } else {
+            selection = [target]
+            selectionAnchor = target
+            noteInteraction()
+        }
+    }
+
+    /// Takes the selected tiles off the shelf; the files stay where they
+    /// are. False with nothing selected, so the key can fall through.
+    @discardableResult
+    func removeSelectedItems() -> Bool {
+        guard !selection.isEmpty else { return false }
+        removeItems(Array(selection))
+        return true
+    }
+
+    /// Opens what is selected the way a double-click in Finder would: files
+    /// in their default app, links in the browser. Notes have nothing to
+    /// open and are skipped. False with nothing selected, so the key can
+    /// fall through; a selection whose files have all died says so and
+    /// retires them, exactly as a dead drag does.
+    @discardableResult
+    func openSelectedItems() -> Bool {
+        guard !selection.isEmpty else { return false }
+        let leaves = dragItems(for: selectedItems())
+        let urls: [URL] = livingDragItems(in: leaves).compactMap { entry in
+            switch entry.payload {
+            case let .file(url), let .link(url): return url
+            case .text, .batch: return nil
+            }
+        }
+        guard !urls.isEmpty else {
+            if leaves.contains(where: \.holdsFile) { handleDeadDrag(leaves) }
+            return true
+        }
+        for url in urls { NSWorkspace.shared.open(url) }
+        return true
+    }
+
+    /// ⌘V: shelves whatever is on the clipboard, through the same acceptance
+    /// a drop goes through, so files, images, links and text all land the
+    /// same way they would dragged. False when the clipboard holds nothing
+    /// the shelf keeps.
+    @discardableResult
+    func pasteFromClipboard() -> Bool {
+        acceptDrop(pasteboard: .general)
     }
 
     /// Selects every tile currently presented by the Shelf, including items
