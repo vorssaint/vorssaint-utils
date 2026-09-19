@@ -33,6 +33,15 @@ enum NotchCalendarSupport {
         return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
 
+    /// The seven days around `date`, from the calendar's first weekday. Every
+    /// week lies inside the 42-day grid `monthDays` reads for any of its days.
+    static func weekDays(containing date: Date, calendar: Calendar = .current) -> [Date] {
+        let day = calendar.startOfDay(for: date)
+        let offset = (calendar.component(.weekday, from: day) - calendar.firstWeekday + 7) % 7
+        guard let start = calendar.date(byAdding: .day, value: -offset, to: day) else { return [] }
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+    }
+
     static func readInterval(month: Date?, now: Date, calendar: Calendar = .current) -> DateInterval {
         let today = calendar.startOfDay(for: now)
         let weekEnd = calendar.date(byAdding: .day, value: 7, to: today) ?? now

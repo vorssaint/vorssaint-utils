@@ -60,6 +60,9 @@ final class NotchService: ObservableObject {
     @Published private(set) var notice: NotchNotice?
     @Published private(set) var noticeExpanded = false
     @Published private(set) var captureContent: AnyView?
+    /// Bumped when Command-W asks the Scratchpad page to close its selected
+    /// pad, so the confirmation stays in the page as it does in the floating pad.
+    @Published private(set) var scratchpadCloseSerial = 0
     @Published private var captureContentHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
@@ -160,20 +163,23 @@ final class NotchService: ObservableObject {
 
     var expandedSize: CGSize {
         if showingSections {
-            return geometry.sectionPickerSize(count: filteredSections.count, searching: !sectionQuery.isEmpty)
+            return geometry.sectionPickerSize(count: filteredSections.count)
         }
         let controls = NotchSupport.controls()
         let sliders = controls.filter { $0 == .volume || $0 == .brightness }.count
         let shortcuts = controls.filter { $0 != .volume && $0 != .brightness && $0 != .music }.count
         let musicExtras = NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
+        let launcher = QuickLauncherService.shared
         return geometry.expandedSize(module: showingAppPanel ? .tools : selected,
-                                     detail: selectedMetric != nil, controlRows: (shortcuts + geometry.controlColumns - 1) / geometry.controlColumns,
+                                     detail: selectedMetric != nil, panel: showingAppPanel, shortcutCount: shortcuts,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
-                                     musicExtraHeight: musicExtras ? (musicDetailVisible ? 260 : 44) : 0,
+                                     musicHasControlsRow: AppFeature.mixer.isAvailable || musicExtras,
+                                     musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
                                      fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                                         && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
-                                     systemRows: (NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery)
-                                        + geometry.systemColumns - 1) / geometry.systemColumns,
+                                     systemCards: NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery,
+                                                                               fans: SystemMonitor.shared.snapshot.fanSpeeds.count),
+                                     toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
                                      capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
                                      timerHasSession: NotchTimerService.shared.session.hasSession,
                                      timerMode: NotchTimerService.shared.session.hasSession
@@ -612,9 +618,38 @@ final class NotchService: ObservableObject {
         }
         let sections = filteredSections
         guard !sections.isEmpty else { return true }
+        // While typing, the side arrows keep editing the query and the
+        // vertical pair steps through the matches in order.
+        guard sectionQuery.isEmpty else {
+            highlightedSection = NotchSupport.adjacentModule(to: highlightedSection, modules: sections,
+                                                             backwards: direction == .up)
+            return true
+        }
         let index = highlightedSection.flatMap { sections.firstIndex(of: $0) } ?? 0
         highlightedSection = sections[QuickToolsSupport.gridIndex(after: index, count: sections.count,
-                                                                   columns: sectionQuery.isEmpty ? geometry.sectionColumns : 1, direction: direction)]
+                                                                   flow: .columns(rows: geometry.sectionRows(count: sections.count)),
+                                                                   direction: direction)]
+        return true
+    }
+
+    /// The floating pad's tab shortcuts work on its page too. With one pad
+    /// left, Command-W closes the island the way it hides the pad.
+    private func handleScratchpadKey(_ event: NSEvent) -> Bool {
+        guard selected == .scratchpad, !showingAppPanel, !showingSections, selectedMetric == nil else { return false }
+        let pad = ScratchpadService.shared
+        let commandOnly = event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command
+        guard let action = ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+                                                               commandOnly: commandOnly,
+                                                               canCreatePad: pad.canCreatePad,
+                                                               canClosePad: pad.canClosePad) else {
+            // At the tab limit Command-T still belongs to the pad, not the text.
+            return commandOnly && event.charactersIgnoringModifiers?.lowercased() == "t"
+        }
+        switch action {
+        case .createPad: pad.createPad(defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle)
+        case .closeSelectedPad: scratchpadCloseSerial += 1
+        case .hidePad: collapse()
+        }
         return true
     }
 
@@ -638,7 +673,7 @@ final class NotchService: ObservableObject {
             case .timer: select(.timer)
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
-            case .scratchpad: perform { ScratchpadService.shared.show() }
+            case .scratchpad: openScratchpad()
             case .volume, .brightness: select(.controls)
             }
         }
@@ -647,6 +682,13 @@ final class NotchService: ObservableObject {
     func select(_ module: NotchModule) {
         guard modules.contains(module) else { return }
         open(module)
+    }
+
+    /// The pad lives in the island when its page is on; otherwise the
+    /// shortcut opens the floating pad as it always did.
+    func openScratchpad() {
+        if modules.contains(.scratchpad) { open(.scratchpad) }
+        else { perform { ScratchpadService.shared.show() } }
     }
 
     func openAppPanel(toggle: Bool = false) {
@@ -1468,11 +1510,21 @@ final class NotchService: ObservableObject {
                     return nil
                 }
                 if self.handleSectionKey(event) { return nil }
+                if self.handleScratchpadKey(event) { return nil }
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {
-                return QuickLauncherService.shared.handlePanelKey(event, columns: NotchSupport.toolColumns)
+                let launcher = QuickLauncherService.shared
+                // The rail fills columns; the editing grid keeps its rows.
+                let flow: QuickToolsSupport.GridFlow = launcher.isEditing
+                    ? .rows(columns: NotchSupport.toolColumns)
+                    : .columns(rows: self.geometry.toolRows(count: launcher.visibleItems.count))
+                return launcher.handlePanelKey(event, flow: flow)
             }
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53 {
+                // A level being typed in the mixer cancels on Escape by
+                // itself; the island collapses on the next one.
+                if let editor = self.panel?.firstResponder as? NSTextView, editor.isFieldEditor,
+                   (editor.delegate as AnyObject?) is MixerPercentNativeTextField { return event }
                 self.collapse()
                 return nil
             }
@@ -1559,6 +1611,18 @@ final class NotchService: ObservableObject {
                     self?.syncMenuSpaceMonitoring()
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
+        if modules.contains(.tools) {
+            // The tools page is a rail sized by its tiles; editing or a
+            // hosted utility turns it into a page.
+            let launcher = QuickLauncherService.shared
+            launcher.$isEditing.map { _ in () }
+                .merge(with: launcher.$activeUtility.map { _ in () }, launcher.$hiddenItemsRaw.map { _ in () })
+                .dropFirst(3).receive(on: DispatchQueue.main)
+                .sink { [weak self] in
+                    guard let self, self.expanded, self.selected == .tools, !self.showingAppPanel, !self.showingSections else { return }
+                    self.refreshPresentation()
                 }.store(in: &subscriptions)
         }
         if NotchSupport.routes(.download) {
@@ -1699,6 +1763,7 @@ final class NotchService: ObservableObject {
         let needs = expanded && selected == .system && selectedMetric == nil && modules.contains(.system) && !showingAppPanel && !showingSections
         var detailNeeds = expanded && !showingSections ? selectedMetric?.monitorNeeds ?? .none : .none
         if needs, AppFeature.monitorDisk.isAvailable { detailNeeds.disk = true }
+        if needs, AppFeature.fanControl.isAvailable { detailNeeds.fanSpeed = true }
         SystemMonitor.shared.setNotchDetailNeeds(detailNeeds)
         if needs != notchNeedsMonitor {
             notchNeedsMonitor = needs

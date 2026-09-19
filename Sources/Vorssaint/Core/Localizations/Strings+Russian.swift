@@ -244,6 +244,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Сколько указатель должен оставаться на значке, прежде чем откроется панель.",
         dockPreviewQuitAppOnClose: "Завершать приложение кнопкой ×",
         dockPreviewQuitAppOnCloseCaption: "В Dock Preview кнопка × завершает всё приложение, а не закрывает только это окно.",
+        dockPreviewKeepDockVisible: "Не скрывать Dock (экспериментально)",
+        dockPreviewKeepDockVisibleCaption: "Приостанавливает автоскрытие, пока открыт предпросмотр, и восстанавливает его при выходе. Размер окон может измениться. Если приложение аварийно завершится, откройте его снова для восстановления Dock.",
         dockPreviewOrderByCreation: "Сортировать окна по времени создания",
         dockPreviewOrderByCreationCaption: "Показывать сначала старые окна, а не те, что использовались недавно.",
         dockClickMinimize: "Сворачивать кликом по Dock",

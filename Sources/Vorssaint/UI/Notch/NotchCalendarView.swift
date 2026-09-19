@@ -5,19 +5,26 @@ import SwiftUI
 import EventKit
 
 struct NotchCalendarView: View {
+    let size: CGSize
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var permissions = Permissions.shared
-    @State private var month = Date()
+    /// The day the month grid or the week strip is built around.
+    @State private var focus = Date()
     @State private var selectedDay: Date?
+    /// The strip's month grid, in place of the strip and the cards.
+    @State private var showingMonth = false
     private var text: NotchCalendarStrings { FeatureStrings.notchCalendar(l10n.language) }
+    /// A month grid needs six rows beside an agenda; anything shorter shows
+    /// the week as a strip and the appointments as cards running sideways.
+    private var showsMonth: Bool { size.height >= 300 && size.width >= 420 }
 
     var body: some View {
         Group {
             if permissions.calendarAccess == .fullAccess {
                 TimelineView(.everyMinute) { context in
-                    GeometryReader { geometry in
-                        if geometry.size.width >= 420 {
+                    Group {
+                        if showsMonth {
                             HStack(alignment: .top, spacing: 16) {
                                 ScrollView { monthView(now: context.date) }
                                     .scrollIndicators(.automatic)
@@ -26,25 +33,23 @@ struct NotchCalendarView: View {
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 12) {
                                     agendaHeader
-                                    ScrollView { appointments(now: context.date) }
+                                    ScrollView { appointmentList(now: context.date) }
                                         .scrollIndicators(.automatic)
                                         .id(selectedDay)
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             }
+                        } else if showingMonth {
+                            monthGrid(now: context.date)
                         } else {
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 18) {
-                                    monthView(now: context.date)
-                                    Divider().overlay(.white.opacity(0.12))
-                                    agendaHeader
-                                    appointments(now: context.date)
-                                }
-                            }.scrollIndicators(.automatic)
+                            VStack(spacing: NotchLayout.rowSpacing) {
+                                weekStrip(now: context.date)
+                                appointmentRail(now: context.date)
+                            }
                         }
                     }
                     .onChange(of: Calendar.current.startOfDay(for: context.date)) { _, _ in
-                        if selectedDay == nil { month = context.date }
+                        if selectedDay == nil { focus = context.date }
                     }
                 }
             } else {
@@ -53,27 +58,71 @@ struct NotchCalendarView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .environment(\.locale, Locale(identifier: l10n.language.rawValue))
-        .onAppear { calendar.showMonth(month) }
-        .onChange(of: month) { _, date in calendar.showMonth(date) }
+        .onAppear { calendar.showMonth(focus) }
+        .onChange(of: focus) { previous, date in
+            // A month read already covers every week of that month, so
+            // moving the strip within it keeps the loaded events.
+            if !Calendar.current.isDate(previous, equalTo: date, toGranularity: .month) { calendar.showMonth(date) }
+        }
         .onDisappear { calendar.showMonth(nil) }
     }
 
     private func monthView(now: Date) -> some View {
-        NotchCalendarMonthView(month: month, selectedDay: selectedDay, now: now,
-                               events: calendar.events, text: text) { date in
-            selectedDay = date
-            if !Calendar.current.isDate(date, equalTo: month, toGranularity: .month) { month = date }
-        } move: { offset in
-            guard let start = Calendar.current.dateInterval(of: .month, for: month)?.start,
-                  let date = Calendar.current.date(byAdding: .month, value: offset, to: start) else { return }
-            selectedDay = date
-            month = date
-        } today: {
-            selectedDay = Calendar.current.startOfDay(for: now)
-            if !Calendar.current.isDate(month, equalTo: now, toGranularity: .month) { month = now }
+        NotchCalendarMonthView(month: focus, selectedDay: selectedDay, now: now,
+                               events: calendar.events, text: text, select: select, move: moveMonth) {
+            today(now: now)
         } open: {
             openCalendar()
         }
+    }
+
+    private func weekStrip(now: Date) -> some View {
+        NotchCalendarWeekStrip(width: size.width, focus: focus, selectedDay: selectedDay, now: now,
+                               events: calendar.events, text: text, select: select) { offset in
+            guard let date = Calendar.current.date(byAdding: .day, value: offset * 7, to: focus) else { return }
+            selectedDay = Calendar.current.startOfDay(for: date)
+            focus = date
+        } today: {
+            today(now: now)
+        } week: {
+            selectedDay = nil
+            focus = now
+        } month: {
+            showingMonth = true
+        } open: {
+            openCalendar()
+        }
+    }
+
+    /// Picking a day, or Today, lands back on the strip with that day.
+    private func monthGrid(now: Date) -> some View {
+        NotchCalendarMonthGrid(month: focus, selectedDay: selectedDay, now: now, height: size.height,
+                               events: calendar.events, text: text, select: { date in
+            select(date)
+            showingMonth = false
+        }, move: moveMonth, today: {
+            today(now: now)
+            showingMonth = false
+        }, open: { openCalendar() }, week: {
+            showingMonth = false
+        })
+    }
+
+    private func moveMonth(_ offset: Int) {
+        guard let start = Calendar.current.dateInterval(of: .month, for: focus)?.start,
+              let date = Calendar.current.date(byAdding: .month, value: offset, to: start) else { return }
+        selectedDay = date
+        focus = date
+    }
+
+    private func select(_ date: Date) {
+        selectedDay = date
+        focus = date
+    }
+
+    private func today(now: Date) {
+        selectedDay = Calendar.current.startOfDay(for: now)
+        focus = now
     }
 
     private var agendaHeader: some View {
@@ -91,54 +140,46 @@ struct NotchCalendarView: View {
             if selectedDay != nil {
                 NotchIconButton(symbol: "calendar.badge.clock", title: text.week) {
                     selectedDay = nil
-                    let now = Date()
-                    if !Calendar.current.isDate(month, equalTo: now, toGranularity: .month) { month = now }
+                    focus = Date()
                 }
             }
         }
         .frame(minHeight: 32)
     }
 
-    @ViewBuilder private func appointments(now: Date) -> some View {
+    private struct DayGroup {
+        let day: Date
+        let events: [NotchCalendarEvent]
+    }
+
+    private struct AgendaItem: Identifiable {
+        let event: NotchCalendarEvent
+        let day: Date
+        var id: String { "\(day.timeIntervalSinceReferenceDate)/\(event.id)" }
+    }
+
+    private func groups(now: Date) -> [DayGroup] {
         let days = selectedDay.map { [$0] } ?? (0..<7).compactMap {
             Calendar.current.date(byAdding: .day, value: $0, to: Calendar.current.startOfDay(for: now))
         }
         let events = selectedDay == nil ? NotchCalendarSupport.upcoming(calendar.events, now: now) : calendar.events
-        let groups = days.map { (day: $0, events: NotchCalendarSupport.events(events, on: $0)) }
+        return days.map { DayGroup(day: $0, events: NotchCalendarSupport.events(events, on: $0)) }
             .filter { !$0.events.isEmpty }
+    }
+
+    @ViewBuilder private func appointmentList(now: Date) -> some View {
+        let groups = groups(now: now)
         let next = NotchCalendarSupport.next(calendar.events, now: now)
         if calendar.loading {
             ProgressView().controlSize(.small)
                 .frame(maxWidth: .infinity, minHeight: 150)
         } else if groups.isEmpty {
-            VStack(spacing: 12) {
-                Image(systemName: "calendar.badge.checkmark")
-                    .font(.system(size: 26, weight: .light))
-                    .foregroundStyle(.white.opacity(0.45))
-                    .accessibilityHidden(true)
-                Text(selectedDay == nil ? text.empty : text.emptyDay)
-                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.65))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 150)
+            emptyAgenda.frame(maxWidth: .infinity, minHeight: 150)
         } else {
             LazyVStack(alignment: .leading, spacing: 14) {
                 ForEach(groups, id: \.day) { group in
                     VStack(alignment: .leading, spacing: 7) {
-                        if selectedDay == nil {
-                            HStack(spacing: 5) {
-                                if Calendar.current.isDate(group.day, inSameDayAs: now) {
-                                    Text(text.today).foregroundStyle(.white)
-                                } else {
-                                    Text(group.day, format: .dateTime.weekday(.abbreviated))
-                                }
-                                Text(group.day, format: .dateTime.day().month(.abbreviated))
-                            }
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                        }
+                        if selectedDay == nil { dayLabel(group.day, now: now) }
                         ForEach(group.events) { event in
                             NotchCalendarEventRow(event: event, day: group.day, now: now,
                                                   isNext: event.id == next?.id, text: text) {
@@ -152,23 +193,68 @@ struct NotchCalendarView: View {
         }
     }
 
+    /// Cards run sideways in as many rows as the remaining height holds.
+    @ViewBuilder private func appointmentRail(now: Date) -> some View {
+        let groups = groups(now: now)
+        let next = NotchCalendarSupport.next(calendar.events, now: now)
+        let height = max(0, size.height - NotchCalendarWeekStrip.height - NotchLayout.rowSpacing)
+        if calendar.loading {
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if groups.isEmpty {
+            emptyAgenda.frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            let items = groups.flatMap { group in group.events.map { AgendaItem(event: $0, day: group.day) } }
+            let rows = NotchLayout.railRows(count: items.count,
+                                            perRow: NotchLayout.railCapacity(width: size.width, itemWidth: 200, spacing: 8),
+                                            rowHeight: 84, spacing: 8, height: height)
+            let cardHeight = (height - CGFloat(rows - 1) * 8) / CGFloat(rows)
+            NotchRail(items: items, rows: rows, itemWidth: 200, width: size.width) { item in
+                NotchCalendarEventRow(event: item.event, day: item.day, now: now, isNext: item.event.id == next?.id,
+                                      text: text, showsDay: selectedDay == nil) {
+                    openCalendar(showing: item.event)
+                }
+                .frame(height: cardHeight)
+            }
+            .frame(height: height, alignment: .top)
+        }
+    }
+
+    private func dayLabel(_ day: Date, now: Date) -> some View {
+        NotchCalendarDayLabel(day: day, now: now, text: text)
+    }
+
+    private var emptyAgenda: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "calendar.badge.checkmark")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(.white.opacity(0.45))
+                .accessibilityHidden(true)
+            Text(selectedDay == nil ? text.empty : text.emptyDay)
+                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+    }
+
     private var permissionCard: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "calendar.badge.clock").font(.system(size: 32))
-            Text(text.title).font(.headline)
+        VStack(spacing: 10) {
+            Image(systemName: "calendar.badge.clock").font(.system(size: 28))
             Text(permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted
                  ? text.denied : text.permission)
                 .font(.callout).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center)
-            if permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted {
-                Button(text.settings) { permissions.openCalendarSettings() }
-            } else {
-                Button(text.allow) {
-                    NotchService.shared.open(.calendar)
-                    permissions.requestCalendar()
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                if permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted {
+                    Button(text.settings) { permissions.openCalendarSettings() }
+                } else {
+                    Button(text.allow) {
+                        NotchService.shared.open(.calendar)
+                        permissions.requestCalendar()
+                    }
+                    .disabled(permissions.requestingCalendar)
                 }
-                .disabled(permissions.requestingCalendar)
+                if permissions.requestingCalendar { ProgressView().controlSize(.small) }
             }
-            if permissions.requestingCalendar { ProgressView().controlSize(.small) }
             if permissions.calendarRequestFailed {
                 Text(text.requestFailed).font(.caption).foregroundStyle(.orange)
             }
@@ -191,12 +277,34 @@ struct NotchCalendarView: View {
     }
 }
 
+private struct NotchCalendarDayLabel: View {
+    let day: Date
+    let now: Date
+    let text: NotchCalendarStrings
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if Calendar.current.isDate(day, inSameDayAs: now) {
+                Text(text.today).foregroundStyle(.white)
+            } else {
+                Text(day, format: .dateTime.weekday(.abbreviated))
+            }
+            Text(day, format: .dateTime.day().month(.abbreviated))
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(.white.opacity(0.5))
+        .lineLimit(1)
+    }
+}
+
 private struct NotchCalendarEventRow: View {
     let event: NotchCalendarEvent
     let day: Date
     let now: Date
     let isNext: Bool
     let text: NotchCalendarStrings
+    /// Cards in the rail name their day; a list already groups by it.
+    var showsDay = false
     let open: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -216,12 +324,19 @@ private struct NotchCalendarEventRow: View {
                 .fill(event.color.color)
                 .frame(width: 3)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 5) {
-                if ongoing || isNext {
-                    Text(ongoing ? text.ongoing : text.next)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
-                        .lineLimit(2)
+            VStack(alignment: .leading, spacing: 4) {
+                if showsDay || ongoing || isNext {
+                    HStack(spacing: 6) {
+                        if showsDay {
+                            NotchCalendarDayLabel(day: day, now: now, text: text)
+                        }
+                        if ongoing || isNext {
+                            Text(ongoing ? text.ongoing : text.next)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
+                                .lineLimit(1)
+                        }
+                    }
                 }
                 Text(event.title.isEmpty ? text.untitled : event.title)
                     .font(.system(size: 13, weight: .semibold))
@@ -241,7 +356,7 @@ private struct NotchCalendarEventRow: View {
                 }
                 .font(.system(size: 11)).monospacedDigit()
                 .foregroundStyle(.white.opacity(0.75))
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)
                 Text(event.calendar)
                     .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
                 if !event.location.isEmpty {
@@ -252,12 +367,14 @@ private struct NotchCalendarEventRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(event.color.color.opacity(ongoing ? 0.2 : 0.1),
                     in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(.white.opacity(contrast == .increased ? 0.5 : ongoing ? 0.16 : 0.05), lineWidth: 0.75)
         }
+        .clipped()
     }
 }
 
