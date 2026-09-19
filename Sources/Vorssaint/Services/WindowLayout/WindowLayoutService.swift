@@ -247,14 +247,12 @@ final class WindowLayoutService: ObservableObject {
                                           current: target.frame,
                                           visibleFrame: screen.visibleFrame).rect,
                     action: action),
-           let destination = sidewaysScreen(to: screen,
-                                            screens: screens,
-                                            movingRight: crossing.movingRight) {
-            // The window is already parked on that side, so the same shortcut
-            // keeps pushing in the same direction: over to the display beside
-            // it, snapped against the edge it came in through. Without a
-            // display on that side the placement below simply leaves it where
-            // it is.
+           let destination = neighbourScreen(to: screen,
+                                             screens: screens,
+                                             direction: crossing.direction) {
+            // The window is already parked on that half, so the same shortcut
+            // keeps pushing in the same direction. Without a display there,
+            // the placement below keeps its normal repeated-action behavior.
             return applyPlacement(crossing.action,
                                   to: target,
                                   visibleFrame: destination.visibleFrame,
@@ -1903,14 +1901,14 @@ final class WindowLayoutService: ObservableObject {
         return screens[destinationIndex]
     }
 
-    private func sidewaysScreen(to current: NSScreen,
-                                screens: [NSScreen],
-                                movingRight: Bool) -> NSScreen? {
+    private func neighbourScreen(to current: NSScreen,
+                                 screens: [NSScreen],
+                                 direction: WindowLayoutGeometry.DisplayDirection) -> NSScreen? {
         guard let currentIndex = screens.firstIndex(where: { $0 === current }),
-              let destinationIndex = WindowLayoutGeometry.horizontalNeighbourIndex(
+              let destinationIndex = WindowLayoutGeometry.neighbourIndex(
                 currentIndex: currentIndex,
                 frames: screens.map(\.frame),
-                movingRight: movingRight
+                direction: direction
               )
         else { return nil }
         return screens[destinationIndex]

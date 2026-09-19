@@ -6841,43 +6841,88 @@ struct MetricsTests {
                                                              frames: horizontalDisplays,
                                                              movingForward: true) == nil,
                "window layout leaves one display and invalid selections unchanged")
-        expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
-                                                             frames: horizontalDisplays,
-                                                             movingRight: true) == 2
-                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
-                                                                 frames: horizontalDisplays,
-                                                                 movingRight: false) == 1
-                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 2,
-                                                                 frames: horizontalDisplays,
-                                                                 movingRight: false) == 0,
+        expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                    frames: horizontalDisplays,
+                                                    direction: .right) == 2
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: horizontalDisplays,
+                                                        direction: .left) == 1
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 2,
+                                                        frames: horizontalDisplays,
+                                                        direction: .left) == 0,
                "window layout finds the display starting on the asked side")
-        expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 2,
-                                                             frames: horizontalDisplays,
-                                                             movingRight: true) == nil
-                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 1,
-                                                                 frames: horizontalDisplays,
-                                                                 movingRight: false) == nil,
+        expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 2,
+                                                    frames: horizontalDisplays,
+                                                    direction: .right) == nil
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 1,
+                                                        frames: horizontalDisplays,
+                                                        direction: .left) == nil,
                "window layout stops at the outermost display instead of wrapping sideways")
         let stackedDisplays = [
             CGRect(x: 0, y: 0, width: 1440, height: 900),
             CGRect(x: 0, y: 900, width: 1440, height: 900),
         ]
-        expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
-                                                             frames: stackedDisplays,
-                                                             movingRight: true) == nil
-                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 1,
-                                                                 frames: stackedDisplays,
-                                                                 movingRight: false) == nil,
+        expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                    frames: stackedDisplays,
+                                                    direction: .right) == nil
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 1,
+                                                        frames: stackedDisplays,
+                                                        direction: .left) == nil,
                "window layout never answers a sideways push with a stacked display")
         let towerDisplays = [
             CGRect(x: 0, y: 0, width: 1440, height: 900),
             CGRect(x: 1440, y: 800, width: 1000, height: 1000),
             CGRect(x: 1440, y: -100, width: 1000, height: 1000),
         ]
-        expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
-                                                             frames: towerDisplays,
-                                                             movingRight: true) == 2,
+        expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                    frames: towerDisplays,
+                                                    direction: .right) == 2,
                "window layout picks the closest display when several share the same edge")
+        let verticalNeighbours = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 240, y: 900, width: 1200, height: 900),
+            CGRect(x: -180, y: -1000, width: 1440, height: 1000),
+            CGRect(x: 0, y: 1800, width: 1440, height: 900),
+        ]
+        expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                    frames: verticalNeighbours,
+                                                    direction: .up) == 1
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: verticalNeighbours,
+                                                        direction: .down) == 2,
+               "window layout finds offset displays above and below, choosing the nearest")
+        expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 3,
+                                                    frames: verticalNeighbours,
+                                                    direction: .up) == nil
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 2,
+                                                        frames: verticalNeighbours,
+                                                        direction: .down) == nil,
+               "window layout stops at the topmost and bottommost displays")
+        let overlappingVerticalDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: 800, width: 1440, height: 900),
+            CGRect(x: 0, y: 900, width: 1440, height: 900),
+            CGRect(x: 0, y: -900, width: 1440, height: 900),
+            CGRect(x: 0, y: -800, width: 1440, height: 900),
+        ]
+        expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                    frames: overlappingVerticalDisplays,
+                                                    direction: .up) == 2
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: overlappingVerticalDisplays,
+                                                        direction: .down) == 3,
+               "window layout ignores vertically overlapping displays when crossing")
+        let mixedDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 1440, y: 0, width: 1440, height: 900),
+        ]
+        expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                    frames: mixedDisplays,
+                                                    direction: .up) == nil
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: mixedDisplays,
+                                                        direction: .down) == nil,
+               "window layout never answers a vertical push with a horizontal display")
         let portraitFrame = CGRect(x: -1200, y: -200, width: 1200, height: 1800)
         let scaledFrame = CGRect(x: 1440, y: 100, width: 2000, height: 1000)
         let portraitWindow = CGRect(x: -900, y: 1000, width: 600, height: 400)
@@ -6996,20 +7041,28 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.displayCrossing(for: .rightHalf,
                                                     previousAction: .rightHalf)?.action == .leftHalf
                 && WindowLayoutGeometry.displayCrossing(for: .rightHalf,
-                                                        previousAction: .rightHalf)?.movingRight == true,
+                                                        previousAction: .rightHalf)?.direction == .right,
                "window layout right twice enters the display on the right from its left half")
         expect(WindowLayoutGeometry.displayCrossing(for: .leftHalf,
                                                     previousAction: .leftHalf)?.action == .rightHalf
                 && WindowLayoutGeometry.displayCrossing(for: .leftHalf,
-                                                        previousAction: .leftHalf)?.movingRight == false,
+                                                        previousAction: .leftHalf)?.direction == .left,
                "window layout left twice enters the display on the left from its right half")
+        expect(WindowLayoutGeometry.displayCrossing(for: .topHalf,
+                                                    previousAction: .topHalf)?.action == .bottomHalf
+                && WindowLayoutGeometry.displayCrossing(for: .topHalf,
+                                                        previousAction: .topHalf)?.direction == .up
+                && WindowLayoutGeometry.displayCrossing(for: .bottomHalf,
+                                                        previousAction: .bottomHalf)?.action == .topHalf
+                && WindowLayoutGeometry.displayCrossing(for: .bottomHalf,
+                                                        previousAction: .bottomHalf)?.direction == .down,
+               "window layout top and bottom twice cross to the opposite half vertically")
         expect(WindowLayoutGeometry.displayCrossing(for: .leftHalf, previousAction: nil) == nil
-                && WindowLayoutGeometry.displayCrossing(for: .leftHalf, previousAction: .rightHalf) == nil,
-               "window layout only crosses displays when the same side is used twice in a row")
-        expect(WindowLayoutGeometry.displayCrossing(for: .topHalf, previousAction: .topHalf) == nil
-                && WindowLayoutGeometry.displayCrossing(for: .bottomHalf, previousAction: .bottomHalf) == nil
-                && WindowLayoutGeometry.displayCrossing(for: .leftThird, previousAction: .leftThird) == nil,
-               "window layout keeps top, bottom and thirds on their own display")
+                && WindowLayoutGeometry.displayCrossing(for: .leftHalf, previousAction: .rightHalf) == nil
+                && WindowLayoutGeometry.displayCrossing(for: .topHalf, previousAction: .bottomHalf) == nil,
+               "window layout only crosses displays when the same half is used twice in a row")
+        expect(WindowLayoutGeometry.displayCrossing(for: .leftThird, previousAction: .leftThird) == nil,
+               "window layout keeps thirds on their own display")
         let leftTarget = WindowLayoutGeometry.rect(for: .leftHalf,
                                                    current: currentWindow,
                                                    visibleFrame: visibleFrame)
