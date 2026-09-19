@@ -22,12 +22,22 @@ enum KeepAwakeAutomationSupport {
         builtInFlags.contains(false)
     }
 
-    /// Whether macOS would put the Mac to sleep if its lid closed right now:
-    /// lid shut, unless an external display is attached on AC power. A nil
-    /// lid state is a Mac without one.
-    static func lidSleepIsDue(lidClosed: Bool?, externalDisplay: Bool, onBattery: Bool) -> Bool {
-        guard lidClosed == true else { return false }
-        return onBattery || !externalDisplay
+    /// The published lid policy can lag behind a temporary assertion, so both
+    /// must permit sleep. Ordinary idle-sleep assertions (including media)
+    /// must not defeat a closed-lid session's battery cutoff.
+    static func lidSleepIsAllowed(systemAllowsSleep: Bool?, assertions: [[String: Any]]?) -> Bool {
+        guard systemAllowsSleep == true, let assertions else { return false }
+        return !assertions.contains { assertion in
+            switch assertion["AssertType"] as? String {
+            case "UserIsActive", "DisplayWake", "PreventSystemSleep", nil: break
+            default: return false
+            }
+            let appliesToLid = assertion["AppliesOnLidClose"] as? Bool == true
+                || assertion["ProcessingHotPlug"] as? Bool == true
+            // Missing levels on a lid-specific assertion are not proof that
+            // the protection is inactive. Released assertions have level zero.
+            return appliesToLid && assertion["AssertLevel"] as? Int != 0
+        }
     }
 
     static func isScreenLocked(sessionDictionary: [String: Any]?) -> Bool {

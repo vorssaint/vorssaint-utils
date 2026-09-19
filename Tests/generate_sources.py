@@ -602,6 +602,13 @@ def main():
           + "}\n}\n")
 
     keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"
+    write("KeepAwakeLidSleep.swift", "import Foundation\n\nextension KeepAwakeLidSleepContract {\n"
+          + "final class Service {\nvar isActive = false\nvar sessionPausedForScreenLock = false\n"
+          + "var clamshellActive = false\n"
+          + "static func lidSleepIsAllowed() -> Bool { KeepAwakeAutomationSupport.lidSleepIsAllowed("
+          + "systemAllowsSleep: policy, assertions: assertions) }\n"
+          + declaration(keep_awake, "    private func sleepIfLidAlreadyClosed(").replace("private func", "func", 1)
+          + "}\n}\n")
     write("KeepAwakeTimerHandoff.swift", "import Foundation\n\nextension KeepAwakeTimerHandoffContract {\n"
           + "final class Service {\nvar sessionTrigger = SessionTrigger.manual\n"
           + "var automationSuppressedUntilConditionsClear = false\n"

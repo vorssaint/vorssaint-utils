@@ -87,6 +87,7 @@ struct MetricsTests {
             }),
             ("keep-awake", {
                 KeepAwakeCatalogContract.run(suite)
+                KeepAwakeLidSleepTests.run { suite.expect($0, $1) }
                 KeepAwakeTimerHandoffTests.run { suite.expect($0, $1) }
             }),
             ("emoji", { CommandBarEmojiContract.run(suite) }),

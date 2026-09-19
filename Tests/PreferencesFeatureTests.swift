@@ -99,21 +99,6 @@ enum PreferencesFeatureTests {
                "the built-in screen does not count as an external display")
         suite.expect(KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true, false]),
                "an online non-built-in screen counts as an external display")
-        // Restoring lid sleep does not make macOS re-check a lid that is
-        // already shut (#1729), so the app asks for the sleep a lid close
-        // would have caused, and only that sleep.
-        suite.expect(KeepAwakeAutomationSupport.lidSleepIsDue(lidClosed: true, externalDisplay: false, onBattery: true),
-               "a shut lid on battery sleeps once lid sleep is restored")
-        suite.expect(KeepAwakeAutomationSupport.lidSleepIsDue(lidClosed: true, externalDisplay: true, onBattery: true),
-               "an external display does not keep a shut lid awake on battery")
-        suite.expect(KeepAwakeAutomationSupport.lidSleepIsDue(lidClosed: true, externalDisplay: false, onBattery: false),
-               "a shut lid on AC without an external display sleeps")
-        suite.expect(!KeepAwakeAutomationSupport.lidSleepIsDue(lidClosed: true, externalDisplay: true, onBattery: false),
-               "a shut lid on AC with an external display stays in closed-display mode")
-        suite.expect(!KeepAwakeAutomationSupport.lidSleepIsDue(lidClosed: false, externalDisplay: false, onBattery: true),
-               "an open lid never triggers a sleep request")
-        suite.expect(!KeepAwakeAutomationSupport.lidSleepIsDue(lidClosed: nil, externalDisplay: false, onBattery: false),
-               "a Mac without a lid never triggers a sleep request")
         suite.expect(!KeepAwakeAutomationSupport.selectedAppsAreRunning(
             selectedBundleIDs: [],
             runningBundleIDs: ["com.example.app"]
