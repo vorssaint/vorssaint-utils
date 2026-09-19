@@ -44,8 +44,9 @@ enum NotchHoverTests {
                 .contains(CGPoint(x: point.x - rect.minX, y: rect.maxY - point.y))
         }
     }
-    enum NotchContentTransition { case none, reveal, dismiss }
+    enum NotchContentTransition { case none, reveal, dismiss, replace }
     class State {
+        var showsSystemFeedback = true, routesNotices = true
         var running = true, suspended = false, inside = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
@@ -412,6 +413,81 @@ enum NotchHoverTests {
         expect(hidden.noticeWork != nil && !hidden.noticeExpanded && hidden.openings == 1,
                "hidden mode reveals the island as usual instead of holding a banner it cannot show")
 
+        // Notification replacement and preference changes run the production handlers.
+        let exitRace = fixture(false)
+        arrive(exitRace)
+        exitRace.hover(true)
+        DispatchQueue.main.advance(0.26)
+        leave(exitRace)
+        DispatchQueue.main.advance(0.05)
+        let fresh = banner("Fresh message after exit")
+        expect(exitRace.show(fresh), "a new notification is accepted after exit")
+        DispatchQueue.main.advance(0.14)
+        expect(exitRace.notice?.notificationID == fresh.notificationID,
+               "new notification must survive the previous preview exit deadline")
+        expect(!exitRace.noticeExpanded && exitRace.noticeWork != nil,
+               "a new message outside the pointer starts as a timed banner")
+        DispatchQueue.main.advance(2.9)
+        expect(exitRace.notice == nil, "the replacement closes after its own full display time")
+
+        let whileInside = fixture(false)
+        arrive(whileInside)
+        whileInside.hover(true)
+        DispatchQueue.main.advance(0.26)
+        let freshInside = banner("Fresh message while inside")
+        expect(whileInside.show(freshInside), "a new notification is accepted inside")
+        DispatchQueue.main.advance(5)
+        expect(whileInside.notice?.notificationID == freshInside.notificationID && whileInside.noticeExpanded,
+               "replacing a held notification inside keeps the new message readable")
+        leave(whileInside)
+        DispatchQueue.main.advance(0.2)
+        expect(whileInside.notice == nil, "leaving the replacement closes its preview")
+
+        let preferenceChange = fixture(false)
+        arrive(preferenceChange)
+        preferenceChange.hover(true)
+        DispatchQueue.main.advance(0.26)
+        UserDefaults.standard.hides = true
+        preferenceChange.syncNoticeWithPreferences()
+        preferenceChange.windowHost?.visible = false
+        leave(preferenceChange)
+        DispatchQueue.main.advance(10)
+        expect(preferenceChange.notice == nil || preferenceChange.noticeWork != nil,
+               "enabling hidden mode must release the held notification after pointer exit")
+        UserDefaults.standard.hides = false
+        preferenceChange.updateBounds()
+        expect(!preferenceChange.noticeExpanded,
+               "returning from hidden mode must not resurrect a preview with the pointer elsewhere")
+
+        for expandedPreview in [false, true] {
+            let disabled = fixture(false)
+            arrive(disabled)
+            disabled.hover(true)
+            if expandedPreview { DispatchQueue.main.advance(0.26) }
+            disabled.routesNotices = false
+            disabled.syncNoticeWithPreferences()
+            DispatchQueue.main.advance(5)
+            expect(disabled.notice == nil && disabled.hoverWork == nil && !disabled.noticeExpanded,
+                   "disabling notification routing clears both a pending and an open preview")
+        }
+        let unchanged = fixture(false)
+        arrive(unchanged)
+        unchanged.hover(true)
+        DispatchQueue.main.advance(0.26)
+        unchanged.syncNoticeWithPreferences()
+        expect(unchanged.noticeExpanded && unchanged.notice != nil,
+               "an unrelated preference sync preserves a readable notification")
+
+        let closingPeek = fixture(false)
+        closingPeek.peeking = true
+        arrive(closingPeek, volume)
+        leave(closingPeek)
+        closingPeek.routesNotices = false
+        closingPeek.syncNoticeWithPreferences()
+        DispatchQueue.main.advance(0.2)
+        expect(closingPeek.closures == 1 && !closingPeek.peeking,
+               "disabling feedback preserves the island's already scheduled pointer-exit close")
+
         let replaced = fixture(false)
         arrive(replaced)
         replaced.hover(true)
@@ -424,5 +500,40 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(0.2)
         expect(replaced.notice != nil && replaced.noticeWork != nil,
                "leaving after a different notice took over never touches that notice")
+
+        let overPeek = fixture(false)
+        UserDefaults.standard.expands = false
+        overPeek.hover(true)
+        DispatchQueue.main.advance(0.26)
+        expect(overPeek.peeking, "precondition: the peek strip is open")
+        expect(overPeek.show(banner("While peeking")), "a message is accepted over the peek strip")
+        DispatchQueue.main.advance(0.26)
+        expect(overPeek.noticeExpanded && !overPeek.peeking, "a message arriving over the peek strip opens as a preview in its place")
+        leave(overPeek)
+        DispatchQueue.main.advance(0.2)
+        expect(overPeek.notice == nil && !overPeek.peeking && overPeek.closures == 0
+               && overPeek.surfaceSize == overPeek.geometry.collapsed,
+               "closing that preview returns the island to rest without a stale peek strip")
+
+        let pendingOpen = fixture(false)
+        pendingOpen.hover(true)
+        DispatchQueue.main.advance(0.10)
+        expect(pendingOpen.show(banner("Before the island opens")), "a message is accepted while an opening is pending")
+        DispatchQueue.main.advance(0.20)
+        expect(pendingOpen.openings == 0 && !pendingOpen.noticeExpanded, "the pending opening yields to the banner and the preview waits its own delay")
+        DispatchQueue.main.advance(0.06)
+        expect(pendingOpen.openings == 0 && pendingOpen.noticeExpanded, "the banner then opens as a preview instead of the island")
+
+        let interrupted = fixture(false)
+        arrive(interrupted)
+        interrupted.hover(true)
+        DispatchQueue.main.advance(0.26)
+        expect(interrupted.show(volume) && interrupted.notice?.event == .volume && !interrupted.noticeExpanded,
+               "volume feedback takes the place of an open preview as a plain notice")
+        DispatchQueue.main.advance(1.7)
+        expect(interrupted.notice == nil && interrupted.hoverWork == nil, "that feedback ends on its own and leaves nothing pending")
+        leave(interrupted)
+        DispatchQueue.main.advance(0.2)
+        expect(interrupted.closures == 0 && interrupted.notice == nil, "leaving afterwards has nothing left to close")
     }
 }

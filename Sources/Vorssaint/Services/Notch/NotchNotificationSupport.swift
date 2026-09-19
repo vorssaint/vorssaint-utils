@@ -65,9 +65,8 @@ enum NotchNotificationSupport {
     static let bannerRoles: Set<String> = ["AXNotificationCenterAlert", "AXNotificationCenterBanner"]
     static let stackRoles: Set<String> = ["AXNotificationCenterAlertStack", "AXNotificationCenterBannerStack"]
     static let maximumItems = 50
-    /// Closing a banner also stops its sound. Every alert tone that ships with
-    /// macOS is audible for just over a second, so the native banner keeps
-    /// the screen that long and the island carries the message from then on.
+    /// A brief grace avoids cutting off short alert tones when closing the
+    /// original banner. This does not observe playback; longer sounds may stop.
     static let nativeCloseGrace: TimeInterval = 1.2
 
     /// Resolve only an unambiguous installed source. Formatting marks used by

@@ -10,7 +10,7 @@ enum NotchNotificationTests {
                "message banners close sooner without shortening timers or other activities")
         expect(NotchNotificationSupport.nativeCloseGrace >= 1.2
                && NotchNotificationSupport.nativeCloseGrace < NotchEvent.systemNotification.duration,
-               "the native banner outlives every stock alert tone before it is dismissed, and goes before the island's banner does")
+               "native closing has a brief grace shorter than the island banner's normal duration")
         expect(NotchSupport.shouldReplace(.systemNotification, with: .systemNotification, held: true)
                && NotchSupport.shouldReplace(.systemNotification, with: .volume, held: true)
                && NotchSupport.shouldReplace(.systemNotification, with: .timer, held: true)

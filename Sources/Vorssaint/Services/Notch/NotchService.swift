@@ -271,7 +271,7 @@ final class NotchService: ObservableObject {
             fallback?()
         }
         if captureControls != nil, !NotchSupport.routesCaptureControls() { cancelCaptureControls() }
-        if let notice, !NotchSupport.routes(notice.event) { dismissNotice() }
+        syncNoticeWithPreferences()
         syncVisibleConsumers()
         refreshPresentation(animated: false)
         if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
@@ -545,6 +545,13 @@ final class NotchService: ObservableObject {
         guard let notice, notice.notificationID != nil else { return }
         if noticeExpanded { dismissNotice() }
         else if noticeWork == nil { scheduleNoticeDismissal(after: notice.event.duration) }
+    }
+
+    private func syncNoticeWithPreferences() {
+        guard let notice else { return }
+        if !NotchSupport.routes(notice.event) || (notice.notificationID != nil && hiddenUntilHover) {
+            dismissNotice()
+        }
     }
 
     private func scheduleNoticeDismissal(after duration: TimeInterval) {
@@ -930,13 +937,15 @@ final class NotchService: ObservableObject {
         guard showsSystemFeedback, NotchSupport.routes(incoming.event),
               NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else { return false }
         noticeWork?.cancel(); noticeWork = nil
+        let keepsPreview = noticeExpanded && incoming.notificationID != nil
+            && windowHost?.containsHover(NSEvent.mouseLocation) == true
         // Slider and key bursts only replace the displayed value. They never
         // restart a window resize or enqueue another layout animation.
         let transition: NotchContentTransition = !noticeCanPresent ? .none
             : notice == nil ? .reveal : notice?.event != incoming.event || noticeExpanded ? .replace : .none
         mutatePresentation(transitionContent: transition) {
             notice = incoming
-            if incoming.notificationID == nil { noticeExpanded = false }
+            noticeExpanded = keepsPreview
         }
         // A banner arriving under the pointer is held at once, whether the
         // pointer was already inside or an opening was pending.
