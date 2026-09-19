@@ -604,38 +604,23 @@ final class HomebrewManager: ObservableObject {
                                                    targetID: String,
                                                    finishedAt: Date?) {
         completedOperationCleanup?.cancel()
-        guard result != .running,
-              let finishedAt else { return }
-        let delay: TimeInterval
-        let clearsWholeStatus: Bool
-        switch result {
-        case .succeeded:
-            delay = 8
-            clearsWholeStatus = true
-        case .cancelled:
-            delay = 6
-            clearsWholeStatus = true
-        case .failed, .needsTerminal:
-            delay = 20
-            clearsWholeStatus = false
-        case .running:
-            return
-        }
+        guard let finishedAt,
+              let plan = HomebrewCompletedOperationCleanupSupport.plan(for: result) else { return }
 
         let item = DispatchWorkItem { [weak self] in
             guard let self,
                   self.operation == nil,
                   self.operationStatus?.targetID == targetID,
                   self.operationStatus?.finishedAt == finishedAt else { return }
-            self.log = ""
-            if clearsWholeStatus {
+            // Keep `log` so Settings can offer "View last log" after status clears.
+            if plan.clearsWholeStatus {
                 self.terminalFallbackCommand = nil
                 self.operationStatus = nil
             }
             self.completedOperationCleanup = nil
         }
         completedOperationCleanup = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + plan.delay, execute: item)
     }
 
     /// One click on the trust card: marks the tap as trusted for Homebrew

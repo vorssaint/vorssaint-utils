@@ -394,6 +394,7 @@ extension Strings {
         homebrewCancelOperation: "Abbrechen",
         homebrewClearLog: "Protokoll leeren",
         homebrewLogTitle: "Protokoll",
+        homebrewViewLastLog: "Letztes Protokoll anzeigen",
         homebrewVersion: "Version",
         homebrewDescription: "Typ",
         homebrewHomepage: "Website öffnen",
