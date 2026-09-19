@@ -35,8 +35,12 @@ enum NotchAudioLevelTests {
         expect(!NotchAudioLevelSupport.fallsBack(heard: false, elapsed: 1) && !NotchAudioLevelSupport.fallsBack(heard: true, elapsed: 10)
                && NotchAudioLevelSupport.fallsBack(heard: false, elapsed: NotchAudioLevelSupport.silenceGrace),
                "a tap that only ever delivers silence hands the bars back to their synthetic motion")
-        expect(!NotchAudioLevelSupport.isEnabled(in: UserDefaults(suiteName: "vorssaint.tests.audio-levels")!),
-               "the live equalizer stays off until chosen")
+        let domain = "com.vorssaint.tests.audio-levels"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        expect(!NotchAudioLevelSupport.isEnabled(in: defaults),
+                "the live equalizer stays off until chosen")
         expect(NotchAudioLevelSupport.silenceGrace >= 5,
                "a tap outlasts a permission prompt being read and a player that buffers before it sounds")
         silenceMemoryContracts(expect: expect)

@@ -4,36 +4,42 @@
 import Foundation
 
 struct ClipboardHistoryAccessTests {
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         precondition(Thread.isMainThread)
 
         // A deadline rejects the result immediately but cannot free admission
         // for another capture until the actual read leaves the queue.
         var capture = ClipboardHistoryCaptureState()
         let first = capture.begin()!
-        expect(capture.needsBaseline, "first capture establishes a baseline")
+        suite.expect(capture.needsBaseline, "first capture establishes a baseline")
         capture.expire(first)
-        expect(!capture.accepts(first), "expired capture is rejected before another tick")
+        suite.expect(!capture.accepts(first), "expired capture is rejected before another tick")
         for _ in 0..<100 {
-            expect(capture.begin() == nil, "expired read still occupies capture admission")
+            suite.expect(capture.begin() == nil, "expired read still occupies capture admission")
         }
         capture.invalidate() // stop
         capture.restart() // start while the old read is still blocked
-        expect(capture.begin() == nil, "stop/start cannot queue a second blocked read")
-        expect(!capture.accepts(first), "restart rejects the previous run's result")
+        suite.expect(capture.begin() == nil, "stop/start cannot queue a second blocked read")
+        suite.expect(!capture.accepts(first), "restart rejects the previous run's result")
         capture.finish()
         let baseline = capture.begin()!
-        expect(capture.needsBaseline && capture.accepts(baseline),
+        suite.expect(capture.needsBaseline && capture.accepts(baseline),
                "new run establishes its own baseline after old read finishes")
         capture.didBaseline()
         capture.finish()
         let fresh = capture.begin()!
         capture.expire(first)
-        expect(capture.accepts(fresh), "old timeout cannot invalidate a newer capture")
-        expect(!capture.needsBaseline, "normal captures follow the accepted baseline")
+        suite.expect(capture.accepts(fresh), "old timeout cannot invalidate a newer capture")
+        suite.expect(!capture.needsBaseline, "normal captures follow the accepted baseline")
         capture.finish()
 
-        let lane = GeneralPasteboardAccess(label: "Vorssaint.Tests.ClipboardDeadline")
+        let clock = TestClock()
+        let deadlines = ManualDeadlineScheduler(clock: clock)
+        let lane = GeneralPasteboardAccess(
+            label: "Vorssaint.Tests.ClipboardDeadline",
+            now: clock.read,
+            scheduleDeadline: deadlines.schedule
+        )
         let release = DispatchSemaphore(value: 0)
         let entered = DispatchSemaphore(value: 0)
         var completions = 0
@@ -53,15 +59,15 @@ struct ClipboardHistoryAccessTests {
             finishedValue = value
             finishes += 1
         })
-        expect(entered.wait(timeout: .now() + 1) == .success, "read starts on lane")
-        pump { completions == 1 }
-        expect(answer == nil && answerOnMain, "timeout returns nil on main")
-        expect(finishes == 0, "timeout does not pretend the blocked operation finished")
+        suite.expect(entered.wait(timeout: .now() + 1) == .success, "read starts on lane")
+        deadlines.fireNext()
+        suite.expect(answer == nil && answerOnMain, "timeout returns nil on main")
+        suite.expect(finishes == 0, "timeout does not pretend the blocked operation finished")
         release.signal()
         pump { finishes == 1 }
-        expect(finishes == 1 && completions == 1 && answer == nil,
+        suite.expect(finishes == 1 && completions == 1 && answer == nil,
                "late completion releases admission without delivering stale success")
-        expect(finishedValue == 42,
+        suite.expect(finishedValue == 42,
                "expired result retains bookkeeping for the actual operation completion")
 
         // A queued user action must expire without ever running its write.
@@ -71,7 +77,7 @@ struct ClipboardHistoryAccessTests {
             queueEntered.signal()
             _ = releaseQueue.wait(timeout: .now() + 2)
         }
-        expect(queueEntered.wait(timeout: .now() + 1) == .success, "lane is held before copy")
+        suite.expect(queueEntered.wait(timeout: .now() + 1) == .success, "lane is held before copy")
         let writes = Counter()
         var copyCompletions = 0
         var copyFinishes = 0
@@ -83,12 +89,12 @@ struct ClipboardHistoryAccessTests {
             copyAnswer = value
             copyCompletions += 1
         }, didFinish: { _ in copyFinishes += 1 })
-        pump { copyCompletions == 1 }
-        expect(copyAnswer == nil && writes.value == 0 && copyFinishes == 0,
+        deadlines.fireNext()
+        suite.expect(copyAnswer == nil && writes.value == 0 && copyFinishes == 0,
                "queued copy expires without writing or freeing its occupied slot")
         releaseQueue.signal()
         pump { copyFinishes == 1 }
-        expect(copyFinishes == 1 && copyCompletions == 1 && writes.value == 0,
+        suite.expect(copyFinishes == 1 && copyCompletions == 1 && writes.value == 0,
                "expired queued copy never writes after the lane recovers")
 
         var freshAnswer: Bool?
@@ -100,8 +106,8 @@ struct ClipboardHistoryAccessTests {
         }, didFinish: { _ in freshFinishes += 1 })
         pump { freshCompletions == 1 }
         // Exercise the canceled deadline as well as the successful delivery.
-        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.55))
-        expect(freshAnswer == false && freshCompletions == 1 && freshFinishes == 1,
+        deadlines.fireNext()
+        suite.expect(freshAnswer == false && freshCompletions == 1 && freshFinishes == 1,
                "write failure is preserved and delivered once before the deadline")
 
         // Main may be busy past the deadline. Even if the worker finished,
@@ -116,10 +122,10 @@ struct ClipboardHistoryAccessTests {
             overdueAnswer = value
             overdueCompletions += 1
         })
-        expect(workReturned.wait(timeout: .now() + 1) == .success, "worker finishes before delivery")
-        Thread.sleep(forTimeInterval: 0.06)
+        suite.expect(workReturned.wait(timeout: .now() + 1) == .success, "worker finishes before delivery")
+        clock.advance(by: 0.03)
         pump { overdueCompletions == 1 }
-        expect(overdueAnswer == nil && overdueCompletions == 1,
+        suite.expect(overdueAnswer == nil && overdueCompletions == 1,
                "result queued on main cannot succeed after its deadline")
     }
 
@@ -144,6 +150,60 @@ struct ClipboardHistoryAccessTests {
             lock.lock()
             count += 1
             lock.unlock()
+        }
+    }
+
+    private final class TestClock {
+        private let lock = NSLock()
+        private var value: TimeInterval = 0
+
+        func read() -> TimeInterval {
+            lock.withLock { value }
+        }
+
+        func advance(by interval: TimeInterval) {
+            lock.withLock { value += interval }
+        }
+
+        func advance(to time: TimeInterval) {
+            lock.withLock { value = max(value, time) }
+        }
+    }
+
+    private final class ManualDeadlineScheduler {
+        private final class Deadline {
+            let time: TimeInterval
+            let action: () -> Void
+            var canceled = false
+            var fired = false
+
+            init(time: TimeInterval, action: @escaping () -> Void) {
+                self.time = time
+                self.action = action
+            }
+        }
+
+        private let clock: TestClock
+        private var deadlines: [Deadline] = []
+
+        init(clock: TestClock) {
+            self.clock = clock
+        }
+
+        func schedule(after delay: TimeInterval,
+                      action: @escaping () -> Void) -> () -> Void {
+            let deadline = Deadline(time: clock.read() + delay, action: action)
+            deadlines.append(deadline)
+            return { deadline.canceled = true }
+        }
+
+        func fireNext() {
+            guard let deadline = deadlines.first(where: { !$0.fired }) else {
+                preconditionFailure("no test deadline is waiting")
+            }
+            deadline.fired = true
+            clock.advance(to: deadline.time)
+            if !deadline.canceled { deadline.action() }
         }
     }
 }

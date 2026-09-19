@@ -122,10 +122,10 @@ enum NotchPresentationRefreshContract {
         func removeScreenEdgeClickMonitors() { edgeClicksEnabled = false }
     }
 
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         UserDefaults.standard.hides = false
         defer { UserDefaults.standard.hides = false }
-        captureControlsChecks(expect: expect)
+        captureControlsChecks(suite)
         let service = Service()
         var contentSize = service.surfaceSize
         service.windowHost?.targetSize = contentSize
@@ -142,13 +142,13 @@ enum NotchPresentationRefreshContract {
         for mode in [NotchTimerMode.pomodoro, .timer, .stopwatch, .pomodoro, .stopwatch, .timer] {
             service.mode = mode
             service.refreshPresentation(animated: false)
-            expect(contentSize == service.surfaceSize,
+            suite.expect(contentSize == service.surfaceSize,
                    "switching Timer, Pomodoro and Stopwatch updates the content height without reopening the island")
         }
-        expect(mismatches == 0, "content is invalidated before the native window receives its new size")
-        expect(invalidations == 6, "each mode change publishes its new presentation size")
+        suite.expect(mismatches == 0, "content is invalidated before the native window receives its new size")
+        suite.expect(invalidations == 6, "each mode change publishes its new presentation size")
         for _ in 0..<1000 { service.refreshPresentation() }
-        expect(invalidations == 6, "unchanged presentations do not repeatedly invalidate SwiftUI layout")
+        suite.expect(invalidations == 6, "unchanged presentations do not repeatedly invalidate SwiftUI layout")
 
         service.session.start(mode: .timer, minutes: 15, now: 0)
         service.refreshPresentation()
@@ -156,11 +156,11 @@ enum NotchPresentationRefreshContract {
         let beforeModeChange = invalidations
         service.mode = .pomodoro
         service.refreshPresentation()
-        expect(contentSize == activeSize && invalidations == beforeModeChange,
+        suite.expect(contentSize == activeSize && invalidations == beforeModeChange,
                "changing the saved setup mode preserves an active timer's layout")
         service.session.cancel()
         service.refreshPresentation()
-        expect(contentSize == service.surfaceSize && contentSize.height > activeSize.height && mismatches == 0,
+        suite.expect(contentSize == service.surfaceSize && contentSize.height > activeSize.height && mismatches == 0,
                "canceling returns to the newly selected setup with synchronized content and window sizes")
 
         let captureID = UUID()
@@ -171,22 +171,22 @@ enum NotchPresentationRefreshContract {
         service.refreshPresentation()
         let previewSize = contentSize
         service.updateCaptureHeight(id: captureID, height: 268)
-        expect(contentSize.height == previewSize.height + 58 && service.windowHost?.targetSize == contentSize,
+        suite.expect(contentSize.height == previewSize.height + 58 && service.windowHost?.targetSize == contentSize,
                "an embedded shared link expands both the capture content and its native window")
         service.updateCaptureHeight(id: captureID, height: 210)
-        expect(contentSize == previewSize, "removing a shared link restores the original preview height")
+        suite.expect(contentSize == previewSize, "removing a shared link restores the original preview height")
         service.updateCaptureHeight(id: UUID(), height: 268)
-        expect(contentSize == previewSize, "a replaced capture cannot resize its successor")
+        suite.expect(contentSize == previewSize, "a replaced capture cannot resize its successor")
         service.selected = .timer
         service.refreshPresentation()
         let timerSize = contentSize
         service.updateCaptureHeight(id: captureID, height: 268)
-        expect(contentSize == timerSize, "sharing completion in a hidden preview does not resize the visible timer")
+        suite.expect(contentSize == timerSize, "sharing completion in a hidden preview does not resize the visible timer")
         service.selected = .captures
         service.refreshPresentation()
         service.pinned = true
         service.removeCapture(id: captureID)
-        expect(service.expanded && service.captureContentHeight == nil && service.captureContent == nil
+        suite.expect(service.expanded && service.captureContentHeight == nil && service.captureContent == nil
                && contentSize == service.geometry.expandedSize(module: .captures)
                && service.windowHost?.targetSize == contentSize,
                "dismissing a pinned capture clears the preview size and restores the full recent-captures area")
@@ -197,10 +197,10 @@ enum NotchPresentationRefreshContract {
         simulated.geometry = NotchGeometry(screen: CGRect(x: -1440, y: 900, width: 1440, height: 900),
                                           safeAreaTop: 0, cameraWidth: 0)
         simulated.refreshPresentation(animated: false)
-        expect(simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
+        suite.expect(simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
                "an unmeasured simulated cutout does not cover a menu or receive screen-edge clicks")
         simulated.applyMenuSpace(0)
-        expect(simulated.panel?.isVisible == true && simulated.edgeClicksEnabled
+        suite.expect(simulated.panel?.isVisible == true && simulated.edgeClicksEnabled
                && simulated.windowHost?.frame == simulated.geometry.frame(for: simulated.surfaceSize),
                "a confirmed free center can show the simulated cutout without side room")
         let bareSize = simulated.surfaceSize
@@ -208,31 +208,31 @@ enum NotchPresentationRefreshContract {
                                width: 90, height: 24)]
         let blocked = NotchMenuBarLayout.sideRoom(screen: simulated.geometry.screen, cameraWidth: simulated.geometry.cameraWidth,
                                                  barHeight: simulated.geometry.menuBarHeight, occupied: occupied)
-        expect(blocked == nil, "a real center collision is distinct from zero-width free wings")
+        suite.expect(blocked == nil, "a real center collision is distinct from zero-width free wings")
         simulated.applyMenuSpace(blocked)
-        expect(simulated.surfaceSize == bareSize && simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
+        suite.expect(simulated.surfaceSize == bareSize && simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
                "a center collision hides even an unchanged bare simulated cutout")
         for active in [false, true] {
             simulated.compactActivityIsVisible = active
             simulated.applyMenuSpace(64)
-            expect(simulated.panel?.isVisible == true && simulated.edgeClicksEnabled,
+            suite.expect(simulated.panel?.isVisible == true && simulated.edgeClicksEnabled,
                    "free menu space restores idle and active simulated content")
             simulated.applyMenuSpace(nil)
-            expect(simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
+            suite.expect(simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
                    "idle and active simulated content both release menus when clearance is lost")
             simulated.refreshPresentation(animated: false)
-            expect(simulated.panel?.isVisible == false,
+            suite.expect(simulated.panel?.isVisible == false,
                    "a later refresh cannot redisplay compact activity over an occupied center")
         }
         simulated.expanded = true
         simulated.refreshPresentation()
-        expect(simulated.panel?.isVisible == true && simulated.windowHost?.frame.maxY == simulated.geometry.screen.maxY,
+        suite.expect(simulated.panel?.isVisible == true && simulated.windowHost?.frame.maxY == simulated.geometry.screen.maxY,
                "explicitly opening tools remains available without a menu measurement")
-        expect(simulated.windowHost?.revealFromHidden == false,
+        suite.expect(simulated.windowHost?.revealFromHidden == false,
                "ordinary openings keep their existing presentation behavior")
         simulated.expanded = false
         simulated.refreshPresentation()
-        expect(simulated.panel?.isVisible == false,
+        suite.expect(simulated.panel?.isVisible == false,
                "closing tools withdraws their simulated cutout if the center is still unverified")
 
         UserDefaults.standard.hides = true
@@ -243,38 +243,38 @@ enum NotchPresentationRefreshContract {
             hidden.compactActivityIsVisible = true
             hidden.notice = true
             hidden.refreshPresentation()
-            expect(hidden.panel?.isVisible == false && !hidden.edgeClicksEnabled && !hidden.showsSystemFeedback,
+            suite.expect(hidden.panel?.isVisible == false && !hidden.edgeClicksEnabled && !hidden.showsSystemFeedback,
                    "hidden mode withdraws the entire window, including compact activity and an existing notice")
-            expect(hidden.windowHost?.hideAnimations.last == true,
+            suite.expect(hidden.windowHost?.hideAnimations.last == true,
                    "closing a hidden-until-hover island requests an animated withdrawal")
             hidden.refreshPresentation(animated: false)
-            expect(hidden.windowHost?.hideAnimations.last == false,
+            suite.expect(hidden.windowHost?.hideAnimations.last == false,
                    "a nonanimated refresh preserves immediate withdrawal")
             hidden.expanded = true
             hidden.refreshPresentation()
-            expect(hidden.panel?.isVisible == true && hidden.showsSystemFeedback, "explicit openings remain visible in hidden mode")
-            expect(hidden.windowHost?.revealFromHidden == true,
+            suite.expect(hidden.panel?.isVisible == true && hidden.showsSystemFeedback, "explicit openings remain visible in hidden mode")
+            suite.expect(hidden.windowHost?.revealFromHidden == true,
                    "opening a hidden island requests a reveal from the screen edge")
             hidden.expanded = false
             hidden.captureControls = CaptureOptions()
             hidden.refreshPresentation()
-            expect(hidden.panel?.isVisible == true, "capture controls remain visible until dismissed")
-            expect(hidden.windowHost?.revealFromHidden == false,
+            suite.expect(hidden.panel?.isVisible == true, "capture controls remain visible until dismissed")
+            suite.expect(hidden.windowHost?.revealFromHidden == false,
                    "capture controls keep their own presentation in hidden-until-hover mode")
             hidden.captureControls = nil
             hidden.dragPlaceholder = true
             hidden.refreshPresentation()
-            expect(hidden.panel?.isVisible == true, "an explicit file drag can still reveal its destination")
+            suite.expect(hidden.panel?.isVisible == true, "an explicit file drag can still reveal its destination")
             hidden.dragPlaceholder = false
             hidden.refreshPresentation()
-            expect(hidden.panel?.isVisible == false, "ending the interaction hides the window again")
+            suite.expect(hidden.panel?.isVisible == false, "ending the interaction hides the window again")
         }
         UserDefaults.standard.hides = false
         let physical = Service()
         physical.expanded = false
         physical.compactActivityIsVisible = true
         physical.refreshPresentation(animated: false)
-        expect(physical.panel?.isVisible == true && !physical.compactActivityGeometry.compactActivityUsesFooter
+        suite.expect(physical.panel?.isVisible == true && !physical.compactActivityGeometry.compactActivityUsesFooter
                && physical.compactActivityGeometry.compactActivityWingWidth == 0
                && physical.windowHost?.targetSize.height == physical.geometry.menuBarHeight,
                "an active timer on a physical camera retracts its wings and stays at menu-bar height without a menu measurement")

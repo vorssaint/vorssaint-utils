@@ -4,7 +4,7 @@
 import AVFoundation
 
 enum RecorderSampleTimingTests {
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         for rate: CMTimeScale in [44_100, 48_000] {
             for count in [1, 480, 1024] {
                 let original = audio(count: count, rate: rate, time: CMTime(value: 100, timescale: 1))
@@ -12,20 +12,20 @@ enum RecorderSampleTimingTests {
                 guard let system = RecorderSampleTiming.retimed(original, to: target),
                       let converted = RecorderSampleTiming.retimed(original, to: CMTime(value: 200, timescale: 1)),
                       let microphone = RecorderSampleTiming.retimed(converted, to: target) else {
-                    expect(false, "audio retiming succeeds")
+                    suite.expect(false, "audio retiming succeeds")
                     continue
                 }
                 for shifted in [system, microphone] {
-                    expect(CMSampleBufferGetDuration(shifted) == CMSampleBufferGetDuration(original),
+                    suite.expect(CMSampleBufferGetDuration(shifted) == CMSampleBufferGetDuration(original),
                            "retiming preserves \(count) audio sample durations at \(rate) Hz")
                     var last = CMSampleTimingInfo()
-                    expect(CMSampleBufferGetSampleTimingInfo(shifted, at: count - 1, timingInfoOut: &last) == noErr
+                    suite.expect(CMSampleBufferGetSampleTimingInfo(shifted, at: count - 1, timingInfoOut: &last) == noErr
                         && last.presentationTimeStamp == target + CMTime(value: Int64(count - 1), timescale: rate),
                            "the last audio sample stays on its original cadence after either capture path")
-                    expect(CMSampleBufferGetDataBuffer(shifted) === CMSampleBufferGetDataBuffer(original),
+                    suite.expect(CMSampleBufferGetDataBuffer(shifted) === CMSampleBufferGetDataBuffer(original),
                            "retiming shares the captured audio data")
                 }
-                expect(CMSampleBufferGetPresentationTimeStamp(original) == CMTime(value: 100, timescale: 1),
+                suite.expect(CMSampleBufferGetPresentationTimeStamp(original) == CMTime(value: 100, timescale: 1),
                        "retiming leaves the captured buffer unchanged")
             }
         }
@@ -47,29 +47,29 @@ enum RecorderSampleTimingTests {
             for index in entries.indices {
                 var actual = CMSampleTimingInfo()
                 let status = CMSampleBufferGetSampleTimingInfo(shifted, at: index, timingInfoOut: &actual)
-                expect(status == noErr && actual.duration == entries[index].duration,
+                suite.expect(status == noErr && actual.duration == entries[index].duration,
                        "retiming preserves each timing entry, including an unknown video duration")
-                expect(actual.presentationTimeStamp == entries[index].presentationTimeStamp - CMTime(value: 10, timescale: 1),
+                suite.expect(actual.presentationTimeStamp == entries[index].presentationTimeStamp - CMTime(value: 10, timescale: 1),
                        "retiming preserves relative presentation timestamps")
-                expect(entries[index].decodeTimeStamp.isValid
+                suite.expect(entries[index].decodeTimeStamp.isValid
                     ? actual.decodeTimeStamp == CMTime(value: -1, timescale: 1)
                     : !actual.decodeTimeStamp.isValid,
                        "retiming shifts valid decode timestamps and preserves invalid ones")
             }
         } else {
-            expect(false, "buffers with multiple timing entries can be retimed")
+            suite.expect(false, "buffers with multiple timing entries can be retimed")
         }
-        expect(RecorderSampleTiming.retimed(sample!, to: .invalid) == nil,
+        suite.expect(RecorderSampleTiming.retimed(sample!, to: .invalid) == nil,
                "an invalid destination timestamp is rejected")
 
         let clock = offsetClock()
         let microphone = audio(count: 480, time: CMTime(value: 500, timescale: 1))
         if let converted = RecorderSampleTiming.converted(microphone, from: clock, to: CMClockGetHostTimeClock()) {
-            expect(CMSampleBufferGetPresentationTimeStamp(converted) == CMTime(value: 100, timescale: 1)
+            suite.expect(CMSampleBufferGetPresentationTimeStamp(converted) == CMTime(value: 100, timescale: 1)
                 && CMSampleBufferGetDuration(converted) == CMTime(value: 1, timescale: 100),
                    "clock conversion changes the epoch without stretching audio samples")
         } else {
-            expect(false, "audio converts between clocks with different epochs")
+            suite.expect(false, "audio converts between clocks with different epochs")
         }
     }
 

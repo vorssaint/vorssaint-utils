@@ -21,13 +21,13 @@ enum PeripheralBatteryLifecycleTests {
         }
     }
 
-    static func run(expect: (Bool, String) -> Void) {
-        freshness(expect: expect)
-        cachedSources(expect: expect)
-        cancellation(expect: expect)
-        cancelledProfiler(expect: expect)
-        cancelledFastRead(expect: expect)
-        processCancellation(expect: expect)
+    static func run(_ suite: TestSuite) {
+        freshness(suite)
+        cachedSources(suite)
+        cancellation(suite)
+        cancelledProfiler(suite)
+        cancelledFastRead(suite)
+        processCancellation(suite)
     }
 
     private static func device(_ percent: Int, id: String = "HID:fixture") -> PeripheralBatteryDevice {
@@ -38,36 +38,36 @@ enum PeripheralBatteryLifecycleTests {
         PeripheralBatterySample(devices: [device(percent, id: id)], observedAt: [id: observedAt])
     }
 
-    private static func freshness(expect: (Bool, String) -> Void) {
+    private static func freshness(_ suite: TestSuite) {
         var state = NotchAccessoryBatteryState()
-        expect(state.consume(sample(35, at: 1), observedAfter: 10).isEmpty,
+        suite.expect(state.consume(sample(35, at: 1), observedAfter: 10).isEmpty,
                "a previously high snapshot cannot establish the new accessory baseline")
-        expect(state.consume(sample(35, at: 1), observedAfter: 10).isEmpty,
+        suite.expect(state.consume(sample(35, at: 1), observedAfter: 10).isEmpty,
                "republishing a cache cannot turn it into a new reading")
-        expect(state.consume(sample(19, at: 11), observedAfter: 10).isEmpty,
+        suite.expect(state.consume(sample(19, at: 11), observedAfter: 10).isEmpty,
                "cache 35 then first actual 19 starts a silent low episode")
-        expect(state.consume(sample(35, at: 1), observedAfter: 10).isEmpty
+        suite.expect(state.consume(sample(35, at: 1), observedAfter: 10).isEmpty
                && state.consume(sample(18, at: 12), observedAfter: 10).isEmpty,
                "an older high value cannot rearm an established low episode")
-        expect(state.consume(sample(25, at: 13), observedAfter: 10).isEmpty,
+        suite.expect(state.consume(sample(25, at: 13), observedAfter: 10).isEmpty,
                "a fresh recovery rearms without warning")
-        expect(state.consume(sample(20, at: 14), observedAfter: 10).count == 1,
+        suite.expect(state.consume(sample(20, at: 14), observedAfter: 10).count == 1,
                "a later observed fall after the fresh baseline warns exactly once")
-        expect(state.consume(sample(20, at: 14), observedAfter: 10).isEmpty,
+        suite.expect(state.consume(sample(20, at: 14), observedAfter: 10).isEmpty,
                "a repeated fresh snapshot does not replay its alert")
-        expect(state.consume(sample(35, at: 19), observedAfter: 20).isEmpty
+        suite.expect(state.consume(sample(35, at: 19), observedAfter: 20).isEmpty
                && state.consume(sample(15, at: 21, id: "Bluetooth:fixture"), observedAfter: 20).isEmpty,
                "suspension keeps the low episode while ignoring caches from before resumption")
         _ = state.consume(sample(30, at: 22), observedAfter: 20)
-        expect(state.consume(sample(20, at: 23), observedAfter: 20).count == 1,
+        suite.expect(state.consume(sample(20, at: 23), observedAfter: 20).count == 1,
                "a measured recharge after resumption allows the next real fall")
         var freshHigh = NotchAccessoryBatteryState()
         _ = freshHigh.consume(sample(35, at: 10), observedAfter: 10)
-        expect(freshHigh.consume(sample(19, at: 20), observedAfter: 19).count == 1,
+        suite.expect(freshHigh.consume(sample(19, at: 20), observedAfter: 19).count == 1,
                "sleep preserves a genuinely established high baseline too")
     }
 
-    private static func cachedSources(expect: (Bool, String) -> Void) {
+    private static func cachedSources(_ suite: TestSuite) {
         let queue = DispatchQueue(label: "com.vorssaint.tests.battery-cache")
         var clock: TimeInterval = 1
         var fast: [PeripheralBatteryDevice] = []
@@ -83,13 +83,13 @@ enum PeripheralBatteryLifecycleTests {
         _ = sampler.sample(now: clock)
         queue.sync { readers[0].emit(35) }
         let cached = sampler.sample(now: clock)
-        expect(cached.devices.first?.percent == 35
+        suite.expect(cached.devices.first?.percent == 35
                && cached.observedAt["BluetoothGATT:fixture"] == 1,
                "the sampler attaches the Bluetooth observation time")
         clock = 20
         fast = [PeripheralBatteryDevice(id: "HID:mouse", name: "Mouse", percent: 60, kind: .mouse)]
         let mixed = sampler.sample(now: clock)
-        expect(mixed.observedAt["HID:mouse"] == 20
+        suite.expect(mixed.observedAt["HID:mouse"] == 20
                && mixed.observedAt["BluetoothGATT:fixture"] == 1,
                "a new HID read cannot refresh the age of cached Bluetooth data")
         var state = NotchAccessoryBatteryState()
@@ -98,16 +98,16 @@ enum PeripheralBatteryLifecycleTests {
         _ = sampler.sample(now: clock)
         queue.sync { readers[1].emit(19) }
         let actual = sampler.sample(now: clock)
-        expect(state.consume(actual, observedAfter: 10).isEmpty,
+        suite.expect(state.consume(actual, observedAfter: 10).isEmpty,
                "the production sampler's old Bluetooth 35 then actual 19 is silent on first observation")
-        expect(actual.observedAt["BluetoothGATT:fixture"] == 302,
+        suite.expect(actual.observedAt["BluetoothGATT:fixture"] == 302,
                "the completed refresh supplies its own observation time")
         clock = 303
-        expect(sampler.sample(now: clock).observedAt == actual.observedAt,
+        suite.expect(sampler.sample(now: clock).observedAt == actual.observedAt,
                "the fast cache preserves source timestamps exactly")
     }
 
-    private static func cancellation(expect: (Bool, String) -> Void) {
+    private static func cancellation(_ suite: TestSuite) {
         let queue = DispatchQueue(label: "com.vorssaint.tests.battery-cancel")
         var readers: [Reader] = []
         let sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: { [] },
@@ -119,37 +119,37 @@ enum PeripheralBatteryLifecycleTests {
         sampler.setEnabled(true)
         _ = sampler.sample(now: 0)
         queue.sync {}
-        expect(readers.count == 1 && readers[0].starts == 1, "one active consumer starts one Bluetooth reader")
+        suite.expect(readers.count == 1 && readers[0].starts == 1, "one active consumer starts one Bluetooth reader")
         sampler.setEnabled(true)
         _ = sampler.sample(now: 1)
         queue.sync {}
-        expect(readers[0].cancels == 0 && !readers[0].cancellation.isCancelled && readers.count == 1,
+        suite.expect(readers[0].cancels == 0 && !readers[0].cancellation.isCancelled && readers.count == 1,
                "remaining shared demand preserves the existing reader without starting a second one")
         sampler.setEnabled(false)
         queue.sync {}
-        expect(readers[0].cancels == 1 && readers[0].cancellation.isCancelled,
+        suite.expect(readers[0].cancels == 1 && readers[0].cancellation.isCancelled,
                "losing the last consumer cancels the owned reader and its request")
         queue.sync { readers[0].emit(10) }
-        expect(sampler.sample(now: 2).devices.isEmpty, "a late callback cannot publish while observation is off")
+        suite.expect(sampler.sample(now: 2).devices.isEmpty, "a late callback cannot publish while observation is off")
         sampler.setEnabled(true)
         _ = sampler.sample(now: 3)
         queue.sync { readers[0].emit(99) }
-        expect(readers.count == 2 && sampler.sample(now: 3).devices.isEmpty,
+        suite.expect(readers.count == 2 && sampler.sample(now: 3).devices.isEmpty,
                "a cancelled generation cannot contaminate a newly enabled reader")
         sampler.setEnabled(false)
         sampler.setEnabled(true)
         _ = sampler.sample(now: 4)
         queue.sync { readers[1].emit(99); readers[2].emit(19) }
-        expect(readers.count == 3 && readers[1].cancels == 1
+        suite.expect(readers.count == 3 && readers[1].cancels == 1
                && readers[2].starts == 1 && readers[2].cancels == 0,
                "rapidly disabling and reenabling cannot apply old cleanup to the new reader")
-        expect(sampler.sample(now: 4).devices.first?.percent == 19,
+        suite.expect(sampler.sample(now: 4).devices.first?.percent == 19,
                "only the replacement generation can supply the final battery value")
         sampler.setEnabled(false)
         queue.sync {}
     }
 
-    private static func cancelledProfiler(expect: (Bool, String) -> Void) {
+    private static func cancelledProfiler(_ suite: TestSuite) {
         let queue = DispatchQueue(label: "com.vorssaint.tests.battery-profiler")
         let entered = DispatchSemaphore(value: 0)
         let release = DispatchSemaphore(value: 0)
@@ -171,12 +171,12 @@ enum PeripheralBatteryLifecycleTests {
         sampler.setEnabled(false)
         release.signal()
         queue.sync {}
-        expect(didEnter && capturedRequest?.isCancelled == true,
+        suite.expect(didEnter && capturedRequest?.isCancelled == true,
                "disabling during the profiler phase cancels that pending request")
-        expect(readers == 0, "a profiler result arriving after disable cannot create Bluetooth connections")
+        suite.expect(readers == 0, "a profiler result arriving after disable cannot create Bluetooth connections")
     }
 
-    private static func cancelledFastRead(expect: (Bool, String) -> Void) {
+    private static func cancelledFastRead(_ suite: TestSuite) {
         let queue = DispatchQueue(label: "com.vorssaint.tests.battery-fast-read")
         var sampler: PeripheralBatterySampler!
         sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: {
@@ -186,22 +186,22 @@ enum PeripheralBatteryLifecycleTests {
             Reader(cancellation: cancellation, completion: completion)
         })
         sampler.setEnabled(true)
-        expect(sampler.sample(now: 0).devices.isEmpty, "a fast read finishing after disable cannot repopulate the cache")
+        suite.expect(sampler.sample(now: 0).devices.isEmpty, "a fast read finishing after disable cannot repopulate the cache")
         queue.sync {}
         sampler = nil
     }
 
-    private static func processCancellation(expect: (Bool, String) -> Void) {
+    private static func processCancellation(_ suite: TestSuite) {
         let cancelled = BoundedProcessCancellation()
         cancelled.cancel()
         let skipped = BoundedProcessRunner.run("/usr/bin/printf", ["unexpected"], timeout: 1,
                                                maxOutputBytes: 32, cancellation: cancelled)
-        expect(skipped.status == -1 && skipped.output.isEmpty, "a cancelled queued process is never launched")
+        suite.expect(skipped.status == -1 && skipped.output.isEmpty, "a cancelled queued process is never launched")
         let running = BoundedProcessCancellation()
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { running.cancel() }
         let stopped = BoundedProcessRunner.run("/bin/sleep", ["30"], timeout: 5,
                                                maxOutputBytes: 0, cancellation: running)
-        expect(running.isCancelled && !stopped.timedOut && stopped.status != 0,
+        suite.expect(running.isCancelled && !stopped.timedOut && stopped.status != 0,
                "cancellation terminates an active process without waiting for its normal timeout")
     }
 }

@@ -22,7 +22,7 @@ enum NotchUpdateTests {
         func appDelegate() -> Delegate? { delegate }
     }
 
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         let updates = UpdateService.shared
         let service = Service()
         defer { updates.state = .idle }
@@ -43,7 +43,7 @@ enum NotchUpdateTests {
                         let offered: Bool
                         if case .available = state { offered = true } else { offered = false }
                         let opens = running && !suspended && expanded && offered
-                        expect(service.delegate.previews == before + (opens ? 1 : 0)
+                        suite.expect(service.delegate.previews == before + (opens ? 1 : 0)
                                && service.collapses == collapsed + (opens ? 1 : 0),
                                "only a current offer in the open, running island can open release notes")
                     }
@@ -54,19 +54,19 @@ enum NotchUpdateTests {
         updates.state = .available(version: "3.4.0-beta.3")
         let before = service.delegate.previews
         service.showUpdate()
-        expect(service.delegate.previews == before && !service.expanded,
+        suite.expect(service.delegate.previews == before && !service.expanded,
                "an update cannot open or activate the resting island")
         service.expanded = true
         service.showUpdate()
-        expect(service.delegate.previews == before + 1 && !service.expanded,
+        suite.expect(service.delegate.previews == before + 1 && !service.expanded,
                "opening the island makes the existing offer actionable and the action closes it for release notes")
         service.showUpdate()
-        expect(service.delegate.previews == before + 1,
+        suite.expect(service.delegate.previews == before + 1,
                "a delayed second action after collapse cannot reopen the update preview")
-        layout(expect: expect)
+        layout(suite)
     }
 
-    private static func layout(expect: (Bool, String) -> Void) {
+    private static func layout(_ suite: TestSuite) {
         let samples: [UpdateService.State] = [.available(version: "3.4.0-beta.3"),
                                              .available(version: "3.4.0"), .downloading(progress: nil),
                                              .downloading(progress: 0.63), .installing]
@@ -78,7 +78,7 @@ enum NotchUpdateTests {
                     .environment(\.colorScheme, .dark))
                 host.layoutSubtreeIfNeeded()
                 let size = host.fittingSize
-                expect(size.width.isFinite && size.width > 0 && size.width <= 150
+                suite.expect(size.width.isFinite && size.width > 0 && size.width <= 150
                        && size.height > 0 && size.height <= NotchLayout.headerHeight,
                        "\(language.rawValue) update action and progress fit the existing header budget (\(size))")
             }
