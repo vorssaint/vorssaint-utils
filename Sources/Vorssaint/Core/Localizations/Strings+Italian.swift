@@ -559,6 +559,10 @@ extension Strings {
         shelfActionOpen: "Apri",
         shelfActionOpenWith: "Apri con",
         shelfActionShare: "Condividi",
+        shelfActionCopy: "Copia",
+        shelfActionCompressFormat: "Comprimi “%@”",
+        shelfActionCompressManyFormat: "Comprimi %d elementi",
+        shelfCompressFailedMessage: "Impossibile creare l’archivio.",
 
         breakdownMeasuring: "Misurazione…",
 

@@ -559,6 +559,10 @@ extension Strings {
         shelfActionOpen: "Ouvrir",
         shelfActionOpenWith: "Ouvrir avec",
         shelfActionShare: "Partager",
+        shelfActionCopy: "Copier",
+        shelfActionCompressFormat: "Compresser «\u{00A0}%@\u{00A0}»",
+        shelfActionCompressManyFormat: "Compresser %d éléments",
+        shelfCompressFailedMessage: "Impossible de créer l’archive.",
 
         breakdownMeasuring: "Mesure…",
 

@@ -737,3 +737,23 @@ enum ShelfPersistenceSupport {
         return result
     }
 }
+
+enum ShelfArchiveSupport {
+    /// The menu title for compressing what a tile stands for, worded the way
+    /// Finder words it: the file's own name for one file, a count otherwise.
+    static func compressTitle(count: Int, name: String?,
+                              singleFormat: String, manyFormat: String) -> String {
+        if count == 1, let name { return String(format: singleFormat, name) }
+        return String(format: manyFormat, count)
+    }
+
+    /// Where an input's archive goes: beside the original, as Finder does,
+    /// unless that folder refuses writes (a read-only volume, a bundle, a
+    /// mounted image), in which case the shelf's own store takes it, where a
+    /// payload the shelf wrote itself is retired with its tile.
+    static func archiveDirectory(for input: URL, fallback: URL,
+                                 isWritableDirectory: (URL) -> Bool) -> URL {
+        let parent = input.deletingLastPathComponent()
+        return isWritableDirectory(parent) ? parent : fallback
+    }
+}

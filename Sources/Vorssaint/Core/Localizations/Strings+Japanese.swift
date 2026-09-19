@@ -559,6 +559,10 @@ extension Strings {
         shelfActionOpen: "開く",
         shelfActionOpenWith: "このアプリケーションで開く",
         shelfActionShare: "共有",
+        shelfActionCopy: "コピー",
+        shelfActionCompressFormat: "“%@”を圧縮",
+        shelfActionCompressManyFormat: "%d項目を圧縮",
+        shelfCompressFailedMessage: "アーカイブを作成できませんでした。",
 
         breakdownMeasuring: "計測中…",
 

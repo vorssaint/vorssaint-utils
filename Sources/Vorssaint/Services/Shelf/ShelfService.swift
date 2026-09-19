@@ -1024,6 +1024,10 @@ final class ShelfService: ObservableObject {
                 ShelfService.shared.selectAllVisibleItems()
                 return true
             }
+            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "c",
+               ShelfService.shared.copySelectionToPasteboard() {
+                return true
+            }
             return super.performKeyEquivalent(with: event)
         }
 
@@ -1289,6 +1293,94 @@ final class ShelfService: ObservableObject {
             guard case let .file(url) = entry.payload else { return nil }
             return url
         }
+    }
+
+    /// One lane for archive work: `ditto` on a large folder takes a while,
+    /// and nothing here needs to hold the panel.
+    private static let archiveQueue = DispatchQueue(label: "com.vorssaint.utils.shelf-archive",
+                                                    qos: .userInitiated)
+
+    /// Zips each file or folder behind this tile (or behind the whole
+    /// selection, when the tile is part of it) beside its original, the way
+    /// Finder's Compress does, and shelves the archives. Originals are never
+    /// touched; a name already taken gets Finder's own " 2" suffix. The
+    /// completion says whether every archive was made, so the caller can
+    /// report a partial failure while the ones that succeeded are already
+    /// on the shelf.
+    func compress(startingAt item: Item, completion: ((Bool) -> Void)? = nil) {
+        let inputs = fileURLsForActions(startingAt: item)
+        guard !inputs.isEmpty else {
+            completion?(true)
+            return
+        }
+        let fallback = Self.storeDirectory ?? tempDir
+        Self.archiveQueue.async { [weak self] in
+            var outputs: [URL] = []
+            var allSucceeded = true
+            for input in inputs {
+                let directory = ShelfArchiveSupport.archiveDirectory(for: input, fallback: fallback) {
+                    FileManager.default.isWritableFile(atPath: $0.path)
+                }
+                if directory == fallback { PrivateFileStore.createDirectory(at: fallback) }
+                let output = MediaSupport.uniqueOutputURL(in: directory,
+                                                          baseName: input.lastPathComponent,
+                                                          fileExtension: "zip")
+                do {
+                    try NotchArchiveOperation().archive(input, to: output)
+                    outputs.append(output)
+                } catch {
+                    allSucceeded = false
+                }
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                // One tile per archive, not a pile: each is its own file
+                // beside its own original.
+                for output in outputs { self.addFiles([output]) }
+                completion?(allSucceeded)
+            }
+        }
+    }
+
+    /// Puts this tile's leaves (or the selection's, when the tile is part of
+    /// it) on the general pasteboard the way Finder's Copy does: file
+    /// references for files, the text itself for notes, and for links both
+    /// the URL and its text, so a text field and a URL field each take what
+    /// they understand. A grab whose files have all died says so and retires
+    /// them, exactly as a dead drag does.
+    @discardableResult
+    func copyToPasteboard(startingAt item: Item) -> Bool {
+        copyToPasteboard(selection.contains(item.id) ? selectedItems() : [item])
+    }
+
+    /// What ⌘C copies: the selection, and nothing when nothing is selected,
+    /// as in Finder.
+    @discardableResult
+    func copySelectionToPasteboard() -> Bool {
+        guard !selection.isEmpty else { return false }
+        return copyToPasteboard(selectedItems())
+    }
+
+    private func copyToPasteboard(_ candidates: [Item]) -> Bool {
+        let leaves = dragItems(for: candidates)
+        let living = livingDragItems(in: leaves)
+        guard !living.isEmpty else {
+            if leaves.contains(where: \.holdsFile) { handleDeadDrag(leaves) }
+            return false
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.writeObjects(living.map(clipboardWriter(for:)))
+    }
+
+    /// The drag writer, except for a link: dragged, a bare URL is what a
+    /// destination wants; pasted, most fields want the text.
+    private func clipboardWriter(for item: Item) -> NSPasteboardWriting {
+        guard case let .link(url) = item.payload else { return pasteboardWriter(for: item) }
+        let entry = NSPasteboardItem()
+        entry.setString(url.absoluteString, forType: .URL)
+        entry.setString(url.absoluteString, forType: .string)
+        return entry
     }
 
     func beginInternalDrag(ids: [UUID], from window: NSWindow?) {
