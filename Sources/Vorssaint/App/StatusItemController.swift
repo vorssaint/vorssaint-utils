@@ -190,6 +190,31 @@ final class StatusItemController {
 
         bindClipboardPreviewIfAvailable()
 
+        ConnectedDevicesMonitor.shared.$count
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard MenuBarMetric.enabled(in: .standard).contains(.connectedDevices) else { return }
+                self?.refresh()
+            }
+            .store(in: &cancellables)
+
+        ConnectedDevicesMonitor.shared.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard MenuBarMetric.enabled(in: .standard).contains(.connectedDevices) else { return }
+                self?.refresh()
+            }
+            .store(in: &cancellables)
+
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)
+            .merge(with: NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard MenuBarMetric.enabled(in: .standard).contains(.connectedDevices) else { return }
+                self?.refresh()
+            }
+            .store(in: &cancellables)
+
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil,
                                                                   queue: .main) { [weak self] _ in
@@ -258,6 +283,8 @@ final class StatusItemController {
         let interval = Defaults.sanitizedMonitorInterval(defaults.integer(forKey: DefaultsKey.monitorInterval))
         SystemMonitor.shared.setInterval(seconds: interval)
         SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults))
+        let connectedDevicesActive = MenuBarMetric.enabled(in: defaults).contains(.connectedDevices)
+        ConnectedDevicesMonitor.shared.setActive(connectedDevicesActive)
     }
 
     private func syncTitleTimer(keepAwakeActive: Bool,
@@ -628,7 +655,7 @@ final class StatusItemController {
                                      primary: .battery,
                                      temperature: .batteryTemperature,
                                      primaryTitle: strings.batteryLabel)
-            case .memory, .network, .diskUsage, .diskActivity, .batteryTime, .peripheralBattery, .power,
+            case .memory, .network, .diskUsage, .diskActivity, .connectedDevices, .batteryTime, .peripheralBattery, .power,
                  .fanSpeed:
                 let id = metric.rawValue
                 guard emittedIDs.insert(id).inserted else { continue }
