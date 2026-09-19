@@ -78,6 +78,48 @@ struct MetricsTests {
     private static func coreChecks(_ suite: TestSuite) {
         ScreenshotWatermarkTests.run(suite)
         MixerNativeDragTests.run(suite)
+
+        // Cleaning Mode must never repair mouse state by posting a fake release.
+        // It waits only for releases corresponding to downs it observed itself.
+        var cleaningMouseGate = CleaningMouseReleaseGate()
+        cleaningMouseGate.buttonDown(0)
+        suite.expect(!cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown waits when the primary button went down while the overlay was active")
+        suite.expect(!cleaningMouseGate.buttonUp(1),
+               "an unrelated release cannot complete a pending cleaning teardown")
+        suite.expect(cleaningMouseGate.buttonUp(0),
+               "the matching physical release completes the pending cleaning teardown")
+        suite.expect(cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown is immediate when no tracked button is held")
+
+        cleaningMouseGate.buttonDown(0)
+        cleaningMouseGate.buttonDown(2)
+        suite.expect(!cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown waits for every tracked mouse button")
+        suite.expect(!cleaningMouseGate.buttonUp(0),
+               "releasing one of several held buttons keeps cleaning teardown pending")
+        suite.expect(cleaningMouseGate.buttonUp(2),
+               "the last matching release completes a multi-button cleaning teardown")
+
+        cleaningMouseGate.buttonDown(0)
+        suite.expect(!cleaningMouseGate.buttonUp(0),
+               "a normal click completed before deactivation never schedules teardown by itself")
+        suite.expect(cleaningMouseGate.requestDeactivation(),
+               "a completed click leaves no stale held-button state")
+        cleaningMouseGate.buttonDown(0)
+        _ = cleaningMouseGate.requestDeactivation()
+        cleaningMouseGate.reset()
+        suite.expect(cleaningMouseGate.pressedButtons.isEmpty && !cleaningMouseGate.deactivationPending,
+               "forced cleaning teardown clears tracked mouse lifecycle state")
+
+        let cleaningManagerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CleaningMode/CleaningModeManager.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!cleaningManagerSource.contains("CGEvent(mouseEventSource:"),
+               "Cleaning Mode never synthesizes a global mouse release")
+        suite.expect(!cleaningManagerSource.contains("pressedMouseButtons")
+               && !cleaningManagerSource.contains("CGEventSource.buttonState"),
+               "Cleaning Mode does not infer ownership from a global button-state snapshot")
         func expect(_ condition: Bool, _ message: @autoclosure () -> String,
                     file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(condition, message(), file: file, line: line)
@@ -15449,7 +15491,7 @@ struct MetricsTests {
         } ?? cleaningLines.count
         var modifiersReachCounter = false
         var leakedEvents: [String] = []
-        var failOpenReturns = 0
+        var passThroughReturns = 0
         for (index, line) in cleaningLines[(handlerStart ?? handlerEnd)..<handlerEnd].enumerated()
         where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
             let number = (handlerStart ?? 0) + index + 1
@@ -15462,15 +15504,18 @@ struct MetricsTests {
                 }
             }
             if line.contains("return Unmanaged.passUnretained(event)") {
-                failOpenReturns += 1
+                passThroughReturns += 1
             } else if line.contains("return"), !line.contains("return nil") {
                 leakedEvents.append("CleaningModeManager.swift:\(number)")
             }
         }
         expect(modifiersReachCounter,
                "flags-changed events feed the unlock counter, so modifiers reset the Escape count")
-        expect(handlerStart != nil && leakedEvents.isEmpty && failOpenReturns == 1,
-               "the cleaning tap swallows normal input and keeps one disabled-session fail-open path: \(leakedEvents)")
+        expect(handlerStart != nil
+               && leakedEvents.isEmpty
+               && passThroughReturns == 2
+               && cleaningCode.contains("if handleMouseButton(type: type, event: event)"),
+               "the cleaning tap swallows locked input while mouse events and disabled-session recovery pass through: \(leakedEvents)")
         expect(cleaningCode.contains("self.deactivate(restoreSuspendedFeatures: false)")
                 && cleaningCode.contains("shouldRestoreSuspendedFeaturesOnSessionReturn = true")
                 && cleaningCode.contains("self.resumeSuspendedFeatures()")

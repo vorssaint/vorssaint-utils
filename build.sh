@@ -468,6 +468,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift
+        Sources/Vorssaint/Services/CleaningMode/CleaningMouseReleaseGate.swift
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift
