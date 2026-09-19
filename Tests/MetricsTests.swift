@@ -14806,6 +14806,36 @@ struct MetricsTests {
                + "shipped only: \(shippedFolders.subtracting(declared).sorted()))")
         expect(bundleLocalizations.count == AppLanguage.allCases.count,
                "the bundle speaks exactly the languages the app does")
+        // The Services menu entry is a contract between three places: the
+        // message Info.plist names, the selector the provider answers to, and
+        // a title in every language the bundle ships.
+        let services = infoPlist?["NSServices"] as? [[String: Any]] ?? []
+        let addToShelf = services.first { ($0["NSMessage"] as? String) == "addToShelf" }
+        expect(addToShelf != nil, "Info.plist declares the Add to Shelf service")
+        let providerSource = ((try? String(contentsOfFile: "Sources/Vorssaint/Services/Shelf/ShelfServicesProvider.swift",
+                                             encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(providerSource.contains("@objc(\(addToShelf?["NSMessage"] as? String ?? ""):userData:error:)"),
+               "the services provider answers the message Info.plist names")
+        let delegateSource = (try? String(contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
+                                          encoding: .utf8)) ?? ""
+        expect(delegateSource.contains("NSApp.servicesProvider = ShelfServicesProvider"),
+               "the app registers the shelf as its services provider")
+        expect((addToShelf?["NSSendTypes"] as? [String] ?? []).contains("public.file-url"),
+               "the Add to Shelf service takes files")
+        let serviceTitle = (addToShelf?["NSMenuItem"] as? [String: Any])?["default"] as? String ?? ""
+        expect(!serviceTitle.isEmpty, "the Add to Shelf service has a menu title")
+        expect(localizedInfoPlists.allSatisfy { folder in
+            let value = (try? String(contentsOfFile: "Resources/\(folder)/ServicesMenu.strings",
+                                     encoding: .utf8)) ?? ""
+            return value.contains("\"\(serviceTitle)\" = \"") && !value.contains("= \"\(serviceTitle)\"")
+        }, "every localization translates the Add to Shelf service title")
+        let documentTypes = infoPlist?["CFBundleDocumentTypes"] as? [[String: Any]] ?? []
+        expect(documentTypes.contains { ($0["LSHandlerRank"] as? String) == "None"
+                   && ($0["LSItemContentTypes"] as? [String] ?? []).contains("public.item") },
+               "the app accepts any file opened with it without claiming to own any type")
         // A symbol name that does not exist draws an empty box, and nobody
         // notices until someone opens that screen. Every name the app asks
         // for is resolved here instead.

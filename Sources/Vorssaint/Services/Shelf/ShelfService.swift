@@ -1547,6 +1547,24 @@ final class ShelfService: ObservableObject {
         }
     }
 
+    /// Items handed over without a drag (the Services menu, files opened
+    /// with the app). Unlike a drop, nothing on screen shows where they
+    /// went, so the shelf shows itself: the island's files page when it
+    /// routes the shelf, the pill under the menu bar icon with its caught
+    /// tick when the drop zone is on, the floating panel otherwise, where a
+    /// shelf with items on it stays until it is closed.
+    @discardableResult
+    func receive(pasteboard: NSPasteboard) -> Bool {
+        guard acceptDrop(pasteboard: pasteboard) else { return false }
+        if NotchService.shared.openShelf() { return true }
+        if dockedFeatureOn {
+            if !isVisible { dockDidAccept() }
+        } else if !isVisible {
+            summon()
+        }
+        return true
+    }
+
     /// Generated files reuse the shelf's ordinary acceptance, capacity and thumbnails.
     @discardableResult
     func addFiles(_ urls: [URL]) -> Bool {
