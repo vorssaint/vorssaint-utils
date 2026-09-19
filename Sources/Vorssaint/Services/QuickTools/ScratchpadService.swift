@@ -118,6 +118,15 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         }
     }
 
+    /// The island edits the same document in place: load it (or the current
+    /// copy) without showing the floating pad, and commit when it leaves.
+    func loadForEmbedding() -> Bool {
+        guard AppFeature.scratchpad.isAvailable else { return false }
+        return loadApplyingRetention()
+    }
+
+    func commitEdits() { flushSave() }
+
     func hide() {
         guard panel != nil else { return }
         flushSave()
@@ -236,10 +245,11 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     /// Clearing goes through the text view when it is up, so one Cmd+Z brings
-    /// everything back while the pad stays open.
-    func clear() {
+    /// everything back while the pad stays open. The island passes its own
+    /// editor for the same undo there.
+    func clear(through editor: NSTextView? = nil) {
         guard !text.isEmpty else { return }
-        if let textView, textView.window === panel {
+        if let textView = editor ?? textView.flatMap({ $0.window === panel ? $0 : nil }) {
             // A live input-method composition holds a marked range into the
             // storage; replacing the whole text underneath it leaves that
             // range pointing at nothing. Commit it first.
@@ -320,8 +330,10 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         textView = view
     }
 
+    /// Only a pad on screen takes the keyboard: with the island editing the
+    /// same document, a hidden pad made key would take the typing from it.
     private func focusText() {
-        guard let panel else { return }
+        guard let panel, panel.isVisible else { return }
         panel.makeKey()
         DispatchQueue.main.async { [weak self] in
             guard let self, let panel = self.panel, panel.isVisible,

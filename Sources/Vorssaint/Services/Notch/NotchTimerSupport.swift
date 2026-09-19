@@ -57,6 +57,43 @@ struct NotchPomodoroConfiguration: Equatable {
     }
 }
 
+/// One pomodoro setting as the island offers it: a menu of usual values,
+/// with whatever is stored kept on the list so a custom choice never vanishes.
+enum NotchPomodoroOption: CaseIterable, Identifiable {
+    case focus, shortBreak, longBreak, longBreakInterval, totalSessions
+    var id: Self { self }
+
+    var range: ClosedRange<Int> {
+        switch self {
+        case .focus: return NotchPomodoroConfiguration.focusRange
+        case .shortBreak, .longBreak: return NotchPomodoroConfiguration.breakRange
+        case .longBreakInterval, .totalSessions: return NotchPomodoroConfiguration.sessionRange
+        }
+    }
+
+    var isDuration: Bool {
+        switch self {
+        case .focus, .shortBreak, .longBreak: return true
+        case .longBreakInterval, .totalSessions: return false
+        }
+    }
+
+    /// Every minute where people actually land, then the round numbers: the
+    /// menu is the only control for these, so it must reach what the old
+    /// stepper reached.
+    func choices(including current: Int) -> [Int] {
+        let usual: [Int]
+        switch self {
+        case .focus: usual = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120, 180]
+        case .shortBreak: usual = Array(1...15) + [20, 25, 30, 45, 60]
+        case .longBreak: usual = Array(1...20) + [25, 30, 45, 60]
+        case .longBreakInterval, .totalSessions: usual = Array(1...12) + [16, 20, 24]
+        }
+        let bounded = min(range.upperBound, max(range.lowerBound, current))
+        return Array(Set(usual + [bounded])).sorted()
+    }
+}
+
 /// The anchor is an injected, continuous time coordinate: a countdown's
 /// deadline, or the instant a stopwatch read zero. UI refreshes and delayed
 /// callbacks never subtract ticks, so sleep and busy frames cannot drift.
@@ -160,14 +197,21 @@ enum NotchTimerSupport {
             && NotchSupport.modules(in: defaults).contains(.timer)
     }
 
-    /// The mode pill sizes each label to its text, so the three modes fit the
-    /// narrowest island in every language where equal segments would not.
+    /// The modes read as three words in a row, the current one underlined,
+    /// each as wide as its text, so the three fit the narrowest island in
+    /// every language where equal segments would not.
     enum ModePicker {
-        static let height: CGFloat = 30
-        static let inset: CGFloat = 3
-        static let spacing: CGFloat = 2
+        static let height: CGFloat = 24
+        static let spacing: CGFloat = 14
         static let labelSize: CGFloat = 12
-        static let labelPadding: CGFloat = 10
+        static let labelPadding: CGFloat = 4
+    }
+
+    /// The start capsule beside the mode row; the test measures both against the
+    /// width the wide layout starts at, in every language.
+    enum StartButton {
+        static let labelSize: CGFloat = 14
+        static let padding: CGFloat = 18
     }
 
     static let timerLimit: TimeInterval = 180 * 60

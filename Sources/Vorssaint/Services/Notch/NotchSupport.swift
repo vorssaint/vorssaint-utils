@@ -5,7 +5,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad
     var id: String { rawValue }
 
     var symbol: String {
@@ -23,6 +23,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .files: return "tray.full"
         case .system: return "gauge.with.dots.needle.50percent"
         case .tools: return "square.grid.2x2"
+        case .scratchpad: return "note.text"
         }
     }
 
@@ -42,6 +43,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .timer: return "r"
         case .camera: return "w"
         case .downloads: return "d"
+        case .scratchpad: return "p"
         }
     }
 
@@ -62,6 +64,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
                 || AppFeature.screenOCR.isAvailable(in: defaults)
                 || AppFeature.colorPicker.isAvailable(in: defaults)
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
+        case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
                     .monitorDisk, .monitorPower].contains { (feature: AppFeature) in
@@ -95,22 +98,156 @@ enum NotchLayout {
     static let horizontalInset: CGFloat = 28
     static let headerHeight: CGFloat = 36
     static let navigationHeight: CGFloat = 36
-    static let spacing: CGFloat = 18
-    static let bottomInset: CGFloat = 22
-    static let controlHeight: CGFloat = 94
-    static let musicControlHeight: CGFloat = 112
-    static let shortcutHeight: CGFloat = 74
-    static let actionHeight: CGFloat = 52
-    static let actionSpacing: CGFloat = 8
-    static let sectionTileHeight: CGFloat = 88
-    static let sectionSpacing: CGFloat = 8
-    static let sectionSearchHeight: CGFloat = 36
-    static let sectionResultHeight: CGFloat = 52
+    static let spacing: CGFloat = 12
+    static let bottomInset: CGFloat = 16
     static var chromeHeight: CGFloat { headerHeight + spacing + bottomInset }
+    /// The island stays a wide strip: every page lays its rows out inside the
+    /// preset's budget and runs sideways past it instead of growing downwards.
+    static let compactContentHeight: CGFloat = 180
+    static let spaciousContentHeight: CGFloat = 264
+    /// Surfaces that are vertical by nature (the embedded app panel, a metric
+    /// detail, a hosted utility) still get a readable page inside a preset.
+    static let pageContentHeight: CGFloat = 320
+    static let rowSpacing: CGFloat = 10
+    static let cardHeight: CGFloat = 96
+    static let minimumCardHeight: CGFloat = 64
+    static let shortcutHeight: CGFloat = 74
+    static let shortcutWidth: CGFloat = 76
+    static let shortcutSpacing: CGFloat = 8
+    static let systemCardHeight: CGFloat = 72
+    static let systemCardWidth: CGFloat = 128
+    static let toolHeight: CGFloat = 72
+    static let toolWidth: CGFloat = 76
+    static let toolSpacing: CGFloat = 6
+    static let sectionTileHeight: CGFloat = 88
+    static let sectionTileWidth: CGFloat = 92
+    static let sectionSpacing: CGFloat = 8
+    static let emptyHeight: CGFloat = 140
+    static let musicControlsRowHeight: CGFloat = 32
+    static let musicIdleHeight: CGFloat = 84
+    static let timerTopRowHeight: CGFloat = 36
+    static let timerRowSpacing: CGFloat = 8
+    /// The Pomodoro's breaks and sessions as one line of readouts under the ruler.
+    static let timerSettingsRowHeight: CGFloat = 28
+    static let timerRulerHeight: CGFloat = 82
+    static let timerMinimumRulerHeight: CGFloat = 56
+    static let timerStartHeight: CGFloat = 36
+    /// From this width the start button shares the mode row in every
+    /// language; below it the button takes a row of its own.
+    static let timerWideWidth: CGFloat = 400
+    /// The month grid a short island opens over its week strip: a header
+    /// row, the weekday line and six rows sharing what is left.
+    static let calendarMonthHeaderHeight: CGFloat = 28
+    static let calendarMonthWeekdayHeight: CGFloat = 14
+    static let calendarMonthSpacing: CGFloat = 4
+    static func calendarMonthRowHeight(height: CGFloat) -> CGFloat {
+        let room = height - calendarMonthHeaderHeight - calendarMonthWeekdayHeight - calendarMonthSpacing * 2
+        return min(30, max(16, (room / 6).rounded(.down)))
+    }
     /// Breathing room every compact strip keeps from its silhouette.
     static let compactEdgeGap: CGFloat = 5
     /// Bottom corner `NotchShape` draws for a surface of this height.
     static func surfaceRadius(height: CGFloat) -> CGFloat { min(28, height / 2) }
+
+    static func preferredWidth(_ layout: NotchSize, custom: CGFloat) -> CGFloat {
+        switch layout {
+        case .compact: return 480
+        case .spacious: return 560
+        case .custom: return custom
+        }
+    }
+
+    /// The island as a preset presents it on a display whose camera leaves
+    /// the usual clearance; custom keeps the chosen height.
+    static func nominalHeight(_ layout: NotchSize, custom: CGFloat) -> CGFloat {
+        switch layout {
+        case .compact: return 42 + chromeHeight + compactContentHeight
+        case .spacious: return 42 + chromeHeight + spaciousContentHeight
+        case .custom: return custom
+        }
+    }
+
+    // MARK: Rails
+    // Items fill the rows a height allows and continue sideways. Every page
+    // and the geometry that sizes it share these three functions, so the
+    // window never reserves a row the page cannot draw.
+
+    static func railCapacity(width: CGFloat, itemWidth: CGFloat, spacing: CGFloat) -> Int {
+        guard width.isFinite, itemWidth > 0 else { return 1 }
+        return max(1, Int(((width + spacing) / (itemWidth + spacing)).rounded(.down)))
+    }
+
+    static func railRows(count: Int, perRow: Int, rowHeight: CGFloat, spacing: CGFloat, height: CGFloat) -> Int {
+        let capacity = max(1, perRow)
+        let needed = max(1, (max(0, count) + capacity - 1) / capacity)
+        guard rowHeight > 0 else { return 1 }
+        guard height.isFinite else { return height > 0 ? needed : 1 }
+        let fitting = max(1, Int(((height + spacing) / (rowHeight + spacing)).rounded(.down)))
+        return min(needed, fitting)
+    }
+
+    static func railHeight(rows: Int, rowHeight: CGFloat, spacing: CGFloat) -> CGFloat {
+        CGFloat(max(1, rows)) * rowHeight + CGFloat(max(0, rows - 1)) * spacing
+    }
+
+    /// The home page: one row of cards (playback and levels) over a rail of
+    /// shortcuts. A tight budget shortens the cards before it drops a row.
+    static func controls(hasCards: Bool, shortcutCount: Int, width: CGFloat, height: CGFloat) -> NotchControlsLayout {
+        guard hasCards || shortcutCount > 0 else { return NotchControlsLayout(cardRow: 0, shortcutRows: 0) }
+        var rows = 0
+        if shortcutCount > 0 {
+            let remaining = hasCards ? height - minimumCardHeight - rowSpacing : height
+            rows = railRows(count: shortcutCount,
+                            perRow: railCapacity(width: width, itemWidth: shortcutWidth, spacing: shortcutSpacing),
+                            rowHeight: shortcutHeight, spacing: shortcutSpacing, height: remaining)
+        }
+        let rail = rows > 0 ? railHeight(rows: rows, rowHeight: shortcutHeight, spacing: shortcutSpacing) + rowSpacing : 0
+        let cardRow = hasCards ? min(cardHeight, max(minimumCardHeight, height - rail)) : 0
+        return NotchControlsLayout(cardRow: cardRow, shortcutRows: rows)
+    }
+
+    /// Setup is the mode row over the ruler's row, the same for every
+    /// mode: the timer and the Pomodoro's focus on the ruler, the stopwatch's
+    /// clock alone in it. The Pomodoro adds a line of readouts; a narrow
+    /// island gives Start the last row, which those readouts share, and lets
+    /// the ruler give up height before anything is cut.
+    static func timer(mode: NotchTimerMode, hasSession: Bool, width: CGFloat, height: CGFloat) -> CGFloat {
+        if hasSession { return mode == .pomodoro ? 118 : 96 }
+        let top = timerTopRowHeight + timerRowSpacing
+        return top + timerRulerHeight(mode: mode, width: width, height: height)
+            + timerBottomRowHeight(mode: mode, width: width)
+    }
+
+    /// The row under the ruler, with its spacing: Start on a narrow island,
+    /// the Pomodoro's readouts on a wide one, nothing otherwise.
+    static func timerBottomRowHeight(mode: NotchTimerMode, width: CGFloat) -> CGFloat {
+        if width < timerWideWidth { return timerRowSpacing + timerStartHeight }
+        return mode == .pomodoro ? timerRowSpacing + timerSettingsRowHeight : 0
+    }
+
+    static func timerRulerHeight(mode: NotchTimerMode = .timer, width: CGFloat, height: CGFloat) -> CGFloat {
+        let below = timerBottomRowHeight(mode: mode, width: width)
+        guard below > 0 else { return timerRulerHeight }
+        let room = height - timerTopRowHeight - timerRowSpacing - below
+        return min(timerRulerHeight, max(timerMinimumRulerHeight, room))
+    }
+
+    /// The player row keeps the artwork square; the controls row below holds
+    /// volume and the lyrics or queue toggles.
+    static func musicPlayerHeight(layout: NotchSize, height: CGFloat) -> CGFloat {
+        min(layout == .spacious ? 148 : 120, max(88, height - musicControlsRowHeight - rowSpacing))
+    }
+}
+
+struct NotchControlsLayout: Equatable {
+    let cardRow: CGFloat
+    let shortcutRows: Int
+
+    var height: CGFloat {
+        let rail = shortcutRows > 0
+            ? NotchLayout.railHeight(rows: shortcutRows, rowHeight: NotchLayout.shortcutHeight, spacing: NotchLayout.shortcutSpacing) : 0
+        return cardRow + (cardRow > 0 && shortcutRows > 0 ? NotchLayout.rowSpacing : 0) + rail
+    }
 }
 
 enum NotchIdleContent: String, CaseIterable {
@@ -541,11 +678,15 @@ enum NotchSupport {
         }
     }
 
-    static func systemCardCount(hasBattery: Bool, in defaults: UserDefaults = .standard) -> Int {
+    /// Power draw has a card of its own beside the battery; fans join once
+    /// the monitor reports one.
+    static func systemCardCount(hasBattery: Bool, fans: Int = 0, in defaults: UserDefaults = .standard) -> Int {
         [.monitorCPU, .monitorGPU, .monitorMemory, .monitorDisk].filter {
             (feature: AppFeature) in feature.isAvailable(in: defaults)
         }.count + (AppFeature.monitorNetwork.isAvailable(in: defaults) ? 1 : 0)
             + (hasBattery && AppFeature.monitorPower.isAvailable(in: defaults) ? 1 : 0)
+            + (AppFeature.monitorPower.isAvailable(in: defaults) ? 1 : 0)
+            + (fans > 0 && AppFeature.fanControl.isAvailable(in: defaults) ? 1 : 0)
     }
 
     /// Direct openings are dismissed explicitly, never by the pointer's
@@ -823,86 +964,110 @@ struct NotchGeometry: Equatable {
     }
     var expanded: CGSize { expandedSize(module: .controls) }
     var expandedWidth: CGFloat {
-        let preferred: CGFloat
-        switch layout {
-        case .compact: preferred = 480
-        case .spacious: preferred = 560
-        case .custom: preferred = customWidth
-        }
+        let preferred = NotchLayout.preferredWidth(layout, custom: customWidth)
         return min(max(preferred, cameraWidth + 36), screen.width - 24 - NotchQuickAccessLayout.gutter * 2)
     }
-    var usesCompactContent: Bool { expandedWidth < 480 }
-    var controlColumns: Int { hasSideBySideLevels ? 2 : 1 }
-    var systemColumns: Int { expandedWidth >= 440 ? 3 : 2 }
-    var hasSideBySideLevels: Bool { expandedWidth >= 440 }
+    var contentWidth: CGFloat { max(0, expandedWidth - NotchLayout.horizontalInset * 2) }
+    /// Rows a page may stack before it has to run sideways.
+    var contentBudget: CGFloat {
+        switch layout {
+        case .compact: return NotchLayout.compactContentHeight
+        case .spacious: return NotchLayout.spaciousContentHeight
+        case .custom: return max(0, customHeight - safeContentTop - NotchLayout.chromeHeight)
+        }
+    }
+    /// Room a vertical surface gets: the budget, or a readable page where a
+    /// preset's strip would leave it a few lines.
+    var pageBudget: CGFloat { layout == .custom ? contentBudget : max(contentBudget, NotchLayout.pageContentHeight) }
+    /// Lyrics and the queue open below the player; custom heights keep them
+    /// within the chosen limit and the page swaps the player out instead.
+    var musicExtrasHeight: CGFloat { layout == .custom ? min(216, contentBudget) : 216 }
 
-    func expandedSize(module: NotchModule, detail: Bool = false, controlRows: Int = 2,
-                      sliderCount: Int = 2, controlsHaveMusic: Bool = false, musicHasContent: Bool = true, musicExtraHeight: CGFloat = 0,
-                      fileMediaHeight: CGFloat? = nil, systemRows: Int = 3,
+    func systemRows(cards: Int) -> Int {
+        NotchLayout.railRows(count: cards,
+                             perRow: NotchLayout.railCapacity(width: contentWidth, itemWidth: NotchLayout.systemCardWidth, spacing: NotchLayout.rowSpacing),
+                             rowHeight: NotchLayout.systemCardHeight, spacing: NotchLayout.rowSpacing, height: contentBudget)
+    }
+
+    func toolRows(count: Int) -> Int {
+        NotchLayout.railRows(count: count,
+                             perRow: NotchLayout.railCapacity(width: contentWidth, itemWidth: NotchLayout.toolWidth, spacing: NotchLayout.toolSpacing),
+                             rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: contentBudget)
+    }
+
+    /// `toolCount` is nil while the launcher edits its grid or hosts a
+    /// utility: those need the page, not a rail.
+    func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false, shortcutCount: Int = 4,
+                      sliderCount: Int = 2, controlsHaveMusic: Bool = false, musicHasContent: Bool = true,
+                      musicHasControlsRow: Bool = true, musicExtraHeight: CGFloat = 0,
+                      fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
                       timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer) -> CGSize {
-        let contentHeight: CGFloat
-        switch module {
-        case .controls:
-            let rows = max(0, controlRows)
-            let sliders = min(2, max(0, sliderCount))
-            let levelRows = hasSideBySideLevels ? min(1, sliders) : sliders
-            let groups = levelRows + (rows > 0 ? 1 : 0) + (controlsHaveMusic ? 1 : 0)
-            let controls = (controlsHaveMusic ? NotchLayout.musicControlHeight : 0)
-                + CGFloat(levelRows) * NotchLayout.controlHeight + CGFloat(rows) * NotchLayout.actionHeight
-                + CGFloat(max(0, rows - 1)) * NotchLayout.actionSpacing + CGFloat(max(0, groups - 1)) * 18
-            contentHeight = NotchLayout.chromeHeight + (groups == 0 ? 160 : controls)
-        case .mixer: contentHeight = 400
-        case .music: contentHeight = NotchLayout.chromeHeight
-                + (musicHasContent ? (usesCompactContent ? 226 : 216) + musicExtraHeight : 132)
-        case .system:
-            let rows = max(0, systemRows)
-            contentHeight = NotchLayout.chromeHeight
-                + (rows == 0 ? 160 : CGFloat(rows) * 96 + CGFloat(rows - 1) * 10)
-        case .files: contentHeight = fileMediaHeight.map { NotchLayout.chromeHeight + $0 } ?? 336
-        case .clipboard: contentHeight = 340
-        case .captures: contentHeight = capturePreviewHeight.map { NotchLayout.chromeHeight + $0 + 4 } ?? 340
-        case .timer:
-            let timer: CGFloat
-            switch timerMode {
-            case .timer: timer = timerHasSession ? 96 : 208
-            case .pomodoro: timer = timerHasSession ? 118 : 376
-            case .stopwatch: timer = timerHasSession ? 96 : 114
-            }
-            contentHeight = NotchLayout.chromeHeight + timer
-        case .camera: contentHeight = NotchLayout.chromeHeight + (expandedWidth - NotchLayout.horizontalInset * 2) * 0.75 + 50
-        case .tools, .calendar, .notifications, .downloads: contentHeight = 400
-        }
+        let budget = contentBudget
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
-        let fillsHeight = detail || (!showsCapturePreview && [.mixer, .clipboard, .captures, .tools].contains(module))
-        var preferredHeight = safeContentTop + (detail ? 440 : contentHeight)
-            + (layout == .spacious && module != .controls && module != .music && module != .timer && !showsCapturePreview && !showsFileMedia ? 40 : 0)
-        if layout == .custom {
-            preferredHeight = fillsHeight ? customHeight : min(preferredHeight, customHeight)
+        let contentHeight: CGFloat
+        if detail || panel {
+            contentHeight = pageBudget
+        } else if showsFileMedia {
+            // Measured surfaces keep their own height; the custom limit and
+            // the display bound them below.
+            contentHeight = max(0, fileMediaHeight ?? 0)
+        } else if showsCapturePreview {
+            contentHeight = max(0, capturePreviewHeight ?? 0) + 4
+        } else {
+            switch module {
+            case .controls:
+                let sliders = min(2, max(0, sliderCount))
+                let home = NotchLayout.controls(hasCards: controlsHaveMusic || sliders > 0, shortcutCount: max(0, shortcutCount),
+                                                width: contentWidth, height: budget)
+                contentHeight = min(budget, home.height == 0 ? NotchLayout.emptyHeight : home.height)
+            case .music:
+                let controlsRow = musicHasControlsRow ? NotchLayout.musicControlsRowHeight + NotchLayout.rowSpacing : 0
+                let player = musicHasContent ? NotchLayout.musicPlayerHeight(layout: layout, height: budget) : NotchLayout.musicIdleHeight
+                contentHeight = min(budget, player + controlsRow) + max(0, musicExtraHeight)
+            case .system:
+                let cards = max(0, systemCards)
+                contentHeight = min(budget, cards == 0 ? NotchLayout.emptyHeight
+                    : NotchLayout.railHeight(rows: systemRows(cards: cards), rowHeight: NotchLayout.systemCardHeight, spacing: NotchLayout.rowSpacing))
+            case .tools:
+                guard let toolCount else { contentHeight = pageBudget; break }
+                contentHeight = min(budget, toolCount == 0 ? NotchLayout.emptyHeight
+                    : NotchLayout.railHeight(rows: toolRows(count: toolCount), rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing))
+            case .timer:
+                contentHeight = min(budget, NotchLayout.timer(mode: timerMode, hasSession: timerHasSession, width: contentWidth, height: budget))
+            // Lists and previews fill the strip and run sideways past it.
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad:
+                contentHeight = budget
+            }
         }
+        var preferredHeight = safeContentTop + NotchLayout.chromeHeight + contentHeight
+        if layout == .custom { preferredHeight = min(preferredHeight, customHeight) }
         return CGSize(width: expandedWidth,
                       height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
     }
-    var sectionColumns: Int { expandedWidth >= 440 ? 4 : 2 }
 
-    func sectionPickerSize(count: Int, searching: Bool = false) -> CGSize {
-        let columns = searching ? 1 : sectionColumns
-        let rows = max(1, (count + columns - 1) / columns)
-        let tileHeight = searching ? NotchLayout.sectionResultHeight : NotchLayout.sectionTileHeight
-        let results = count == 0 ? 160 : CGFloat(rows) * tileHeight
-            + CGFloat(rows - 1) * NotchLayout.sectionSpacing + 4
-        let content = NotchLayout.sectionSearchHeight + results + 38
+    /// Search results and the gallery share one rail, so the keyboard walks
+    /// the same columns the eye does; the search itself sits in the header.
+    func sectionRows(count: Int) -> Int {
+        NotchLayout.railRows(count: count,
+                             perRow: NotchLayout.railCapacity(width: contentWidth, itemWidth: NotchLayout.sectionTileWidth,
+                                                              spacing: NotchLayout.sectionSpacing),
+                             rowHeight: NotchLayout.sectionTileHeight, spacing: NotchLayout.sectionSpacing, height: contentBudget)
+    }
+
+    func sectionPickerSize(count: Int) -> CGSize {
+        let content = min(contentBudget, count == 0 ? NotchLayout.emptyHeight
+            : NotchLayout.railHeight(rows: sectionRows(count: count), rowHeight: NotchLayout.sectionTileHeight, spacing: NotchLayout.sectionSpacing))
         let desiredHeight = safeContentTop + NotchLayout.chromeHeight + content
-        let limit = layout == .custom ? customHeight : 580
-        return CGSize(width: expandedWidth, height: min(desiredHeight, limit, screen.height - 48 - quickAccessBottomInset))
+        return CGSize(width: expandedWidth, height: min(desiredHeight, screen.height - 48 - quickAccessBottomInset))
     }
 
     func contentSize(for size: CGSize) -> CGSize {
         CGSize(width: max(0, size.width - NotchLayout.horizontalInset * 2),
                height: max(0, size.height - safeContentTop - NotchLayout.chromeHeight))
     }
-    var appPanelSize: CGSize { contentSize(for: expandedSize(module: .tools)) }
+    var appPanelSize: CGSize { contentSize(for: expandedSize(module: .tools, panel: true)) }
     func frame(for size: CGSize) -> CGRect {
         CGRect(x: screen.midX - size.width / 2,
                y: screen.maxY - size.height,

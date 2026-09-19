@@ -9224,6 +9224,17 @@ struct MetricsTests {
                                          spacing: 10,
                                          inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
                "a single column puts every tile in its own row")
+        expect(ShelfTileLayout.rowCount(contentHeight: 140, tileHeight: 88, spacing: 10, inset: 4) == 1
+               && ShelfTileLayout.rowCount(contentHeight: 194, tileHeight: 88, spacing: 10, inset: 4) == 2
+               && ShelfTileLayout.rowCount(contentHeight: 0, tileHeight: 88, spacing: 10, inset: 4) == 1,
+               "a sideways shelf fits as many rows as the island's height holds, never fewer than one")
+        expect(ShelfTileLayout.sidewaysTileFrame(index: 1, rows: 2, tileSize: revealTile, spacing: 10, inset: 4)
+               == CGRect(x: 4, y: 102, width: 78, height: 88)
+               && ShelfTileLayout.sidewaysTileFrame(index: 2, rows: 2, tileSize: revealTile, spacing: 10, inset: 4)
+               == CGRect(x: 92, y: 4, width: 78, height: 88)
+               && ShelfTileLayout.sidewaysTileFrame(index: 3, rows: 1, tileSize: revealTile, spacing: 10, inset: 4)
+               == CGRect(x: 268, y: 4, width: 78, height: 88),
+               "a sideways shelf fills each column top to bottom before starting the next")
 
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]

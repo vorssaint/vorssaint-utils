@@ -6,6 +6,83 @@ import CoreGraphics
 import AppKit
 
 enum NotchTests {
+    private static func railContracts(expect: (Bool, String) -> Void) {
+        expect(NotchLayout.railCapacity(width: 424, itemWidth: 76, spacing: 8) == 5
+               && NotchLayout.railCapacity(width: 304, itemWidth: 76, spacing: 8) == 3
+               && NotchLayout.railCapacity(width: 20, itemWidth: 76, spacing: 8) == 1
+               && NotchLayout.railCapacity(width: .nan, itemWidth: 76, spacing: 8) == 1,
+               "a rail fits whole columns of its width and never fewer than one")
+        expect(NotchLayout.railRows(count: 4, perRow: 5, rowHeight: 74, spacing: 8, height: 180) == 1
+               && NotchLayout.railRows(count: 7, perRow: 5, rowHeight: 74, spacing: 8, height: 106) == 1
+               && NotchLayout.railRows(count: 7, perRow: 5, rowHeight: 74, spacing: 8, height: 190) == 2
+               && NotchLayout.railRows(count: 0, perRow: 0, rowHeight: 74, spacing: 8, height: 0) == 1
+               && NotchLayout.railRows(count: 40, perRow: 5, rowHeight: 74, spacing: 8, height: .infinity) == 8,
+               "rows follow the items that need them and stop where the height ends")
+        expect(NotchLayout.railHeight(rows: 1, rowHeight: 74, spacing: 8) == 74
+               && NotchLayout.railHeight(rows: 3, rowHeight: 74, spacing: 8) == 238
+               && NotchLayout.railHeight(rows: 0, rowHeight: 74, spacing: 8) == 74,
+               "a rail's height is its rows and the gaps between them")
+        let single = (0..<5).map { QuickToolsSupport.gridIndex(after: 2, count: 5, flow: .columns(rows: 1),
+                                                                direction: [.left, .right, .up, .down, .left][$0]) }
+        expect(single == [1, 3, 2, 2, 1], "in one row the side arrows walk the tiles and the vertical pair stays put")
+        expect(QuickToolsSupport.gridIndex(after: 2, count: 7, flow: .rows(columns: 3), direction: .down) == 5
+               && QuickToolsSupport.gridIndex(after: 2, count: 7, flow: .rows(columns: 3), direction: .right) == 2,
+               "the row flow keeps the panel grid's own walk")
+        expect(QuickToolsSupport.gridIndex(after: 2, count: 7, flow: .columns(rows: 2), direction: .right) == 4
+               && QuickToolsSupport.gridIndex(after: 2, count: 7, flow: .columns(rows: 2), direction: .left) == 0
+               && QuickToolsSupport.gridIndex(after: 2, count: 7, flow: .columns(rows: 2), direction: .down) == 3
+               && QuickToolsSupport.gridIndex(after: 3, count: 7, flow: .columns(rows: 2), direction: .down) == 3
+               && QuickToolsSupport.gridIndex(after: 3, count: 7, flow: .columns(rows: 2), direction: .up) == 2
+               && QuickToolsSupport.gridIndex(after: 6, count: 7, flow: .columns(rows: 2), direction: .down) == 6
+               && QuickToolsSupport.gridIndex(after: 5, count: 7, flow: .columns(rows: 2), direction: .right) == 5
+               && QuickToolsSupport.gridIndex(after: 9, count: 7, flow: .columns(rows: 2), direction: .up) == 6,
+               "with two rows the arrows follow the columns the tiles fill, clamped to the last tile")
+        let controls = NotchLayout.controls(hasCards: true, shortcutCount: 4, width: 424, height: NotchLayout.compactContentHeight)
+        expect(controls == NotchControlsLayout(cardRow: NotchLayout.cardHeight, shortcutRows: 1)
+               && controls.height == NotchLayout.compactContentHeight,
+               "the default home page is one card row over one shortcut rail, exactly the compact strip")
+        expect(NotchLayout.controls(hasCards: true, shortcutCount: 4, width: 424, height: 154)
+               == NotchControlsLayout(cardRow: 154 - NotchLayout.shortcutHeight - NotchLayout.rowSpacing, shortcutRows: 1)
+               && NotchLayout.controls(hasCards: false, shortcutCount: 0, width: 424, height: 154) == NotchControlsLayout(cardRow: 0, shortcutRows: 0)
+               && NotchLayout.controls(hasCards: true, shortcutCount: 0, width: 424, height: 154).height == NotchLayout.cardHeight
+               && NotchLayout.controls(hasCards: false, shortcutCount: 9, width: 424, height: 154).height == NotchLayout.shortcutHeight,
+               "the smallest custom island shortens the cards to keep the rail, and rows nobody enabled cost nothing")
+        let wideTimer = NotchLayout.timer(mode: .timer, hasSession: false, width: 424, height: 180)
+        let widePomodoro = NotchLayout.timer(mode: .pomodoro, hasSession: false, width: 424, height: 180)
+        let wideStopwatch = NotchLayout.timer(mode: .stopwatch, hasSession: false, width: 424, height: 180)
+        expect(wideStopwatch == wideTimer && widePomodoro <= NotchLayout.compactContentHeight
+               && wideTimer == NotchLayout.timerTopRowHeight + NotchLayout.timerRowSpacing + NotchLayout.timerRulerHeight
+               && widePomodoro == wideTimer + NotchLayout.timerRowSpacing + NotchLayout.timerSettingsRowHeight,
+               "every mode shares the mode row and the ruler row; the Pomodoro adds one line of readouts under it")
+        let tight: CGFloat = 154
+        for mode in NotchTimerMode.allCases {
+            for width in [304, 344, 424] as [CGFloat] {
+                expect(NotchLayout.timer(mode: mode, hasSession: false, width: width, height: tight) <= tight,
+                       "the shortest custom island still shows every timer row: \(mode) at \(Int(width))")
+            }
+        }
+        expect(NotchLayout.timer(mode: .timer, hasSession: false, width: 304, height: tight) == tight
+               && NotchLayout.timer(mode: .pomodoro, hasSession: false, width: 304, height: tight) == tight
+               && NotchLayout.timer(mode: .pomodoro, hasSession: false, width: 424, height: tight) == tight
+               && NotchLayout.timerRulerHeight(width: 304, height: tight) == tight - NotchLayout.timerTopRowHeight
+                   - NotchLayout.timerRowSpacing * 2 - NotchLayout.timerStartHeight
+               && NotchLayout.timerRulerHeight(mode: .pomodoro, width: 424, height: tight) == tight - NotchLayout.timerTopRowHeight
+                   - NotchLayout.timerRowSpacing * 2 - NotchLayout.timerSettingsRowHeight
+               && NotchLayout.timerRulerHeight(width: 304, height: 100) == NotchLayout.timerMinimumRulerHeight
+               && NotchLayout.timerRulerHeight(width: 304, height: 400) == NotchLayout.timerRulerHeight
+               && NotchLayout.timerRulerHeight(width: 424, height: tight) == NotchLayout.timerRulerHeight
+               && NotchLayout.timerRulerHeight(mode: .stopwatch, width: 424, height: tight) == NotchLayout.timerRulerHeight,
+               "a narrow island gives Start its own row, the Pomodoro its readouts, and the ruler gives up height down to a floor before anything is cut")
+        expect(NotchLayout.timer(mode: .pomodoro, hasSession: true, width: 424, height: 180) == 118
+               && NotchLayout.timer(mode: .timer, hasSession: true, width: 304, height: tight) == 96,
+               "a running session keeps its control row in every layout")
+        expect(NotchLayout.musicPlayerHeight(layout: .compact, height: 180) == 120
+               && NotchLayout.musicPlayerHeight(layout: .spacious, height: 264) == 148
+               && NotchLayout.musicPlayerHeight(layout: .custom, height: 154) == 112
+               && NotchLayout.musicPlayerHeight(layout: .custom, height: 60) == 88,
+               "the artwork grows with the preset and shrinks with a custom height down to a legible floor")
+    }
+
     private static func noticeLayoutContracts(expect: (Bool, String) -> Void) {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         func width(_ text: String) -> CGFloat {
@@ -233,6 +310,7 @@ enum NotchTests {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        railContracts(expect: expect)
         noticeLayoutContracts(expect: expect)
         simulatedMenuBoundsContracts(expect: expect)
         simulatedDisplayContracts(expect: expect)
@@ -291,9 +369,12 @@ enum NotchTests {
                "home controls respect hidden destinations")
         defaults.set("", forKey: DefaultsKey.notchHiddenModules)
         let homeGeometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180)
-        expect(homeGeometry.expandedSize(module: .controls, controlsHaveMusic: true).height
-               - homeGeometry.expandedSize(module: .controls).height == NotchLayout.musicControlHeight + 18,
-               "home playback reserves its actual height and spacing")
+        expect(homeGeometry.expandedSize(module: .controls, controlsHaveMusic: true)
+               == homeGeometry.expandedSize(module: .controls),
+               "home playback shares the card row with the levels instead of adding one")
+        expect(homeGeometry.expandedSize(module: .controls, sliderCount: 0, controlsHaveMusic: true).height
+               - homeGeometry.expandedSize(module: .controls, sliderCount: 0).height == NotchLayout.cardHeight + NotchLayout.rowSpacing,
+               "without levels, home playback is the card row and its spacing")
 
         expect(!NotchSupport.routesAppPanel(in: defaults) && !NotchSupport.routesQuickPanel(in: defaults)
                && !NotchSupport.routesShelf(in: defaults) && !NotchSupport.routesCaptureControls(in: defaults)
@@ -544,7 +625,7 @@ enum NotchTests {
         expect(!NotchSupport.routesClipboardWindow(in: defaults), "hidden clipboard keeps the ordinary history available")
         expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
-        expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .timer, .downloads],
+        expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .timer, .downloads, .scratchpad],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")
@@ -701,10 +782,31 @@ enum NotchTests {
                       CGRect(x: 0, y: 0, width: 640, height: 480)]
         let compact = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210)
         let spacious = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .spacious)
-        expect(compact.sectionPickerSize(count: 1, searching: true).height < compact.sectionPickerSize(count: allModules.count).height,
+        let tall = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .custom, customHeight: 640)
+        expect(tall.sectionPickerSize(count: 1).height < tall.sectionPickerSize(count: allModules.count).height,
                "a short search result shrinks the gallery instead of reserving empty rows")
-        expect(compact.contentSize(for: compact.sectionPickerSize(count: 0, searching: true)).height >= 160,
-               "an unmatched search still reserves room for recovery guidance")
+        expect(compact.sectionPickerSize(count: 1) == compact.sectionPickerSize(count: allModules.count)
+               && compact.sectionRows(count: allModules.count) == 1 && spacious.sectionRows(count: allModules.count) == 2
+               && tall.sectionRows(count: allModules.count) > 2,
+               "the gallery keeps one row on a compact island, two on a spacious one, and runs sideways beyond them")
+        expect(compact.contentSize(for: compact.sectionPickerSize(count: 0)).height == NotchLayout.emptyHeight
+               && compact.contentSize(for: compact.sectionPickerSize(count: 1)).height == NotchLayout.sectionTileHeight,
+               "an unmatched search keeps the recovery guidance's row and a match takes just its tiles, the search living in the header")
+        for layout in NotchSize.allCases {
+            let geometry = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: layout)
+            for module in NotchModule.allCases {
+                let content = geometry.contentSize(for: geometry.expandedSize(module: module)).height
+                expect(content <= geometry.contentBudget && content > 0,
+                       "every page stays inside its preset's strip: \(layout) \(module)")
+            }
+            expect(geometry.contentSize(for: geometry.expandedSize(module: .tools, panel: true)).height == geometry.pageBudget
+                   && geometry.contentSize(for: geometry.expandedSize(module: .system, detail: true)).height == geometry.pageBudget
+                   && geometry.pageBudget >= geometry.contentBudget,
+                   "the app panel and a metric detail get a readable page even inside a short preset: \(layout)")
+        }
+        expect(compact.contentBudget == NotchLayout.compactContentHeight && spacious.contentBudget == NotchLayout.spaciousContentHeight
+               && compact.expanded.height < compact.expanded.width && spacious.expanded.height < spacious.expanded.width,
+               "both presets are strips wider than they are tall")
         let musicBase = compact.expandedSize(module: .music)
         let musicDetails = compact.expandedSize(module: .music, musicExtraHeight: 260)
         expect(musicDetails.width == musicBase.width && musicDetails.height == musicBase.height + 260
@@ -714,30 +816,44 @@ enum NotchTests {
                "the standard notch has room for side-by-side controls while spacious remains available")
         let idleMusic = compact.expandedSize(module: .music, musicHasContent: false)
         expect(idleMusic.height < compact.expandedSize(module: .music).height
-               && compact.contentSize(for: idleMusic).height >= 130,
+               && compact.contentSize(for: idleMusic).height == NotchLayout.musicIdleHeight + NotchLayout.musicControlsRowHeight + NotchLayout.rowSpacing,
                "empty music keeps its message and volume controls without reserving a full player")
-        let fullControls = compact.expandedSize(module: .controls, controlRows: 2, sliderCount: 2)
-        let fewerShortcuts = compact.expandedSize(module: .controls, controlRows: 1, sliderCount: 2)
-        let onlyShortcuts = compact.expandedSize(module: .controls, controlRows: 1, sliderCount: 0)
-        expect(fullControls.height > fewerShortcuts.height && fewerShortcuts.height > onlyShortcuts.height,
-               "hiding shortcuts or sliders removes their unused vertical space")
-        expect(compact.contentSize(for: compact.expandedSize(module: .controls, controlRows: 0, sliderCount: 0)).height >= 160,
-               "hiding every control leaves enough room for the empty-state guidance")
+        expect(compact.contentSize(for: compact.expandedSize(module: .music, musicHasControlsRow: false)).height
+               == NotchLayout.musicPlayerHeight(layout: .compact, height: NotchLayout.compactContentHeight),
+               "without a mixer or extras the player row is the whole page")
+        let fullControls = compact.expandedSize(module: .controls, shortcutCount: 10, sliderCount: 2)
+        let fewerShortcuts = compact.expandedSize(module: .controls, shortcutCount: 3, sliderCount: 2)
+        let onlyShortcuts = compact.expandedSize(module: .controls, shortcutCount: 3, sliderCount: 0)
+        let onlySliders = compact.expandedSize(module: .controls, shortcutCount: 0, sliderCount: 2)
+        expect(fullControls == fewerShortcuts && fewerShortcuts.height > onlyShortcuts.height
+               && fewerShortcuts.height > onlySliders.height,
+               "a compact island runs extra shortcuts sideways and drops the rows nobody enabled")
+        expect(compact.contentSize(for: fullControls).height == NotchLayout.compactContentHeight
+               && spacious.expandedSize(module: .controls, shortcutCount: 10).height
+                   > spacious.expandedSize(module: .controls, shortcutCount: 3).height,
+               "the home page fills the compact strip while a spacious island adds a second shortcut row first")
+        expect(compact.contentSize(for: compact.expandedSize(module: .controls, shortcutCount: 0, sliderCount: 0)).height == NotchLayout.emptyHeight,
+               "hiding every control leaves the empty-state guidance its own row")
         for width in [360.0, 480.0, 600.0] {
-            let geometry = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210,
-                                         layout: .custom, customWidth: width, customHeight: 640)
-            for shortcuts in 1...8 {
-                let rows = (shortcuts + geometry.controlColumns - 1) / geometry.controlColumns
-                for sliders in 0...2 {
-                    let size = geometry.expandedSize(module: .controls, controlRows: rows, sliderCount: sliders)
-                    let levels = geometry.hasSideBySideLevels ? min(sliders, 1) : sliders
-                    let requiredHeight = CGFloat(levels) * 94 + CGFloat(rows) * 52
-                        + CGFloat(rows - 1) * 8 + CGFloat(levels) * 18
-                    let availableHeight = 640 - geometry.safeContentTop - NotchLayout.chromeHeight
-                    expect(geometry.contentSize(for: size).height == min(requiredHeight, availableHeight),
-                           "action rows fit or receive a bounded scroll viewport at narrow widths and odd counts")
-                    expect(frames[0].contains(geometry.frame(for: size)),
-                           "the full controls surface stays inside the display")
+            for height in [NotchSize.heightRange.lowerBound, 640.0] {
+                let geometry = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210,
+                                             layout: .custom, customWidth: width, customHeight: height)
+                for shortcuts in 0...12 {
+                    for sliders in 0...2 {
+                        let size = geometry.expandedSize(module: .controls, shortcutCount: shortcuts, sliderCount: sliders)
+                        let content = geometry.contentSize(for: size)
+                        let planned = NotchLayout.controls(hasCards: sliders > 0, shortcutCount: shortcuts,
+                                                           width: geometry.contentWidth, height: geometry.contentBudget)
+                        let drawn = NotchLayout.controls(hasCards: sliders > 0, shortcutCount: shortcuts,
+                                                         width: content.width, height: content.height)
+                        expect(content.height == min(geometry.contentBudget, planned.height == 0 ? NotchLayout.emptyHeight : planned.height),
+                               "the home page takes the rows it needs and never more than the custom budget")
+                        expect(planned == drawn, "the page rebuilds the same rows from the height it receives")
+                        expect(planned.shortcutRows == 0 || planned.height <= geometry.contentBudget || planned.cardRow == NotchLayout.minimumCardHeight,
+                               "a tight budget shortens the card row before it drops the shortcut rail")
+                        expect(frames[0].contains(geometry.frame(for: size)),
+                               "the full controls surface stays inside the display")
+                    }
                 }
             }
         }
@@ -747,13 +863,14 @@ enum NotchTests {
                     let custom = NotchGeometry(screen: frame, safeAreaTop: 32, cameraWidth: 210,
                                                layout: .custom, customWidth: width, customHeight: height)
                     let available = height - custom.safeContentTop - NotchLayout.chromeHeight
+                    expect(custom.contentBudget == available, "a custom island's budget is what its height leaves below the chrome")
                     for module in NotchModule.allCases {
                         let size = custom.expandedSize(module: module)
                         expect(size.width == min(width, frame.width - 24 - NotchQuickAccessLayout.gutter * 2) && size.height <= height
                                && frame.contains(custom.frame(for: size)),
                                "custom dimensions fit every module and respect the display and height limit")
-                        expect(custom.contentSize(for: size).height >= 130,
-                               "even the smallest custom height leaves every page a usable content area")
+                        expect(custom.contentSize(for: size).height <= available && custom.contentSize(for: size).height > 0,
+                               "every page keeps inside the custom budget")
                     }
                     for count in [0, 1, 9, allModules.count] {
                         let picker = custom.sectionPickerSize(count: count)
@@ -763,9 +880,12 @@ enum NotchTests {
                     }
                     expect(custom.expandedSize(module: .clipboard).height == min(height, frame.height - 48),
                            "long lists use the chosen height without overflowing a shorter display")
-                    expect(custom.contentSize(for: custom.expandedSize(module: .music)).height >= min(212, available),
-                           "custom sizes retain space for music and its essential volume controls, scrolling only below that")
-                    expect(custom.contentSize(for: custom.expandedSize(module: .music, musicHasContent: false)).height >= 130,
+                    expect(custom.contentSize(for: custom.expandedSize(module: .music)).height
+                           == min(available, NotchLayout.musicPlayerHeight(layout: .custom, height: available)
+                                  + NotchLayout.musicControlsRowHeight + NotchLayout.rowSpacing),
+                           "custom sizes keep the player row and its volume controls, shrinking the artwork before anything scrolls")
+                    expect(custom.contentSize(for: custom.expandedSize(module: .music, musicHasContent: false)).height
+                           >= min(available, NotchLayout.musicIdleHeight + NotchLayout.musicControlsRowHeight),
                            "empty music keeps its message and volume controls at every custom height")
                 }
             }
@@ -796,17 +916,21 @@ enum NotchTests {
                        "horizontal metadata uses equal wings around the camera")
                 expect(geometry.frame(for: geometry.musicStrip).maxY == frame.maxY,
                        "the lateral music strip remains attached to the same top edge")
-                expect(geometry.contentSize(for: geometry.expandedSize(module: .music)).height >= 212,
-                       "compact music reserves room for metadata, transport, progress and volume together")
+                expect(geometry.contentSize(for: geometry.expandedSize(module: .music)).height
+                       == NotchLayout.musicPlayerHeight(layout: .compact, height: NotchLayout.compactContentHeight)
+                           + NotchLayout.musicControlsRowHeight + NotchLayout.rowSpacing,
+                       "compact music is one artwork-high player row over its volume controls")
                 let quiet = geometry.restingSize(showsContent: false)
                 expect(quiet.width == geometry.cameraWidth && quiet.height <= geometry.menuBarHeight,
                        "empty idle does not reserve wings or a footer for unsolicited widgets")
                 expect(geometry.contentSize(for: geometry.expanded).height
-                       == geometry.expanded.height - geometry.safeContentTop - 36 - 18 - 22,
+                       == geometry.expanded.height - geometry.safeContentTop - NotchLayout.headerHeight
+                           - NotchLayout.spacing - NotchLayout.bottomInset,
                        "content reserves one top navigation row, its spacing and the bottom inset")
                 expect(geometry.safeContentTop > geometry.cameraHeight, "controls always clear the physical camera")
                 expect(geometry.appPanelSize.width > 0 && geometry.appPanelSize.height >= 176
-                       && geometry.appPanelSize.height < geometry.expandedSize(module: .tools).height,
+                       && geometry.appPanelSize.height == geometry.pageBudget
+                       && geometry.appPanelSize.height < geometry.expandedSize(module: .tools, panel: true).height,
                        "embedded panel reserves room for its navigation, content and footer")
             }
         }
@@ -950,8 +1074,9 @@ enum NotchTests {
                 let history = geometry.expandedSize(module: .captures)
                 let preview = geometry.expandedSize(module: .captures, capturePreviewHeight: 210)
                 let shared = geometry.expandedSize(module: .captures, capturePreviewHeight: 268)
-                expect(geometry.contentSize(for: preview).height == 214 && preview.height < history.height,
-                       "a single capture reserves its preview and scroll inset instead of the larger history area in every layout")
+                expect(geometry.contentSize(for: preview).height == 214
+                       && geometry.contentSize(for: history).height == geometry.contentBudget,
+                       "a single capture reserves its measured preview and scroll inset while the history fills the strip in every layout")
                 expect(shared.height - preview.height == 58,
                        "sharing adds only the link row and removing it restores the compact preview height")
                 expect(geometry.expandedSize(module: .timer, capturePreviewHeight: 210)
@@ -1178,6 +1303,23 @@ enum NotchTests {
                    "the grid honors the user's first weekday and includes leap day")
             expect(days.filter { calendar.component(.month, from: $0) == 2 }.count == 29,
                    "every date of a leap February appears exactly once")
+        }
+        for firstWeekday in [1, 2, 7] {
+            calendar.firstWeekday = firstWeekday
+            for day in [date(2026, 3, 1), date(2026, 3, 31, 12), date(2026, 10, 31), leapDay] {
+                let week = NotchCalendarSupport.weekDays(containing: day, calendar: calendar)
+                let grid = NotchCalendarSupport.monthDays(containing: day, calendar: calendar)
+                expect(week.count == 7 && calendar.component(.weekday, from: week[0]) == firstWeekday
+                       && week.contains(calendar.startOfDay(for: day)) && week.allSatisfy(grid.contains),
+                       "the week strip starts on the user's first weekday, holds its day and stays within the month read for it")
+            }
+        }
+        for height in [NotchLayout.compactContentHeight, NotchLayout.spaciousContentHeight, 154] as [CGFloat] {
+            let row = NotchLayout.calendarMonthRowHeight(height: height)
+            let grid = NotchLayout.calendarMonthHeaderHeight + NotchLayout.calendarMonthWeekdayHeight
+                + NotchLayout.calendarMonthSpacing * 2 + row * 6
+            expect(row >= 16 && row <= 30 && row == row.rounded() && grid <= height,
+                   "the strip's month grid keeps six readable rows inside every preset and the lowest custom height")
         }
         let march = NotchCalendarSupport.monthDays(containing: date(2026, 3, 15), calendar: calendar)
         expect(march.contains(date(2026, 3, 8)) && march.contains(date(2026, 3, 9))

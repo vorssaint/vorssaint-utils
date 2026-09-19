@@ -9,7 +9,10 @@ struct NotchView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
+    @ObservedObject private var updates = UpdateService.shared
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var headerHovered = false
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
 
     var body: some View {
@@ -146,35 +149,37 @@ struct NotchView: View {
     private var expanded: some View {
         VStack(spacing: NotchLayout.spacing) {
             header.zIndex(1)
-            if service.showingSections {
-                NotchSectionsView(service: service)
-            } else if service.showingAppPanel || [.files, .music, .clipboard, .calendar, .notifications, .timer, .camera, .downloads].contains(service.selected)
-                || (service.selected == .captures && service.captureContent == nil) {
-                content.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            } else if [.controls, .system, .tools].contains(service.selected), service.selectedMetric == nil {
-                ViewThatFits(in: .vertical) {
-                    content.fixedSize(horizontal: false, vertical: true)
+            Group {
+                if service.showingSections {
+                    NotchSectionsView(service: service)
+                } else if scrollsVertically {
                     ScrollView {
-                        content.fixedSize(horizontal: false, vertical: true)
-                    }.scrollIndicators(.automatic)
-                }
-                .id(service.selected)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .clipped()
-            } else {
-                ScrollView {
+                        content
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .padding(.bottom, 4)
+                    }
+                    .scrollIndicators(.automatic)
+                } else {
                     content
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding(.bottom, 4)
                 }
-                .scrollIndicators(.automatic)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(width: service.contentSize.width, height: service.contentSize.height, alignment: .top)
+            .clipped()
         }
         .padding(.horizontal, NotchLayout.horizontalInset)
         .padding(.top, service.geometry.safeContentTop)
         .padding(.bottom, NotchLayout.bottomInset)
         .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
+    }
+
+    /// Every page lays itself out sideways inside the strip. Only surfaces
+    /// that are vertical by nature keep a vertical scroll: a metric detail,
+    /// a retained capture and the launcher while it edits.
+    private var scrollsVertically: Bool {
+        guard !service.showingAppPanel else { return false }
+        return service.selectedMetric != nil
+            || (service.selected == .captures && service.captureContent != nil)
+            || (service.selected == .tools && launcher.isEditing && launcher.activeUtility == nil)
     }
 
     private var header: some View {
@@ -184,6 +189,9 @@ struct NotchView: View {
                 NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
                 Text(text.sectionsTitle)
                     .font(.system(size: 16, weight: .semibold))
+                    .lineLimit(1)
+                    .layoutPriority(-1)
+                NotchSectionSearch(service: service)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if showsDetail || service.modules.isEmpty {
                 if showsDetail {
@@ -202,6 +210,23 @@ struct NotchView: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            headerActions(quickActions: quickActions)
+        }
+        .frame(height: NotchLayout.headerHeight)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { headerHovered = hovering }
+        }
+        .onAppear { UpdateService.shared.checkIfStale() }
+    }
+
+    /// The header's actions keep their room but stay out of sight until the
+    /// pointer reaches the row: a title, not a toolbar. An available update
+    /// leaves a dot so it is never missed, and a download stays in view.
+    private func headerActions(quickActions: [NotchQuickAction]) -> some View {
+        let updating = updates.state.isInProgress
+        let revealed = headerHovered || updating
+        return HStack(spacing: 6) {
             NotchUpdateControl(action: service.showUpdate)
             if service.selected == .tools, !service.showingAppPanel, !service.showingSections, service.selectedMetric == nil,
                !service.modules.isEmpty, launcher.activeUtility == nil {
@@ -223,8 +248,24 @@ struct NotchView: View {
             }
             NotchIconButton(symbol: "chevron.up", title: text.collapse, action: service.collapse)
         }
-        .frame(height: NotchLayout.headerHeight)
-        .onAppear { UpdateService.shared.checkIfStale() }
+        .opacity(revealed ? 1 : 0)
+        .overlay(alignment: .trailing) {
+            if !revealed {
+                HStack(spacing: 5) {
+                    if case .available(let version) = updates.state {
+                        Circle()
+                            .fill(UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? Color.orange : Color.blue)
+                            .frame(width: 6, height: 6)
+                    }
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.35))
+                        .frame(width: 28, height: 28)
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
     }
 
     private var navigation: some View {
@@ -257,25 +298,37 @@ struct NotchView: View {
             NotchEmptyView(symbol: "slider.horizontal.3", message: text.empty)
         } else {
             switch service.selected {
-            case .timer: NotchTimerView()
+            case .timer: NotchTimerView(size: service.contentSize)
             case .camera: NotchCameraView(size: service.contentSize)
-            case .notifications: NotchNotificationsView()
-            case .downloads: NotchDownloadsView()
-            case .calendar: NotchCalendarView()
+            case .notifications: NotchNotificationsView(size: service.contentSize)
+            case .downloads: NotchDownloadsView(size: service.contentSize)
+            case .calendar: NotchCalendarView(size: service.contentSize)
             case .controls: NotchControlsView(service: service)
-            case .mixer: MixerSection(collapsible: false)
-            case .music: NotchMusicView(compact: service.geometry.usesCompactContent)
-            case .clipboard: NotchClipboardView(service: service)
+            case .mixer: NotchMixerView(size: service.contentSize)
+            case .music: NotchMusicView(size: service.contentSize, extrasHeight: service.geometry.musicExtrasHeight)
+            case .clipboard: NotchClipboardView(service: service, size: service.contentSize)
             case .captures:
                 if let capture = service.captureContent {
                     capture.frame(maxWidth: .infinity)
                 } else {
-                    RecentCapturesView(onClose: nil, notchHeight: service.contentSize.height)
+                    RecentCapturesView(onClose: nil, notchSize: service.contentSize)
                 }
             case .files: NotchFilesView(service: service)
-            case .system: NotchSystemView(columns: service.geometry.systemColumns) { service.showMetric($0) }
+            case .system:
+                NotchSystemView(size: service.contentSize) { service.showMetric($0) }
             case .tools: QuickLauncherView(notchSize: service.contentSize)
+            case .scratchpad: NotchScratchpadView(service: service)
             }
+        }
+    }
+}
+
+private extension UpdateService.State {
+    /// A download or install stays in view; an offer waits behind the dot.
+    var isInProgress: Bool {
+        switch self {
+        case .downloading, .installing: return true
+        default: return false
         }
     }
 }
@@ -332,6 +385,7 @@ extension NotchModule: PanelOrderItem {
         case .files: return FeatureStrings.notch(language).files
         case .system: return FeatureStrings.notch(language).system
         case .tools: return FeatureStrings.notch(language).tools
+        case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         }
     }
 }

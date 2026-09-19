@@ -95,6 +95,9 @@ struct ShelfTilesView: NSViewRepresentable {
     var expandedBatches: Set<UUID>
     var revealID: UUID?
     var revealSerial: Int
+    /// The island lays tiles out sideways: rows fill its height and columns
+    /// continue past its edge, so a short strip never scrolls down.
+    var sideways = false
 
     static let tileSize = NSSize(width: 78, height: 88)
     static let spacing: CGFloat = 10
@@ -109,11 +112,12 @@ struct ShelfTilesView: NSViewRepresentable {
         scroll.hasHorizontalScroller = false
         scroll.hasVerticalScroller = false
         scroll.scrollerStyle = .overlay
-        scroll.horizontalScrollElasticity = .none
-        scroll.verticalScrollElasticity = .allowed
+        scroll.horizontalScrollElasticity = sideways ? .allowed : .none
+        scroll.verticalScrollElasticity = sideways ? .none : .allowed
         scroll.contentView.drawsBackground = false
         let document = FlippedView()
         document.acceptsDrops = true
+        document.sideways = sideways
         scroll.documentView = document
         return scroll
     }
@@ -147,11 +151,24 @@ struct ShelfTilesView: NSViewRepresentable {
 
         let tile = Self.tileSize
         let inset = Self.inset
+        let spacing = Self.spacing
+        // The document remembers its flow, so a rebuild started by a tile
+        // after a merge lays out the same way SwiftUI did.
+        let sideways = (document as? FlippedView)?.sideways == true
         let contentWidth = max(scroll.contentSize.width, 276)
         let columns = ShelfTileLayout.columnCount(contentWidth: contentWidth,
                                                    tileWidth: tile.width,
-                                                   spacing: Self.spacing,
+                                                   spacing: spacing,
                                                    inset: inset)
+        let rows = sideways
+            ? ShelfTileLayout.rowCount(contentHeight: scroll.contentSize.height, tileHeight: tile.height,
+                                       spacing: spacing, inset: inset)
+            : max(1, Int(ceil(Double(items.count) / Double(columns))))
+        let frame: (Int) -> CGRect = { index in
+            sideways
+                ? ShelfTileLayout.sidewaysTileFrame(index: index, rows: rows, tileSize: tile, spacing: spacing, inset: inset)
+                : ShelfTileLayout.tileFrame(index: index, columns: columns, tileSize: tile, spacing: spacing, inset: inset)
+        }
 
         // Item.== is id-only (by design, for selection/lookup purposes
         // elsewhere), which isn't the question this cache needs answered:
@@ -170,7 +187,7 @@ struct ShelfTilesView: NSViewRepresentable {
             // Revealing does not require rebuilding any tile, so keep the
             // add-serial check independent from the redraw cache.
             if let coordinator {
-                revealIfNeeded(in: document, columns: columns, items: items,
+                revealIfNeeded(in: document, frame: frame, items: items,
                                revealID: revealID, revealSerial: revealSerial, coordinator: coordinator)
             }
             return
@@ -182,27 +199,30 @@ struct ShelfTilesView: NSViewRepresentable {
 
         document.subviews.forEach { $0.removeFromSuperview() }
 
-        let rows = max(1, Int(ceil(Double(items.count) / Double(columns))))
-
         for (index, item) in items.enumerated() {
             let view = ShelfTileView(item: item,
                                      isSelected: selection.contains(item.id),
                                      isExpanded: expandedBatches.contains(item.id))
-            view.frame = ShelfTileLayout.tileFrame(index: index,
-                                                    columns: columns,
-                                                    tileSize: tile,
-                                                    spacing: Self.spacing,
-                                                    inset: inset)
+            view.frame = frame(index)
             document.addSubview(view)
         }
-        let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * Self.spacing
-        scroll.hasVerticalScroller = contentHeight > scroll.contentSize.height + 1
-        document.frame = NSRect(x: 0,
-                                y: 0,
-                                width: contentWidth,
-                                height: max(contentHeight, scroll.contentSize.height))
+        if sideways {
+            let tileColumns = max(1, Int(ceil(Double(items.count) / Double(rows))))
+            let flowWidth = inset * 2 + CGFloat(tileColumns) * tile.width + CGFloat(max(0, tileColumns - 1)) * spacing
+            scroll.hasHorizontalScroller = flowWidth > scroll.contentSize.width + 1
+            document.frame = NSRect(x: 0, y: 0,
+                                    width: max(flowWidth, scroll.contentSize.width),
+                                    height: scroll.contentSize.height)
+        } else {
+            let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * spacing
+            scroll.hasVerticalScroller = contentHeight > scroll.contentSize.height + 1
+            document.frame = NSRect(x: 0,
+                                    y: 0,
+                                    width: contentWidth,
+                                    height: max(contentHeight, scroll.contentSize.height))
+        }
         if let coordinator {
-            revealIfNeeded(in: document, columns: columns, items: items,
+            revealIfNeeded(in: document, frame: frame, items: items,
                            revealID: revealID, revealSerial: revealSerial, coordinator: coordinator)
         }
     }
@@ -226,7 +246,7 @@ struct ShelfTilesView: NSViewRepresentable {
     /// nothing when the rect is on screen, so a shelf with room to spare
     /// never moves.
     private static func revealIfNeeded(in document: NSView,
-                                       columns: Int,
+                                       frame: (Int) -> CGRect,
                                        items: [ShelfService.Item],
                                        revealID: UUID?,
                                        revealSerial: Int,
@@ -239,15 +259,11 @@ struct ShelfTilesView: NSViewRepresentable {
         // precondition, rather than recording the serial ahead of a check
         // that still has to pass.
         coordinator.revealedSerial = revealSerial
-        let frame = ShelfTileLayout.tileFrame(index: index,
-                                               columns: columns,
-                                               tileSize: Self.tileSize,
-                                               spacing: Self.spacing,
-                                               inset: Self.inset)
+        let target = frame(index)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.allowsImplicitAnimation = true
-            document.scrollToVisible(frame)
+            document.scrollToVisible(target)
         }
         // The animated bounds change above doesn't post the notification the
         // scroller listens for, so nudge it directly or its knob lags behind.
@@ -257,6 +273,7 @@ struct ShelfTilesView: NSViewRepresentable {
     }
 
     private final class FlippedView: ShelfPanelMoveView {
+        var sideways = false
         override var isFlipped: Bool { true }
     }
 }

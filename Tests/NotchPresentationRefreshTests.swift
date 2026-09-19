@@ -139,16 +139,22 @@ enum NotchPresentationRefreshContract {
         service.windowHost?.onPresent = { size in
             if contentSize != size { mismatches += 1 }
         }
+        // The timer and the stopwatch share one height, so only a change
+        // that resizes the island may publish.
+        var resizes = 0
         for mode in [NotchTimerMode.pomodoro, .timer, .stopwatch, .pomodoro, .stopwatch, .timer] {
+            let before = service.surfaceSize
             service.mode = mode
             service.refreshPresentation(animated: false)
+            if service.surfaceSize != before { resizes += 1 }
             expect(contentSize == service.surfaceSize,
                    "switching Timer, Pomodoro and Stopwatch updates the content height without reopening the island")
         }
         expect(mismatches == 0, "content is invalidated before the native window receives its new size")
-        expect(invalidations == 6, "each mode change publishes its new presentation size")
+        expect(resizes == 4 && invalidations == resizes,
+               "each mode change with a new size publishes it, and one keeping the size stays quiet")
         for _ in 0..<1000 { service.refreshPresentation() }
-        expect(invalidations == 6, "unchanged presentations do not repeatedly invalidate SwiftUI layout")
+        expect(invalidations == resizes, "unchanged presentations do not repeatedly invalidate SwiftUI layout")
 
         service.session.start(mode: .timer, minutes: 15, now: 0)
         service.refreshPresentation()

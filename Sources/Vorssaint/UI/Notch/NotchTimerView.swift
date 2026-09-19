@@ -4,6 +4,7 @@
 import SwiftUI
 
 struct NotchTimerView: View {
+    let size: CGSize
     @ObservedObject private var service = NotchTimerService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchTimerMode) private var mode: NotchTimerMode = .timer
@@ -17,57 +18,91 @@ struct NotchTimerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: NotchActivityStrings { FeatureStrings.notchActivities(l10n.language) }
 
+    private var wide: Bool { size.width >= NotchLayout.timerWideWidth }
+
     var body: some View {
-        ScrollView {
-            Group {
-                if service.session.hasSession { activeTimer }
-                else { setup }
-            }
-            .frame(maxWidth: .infinity)
+        Group {
+            if service.session.hasSession { activeTimer }
+            else { setup }
         }
-        .scrollIndicators(.automatic)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .tint(.orange)
     }
 
+    /// The mode row over the ruler's row, whatever the mode: the
+    /// timer and the Pomodoro's focus set on the ruler, the stopwatch's
+    /// clock alone in that row. The Pomodoro adds one quiet line of
+    /// readouts; a narrow island gives Start the last row and seats the
+    /// readouts beside it.
     private var setup: some View {
-        VStack(spacing: 12) {
-            modePicker
-            switch mode {
-            case .timer:
-                NotchTimerRuler(minutes: $minutes, label: text.timer,
-                                locale: Locale(identifier: l10n.language.rawValue))
-                    .frame(height: 82)
-            case .pomodoro: pomodoroOptions
-            case .stopwatch: EmptyView()
-            }
-            HStack(spacing: 16) {
-                Button { service.start(mode: mode, minutes: minutes) } label: {
-                    Text(text.start)
-                        .font(.system(size: 17, weight: .semibold))
-                        .lineLimit(1).minimumScaleFactor(0.75)
-                        .padding(.horizontal, 22).frame(height: 44)
-                        .foregroundStyle(.orange)
-                        .background(.orange.opacity(0.18), in: Capsule())
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(NotchButtonStyle(cornerRadius: 22))
+        let rulerHeight = NotchLayout.timerRulerHeight(mode: mode, width: size.width, height: size.height)
+        let locale = Locale(identifier: l10n.language.rawValue)
+        return VStack(spacing: NotchLayout.timerRowSpacing) {
+            HStack(spacing: 12) {
+                modePicker
                 Spacer(minLength: 0)
-                clock(setupClock)
+                if wide { startButton }
             }
-            .frame(height: 72)
+            .frame(height: NotchLayout.timerTopRowHeight)
+            HStack(spacing: 12) {
+                switch mode {
+                case .timer:
+                    NotchTimerRuler(minutes: $minutes, label: text.timer, locale: locale)
+                        .frame(height: rulerHeight)
+                case .pomodoro:
+                    NotchTimerRuler(minutes: binding(.focus), label: text.focus, locale: locale)
+                        .frame(height: rulerHeight)
+                case .stopwatch:
+                    Spacer(minLength: 0)
+                }
+                if wide || mode == .stopwatch { clock(setupClock, size: 26) }
+            }
+            .frame(height: rulerHeight)
+            if mode == .pomodoro {
+                HStack(spacing: 12) {
+                    if !wide { clock(setupClock, size: 26) }
+                    pomodoroSettings
+                    if !wide { startButton }
+                }
+                .frame(height: wide ? NotchLayout.timerSettingsRowHeight : NotchLayout.timerStartHeight)
+            } else if !wide {
+                HStack(spacing: 12) {
+                    if mode == .timer { clock(setupClock, size: 26) }
+                    Spacer(minLength: 0)
+                    startButton
+                }
+                .frame(height: NotchLayout.timerStartHeight)
+            }
         }
+    }
+
+    private var startButton: some View {
+        Button { service.start(mode: mode, minutes: minutes) } label: {
+            Text(text.start)
+                .font(.system(size: NotchTimerSupport.StartButton.labelSize, weight: .semibold))
+                .lineLimit(1)
+                .padding(.horizontal, NotchTimerSupport.StartButton.padding)
+                .frame(height: NotchLayout.timerStartHeight)
+                .foregroundStyle(.orange)
+                .background(.orange.opacity(0.18), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.timerStartHeight / 2))
+        .help(mode == .pomodoro ? text.pomodoroHint : text.start)
     }
 
     private var setupClock: String {
         switch mode {
         case .timer: return NotchTimerSupport.clockText(Double(minutes) * 60)
-        case .pomodoro: return NotchTimerSupport.clockText(Double(NotchPomodoroConfiguration.load().focusMinutes) * 60)
+        case .pomodoro: return NotchTimerSupport.clockText(Double(binding(.focus).wrappedValue) * 60)
         case .stopwatch: return NotchTimerSupport.stopwatchText(0)
         }
     }
 
-    /// One pill, each label as wide as its own word. Equal segments would
-    /// let the longest translation push the three modes past a narrow island.
+    /// Three words in a row, the current one underlined in the ruler's
+    /// orange: a heading beside Start, not a control with a box of its own.
+    /// Each label is as wide as its word, so the longest translation never
+    /// pushes the three past a narrow island.
     private var modePicker: some View {
         HStack(spacing: NotchTimerSupport.ModePicker.spacing) {
             ForEach(NotchTimerMode.allCases, id: \.self) { candidate in
@@ -76,23 +111,22 @@ struct NotchTimerView: View {
                     Text(title(for: candidate))
                         .font(.system(size: NotchTimerSupport.ModePicker.labelSize, weight: .medium))
                         .lineLimit(1)
-                        .foregroundStyle(selected ? .white : .white.opacity(0.55))
+                        .foregroundStyle(selected ? .white : .white.opacity(0.5))
                         .padding(.horizontal, NotchTimerSupport.ModePicker.labelPadding)
-                        .frame(height: NotchTimerSupport.ModePicker.height - NotchTimerSupport.ModePicker.inset * 2)
-                        .background {
+                        .frame(height: NotchTimerSupport.ModePicker.height)
+                        .overlay(alignment: .bottom) {
                             if selected {
-                                Capsule(style: .continuous).fill(.white.opacity(0.16))
+                                Capsule().fill(.orange).frame(height: 2)
+                                    .padding(.horizontal, NotchTimerSupport.ModePicker.labelPadding)
                                     .matchedGeometryEffect(id: "selection", in: modeSelection)
                             }
                         }
-                        .contentShape(Capsule(style: .continuous))
+                        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
-                .buttonStyle(NotchButtonStyle(cornerRadius: 12))
+                .buttonStyle(NotchButtonStyle(cornerRadius: 6, lifts: false))
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .padding(NotchTimerSupport.ModePicker.inset)
-        .modifier(NotchControlSurface(cornerRadius: NotchTimerSupport.ModePicker.height / 2, interactive: false))
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: mode)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(text.timer)
@@ -150,12 +184,12 @@ struct NotchTimerView: View {
         return ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title).font(.system(size: 17, weight: .medium))
-                clock(value)
+                clock(value, size: 62)
             }.fixedSize()
             VStack(alignment: .trailing, spacing: 0) {
                 Text(title).font(.system(size: 13, weight: .medium))
                     .lineLimit(1).minimumScaleFactor(0.7)
-                clock(value)
+                clock(value, size: 62)
             }
         }
         .foregroundStyle(.orange)
@@ -164,46 +198,83 @@ struct NotchTimerView: View {
         .accessibilityValue(value)
     }
 
-    private var pomodoroOptions: some View {
-        VStack(spacing: 10) {
-            VStack(spacing: 8) {
-                option(text.focus, value: $focusMinutes, range: NotchPomodoroConfiguration.focusRange, duration: true)
-                option(text.shortBreak, value: $shortBreakMinutes, range: NotchPomodoroConfiguration.breakRange, duration: true)
-                option(text.longBreak, value: $longBreakMinutes, range: NotchPomodoroConfiguration.breakRange, duration: true)
-                option(text.longBreakInterval, value: $longBreakInterval, range: NotchPomodoroConfiguration.sessionRange)
-                option(text.totalSessions, value: $totalSessions, range: NotchPomodoroConfiguration.sessionRange)
+    /// The breaks and the sessions as readouts in the ruler's own language:
+    /// the name small and dim, the value in orange, the usual values behind
+    /// a native menu. They spread across a wide island and run sideways past
+    /// a narrow one.
+    private var pomodoroSettings: some View {
+        let readouts = NotchPomodoroOption.allCases.filter { $0 != .focus }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) {
+                ForEach(readouts) { readout($0).frame(maxWidth: .infinity, alignment: .leading) }
             }
-            .padding(10)
-            .modifier(NotchControlSurface(cornerRadius: 16))
-            Text(text.pomodoroHint)
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            ScrollView(.horizontal) {
+                HStack(spacing: 14) {
+                    ForEach(readouts) { readout($0) }
+                }
+            }
+            .scrollIndicators(.hidden)
         }
     }
 
-    private func option(_ title: String, value: Binding<Int>, range: ClosedRange<Int>, duration: Bool = false) -> some View {
-        let bounded = Binding(get: { min(range.upperBound, max(range.lowerBound, value.wrappedValue)) },
-                              set: { value.wrappedValue = min(range.upperBound, max(range.lowerBound, $0)) })
-        let display = duration
-            ? NotchTimerSupport.compactText(Double(bounded.wrappedValue) * 60, locale: Locale(identifier: l10n.language.rawValue))
-            : String(bounded.wrappedValue)
-        return Stepper(value: bounded, in: range) {
-            HStack(spacing: 8) {
-                Text(title).lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 4)
-                Text(display).monospacedDigit().foregroundStyle(.orange).fixedSize()
+    private func readout(_ option: NotchPomodoroOption) -> some View {
+        let value = binding(option)
+        let title = title(option)
+        let current = value.wrappedValue
+        return NotchMenuButton(title: title, items: option.choices(including: current).map { choice in
+            NotchMenuItem(title: display(option, choice), checked: choice == current) { value.wrappedValue = choice }
+        }) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 9.5, weight: .medium)).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.tail)
+                HStack(spacing: 3) {
+                    Text(display(option, current))
+                        .font(.system(size: 12, weight: .semibold)).monospacedDigit().foregroundStyle(.orange)
+                    Image(systemName: "chevron.down").font(.system(size: 7, weight: .semibold)).foregroundStyle(.secondary)
+                }
             }
-            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 4)
+            .frame(height: NotchLayout.timerSettingsRowHeight)
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
-        .frame(minHeight: 28)
-        .accessibilityLabel(title)
-        .accessibilityValue(display)
+        .help(title)
+        .accessibilityValue(display(option, current))
     }
 
-    private func clock(_ value: String) -> some View {
+    private func binding(_ option: NotchPomodoroOption) -> Binding<Int> {
+        let stored: Binding<Int>
+        switch option {
+        case .focus: stored = $focusMinutes
+        case .shortBreak: stored = $shortBreakMinutes
+        case .longBreak: stored = $longBreakMinutes
+        case .longBreakInterval: stored = $longBreakInterval
+        case .totalSessions: stored = $totalSessions
+        }
+        let range = option.range
+        return Binding(get: { min(range.upperBound, max(range.lowerBound, stored.wrappedValue)) },
+                       set: { stored.wrappedValue = min(range.upperBound, max(range.lowerBound, $0)) })
+    }
+
+    private func title(_ option: NotchPomodoroOption) -> String {
+        switch option {
+        case .focus: return text.focus
+        case .shortBreak: return text.shortBreak
+        case .longBreak: return text.longBreak
+        case .longBreakInterval: return text.longBreakInterval
+        case .totalSessions: return text.totalSessions
+        }
+    }
+
+    private func display(_ option: NotchPomodoroOption, _ value: Int) -> String {
+        option.isDuration
+            ? NotchTimerSupport.compactText(Double(value) * 60, locale: Locale(identifier: l10n.language.rawValue))
+            : String(value)
+    }
+
+    private func clock(_ value: String, size: CGFloat) -> some View {
         Text(value)
-            .font(.system(size: 62, weight: .thin)).monospacedDigit()
+            .font(.system(size: size, weight: .thin)).monospacedDigit()
             .foregroundStyle(.orange)
             .lineLimit(1).minimumScaleFactor(0.5)
     }

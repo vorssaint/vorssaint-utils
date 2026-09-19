@@ -143,7 +143,7 @@ enum NotchDestinationContract {
                "opening Tools inside the island prepares keyboard selection on its first presentation")
         QuickLauncherContract.events.removeAll()
         let enter = QuickLauncherContract.NSEvent(keyCode: UInt16(kVK_Return))
-        expect(launcher.handlePanelKey(enter, columns: NotchSupport.toolColumns) == nil
+        expect(launcher.handlePanelKey(enter, flow: .columns(rows: 2)) == nil
                && QuickLauncherContract.events == ["keepAwake.toggle"],
                "Return works immediately after the island opens Tools")
         let unchangedPresentation = launcher.presentationID

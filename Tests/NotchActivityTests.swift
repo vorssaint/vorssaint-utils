@@ -168,9 +168,11 @@ enum NotchActivityTests {
                                              layout: .custom, customWidth: width, customHeight: 400)
                 let setup = geometry.expandedSize(module: .timer)
                 let active = geometry.expandedSize(module: .timer, timerHasSession: true)
-                expect(geometry.contentSize(for: setup).height >= 208
+                expect(geometry.contentSize(for: setup).height
+                       == NotchLayout.timer(mode: .timer, hasSession: false, width: geometry.contentWidth, height: geometry.contentBudget)
+                       && geometry.contentSize(for: setup).height >= NotchLayout.timerTopRowHeight + NotchLayout.timerRowSpacing + NotchLayout.timerMinimumRulerHeight
                        && geometry.contentSize(for: active).height >= 96 && active.height < setup.height,
-                       "timer setup has room for its mode pill and ruler; active controls use a shorter horizontal surface")
+                       "timer setup has room for its mode row, ruler and start row; active controls use a shorter horizontal surface")
                 expect(screen.contains(geometry.frame(for: setup)) && screen.contains(geometry.frame(for: active))
                        && geometry.frame(for: setup).maxY == geometry.frame(for: active).maxY,
                        "starting a timer preserves the screen's top edge and keeps both sizes on screen")
@@ -275,8 +277,11 @@ enum NotchActivityTests {
         let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180)
         let setup = geometry.expandedSize(module: .timer, timerMode: .pomodoro)
         let active = geometry.expandedSize(module: .timer, timerHasSession: true, timerMode: .pomodoro)
-        expect(geometry.contentSize(for: setup).height >= 376 && geometry.contentSize(for: active).height >= 118,
-               "the Pomodoro setup and progress row receive their own content budget")
+        expect(geometry.contentSize(for: setup).height
+               == NotchLayout.timer(mode: .pomodoro, hasSession: false, width: geometry.contentWidth, height: geometry.contentBudget)
+               && geometry.contentSize(for: setup).height <= geometry.contentBudget
+               && geometry.contentSize(for: active).height >= 118,
+               "the Pomodoro setup fits the strip with its readouts under the ruler, and the progress row keeps its own budget")
     }
 
     private static func stopwatchContracts(expect: (Bool, String) -> Void) {
@@ -394,23 +399,24 @@ enum NotchActivityTests {
         defaults.set("countdown", forKey: DefaultsKey.notchTimerMode)
         expect(NotchTimerSupport.savedMode(in: defaults) == .timer, "an unknown saved mode falls back to the countdown")
         expect(NotchTimerMode.allCases.last == .stopwatch && NotchTimerMode.allCases.first == .timer,
-               "the stopwatch joins the pill after the existing modes, keeping their positions")
+               "the stopwatch joins the mode row after the existing modes, keeping their positions")
 
         for width: CGFloat in [360, 480, 560] {
             let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
                                          cameraWidth: 180, layout: .custom, customWidth: width, customHeight: 400)
             let setup = geometry.expandedSize(module: .timer, timerMode: .stopwatch)
             let active = geometry.expandedSize(module: .timer, timerHasSession: true, timerMode: .stopwatch)
-            expect(geometry.contentSize(for: setup).height >= 114
-                   && setup.height < geometry.expandedSize(module: .timer).height,
-                   "a stopwatch has no ruler, so its page is shorter than the countdown's")
+            expect(geometry.contentSize(for: setup).height
+                   == NotchLayout.timer(mode: .stopwatch, hasSession: false, width: geometry.contentWidth, height: geometry.contentBudget)
+                   && setup.height == geometry.expandedSize(module: .timer).height,
+                   "the stopwatch keeps its clock in the countdown's ruler row, so switching between them never resizes the island")
             expect(active == geometry.expandedSize(module: .timer, timerHasSession: true),
                    "a running stopwatch shares the countdown's control row")
         }
     }
 
-    /// The pill sizes each label to its word. Its contract is that the three
-    /// translated modes fit the narrowest island, with a legacy scroll bar.
+    /// The mode row sizes each label to its word. Its contract is that the
+    /// three translated modes fit the narrowest island, with a legacy scroll bar.
     private static func modePickerContracts(expect: (Bool, String) -> Void) {
         let layout = NotchTimerSupport.ModePicker.self
         let font = NSFont.systemFont(ofSize: layout.labelSize, weight: .medium)
@@ -419,17 +425,43 @@ enum NotchActivityTests {
                                      customHeight: NotchSize.heightRange.lowerBound)
         let available = geometry.contentSize(for: geometry.expandedSize(module: .timer)).width
             - NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
-        expect(layout.height > layout.inset * 2 + layout.labelSize && layout.labelPadding > 0,
-               "every mode label keeps room around its text inside the pill")
+        expect(layout.height > layout.labelSize + 2 && layout.labelPadding > 0,
+               "every mode label keeps room for its underline and around its text")
         for language in AppLanguage.allCases {
             let text = FeatureStrings.notchActivities(language)
             let labels = [text.timer, text.pomodoro, text.stopwatch]
             expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
                    "each mode has its own name: \(language)")
             let width = labels.reduce(0) { $0 + ($1 as NSString).size(withAttributes: [.font: font]).width + layout.labelPadding * 2 }
-                + layout.spacing * CGFloat(labels.count - 1) + layout.inset * 2
+                + layout.spacing * CGFloat(labels.count - 1)
             expect(width <= available, "the three modes fit the narrowest island in \(language): \(Int(width)) of \(Int(available))")
+            let startFont = NSFont.systemFont(ofSize: NotchTimerSupport.StartButton.labelSize, weight: .semibold)
+            let start = (text.start as NSString).size(withAttributes: [.font: startFont]).width + NotchTimerSupport.StartButton.padding * 2
+            expect(width + 12 + start <= NotchLayout.timerWideWidth,
+                   "Start sits beside the mode row from the wide layout's width on in \(language): \(Int(width + 12 + start)) of \(Int(NotchLayout.timerWideWidth))")
         }
+        for option in NotchPomodoroOption.allCases {
+            for current in [option.range.lowerBound, 7, 25, option.range.upperBound, -3, 999] {
+                let choices = option.choices(including: current)
+                let bounded = min(option.range.upperBound, max(option.range.lowerBound, current))
+                expect(choices == choices.sorted() && Set(choices).count == choices.count
+                       && choices.allSatisfy(option.range.contains) && choices.contains(bounded) && choices.count >= 7,
+                       "each pomodoro readout lists distinct usual values inside its range and keeps the stored one: \(option) \(current)")
+            }
+            // The menu is the only control for the breaks and the sessions,
+            // so every minute a break is likely to take is on it.
+            if option != .focus {
+                expect((1...12).allSatisfy { option.choices(including: 1).contains($0) },
+                       "the readout's menu reaches every small value the old stepper reached: \(option)")
+            }
+        }
+        let defaults = NotchPomodoroConfiguration()
+        expect(NotchPomodoroOption.focus.choices(including: 1).contains(defaults.focusMinutes)
+               && NotchPomodoroOption.shortBreak.choices(including: 1).contains(defaults.shortBreakMinutes)
+               && NotchPomodoroOption.longBreak.choices(including: 1).contains(defaults.longBreakMinutes)
+               && NotchPomodoroOption.longBreakInterval.choices(including: 1).contains(defaults.longBreakInterval)
+               && NotchPomodoroOption.totalSessions.choices(including: 1).contains(defaults.totalSessions),
+               "the default cycle is always on the menus")
     }
 
     private static func rulerContracts(expect: (Bool, String) -> Void) {

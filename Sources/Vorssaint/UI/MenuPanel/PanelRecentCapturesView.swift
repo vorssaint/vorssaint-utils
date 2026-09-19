@@ -23,7 +23,9 @@ struct RecentCapturesView: View {
     @State private var confirmingClear = false
 
     var onClose: (() -> Void)?
-    var notchHeight: CGFloat? = nil
+    /// Inside the island the list becomes a rail of cards that fill this
+    /// area and continue sideways.
+    var notchSize: CGSize? = nil
 
     private var text: RecentCaptureStrings {
         FeatureStrings.recentCaptures(l10n.language)
@@ -39,7 +41,7 @@ struct RecentCapturesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if notchHeight == nil { header }
+            if notchSize == nil { header }
             content
         }
         .onAppear { history.reload() }
@@ -91,8 +93,17 @@ struct RecentCapturesView: View {
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
-                .frame(height: 92)
+                .frame(height: notchSize == nil ? 92 : nil)
+                .frame(maxHeight: notchSize == nil ? nil : .infinity)
                 .panelCard()
+        } else if let notchSize {
+            let rows = NotchLayout.railRows(count: visibleEntries.count,
+                                            perRow: NotchLayout.railCapacity(width: notchSize.width, itemWidth: 236, spacing: 8),
+                                            rowHeight: 88, spacing: 8, height: notchSize.height)
+            let cardHeight = (notchSize.height - CGFloat(rows - 1) * 8) / CGFloat(rows)
+            NotchRail(items: visibleEntries, rows: rows, itemWidth: 236, width: notchSize.width) { entry in
+                row(entry).frame(height: cardHeight)
+            }
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 7) {
@@ -101,7 +112,7 @@ struct RecentCapturesView: View {
                     }
                 }
             }
-            .frame(maxHeight: notchHeight ?? 300)
+            .frame(maxHeight: 300)
         }
     }
 

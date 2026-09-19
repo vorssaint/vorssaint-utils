@@ -245,12 +245,13 @@ final class QuickLauncherService: ObservableObject {
         run(visibleItems[index])
     }
 
-    func moveSelection(_ direction: QuickToolsSupport.GridDirection, columns: Int = QuickLauncherService.columns) {
+    func moveSelection(_ direction: QuickToolsSupport.GridDirection,
+                       flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns)) {
         let count = visibleItems.count
         guard count > 0 else { return }
         selectedIndex = QuickToolsSupport.gridIndex(after: selectedIndex ?? 0,
                                                     count: count,
-                                                    columns: columns,
+                                                    flow: flow,
                                                     direction: direction)
     }
 
@@ -372,7 +373,8 @@ final class QuickLauncherService: ObservableObject {
 
     // MARK: - Monitors
 
-    func handlePanelKey(_ event: NSEvent, columns: Int = QuickLauncherService.columns) -> NSEvent? {
+    func handlePanelKey(_ event: NSEvent,
+                        flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns)) -> NSEvent? {
         if event.keyCode == UInt16(kVK_Escape) {
             if activeUtility != nil {
                 activeUtility = nil
@@ -394,16 +396,16 @@ final class QuickLauncherService: ObservableObject {
             activateSelection()
             return nil
         case kVK_LeftArrow:
-            moveSelection(.left, columns: columns)
+            moveSelection(.left, flow: flow)
             return nil
         case kVK_RightArrow:
-            moveSelection(.right, columns: columns)
+            moveSelection(.right, flow: flow)
             return nil
         case kVK_UpArrow:
-            moveSelection(.up, columns: columns)
+            moveSelection(.up, flow: flow)
             return nil
         case kVK_DownArrow:
-            moveSelection(.down, columns: columns)
+            moveSelection(.down, flow: flow)
             return nil
         default:
             if let index = Self.digitIndex(for: event.keyCode) {
