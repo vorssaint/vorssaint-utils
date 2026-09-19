@@ -328,7 +328,9 @@ struct SwitcherView: View {
                                 }
                             .frame(height: SwitcherIconRowLayout.previewCardHeight, alignment: .center)
                         }
-                        .scrollDisabled(switcher.iconRowLayout.previewFitsWithoutScrolling(cardCount: appWindows.count))
+                        // Keep programmatic reveals enabled while the viewport shrinks.
+                        // Toggling scrollDisabled can drop that reveal on macOS 15.
+                        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
                         .frame(width: switcher.iconRowLayout.previewContentWidth,
                                height: SwitcherIconRowLayout.previewCardHeight)
                         .onAppear { revealSelection(in: proxy, animated: false) }
