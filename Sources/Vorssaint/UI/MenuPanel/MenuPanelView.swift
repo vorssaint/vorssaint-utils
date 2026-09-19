@@ -1514,7 +1514,13 @@ struct QuickControlsSection: View {
                            visibility: $showAutoQuit,
                            needsAttention: autoQuitEnabled && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
-                           permissionAction: accessibilityPermissionAction(autoQuitEnabled))
+                           permissionAction: accessibilityPermissionAction(autoQuitEnabled),
+                           accessoryTitle: autoQuitEnabled
+                               ? "\(l10n.s.autoQuitExceptionsTitle) (\(autoQuitExceptionCount))" : nil,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .autoQuit
+                               appDelegate()?.openSettingsWindow()
+                           })
                 .onChange(of: autoQuitEnabled) { _, enabled in
                     AutoQuitService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
@@ -1891,6 +1897,13 @@ struct QuickControlsSection: View {
     private func accessibilityPermissionAction(_ enabled: Bool) -> (() -> Void)? {
         guard enabled, !permissions.accessibility else { return nil }
         return { grantAccessibility() }
+    }
+
+    // Same filter as the Settings list, so the count here matches what opens.
+    private var autoQuitExceptionCount: Int {
+        AutoQuitSupport.visibleExceptions(autoQuit.exceptions) {
+            InstalledApps.url(for: $0) != nil
+        }.count
     }
 
     private var switcherShortcutDisplayString: String {
