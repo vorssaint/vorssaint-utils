@@ -693,6 +693,7 @@ struct Strings {
     let shelfTooltipLinkPlural: String       // + count
     let shelfActionOpen: String
     let shelfActionOpenWith: String
+    let shelfActionQuickLook: String
     let shelfActionShare: String
 
     // MARK: Panel — per-app breakdown
@@ -1750,6 +1751,7 @@ extension Strings {
         shelfTooltipLinkPlural: "%d links",
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir com",
+        shelfActionQuickLook: "Visualização rápida",
         shelfActionShare: "Compartilhar",
 
         breakdownMeasuring: "Medindo…",
@@ -2785,6 +2787,7 @@ extension Strings {
         shelfTooltipLinkPlural: "%d links",
         shelfActionOpen: "Open",
         shelfActionOpenWith: "Open With",
+        shelfActionQuickLook: "Quick Look",
         shelfActionShare: "Share",
 
         breakdownMeasuring: "Measuring…",

@@ -9043,6 +9043,43 @@ struct MetricsTests {
             keyCode: 36, hasSelectionModifiers: false),
                "shelf does not clear selection for an unrelated key")
 
+        expect(ShelfQuickLookSupport.isTogglePreviewShortcut(
+            keyCode: 49, hasSelectionModifiers: false),
+               "shelf Space opens Quick Look")
+        expect(!ShelfQuickLookSupport.isTogglePreviewShortcut(
+            keyCode: 49, hasSelectionModifiers: true),
+               "shelf keeps modified Space available for other shortcuts")
+        expect(!ShelfQuickLookSupport.isTogglePreviewShortcut(
+            keyCode: 53, hasSelectionModifiers: false),
+               "shelf does not preview for an unrelated key")
+
+        let quickLookA = URL(fileURLWithPath: "/tmp/vorssaint-quicklook-a.png")
+        let quickLookB = URL(fileURLWithPath: "/tmp/vorssaint-quicklook-b.pdf")
+        expect(ShelfQuickLookSupport.previewURLs(candidates: [
+            ShelfQuickLookCandidate(id: UUID(), url: quickLookA),
+            ShelfQuickLookCandidate(id: UUID(), url: nil),
+            ShelfQuickLookCandidate(id: UUID(), url: quickLookB)
+        ]) == [quickLookA, quickLookB],
+               "shelf Quick Look previews files in shelf order and drops notes and links")
+        expect(ShelfQuickLookSupport.previewURLs(candidates: [
+            ShelfQuickLookCandidate(id: UUID(), url: nil)
+        ]).isEmpty,
+               "shelf Quick Look has nothing to show for a note-only selection")
+        expect(ShelfQuickLookSupport.previewURLs(candidates: [
+            ShelfQuickLookCandidate(id: UUID(), url: quickLookA),
+            ShelfQuickLookCandidate(id: UUID(), url: quickLookA)
+        ]) == [quickLookA],
+               "shelf Quick Look shows one page for a file that sits in two piles")
+        expect(ShelfQuickLookSupport.initialIndex(
+            urls: [quickLookA, quickLookB], anchorURL: quickLookB) == 1,
+               "shelf Quick Look opens on the tile the action started from")
+        expect(ShelfQuickLookSupport.initialIndex(
+            urls: [quickLookA, quickLookB], anchorURL: nil) == 0,
+               "shelf Quick Look opens at the front without an anchor")
+        expect(ShelfQuickLookSupport.initialIndex(
+            urls: [quickLookA], anchorURL: quickLookB) == 0,
+               "shelf Quick Look falls back to the front when the anchor is not previewable")
+
         expect(ShelfInteractionSupport.allowsAutomaticOpen(
             sourceBundleIdentifier: "com.example.Editor",
             excludedBundleIdentifiers: ["com.example.Browser"]),

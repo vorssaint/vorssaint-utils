@@ -559,6 +559,7 @@ extension Strings {
         shelfTooltipLinkPlural: "%d ссылок",
         shelfActionOpen: "Открыть",
         shelfActionOpenWith: "Открыть с помощью",
+        shelfActionQuickLook: "Быстрый просмотр",
         shelfActionShare: "Поделиться",
 
         breakdownMeasuring: "Измерение…",

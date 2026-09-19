@@ -499,6 +499,12 @@ final class ShelfTileView: NSView, NSDraggingSource {
         }
         menu.addItem(openWith)
 
+        let quickLook = NSMenuItem(title: strings.shelfActionQuickLook,
+                                   action: #selector(quickLookFiles),
+                                   keyEquivalent: "")
+        quickLook.target = self
+        menu.addItem(quickLook)
+
         menu.addItem(sharePresenter.shareMenuItem(for: urls, title: strings.shelfActionShare))
         menu.addItem(.separator())
 
@@ -560,6 +566,18 @@ final class ShelfTileView: NSView, NSDraggingSource {
         NSWorkspace.shared.open(urls,
                                 withApplicationAt: applicationURL,
                                 configuration: configuration)
+    }
+
+    /// Anchors on the right-clicked tile so previewing a single tile out of a
+    /// selection opens on that one, with the rest still arrow-reachable.
+    @objc private func quickLookFiles() {
+        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
+        guard !urls.isEmpty else { return }
+        let anchor: URL? = {
+            guard case let .file(url) = item.payload else { return nil }
+            return url
+        }()
+        ShelfQuickLookController.shared.toggle(urls: urls, anchor: anchor)
     }
 
     @objc private func revealFiles() {

@@ -558,6 +558,7 @@ extension Strings {
         shelfTooltipLinkPlural: "%d 件のリンク",
         shelfActionOpen: "開く",
         shelfActionOpenWith: "このアプリケーションで開く",
+        shelfActionQuickLook: "クイックルック",
         shelfActionShare: "共有",
 
         breakdownMeasuring: "計測中…",
