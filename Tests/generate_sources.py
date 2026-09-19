@@ -40,6 +40,21 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    panel = "Sources/Vorssaint/App/AppDelegate.swift"
+    write("MenuPanelRecovery.swift", "import AppKit\nimport Foundation\n"
+          + "extension MenuPanelRecoveryTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration(panel, prefix).replace("private ", "") for prefix in [
+              "    private struct PanelAnchor", "    private func statusButtonMidX(",
+              "    private func correctedPopoverMidX(", "    private func resolvePanelAnchor(",
+              "    private func frameStillDescribesMenuBar(", "    private func statusFrameNeedsAnchorOverride(",
+              "    private func anchorVisibleFrame(", "    private func applyPopoverDriftFrame(",
+              "    private func beginPopoverDriftCorrection(window: NSWindow, anchor: PanelAnchor) {",
+              "    private func armPopoverDriftCorrection(", "    private func endPopoverDriftCorrection(",
+              "    private func showPopover(", "    func popoverDidClose(",
+              "    private func releasePanelResources(", "    private func anchorAfterForeignClose(",
+              "    private func reopenPanelAfterForeignClose("])
+          + "var popoverAnchor: PanelAnchor?\nvar lastGoodPanelAnchor: PanelAnchor?\n"
+          + "}\n}\n")
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
     write("DisplayRestoration.swift", "import CoreGraphics\nimport Foundation\n"
           + "extension DisplayRestorationTests {\nfinal class BrightnessService: Fixture {\n"

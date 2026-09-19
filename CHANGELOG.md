@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher makes multiple windows easier to see and keeps a window opened after a switch in front, and shortcut fields can take over macOS keys like the screenshot shortcuts. The mixer adds microphone volume; Dynamic Island gets a Features section, a stopwatch and sound-following bars; Command Bar adds emoji skin tones, a scientific calculator and an ABC layout; the menu bar shows your latest copy; a Port Manager tool, arrow styles in the screenshot editor, installing disk image apps in your home folder, sideways wheel scrolling, stricter Keep Awake automation and snippet sounds round it out.
+App Switcher improves multi-window browsing and keeps newly opened windows in front, while shortcut fields can take over macOS shortcuts. The mixer adds microphone volume; Dynamic Island gains discovery, a stopwatch and sound-following bars; Command Bar expands emoji, calculations and keyboard layouts; utilities add clipboard previews, port management, arrow styles, home-folder installs and sideways scrolling, alongside stricter Keep Awake automation, snippet sounds and menu panel recovery.
 
 ### Added
 - Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
@@ -61,7 +61,7 @@ App Switcher makes multiple windows easier to see and keeps a window opened afte
 - The built-in display is no longer switched back on while the lid is closed; it comes back when the lid opens, and the panel says to open the lid when a switch has to wait. Thanks to @rkrkrkk.
 - A window opened right after an App Switcher switch, even from a fullscreen app, stays in front. Thanks to @akune.
 - Picking a mark in the screenshot editor shows its own color and thickness, so changing one no longer carries the other over from the last mark. Thanks to @kxnstandin.
-- The menu bar panel no longer disappears on the first click inside it after you were working in another app.
+- The menu bar panel can recover an unexpected close during a click inside it while preserving its position.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 

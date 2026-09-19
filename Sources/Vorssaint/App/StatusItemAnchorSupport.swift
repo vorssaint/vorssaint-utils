@@ -72,28 +72,25 @@ enum StatusItemAnchorSupport {
         return frame.width > 0 && frame.height <= 0
     }
 
-    /// A recovery must not chase its own tail: a second close this soon after
-    /// showing the panel again is not another click, whatever caused it.
+    /// Bound recovery even if the system immediately closes the panel again.
     static let panelReopenCooldown: TimeInterval = 1
 
-    /// Whether a panel the system closed on its own should be shown again in
-    /// place. AppKit closes a popover presented from a status item by itself
-    /// too, through the item's own session and without asking the delegate.
-    /// That close was reported landing on the first click inside the panel
-    /// after another app had been in use: the panel vanished under the
-    /// person's click. A close this app did not ask for, while the pointer
-    /// is still inside the panel, is that case. The pointer anywhere else
-    /// means the person clicked away, and a key press closing the panel was
-    /// deliberate too; both closes stay closed.
+    /// currentEvent can outlive its dispatch. Only a fresh click delivered to
+    /// this panel permits recovery; keys, other windows and old events do not.
     static func shouldReopenPanel(closedByApp: Bool,
                                   lastFrame: CGRect?,
-                                  pointer: CGPoint,
-                                  closedByKeyPress: Bool,
-                                  secondsSinceLastReopen: TimeInterval) -> Bool {
-        guard !closedByApp, !closedByKeyPress,
+                                  panelWindowNumber: Int?,
+                                  event: NSEvent?,
+                                  secondsSinceLastReopen: TimeInterval,
+                                  uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
+        guard !closedByApp,
               secondsSinceLastReopen > panelReopenCooldown,
-              let lastFrame else { return false }
-        return lastFrame.contains(pointer)
+              let lastFrame, let panelWindowNumber, panelWindowNumber > 0,
+              let event, event.windowNumber == panelWindowNumber,
+              event.type == .leftMouseDown || event.type == .leftMouseUp
+                || event.type == .rightMouseDown || event.type == .rightMouseUp,
+              (0...0.25).contains(uptime - event.timestamp) else { return false }
+        return CGRect(origin: .zero, size: lastFrame.size).contains(event.locationInWindow)
     }
 
     /// Where an open panel belongs for a cached anchor: centered on the
