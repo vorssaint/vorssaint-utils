@@ -1,0 +1,20 @@
+name: Switcher scroll diagnosis
+on:
+  push:
+    branches: [codex/fix-switcher-ci-scroll]
+permissions:
+  contents: read
+concurrency:
+  group: switcher-scroll-diagnosis
+  cancel-in-progress: true
+jobs:
+  scroll:
+    runs-on: macos-15
+    timeout-minutes: 10
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: ./build.sh --test-suite=switcher

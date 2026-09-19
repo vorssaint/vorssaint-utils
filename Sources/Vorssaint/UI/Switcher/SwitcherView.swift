@@ -328,9 +328,7 @@ struct SwitcherView: View {
                                 }
                             .frame(height: SwitcherIconRowLayout.previewCardHeight, alignment: .center)
                         }
-                        // Keep programmatic reveals enabled while the viewport shrinks.
-                        // Toggling scrollDisabled can drop that reveal on macOS 15.
-                        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                        .scrollDisabled(switcher.iconRowLayout.previewFitsWithoutScrolling(cardCount: appWindows.count))
                         .frame(width: switcher.iconRowLayout.previewContentWidth,
                                height: SwitcherIconRowLayout.previewCardHeight)
                         .onAppear { revealSelection(in: proxy, animated: false) }
@@ -341,6 +339,7 @@ struct SwitcherView: View {
                             revealSelection(in: proxy, animated: true)
                         }
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in
+                            print("GEOMETRY width=\(switcher.iconRowLayout.previewContentWidth)")
                             DispatchQueue.main.async {
                                 revealSelection(in: proxy, animated: true)
                             }
@@ -568,6 +567,7 @@ struct SwitcherView: View {
     /// the viewport's actual geometry changes, allowing its native scroll view
     /// to finish resizing before the queued reveal reads the current selection.
     private func revealSelection(in proxy: ScrollViewProxy, animated: Bool) {
+        print("REVEAL width=\(switcher.iconRowLayout.previewContentWidth) selected=\(switcher.selectedIndex) animated=\(animated)")
         let index = switcher.selectedIndex
         guard switcher.windows.indices.contains(index) else { return }
         let id = switcher.windows[index].id
