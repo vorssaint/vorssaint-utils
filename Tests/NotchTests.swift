@@ -435,6 +435,16 @@ enum NotchTests {
         expect(controls.first == .panel && Set(controls).count == controls.count,
                "shortcut ordering tolerates duplicate and obsolete identifiers")
         expect(!controls.contains(.volume) && !controls.contains(.screenshot), "individual controls can be hidden")
+        defaults.set("", forKey: DefaultsKey.notchHiddenControls)
+        expect(NotchSupport.controls(in: defaults).last == .scratchpad
+               && NotchQuickAction(id: NotchQuickAction.control(.scratchpad).id) == .control(.scratchpad)
+               && NotchQuickAction.optionalActions.contains(.control(.scratchpad)),
+               "the scratchpad shortcut can be shown among the controls and placed as a floating button")
+        defaults.set(false, forKey: AppFeature.scratchpad.availabilityKey)
+        expect(!NotchSupport.controls(in: defaults).contains(.scratchpad)
+               && !NotchQuickAction.control(.scratchpad).isAvailable(in: defaults),
+               "an uninstalled scratchpad leaves no island shortcut")
+        defaults.set(true, forKey: AppFeature.scratchpad.availabilityKey)
         defaults.set("mixer,commandBar", forKey: DefaultsKey.notchHiddenControls)
         defaults.set("", forKey: DefaultsKey.notchControlOrder)
         let allModules = NotchModule.allCases

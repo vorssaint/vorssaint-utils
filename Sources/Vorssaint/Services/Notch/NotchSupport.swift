@@ -141,8 +141,8 @@ enum NotchCompactActivity: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar
-    static let defaultHidden = "microphone,screenshot,recording,speedTest,panel,commandBar"
+    case volume, brightness, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
+    static let defaultHidden = "microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
 
     var symbol: String {
@@ -157,6 +157,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .panel: return "rectangle.topthird.inset.filled"
         case .mixer: return "slider.vertical.3"
         case .commandBar: return "command"
+        case .scratchpad: return "note.text"
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
@@ -174,6 +175,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .recording: return AppFeature.screenRecorder.isAvailable(in: defaults)
         case .speedTest: return AppFeature.monitorNetwork.isAvailable(in: defaults) && NotchSupport.modules(in: defaults).contains(.system)
         case .commandBar: return AppFeature.commandBar.isAvailable(in: defaults)
+        case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .panel: return true
         case .music: return NotchSupport.modules(in: defaults).contains(.music)
         case .timer: return NotchSupport.modules(in: defaults).contains(.timer)
