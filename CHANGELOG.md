@@ -67,6 +67,7 @@ App Switcher improves multi-window browsing and keeps newly opened windows in fr
 - A window opened right after an App Switcher switch, even from a fullscreen app, stays in front. Thanks to @akune.
 - Picking a mark in the screenshot editor shows its own color and thickness, so changing one no longer carries the other over from the last mark. Thanks to @kxnstandin.
 - The menu bar panel can recover an unexpected close during a click inside it while preserving its position.
+- Focus follows mouse leaves a desktop switch alone: with a short delay, a pointer settling while the new desktop was still sliding in no longer makes it slide in a second time.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 

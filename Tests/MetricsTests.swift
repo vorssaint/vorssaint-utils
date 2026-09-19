@@ -1705,6 +1705,9 @@ struct MetricsTests {
         expect(!focusFollowsMouseServiceSource.isEmpty
                 && !focusFollowsMouseServiceSource.contains("AXUIElementCreateSystemWide"),
                "focus follows mouse cannot re-enter its own Accessibility tree through a global hit test")
+        expect(focusFollowsMouseServiceSource.contains(
+                "!SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID)"),
+               "focus follows mouse never hands a window on a hidden Space to the activator, which would travel")
 
         // A wheel that reports continuously already measures in points, and
         // that field is the one to trust; the line field only fills in for a
