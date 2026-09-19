@@ -1196,6 +1196,23 @@ enum NotchTests {
         expect(NotchCalendarSupport.upcoming(entries, now: date(2026, 3, 8, 12)).map(\.id)
                == ["all", "overnight"],
                "upcoming mode still hides completed appointments after adding month history")
+        func link(_ event: NotchCalendarEvent, identifier: String, recurring: Bool) -> String? {
+            var event = event
+            event.calendarItemIdentifier = identifier
+            event.recurring = recurring
+            return NotchCalendarSupport.eventURL(event, calendar: calendar)?.absoluteString
+        }
+        expect(link(ended, identifier: "9F2A 1C", recurring: false)
+               == "ical://ekevent/9F2A%201C?method=show&options=more",
+               "a single appointment opens by its escaped identifier")
+        expect(link(ended, identifier: "9F2A", recurring: true)
+               == "ical://ekevent/20260308T130000Z/9F2A?method=show&options=more",
+               "a repeating appointment opens the clicked occurrence addressed in UTC")
+        expect(link(allDay, identifier: "9F2A", recurring: true)
+               == "ical://ekevent/20260308T000000Z/9F2A?method=show&options=more",
+               "a repeating all-day occurrence keeps its local day")
+        expect(link(ended, identifier: "", recurring: false) == nil,
+               "an appointment without an identifier falls back to opening Calendar itself")
     }
 
 }

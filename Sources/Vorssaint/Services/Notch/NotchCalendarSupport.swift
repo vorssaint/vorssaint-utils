@@ -21,6 +21,8 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     let allDay: Bool
     let location: String
     var color: NotchCalendarColor = .fallback
+    var calendarItemIdentifier = ""
+    var recurring = false
 }
 
 enum NotchCalendarSupport {
@@ -86,6 +88,24 @@ enum NotchCalendarSupport {
 
     static func next(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
         upcoming(events, now: now).first { !$0.allDay }
+    }
+
+    /// The link Calendar resolves to one appointment. A series shares one
+    /// identifier across its occurrences, so the clicked start (UTC, or the
+    /// local day for all-day events) picks the right one.
+    static func eventURL(_ event: NotchCalendarEvent, calendar: Calendar = .current) -> URL? {
+        guard !event.calendarItemIdentifier.isEmpty,
+              let identifier = event.calendarItemIdentifier
+                .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }
+        var path = "ical://ekevent/"
+        if event.recurring {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = event.allDay ? calendar.timeZone : TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+            path += formatter.string(from: event.start) + "/"
+        }
+        return URL(string: path + identifier + "?method=show&options=more")
     }
 
     static func nextRefresh(_ events: [NotchCalendarEvent], now: Date,

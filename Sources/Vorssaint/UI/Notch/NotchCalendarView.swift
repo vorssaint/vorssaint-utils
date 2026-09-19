@@ -141,7 +141,9 @@ struct NotchCalendarView: View {
                         }
                         ForEach(group.events) { event in
                             NotchCalendarEventRow(event: event, day: group.day, now: now,
-                                                  isNext: event.id == next?.id, text: text)
+                                                  isNext: event.id == next?.id, text: text) {
+                                openCalendar(showing: event)
+                            }
                         }
                     }
                 }
@@ -176,9 +178,16 @@ struct NotchCalendarView: View {
         .padding(.horizontal, 12)
     }
 
-    private func openCalendar() {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") else { return }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    /// Calendar itself gets the link: another app claiming the `ical` scheme
+    /// would not know EventKit's identifiers.
+    private func openCalendar(showing event: NotchCalendarEvent? = nil) {
+        guard let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        if let url = event.flatMap({ NotchCalendarSupport.eventURL($0) }) {
+            NSWorkspace.shared.open([url], withApplicationAt: application, configuration: configuration)
+        } else {
+            NSWorkspace.shared.openApplication(at: application, configuration: configuration)
+        }
     }
 }
 
@@ -188,12 +197,20 @@ private struct NotchCalendarEventRow: View {
     let now: Date
     let isNext: Bool
     let text: NotchCalendarStrings
+    let open: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var ongoing: Bool { !event.allDay && event.start <= now && event.end > now }
     private var ended: Bool { event.end <= now }
 
     var body: some View {
+        Button(action: open) { card }
+            .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
+            .help(text.openCalendar)
+            .accessibilityHint(text.openCalendar)
+    }
+
+    private var card: some View {
         HStack(alignment: .top, spacing: 9) {
             RoundedRectangle(cornerRadius: 2)
                 .fill(event.color.color)
@@ -241,7 +258,6 @@ private struct NotchCalendarEventRow: View {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(.white.opacity(contrast == .increased ? 0.5 : ongoing ? 0.16 : 0.05), lineWidth: 0.75)
         }
-        .accessibilityElement(children: .combine)
     }
 }
 
