@@ -7,7 +7,7 @@ extension QuitProtectionHUD {
     static func progressChecks(_ suite: TestSuite) {
         let content = ContentView(frame: CGRect(origin: .zero, size: minimumSize))
         let strings = FeatureStrings.quitProtection(.enUS)
-        let title = String(format: strings.holdHUDFormat, "⌘Q")
+        let title = String(format: strings.holdHUDFormat(for: .quit), "⌘Q")
 
         func layout(title: String, detail: String, progress: Bool) {
             content.update(title: title, detail: detail, showsProgress: progress)
@@ -32,6 +32,15 @@ extension QuitProtectionHUD {
         suite.expect(content.bounds.contains(track.frame) && track.bounds.contains(fill.frame),
                      "progress stays inside the HUD and its track")
         suite.expect(fill.anchorPoint.x == 0, "hold progress fills from the left edge")
+
+        // Supply a fallback action so the offscreen layer can expose a fade.
+        track.style = ["actions": ["hidden": CABasicAnimation(keyPath: "hidden")]]
+        CATransaction.begin()
+        CATransaction.setDisableActions(false)
+        suite.expect(track.action(forKey: "hidden") == nil,
+                     "progress visibility suppresses an implicit fade")
+        CATransaction.commit()
+        track.style = nil
 
         for milliseconds in [QuitProtectionSupport.holdDurationRange.lowerBound,
                              QuitProtectionSupport.defaultHoldDurationMilliseconds,
@@ -63,7 +72,7 @@ extension QuitProtectionHUD {
 
         layout(title: title, detail: strings.cancelHint, progress: true)
         content.animateProgress(until: Date().addingTimeInterval(2))
-        layout(title: String(format: strings.doubleHUDFormat, "⌘Q"),
+        layout(title: String(format: strings.doubleHUDFormat(for: .quit), "⌘Q"),
                detail: strings.cancelHint, progress: false)
         suite.expect(track.isHidden && (fill.animationKeys() ?? []).isEmpty
                         && content.frame.height == plainHeight,
@@ -78,13 +87,32 @@ extension QuitProtectionHUD {
 
         for language in AppLanguage.allCases {
             let localized = FeatureStrings.quitProtection(language)
-            layout(title: String(format: localized.holdHUDFormat, "⌘Q"),
-                   detail: localized.cancelHint, progress: true)
-            suite.expect(labels.allSatisfy { $0.frame.width >= $0.fittingSize.width },
-                         "\(language.rawValue) hold labels fit their measured width")
-            suite.expect(content.bounds.contains(track.frame)
-                            && labels.allSatisfy { !track.frame.intersects($0.frame) },
-                         "\(language.rawValue) progress fits without overlapping text")
+            for shortcut in QuitProtectionShortcut.allCases {
+                let formats = [localized.holdHUDFormat(for: shortcut),
+                               localized.doubleHUDFormat(for: shortcut),
+                               localized.extraHUDFormat(for: shortcut)]
+                for (index, format) in formats.enumerated() {
+                    layout(title: String(format: format, shortcut.symbol),
+                           detail: localized.cancelHint, progress: index == 0)
+                    suite.expect(labels.allSatisfy { $0.frame.width >= $0.fittingSize.width },
+                                 "\(language.rawValue) \(shortcut.rawValue) labels fit their measured width")
+                    suite.expect(index != 0 || (content.bounds.contains(track.frame)
+                                    && labels.allSatisfy { !track.frame.intersects($0.frame) }),
+                                 "\(language.rawValue) progress fits without overlapping text")
+                }
+            }
+        }
+        for shortcut in QuitProtectionShortcut.allCases {
+            let action = shortcut == .quit ? "quit" : "close"
+            suite.expect(String(format: strings.holdHUDFormat(for: shortcut), shortcut.symbol)
+                            == "Hold \(shortcut.symbol) to \(action)", "hold prompt names only its action")
+            suite.expect(String(format: strings.doubleHUDFormat(for: shortcut), shortcut.symbol)
+                            == "Press \(shortcut.symbol) again to \(action)", "double press names only its action")
+            suite.expect(String(format: strings.extraHUDFormat(for: shortcut), "⇧" + shortcut.symbol)
+                            == "Use ⇧\(shortcut.symbol) to \(action)", "modifier prompt names only its action")
+            suite.expect(String(format: strings.doubleHUDFormat(for: shortcut), shortcut.character.uppercased())
+                            == "Press \(shortcut.character.uppercased()) again to \(action)",
+                         "switcher prompt names only its selected action")
         }
     }
 }

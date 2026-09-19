@@ -26410,12 +26410,14 @@ struct MetricsTests {
 
         for language in AppLanguage.allCases {
             let quitProtection = FeatureStrings.quitProtection(language)
-            expectFormat(quitProtection.holdHUDFormat, ["@"],
-                         "\(language.rawValue) quit protection hold HUD format")
-            expectFormat(quitProtection.doubleHUDFormat, ["@"],
-                         "\(language.rawValue) quit protection double HUD format")
-            expectFormat(quitProtection.extraHUDFormat, ["@"],
-                         "\(language.rawValue) quit protection modifier HUD format")
+            for shortcut in QuitProtectionShortcut.allCases {
+                expectFormat(quitProtection.holdHUDFormat(for: shortcut), ["@"],
+                             "\(language.rawValue) \(shortcut.rawValue) protection hold HUD format")
+                expectFormat(quitProtection.doubleHUDFormat(for: shortcut), ["@"],
+                             "\(language.rawValue) \(shortcut.rawValue) protection double HUD format")
+                expectFormat(quitProtection.extraHUDFormat(for: shortcut), ["@"],
+                             "\(language.rawValue) \(shortcut.rawValue) protection modifier HUD format")
+            }
         }
 
         // Loading the saved shelf keeps "nothing saved", "decoded whole",

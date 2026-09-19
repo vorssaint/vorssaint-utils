@@ -95,7 +95,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Quit and close protection.** Protect ⌘Q and ⌘W with a hold, double press or extra modifier, independently and only for the apps you choose. With visual feedback enabled, a progress bar shows the remaining hold-to-confirm wait. Release the shortcut early or press Esc to cancel.
 
 <p align="center">
-  <img src="docs/assets/readme/quit-protection-hold.png" width="300" alt="The hold-to-confirm prompt showing progress below the quit and close shortcut hint">
+  <img src="docs/assets/readme/quit-protection-hold.png" width="300" alt="The hold-to-confirm prompt showing progress below the Command-Q quit shortcut hint">
 </p>
 
 <p align="center">
