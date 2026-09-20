@@ -692,6 +692,8 @@ enum DefaultsKey {
     static let notchShowPlayingMusic = "notchShowPlayingMusic"
     static let notchIdleContent = "notchIdleContent"
     static let notchHiddenControls = "notchHiddenControls"
+    // One-time marker for the Scratchpad tile joining the hidden controls; never backed up.
+    static let notchScratchpadControlHidden = "notchScratchpadControlHidden"
     static let notchControlOrder = "notchControlOrder"
     static let notchSize = "notchSize"
     static let notchCustomWidth = "notchCustomWidth"
@@ -1604,6 +1606,21 @@ enum Defaults {
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
+        hideScratchpadControlOnce(in: defaults)
+    }
+
+    /// The Scratchpad tile joined the controls hidden by default after lists
+    /// had been saved without it, and a saved list is read whole: a setup
+    /// customized before then would show a tile nobody asked for. Once, so
+    /// showing it afterwards stays the user's choice.
+    static func hideScratchpadControlOnce(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.notchScratchpadControlHidden) else { return }
+        defaults.set(true, forKey: DefaultsKey.notchScratchpadControlHidden)
+        guard let saved = defaults.string(forKey: DefaultsKey.notchHiddenControls) else { return }
+        var hidden = saved.split(separator: ",").map(String.init)
+        guard !hidden.contains(NotchControlItem.scratchpad.rawValue) else { return }
+        hidden.append(NotchControlItem.scratchpad.rawValue)
+        defaults.set(hidden.joined(separator: ","), forKey: DefaultsKey.notchHiddenControls)
     }
 
     /// Discovery used to send one request per read, which reads a monitor that

@@ -16,10 +16,10 @@ App Switcher shows more window previews, and shortcut fields accept macOS shortc
 - Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
 - Adjust microphone input volume from the mixer, with an editable percentage on supported devices. Thanks to @GolamRafi27oo.
 - Window Layout can center a window at two-thirds of the screen width in one action. Thanks to @Borisserz.
-- Command Bar offers a default emoji skin tone and one-off alternatives from each emoji’s actions. Thanks to @justin-chiam.
+- Command Bar offers a default emoji skin tone and one-off alternatives from each emoji's actions. Thanks to @justin-chiam.
 - Capture guides show R to repeat the last selected area, including in Dynamic Island. Thanks to @marcelharinck.
 - Pin and reorder mixer apps, with positions remembered when apps reopen and included in settings backups.
-- Dynamic Island’s timer page offers a stopwatch that counts up with pause and cancel, keeping its seconds visible beside the camera.
+- Dynamic Island's timer page offers a stopwatch that counts up with pause and cancel, keeping its seconds visible beside the camera.
 - Text snippets can play an alert sound of your choice each time a typed trigger expands. Thanks to @tenbux.
 - Keep Awake automation can require every selected condition, ending the session as soon as one stops holding. Thanks to @sarat03.
 - Snippet and Command Bar settings show which app holds secure input when typing is blocked, with a button to bring it forward. Thanks to @tenbux.
@@ -32,21 +32,23 @@ App Switcher shows more window previews, and shortcut fields accept macOS shortc
 - Command Bar can switch to an ABC layout while open and restore the previous one on close, under More options. Thanks to @iva-zhu.
 - Clipboard History can show the latest copy next to the menu bar icon, with an adjustable length; clicking it opens the history. Thanks to @adnn-alc.
 - Dock Preview can order windows by creation time instead of last use, from More options in its settings. Thanks to @Borisserz.
-- Port Manager, installable from Features, lists the ports your processes are listening on, filters them, and can end a process through Kill Process when that tool is installed. Thanks to @MrDXTR and @Yash121l.
-- The screenshot editor's arrow comes in solid, outline, open, double-ended and scribbly styles, chosen from a menu and remembered for the next capture. Thanks to @kxnstandin.
-- The disk image installer can put the app in the Applications folder inside your home folder, a remembered choice in the install prompt that also names the destination. Thanks to @JashRashne.
+- Port Manager, installable from Features, lists listening ports per process, filters them and can end one through Kill Process. Thanks to @MrDXTR and @Yash121l.
+- The screenshot editor's arrow offers solid, outline, open, double-ended and scribbly styles, remembered for the next capture. Thanks to @kxnstandin.
+- The disk image installer can put apps in your home folder's Applications, a remembered choice that names the destination. Thanks to @JashRashne.
 - Keep Awake can run until a time you pick in the panel; a time already past today counts for tomorrow. Thanks to @EdenRochmanSharabi.
-- Settings remembers the pages you visit and goes back and forward with the mouse side buttons, a Go menu or ⌘[ and ⌘]. Thanks to @pergioa.
+- Settings goes back and forward through visited pages with the mouse side buttons, a Go menu or ⌘[ and ⌘]. Thanks to @pergioa.
 - Dynamic Island's controls can show a Scratchpad shortcut that opens the pad in one click, enabled under Content in its settings. Thanks to @sarat03.
+- The Uninstaller can list and remove apps from the Command Bar, including the one selected in Finder, once enabled in its settings. Thanks to @naveenkrdy.
 
 ### Changed
 - App Switcher uses available space to show more previews when cycling through the current app's windows. Thanks to @EugeneCarldotme.
+- App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
 - Settings use visual choices, cards and switches across the main pages, with live previews for the menu bar and panel.
 - Settings search highlights the selected section, and Mouse & Trackpad offers direct links to each available feature.
 - Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
 - Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
 - Synchronized lyrics update when each verse starts, avoiding constant checks between verses and while playback is paused.
-- Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
+- Compact music, timer and download indicators keep clear of Dynamic Island's curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
 - Dynamic Island shows Keep open directly in its header, and Settings appears there when its floating button is removed.
 - Dynamic Island opens as a wide strip with sideways cards, mixer faders, compact calendar and timer controls, and an embedded Scratchpad.
@@ -67,7 +69,6 @@ App Switcher shows more window previews, and shortcut fields accept macOS shortc
 - Recent captures appear promptly when opened from another app and close when switching apps. Thanks to @iltonandrew.
 - Command Bar offers all Keep Awake durations without turning unsupported times into indefinite sessions. Thanks to @tuttopassastudios and @brandom.
 - Panel permission and recent capture buttons align with the card text. Thanks to @COMEBACKISREAL.
-- App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
 - Dynamic Island offers playback controls when a music app is recognized and updates them after permission is granted.
 - Dynamic Island is no longer listed as a window by tiling window managers, which showed a ghost window on the current desktop. Thanks to @Yahddyyp.
 - On screens without a camera cutout, Dynamic Island no longer blinks when you switch apps or hides while a launcher has focus. Thanks to @Yahddyyp.
@@ -75,15 +76,15 @@ App Switcher shows more window previews, and shortcut fields accept macOS shortc
 - File dialogs opened from the media tools inside Dynamic Island attach to it instead of opening behind it. Thanks to @Yahddyyp.
 - The recording editor keeps its saving indicator on one line in narrow windows. Thanks to @Yahddyyp.
 - After an in-app update, search no longer lists the app as “Vorssaint.app.update-new”. Thanks to @Yahddyyp.
-- The window layout ring keeps the aimed direction while its default shortcut is held, instead of flashing back to maximize on every key repeat. Thanks to @Borisserz.
+- The window layout ring keeps the aimed direction while its default shortcut is held, without flashing back to maximize on key repeats. Thanks to @Borisserz.
 - Focus follows mouse no longer makes the arriving desktop slide in a second time when the pointer settles during a desktop switch.
-- External monitors that answer brightness readings only when asked twice now show their real level instead of a guessed one, and a monitor written off earlier is checked again. Thanks to @PathGao.
-- Displays whose brightness slider does nothing behind a converter can dim the picture in software instead, from the panel or the Energy page, and return to the monitor's own control when that choice is turned off. Thanks to @sarat03.
-- The built-in display is no longer switched back on while the lid is closed; it comes back when the lid opens, and the panel says to open the lid when a switch has to wait. Thanks to @rkrkrkk.
+- External monitors that answer brightness readings only when asked twice now show their real level, and monitors dismissed earlier are checked again. Thanks to @PathGao.
+- Displays whose brightness slider does nothing behind a converter can dim the picture in software from the panel or the Energy page. Thanks to @sarat03.
+- Switching the built-in display back on waits for the lid to open, and the panel says so meanwhile. Thanks to @rkrkrkk.
 - A window opened right after an App Switcher switch, even from a fullscreen app, stays in front. Thanks to @akune.
-- Picking a mark in the screenshot editor shows its own color and thickness, so changing one no longer carries the other over from the last mark. Thanks to @kxnstandin.
+- Picking a mark in the screenshot editor shows its own color and thickness instead of the last mark's. Thanks to @kxnstandin.
 - The menu bar panel can recover an unexpected close during a click inside it while preserving its position.
-- Clearing all permissions now also stops the text snippet, quit protection and brightness key listeners before the reset, which could otherwise freeze input, while brightness settings stay untouched. Thanks to @dajiaohuang.
+- Clearing all permissions now also stops the text snippet, quit protection and brightness key listeners first, so input no longer freezes. Thanks to @dajiaohuang.
 
 ## [3.4.0-beta.2.1] - 2026-09-16
 

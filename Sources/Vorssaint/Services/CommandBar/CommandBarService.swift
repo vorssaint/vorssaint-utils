@@ -3108,8 +3108,14 @@ final class CommandBarService: ObservableObject {
                 }
             }
             // In a checklist, native controls own Tab, Space and arrows.
-            // Only Return in the search field means the flow's primary action.
+            // Only Return in the search field means the flow's primary action,
+            // and only a fresh press: a Return still held from the app list
+            // must not confirm the review the moment its scan finishes.
             if self.mode.isUninstallFlow {
+                if event.isARepeat,
+                   Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter {
+                    return nil
+                }
                 return self.handleUninstallKey(Int(event.keyCode),
                                                searchFieldFocused: panel.firstResponder is NSTextView)
                     ? nil : event

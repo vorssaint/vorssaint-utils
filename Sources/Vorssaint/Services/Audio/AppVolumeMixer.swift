@@ -1637,7 +1637,7 @@ final class AppVolumeMixer: ObservableObject {
             let name = read(deviceID, kAudioObjectPropertyName, &nameRef)
                 ? nameRef as String
                 : uid
-            guard name != "Vorssaint Mixer" else { continue }
+            guard !MicMuteSupport.isOwnDevice(name: name) else { continue }
             let dataSourceName = outputDataSourceName(for: deviceID)
 
             devices.append(MixerOutputDevice(id: uid,

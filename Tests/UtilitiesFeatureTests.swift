@@ -50,6 +50,8 @@ enum UtilitiesFeatureTests {
             suite.expect(!strings.hubDescription.isEmpty,
                    "port manager has a non-empty hub description for \(lang)")
         }
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityPortManager] as? Bool == true,
+               "the port manager panel row ships visible like its siblings and travels in backups")
 
         // MARK: Text snippets engine (issue #201)
 

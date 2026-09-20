@@ -306,12 +306,12 @@ private struct MenuBarStyleChoice: View {
         case .values:
             HStack(spacing: 10) {
                 block(label: "CPU", value: "42%")
-                block(label: "MEM", value: "61%")
+                block(label: "RAM", value: "61%")
             }
         case .bars:
             HStack(spacing: 10) {
                 bar(label: "CPU", fraction: 0.42)
-                bar(label: "MEM", fraction: 0.61)
+                bar(label: "RAM", fraction: 0.61)
             }
         }
     }

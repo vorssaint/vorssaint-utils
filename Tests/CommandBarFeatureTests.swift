@@ -124,6 +124,9 @@ enum CommandBarFeatureTests {
         }
         suite.expect(mathValue("1,5e-3*2", decimal: ",", grouping: ".") == 0.003,
                "scientific mantissas respect decimal-comma locales")
+        suite.expect(math("sin(pi)") == "0" && math("cos(pi/2)") == "0" && math("tan(pi)") == "0"
+                && math("1e-15+0") == "1e-15",
+               "trigonometric zeros settle to 0 instead of floating-point dust, while a typed tiny number stays")
         for expression in ["0.1+0.2", "1/3", "-2^2", "1e-9+0", "2^100"] {
             if let result = CommandBarMath.evaluate(expression,
                                                      decimalSeparator: ".",

@@ -89,7 +89,12 @@ final class NotchAudioLevelService: ObservableObject {
     /// starts over, since the new process may be the silent kind.
     private func restart(_ pid: pid_t, on identity: NotchMusicIdentity) {
         guard enabled, readerPID == pid else { return }
+        // Paused, the player may have just let go of its audio: reading again
+        // now would only hear silence and write this track off before the next
+        // play, which starts a fresh reader on its own.
+        let pausing = stopWork != nil
         stop()
+        guard !pausing else { return }
         readerPID = pid
         read(pid, on: identity)
     }

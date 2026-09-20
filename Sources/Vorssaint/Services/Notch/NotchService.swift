@@ -1625,6 +1625,17 @@ final class NotchService: ObservableObject {
                     self.refreshPresentation()
                 }.store(in: &subscriptions)
         }
+        if modules.contains(.system), AppFeature.fanControl.isAvailable {
+            // The fan card only exists once the page's first sample lands; the
+            // strip that was sized without it reserves its row again.
+            SystemMonitor.shared.$snapshot.map { $0.fanSpeeds.isEmpty }.removeDuplicates().dropFirst()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self, self.expanded, self.selected == .system, self.selectedMetric == nil,
+                          !self.showingAppPanel, !self.showingSections else { return }
+                    self.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
         if NotchSupport.routes(.download) {
             NotchDownloadService.shared.$items.receive(on: DispatchQueue.main).sink { [weak self] _ in
                 self?.syncMenuSpaceMonitoring()

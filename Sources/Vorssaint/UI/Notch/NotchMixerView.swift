@@ -296,15 +296,25 @@ private struct NotchMixerOptions: View {
         }
         if let volume = input.inputVolume {
             HStack(spacing: 8) {
-                Button(action: micMute.toggle) {
-                    Image(systemName: micMute.isMuted ? "mic.slash.fill" : "mic.fill")
+                // The mute is its own feature; without it the row keeps the
+                // plain icon the panel's row shows.
+                if AppFeature.micMute.isAvailable {
+                    Button(action: micMute.toggle) {
+                        Image(systemName: micMute.isMuted ? "mic.slash.fill" : "mic.fill")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(micMute.isMuted ? Color.red : Color.white)
+                            .frame(width: 18, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NotchButtonStyle(cornerRadius: 6))
+                    .accessibilityLabel(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName)
+                } else {
+                    Image(systemName: volume <= 0.001 ? "mic.slash.fill" : "mic.fill")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(micMute.isMuted ? Color.red : Color.white)
+                        .foregroundStyle(.secondary)
                         .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
+                        .accessibilityHidden(true)
                 }
-                .buttonStyle(NotchButtonStyle(cornerRadius: 6))
-                .accessibilityLabel(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName)
                 NotchLevelSlider(value: Binding(get: { volume }, set: { input.setInputVolume($0) }),
                                  label: l10n.s.mixerInputTitle)
                     .frame(height: 22)
@@ -390,7 +400,7 @@ private struct NotchAppFader: View {
             .frame(maxWidth: .infinity)
             .frame(height: 14)
             if app.isBypassed {
-                // Zoom and pro audio apps manage their own sound: listed so
+                // Conferencing and pro audio apps manage their own sound: listed so
                 // their absence never reads as a bug, never tapped.
                 Text(l10n.s.mixerBypassedCaption)
                     .font(.system(size: 9)).foregroundStyle(.secondary)

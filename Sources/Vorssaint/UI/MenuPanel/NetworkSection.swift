@@ -51,14 +51,12 @@ struct NetworkSection: View {
             .panelCard()
         }
         .onAppear {
-            if netAddresses { addresses.refreshLocalAddresses() }
             if netApps {
                 startNetworkMonitoringIfNeeded()
             }
             refreshAppRows(force: true, delay: 0.2)
         }
         .onReceive(monitor.$snapshot) { _ in
-            if netAddresses { addresses.refreshLocalAddresses() }
             refreshAppRows(force: false, delay: 0.2)
         }
         .onChange(of: netApps) { _, visible in
@@ -72,12 +70,7 @@ struct NetworkSection: View {
                 stopNetworkMonitoringIfNeeded()
             }
         }
-        .onChange(of: netAddresses) { _, visible in
-            if visible { addresses.refreshLocalAddresses() }
-            else { addresses.cancel() }
-        }
         .onDisappear {
-            addresses.cancel()
             appRefreshSerial &+= 1
             appRows = []
             appRowsLoading = false
@@ -405,6 +398,11 @@ private struct NetworkAddressBlock: View {
                 }
                 if editing { PanelInlineHideButton(isVisible: $isVisible) }
             }
+            // The interfaces are read only while this line is on screen: a
+            // hidden block or a collapsed card costs nothing per snapshot.
+            .onAppear { service.refreshLocalAddresses() }
+            .onReceive(SystemMonitor.shared.$snapshot) { _ in service.refreshLocalAddresses() }
+            .onDisappear { service.cancel() }
         }
     }
 }

@@ -251,6 +251,9 @@ struct NotchView: View {
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { headerHovered = hovering }
         }
         .onAppear { UpdateService.shared.checkIfStale() }
+        // Collapsing under the pointer takes the row away without a final
+        // hover(false); the next opening starts with the actions out of sight.
+        .onDisappear { headerHovered = false }
     }
 
     /// The header's actions keep their room but stay out of sight until the
@@ -289,6 +292,12 @@ struct NotchView: View {
                         Circle()
                             .fill(UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? Color.orange : Color.blue)
                             .frame(width: 6, height: 6)
+                    }
+                    // A kept-open island says so at rest, not only under the pointer.
+                    if service.pinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.6))
                     }
                     Image(systemName: "ellipsis")
                         .font(.system(size: 11, weight: .medium))

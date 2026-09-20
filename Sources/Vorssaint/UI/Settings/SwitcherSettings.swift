@@ -260,7 +260,10 @@ struct SwitcherSettings: View {
                               (SwitcherWindowlessApps.finder.rawValue, l10n.s.switcherWindowlessAppsFinder),
                               (SwitcherWindowlessApps.all.rawValue, l10n.s.switcherWindowlessAppsAll)])
                 .disabled(switcherTakeOverSystemShortcuts)
+            // Per-app rules can be prepared while the switcher is off, as
+            // before the redesign; the card's disabled state stops here.
             SwitcherAppRulesList()
+                .environment(\.isEnabled, true)
         }
     }
 

@@ -86,6 +86,11 @@ enum ClipboardFeatureTests {
             .menuBarText(maxCharacters: 20)
         suite.expect(longMenuBarPreview.count == 21 && longMenuBarPreview.hasSuffix("…"),
                "a copy longer than the limit is cut to the limit plus an ellipsis")
+        let returnsMenuBarPreview = ClipboardHistoryEntry(text: "one\r\ntwo\rthree\u{2028}four")
+            .menuBarText(maxCharacters: 50)
+        suite.expect(returnsMenuBarPreview.rangeOfCharacter(from: .newlines) == nil
+                && returnsMenuBarPreview.hasSuffix("four"),
+               "carriage returns and Unicode line breaks fold into the single menu bar line instead of ending it")
         L10n.shared.language = .enUS
         let imageMenuBarPreview = ClipboardHistoryEntry(text: "", kind: .image,
                                                         imageWidth: 400, imageHeight: 300)

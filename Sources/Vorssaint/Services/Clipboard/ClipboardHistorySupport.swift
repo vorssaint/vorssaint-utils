@@ -130,7 +130,9 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
             let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
             base = "\(imageLabel) · \(imageDimensionsLabel)"
         } else {
-            base = preview
+            // The preview folds line feeds and tabs; a single-line menu bar
+            // title also cannot carry a carriage return or a Unicode line break.
+            base = preview.components(separatedBy: .newlines).joined(separator: " ")
         }
         guard base.count > maxCharacters else { return base }
         return String(base.prefix(maxCharacters)) + "…"

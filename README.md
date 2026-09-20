@@ -120,11 +120,11 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Extra click filter.** Ignore rapid accidental extra clicks from worn primary, secondary and middle mouse buttons without delaying normal clicks.
 - **Key debounce.** Filters the double letters a worn keyboard invents.
 - **Super key.** Hold Caps Lock or a right-side modifier key and it counts as the modifier combination you choose, so one key can drive your shortcuts. A tap on its own can switch input sources, switch capitals, press Escape, or do nothing. Choose apps that pause Super key while they are open, even in the background, so the selected key works normally until the last one quits. Keep the selected key at its default action in System Settings › Keyboard › Modifier Keys.
-- **Keyboard shortcuts.** Edit every installed feature's global shortcut from one categorized page, see what is active and use the shorter Super key combination when available. On supported Macs, enable optional keyboard backlight shortcuts under Mouse and keyboard › Keyboard light to adjust it one step at a time.
+- **Keyboard shortcuts.** Edit every installed feature's global shortcut from one categorized page, see what is active and use the shorter Super key combination when available. A field that records a macOS shortcut, such as ⌘⇧3, can offer to take it over while the app runs and its feature is on; macOS gets the key back otherwise. On supported Macs, enable optional keyboard backlight shortcuts under Mouse and keyboard › Keyboard light to adjust it one step at a time.
 
 ### Clipboard, files and links
 
-- **Clipboard history.** Local history of text, images and files with pinned favorites, search, quick paste shortcuts and an on-demand preview where text can be selected or edited.
+- **Clipboard history.** Local history of text, images and files with pinned favorites, search, quick paste shortcuts and an on-demand preview where text can be selected or edited. It can also show the latest copy next to the menu bar icon, trimmed to a length you choose.
 - **Auto clear clipboard.** Empty the system clipboard a set time after you copy, and when the Mac sleeps, the display sleeps or the screen locks. Each trigger is optional, works with history off, and leaves your saved items untouched.
 - **Paste as plain text.** One shortcut pastes without fonts, colors or links, and the original stays on the clipboard.
 - **Shelf.** Park files, text and links near your cursor mid drag, or open it from a screen edge, then drop them where they belong later. Attachments dragged from other apps arrive as complete files with their original names. Share the files you parked anywhere the Mac can send them. Choose whether its close button clears every item or keeps them for later.
@@ -149,9 +149,10 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **App updates.** One list of the apps on your Mac that have a newer version. It checks package-managed and store apps, reads supported update feeds published by app developers, and matches other apps by identity or exact name in a public catalog. Managed updates install together; other rows open the original app so its own updater stays in control. Each source can be switched off, and optional background checks tell you when something is waiting.
 - **Cleaner.** Sweeps app leftovers, caches and logs, by hand or on a schedule.
 - **Messaging downloads.** The Cleaner can also tidy the media a messaging app saves into Downloads, confirmed by macOS metadata and only ever moved to the Trash, with a review list, retention rules and an optional organizer that files new ones into a folder of your choice.
-- **Uninstaller.** Drop an app in and take its caches, preferences, helpers, plugins, containers and other leftovers to the Trash with it. Related finds start unchecked so you can review them first.
+- **Uninstaller.** Drop an app in and take its caches, preferences, helpers, plugins, containers and other leftovers to the Trash with it. Related finds start unchecked so you can review them first. Once enabled in its settings, the Command Bar can list your apps for removal, including the one selected in Finder.
 - **Media tools.** Compress videos or open any one in the editor to trim, cut and crop it, convert images one at a time or in batches with resizing, watermarks and reusable profiles, make GIFs and extract text, all locally. Image batches can use a separate output subfolder, and a menu adds naming placeholders.
 - **Homebrew manager.** Search, install and remove formulae and casks without opening a terminal.
+- **Port manager.** Installable from Features, it lists the ports your processes are listening on, filters them by port, process or PID, and ends a process through Kill Process when that tool is installed.
 - **Cleaning Mode.** Locks the keyboard while you clean and either blacks out every display or leaves the screen visible with a discreet corner indicator.
 
 ### Energy and display

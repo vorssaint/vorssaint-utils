@@ -142,6 +142,9 @@ enum SettingsBackupSupport {
         // a Mac that still holds its own stale verdicts.
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
         DefaultsKey.brightnessForcedSoftwarePaths,
+        // The hidden-controls list travels already migrated; the marker only
+        // says this Mac has run the one-time hide.
+        DefaultsKey.notchScratchpadControlHidden,
     ]
 
     /// The file's content: an envelope with the format version, the app

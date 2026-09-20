@@ -26,6 +26,12 @@ final class NetworkAddressService: ObservableObject {
             && MetricFormat.includeNetworkInterface(name)
     }
 
+    /// An address the interface gave itself for want of a network: nothing
+    /// else can reach it, so it is not the address this line is for.
+    static func isSelfAssigned(_ address: String) -> Bool {
+        address.hasPrefix("169.254.")
+    }
+
     static func readLocalAddresses() -> [String] {
         let names = connectionNames()
         var first: UnsafeMutablePointer<ifaddrs>?
@@ -43,6 +49,7 @@ final class NetworkAddressService: ObservableObject {
             guard getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count),
                               nil, 0, NI_NUMERICHOST) == 0 else { continue }
             let ip = String(cString: host)
+            guard !isSelfAssigned(ip) else { continue }
             // The system knows en0 as "Wi-Fi"; the BSD name means nothing on screen.
             addresses.insert(names[name].map { "\(ip) (\($0))" } ?? ip)
         }
