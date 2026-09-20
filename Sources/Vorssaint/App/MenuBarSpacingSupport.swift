@@ -333,6 +333,17 @@ enum StatusItemPlacementSupport {
         clearAllRememberedState(of: nextName, in: defaults)
     }
 
+    /// Whether a status item's window frame says the icon is actually in a
+    /// menu bar. Intersecting a screen is not enough: an item macOS declines
+    /// to place at all (macOS 26 with the app switched off under System
+    /// Settings > Menu Bar > "Allow in the Menu Bar") keeps its window at the
+    /// bottom-left origin of the main display, sized like a real item, which
+    /// intersects that screen and used to pass for "appeared" (#1394). Only a
+    /// frame sitting in the menu bar band of an attached screen counts.
+    static func isPlacedStatusFrame(_ frame: CGRect, screenFrames: [CGRect]) -> Bool {
+        StatusItemAnchorSupport.isTrustworthyStatusFrame(frame, screenFrames: screenFrames)
+    }
+
     /// While macOS is still settling a newborn status window, recovery must
     /// keep waiting instead of escalating to an identity reset or the
     /// "still hidden" alert (#1394).

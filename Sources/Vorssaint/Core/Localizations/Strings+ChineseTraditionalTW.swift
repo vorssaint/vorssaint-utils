@@ -884,6 +884,7 @@ extension Strings {
         menuBarIconStillHiddenTitle: "圖示仍然被隱藏",
         menuBarIconStillHiddenBody: "圖示已重建，但 macOS 沒有給它可見的位置。選單列可能已經沒有空間：請移除一些選單列圖示（或關閉選單很長的 App）後再試一次。",
         menuBarIconManagerHintFormat: "%@ 正在執行，可能把圖示收進了它的隱藏區域。請在那裡找找 Vorssaint，或將 %@ 設定為一律顯示 Vorssaint。",
+        menuBarIconDisallowedBody: "macOS 正在阻止 Vorssaint 出現在選單列中。開啟「系統設定」>「選單列」，在 App 列表中找到 Vorssaint，並開啟「允許顯示在選單列中」（Allow in the Menu Bar）。開關打開後圖示會立即出現。",
         shortcutRecording: "按下新的快速鍵",
         shortcutReset: "重設",
         shortcutNone: "無",

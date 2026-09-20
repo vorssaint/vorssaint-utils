@@ -883,6 +883,7 @@ extension Strings {
         menuBarIconStillHiddenTitle: "图标仍然被隐藏",
         menuBarIconStillHiddenBody: "图标已重建，但 macOS 没有给它可见的位置。菜单栏可能已经没有空间：请移除一些菜单栏图标（或关闭菜单很长的 App）后再试一次。",
         menuBarIconManagerHintFormat: "%@ 正在运行，可能把图标收进了它的隐藏区域。请在那里找找 Vorssaint，或将 %@ 设置为始终显示 Vorssaint。",
+        menuBarIconDisallowedBody: "macOS 正在阻止 Vorssaint 出现在菜单栏中。打开“系统设置”>“菜单栏”，在应用列表中找到 Vorssaint，并打开“允许显示在菜单栏中”（Allow in the Menu Bar）。开关打开后图标会立即出现。",
         shortcutRecording: "按下新的快捷键",
         shortcutReset: "重置",
         shortcutNone: "无",

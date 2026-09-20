@@ -883,6 +883,7 @@ extension Strings {
         menuBarIconStillHiddenTitle: "アイコンはまだ隠れています",
         menuBarIconStillHiddenBody: "アイコンを作り直しましたが、macOS が表示できる場所を割り当てませんでした。メニューバーに空きがない可能性が高いので、メニューバーのアイコンをいくつか減らす（またはメニューの長いアプリを閉じる）してから、もう一度お試しください。",
         menuBarIconManagerHintFormat: "%@ が起動中で、アイコンを隠しセクションにしまっている可能性があります。そこで Vorssaint を探すか、%@ で Vorssaint を常に表示する設定にしてください。",
+        menuBarIconDisallowedBody: "macOS が Vorssaint をメニューバーに表示させていません。「システム設定」>「メニューバー」を開き、App のリストで Vorssaint を見つけて「メニューバーでの表示を許可」（Allow in the Menu Bar）をオンにしてください。オンにするとすぐにアイコンが表示されます。",
         shortcutRecording: "新しいショートカットを押してください",
         shortcutReset: "リセット",
         shortcutNone: "なし",

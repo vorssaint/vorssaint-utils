@@ -883,6 +883,7 @@ extension Strings {
         menuBarIconStillHiddenTitle: "Das Symbol ist weiterhin verborgen",
         menuBarIconStillHiddenBody: "Das Symbol wurde neu aufgebaut, aber macOS hat ihm keinen sichtbaren Platz gegeben. In der Menüleiste ist vermutlich kein Platz mehr: Entferne einige Menüleisten-Symbole (oder schließe Apps mit langen Menüs) und versuche es erneut.",
         menuBarIconManagerHintFormat: "%@ läuft und hält das Symbol womöglich in seinem verborgenen Bereich. Suche Vorssaint dort, oder stelle %@ so ein, dass Vorssaint immer angezeigt wird.",
+        menuBarIconDisallowedBody: "macOS hält Vorssaint aus der Menüleiste fern. Öffne Systemeinstellungen > Menüleiste, suche Vorssaint in der App-Liste und aktiviere „In der Menüleiste erlauben“ (Allow in the Menu Bar). Das Symbol erscheint, sobald der Schalter an ist.",
         shortcutRecording: "Neuen Kurzbefehl drücken",
         shortcutReset: "Zurücksetzen",
         shortcutNone: "Keiner",

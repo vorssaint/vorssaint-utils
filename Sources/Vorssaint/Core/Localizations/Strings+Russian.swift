@@ -884,6 +884,7 @@ extension Strings {
         menuBarIconStillHiddenTitle: "Значок всё ещё скрыт",
         menuBarIconStillHiddenBody: "Значок был создан заново, но macOS не выделила ему видимого места. Скорее всего, в строке меню не хватает места: уберите несколько значков (или закройте приложения с длинными меню) и попробуйте снова.",
         menuBarIconManagerHintFormat: "%@ запущен и, возможно, держит значок в своей скрытой секции. Поищите Vorssaint там или настройте %@ всегда показывать Vorssaint.",
+        menuBarIconDisallowedBody: "macOS не пускает Vorssaint в строку меню. Откройте Системные настройки > Строка меню, найдите Vorssaint в списке приложений и включите «Разрешить в строке меню» (Allow in the Menu Bar). Значок появится, как только переключатель будет включён.",
         shortcutRecording: "Нажмите новое сочетание клавиш",
         shortcutReset: "Сбросить",
         shortcutNone: "Нет",

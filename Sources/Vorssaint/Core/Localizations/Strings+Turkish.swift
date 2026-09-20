@@ -883,6 +883,7 @@ extension Strings {
         menuBarIconStillHiddenTitle: "Simge hâlâ gizli",
         menuBarIconStillHiddenBody: "Simge yeniden oluşturuldu ancak macOS ona görünür bir yer vermedi. Menü çubuğunda büyük olasılıkla yer kalmadı: bazı menü çubuğu simgelerini kaldırın (veya menüleri uzun uygulamaları kapatın) ve yeniden deneyin.",
         menuBarIconManagerHintFormat: "%@ açık ve simgeyi gizli bölümünde tutuyor olabilir. Vorssaint’i orada arayın veya %@ uygulamasını Vorssaint’i her zaman gösterecek şekilde ayarlayın.",
+        menuBarIconDisallowedBody: "macOS, Vorssaint’i menü çubuğunun dışında tutuyor. Sistem Ayarları > Menü Çubuğu’nu açın, uygulama listesinde Vorssaint’i bulun ve “Menü Çubuğunda İzin Ver” (Allow in the Menu Bar) seçeneğini açın. Anahtar açılır açılmaz simge görünür.",
         shortcutRecording: "Yeni kısayola bas",
         shortcutReset: "Sıfırla",
         shortcutNone: "Yok",

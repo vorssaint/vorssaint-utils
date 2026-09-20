@@ -884,6 +884,7 @@ extension Strings {
         menuBarIconStillHiddenTitle: "아이콘이 아직 숨겨져 있습니다",
         menuBarIconStillHiddenBody: "아이콘을 다시 만들었지만 macOS가 표시할 공간을 할당하지 않았습니다. 메뉴 막대에 빈 공간이 없을 가능성이 높습니다. 메뉴 막대 아이콘을 일부 줄이거나 메뉴가 긴 앱을 닫은 뒤 다시 시도하세요.",
         menuBarIconManagerHintFormat: "%@이(가) 실행 중이며 아이콘을 숨김 섹션에 넣었을 수 있습니다. 그곳에서 Vorssaint를 찾거나 %@에서 Vorssaint가 항상 표시되도록 설정하세요.",
+        menuBarIconDisallowedBody: "macOS가 Vorssaint를 메뉴 막대에 표시하지 않고 있습니다. 시스템 설정 > 메뉴 막대를 열고 앱 목록에서 Vorssaint를 찾아 “메뉴 막대에서 허용”(Allow in the Menu Bar)을 켜세요. 스위치를 켜는 즉시 아이콘이 나타납니다.",
         shortcutRecording: "새 단축키를 누르세요",
         shortcutReset: "재설정",
         shortcutNone: "없음",
