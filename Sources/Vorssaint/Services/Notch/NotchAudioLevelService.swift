@@ -61,8 +61,12 @@ final class NotchAudioLevelService: ObservableObject {
             scheduleStop()
             return
         }
+        // A reader that has not heard sound may already be reporting silence
+        // from the pause. Give the resumed play a fresh chance, and a new
+        // reader identity, while keeping audible readers through short pauses.
+        let resumeBeforeSound = stopWork != nil && levels == nil
         stopWork?.cancel(); stopWork = nil
-        guard readerPID != pid else { return }
+        guard readerPID != pid || resumeBeforeSound else { return }
         // Release the previous player before deciding about this one, or its
         // reader would keep the bars on somebody else's levels.
         stop()
