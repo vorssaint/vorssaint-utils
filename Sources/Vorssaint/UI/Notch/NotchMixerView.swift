@@ -544,6 +544,9 @@ private struct NotchAppFader: View {
             Button(action: togglePin) {
                 Label(isPinned ? strings.unpin : strings.pinFirst, systemImage: isPinned ? "pin.slash" : "pin")
             }
+            // Left and right here are the screen, not the reading order: the
+            // label says which way the tile moves, so the glyph matches the word
+            // in every language.
             Button { moveBack?() } label: { Label(strings.moveLeft, systemImage: "arrow.left") }
                 .disabled(moveBack == nil)
             Button { moveForward?() } label: { Label(strings.moveRight, systemImage: "arrow.right") }

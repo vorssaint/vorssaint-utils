@@ -300,3 +300,22 @@ extension View {
 /// What `appLayoutDirection()` produces. Spelled out for the few AppKit hosts
 /// that name their root view's type because they replace it in place.
 typealias MirroredView<Content: View> = ModifiedContent<Content, AppLayoutDirection>
+
+/// A disclosure chevron turned a quarter to show an open section. The glyph is
+/// `chevron.forward`, so it already points the way the language reads and turning
+/// it the same way in both would leave it pointing up in a mirrored interface.
+/// The turn follows the glyph instead, and open reads as down either way.
+struct DisclosureRotation: ViewModifier {
+    @Environment(\.layoutDirection) private var layoutDirection
+    let open: Bool
+
+    func body(content: Content) -> some View {
+        content.rotationEffect(.degrees(open ? (layoutDirection == .rightToLeft ? -90 : 90) : 0))
+    }
+}
+
+extension View {
+    /// Used by every section header that turns its chevron, so none of them has
+    /// to remember the mirrored case on its own.
+    func disclosureRotation(open: Bool) -> some View { modifier(DisclosureRotation(open: open)) }
+}

@@ -2407,6 +2407,7 @@ extension CommandBarFeatureStrings {
         kindMenu: "أمر قائمة",
         actionsTitle: "الإجراءات",
         actionsHint: "الإجراءات",
+        reuseHint: "متابعة",
         actionPin: "التثبيت في الأعلى",
         actionUnpin: "إلغاء التثبيت",
         actionName: "امنحه اسمًا خاصًا بك",
@@ -2525,5 +2526,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "اسم مجلد أو ملف",
         filesIgnoreAdd: "إضافة",
         compactModeToggle: "الوضع المضغوط",
-        compactModeCaption: "يُفتح الشريط بلا اقتراحات. وتظهر النتائج أثناء الكتابة.")
+        compactModeCaption: "يُفتح الشريط بلا اقتراحات. وتظهر النتائج أثناء الكتابة.",
+        emojiSkinToneLabel: "لون البشرة",
+        emojiSkinToneCaption: "افتراضيًا، تستخدم الرموز التعبيرية التي تقبل لون بشرة هذا اللون. افتح الإجراءات على صفّ رمز لاختيار لون آخر.",
+        asciiLayoutToggle: "التبديل إلى تخطيط ABC أثناء فتح الشريط",
+        asciiLayoutCaption: "يكتب الحقل حروفًا لاتينية مهما كان التخطيط المفعّل، ويعود التخطيط السابق عند إغلاق الشريط.")
 }

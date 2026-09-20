@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -332,5 +333,27 @@ extension GeneralSettingsStrings {
         sectionUtilities: "截圖、清理、更新和其他工具。",
         sectionControls: "滑鼠、鍵盤和視窗功能的開關。",
         sectionToggles: "深色模式、將麥克風靜音等一鍵操作。"
+    )
+
+    static let ar = GeneralSettingsStrings(
+        pageDescription: "كيف يبدأ Vorssaint، وكيف يبدو، وما تعرضه لوحة شريط القائمة.",
+        appearanceCaption: "ينطبق على نوافذ Vorssaint ولوحاته وحدها، لا على الـ Mac بأكمله.",
+        launchAtLoginCaption: "يُفتح تلقائيًا في كل مرة تشغّل فيها الـ Mac.",
+        liquidGlassCaption: "لوحات شفافة تشبه الزجاج.",
+        panelIntro: "انقر أيقونة Vorssaint في شريط القائمة لفتح اللوحة. وتظهر علاماتها بهذا الترتيب.",
+        panelReorderHint: "اسحب لإعادة الترتيب. وأوقف ما لا تحتاج إليه.",
+        iconMissingTitle: "لا تجد الأيقونة؟",
+        iconMissingCaption: "قد يخفيها شريط قائمة مزدحم، خاصةً على أجهزة Mac ذات النتوء.",
+        sectionKeepAwake: "يُبقي الـ Mac مستيقظًا المدة التي تريدها.",
+        sectionDisplays: "سطوع شاشاتك.",
+        sectionMixer: "مستوى صوت كل تطبيق، بشريط لكل واحد.",
+        sectionSystem: "المعالج وبطاقة الرسوم والذاكرة في لمحة.",
+        sectionNetwork: "سرعة الإنترنت والتطبيقات التي تستخدمه.",
+        sectionDisks: "المساحة الحرة ونشاط الأقراص.",
+        sectionPower: "البطارية والشحن واستهلاك الطاقة.",
+        sectionFanControl: "سرعات المراوح ومنحنى المروحة الخاص بك.",
+        sectionUtilities: "لقطات الشاشة والمنظّف والتحديثات وأدوات أخرى.",
+        sectionControls: "مفاتيح مزايا الماوس ولوحة المفاتيح والنوافذ.",
+        sectionToggles: "إجراءات بنقرة واحدة مثل الوضع الداكن وكتم الميكروفون."
     )
 }

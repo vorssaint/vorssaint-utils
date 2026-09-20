@@ -260,7 +260,7 @@ struct DisclosureHeaderRow<Label: View>: View {
                 Image(systemName: "chevron.forward")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
+                    .disclosureRotation(open: isExpanded.wrappedValue)
             }
             .contentShape(Rectangle())
         }

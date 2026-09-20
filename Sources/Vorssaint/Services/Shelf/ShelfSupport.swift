@@ -94,11 +94,15 @@ enum ShelfTileLayout {
                                   rows: Int,
                                   tileSize: CGSize,
                                   spacing: CGFloat,
-                                  inset: CGFloat) -> CGRect {
+                                  inset: CGFloat,
+                                  mirroredIn contentWidth: CGFloat? = nil) -> CGRect {
         let safeRows = max(1, rows)
         let column = index / safeRows
         let row = index % safeRows
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let stride = tileSize.width + spacing
+        let x = contentWidth.map { $0 - inset - tileSize.width - CGFloat(column) * stride }
+            ?? (inset + CGFloat(column) * stride)
+        return CGRect(x: x,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)
@@ -107,20 +111,24 @@ enum ShelfTileLayout {
     /// Where the tile at `index` sits in the flipped document view.
     ///
     /// These are absolute frames in an AppKit document view, so nothing mirrors
-    /// them on its own: the grid would keep filling from the left inside a
-    /// panel whose chrome had already flipped. `mirrored` counts the column in
-    /// from the other edge instead, which is what a reader of a right-to-left
-    /// language expects and is most obvious on a row that is not full.
+    /// them on its own. `mirroredIn` measures each column in from the trailing
+    /// edge of that width, which leaves the width a short row cannot fill on
+    /// the side a right-to-left reader ends on. Reversing the column index
+    /// instead would keep that leftover on the right, the mirror of what the
+    /// grid should do, so the content width is required to mirror at all.
     static func tileFrame(index: Int,
                           columns: Int,
                           tileSize: CGSize,
                           spacing: CGFloat,
                           inset: CGFloat,
-                          mirrored: Bool = false) -> CGRect {
+                          mirroredIn contentWidth: CGFloat? = nil) -> CGRect {
         let safeColumns = max(1, columns)
-        let column = mirrored ? safeColumns - 1 - index % safeColumns : index % safeColumns
+        let column = index % safeColumns
         let row = index / safeColumns
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let stride = tileSize.width + spacing
+        let x = contentWidth.map { $0 - inset - tileSize.width - CGFloat(column) * stride }
+            ?? (inset + CGFloat(column) * stride)
+        return CGRect(x: x,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)

@@ -1043,6 +1043,9 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "النمط",
         dateTimePreviewLabel: "معاينة",
         dateTimeConfirmInsert: "إدراج",
-        dateTimeConfirmUpdate: "تحديث"
-    )
+        dateTimeConfirmUpdate: "تحديث",
+        soundToggle: "تشغيل صوت عند توسيع محفّز مكتوب",
+        soundCaption: "يُشغَّل صوت نظام قصير في كل مرة يتوسّع فيها محفّز مكتوب.",
+        soundPickerLabel: "الصوت",
+        soundUnavailable: "الصوت غير متاح")
 }

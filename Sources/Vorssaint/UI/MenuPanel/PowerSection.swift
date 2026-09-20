@@ -377,7 +377,7 @@ private struct EnergyAppsBreakdown: View {
                 HStack(spacing: 8) {
                     Image(systemName: "chevron.forward")
                         .font(.system(size: 8, weight: .semibold))
-                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        .disclosureRotation(open: expanded)
                     Text(l10n.s.energyAppsTitle)
                     Spacer()
                 }

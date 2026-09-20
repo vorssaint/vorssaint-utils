@@ -400,6 +400,7 @@ extension FeatureStrings {
             timer: "المؤقت",
             timerDescription: "مؤقتات وجلسات عمل مركّز في الجزيرة الديناميكية.",
             pomodoro: "بومودورو",
+            stopwatch: "ساعة الإيقاف",
             focus: "تركيز",
             shortBreak: "استراحة قصيرة",
             longBreak: "استراحة طويلة",

@@ -21,6 +21,7 @@ struct SettingsNavigationStrings {
         case .zhHans: return Self(go: "前往", back: "后退", forward: "前进")
         case .zhTW, .zhHK:
             return Self(go: "前往", back: "上一頁", forward: "下一頁")
+        case .ar: return Self(go: "انتقال", back: "رجوع", forward: "تقدّم")
         }
     }
 }

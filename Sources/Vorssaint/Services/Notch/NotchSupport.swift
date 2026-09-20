@@ -1359,4 +1359,12 @@ enum NotchLevelBar {
         return CGRect(x: mirrored ? track.maxX - width : track.minX,
                       y: track.minY, width: width, height: track.height)
     }
+
+    /// Where the marker line sits on a horizontal bar. Measured from the same
+    /// edge the fill grows from, so the two agree.
+    static func markerX(track: CGRect, position: Double, mirrored: Bool) -> CGFloat {
+        let clamped = position.isFinite ? min(1, max(0, position)) : 0
+        let offset = track.width * clamped
+        return mirrored ? track.maxX - offset : track.minX + offset
+    }
 }

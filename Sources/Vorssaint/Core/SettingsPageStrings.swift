@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -206,5 +207,16 @@ extension SettingsPageStrings {
         switcherLayoutWindowsCaption: "每個視窗一張預覽，包括已縮到最小的視窗。",
         switcherLayoutIcons: "大圖示",
         switcherLayoutSimple: "簡單列表"
+    )
+
+    static let ar = SettingsPageStrings(
+        energyDescription: "أبقِ الـ Mac مستيقظًا، وتحكّم في شاشاتك، ووفّر البطارية.",
+        monitorDescription: "ما يعرضه شريط القائمة واللوحة عن الـ Mac، ومتى ينبّهك.",
+        mouseDescription: "امنح العجلة والأزرار الجانبية ولوحة التتبع وظائف جديدة.",
+        switcherDescription: "بدّل بين التطبيقات والنوافذ على طريقتك، وشاهِد النوافذ من الـ Dock.",
+        switcherLayoutWindows: "معاينات النوافذ",
+        switcherLayoutWindowsCaption: "معاينة لكل نافذة، بما فيها المصغّرة.",
+        switcherLayoutIcons: "أيقونات كبيرة",
+        switcherLayoutSimple: "قائمة بسيطة"
     )
 }

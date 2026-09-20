@@ -278,7 +278,7 @@ struct PanelSection<Content: View>: View {
         Image(systemName: "chevron.forward")
             .font(.system(size: 9, weight: .semibold))
             .foregroundStyle(.tertiary)
-            .rotationEffect(.degrees(collapsed ? 0 : 90))
+            .disclosureRotation(open: !collapsed)
     }
 
     private var editButton: some View {

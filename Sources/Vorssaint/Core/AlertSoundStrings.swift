@@ -43,7 +43,7 @@ enum AlertSoundStrings {
         case .it: return it
         // Apple's own loctable keeps the English names for these
         // languages too, rather than translating them.
-        case .ja, .ko, .zhHans, .zhTW, .zhHK: return enUS
+        case .ja, .ko, .zhHans, .zhTW, .zhHK, .ar: return enUS
         }
     }
 

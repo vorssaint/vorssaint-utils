@@ -459,5 +459,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "يبدأ “الإبقاء مستيقظًا” ما دام أي من هذه التطبيقات مفتوحًا، ولو في الخلفية.",
         automationActive: "نشط لتحقق أحد الشروط التلقائية",
         pauseWhenLockedToggle: "الإيقاف المؤقت أثناء قفل الـ Mac",
-        pauseWhenLockedCaption: "يتبع قواعد السكون المعتادة أثناء القفل ويستأنف ما تبقى من الجلسة بعد إلغاء القفل.")
+        pauseWhenLockedCaption: "يتبع قواعد السكون المعتادة أثناء القفل ويستأنف ما تبقى من الجلسة بعد إلغاء القفل.",
+        matchAny: "أي",
+        matchAll: "الكل",
+        automationCaptionAll: "تبدأ فقط عند تحقق كل شرط محدد.")
 }

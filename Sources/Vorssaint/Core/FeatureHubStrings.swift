@@ -1696,8 +1696,6 @@ extension FeatureHubStrings {
         descMonitorNetwork: "سرعة الشبكة واستهلاكها",
         descMonitorDisk: "مساحة القرص ونشاطه",
         descMonitorPower: "البطارية والطاقة والشحن",
-        installButton: "تثبيت",
-        uninstallButton: "إلغاء التثبيت",
         footerNote: "إلغاء التثبيت لا يحذف شيئًا: تغادر الميزة التطبيق وتتوقف عن التحميل فحسب. ثبّتها مجددًا في أي وقت ليعود كل شيء كما كان.",
         restartNote: "تبقى المزايا التي أُلغي تثبيتها في هذه الجلسة محمّلة حتى إعادة تشغيل التطبيق. أعِد التشغيل لإزالتها من الذاكرة الآن.",
         restartButton: "إعادة التشغيل الآن",
@@ -1726,6 +1724,9 @@ extension FeatureHubStrings {
         onboardingSelectedPermissionsTitle: "الأذونات اللازمة لاختياراتك",
         onboardingNoSelectedPermissions: "لست بحاجة إلى منح أي إذن لإكمال الإعداد.",
         onboardingOtherPermissionsTitle: "أذونات أخرى",
-        onboardingOtherPermissionsCaption: "اختيارية. امنحها الآن أو لاحقًا عندما تحتاج إليها إحدى المزايا."
-    )
+        onboardingOtherPermissionsCaption: "اختيارية. امنحها الآن أو لاحقًا عندما تحتاج إليها إحدى المزايا.",
+        notchUninstallTitle: "إلغاء تثبيت الجزيرة الديناميكية",
+        notchUninstallMessageFormat: "تعمل هذه الإضافات داخل الجزيرة الديناميكية فقط: %@. هل تريد إلغاء تثبيتها أيضًا؟ لا يُحذف شيء، وكل شيء يعود بنقرة واحدة.",
+        notchUninstallWithExtensions: "إلغاء تثبيت الإضافات أيضًا",
+        notchUninstallKeepExtensions: "الإبقاء على الإضافات")
 }

@@ -1247,7 +1247,7 @@ struct QuickControlsSection: View {
                 Image(systemName: "chevron.forward")
                     .font(.system(size: 8.5, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(editing || isExpanded(category) ? 90 : 0))
+                    .disclosureRotation(open: editing || isExpanded(category))
                 Text(title(for: category).uppercased())
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)

@@ -1066,6 +1066,7 @@ extension NotchStrings {
         system: "النظام",
         disabled: "فعّل الميزة المقابلة لاستخدامها هنا.",
         files: "الملفات",
+        hideInFullscreen: "الإخفاء في ملء الشاشة",
         showInCaptures: "الإظهار في لقطات الشاشة والفيديوهات",
         clipboardWindow: "فتح سجل الحافظة في الجزيرة الديناميكية",
         tools: "الأدوات",
@@ -1080,6 +1081,8 @@ extension NotchStrings {
         appPanel: "فتح لوحة التطبيق في الجزيرة الديناميكية",
         idleContent: "أثناء الخمول",
         idleNone: "لا شيء",
+        coverMenus: "العرض فوق القوائم",
+        coverMenusHint: "يُبقي المؤقت والموسيقى وبقية النشاط المضغوط على الشاشة حين لا تتسع مساحة شريط القائمة، فيغطي القوائم المجاورة للكاميرا.",
         controlShortcuts: "عناصر التحكم والاختصارات",
         activity: "النشاط",
         playingMusic: "إظهار الموسيقى أثناء التشغيل",
@@ -1099,7 +1102,6 @@ extension NotchStrings {
         searchSections: "البحث عن قسم",
         sectionKeyboardHint: "استخدم مفاتيح الأسهم ثم اضغط Return",
         quickAccessLeft: "يسار",
-        quickAccessRight: "يمين"
-    )
+        quickAccessRight: "يمين")
 
 }

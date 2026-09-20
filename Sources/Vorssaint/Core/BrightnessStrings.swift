@@ -461,6 +461,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "يجب أن تبقى شاشة واحدة على الأقل قيد التشغيل.",
         switchUnavailable: "تبديل الشاشات غير متاح على هذا الـ Mac.",
         switchFailed: "تعذّر تغيير هذه الشاشة.",
+        openLidToEnable: "افتح الغطاء لتشغيل الشاشة المدمجة.",
         keysToggle: "مفاتيح السطوع تتبع المؤشر",
         keysCaption: "تغيّر مفاتيح السطوع في لوحة المفاتيح الشاشة الموجودة تحت المؤشر.",
         osdToggle: "إظهار السطوع عند الضبط",
@@ -473,5 +474,6 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "يشغّل الإضاءة الخلفية للوحة المفاتيح أو يوقفها.",
         keyboardBrightnessShortcuts: "استخدام اختصارات إضاءة لوحة المفاتيح",
         keyboardBrightnessDecrease: "خفض إضاءة لوحة المفاتيح",
-        keyboardBrightnessIncrease: "رفع إضاءة لوحة المفاتيح")
+        keyboardBrightnessIncrease: "رفع إضاءة لوحة المفاتيح",
+        softwareDimming: "تعتيم الصورة")
 }

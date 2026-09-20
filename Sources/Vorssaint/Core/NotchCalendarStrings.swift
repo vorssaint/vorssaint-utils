@@ -349,6 +349,9 @@ extension FeatureStrings {
             requestFailed: "تعذّر طلب الوصول إلى التقويم. يُرجى المحاولة مجددًا.",
             previousMonth: "الشهر السابق",
             nextMonth: "الشهر التالي",
+            previousWeek: "الأسبوع السابق",
+            nextWeek: "الأسبوع التالي",
+            month: "الشهر",
             emptyDay: "لا مواعيد في هذا اليوم",
             hasEvents: "به مواعيد")
         }

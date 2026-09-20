@@ -223,6 +223,28 @@ enum ShelfFeatureTests {
                                          spacing: 10,
                                          inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
                "a single column puts every tile in its own row")
+
+        // Absolute frames in an AppKit document view mirror for nobody. The
+        // mirrored grid is measured in from the trailing edge of the content,
+        // so the width a short row cannot fill stays on the side the reader
+        // ends on — reversing the column index would leave it on the right.
+        let mirrorTile = CGSize(width: 78, height: 88)
+        suite.expect(ShelfTileLayout.tileFrame(index: 0, columns: 3, tileSize: mirrorTile,
+                                               spacing: 10, inset: 4, mirroredIn: 276)
+                == CGRect(x: 194, y: 4, width: 78, height: 88),
+                     "the first mirrored tile sits one inset in from the trailing edge")
+        suite.expect(ShelfTileLayout.tileFrame(index: 3, columns: 3, tileSize: mirrorTile,
+                                               spacing: 10, inset: 4, mirroredIn: 276)
+                == CGRect(x: 194, y: 102, width: 78, height: 88),
+                     "a mirrored row starts again at the trailing edge")
+        suite.expect(ShelfTileLayout.tileFrame(index: 2, columns: 3, tileSize: mirrorTile,
+                                               spacing: 10, inset: 4, mirroredIn: 276).minX == 18
+                && ShelfTileLayout.tileFrame(index: 2, columns: 3, tileSize: mirrorTile,
+                                             spacing: 10, inset: 4).minX == 180,
+                     "the leftover width of a mirrored grid falls on the leading side")
+        suite.expect(ShelfTileLayout.sidewaysTileFrame(index: 0, rows: 2, tileSize: mirrorTile,
+                                                       spacing: 10, inset: 4, mirroredIn: 276).minX == 194,
+                     "the island's sideways grid answers the same edge")
         suite.expect(ShelfTileLayout.rowCount(contentHeight: 140, tileHeight: 88, spacing: 10, inset: 4) == 1
                && ShelfTileLayout.rowCount(contentHeight: 194, tileHeight: 88, spacing: 10, inset: 4) == 2
                && ShelfTileLayout.rowCount(contentHeight: 0, tileHeight: 88, spacing: 10, inset: 4) == 1,

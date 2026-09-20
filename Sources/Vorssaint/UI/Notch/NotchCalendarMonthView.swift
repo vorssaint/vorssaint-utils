@@ -122,11 +122,11 @@ struct NotchCalendarWeekStrip: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            NotchIconButton(symbol: "chevron.left", title: text.previousWeek) { move(-1) }
+            NotchIconButton(symbol: "chevron.backward", title: text.previousWeek) { move(-1) }
             ForEach(NotchCalendarSupport.weekDays(containing: focus), id: \.self) { date in
                 dayButton(date)
             }
-            NotchIconButton(symbol: "chevron.right", title: text.nextWeek) { move(1) }
+            NotchIconButton(symbol: "chevron.forward", title: text.nextWeek) { move(1) }
             // The month grid keeps Today and Calendar in its own header, so
             // the narrowest island keeps every day tappable and drops the
             // extras: a second tap on the selected day still returns to the
@@ -219,11 +219,11 @@ struct NotchCalendarMonthGrid: View {
     var body: some View {
         VStack(spacing: NotchLayout.calendarMonthSpacing) {
             HStack(spacing: 4) {
-                NotchIconButton(symbol: "chevron.left", title: text.previousMonth) { move(-1) }
+                NotchIconButton(symbol: "chevron.backward", title: text.previousMonth) { move(-1) }
                 Text(month, format: .dateTime.month(.wide).year())
                     .font(.system(size: 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                NotchIconButton(symbol: "chevron.right", title: text.nextMonth) { move(1) }
+                NotchIconButton(symbol: "chevron.forward", title: text.nextMonth) { move(1) }
                 NotchIconButton(symbol: "circle.circle", title: text.today, action: today)
                 NotchIconButton(symbol: "arrow.up.forward.app", title: text.openCalendar, action: open)
                 NotchIconButton(symbol: "calendar", title: text.month, selected: true, action: week)

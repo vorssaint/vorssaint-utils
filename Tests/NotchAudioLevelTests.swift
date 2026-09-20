@@ -90,6 +90,25 @@ enum NotchAudioLevelTests {
         memory.giveUp(on: first)
         memory.rearm()
         expect(memory.reads(first), "pressing play again reads the same track once more")
+
+        // The level bars are drawn by hand inside an NSSliderCell, so AppKit
+        // mirrors the slider's tracking but not this fill or its marker.
+        let track = CGRect(x: 10, y: 0, width: 100, height: 6)
+        expect(NotchLevelBar.fillRect(track: track, fraction: 0.25, mirrored: false)
+                == CGRect(x: 10, y: 0, width: 25, height: 6)
+               && NotchLevelBar.fillRect(track: track, fraction: 0.25, mirrored: true)
+                == CGRect(x: 85, y: 0, width: 25, height: 6),
+               "a mirrored level bar fills from the trailing edge")
+        expect(NotchLevelBar.fillRect(track: track, fraction: 1, mirrored: true)
+                == NotchLevelBar.fillRect(track: track, fraction: 1, mirrored: false)
+               && NotchLevelBar.fillRect(track: track, fraction: 0, mirrored: true).width == 0,
+               "a full bar covers the track either way and an empty one draws nothing")
+        expect(NotchLevelBar.fillRect(track: track, fraction: Double.nan, mirrored: true).width == 0
+               && NotchLevelBar.fillRect(track: track, fraction: 3, mirrored: true).minX == 10,
+               "a level bar clamps a value it cannot use")
+        expect(NotchLevelBar.markerX(track: track, position: 0.25, mirrored: false) == 35
+               && NotchLevelBar.markerX(track: track, position: 0.25, mirrored: true) == 85,
+               "the marker is measured from the edge the fill grows from")
     }
 }
 

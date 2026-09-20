@@ -131,7 +131,7 @@ struct MixerFeatureStrings {
     static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
     static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
 
-    static let ar = MixerFeatureStrings(hideInactiveApps: "إخفاء التطبيقات غير النشطة")
+    static let ar = MixerFeatureStrings(hideInactiveApps: "إخفاء التطبيقات غير النشطة", pin: "التثبيت في الأعلى", unpin: "إلغاء التثبيت", moveUp: "تحريك لأعلى", moveDown: "تحريك لأسفل", pinFirst: "التثبيت في المقدمة", moveLeft: "تحريك لليسار", moveRight: "تحريك لليمين", arrange: "استمر بالضغط على Command واسحب لإعادة الترتيب", actions: "الإجراءات")
 }
 
 extension SettingsCategoryStrings {
@@ -1306,7 +1306,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "مسح الحافظة عند سكون الشاشة",
         autoClearOnScreenLock: "مسح الحافظة عند قفل الشاشة",
         autoClearCaption: "يمسح حافظة النظام فقط. أما العناصر المحفوظة فتبقى في السجل.",
-        deleteSelectedFormat: "حذف %d")
+        deleteSelectedFormat: "حذف %d",
+        menuBarPreview: "إظهار آخر نسخة في شريط القائمة",
+        menuBarPreviewCaption: "يعرض معاينة مختصرة لآخر ما نسخته بجوار الأيقونة. انقرها لفتح السجل.",
+        menuBarPreviewLength: "طول المعاينة",
+        menuBarPreviewLengthSuffix: "حرفًا")
 }
 
 struct WindowLayoutFeatureStrings {
@@ -2476,6 +2480,7 @@ struct WindowLayoutFeatureStrings {
         rightThird: "الثلث الأيمن",
         leftTwoThirds: "الثلثان الأيسران",
         rightTwoThirds: "الثلثان الأيمنان",
+        centerTwoThirds: "الثلثان الأوسطان",
         topLeftSixth: "سدس أعلى اليسار",
         topCenterSixth: "سدس أعلى الوسط",
         topRightSixth: "سدس أعلى اليمين",

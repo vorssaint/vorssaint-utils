@@ -768,7 +768,7 @@ struct MixerOptionsControls: View {
                     Image(systemName: "chevron.forward")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(showListChooser ? 90 : 0))
+                        .disclosureRotation(open: showListChooser)
                 }
                 .contentShape(Rectangle())
             }

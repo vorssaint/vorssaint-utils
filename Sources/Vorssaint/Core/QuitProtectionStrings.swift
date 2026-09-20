@@ -553,13 +553,15 @@ extension QuitProtectionStrings {
         addApp: "إضافة تطبيق…",
         feedback: "إظهار تأكيد مرئي",
         accessibilityCaption: "تستخدم الحماية إمكانية الوصول لمراقبة ⌘Q و⌘W عامةً فقط.",
-        holdHUDFormat: "استمر بالضغط على %@ للإنهاء أو الإغلاق",
-        doubleHUDFormat: "اضغط %@ مجددًا للإنهاء أو الإغلاق",
-        extraHUDFormat: "استخدم %@ للإنهاء أو الإغلاق",
+        holdQuitHUDFormat: "استمر بالضغط على %@ للإنهاء",
+        holdCloseHUDFormat: "استمر بالضغط على %@ للإغلاق",
+        doubleQuitHUDFormat: "اضغط %@ مجددًا للإنهاء",
+        doubleCloseHUDFormat: "اضغط %@ مجددًا للإغلاق",
+        extraQuitHUDFormat: "استخدم %@ للإنهاء",
+        extraCloseHUDFormat: "استخدم %@ للإغلاق",
         cancelHint: "Esc للإلغاء",
         releaseHint: "أفلِت للتأكيد",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
-    )
+        controlKey: "Control")
 }
