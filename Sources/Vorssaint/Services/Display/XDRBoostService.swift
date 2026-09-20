@@ -79,17 +79,16 @@ public final class XDRBoostService: ObservableObject {
         let mult = multiplier ?? currentMultiplier(for: displayID)
         let clamped = min(Self.maxBoost, max(Self.minBoost, mult))
 
+        isBoostEnabled[displayID] = enabled
+        boostMultiplier[displayID] = clamped
+
         if !enabled || clamped <= 1.001 {
-            isBoostEnabled[displayID] = false
             if let existing = activePrimers.removeValue(forKey: displayID) {
                 existing.stop()
             }
             Self.restoreDefault(for: displayID)
             return
         }
-
-        isBoostEnabled[displayID] = true
-        boostMultiplier[displayID] = clamped
 
         if let existing = activePrimers[displayID] {
             existing.updateMultiplier(clamped, animated: animated)
