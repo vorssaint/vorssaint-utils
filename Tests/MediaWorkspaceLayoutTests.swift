@@ -32,7 +32,7 @@ enum MediaWorkspaceLayoutTests {
         lazy var service = Presentation(archives)
     }
 
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         func settle(_ condition: () -> Bool) -> Bool {
             let deadline = Date().addingTimeInterval(2)
             while !condition(), Date() < deadline {
@@ -51,21 +51,21 @@ enum MediaWorkspaceLayoutTests {
         }))
         host.frame = CGRect(x: 0, y: 0, width: 380, height: 700)
         host.layoutSubtreeIfNeeded()
-        expect(settle { measured == 246 },
+        suite.expect(settle { measured == 246 },
                "embedded media reports the intrinsic height of header, picker, spacing and content instead of the viewport")
         for height: CGFloat in [80, 550, 180] {
             fixture.height = height
             host.layoutSubtreeIfNeeded()
-            expect(settle { measured == height + 66 },
+            suite.expect(settle { measured == height + 66 },
                    "media's reported height follows options and results as they grow or shrink")
-            expect(fileView.service.heights.last == measured,
+            suite.expect(fileView.service.heights.last == measured,
                    "the native window receives its new size in the measurement callback, before a later preferences refresh")
         }
         let frames = fileView.service.heights
         fileView.mediaHeightChanged(measured, id: sessionID)
         fileView.mediaHeightChanged(999, id: UUID())
         fileView.mediaHeightChanged(.nan, id: sessionID)
-        expect(fileView.service.heights == frames,
+        suite.expect(fileView.service.heights == frames,
                "duplicate, invalid and stale measurements never restart the resize")
 
         let selection = Selection()
@@ -76,11 +76,11 @@ enum MediaWorkspaceLayoutTests {
             let previous = selection.tool
             selection.events = []
             picker.selectedToolBinding.wrappedValue = tool
-            expect(selection.events == ["transition:\(previous.rawValue)", "content:\(tool.rawValue)"],
+            suite.expect(selection.events == ["transition:\(previous.rawValue)", "content:\(tool.rawValue)"],
                    "each tool change captures the old content for its transition before replacing the controls")
             selection.events = []
             picker.selectedToolBinding.wrappedValue = tool
-            expect(selection.events.isEmpty, "reselecting the current tool does not reset work or restart its animation")
+            suite.expect(selection.events.isEmpty, "reselecting the current tool does not reset work or restart its animation")
         }
 
         func types(in view: NSView) -> Set<NSPasteboard.PasteboardType> {
@@ -92,12 +92,12 @@ enum MediaWorkspaceLayoutTests {
             input.layoutSubtreeIfNeeded()
             _ = input.fittingSize
             if embedded {
-                expect(types(in: input).isEmpty,
+                suite.expect(types(in: input).isEmpty,
                        "embedded media leaves file drops to the island's destination chooser")
             } else {
                 // SwiftUI registers broad transport types and filters the
                 // requested file URL type in its own drop coordinator.
-                expect(settle { !types(in: input).isEmpty },
+                suite.expect(settle { !types(in: input).isEmpty },
                        "standalone media retains its native direct file drop target")
             }
         }

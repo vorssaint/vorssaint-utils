@@ -191,14 +191,31 @@ struct QuickLauncherView: View {
         .accessibilityLabel(l10n.s.obBack)
     }
 
-    private var grid: some View {
-        LazyVGrid(columns: columns, spacing: notchSize == nil ? 10 : 6) {
-            ForEach(launcher.visibleItems) { item in
-                PanelReorderableItem(item: item,
-                                     isEnabled: launcher.isEditing,
-                                     order: launcher.itemOrderBinding,
-                                     dragging: $draggingItem) {
-                    cell(item)
+    /// Inside the island the tiles fill the rows its height allows and run
+    /// sideways; editing keeps the grid, whose reorder targets need every
+    /// tile in view.
+    @ViewBuilder private var grid: some View {
+        if let notchSize, !launcher.isEditing {
+            let rows = NotchLayout.railRows(count: launcher.visibleItems.count,
+                                            perRow: NotchLayout.railCapacity(width: notchSize.width, itemWidth: NotchLayout.toolWidth,
+                                                                             spacing: NotchLayout.toolSpacing),
+                                            rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: notchSize.height)
+            NotchRail(items: launcher.visibleItems, rows: rows, itemWidth: NotchLayout.toolWidth, width: notchSize.width,
+                      spacing: NotchLayout.toolSpacing, rowSpacing: NotchLayout.toolSpacing,
+                      scrollTarget: launcher.selectedIndex.flatMap { index in
+                          launcher.visibleItems.indices.contains(index) ? launcher.visibleItems[index].id : nil
+                      }) { item in
+                cell(item).frame(height: NotchLayout.toolHeight)
+            }
+        } else {
+            LazyVGrid(columns: columns, spacing: notchSize == nil ? 10 : 6) {
+                ForEach(launcher.visibleItems) { item in
+                    PanelReorderableItem(item: item,
+                                         isEnabled: launcher.isEditing,
+                                         order: launcher.itemOrderBinding,
+                                         dragging: $draggingItem) {
+                        cell(item)
+                    }
                 }
             }
         }

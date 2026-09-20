@@ -243,6 +243,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "ポインタをアイコンに置いてからパネルが開くまでの時間です。",
         dockPreviewQuitAppOnClose: "× ボタンでアプリを終了",
         dockPreviewQuitAppOnCloseCaption: "Dock Preview では、× はそのウインドウだけを閉じる代わりにアプリ全体を終了します。",
+        dockPreviewKeepDockVisible: "Dockを表示したままにする（実験的）",
+        dockPreviewKeepDockVisibleCaption: "プレビューが開いている間は自動非表示を一時停止し、離れると元に戻します。ウインドウのサイズが変わる場合があります。アプリが中断した場合は、再度開いてDockの設定を復元してください。",
         dockPreviewOrderByCreation: "ウインドウを作成順に並べる",
         dockPreviewOrderByCreationCaption: "最近使ったものではなく、古いウインドウから順に表示します。",
         dockClickMinimize: "Dock クリックでしまう",

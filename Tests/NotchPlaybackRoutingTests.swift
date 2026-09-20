@@ -85,7 +85,7 @@ enum NotchPlaybackRoutingContract {
 }
 
 enum NotchPlaybackRoutingTests {
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         typealias Adapter = NotchPlaybackRoutingContract
         let musicPath = NSObject()
         let otherPath = NSObject()
@@ -94,59 +94,59 @@ enum NotchPlaybackRoutingTests {
         _ = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY)
         let first = Adapter.makeTarget(Adapter.NSRunningApplication(bundleIdentifier: "test.music", processIdentifier: 101))
         let second = Adapter.makeTarget(Adapter.NSRunningApplication(bundleIdentifier: "test.video", processIdentifier: 202))
-        expect(first != nil && second != nil && first?.path !== second?.path,
+        suite.expect(first != nil && second != nil && first?.path !== second?.path,
                "constructing a second destination never mutates the native path of the first player")
         let firstClient = first?.path.perform(NSSelectorFromString("client"))?.takeUnretainedValue() as? NSObject
-        expect(firstClient?.value(forKey: "processIdentifier") as? Int == 101,
+        suite.expect(firstClient?.value(forKey: "processIdentifier") as? Int == 101,
                "the first destination retains its process after another candidate is created")
         Adapter.available = true
         var title: String?
         Adapter.readInfo(music, artwork: true, queue: Adapter.callbacks) { info in
             title = info?["kMRMediaRemoteNowPlayingInfoTitle"] as? String
         }
-        expect(Adapter.destination === musicPath && title == "Selected track" && Adapter.requestedArtwork,
+        suite.expect(Adapter.destination === musicPath && title == "Selected track" && Adapter.requestedArtwork,
                "metadata and artwork are requested from the selected music path")
         Adapter.supportedCommands(music, queue: Adapter.callbacks) { _ in }
-        expect(Adapter.destination === musicPath, "seek availability belongs to the selected player")
+        suite.expect(Adapter.destination === musicPath, "seek availability belongs to the selected player")
         for command: Int32 in [2, 4, 5, 24, 131] {
             let options = ["position": 37] as CFDictionary
-            expect(Adapter.send(command, options: options, to: music), "the selected player accepts the transport request")
-            expect(Adapter.destination === musicPath && Adapter.command == command
+            suite.expect(Adapter.send(command, options: options, to: music), "the selected player accepts the transport request")
+            suite.expect(Adapter.destination === musicPath && Adapter.command == command
                    && (Adapter.options as? [String: Any])?["position"] as? Int == 37
                    && (Adapter.options as? [String: Any])?["kMRMediaRemoteOptionNowPlayingContentItemID"] as? String == "fixture",
                    "playback, seeking and queue commands retain their selected destination and options")
         }
         _ = Adapter.send(2, to: other)
-        expect(Adapter.destination === otherPath, "an explicit new selection changes the command destination")
+        suite.expect(Adapter.destination === otherPath, "an explicit new selection changes the command destination")
         Adapter.destination = nil
-        expect(!Adapter.send(2, to: Adapter.Target(path: musicPath, isRunning: false)) && Adapter.destination == nil,
+        suite.expect(!Adapter.send(2, to: Adapter.Target(path: musicPath, isRunning: false)) && Adapter.destination == nil,
                "a closed or replaced process never receives a command or falls back to the system player")
         Adapter.available = false
-        expect(!Adapter.send(2, to: music) && Adapter.destination == nil,
+        suite.expect(!Adapter.send(2, to: music) && Adapter.destination == nil,
                "a missing targeted transport never sends a global media command")
         var cleared = false
         Adapter.readInfo(music, artwork: false, queue: Adapter.callbacks) { cleared = $0 == nil }
-        expect(cleared && Adapter.destination == nil, "an unavailable targeted reader clears the result without reading another player")
+        suite.expect(cleared && Adapter.destination == nil, "an unavailable targeted reader clears the result without reading another player")
         Adapter.available = true
         Adapter.sendError = 7
-        expect(!Adapter.send(2, to: music), "a rejected native command is not reported as delivered")
+        suite.expect(!Adapter.send(2, to: music), "a rejected native command is not reported as delivered")
         Adapter.sendError = 0
         Adapter.sendResponses = nil
-        expect(!Adapter.send(2, to: music), "a native send without a handler result cannot claim delivery")
+        suite.expect(!Adapter.send(2, to: music), "a native send without a handler result cannot claim delivery")
         Adapter.sendResponses = [0]
         var unavailable = music
         unavailable.allowsDirectCommands = false
         Adapter.command = nil
-        expect(!Adapter.send(2, to: unavailable) && Adapter.command == nil,
+        suite.expect(!Adapter.send(2, to: unavailable) && Adapter.command == nil,
                "an unsupported native target never falls back to the global player's transport")
         var unidentified = music
         unidentified.itemIdentifier = nil
-        expect(!Adapter.send(2, to: unidentified) && Adapter.command == nil,
+        suite.expect(!Adapter.send(2, to: unidentified) && Adapter.command == nil,
                "native commands require the receiver's content identity")
-        recordingContext(expect: expect)
+        recordingContext(suite)
     }
 
-    private static func recordingContext(expect: (Bool, String) -> Void) {
+    private static func recordingContext(_ suite: TestSuite) {
         typealias Adapter = NotchPlaybackRoutingContract
         let musicPath = NSObject(), otherPath = NSObject()
         let music = Adapter.Target(pid: 10, path: musicPath)
@@ -175,59 +175,59 @@ enum NotchPlaybackRoutingTests {
         let validation = UUID()
         Adapter.command = nil
         Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .validate(validation, first)))
-        expect(Adapter.reply["validationRequest"] as? String == validation.uuidString
+        suite.expect(Adapter.reply["validationRequest"] as? String == validation.uuidString
                && Adapter.reply["validationOK"] as? Bool == true && Adapter.command == nil,
                "automation validation checks context without sending a playback command")
-        expect(Adapter.publish(music, info: info("A")) == first,
+        suite.expect(Adapter.publish(music, info: info("A")) == first,
                "ordinary updates of an identified recording keep its control revision stable")
         for command in [NotchPlaybackCommand.toggle, .next, .previous, .seek(75)] {
-            expect(send(command, first) && Adapter.destination === musicPath,
+            suite.expect(send(command, first) && Adapter.destination === musicPath,
                    "stable commands validate and reach the displayed recording without selecting another source")
         }
         let otherContext = prepare(other, info("B"))
         for command in [NotchPlaybackCommand.toggle, .next, .previous, .seek(75)] {
-            expect(!send(command, first), "pending controls cannot be redirected after the chosen process changes")
+            suite.expect(!send(command, first), "pending controls cannot be redirected after the chosen process changes")
         }
-        expect(send(.toggle, otherContext), "a deliberate new snapshot can control its own process")
+        suite.expect(send(.toggle, otherContext), "a deliberate new snapshot can control its own process")
         let current = prepare(music, info("A"))
         let next = prepare(music, info("C"))
-        expect(current != next && !send(.seek(90), current),
+        suite.expect(current != next && !send(.seek(90), current),
                "a new item with identical title and process cannot inherit an old scrub")
 
         let beforeNativeChange = prepare(music, info("A"))
         Adapter.metadata[ObjectIdentifier(musicPath)] = info("C")
-        expect(!send(.seek(90), beforeNativeChange),
+        suite.expect(!send(.seek(90), beforeNativeChange),
                "a player change preceding its notification is detected by fresh metadata before sending")
         Adapter.metadata[ObjectIdentifier(musicPath)] = info("A")
         Adapter.beforeRead = { _ = prepare(other, info("B")) }
-        expect(!send(.next, beforeNativeChange), "a selection changed during validation cannot authorize the old action")
+        suite.expect(!send(.next, beforeNativeChange), "a selection changed during validation cannot authorize the old action")
         Adapter.beforeRead = nil
 
         let noID = prepare(music, info(nil))
-        expect(Adapter.validatedTarget(for: noID) != nil && !send(.seek(30), noID),
+        suite.expect(Adapter.validatedTarget(for: noID) != nil && !send(.seek(30), noID),
                "a player without content identifiers can be validated for automation but is not sent an unsafe native command")
         var progress = info(nil)
         progress["kMRMediaRemoteNowPlayingInfoElapsedTime"] = 45
         progress["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
         let refreshed = prepare(music, progress)
-        expect(noID == refreshed && Adapter.validatedTarget(for: noID) != nil,
+        suite.expect(noID == refreshed && Adapter.validatedTarget(for: noID) != nil,
                "position and play/pause updates without an item ID preserve an ongoing scrub")
         Adapter.metadata[ObjectIdentifier(musicPath)] = info(nil, title: "Changed recording")
-        expect(!send(.seek(30), refreshed), "unidentified playback also compares fresh recording metadata")
+        suite.expect(!send(.seek(30), refreshed), "unidentified playback also compares fresh recording metadata")
         let changedNoID = prepare(music, info(nil, title: "Changed recording"))
-        expect(changedNoID != refreshed && Adapter.validatedTarget(for: refreshed) == nil
+        suite.expect(changedNoID != refreshed && Adapter.validatedTarget(for: refreshed) == nil
                && Adapter.validatedTarget(for: changedNoID) != nil,
                "an observable recording change without an item ID advances the revision and rejects an old gesture")
         let stopped = prepare(Adapter.Target(pid: 10, path: musicPath, isRunning: false), info("A"))
-        expect(!send(.toggle, stopped), "terminated players cannot receive a validated action")
+        suite.expect(!send(.toggle, stopped), "terminated players cannot receive a validated action")
 
         let request = UUID()
         let selection = NotchQueueSelection(requestID: request, pid: 10, currentIdentifier: "A", itemIdentifier: "B", offset: 1)
         Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .queue(request)))
         Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .queuePlay(selection)))
-        expect(Adapter.NotchNativeQueue.request == request && Adapter.NotchNativeQueue.selection == selection,
+        suite.expect(Adapter.NotchNativeQueue.request == request && Adapter.NotchNativeQueue.selection == selection,
                "queue queries and their immutable selections retain their existing native route")
         Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .queueStop))
-        expect(Adapter.NotchNativeQueue.request == nil, "queue-stop still cancels without requiring a playing track")
+        suite.expect(Adapter.NotchNativeQueue.request == nil, "queue-stop still cancels without requiring a playing track")
     }
 }

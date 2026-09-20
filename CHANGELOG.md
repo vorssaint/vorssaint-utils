@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher improves multi-window browsing and keeps newly opened windows in front, while shortcut fields can take over macOS shortcuts. The mixer adds microphone volume; Dynamic Island gains notification previews, discovery, a stopwatch, sound-following bars and a Scratchpad shortcut; Command Bar expands emoji, calculations and keyboard layouts; utilities add clipboard previews, port management, arrow styles, home-folder installs and sideways scrolling, alongside Keep Awake until a chosen time with stricter automation, snippet sounds, menu panel recovery, Settings back and forward, and redesigned settings.
+App Switcher shows more window previews, and shortcut fields accept macOS shortcuts. The mixer adds microphone volume; Dynamic Island adds a compact layout, notifications, discovery, a stopwatch, sound bars and embedded Scratchpad; Command Bar expands emoji, calculations and layouts; utilities add Dock visibility holds, clipboard previews, port management, arrow styles, home-folder installs and sideways scrolling, alongside scheduled Keep Awake with stricter automation and restored lid sleep, snippet sounds, menu recovery and redesigned settings with back and forward navigation.
 
 ### Added
+- Dock Preview can experimentally keep the Dock visible while previews are open, off by default under More options.
 - Uninstalling Dynamic Island offers to uninstall its extensions along with it or to keep them installed.
 - Adjust microphone input volume from the mixer, with an editable percentage on supported devices. Thanks to @GolamRafi27oo.
 - Window Layout can center a window at two-thirds of the screen width in one action. Thanks to @Borisserz.
@@ -37,6 +38,7 @@ App Switcher improves multi-window browsing and keeps newly opened windows in fr
 - Dynamic Island's controls can show a Scratchpad shortcut that opens the pad in one click, enabled under Content in its settings. Thanks to @sarat03.
 
 ### Changed
+- App Switcher uses available space to show more previews when cycling through the current app's windows. Thanks to @EugeneCarldotme.
 - Settings use visual choices, cards and switches across the main pages, with live previews for the menu bar and panel.
 - Settings search highlights the selected section, and Mouse & Trackpad offers direct links to each available feature.
 - Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
@@ -45,13 +47,15 @@ App Switcher improves multi-window browsing and keeps newly opened windows in fr
 - Compact music, timer and download indicators keep clear of Dynamic Island’s curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
 - Dynamic Island shows Keep open directly in its header, and Settings appears there when its floating button is removed.
-- Dynamic Island's custom height goes down to 260 points, so the island can stay small; pages that need more room scroll inside it.
+- Dynamic Island opens as a wide strip with sideways cards, mixer faders, compact calendar and timer controls, and an embedded Scratchpad.
+- Dynamic Island's custom height goes down to 260 points, so the island can stay small; the pages adapt their rows to the chosen height.
 - Opening Dynamic Island while it shows music, a timer, a download or a notification goes to that activity; the reopening preference applies only at rest.
 - Dismissing the original system banner now waits briefly, allowing short alert sounds to finish.
 - Keyboard debounce windows adjust in 1 ms steps, reaching values below 5 ms for magnetic keyboards. Thanks to @Borisserz.
 - The media tools describe each compression level under the Low, Medium and High buttons. Thanks to @samanyudas.
 
 ### Fixed
+- Keep Awake restores lid sleep after a timer or battery cutoff, respecting macOS sleep protections. Thanks to @NongKnot.
 - Dynamic Island shows a video playing in a browser even when a music app is open but stopped. Thanks to @ruvelro.
 - Stopping Music from opening on its own again catches launches from headphones connecting or their buttons, and no longer needs Accessibility.
 - Muting every microphone now releases a headset that connected while muted, and one unplugged during the mute once it returns.

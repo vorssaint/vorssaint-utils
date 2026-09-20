@@ -57,6 +57,27 @@ struct NotchPomodoroConfiguration: Equatable {
     }
 }
 
+/// Every value accepted by the saved configuration remains selectable.
+enum NotchPomodoroOption: CaseIterable, Identifiable {
+    case focus, shortBreak, longBreak, longBreakInterval, totalSessions
+    var id: Self { self }
+
+    var range: ClosedRange<Int> {
+        switch self {
+        case .focus: return NotchPomodoroConfiguration.focusRange
+        case .shortBreak, .longBreak: return NotchPomodoroConfiguration.breakRange
+        case .longBreakInterval, .totalSessions: return NotchPomodoroConfiguration.sessionRange
+        }
+    }
+
+    var isDuration: Bool {
+        switch self {
+        case .focus, .shortBreak, .longBreak: return true
+        case .longBreakInterval, .totalSessions: return false
+        }
+    }
+}
+
 /// The anchor is an injected, continuous time coordinate: a countdown's
 /// deadline, or the instant a stopwatch read zero. UI refreshes and delayed
 /// callbacks never subtract ticks, so sleep and busy frames cannot drift.
@@ -160,14 +181,21 @@ enum NotchTimerSupport {
             && NotchSupport.modules(in: defaults).contains(.timer)
     }
 
-    /// The mode pill sizes each label to its text, so the three modes fit the
-    /// narrowest island in every language where equal segments would not.
+    /// The modes read as three words in a row, the current one underlined,
+    /// each as wide as its text, so the three fit the narrowest island in
+    /// every language where equal segments would not.
     enum ModePicker {
-        static let height: CGFloat = 30
-        static let inset: CGFloat = 3
-        static let spacing: CGFloat = 2
+        static let height: CGFloat = 24
+        static let spacing: CGFloat = 14
         static let labelSize: CGFloat = 12
-        static let labelPadding: CGFloat = 10
+        static let labelPadding: CGFloat = 4
+    }
+
+    /// The start capsule beside the mode row; the test measures both against the
+    /// width the wide layout starts at, in every language.
+    enum StartButton {
+        static let labelSize: CGFloat = 14
+        static let padding: CGFloat = 18
     }
 
     static let timerLimit: TimeInterval = 180 * 60

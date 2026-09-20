@@ -39,7 +39,7 @@ struct NotchCaptureControlsView: View {
                 ForEach(options.showsCaptureMenu ? options.availableTools : [options.selectedTool], id: \.self) { tool in
                     NotchActionTile(symbol: tool.systemImageName,
                                     title: tool.settingsTitle(l10n.s, language: l10n.language),
-                                    active: options.selectedTool == tool, stacked: true) { options.select(tool) }
+                                    active: options.selectedTool == tool) { options.select(tool) }
                         .focused($focusedControl, equals: .tool(tool))
                 }
             }
