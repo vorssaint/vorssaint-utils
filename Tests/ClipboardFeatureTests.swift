@@ -13,6 +13,7 @@ import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
     static func run(_ suite: TestSuite) {
+        ClipboardPreviewContract.run(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
@@ -620,5 +621,52 @@ enum ClipboardFeatureTests {
         suite.expect(pastePlainSource.contains("GeneralPasteboardAccess.shared.async"),
                "paste as plain text reads the clipboard on the lane, not on the main thread")
 
+    }
+}
+
+/// History mutations run their production observer without touching the system
+/// pasteboard. A saved-text edit must not claim that the clipboard changed.
+enum ClipboardPreviewContract {
+    class Fixture {
+        var latestPasteboardEntry: ClipboardHistoryEntry?
+        var entriesStamp = 0
+        func trimToLimit() {}
+        func save() {}
+    }
+
+    static func run(_ suite: TestSuite) {
+        let current = ClipboardHistoryEntry(text: "Actual clipboard text")
+        let other = ClipboardHistoryEntry(text: "Another saved copy")
+        let service = Service()
+        service.setEntries([current, other])
+        service.latestPasteboardEntry = current
+        suite.expect(service.updateText(other, to: "Edited unrelated item")
+                     && service.latestPasteboardEntry == current,
+                     "editing another history item preserves the actual latest copy")
+        suite.expect(service.updateText(current, to: current.text)
+                     && service.latestPasteboardEntry == current,
+                     "accepting an unchanged history item preserves its clipboard preview")
+        var pinned = current
+        pinned.pinnedAt = Date()
+        service.setEntries([pinned, other])
+        suite.expect(service.latestPasteboardEntry == pinned,
+                     "changing pin metadata retains the preview of identical copied content")
+        suite.expect(service.updateText(pinned, to: "Edited but never copied")
+                     && service.entries.first?.text == "Edited but never copied"
+                     && service.latestPasteboardEntry == nil,
+                     "editing the current saved item cannot advertise text that was never copied")
+        service.setEntries([current, other])
+        service.latestPasteboardEntry = current
+        service.setEntries([other])
+        suite.expect(service.latestPasteboardEntry == nil,
+                     "removing the current entry still clears its menu-bar preview")
+        let image = ClipboardHistoryEntry(text: "", kind: .image, imageFile: "saved.png")
+        service.setEntries([image])
+        service.latestPasteboardEntry = image
+        var pinnedImage = image
+        pinnedImage.pinnedAt = Date()
+        service.setEntries([pinnedImage])
+        suite.expect(service.latestPasteboardEntry == pinnedImage,
+                     "immutable image content keeps its preview even when a legacy entry lacks a hash")
     }
 }

@@ -13,6 +13,7 @@ import VMStatisticsCompat
 
 enum CommandBarFeatureTests {
     static func run(_ suite: TestSuite) {
+        CommandBarInputSourceContract.run(suite)
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }
@@ -1842,5 +1843,96 @@ enum CommandBarFeatureTests {
                    "\(pass) stores the whole sample before it decides whether the rows changed")
         }
 
+    }
+}
+
+typealias ProductionInputSourceSelection = InputSourceSelection
+
+/// Production borrow/restore methods with an inert input source and controlled
+/// next-turn delivery; the machine's keyboard layout is never changed.
+enum CommandBarInputSourceContract {
+    enum Preferences {
+        static var standard: Preferences.Type { Self.self }
+        static var enabled = true
+        static func bool(forKey: String) -> Bool { enabled }
+    }
+    enum Sources {
+        static var current = "original"
+        static var acceptsSelection = true
+        static var selected: [String] = []
+        static func currentSourceID() -> String? { current }
+        static func snapshots() -> [ProductionInputSourceSelection.Snapshot] {
+            [.init(id: "original", isLayout: true, isASCIICapable: false),
+             .init(id: "ascii", isLayout: true, isASCIICapable: true)]
+        }
+        static func asciiLayoutID(currentID: String?,
+                                  snapshots: [ProductionInputSourceSelection.Snapshot]) -> String? {
+            ProductionInputSourceSelection.asciiLayoutID(currentID: currentID, snapshots: snapshots)
+        }
+        static func select(sourceID: String) -> Bool {
+            guard acceptsSelection else { return false }
+            current = sourceID
+            selected.append(sourceID)
+            return true
+        }
+    }
+    enum Queue {
+        static var main: Queue.Type { Self.self }
+        static var jobs: [() -> Void] = []
+        static func async(execute action: @escaping () -> Void) { jobs.append(action) }
+        static func sync(execute action: () -> Void) { action() }
+        static func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
+    }
+    class Fixture {
+        typealias UserDefaults = Preferences
+        typealias InputSourceSelection = Sources
+        typealias DispatchQueue = Queue
+        var suspendedInputSourceID: String?
+        var presentationID = UUID()
+    }
+    static func run(_ suite: TestSuite) {
+        defer { Queue.jobs = []; Sources.selected = []; Sources.acceptsSelection = true; Preferences.enabled = true }
+        func reset() -> Service {
+            Queue.jobs = []
+            Sources.current = "original"
+            Sources.selected = []
+            Sources.acceptsSelection = true
+            Preferences.enabled = true
+            return Service()
+        }
+        let normal = reset()
+        normal.adoptASCIIInputSource()
+        normal.restoreSuspendedInputSource()
+        suite.expect(Sources.current == "ascii", "closing inside a key event defers keyboard restoration")
+        Queue.drain()
+        suite.expect(Sources.selected == ["ascii", "original"] && normal.suspendedInputSourceID == nil,
+                     "ordinary close restores the original layout exactly once")
+        let reopened = reset()
+        reopened.adoptASCIIInputSource()
+        reopened.restoreSuspendedInputSource()
+        reopened.presentationID = UUID()
+        reopened.adoptASCIIInputSource()
+        Queue.drain()
+        suite.expect(Sources.current == "ascii", "a stale close cannot switch the layout under the reopened bar")
+        reopened.restoreSuspendedInputSource()
+        reopened.restoreSuspendedInputSource()
+        Queue.drain()
+        suite.expect(Sources.selected == ["ascii", "original"] && reopened.suspendedInputSourceID == nil,
+                     "closing after a fast reopen restores the original layout without duplicate switches")
+        for alreadyASCII in [false, true] {
+            let untouched = reset()
+            if alreadyASCII { Sources.current = "ascii" } else { Preferences.enabled = false }
+            untouched.adoptASCIIInputSource()
+            untouched.restoreSuspendedInputSource()
+            Queue.drain()
+            suite.expect(Sources.selected.isEmpty, "an ASCII or opted-out opening leaves the keyboard alone")
+        }
+        let refused = reset()
+        Sources.acceptsSelection = false
+        refused.adoptASCIIInputSource()
+        refused.restoreSuspendedInputSource()
+        Queue.drain()
+        suite.expect(Sources.current == "original" && refused.suspendedInputSourceID == nil,
+                     "a refused source switch never creates a restoration obligation")
     }
 }

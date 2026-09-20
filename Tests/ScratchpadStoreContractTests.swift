@@ -9,10 +9,12 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+import UniformTypeIdentifiers
 import VMStatisticsCompat
 
 enum ScratchpadStoreContractTests {
     static func run(_ suite: TestSuite) {
+        ScratchpadExportContract.run(suite)
         let manager = FileManager.default
         let now = Date(timeIntervalSince1970: 1_784_000_000)
         let original = ScratchpadDocument.initial(defaultName: "Scratchpad", text: "Keep these notes",
@@ -183,6 +185,140 @@ enum ScratchpadStoreContractTests {
                     && !unavailable.save(empty)
                     && defaults.data(forKey: DefaultsKey.scratchpadDocument) == originalData,
                    "an unavailable private container never discards stored notes")
+        }
+    }
+}
+
+/// The production export method runs against inert window and panel doubles.
+/// No system dialog opens, and writes stay inside a disposable directory.
+enum ScratchpadExportContract {
+    final class Window {
+        var isVisible = true
+        var focusCount = 0
+        func makeKey() { focusCount += 1 }
+    }
+    final class Application {
+        var keyWindow: Window?
+        var currentEvent: Event?
+        struct Event { let window: Window? }
+        func activate(ignoringOtherApps: Bool) {}
+    }
+    final class Panel {
+        static var latest: Panel?
+        var allowedContentTypes: [UTType] = []
+        var canCreateDirectories = false
+        var isExtensionHidden = true
+        var nameFieldStringValue = ""
+        var url: URL?
+        var parent: Window?
+        var modalCalls = 0
+        var response: NSApplication.ModalResponse = .cancel
+        var completion: ((NSApplication.ModalResponse) -> Void)?
+        init() { Self.latest = self }
+        func runModal() -> NSApplication.ModalResponse { modalCalls += 1; return response }
+        func beginSheetModal(for parent: Window,
+                             completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
+            self.parent = parent
+            completion = completionHandler
+        }
+        func finish(_ response: NSApplication.ModalResponse) {
+            let callback = completion
+            completion = nil
+            callback?(response)
+        }
+    }
+    enum Queue {
+        static var main: Queue.Type { Self.self }
+        static var jobs: [() -> Void] = []
+        static func async(execute action: @escaping () -> Void) { jobs.append(action) }
+        static func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
+    }
+    final class Island {
+        static let shared = Island()
+        var presentationWindow: Window?
+    }
+    enum HUD {
+        static var errors = 0
+        static func show(icon: String, message: String) { errors += 1 }
+    }
+    class Fixture {
+        typealias NSSavePanel = Panel
+        typealias DispatchQueue = Queue
+        typealias NotchService = Island
+        typealias QuickToolHUD = HUD
+        var NSApp = Application()
+        var text = "Notes to export"
+        var modalInteractionActive = false
+        var flushes = 0
+        func flushSave() { flushes += 1 }
+    }
+
+    static func run(_ suite: TestSuite) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            Queue.jobs = []
+            Panel.latest = nil
+            Island.shared.presentationWindow = nil
+            try? FileManager.default.removeItem(at: root)
+        }
+        do {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            for host in ["island key", "island event", "floating"] {
+                for response in [NSApplication.ModalResponse.cancel, .OK] {
+                    let service = Service()
+                    let island = Window()
+                    let floating = Window()
+                    Island.shared.presentationWindow = island
+                    service.NSApp.keyWindow = host == "island key" ? island : floating
+                    if host == "island event" {
+                        service.NSApp.currentEvent = Application.Event(window: island)
+                    }
+                    let destination = root.appendingPathComponent("notes.txt")
+                    try "Previous file".write(to: destination, atomically: true, encoding: .utf8)
+                    service.exportText(suggestedName: "Notes.txt")
+                    guard let panel = Panel.latest else {
+                        suite.expect(false, "export prepares its save panel")
+                        continue
+                    }
+                    suite.expect(service.modalInteractionActive && service.flushes == 1,
+                                 "export protects its document while a dialog is pending")
+                    service.exportText(suggestedName: "Duplicate.txt")
+                    suite.expect(Panel.latest === panel, "a pending export cannot open a second dialog")
+                    panel.url = destination
+                    panel.response = response
+                    service.text = "A later edit"
+                    if host == "floating" {
+                        suite.expect(panel.parent == nil, "the floating pad retains its independent dialog")
+                        Queue.drain()
+                        suite.expect(panel.modalCalls == 1 && floating.focusCount == 1 && island.focusCount == 0,
+                                     "floating-pad export returns focus only to its own host")
+                    } else {
+                        suite.expect(panel.parent === island && panel.modalCalls == 0,
+                                     "island export attaches above its host instead of opening behind it")
+                        panel.finish(response)
+                        suite.expect(island.focusCount == 0, "sheet completion defers focus until dismissal finishes")
+                        Queue.drain()
+                        suite.expect(island.focusCount == 1 && floating.focusCount == 0,
+                                     "island export returns focus to the island even when its menu supplied the event")
+                    }
+                    suite.expect(!service.modalInteractionActive, "completion releases the export guard")
+                    let saved = try String(contentsOf: destination, encoding: .utf8)
+                    suite.expect(saved == (response == .OK ? "Notes to export" : "Previous file"),
+                                 "export preserves its captured text and cancellation never writes")
+                }
+            }
+            let service = Service()
+            let island = Window()
+            Island.shared.presentationWindow = island
+            service.NSApp.keyWindow = island
+            service.exportText(suggestedName: "Notes.txt")
+            island.isVisible = false
+            Panel.latest?.finish(.cancel)
+            Queue.drain()
+            suite.expect(island.focusCount == 0 && !service.modalInteractionActive,
+                         "closing the island during export does not resurrect its window")
+        } catch {
+            suite.expect(false, "export fixture completes: \(error)")
         }
     }
 }

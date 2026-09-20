@@ -38,8 +38,16 @@ struct PortManagerView: View {
             .padding(9).background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 9))
             .padding(.horizontal, 14).padding(.bottom, 8)
             Divider()
+            if service.refreshFailed {
+                Label(strings.loadFailed, systemImage: "exclamationmark.triangle")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+            }
             if service.filteredEntries.isEmpty {
-                if service.hasLoadedOnce {
+                if service.refreshFailed {
+                    Spacer()
+                } else if service.hasLoadedOnce {
                     emptyState
                 } else {
                     loadingState

@@ -409,7 +409,8 @@ private struct NotchAppFader: View {
             } else {
                 NotchLevelSlider(value: Binding(get: { app.volume }, set: { mixer.setVolume($0, for: app) }),
                                  label: app.name, range: 0...AppVolumeMixer.maxVolume,
-                                 tint: boosting ? .orange : .white, vertical: true, marker: 1)
+                                 tint: boosting ? .orange : .white, vertical: true, marker: 1,
+                                 valueLabel: "\(percent)%")
                     .frame(width: 24)
                     .frame(maxHeight: .infinity)
                 HStack(spacing: 0) {

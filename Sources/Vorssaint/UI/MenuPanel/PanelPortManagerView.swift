@@ -17,6 +17,13 @@ struct PanelPortManagerView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             controls
+            if service.refreshFailed {
+                Label(strings.loadFailed, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .panelCard()
+            }
             entriesList
         }
         .onAppear {
@@ -99,7 +106,9 @@ struct PanelPortManagerView: View {
     @ViewBuilder
     private var entriesList: some View {
         if service.filteredEntries.isEmpty {
-            if service.hasLoadedOnce {
+            if service.refreshFailed {
+                EmptyView()
+            } else if service.hasLoadedOnce {
                 emptyState
             } else {
                 loadingState

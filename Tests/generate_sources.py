@@ -90,6 +90,37 @@ def main():
           + "}\nextension SwitcherActivationTests.Bridge {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
                         "    static func frontWindow(") + "}\n")
+    write("ScratchpadExport.swift", "import AppKit\nimport Foundation\n"
+          + "extension ScratchpadExportContract {\nfinal class Service: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
+                        "    func exportText(")
+          + "}\n}\n")
+    write("NotchAudioLevelLifecycle.swift", "import Combine\nimport Foundation\n"
+          + "extension NotchAudioLevelLifecycleContract {\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchAudioLevelService.swift",
+                        "final class NotchAudioLevelService:")
+          + "}\n")
+    clipboard = "Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift"
+    write("ClipboardPreview.swift", "import Foundation\nimport Combine\n"
+          + "extension ClipboardPreviewContract {\nfinal class Service: Fixture {\n"
+          + declaration(clipboard, "    @Published private(set) var entries:")
+          + declaration(clipboard, "    func updateText(")
+          + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
+          + "}\n}\n")
+    write("CommandBarInputSource.swift", "import Foundation\n"
+          + "extension CommandBarInputSourceContract {\nfinal class Service: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    private func adoptASCIIInputSource(",
+                        "    private func restoreSuspendedInputSource("])
+          + "}\n}\n")
+    ports = "Sources/Vorssaint/Services/PortManager/PortManagerService.swift"
+    write("PortManagerRefresh.swift", "import Darwin\nimport Foundation\n"
+          + "extension PortManagerRefreshTests {\nfinal class Service: Fixture {\n"
+          + declaration(ports, "    func refresh(")
+          + declaration(ports, "    private static func snapshot(").replace("private static", "static", 1)
+          + declaration(ports, "    private static func startTimes(").replace("private static", "static", 1)
+          + "}\n}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
     write("CommandBarEmojiBodies.swift", "import Foundation\n"

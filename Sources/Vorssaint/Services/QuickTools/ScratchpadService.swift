@@ -289,9 +289,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         isPinned = !closesOnClickOutside
     }
 
-    /// The hosts never activate the app, and a modal dialog in an inactive app
-    /// takes no clicks or keys. Activate first and let the run loop turn, then
-    /// hand key focus back to the pad.
+    /// Activate for dialog input and return focus to the originating host.
+    /// The island needs a sheet to keep the dialog above its floating surface.
     func exportText(suggestedName: String) {
         guard !text.isEmpty, !modalInteractionActive else { return }
         modalInteractionActive = true
@@ -302,10 +301,11 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         savePanel.isExtensionHidden = false
         savePanel.nameFieldStringValue = suggestedName
         let content = text
-        let sourceWindow = NSApp.keyWindow
-        NSApp.activate(ignoringOtherApps: true)
-        DispatchQueue.main.async { [weak self] in
-            let response = savePanel.runModal()
+        let island = NotchService.shared.presentationWindow
+        let exportsFromIsland = island?.isVisible == true
+            && (NSApp.currentEvent?.window === island || NSApp.keyWindow === island)
+        let sourceWindow = exportsFromIsland ? island : NSApp.keyWindow
+        let complete: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             self?.modalInteractionActive = false
             if response == .OK, let url = savePanel.url {
                 do {
@@ -318,7 +318,17 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                         message: FeatureStrings.scratchpad(L10n.shared.language).exportFailed)
                 }
             }
-            if sourceWindow?.isVisible == true { sourceWindow?.makeKey() }
+            // Sheet dismissal restores the previous key window after completion.
+            DispatchQueue.main.async {
+                if sourceWindow?.isVisible == true { sourceWindow?.makeKey() }
+            }
+        }
+        if exportsFromIsland, let island {
+            savePanel.beginSheetModal(for: island, completionHandler: complete)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            DispatchQueue.main.async { complete(savePanel.runModal()) }
         }
     }
 

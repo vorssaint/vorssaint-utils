@@ -22,6 +22,7 @@ final class NotchAudioLevelService: ObservableObject {
     private var subscription: AnyCancellable?
     private var reader: NotchAudioLevelReader?
     private var readerPID: pid_t = 0
+    private var readerID: UUID?
     private var silence = NotchAudioLevelSupport.SilenceMemory()
     private var stopWork: DispatchWorkItem?
 
@@ -48,6 +49,7 @@ final class NotchAudioLevelService: ObservableObject {
         reader?.stop()
         reader = nil
         readerPID = 0
+        readerID = nil
         if levels != nil { levels = nil }
     }
 
@@ -71,14 +73,30 @@ final class NotchAudioLevelService: ObservableObject {
     }
 
     private func read(_ pid: pid_t, on identity: NotchMusicIdentity) {
+        // A stopped reader can finish a slow device call after its replacement
+        // has started for the same player. Only this reading may publish.
+        let id = UUID()
+        readerID = id
         let created = NotchAudioLevelReader(pid: pid, onLevels: { [weak self] next in
-            DispatchQueue.main.async { self?.receive(next, from: pid) }
+            DispatchQueue.main.async {
+                guard let self, self.readerID == id else { return }
+                self.receive(next, from: pid)
+            }
         }, onSilence: { [weak self] in
-            DispatchQueue.main.async { self?.giveUp(pid, on: identity) }
+            DispatchQueue.main.async {
+                guard let self, self.readerID == id else { return }
+                self.giveUp(pid, on: identity)
+            }
         }, onUnavailable: { [weak self] in
-            DispatchQueue.main.async { self?.release(pid) }
+            DispatchQueue.main.async {
+                guard let self, self.readerID == id else { return }
+                self.release(pid)
+            }
         }, onProcessesLeft: { [weak self] in
-            DispatchQueue.main.async { self?.restart(pid, on: identity) }
+            DispatchQueue.main.async {
+                guard let self, self.readerID == id else { return }
+                self.restart(pid, on: identity)
+            }
         })
         reader = created
         created.start()

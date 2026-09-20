@@ -47,7 +47,10 @@ struct MetricsTests {
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("features", { FeatureCatalogTests.run(suite) }),
-            ("utilities", { UtilitiesFeatureTests.run(suite) }),
+            ("utilities", {
+                UtilitiesFeatureTests.run(suite)
+                PortManagerRefreshTests.run(suite)
+            }),
             ("settings", {
                 SettingsFeatureTests.run(suite)
                 SettingsWindowTests.run { suite.expect($0, $1) }

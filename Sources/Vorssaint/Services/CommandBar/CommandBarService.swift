@@ -502,18 +502,19 @@ final class CommandBarService: ObservableObject {
 
     private func restoreSuspendedInputSource() {
         guard let sourceID = suspendedInputSourceID else { return }
-        suspendedInputSourceID = nil
         // The switch waits for the next turn of the main loop. A close reached
         // through a key (Esc, Return, ⌘,) runs inside that key event's own
         // dispatch, and TIS quietly ignores a source switch asked for there —
         // the same hide() restores fine from a click or the hotkey, which
         // stand outside any key event. Waiting is safe: the presentation id
         // is captured now, and beginPresentation replaces it on the next
-        // open, so a bar reopened before this block lands has already
-        // borrowed its own layout and a stale restore stands down.
+        // open. Keep the original source until restoration actually runs:
+        // reopening while ASCII is still active borrows the same source.
         let presentationID = self.presentationID
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.presentationID == presentationID else { return }
+            guard let self, self.presentationID == presentationID,
+                  self.suspendedInputSourceID == sourceID else { return }
+            self.suspendedInputSourceID = nil
             _ = InputSourceSelection.select(sourceID: sourceID)
         }
     }

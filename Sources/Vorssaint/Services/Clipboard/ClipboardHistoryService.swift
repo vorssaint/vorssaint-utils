@@ -29,10 +29,12 @@ final class ClipboardHistoryService: ObservableObject {
             // Keeps latestPasteboardEntry from outliving the entry it points
             // to: removing it, clearing recent/all, or trimming to a smaller
             // limit must stop the preview from claiming stale content is
-            // still the latest copy. Re-reading it here (rather than nil-ing
-            // it) also picks up an edit to that same entry's text.
+            // still the latest copy. Editing history does not rewrite the
+            // pasteboard, so only unchanged content may keep its preview.
             if let current = latestPasteboardEntry {
-                latestPasteboardEntry = entries.first(where: { $0.id == current.id })
+                latestPasteboardEntry = entries.first {
+                    $0.id == current.id && $0.text == current.text
+                }
             }
         }
     }

@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher shows more previews, and shortcut fields accept macOS shortcuts. The mixer adds microphone volume; Dynamic Island adds compact layouts, notifications, discovery, a stopwatch, sound bars, Scratchpad and optional menu overlap; Command Bar expands emoji, calculations and layouts; utilities add Dock holds preserving window sizes, clipboard previews, port management, local IP, quit protection progress, arrow styles, home-folder installs and sideways scrolling, alongside Keep Awake automation, restored lid sleep, snippet sounds, menu recovery after updates and settings history.
+App Switcher shows more previews, and shortcut fields accept macOS shortcuts. The mixer adds microphone volume; Dynamic Island adds compact layouts, notifications, discovery, a stopwatch, sound bars, Scratchpad and optional menu overlap; Command Bar expands emoji, calculations and keyboard switching; utilities add Dock holds preserving window sizes, clipboard previews, safer port management, local IP, quit protection progress, arrow styles, home-folder installs and sideways scrolling, alongside Keep Awake automation, restored lid sleep, snippet sounds, menu recovery after updates and settings history.
 
 ### Added
 - Dynamic Island can show compact activity over menus, off by default under At rest in settings.
@@ -26,14 +26,14 @@ App Switcher shows more previews, and shortcut fields accept macOS shortcuts. Th
 - Snippet and Command Bar settings show which app holds secure input when typing is blocked, with a button to bring it forward. Thanks to @tenbux.
 - Command Bar's calculator completes missing brackets, adds scientific functions, constants and notation, and Tab continues from the answer. Thanks to @DarkEden-coding.
 - Scroll sideways in any app by holding a chosen key while turning the mouse wheel, installable from Features. Thanks to @cjscld.
-- Dynamic Island's music bars can follow the player's actual sound, off by default and needing system audio permission. Thanks to @ruvelro.
+- Dynamic Island's optional music bars follow actual playback, recover after restarting and need system audio permission. Thanks to @ruvelro.
 - Dynamic Island holds notifications under the pointer and previews messages on hover, with actions to open, dismiss or browse the inbox.
 - Clicking an appointment in Dynamic Island's calendar opens it in Calendar, the way album art opens the player.
 - Shortcut fields offer to take over a macOS key, such as ⌘⇧3, while the app runs and the feature is on. Thanks to @owendaw.
-- Command Bar can switch to an ABC layout while open and restore the previous one on close, under More options. Thanks to @iva-zhu.
-- Clipboard History can show the latest copy next to the menu bar icon, with an adjustable length; clicking it opens the history. Thanks to @adnn-alc.
+- Command Bar optionally uses ABC while open and restores the previous keyboard layout on close, including quick reopenings. Thanks to @iva-zhu.
+- Clipboard History optionally shows the latest copied content beside the menu bar icon, with adjustable length. Thanks to @adnn-alc.
 - Dock Preview can order windows by creation time instead of last use, from More options in its settings. Thanks to @Borisserz.
-- Port Manager, installable from Features, lists listening ports per process, filters them and can end one through Kill Process. Thanks to @MrDXTR and @Yash121l.
+- Port Manager lists listening ports, handles failed refreshes and verifies process identity before offering termination through Kill Process. Thanks to @MrDXTR and @Yash121l.
 - The screenshot editor's arrow offers solid, outline, open, double-ended and scribbly styles, remembered for the next capture. Thanks to @kxnstandin.
 - The disk image installer can put apps in your home folder's Applications, a remembered choice that names the destination. Thanks to @JashRashne.
 - Keep Awake can run until a time you pick in the panel; a time already past today counts for tomorrow. Thanks to @EdenRochmanSharabi.
@@ -44,7 +44,7 @@ App Switcher shows more previews, and shortcut fields accept macOS shortcuts. Th
 ### Changed
 - App Switcher uses available space to show more previews when cycling through the current app's windows. Thanks to @EugeneCarldotme.
 - App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
-- Settings use visual choices, cards and switches across the main pages, with live previews for the menu bar and panel.
+- Settings use visual choices, cards and switches, with live menu bar previews and shortcut hints that update when changed.
 - Settings search highlights the selected section, and Mouse & Trackpad offers direct links to each available feature.
 - Features lists Dynamic Island and its extensions in a section of their own instead of among the tools.
 - Dynamic Island animates music bars without continuously redrawing them in the app and stops their animation when hidden.
@@ -52,7 +52,7 @@ App Switcher shows more previews, and shortcut fields accept macOS shortcuts. Th
 - Compact music, timer and download indicators keep clear of Dynamic Island's curved edges, with readable percentages in narrow spaces. Thanks to @ruvelro.
 - Dynamic Island opens and closes smoothly at the top edge when set to hide until hover.
 - Dynamic Island aligns volume and brightness controls, with fading header buttons for Keep open and Settings when their floating buttons are absent.
-- Dynamic Island opens as a wide strip with sideways cards, mixer faders, compact calendar and timer controls, and an embedded Scratchpad.
+- Dynamic Island adds sideways cards, accessible mixer faders, compact calendar and timer controls, and embedded Scratchpad with export dialogs attached to the island.
 - Dynamic Island's custom height goes down to 260 points, so the island can stay small; the pages adapt their rows to the chosen height.
 - Opening Dynamic Island while it shows music, a timer, a download or a notification goes to that activity; the reopening preference applies only at rest.
 - Dismissing the original system banner now waits briefly, allowing short alert sounds to finish.

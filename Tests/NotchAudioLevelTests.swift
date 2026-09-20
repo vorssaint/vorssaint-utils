@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Combine
 import Foundation
 
 enum NotchAudioLevelTests {
@@ -45,6 +46,7 @@ enum NotchAudioLevelTests {
                "a tap outlasts a permission prompt being read and a player that buffers before it sounds")
         silenceMemoryContracts(expect: expect)
         tapChangeContracts(expect: expect)
+        NotchAudioLevelLifecycleContract.run(expect: expect)
     }
 
     /// What the player's audio processes moving asks of the tap. A browser
@@ -88,5 +90,148 @@ enum NotchAudioLevelTests {
         memory.giveUp(on: first)
         memory.rearm()
         expect(memory.reads(first), "pressing play again reads the same track once more")
+    }
+}
+
+
+/// The production service is extracted here; only its preference inputs,
+/// playback publisher and asynchronous hardware reader are replaced.
+typealias NotchAudioTestSilenceMemory = NotchAudioLevelSupport.SilenceMemory
+
+enum NotchAudioLevelLifecycleContract {
+    enum AppFeature {
+        case notchLiveEqualizer
+        var isAvailable: Bool { true }
+    }
+    enum NotchSupport { static func isEnabled() -> Bool { true } }
+    enum NotchAudioLevelSupport {
+        typealias SilenceMemory = NotchAudioTestSilenceMemory
+        static let isSupported = true
+        static var enabled = false
+        static func isEnabled() -> Bool { enabled }
+    }
+    final class NotchMusicService {
+        static let shared = NotchMusicService()
+        @Published var playback: NotchPlayback?
+    }
+    final class NotchAudioLevelReader {
+        static var instances: [NotchAudioLevelReader] = []
+        let onLevels: ([Double]) -> Void
+        let onSilence: () -> Void
+        let onUnavailable: () -> Void
+        let onProcessesLeft: () -> Void
+        private(set) var stopped = false
+
+        init(pid: pid_t, onLevels: @escaping ([Double]) -> Void,
+             onSilence: @escaping () -> Void, onUnavailable: @escaping () -> Void,
+             onProcessesLeft: @escaping () -> Void) {
+            self.onLevels = onLevels
+            self.onSilence = onSilence
+            self.onUnavailable = onUnavailable
+            self.onProcessesLeft = onProcessesLeft
+            Self.instances.append(self)
+        }
+        func start() {}
+        func stop() { stopped = true }
+    }
+
+    static func run(expect: (Bool, String) -> Void) {
+        typealias Reader = NotchAudioLevelReader
+        let service = NotchAudioLevelService.shared
+        let music = NotchMusicService.shared
+        func playback(playing: Bool = true) -> NotchPlayback {
+            let track = RadialNowPlayingSnapshot(title: "Track", artist: "Artist", album: "Album",
+                                                artworkData: nil, appBundleIdentifier: "org.example.player",
+                                                appPID: 42)
+            return NotchPlayback(track: track, isPlaying: playing, elapsed: 0, duration: 180, rate: 1,
+                                 sampledAt: Date(timeIntervalSinceReferenceDate: 0), canSeek: false,
+                                 itemIdentifier: "track", canSendCommandsDirectly: true)
+        }
+        // A barrier behind the service's callbacks drains only the main queue;
+        // it neither creates a device nor depends on a player's timing.
+        func drain() {
+            var reached = false
+            DispatchQueue.main.async { reached = true }
+            let deadline = Date().addingTimeInterval(1)
+            while !reached && Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.001))
+            }
+            expect(reached, "the audio lifecycle fixture drains its callback queue")
+        }
+        func enable(_ value: Bool) {
+            NotchAudioLevelSupport.enabled = value
+            service.syncWithPreferences()
+            drain()
+        }
+        defer {
+            enable(false)
+            music.playback = nil
+            Reader.instances.removeAll()
+            drain()
+        }
+        music.playback = playback()
+        enable(true)
+        guard let first = Reader.instances.last else {
+            expect(false, "playing starts an audio reader")
+            return
+        }
+        var current = first
+        let lateCallbacks: [(String, (Reader) -> Void)] = [
+            ("levels", { $0.onLevels([0.1]) }),
+            ("silence", { $0.onSilence() }),
+            ("unavailable", { $0.onUnavailable() }),
+            ("departing processes", { $0.onProcessesLeft() })
+        ]
+        for (name, callback) in lateCallbacks {
+            let previous = current
+            enable(false)
+            enable(true)
+            guard let replacement = Reader.instances.last else { return }
+            current = replacement
+            expect(previous.stopped && previous !== current && !current.stopped,
+                   "reenabling the equalizer replaces the reader for the same player")
+            let count = Reader.instances.count
+            current.onLevels([0.75])
+            drain()
+            callback(previous)
+            drain()
+            expect(!current.stopped && Reader.instances.count == count && service.levels == [0.75],
+                   "late \(name) from a stopped reader cannot change its replacement")
+        }
+        let previous = current
+        let beforeRestart = Reader.instances.count
+        current.onProcessesLeft()
+        drain()
+        expect(previous.stopped && Reader.instances.count == beforeRestart + 1 && service.levels == nil,
+               "the current reader's departing processes still restart its tap")
+        guard let restarted = Reader.instances.last else { return }
+        current = restarted
+        current.onLevels([0.6])
+        drain()
+        previous.onUnavailable()
+        drain()
+        expect(!current.stopped && service.levels == [0.6],
+               "an old route failure cannot stop a reader created by process recovery")
+        current.onSilence()
+        drain()
+        let afterSilence = Reader.instances.count
+        music.playback = playback()
+        drain()
+        expect(current.stopped && service.levels == nil && Reader.instances.count == afterSilence,
+               "a silent current reader falls back for this play without immediately retrying")
+        music.playback = playback(playing: false)
+        drain()
+        music.playback = playback()
+        drain()
+        expect(Reader.instances.count == afterSilence + 1,
+               "pausing and playing rearms the same track after silence")
+        guard let resumed = Reader.instances.last else { return }
+        resumed.onUnavailable()
+        drain()
+        let afterFailure = Reader.instances.count
+        music.playback = playback()
+        drain()
+        expect(resumed.stopped && Reader.instances.count == afterFailure + 1,
+               "a current device failure releases the reader but permits the next playback update to retry")
     }
 }
