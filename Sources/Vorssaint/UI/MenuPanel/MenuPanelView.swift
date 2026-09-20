@@ -187,7 +187,7 @@ struct MenuPanelView: View {
                 .environment(\.notchPresentation, true)
                 .environment(\.colorScheme, .dark)
             }
-            .frame(width: size.width, height: max(80, size.height - 96))
+            .frame(width: size.width, height: max(0, size.height - 96))
             footer
         }
         .frame(width: size.width, height: size.height, alignment: .top)

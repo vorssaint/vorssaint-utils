@@ -540,7 +540,8 @@ private struct ScratchpadResizeOverlay: NSViewRepresentable {
 /// A selectable native preview. NSTextView keeps Markdown links interactive in
 /// the nonactivating scratchpad panel, where SwiftUI's Text link handling does
 /// not receive clicks reliably.
-private struct MarkdownPreview: NSViewRepresentable {
+/// Shared with the island's page, which shows the same formatted reading.
+struct MarkdownPreview: NSViewRepresentable {
     let blocks: [ScratchpadMarkdownBlock]
 
     func makeNSView(context: Context) -> NSScrollView {

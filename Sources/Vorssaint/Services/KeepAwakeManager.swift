@@ -707,6 +707,7 @@ final class KeepAwakeManager: ObservableObject {
                         self.passwordlessClamshell = false
                     }
                     UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+                    self.sleepIfLidAlreadyClosed()
                 }
             }
         }
@@ -715,6 +716,47 @@ final class KeepAwakeManager: ObservableObject {
         } else {
             Sudoers.pmsetDisableSleep(false, completion: finish)
         }
+    }
+
+    /// Clearing `disablesleep` only clears a kernel flag. macOS evaluates the
+    /// lid when it opens or closes, so a lid that shut during the session is
+    /// never looked at again and the Mac stays awake until the battery runs
+    /// out (#1729). Request the sleep that closing the lid would have caused.
+    /// `pmset` returns before powerd has handed the cleared flag to the
+    /// kernel, which refuses sleep until it has, so a refusal is retried.
+    private func sleepIfLidAlreadyClosed(attemptsLeft: Int = 10) {
+        guard !isActive || sessionPausedForScreenLock, !clamshellActive else { return }
+        guard BrightnessService.lidClosed() == true, Self.lidSleepIsAllowed() else { return }
+        let rootDomain = IOPMFindPowerManagement(kIOMainPortDefault)
+        guard rootDomain != 0 else { return }
+        let result = IOPMSleepSystem(rootDomain)
+        IOServiceClose(rootDomain)
+        guard result != kIOReturnSuccess, attemptsLeft > 1 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.sleepIfLidAlreadyClosed(attemptsLeft: attemptsLeft - 1)
+        }
+    }
+
+    private static func lidSleepIsAllowed() -> Bool {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault,
+                                                  IOServiceMatching("IOPMrootDomain"))
+        guard service != 0 else { return false }
+        defer { IOObjectRelease(service) }
+        let allowsSleep = IORegistryEntryCreateCFProperty(
+            service, kAppleClamshellCausesSleepKey as CFString,
+            kCFAllocatorDefault, 0)?.takeRetainedValue() as? Bool
+        guard allowsSleep == true else { return false }
+
+        // The kernel does not republish its lid policy for every assertion
+        // change. Read live protections as well, especially display hot-plug.
+        var snapshot: Unmanaged<CFDictionary>?
+        let result = IOPMCopyAssertionsByProcess(&snapshot)
+        let values = snapshot?.takeRetainedValue()
+        guard result == kIOReturnSuccess,
+              let assertions = values as? [AnyHashable: [[String: Any]]]
+        else { return false }
+        return KeepAwakeAutomationSupport.lidSleepIsAllowed(
+            systemAllowsSleep: allowsSleep, assertions: assertions.values.flatMap { $0 })
     }
 
     /// If the app died unexpectedly while sleep was disabled, restores normal

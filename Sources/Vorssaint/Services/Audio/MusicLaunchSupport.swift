@@ -3,17 +3,23 @@
 
 import Foundation
 
-/// Decides whether a music-app launch was caused by a media key. The system
+/// Decides whether a music-app launch was the user's doing. The system
 /// launches that app on play, next, previous, fast-forward and rewind when no
-/// other player is around; a recent press of one of those keys is what the
-/// blocker is for. Opening the app from the Dock, Spotlight or a double-click
-/// has no such press, so it must be left alone.
+/// other player is around, and just as readily for the same command sent by
+/// headphones (connecting, or a press on their button), which reaches the
+/// system through no key at all. Opening the app from the Dock, Spotlight or a
+/// double-click starts with a click or a key press, so that is what tells a
+/// launch the user asked for from one the blocker is for.
 enum MusicLaunchSupport {
     static let systemDefinedEventTypeRawValue: UInt32 = 14
     static let auxiliaryControlButtonsSubtype = 8
     static let keyDownState = 10
     /// Launch Services needs a moment after the key to start the app.
     static let launchArmWindow: TimeInterval = 2.0
+    /// How long after a click or a key press a launch still counts as asked
+    /// for. The gesture that opens an app is followed by the launch almost at
+    /// once; a launch further away from any gesture came from nowhere.
+    static let userGestureWindow: TimeInterval = 2.0
 
     static let playPauseKeyCode: UInt16 = 16
     static let nextTrackKeyCode: UInt16 = 17
@@ -38,8 +44,13 @@ enum MusicLaunchSupport {
         return musicLaunchKeyCodes.contains(keyCode)
     }
 
-    static func shouldBlockLaunch(now: TimeInterval, lastTriggerAt: TimeInterval?) -> Bool {
-        guard let lastTriggerAt else { return false }
-        return now - lastTriggerAt <= launchArmWindow
+    /// A media key seen just before the launch settles it, whatever else the
+    /// user was doing. Without one, the launch is blocked when no click or
+    /// key press came close enough to have caused it.
+    static func shouldBlockLaunch(now: TimeInterval,
+                                  lastTriggerAt: TimeInterval?,
+                                  secondsSinceUserGesture: TimeInterval) -> Bool {
+        if let lastTriggerAt, now - lastTriggerAt <= launchArmWindow { return true }
+        return secondsSinceUserGesture > userGestureWindow
     }
 }

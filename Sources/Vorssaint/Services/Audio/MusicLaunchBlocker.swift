@@ -4,13 +4,14 @@
 import AppKit
 
 /// Keeps the system music app from opening on its own, which macOS does
-/// whenever a media key is pressed with no other player around to take it.
+/// whenever a media key is pressed, or headphones send the same command,
+/// with no other player around to take it.
 ///
-/// While the option is on, a launch of the music app that follows a media
-/// key is terminated before its window appears, and an optional replacement
-/// app opens instead. Opening the music app from the Dock, Spotlight or a
-/// double-click is left alone. Nothing runs while the feature is off: no
-/// observers, no taps, no cost.
+/// While the option is on, a launch of the music app that no click or key
+/// press asked for is terminated before its window appears, and an optional
+/// replacement app opens instead. Opening the music app from the Dock,
+/// Spotlight or a double-click is left alone. Nothing runs while the feature
+/// is off: no observers, no taps, no cost.
 final class MusicLaunchBlocker: ObservableObject {
     static let shared = MusicLaunchBlocker()
 
@@ -24,6 +25,11 @@ final class MusicLaunchBlocker: ObservableObject {
     /// notification; the replacement should open once, not twice.
     private var lastReplacementLaunch: TimeInterval = 0
     private var lastMediaKeyAt: TimeInterval?
+    /// The launch already judged at will-launch. Did-launch for the same
+    /// process arrives seconds later, once the app is up, by which time the
+    /// click that started it is old enough to look like no gesture at all;
+    /// judging it again would terminate a launch the user asked for.
+    private var judgedLaunchPID: pid_t?
 
     private init() {}
 
@@ -36,11 +42,14 @@ final class MusicLaunchBlocker: ObservableObject {
     }
 
     private func start() {
-        guard observers.isEmpty, mediaKeyTap == nil else { return }
-        installMediaKeyTap()
-        // Without the tap there is no evidence that a launch followed a media
-        // key. Fail open so an ordinary launch is never terminated on a guess.
-        guard mediaKeyTap != nil else { return }
+        // The tap only sharpens the call for a keyboard media key pressed
+        // right after typing or clicking; the launch itself is judged by the
+        // gestures the session already keeps count of, so the feature works
+        // without it. It needs Accessibility, and creating it without that
+        // grant would put up a permission prompt for a feature that promises
+        // none, so it is only created once a grant exists.
+        if AXIsProcessTrusted() { installMediaKeyTap() }
+        guard observers.isEmpty else { return }
         let center = NSWorkspace.shared.notificationCenter
         // Will-launch usually wins the race before any window shows;
         // did-launch catches the rare launch that slips past it.
@@ -55,6 +64,7 @@ final class MusicLaunchBlocker: ObservableObject {
     func stop() {
         removeMediaKeyTap()
         lastMediaKeyAt = nil
+        judgedLaunchPID = nil
         guard !observers.isEmpty else { return }
         let center = NSWorkspace.shared.notificationCenter
         for observer in observers { center.removeObserver(observer) }
@@ -64,15 +74,36 @@ final class MusicLaunchBlocker: ObservableObject {
     private func handleLaunch(_ note: Notification) {
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
               let bundleID = app.bundleIdentifier,
-              Self.blockedBundleIDs.contains(bundleID) else { return }
+              Self.blockedBundleIDs.contains(bundleID),
+              app.processIdentifier != judgedLaunchPID else { return }
+        judgedLaunchPID = app.processIdentifier
         guard MusicLaunchSupport.shouldBlockLaunch(
             now: ProcessInfo.processInfo.systemUptime,
-            lastTriggerAt: lastMediaKeyAt
+            lastTriggerAt: lastMediaKeyAt,
+            secondsSinceUserGesture: Self.secondsSinceUserGesture
         ) else { return }
         if !app.forceTerminate() {
             app.terminate()
         }
         openReplacementIfConfigured()
+    }
+
+    /// The gestures that open an app by hand: a click (the Dock, a Finder
+    /// icon, a launcher row) and a key press (Return in Spotlight, a launch
+    /// shortcut). The mouse-up covers a file dropped on the Dock icon, whose
+    /// click may be seconds old by the time the drop lands. Modifier keys are
+    /// left out on purpose: fn is held to reach a media key on keyboards set
+    /// to standard function keys, and would pass off exactly the press this
+    /// blocker exists for. A media key itself is a system-defined event, not
+    /// a key press, so it never counts as a gesture.
+    private static let userGestureEventTypes: [CGEventType] = [.leftMouseDown, .leftMouseUp, .keyDown]
+
+    /// Read from the session's event state, which needs no tap and no
+    /// permission.
+    private static var secondsSinceUserGesture: TimeInterval {
+        userGestureEventTypes.map {
+            CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0)
+        }.min() ?? .infinity
     }
 
     private func openReplacementIfConfigured() {

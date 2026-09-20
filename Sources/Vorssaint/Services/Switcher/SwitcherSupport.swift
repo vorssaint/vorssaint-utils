@@ -351,6 +351,7 @@ struct SwitcherIconRowLayout: Equatable {
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
                         maximumWindowCount: Int = 1,
+                        sessionScope: SwitcherSessionScope = .allApps,
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
                         tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
@@ -366,7 +367,11 @@ struct SwitcherIconRowLayout: Equatable {
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
         // Reserve room for a pair whenever any app has multiple windows. Use
         // the whole list so selecting another app never moves the icon row.
-        let reservedCardCount = min(2, max(windowCount, maximumWindowCount))
+        // A focused-app session has no other apps to keep stationary; let
+        // its windows fill the available display before scrolling.
+        let reservedCardCount = sessionScope == .frontmostApp
+            ? max(windowCount, maximumWindowCount)
+            : min(2, max(windowCount, maximumWindowCount))
         let previewCeiling = min(maxPreviewContentWidth,
                                  max(Self.naturalPreviewWidth(cardCount: reservedCardCount),
                                      appRowSurfaceWidth - previewPanelPadding * 2))

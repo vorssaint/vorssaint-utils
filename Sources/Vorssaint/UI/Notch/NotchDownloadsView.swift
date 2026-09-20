@@ -32,13 +32,14 @@ struct NotchDownloadsSettingsControls: View {
 }
 
 struct NotchDownloadsView: View {
+    let size: CGSize
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = false
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: NotchLayout.rowSpacing) {
             if !enabled || downloads.folderName == nil || downloads.folderUnavailable {
                 NotchDownloadsSettingsControls()
             } else {
@@ -53,34 +54,33 @@ struct NotchDownloadsView: View {
                     .menuStyle(.borderlessButton)
                     .fixedSize()
                     .accessibilityLabel(FeatureStrings.notch(l10n.language).events)
-                }.font(.caption).foregroundStyle(.secondary)
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(height: 20)
                 if downloads.items.isEmpty {
                     NotchEmptyView(symbol: "arrow.down.circle", message: text.waiting)
                         .frame(maxHeight: .infinity)
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 10) {
-                            ForEach(downloads.items) { item in downloadRow(item) }
-                        }
+                    let height = max(0, size.height - 20 - NotchLayout.rowSpacing)
+                    let rows = NotchLayout.railRows(count: downloads.items.count,
+                                                    perRow: NotchLayout.railCapacity(width: size.width, itemWidth: 220, spacing: 8),
+                                                    rowHeight: 76, spacing: 8, height: height)
+                    let cardHeight = (height - CGFloat(rows - 1) * 8) / CGFloat(rows)
+                    NotchRail(items: downloads.items, rows: rows, itemWidth: 220, width: size.width) { item in
+                        downloadCard(item).frame(height: cardHeight)
                     }
                 }
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private func downloadRow(_ item: NotchDownloadItem) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 9) {
+    private func downloadCard(_ item: NotchDownloadItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: item.completed ? "checkmark.circle.fill" : "arrow.down.circle")
                     .foregroundStyle(item.completed ? .green : .white)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
-                    if item.completed || item.active {
-                        Text(item.completed ? text.completed : text.inProgress)
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 4)
+                Text(item.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if item.completed {
                     NotchIconButton(symbol: "folder", title: l10n.s.mediaOpenInFinder) {
                         NSWorkspace.shared.activateFileViewerSelecting([item.url])
@@ -95,23 +95,29 @@ struct NotchDownloadsView: View {
                         .font(.caption).monospacedDigit()
                 }
             }
-            if !item.completed {
+            if item.completed {
+                Text(text.completed).font(.caption).foregroundStyle(.secondary)
+            } else {
                 if let fraction = item.fraction {
-                    ProgressView(value: fraction)
+                    NotchMeter(value: fraction)
                 } else if item.active {
                     ProgressView().controlSize(.small)
                 }
                 HStack {
+                    Text(item.active ? text.inProgress : "")
+                    Spacer()
                     if let bytes = item.receivedBytes, bytes > 0 {
                         Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
+                    } else if item.fraction == nil {
+                        Text(text.totalUnknown)
                     }
-                    Spacer()
-                    if item.fraction == nil { Text(text.totalUnknown) }
-                }.font(.caption2).foregroundStyle(.secondary)
+                }.font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipped()
         .accessibilityElement(children: .contain)
     }
 }

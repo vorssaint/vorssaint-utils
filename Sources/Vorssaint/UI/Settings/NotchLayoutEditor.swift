@@ -88,11 +88,11 @@ struct NotchLayoutEditor: View {
                         .frame(width: 22, height: 22).background(.white.opacity(0.17), in: Circle())
                         .contentShape(Circle())
                         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("island.editor")).onChanged { value in
-                            if resizeStart == nil { resizeStart = CGSize(width: actualWidth, height: NotchSize.clamped(height, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)) }
+                            if resizeStart == nil { resizeStart = CGSize(width: actualWidth, height: actualHeight) }
                             guard let start = resizeStart else { return }
                             size = NotchSize.custom.rawValue
-                            width = NotchSize.clamped(Double(start.width + value.translation.width / 0.6), to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
-                            height = NotchSize.clamped(Double(start.height + value.translation.height / 0.35), to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)
+                            width = NotchSize.clamped(Double(start.width + value.translation.width / Self.previewScale), to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
+                            height = NotchSize.clamped(Double(start.height + value.translation.height / Self.previewScale), to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)
                         }.onEnded { _ in resizeStart = nil })
                         .position(x: frame.maxX - NotchLayout.shoulder - 17, y: frame.maxY - 17)
                         .accessibilityLabel(text.size)
@@ -106,17 +106,19 @@ struct NotchLayoutEditor: View {
         }
     }
 
+    /// The preview keeps the island's real proportions at half size.
+    private static let previewScale: CGFloat = 0.5
+    private var layout: NotchSize { NotchSize(rawValue: size) ?? .compact }
     private var actualWidth: CGFloat {
-        switch NotchSize(rawValue: size) ?? .compact {
-        case .compact: return 480
-        case .spacious: return 560
-        case .custom: return NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
-        }
+        NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
+    }
+    private var actualHeight: CGFloat {
+        NotchLayout.nominalHeight(layout, custom: NotchSize.clamped(height, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight))
     }
 
     private func islandFrame(in canvas: CGSize) -> CGRect {
-        let w = min(canvas.width - 112, actualWidth * 0.6)
-        let h = min(210, max(150, NotchSize.clamped(height, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight) * 0.35))
+        let w = min(canvas.width - 112, actualWidth * Self.previewScale)
+        let h = min(210, max(120, actualHeight * Self.previewScale))
         return CGRect(x: (canvas.width - w) / 2, y: 20, width: w, height: h)
     }
 
