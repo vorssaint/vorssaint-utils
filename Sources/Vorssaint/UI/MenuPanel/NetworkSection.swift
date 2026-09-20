@@ -389,19 +389,22 @@ private struct NetworkAddressBlock: View {
             PanelHiddenItemRow(title: l10n.s.networkIPAddresses,
                                systemImage: "network", isVisible: $isVisible)
         } else {
-            HStack(alignment: .top) {
-                Text(l10n.s.networkLocalIP).foregroundStyle(.secondary)
-                Spacer(minLength: 8)
+            HStack(alignment: .top, spacing: 6) {
+                Text(l10n.s.networkLocalIP)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                Spacer()
                 // Nothing connected: the value is left out, like the totals block.
                 if !service.localAddresses.isEmpty {
                     Text(service.localAddresses.joined(separator: "\n"))
+                        .font(.system(size: 10.5, weight: .medium))
+                        .monospacedDigit()
                         .multilineTextAlignment(.trailing)
+                        .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
                 if editing { PanelInlineHideButton(isVisible: $isVisible) }
             }
-            .font(.system(size: 10.5))
-            .monospacedDigit()
         }
     }
 }
