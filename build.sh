@@ -328,6 +328,13 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderSampleTiming.swift
         Sources/Vorssaint/Services/Recorder/RecorderWriter.swift
         Sources/Vorssaint/Services/Recorder/RecorderCaptureEngine.swift
+        Sources/Vorssaint/Core/RecorderExportStrings.swift
+        Sources/Vorssaint/Services/Recorder/RecorderComposer.swift
+        Sources/Vorssaint/Services/Recorder/RecorderComposerPlan.swift
+        Sources/Vorssaint/Services/Recorder/RecorderCursorSprite.swift
+        Sources/Vorssaint/Services/Recorder/RecorderTextRenderer.swift
+        Sources/Vorssaint/Services/Recorder/RecorderImageRenderer.swift
+        Sources/Vorssaint/Services/Recorder/RecorderExporter.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposition.swift
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift
         Sources/Vorssaint/Services/PrivateFileStore.swift

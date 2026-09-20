@@ -381,7 +381,7 @@ enum RecorderFeatureTests {
         suite.expect(!recorderComposerSource.isEmpty,
                "the recorder composer source reads back for its shape check")
         suite.expect(recorderComposerSource.contains(
-                    "outputSize: CGSize) async -> AVMutableVideoComposition?"),
+                    ") async -> AVMutableVideoComposition?"),
                "a composition that cannot be built answers with nothing, never with the plain one")
         let recorderExporterSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Recorder/RecorderExporter.swift",

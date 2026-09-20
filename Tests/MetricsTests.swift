@@ -41,6 +41,7 @@ struct MetricsTests {
             ("recorder", {
                 RecorderFeatureTests.run(suite)
                 RecorderExportSpeedTests.run(suite)
+                RecorderExportRenderingTests.run(suite)
             }),
             ("command-bar", { CommandBarFeatureTests.run(suite) }),
             ("notch", {
