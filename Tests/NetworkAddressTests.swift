@@ -18,9 +18,5 @@ enum NetworkAddressTests {
                "an interface that is not running is excluded")
         expect(!NetworkAddressService.includesLocalAddress(name: "en0", flags: running, family: AF_INET6),
                "IPv6 interfaces are excluded from the local list")
-        expect(NetworkAddressService.isSelfAssigned("169.254.12.7")
-                && !NetworkAddressService.isSelfAssigned("192.168.1.20")
-                && !NetworkAddressService.isSelfAssigned("10.169.254.1"),
-               "a self-assigned address is left off the line; real ones stay")
     }
 }

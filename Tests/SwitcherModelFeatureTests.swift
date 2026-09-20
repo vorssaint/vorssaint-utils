@@ -161,8 +161,32 @@ enum SwitcherModelFeatureTests {
             suite.expect(migrationDefaults.object(forKey: DefaultsKey.notchHiddenControls) == nil
                    && migrationDefaults.bool(forKey: DefaultsKey.notchScratchpadControlHidden),
                    "a setup that never customized the controls keeps the registered default")
-            suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchScratchpadControlHidden),
-                   "the one-time hide marker never travels in a settings backup")
+            let hiddenControlsKey = DefaultsKey.notchHiddenControls
+            let scratchpadMigrationKey = DefaultsKey.notchScratchpadControlHidden
+            suite.expect(SettingsBackupSupport.exportKeys().contains(scratchpadMigrationKey),
+                   "the migration marker travels with a later choice to show the Scratchpad tile")
+            suite.expect(!SettingsBackupSupport.valueLooksRight(scratchpadMigrationKey, "true"),
+                   "an imported migration marker must be a boolean")
+            for shown in [false, true] {
+                migrationDefaults.set(shown ? "microphone,panel" : "microphone,panel,scratchpad",
+                                      forKey: hiddenControlsKey)
+                let backup = SettingsBackupSupport.payload(appVersion: "3.4.0") {
+                    migrationDefaults.object(forKey: $0)
+                }
+                let restored = SettingsBackupSupport.sanitizedSettings(from: backup) ?? [:]
+                for key in SettingsBackupSupport.exportKeys() { migrationDefaults.removeObject(forKey: key) }
+                for (key, value) in restored { migrationDefaults.set(value, forKey: key) }
+                Defaults.hideScratchpadControlOnce(in: migrationDefaults)
+                suite.expect(migrationDefaults.string(forKey: hiddenControlsKey)?.contains("scratchpad") == !shown,
+                       "restoring a current backup preserves the explicit Scratchpad visibility choice")
+            }
+            // A restore clears every exportable key before applying the backup.
+            // Old backups have a controls list but no migration marker.
+            for key in SettingsBackupSupport.exportKeys() { migrationDefaults.removeObject(forKey: key) }
+            migrationDefaults.set("microphone,panel", forKey: hiddenControlsKey)
+            Defaults.hideScratchpadControlOnce(in: migrationDefaults)
+            suite.expect(migrationDefaults.string(forKey: hiddenControlsKey) == "microphone,panel,scratchpad",
+                   "an old backup restored after the first launch still hides the new Scratchpad tile")
 
             migrationDefaults.removeObject(
                 forKey: DefaultsKey.unifiedScreenCaptureShortcutMigrated)

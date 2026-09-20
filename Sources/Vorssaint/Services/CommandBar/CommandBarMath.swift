@@ -159,9 +159,9 @@ enum CommandBarMath {
                 guard value >= 0 else { return nil }
                 result = Foundation.sqrt(value)
             case .abs: result = Swift.abs(value)
-            case .sin: result = Self.settledTrig(Foundation.sin(value))
-            case .cos: result = Self.settledTrig(Foundation.cos(value))
-            case .tan: result = Self.settledTrig(Foundation.tan(value))
+            case .sin: result = Foundation.sin(value)
+            case .cos: result = Foundation.cos(value)
+            case .tan: result = Foundation.tan(value)
             case .asin:
                 guard (-1...1).contains(value) else { return nil }
                 result = Foundation.asin(value)
@@ -181,13 +181,6 @@ enum CommandBarMath {
             case .round: result = value.rounded()
             }
             return result.isFinite ? result : nil
-        }
-
-        /// sin(pi) comes back as a few units in the sixteenth decimal, the
-        /// dust of a rounded pi, and would print as "1.2246468e-16". A trig
-        /// value that small is that dust, not an answer anyone typed for.
-        private static func settledTrig(_ value: Double) -> Double {
-            Swift.abs(value) < 1e-12 ? 0 : value
         }
     }
 
