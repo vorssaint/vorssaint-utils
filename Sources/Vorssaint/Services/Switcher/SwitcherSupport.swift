@@ -5,6 +5,43 @@ import AppKit
 import CoreGraphics
 import Foundation
 
+struct SwitcherScrollNavigation {
+    static let gestureStep: Double = 30
+    private var accumulated: Double = 0
+    private var lastTimestamp: CGEventTimestamp?
+
+    mutating func selectionDelta(for event: CGEvent) -> Int {
+        guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
+            return 0
+        }
+        let phase = NSEvent.Phase(rawValue: UInt(event.getIntegerValueField(.scrollWheelEventScrollPhase)))
+        if phase.contains(.began) || lastTimestamp.map({ event.timestamp &- $0 > 250_000_000 }) == true {
+            accumulated = 0
+        }
+        lastTimestamp = event.timestamp
+        guard event.getIntegerValueField(.scrollWheelEventMomentumPhase) == 0,
+              phase.intersection([.ended, .cancelled]).isEmpty else {
+            accumulated = 0
+            return 0
+        }
+        let continuous = event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0
+        let vertical = event.getDoubleValueField(continuous ? .scrollWheelEventPointDeltaAxis1 : .scrollWheelEventDeltaAxis1)
+        let horizontal = event.getDoubleValueField(continuous ? .scrollWheelEventPointDeltaAxis2 : .scrollWheelEventDeltaAxis2)
+        let delta = abs(horizontal) > abs(vertical) ? horizontal : vertical
+        guard delta.isFinite, delta != 0 else { return 0 }
+        if !continuous {
+            accumulated = 0
+            return delta < 0 ? 1 : -1
+        }
+        if accumulated * delta < 0 { accumulated = 0 }
+        accumulated += delta
+        guard abs(accumulated) >= Self.gestureStep else { return 0 }
+        // Each sample advances at most one item, without acceleration or momentum.
+        accumulated = 0
+        return delta < 0 ? 1 : -1
+    }
+}
+
 struct SwitcherCloseState: Equatable {
     let remainingItemIDs: [String]
     let selectedIndex: Int

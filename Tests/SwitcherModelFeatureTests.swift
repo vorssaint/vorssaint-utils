@@ -12,7 +12,74 @@ import ImageIO
 import VMStatisticsCompat
 
 enum SwitcherModelFeatureTests {
+    private static func scrollNavigationChecks(_ suite: TestSuite) {
+        func event(_ vertical: Int32, horizontal: Int32 = 0, continuous: Bool = false,
+                   phase: NSEvent.Phase = [], momentum: Int64 = 0,
+                   timestamp: CGEventTimestamp = 1_000_000_000) -> CGEvent {
+            let event = CGEvent(scrollWheelEvent2Source: nil, units: continuous ? .pixel : .line,
+                                wheelCount: 2, wheel1: vertical, wheel2: horizontal, wheel3: 0)!
+            event.setIntegerValueField(.scrollWheelEventIsContinuous, value: continuous ? 1 : 0)
+            event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+            event.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentum)
+            event.timestamp = timestamp
+            return event
+        }
+        var navigation = SwitcherScrollNavigation()
+        suite.expect(navigation.selectionDelta(for: event(-3)) == 1,
+                     "a wheel sample selects the next app regardless of acceleration")
+        suite.expect(navigation.selectionDelta(for: event(3)) == -1,
+                     "reverse scrolling selects the previous app")
+        suite.expect(navigation.selectionDelta(for: event(0)) == 0,
+                     "zero scrolling preserves the selection")
+        suite.expect(navigation.selectionDelta(for: event(1, horizontal: -3)) == 1,
+                     "horizontal scrolling uses the dominant axis")
+        let step = Int32(SwitcherScrollNavigation.gestureStep)
+        suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began)) == 0,
+                     "a gesture below the threshold preserves the selection")
+        suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .changed)) == 1,
+                     "continuous scrolling accumulates to one step")
+        suite.expect(navigation.selectionDelta(for: event(-10 * step, continuous: true, momentum: 1)) == 0,
+                     "trackpad momentum does not change the selection")
+        suite.expect(navigation.selectionDelta(for: event(0, horizontal: step, continuous: true, phase: .began)) == -1,
+                     "a horizontal trackpad gesture changes the selection")
+        _ = navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began))
+        suite.expect(navigation.selectionDelta(for: event(step / 2, continuous: true, phase: .changed)) == 0
+                     && navigation.selectionDelta(for: event(step / 2, continuous: true, phase: .changed)) == -1,
+                     "reversing direction resets accumulated movement")
+        _ = navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began))
+        suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began)) == 0,
+                     "a new gesture does not inherit the previous remainder")
+        _ = navigation.selectionDelta(for: event(-step, continuous: true, phase: .ended))
+        suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true)) == 0,
+                     "ending a gesture resets its remainder")
+        suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, timestamp: 2_000_000_000)) == 0,
+                     "a pause resets the remainder for devices without gesture phases")
+        suite.expect(navigation.selectionDelta(for: event(-10 * step, continuous: true)) == 1,
+                     "a large trackpad sample does not skip multiple apps")
+        let synthetic = event(-10 * step, continuous: true)
+        synthetic.setIntegerValueField(.eventSourceUserData, value: ScrollWheelSupport.syntheticTag)
+        suite.expect(navigation.selectionDelta(for: synthetic) == 0,
+                     "a remaining smooth-scroll frame does not change the selection")
+
+        func code(_ path: String) -> String {
+            ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+        }
+        let switcher = code("Sources/Vorssaint/Services/Switcher/AppSwitcher.swift")
+        suite.expect(switcher.contains("CGEventType.scrollWheel.rawValue") && switcher.contains("case .scrollWheel:"),
+                     "the switcher subscribes to and handles scroll-wheel events")
+        for path in ["Sources/Vorssaint/Services/SmoothScrollService.swift",
+                     "Sources/Vorssaint/Services/ScrollInverter.swift",
+                     "Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutService.swift"] {
+            suite.expect(code(path).contains("AppSwitcher.shared.scrollNavigationActive"),
+                         "\(path) yields scrolling to the open switcher")
+        }
+    }
+
     static func run(_ suite: TestSuite) {
+        scrollNavigationChecks(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
