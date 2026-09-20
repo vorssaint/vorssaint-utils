@@ -243,10 +243,12 @@ enum ScratchpadExportContract {
     }
     class Fixture {
         typealias NSSavePanel = Panel
+        typealias NSWindow = Window
         typealias DispatchQueue = Queue
         typealias NotchService = Island
         typealias QuickToolHUD = HUD
         var NSApp = Application()
+        var panel: Window?
         var text = "Notes to export"
         var modalInteractionActive = false
         var flushes = 0
@@ -263,19 +265,23 @@ enum ScratchpadExportContract {
         }
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-            for host in ["island key", "island event", "floating"] {
+            for host in ["island key", "island event", "island menu", "floating", "floating while island key"] {
                 for response in [NSApplication.ModalResponse.cancel, .OK] {
                     let service = Service()
                     let island = Window()
                     let floating = Window()
                     Island.shared.presentationWindow = island
-                    service.NSApp.keyWindow = host == "island key" ? island : floating
+                    service.panel = floating
+                    service.NSApp.keyWindow = host == "island key" || host == "floating while island key" ? island : floating
                     if host == "island event" {
                         service.NSApp.currentEvent = Application.Event(window: island)
+                    } else if host == "island menu" {
+                        service.NSApp.currentEvent = Application.Event(window: Window())
                     }
+                    let fromIsland = host.hasPrefix("island")
                     let destination = root.appendingPathComponent("notes.txt")
                     try "Previous file".write(to: destination, atomically: true, encoding: .utf8)
-                    service.exportText(suggestedName: "Notes.txt")
+                    service.exportText(suggestedName: "Notes.txt", from: fromIsland ? island : nil)
                     guard let panel = Panel.latest else {
                         suite.expect(false, "export prepares its save panel")
                         continue
@@ -287,7 +293,7 @@ enum ScratchpadExportContract {
                     panel.url = destination
                     panel.response = response
                     service.text = "A later edit"
-                    if host == "floating" {
+                    if !fromIsland {
                         suite.expect(panel.parent == nil, "the floating pad retains its independent dialog")
                         Queue.drain()
                         suite.expect(panel.modalCalls == 1 && floating.focusCount == 1 && island.focusCount == 0,
@@ -311,12 +317,16 @@ enum ScratchpadExportContract {
             let island = Window()
             Island.shared.presentationWindow = island
             service.NSApp.keyWindow = island
-            service.exportText(suggestedName: "Notes.txt")
+            service.exportText(suggestedName: "Notes.txt", from: island)
             island.isVisible = false
             Panel.latest?.finish(.cancel)
             Queue.drain()
             suite.expect(island.focusCount == 0 && !service.modalInteractionActive,
                          "closing the island during export does not resurrect its window")
+            Panel.latest = nil
+            service.exportText(suggestedName: "Hidden.txt", from: island)
+            suite.expect(Panel.latest == nil && !service.modalInteractionActive,
+                         "an action delivered after its host disappeared cannot open a dialog")
         } catch {
             suite.expect(false, "export fixture completes: \(error)")
         }

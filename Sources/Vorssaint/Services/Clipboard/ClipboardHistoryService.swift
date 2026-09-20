@@ -277,7 +277,7 @@ final class ClipboardHistoryService: ObservableObject {
         // points to, that intermediate absence nils it out and nothing here
         // sets it back, since a pin change is not a new promoted copy.
         // Restored by looking it up again once the move actually lands.
-        let wasLatestPasteboardEntry = latestPasteboardEntry?.id == entry.id
+        let previousPasteboardEntry = latestPasteboardEntry
         var updated = entries.remove(at: index)
         if updated.isPinned {
             updated.pinnedAt = nil
@@ -296,8 +296,10 @@ final class ClipboardHistoryService: ObservableObject {
             entries = previousEntries
             reverted = true
         }
-        if wasLatestPasteboardEntry {
-            latestPasteboardEntry = entries.first(where: { $0.id == entry.id })
+        if let current = previousPasteboardEntry, current.id == entry.id {
+            latestPasteboardEntry = entries.first {
+                $0.id == current.id && $0.text == current.text
+            }
         }
         guard !reverted else { return }
         save()

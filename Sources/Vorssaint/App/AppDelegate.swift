@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var metricAnchorSwitchSerial = 0
     private var popoverCloseCompletions: [() -> Void] = []
     private var isTerminating = false
+    private var inputSourceRestorationPending = false
     private var cancellables = Set<AnyCancellable>()
     private var settingsWindow: NSWindow?
     private var settingsKeepsAppRegular = false
@@ -156,7 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
-                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .notch,
+                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .musicBlock, .notch,
                 ])
             }
             .store(in: &cancellables)
@@ -247,8 +248,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         UserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if inputSourceRestorationPending { return .terminateLater }
+        guard CommandBarService.shared.hasBorrowedInputSource else { return .terminateNow }
+        inputSourceRestorationPending = true
+        // Terminate-later runs a modal loop, which may be nested inside a
+        // main-queue callback. Schedule in both modes before approving quit.
+        RunLoop.main.perform(inModes: [.default, .modalPanel]) { [weak self] in
+            CommandBarService.shared.restoreBorrowedInputSource()
+            self?.inputSourceRestorationPending = false
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
         endStartupWatch()

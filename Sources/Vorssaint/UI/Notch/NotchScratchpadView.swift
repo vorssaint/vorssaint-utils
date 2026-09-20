@@ -162,7 +162,10 @@ struct NotchScratchpadView: View {
                     Divider()
                 }
                 Button(text.exportAction) {
-                    pad.exportText(suggestedName: ScratchpadSupport.exportFileName(title: pad.selectedPadName, date: Date()))
+                    if let window = service.presentationWindow {
+                        pad.exportText(suggestedName: ScratchpadSupport.exportFileName(title: pad.selectedPadName, date: Date()),
+                                       from: window)
+                    }
                 }
                 .disabled(pad.text.isEmpty)
                 Button(text.clearAction, role: .destructive) { pad.clear(through: editor.view) }

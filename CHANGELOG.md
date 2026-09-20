@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher shows more previews, and shortcut fields accept macOS shortcuts. The mixer adds microphone volume; Dynamic Island adds compact layouts, notifications, discovery, a stopwatch, sound bars, Scratchpad and optional menu overlap; Command Bar expands emoji, calculations and keyboard switching; utilities add Dock holds preserving window sizes, clipboard previews, safer port management, local IP, quit protection progress, arrow styles, home-folder installs and sideways scrolling, alongside Keep Awake automation, restored lid sleep, snippet sounds, menu recovery after updates and settings history.
+App Switcher shows more previews, and shortcut fields accept macOS shortcuts. The mixer adds microphone volume; Dynamic Island adds compact layouts, notifications, discovery, a stopwatch, sound bars, Scratchpad and optional menu overlap; Command Bar expands emoji, calculations and keyboard switching; utilities add clipboard previews, safer port management, local IP, quit protection progress, arrow styles, home-folder installs and sideways scrolling, alongside safer music blocking, Keep Awake automation, restored lid sleep, snippet sounds, menu recovery after updates and settings history.
 
 ### Added
 - Dynamic Island can show compact activity over menus, off by default under At rest in settings.
@@ -30,7 +30,7 @@ App Switcher shows more previews, and shortcut fields accept macOS shortcuts. Th
 - Dynamic Island holds notifications under the pointer and previews messages on hover, with actions to open, dismiss or browse the inbox.
 - Clicking an appointment in Dynamic Island's calendar opens it in Calendar, the way album art opens the player.
 - Shortcut fields offer to take over a macOS key, such as ⌘⇧3, while the app runs and the feature is on. Thanks to @owendaw.
-- Command Bar optionally uses ABC while open and restores the previous keyboard layout on close, including quick reopenings. Thanks to @iva-zhu.
+- Command Bar optionally borrows ABC, preserving the original keyboard through quick reopenings and restoring it on close or quit. Thanks to @iva-zhu.
 - Clipboard History optionally shows the latest copied content beside the menu bar icon, with adjustable length. Thanks to @adnn-alc.
 - Dock Preview can order windows by creation time instead of last use, from More options in its settings. Thanks to @Borisserz.
 - Port Manager lists listening ports, handles failed refreshes and verifies process identity before offering termination through Kill Process. Thanks to @MrDXTR and @Yash121l.
@@ -42,6 +42,7 @@ App Switcher shows more previews, and shortcut fields accept macOS shortcuts. Th
 - The Uninstaller can list and remove apps from the Command Bar, including the one selected in Finder, once enabled in its settings. Thanks to @naveenkrdy.
 
 ### Changed
+- Music blocking preserves launches without a detected playback button and shows when Accessibility is needed.
 - App Switcher uses available space to show more previews when cycling through the current app's windows. Thanks to @EugeneCarldotme.
 - App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
 - Settings use visual choices, cards and switches, with live menu bar previews and shortcut hints that update when changed.
@@ -62,9 +63,8 @@ App Switcher shows more previews, and shortcut fields accept macOS shortcuts. Th
 ### Fixed
 - After an update, a missing menu bar icon gets one automatic recovery attempt that preserves its saved position and respects hidden menu bars.
 - App Switcher keeps an app's windows listed after Q until it really quits, including one that stops at a save prompt. Thanks to @PathGao.
-- Keep Awake restores lid sleep after a timer or battery cutoff, respecting macOS sleep protections. Thanks to @NongKnot.
+- Keep Awake restores lid sleep after timers, battery cutoffs and quitting, respecting system protections and pending changes. Thanks to @NongKnot.
 - Dynamic Island shows a video playing in a browser even when a music app is open but stopped. Thanks to @ruvelro.
-- Stopping Music from opening on its own again catches launches from headphones connecting or their buttons, and no longer needs Accessibility.
 - Muting every microphone now releases a headset that connected while muted, and one unplugged during the mute once it returns.
 - Automatic link cleaning now handles links copied from browsers and messaging apps along with their formatting, while leaving pictures and files alone.
 - App Switcher brings the selected window forward while preserving focus recovery and the correct app menus. Thanks to @shlok1806.

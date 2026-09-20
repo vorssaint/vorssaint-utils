@@ -324,9 +324,10 @@ extension AppFeature {
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]
+        case .musicBlock: return [.accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
-             .soundOutputSwitcher, .musicBlock,
+             .soundOutputSwitcher,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .monitorGPU, .monitorNetwork, .fanControl, .killProcess, .portManager:
             return []
@@ -340,7 +341,7 @@ extension AppFeature {
         switch self {
         case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
              .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
-             .micMute:
+             .micMute, .musicBlock:
             return []
         default:
             return permissions.filter { $0 == .accessibility || $0 == .screenRecording }

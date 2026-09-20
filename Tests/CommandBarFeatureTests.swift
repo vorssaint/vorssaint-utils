@@ -14,6 +14,7 @@ import VMStatisticsCompat
 enum CommandBarFeatureTests {
     static func run(_ suite: TestSuite) {
         CommandBarInputSourceContract.run(suite)
+        CommandBarTerminationContract.run(suite)
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }
@@ -1927,6 +1928,36 @@ enum CommandBarInputSourceContract {
             Queue.drain()
             suite.expect(Sources.selected.isEmpty, "an ASCII or opted-out opening leaves the keyboard alone")
         }
+        let disabledOnReopen = reset()
+        disabledOnReopen.adoptASCIIInputSource()
+        disabledOnReopen.restoreSuspendedInputSource()
+        Preferences.enabled = false
+        disabledOnReopen.presentationID = UUID()
+        disabledOnReopen.adoptASCIIInputSource()
+        Queue.drain()
+        suite.expect(Sources.current == "original" && disabledOnReopen.suspendedInputSourceID == nil,
+                     "reopening with borrowing disabled completes the previous restoration")
+        let refusedRestore = reset()
+        refusedRestore.adoptASCIIInputSource()
+        Sources.acceptsSelection = false
+        refusedRestore.restoreSuspendedInputSource()
+        Queue.drain()
+        suite.expect(Sources.current == "ascii" && refusedRestore.suspendedInputSourceID == "original",
+                     "a rejected restoration keeps its original source available for retry")
+        Sources.acceptsSelection = true
+        refusedRestore.restoreSuspendedInputSource()
+        Queue.drain()
+        suite.expect(Sources.current == "original" && refusedRestore.suspendedInputSourceID == nil,
+                     "a later accepted restoration releases the borrowing obligation")
+        let terminating = reset()
+        terminating.adoptASCIIInputSource()
+        terminating.restoreSuspendedInputSource()
+        terminating.restoreBorrowedInputSource()
+        suite.expect(Sources.current == "original" && terminating.suspendedInputSourceID == nil,
+                     "termination restores the borrowed source without waiting for the run loop")
+        Queue.drain()
+        suite.expect(Sources.selected == ["ascii", "original"],
+                     "a pending normal close cannot repeat a completed termination restoration")
         let refused = reset()
         Sources.acceptsSelection = false
         refused.adoptASCIIInputSource()
@@ -1934,5 +1965,107 @@ enum CommandBarInputSourceContract {
         Queue.drain()
         suite.expect(Sources.current == "original" && refused.suspendedInputSourceID == nil,
                      "a refused source switch never creates a restoration obligation")
+    }
+}
+
+/// The delegate's real termination callback runs in real default and modal
+/// run-loop modes, with inert replies and input sources. No app quits or layout changes.
+enum CommandBarTerminationContract {
+    final class Application {
+        enum TerminateReply { case terminateNow, terminateLater }
+        var replies: [Bool] = []
+        var sourceAtReply: [String] = []
+        func reply(toApplicationShouldTerminate accepted: Bool) {
+            sourceAtReply.append(CommandBarInputSourceContract.Sources.current)
+            replies.append(accepted)
+        }
+    }
+    enum Bar {
+        static var shared = CommandBarInputSourceContract.Service()
+    }
+    class Fixture {
+        typealias NSApplication = Application
+        typealias CommandBarService = Bar
+        var inputSourceRestorationPending = false
+    }
+    static func run(_ suite: TestSuite) {
+        func reset(borrowed: Bool) -> (Host, Application) {
+            Bar.shared = CommandBarInputSourceContract.Service()
+            Bar.shared.suspendedInputSourceID = borrowed ? "original" : nil
+            CommandBarInputSourceContract.Sources.current = borrowed ? "ascii" : "original"
+            CommandBarInputSourceContract.Sources.selected = []
+            CommandBarInputSourceContract.Sources.acceptsSelection = true
+            return (Host(), Application())
+        }
+        func awaitReply(_ app: Application, mode: RunLoop.Mode = .default) {
+            let deadline = ProcessInfo.processInfo.systemUptime + 2
+            while app.replies.isEmpty && ProcessInfo.processInfo.systemUptime < deadline {
+                _ = RunLoop.current.run(mode: mode, before: Date(timeIntervalSinceNow: 0.005))
+            }
+        }
+        defer {
+            Bar.shared = CommandBarInputSourceContract.Service()
+            CommandBarInputSourceContract.Sources.current = "original"
+            CommandBarInputSourceContract.Sources.selected = []
+            CommandBarInputSourceContract.Sources.acceptsSelection = true
+        }
+        let (idle, idleApp) = reset(borrowed: false)
+        suite.expect(idle.applicationShouldTerminate(idleApp) == .terminateNow
+                     && idleApp.replies.isEmpty,
+                     "termination without a borrowed layout does not create an asynchronous reply")
+        let (host, app) = reset(borrowed: true)
+        suite.expect(host.applicationShouldTerminate(app) == .terminateLater
+                     && CommandBarInputSourceContract.Sources.selected.isEmpty && app.replies.isEmpty,
+                     "a quit request returns before restoring its input source or replying")
+        suite.expect(host.applicationShouldTerminate(app) == .terminateLater,
+                     "a repeated quit waits for the same pending restoration")
+        awaitReply(app)
+        suite.expect(app.replies == [true] && app.sourceAtReply == ["original"]
+                     && CommandBarInputSourceContract.Sources.selected == ["original"],
+                     "the next run-loop turn restores once before sending the single quit reply")
+        suite.expect(!host.inputSourceRestorationPending && !Bar.shared.hasBorrowedInputSource,
+                     "completed termination preparation releases its pending state")
+        let (restoredHost, restoredApp) = reset(borrowed: true)
+        _ = restoredHost.applicationShouldTerminate(restoredApp)
+        Bar.shared.restoreBorrowedInputSource()
+        suite.expect(restoredHost.applicationShouldTerminate(restoredApp) == .terminateLater,
+                     "a repeated quit cannot bypass an already queued reply after another path restored")
+        awaitReply(restoredApp)
+        suite.expect(restoredApp.replies == [true]
+                     && CommandBarInputSourceContract.Sources.selected == ["original"],
+                     "an earlier successful restoration is not selected again before the pending reply")
+        let (refusedHost, refusedApp) = reset(borrowed: true)
+        CommandBarInputSourceContract.Sources.acceptsSelection = false
+        _ = refusedHost.applicationShouldTerminate(refusedApp)
+        awaitReply(refusedApp)
+        suite.expect(refusedApp.replies == [true] && Bar.shared.hasBorrowedInputSource
+                     && !refusedHost.inputSourceRestorationPending,
+                     "an unavailable original layout cannot strand termination waiting for a reply")
+
+        // AppKit's terminate-later loop can be nested inside a main-queue
+        // callback. That queue cannot drain another block until the modal
+        // loop returns, so the restoration must be serviced by the loop itself.
+        let (modalHost, modalApp) = reset(borrowed: true)
+        var modalLoopFinished = false
+        var repliedInsideModalLoop = false
+        DispatchQueue.main.async {
+            let decision = modalHost.applicationShouldTerminate(modalApp)
+            suite.expect(decision == .terminateLater && modalApp.replies.isEmpty,
+                         "a main-queue quit defers its reply before entering the modal loop")
+            awaitReply(modalApp, mode: .modalPanel)
+            repliedInsideModalLoop = modalApp.replies == [true]
+                && modalApp.sourceAtReply == ["original"]
+                && !modalHost.inputSourceRestorationPending
+            modalLoopFinished = true
+        }
+        let modalDeadline = ProcessInfo.processInfo.systemUptime + 3
+        while !modalLoopFinished && ProcessInfo.processInfo.systemUptime < modalDeadline {
+            _ = RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.005))
+        }
+        suite.expect(modalLoopFinished && repliedInsideModalLoop,
+                     "restoration and reply finish inside a modal loop nested in the main queue")
+        // A regression may only deliver after leaving the modal mode; drain
+        // that reply before fixture cleanup while retaining the failed verdict.
+        awaitReply(modalApp)
     }
 }

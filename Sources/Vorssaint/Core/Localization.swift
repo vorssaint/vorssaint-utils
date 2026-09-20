@@ -1059,6 +1059,7 @@ struct Strings {
     let musicBlockSection: String
     let musicBlockTitle: String
     let musicBlockCaption: String
+    let musicBlockUnavailable: String
     let musicBlockReplacementLabel: String
     let musicBlockReplacementNone: String
     let musicBlockChooseApp: String
@@ -2098,7 +2099,8 @@ extension Strings {
         switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
         musicBlockSection: "Teclas de mídia",
         musicBlockTitle: "Impedir que o Música abra sozinho",
-        musicBlockCaption: "O app Música deixa de abrir ao tocar nas teclas de mídia. Você ainda pode abri-lo quando quiser.",
+        musicBlockCaption: "Bloqueia a abertura do app de música após detectar uma tecla de mídia. Requer acesso à Acessibilidade. Comandos de fones sem uma tecla detectada são preservados.",
+        musicBlockUnavailable: "Esta proteção está indisponível agora. Desligue e ligue a opção para tentar novamente.",
         musicBlockReplacementLabel: "Abrir no lugar",
         musicBlockReplacementNone: "Nenhum",
         musicBlockChooseApp: "Escolher app…",
@@ -3137,7 +3139,8 @@ extension Strings {
         switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",
         musicBlockSection: "Media keys",
         musicBlockTitle: "Stop Music from opening on its own",
-        musicBlockCaption: "The Music app no longer opens when you press the media keys. You can still open it yourself.",
+        musicBlockCaption: "Blocks the music app opening after a detected media key. Requires Accessibility access. Headphone commands without a detected key are left alone.",
+        musicBlockUnavailable: "This protection is unavailable right now. Turn it off and on to try again.",
         musicBlockReplacementLabel: "Open instead",
         musicBlockReplacementNone: "None",
         musicBlockChooseApp: "Choose app…",

@@ -291,8 +291,9 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     /// Activate for dialog input and return focus to the originating host.
     /// The island needs a sheet to keep the dialog above its floating surface.
-    func exportText(suggestedName: String) {
-        guard !text.isEmpty, !modalInteractionActive else { return }
+    func exportText(suggestedName: String, from window: NSWindow? = nil) {
+        guard !text.isEmpty, !modalInteractionActive,
+              let sourceWindow = window ?? panel, sourceWindow.isVisible else { return }
         modalInteractionActive = true
         flushSave()
         let savePanel = NSSavePanel()
@@ -301,10 +302,6 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         savePanel.isExtensionHidden = false
         savePanel.nameFieldStringValue = suggestedName
         let content = text
-        let island = NotchService.shared.presentationWindow
-        let exportsFromIsland = island?.isVisible == true
-            && (NSApp.currentEvent?.window === island || NSApp.keyWindow === island)
-        let sourceWindow = exportsFromIsland ? island : NSApp.keyWindow
         let complete: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             self?.modalInteractionActive = false
             if response == .OK, let url = savePanel.url {
@@ -320,11 +317,11 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             }
             // Sheet dismissal restores the previous key window after completion.
             DispatchQueue.main.async {
-                if sourceWindow?.isVisible == true { sourceWindow?.makeKey() }
+                if sourceWindow.isVisible { sourceWindow.makeKey() }
             }
         }
-        if exportsFromIsland, let island {
-            savePanel.beginSheetModal(for: island, completionHandler: complete)
+        if sourceWindow === NotchService.shared.presentationWindow {
+            savePanel.beginSheetModal(for: sourceWindow, completionHandler: complete)
             NSApp.activate(ignoringOtherApps: true)
         } else {
             NSApp.activate(ignoringOtherApps: true)

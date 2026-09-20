@@ -9,6 +9,7 @@ import SwiftUI
 enum NotchCompactTests {
     typealias L10n = NotchUpdateTests.L10n
     final class NotchService: ObservableObject {
+        var presentationWindow: NSWindow?
         @Published var scratchpadCloseSerial = 0
         var contentSize = CGSize(width: 304, height: 122)
         var selected = NotchModule.controls
@@ -43,7 +44,7 @@ enum NotchCompactTests {
         func copyAll() {}
         func togglePreview() { isPreviewing.toggle() }
         func show() {}
-        func exportText(suggestedName: String) {}
+        func exportText(suggestedName: String, from window: NSWindow? = nil) {}
     }
     struct NotchEmptyView: View {
         let symbol: String

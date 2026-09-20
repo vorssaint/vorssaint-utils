@@ -12,8 +12,22 @@ enum KeepAwakeLidSleepContract {
     }
     enum DispatchQueue {
         static let main = Queue()
+        static let background = Queue()
+        static let native = Queue()
+        enum QoS { case utility, userInitiated }
+        static func global(qos: QoS) -> Queue { background }
         final class Queue {
+            var immediate: [() -> Void] = []
             var pending: [() -> Void] = []
+            func async(execute: @escaping () -> Void) { immediate.append(execute) }
+            func sync<T>(execute: () -> T) -> T { flush(); return execute() }
+            func flush() {
+                while !immediate.isEmpty {
+                    let ready = immediate
+                    immediate.removeAll()
+                    ready.forEach { $0() }
+                }
+            }
             func asyncAfter(deadline: Instant, execute: @escaping () -> Void) { pending.append(execute) }
             func advance() {
                 let ready = pending
@@ -37,13 +51,23 @@ enum KeepAwakeLidSleepContract {
     static func IOPMFindPowerManagement(_ value: Int) -> Int { port }
     static func IOPMSleepSystem(_ value: Int) -> Int {
         calls += 1
+        onSleep?()
         return results.count > 1 ? results.removeFirst() : results[0]
     }
     static func IOServiceClose(_ value: Int) { closes += 1 }
     static func reset() -> Service {
         port = 1; results = [0]; calls = 0; closes = 0
         policy = true; assertions = []; BrightnessService.lid = true
-        DispatchQueue.main.pending.removeAll()
+        for queue in [DispatchQueue.main, DispatchQueue.background, DispatchQueue.native] {
+            queue.pending.removeAll(); queue.immediate.removeAll()
+        }
+        UserDefaults.standard.values.removeAll()
+        Sudoers.calls = []; Sudoers.results = [true]; Sudoers.disabled = false
+        Sudoers.configured = true; Sudoers.installCompletions = []
+        Sudoers.sleepStateProbeSuspensions = 0; Sudoers.probeWrites = []
+        AdminShell.completions = []; AdminShell.prompts = 0; AdminShell.syncResult = false
+        Shell.status = 0; Shell.output = nil
+        Thread.waits = 0; Thread.onWait = nil; onSleep = nil
         return Service()
     }
 }
@@ -133,5 +157,6 @@ enum KeepAwakeLidSleepTests {
         let missing = C.reset(); C.port = 0
         missing.sleepIfLidAlreadyClosed()
         expect(C.calls == 0 && C.closes == 0, "an unavailable sleep service is not called or closed")
+        KeepAwakeClamshellTests.run(expect: expect)
     }
 }

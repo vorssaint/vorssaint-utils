@@ -630,6 +630,10 @@ enum ClipboardPreviewContract {
     class Fixture {
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0
+        var pendingWrite: ((Bool) -> Void)?
+        func writeToPasteboard(_ list: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
+            pendingWrite = completion
+        }
         func trimToLimit() {}
         func save() {}
     }
@@ -660,6 +664,28 @@ enum ClipboardPreviewContract {
         service.setEntries([other])
         suite.expect(service.latestPasteboardEntry == nil,
                      "removing the current entry still clears its menu-bar preview")
+        service.setEntries([current, other])
+        service.latestPasteboardEntry = current
+        service.togglePin(current)
+        suite.expect(service.latestPasteboardEntry?.text == current.text
+                     && service.latestPasteboardEntry?.isPinned == true,
+                     "the production pin move restores unchanged clipboard content")
+        service.togglePin(service.entries.first { $0.id == current.id }!)
+        suite.expect(service.latestPasteboardEntry?.text == current.text
+                     && service.latestPasteboardEntry?.isPinned == false,
+                     "the production unpin move retains unchanged clipboard content")
+        service.latestPasteboardEntry = nil
+        service.copy(current) { _ in }
+        suite.expect(service.updateText(current, to: "Edited while copy was pending"),
+                     "history can be edited while a pasteboard write awaits completion")
+        service.pendingWrite?(true)
+        service.pendingWrite = nil
+        suite.expect(service.latestPasteboardEntry?.text == current.text
+                     && service.entries.first { $0.id == current.id }?.text == "Edited while copy was pending",
+                     "copy completion advertises exactly the older payload actually written")
+        service.togglePin(service.entries.first { $0.id == current.id }!)
+        suite.expect(service.latestPasteboardEntry == nil,
+                     "pinning after a delayed copy cannot replace its preview with an uncopied edit")
         let image = ClipboardHistoryEntry(text: "", kind: .image, imageFile: "saved.png")
         service.setEntries([image])
         service.latestPasteboardEntry = image

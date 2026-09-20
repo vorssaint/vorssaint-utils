@@ -3,24 +3,15 @@
 
 import Foundation
 
-/// Decides whether a music-app launch was the user's doing. The system
-/// launches that app on play, next, previous, fast-forward and rewind when no
-/// other player is around, and just as readily for the same command sent by
-/// headphones (connecting, or a press on their button), which reaches the
-/// system through no key at all. Opening the app from the Dock, Spotlight or a
-/// double-click starts with a click or a key press, so that is what tells a
-/// launch the user asked for from one the blocker is for.
+/// Only an observed media key can explain an automatic music-app launch.
+/// Absence of a click is not evidence: voice, automation and login can all
+/// open an app intentionally without a keyboard or pointer gesture.
 enum MusicLaunchSupport {
     static let systemDefinedEventTypeRawValue: UInt32 = 14
     static let auxiliaryControlButtonsSubtype = 8
     static let keyDownState = 10
     /// Launch Services needs a moment after the key to start the app.
     static let launchArmWindow: TimeInterval = 2.0
-    /// How long after a click or a key press a launch still counts as asked
-    /// for. The gesture that opens an app is followed by the launch almost at
-    /// once; a launch further away from any gesture came from nowhere.
-    static let userGestureWindow: TimeInterval = 2.0
-
     static let playPauseKeyCode: UInt16 = 16
     static let nextTrackKeyCode: UInt16 = 17
     static let previousTrackKeyCode: UInt16 = 18
@@ -44,13 +35,16 @@ enum MusicLaunchSupport {
         return musicLaunchKeyCodes.contains(keyCode)
     }
 
-    /// A media key seen just before the launch settles it, whatever else the
-    /// user was doing. Without one, the launch is blocked when no click or
-    /// key press came close enough to have caused it.
+    /// A newer click or key press takes precedence over a media key. Invalid
+    /// or expired evidence always leaves the launch alone. An infinite gesture
+    /// age means the session has never seen one, and still needs a real key.
     static func shouldBlockLaunch(now: TimeInterval,
                                   lastTriggerAt: TimeInterval?,
                                   secondsSinceUserGesture: TimeInterval) -> Bool {
-        if let lastTriggerAt, now - lastTriggerAt <= launchArmWindow { return true }
-        return secondsSinceUserGesture > userGestureWindow
+        guard now.isFinite, now >= 0, let lastTriggerAt,
+              lastTriggerAt.isFinite, lastTriggerAt >= 0,
+              !secondsSinceUserGesture.isNaN, secondsSinceUserGesture >= 0 else { return false }
+        let elapsed = now - lastTriggerAt
+        return (0...launchArmWindow).contains(elapsed) && secondsSinceUserGesture > elapsed
     }
 }

@@ -10,6 +10,8 @@ struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var appearance = AppAppearanceController.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var musicBlocker = MusicLaunchBlocker.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginError: String?
@@ -163,10 +165,20 @@ struct GeneralSettings: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .onChange(of: musicBlockEnabled) { _, _ in
-                        MusicLaunchBlocker.shared.syncWithPreferences()
+                        musicBlocker.syncWithPreferences()
                     }
             }
             if musicBlockEnabled {
+                if !permissions.accessibility {
+                    PermissionRow(kind: .accessibility)
+                        .padding(.leading, settingsRowTextInset)
+                } else if !musicBlocker.isMonitoring {
+                    Text(l10n.s.musicBlockUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, settingsRowTextInset)
+                }
                 HStack(spacing: 8) {
                     Text(l10n.s.musicBlockReplacementLabel)
                     Spacer()

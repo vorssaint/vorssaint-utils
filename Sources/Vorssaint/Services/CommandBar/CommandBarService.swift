@@ -474,13 +474,20 @@ final class CommandBarService: ObservableObject {
     /// missing record would strand the typist on the borrowed layout.
     private var suspendedInputSourceID: String?
 
+    var hasBorrowedInputSource: Bool {
+        suspendedInputSourceID != nil
+    }
+
     /// One-shot switch to the first enabled ASCII layout, read fresh on every
     /// open like every other preference on this path. TIS talks to the
     /// text-input server from the main thread, the way the Super key switch
     /// already does.
     private func adoptASCIIInputSource() {
         let apply = {
-            guard UserDefaults.standard.bool(forKey: DefaultsKey.commandBarASCIILayoutEnabled) else { return }
+            guard UserDefaults.standard.bool(forKey: DefaultsKey.commandBarASCIILayoutEnabled) else {
+                self.restoreSuspendedInputSource()
+                return
+            }
             let currentID = InputSourceSelection.currentSourceID()
             guard let target = InputSourceSelection.asciiLayoutID(
                 currentID: currentID,
@@ -514,9 +521,16 @@ final class CommandBarService: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.presentationID == presentationID,
                   self.suspendedInputSourceID == sourceID else { return }
-            self.suspendedInputSourceID = nil
-            _ = InputSourceSelection.select(sourceID: sourceID)
+            self.restoreBorrowedInputSource()
         }
+    }
+
+    /// The termination path cannot wait for another main-loop turn. Keep a
+    /// refused restoration pending so a later close or termination can retry.
+    func restoreBorrowedInputSource() {
+        guard let sourceID = suspendedInputSourceID,
+              InputSourceSelection.select(sourceID: sourceID) else { return }
+        suspendedInputSourceID = nil
     }
 
     /// Re-fits the panel to its content as the result list grows and
