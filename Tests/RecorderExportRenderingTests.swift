@@ -62,22 +62,29 @@ enum RecorderExportRenderingTests {
         await writer.finishWriting()
         suite.expect(writer.status == .completed, "the synthetic 60 fps master is written")
         try await audioAndGIF(suite, take: take)
-        for hasCuts in [false, true] {
+        // The last case ends protection in the removed interval. The frame
+        // held immediately before the splice must retain the pre-cut blur.
+        let cases: [(cuts: Bool, blurStart: Double, blurEnd: Double, protectedTime: Double, clearTime: Double)] = [
+            (false, 0.2, 0.999, 0.99899, 1.2),
+            (true, 0.2, 0.999, 0.69899, 0.9),
+            (true, 0, 0.499, 0.19999, 0.3),
+        ]
+        for scenario in cases {
+            let hasCuts = scenario.cuts
             var doc = RecorderEditDocument()
             doc.backdrop = ""
             doc.showsPointer = false
             doc.zoomEnabled = false
             doc.quality = RecorderSupport.Quality.high.rawValue
-            doc.blurs = [RecorderBlurRegion(start: 0.2, end: 0.999,
+            doc.blurs = [RecorderBlurRegion(start: scenario.blurStart, end: scenario.blurEnd,
                                              rect: CGRect(x: 0, y: 0, width: 1, height: 1))]
             if hasCuts {
                 doc.trimStart = 0.05
                 doc.cuts = [.init(start: 0.25, end: 0.5)]
             }
-            let removed = hasCuts ? 0.3 : 0.0
             for speed in [0.25, 0.5, 1.0, 1.37, 4.0] {
                 doc.exportSpeed = speed
-                let output = folder.appendingPathComponent("export-\(hasCuts)-\(speed).mp4")
+                let output = folder.appendingPathComponent("export-\(hasCuts)-\(scenario.blurEnd)-\(speed).mp4")
                 let failure = await RecorderExporter().export(take: take, document: doc,
                     output: .video, to: output, progress: { _ in })
                 suite.expect(failure == nil, "production export succeeds at \(speed)x with cuts \(hasCuts)")
@@ -92,7 +99,7 @@ enum RecorderExportRenderingTests {
                 // The final output frame inside the blur must remain obscured,
                 // even when it holds the preceding source frame. Later content
                 // must still be visible; extending the blur forever cannot pass.
-                for (editedTime, protected) in [(0.99899 - removed, true), (1.2 - removed, false)] {
+                for (editedTime, protected) in [(scenario.protectedTime, true), (scenario.clearTime, false)] {
                     let time = floor(editedTime / speed * 60) / 60
                     let frame = try await generator.image(at: CMTime(seconds: time, preferredTimescale: 60000))
                     let contrast = contrast(of: frame.image)
@@ -143,7 +150,7 @@ enum RecorderExportRenderingTests {
         await mux.export()
         suite.expect(mux.status == .completed, "two-track fixture retains delayed microphone and its silent gap")
         guard mux.status == .completed else { return }
-        for speed in [0.5, 1.0, 1.37, 4.0] {
+        for speed in [0.25, 0.5, 1.0, 1.37, 4.0] {
             var doc = RecorderEditDocument(exportSpeed: speed, keepsSystemAudio: false, microphoneGain: 0.5)
             doc.showsPointer = false
             doc.zoomEnabled = false
