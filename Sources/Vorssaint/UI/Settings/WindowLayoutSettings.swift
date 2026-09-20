@@ -226,7 +226,7 @@ struct WindowLayoutSettings: View {
         .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
     ]
     private static let quarterRowActions: [WindowLayoutAction] = [
-        .topQuarter, .upperCenterQuarter, .lowerCenterQuarter, .bottomQuarter,
+        .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
     ]
     private static let quarterColumnActions: [WindowLayoutAction] = [
         .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,

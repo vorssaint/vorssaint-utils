@@ -55,8 +55,8 @@ enum WindowLayoutFeatureTests {
                "center two thirds starts with no combination of its own")
         let verticalLayouts: [(WindowLayoutAction, UInt32, String)] = [
             (.topQuarter, 66, DefaultsKey.windowLayoutShortcutTopQuarter),
-            (.upperCenterQuarter, 58, DefaultsKey.windowLayoutShortcutUpperCenterQuarter),
-            (.lowerCenterQuarter, 59, DefaultsKey.windowLayoutShortcutLowerCenterQuarter),
+            (.upperMiddleQuarter, 58, DefaultsKey.windowLayoutShortcutUpperMiddleQuarter),
+            (.lowerMiddleQuarter, 59, DefaultsKey.windowLayoutShortcutLowerMiddleQuarter),
             (.bottomQuarter, 60, DefaultsKey.windowLayoutShortcutBottomQuarter),
             (.leftQuarter, 67, DefaultsKey.windowLayoutShortcutLeftQuarter),
             (.leftMiddleQuarter, 68, DefaultsKey.windowLayoutShortcutLeftMiddleQuarter),
@@ -94,8 +94,8 @@ enum WindowLayoutFeatureTests {
                     && !layoutStrings.rightMiddleQuarter.isEmpty
                     && !layoutStrings.rightQuarter.isEmpty
                     && !layoutStrings.topQuarter.isEmpty
-                    && !layoutStrings.upperCenterQuarter.isEmpty
-                    && !layoutStrings.lowerCenterQuarter.isEmpty
+                    && !layoutStrings.upperMiddleQuarter.isEmpty
+                    && !layoutStrings.lowerMiddleQuarter.isEmpty
                     && !layoutStrings.bottomQuarter.isEmpty
                     && !layoutStrings.topThird.isEmpty
                     && !layoutStrings.middleThird.isEmpty
@@ -396,8 +396,8 @@ enum WindowLayoutFeatureTests {
                "window layout center two thirds sits two thirds wide in the middle of the screen")
         let verticalStripLayouts: [(WindowLayoutAction, CGRect)] = [
             (.topQuarter, CGRect(x: 0, y: 685, width: 1440, height: 215)),
-            (.upperCenterQuarter, CGRect(x: 0, y: 470, width: 1440, height: 215)),
-            (.lowerCenterQuarter, CGRect(x: 0, y: 255, width: 1440, height: 215)),
+            (.upperMiddleQuarter, CGRect(x: 0, y: 470, width: 1440, height: 215)),
+            (.lowerMiddleQuarter, CGRect(x: 0, y: 255, width: 1440, height: 215)),
             (.bottomQuarter, CGRect(x: 0, y: 40, width: 1440, height: 215)),
             (.leftQuarter, CGRect(x: 0, y: 40, width: 360, height: 860)),
             (.leftMiddleQuarter, CGRect(x: 360, y: 40, width: 360, height: 860)),

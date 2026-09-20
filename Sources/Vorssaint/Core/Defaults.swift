@@ -676,8 +676,8 @@ enum DefaultsKey {
     static let windowLayoutShortcutTopTwoThirds = "windowLayoutShortcutTopTwoThirds"
     static let windowLayoutShortcutBottomTwoThirds = "windowLayoutShortcutBottomTwoThirds"
     static let windowLayoutShortcutTopQuarter = "windowLayoutShortcutTopQuarter"
-    static let windowLayoutShortcutUpperCenterQuarter = "windowLayoutShortcutUpperCenterQuarter"
-    static let windowLayoutShortcutLowerCenterQuarter = "windowLayoutShortcutLowerCenterQuarter"
+    static let windowLayoutShortcutUpperMiddleQuarter = "windowLayoutShortcutUpperMiddleQuarter"
+    static let windowLayoutShortcutLowerMiddleQuarter = "windowLayoutShortcutLowerMiddleQuarter"
     static let windowLayoutShortcutBottomQuarter = "windowLayoutShortcutBottomQuarter"
     static let windowLayoutShortcutLeftQuarter = "windowLayoutShortcutLeftQuarter"
     static let windowLayoutShortcutLeftMiddleQuarter = "windowLayoutShortcutLeftMiddleQuarter"
@@ -1596,8 +1596,8 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutTopTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutTopQuarter: WindowLayoutAction.clearedShortcutStorageValue,
-        DefaultsKey.windowLayoutShortcutUpperCenterQuarter: WindowLayoutAction.clearedShortcutStorageValue,
-        DefaultsKey.windowLayoutShortcutLowerCenterQuarter: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutUpperMiddleQuarter: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutLowerMiddleQuarter: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomQuarter: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutLeftQuarter: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutLeftMiddleQuarter: WindowLayoutAction.clearedShortcutStorageValue,
