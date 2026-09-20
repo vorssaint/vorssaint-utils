@@ -35,6 +35,8 @@ final class DockPreviewService: ObservableObject {
     private var settingsTimer: Timer?
     private var dockVisibilityTimer: Timer?
     private let dockAutohideHold = DockAutohideHold()
+    private var dockFrameRestoration: DockPreviewFrameRestoration?
+    private var dockFrameRestorationGeneration = 0
     private var dockHoldObservers: [NSObjectProtocol] = []
     private var dockHoldInputTap: CFMachPort?
     private var dockHoldInputSource: CFRunLoopSource?
@@ -205,9 +207,14 @@ final class DockPreviewService: ObservableObject {
 
     func commit(_ item: SwitcherItem) {
         guard windows.contains(item) else { return }
+        let generation = dockFrameRestorationGeneration
+        let restoreFrame = dockFrameRestoration?.restoration(for: item) { [weak self] in
+            self?.isRunning == true && self?.dockFrameRestorationGeneration == generation
+        }
         endSession()
         guard WindowEnumerator.dockPreviewMayActivate(item) else { return }
         WindowActivator.activate(item)
+        restoreFrame?()
     }
 
     func closePreviewPanel() {
@@ -1003,10 +1010,13 @@ final class DockPreviewService: ObservableObject {
 
     private func beginDockAutohideHold() {
         guard dockHoldObservers.isEmpty, startDockHoldInputTap() else { return }
+        dockFrameRestorationGeneration &+= 1
+        let frameRestoration = DockPreviewFrameRestoration()
         guard dockAutohideHold.begin() else {
             stopDockHoldInputTap()
             return
         }
+        dockFrameRestoration = frameRestoration
         let workspace = NSWorkspace.shared.notificationCenter
         let events = [NSWorkspace.activeSpaceDidChangeNotification,
                       NSWorkspace.willSleepNotification,
@@ -1071,6 +1081,7 @@ final class DockPreviewService: ObservableObject {
         // Restore before invalidating an active input callback: detaching the
         // tap must never let its key reach the system ahead of this write.
         dockAutohideHold.end()
+        dockFrameRestoration = nil
         stopDockHoldInputTap()
         for observer in dockHoldObservers {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)

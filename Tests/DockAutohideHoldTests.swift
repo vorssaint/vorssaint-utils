@@ -14,9 +14,31 @@ enum DockAutohideHoldTests {
         static let sessionDidResignActiveNotification = Notification.Name("hold.session")
     }
     final class WorkspaceCenter { let notificationCenter = NotificationCenter() }
+    static var activationEvents: [String] = []
+    struct FrameRestoration {
+        func restoration(for item: Int, isCurrent: @escaping () -> Bool) -> (() -> Void)? {
+            activationEvents.append("capture")
+            return { if isCurrent() { activationEvents.append("restore") } }
+        }
+    }
+    enum WindowEnumerator {
+        static var mayActivate = true
+        static func dockPreviewMayActivate(_ item: Int) -> Bool { mayActivate }
+    }
+    enum WindowActivator {
+        static func activate(_ item: Int) { activationEvents.append("activate") }
+    }
     final class Service {
+        typealias SwitcherItem = Int
         typealias NSWorkspace = Workspace
+        typealias DockPreviewFrameRestoration = FrameRestoration
+        typealias WindowEnumerator = DockAutohideHoldTests.WindowEnumerator
+        typealias WindowActivator = DockAutohideHoldTests.WindowActivator
         let dockAutohideHold: DockAutohideHold
+        var dockFrameRestoration: FrameRestoration?
+        var dockFrameRestorationGeneration = 0
+        var windows = [1]
+        var isRunning = true
         var dockHoldObservers: [NSObjectProtocol] = []
         var acceptsInputTap = true
         var inputTapActive = false
@@ -39,7 +61,11 @@ enum DockAutohideHoldTests {
             inputTapActive = false
         }
         func cancelPendingMove() { pendingMove = false }
-        func endSession() { sessionEnds += 1; releaseDockAutohideHold() }
+        func endSession() {
+            activationEvents.append("end")
+            sessionEnds += 1
+            releaseDockAutohideHold()
+        }
     }
 
     static func run(_ suite: TestSuite) {
@@ -123,10 +149,13 @@ enum DockAutohideHoldTests {
                      "a Dock already visible leaves no input tap or observers")
         autohide = true
         service.beginDockAutohideHold()
+        let generation = service.dockFrameRestorationGeneration
         service.beginDockAutohideHold()
         service.pendingMove = true
         suite.expect(service.inputTapActive && service.dockHoldObservers.count == 3,
                      "switching apps keeps exactly one set of hold observers")
+        suite.expect(service.dockFrameRestoration != nil && service.dockFrameRestorationGeneration == generation,
+                     "switching Dock icons retains the window geometry from before the hold")
         service.handleDockHoldInput(type: .mouseMoved)
         suite.expect(autohide == false && service.sessionEnds == 0,
                      "moving through previews keeps the Dock held")
@@ -150,6 +179,7 @@ enum DockAutohideHoldTests {
         suite.expect(autohide == true && !service.pendingMove
                      && !service.inputTapActive && service.dockHoldObservers.isEmpty,
                      "keyboard input restores before delivery and cancels a queued hover move")
+        suite.expect(service.dockFrameRestoration == nil, "ending a hold discards its saved window geometry")
         autohide?.toggle() // Native shortcut chooses a permanently visible Dock.
         service.releaseDockAutohideHold() // A later close or preference sync.
         suite.expect(autohide == false && !defaults.bool(forKey: marker),
@@ -185,6 +215,24 @@ enum DockAutohideHoldTests {
                      "a rejected system write removes input protection immediately")
         acceptsWrites = true
         service.releaseDockAutohideHold()
+
+        autohide = true
+        service.beginDockAutohideHold()
+        activationEvents = []
+        service.commit(1)
+        suite.expect(activationEvents == ["capture", "end", "activate", "restore"],
+                     "selection captures geometry before release and repairs only after activating the window")
+        service.beginDockAutohideHold()
+        activationEvents = []
+        WindowEnumerator.mayActivate = false
+        service.commit(1)
+        suite.expect(activationEvents == ["capture", "end"],
+                     "a selection rejected by the Space policy never restores a window")
+        WindowEnumerator.mayActivate = true
+        activationEvents = []
+        service.commit(1)
+        suite.expect(activationEvents == ["end", "activate"],
+                     "normal previews never schedule a frame restoration")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.dockPreviewKeepDockVisible] as? Bool == false,
                      "the experiment is disabled by default")

@@ -193,6 +193,39 @@ enum WindowActivator {
         windowMinimizedState(windowID: windowID, pid: pid) == true
     }
 
+    /// Undo only a verified work-area constraint from the preview's Dock hold.
+    static func restoreFrameAfterDockHold(_ item: SwitcherItem, original: CGRect,
+                                         heldVisibleFrame: CGRect) {
+        guard Permissions.shared.accessibility, let windowID = item.windowID else { return }
+        let app = AXUIElementCreateApplication(item.windowOwnerPID)
+        AXUIElementSetMessagingTimeout(app, 0.35)
+        guard let window = axElement(windowID: windowID, in: app),
+              !boolAttribute(window, "AXFullScreen", default: true),
+              minimizedState(of: window) == false else { return }
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let positionValue, CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              let sizeValue, CFGetTypeID(sizeValue) == AXValueGetTypeID() else { return }
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &origin),
+              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size),
+              DockPreviewFrameSupport.wasConstrained(CGRect(origin: origin, size: size),
+                                                     original: original, visibleFrame: heldVisibleFrame)
+        else { return }
+        origin = original.origin
+        size = original.size
+        guard let position = AXValueCreate(.cgPoint, &origin),
+              let dimensions = AXValueCreate(.cgSize, &size) else { return }
+        let suspension = EnhancedUserInterfaceSuspension.suspend(forAppOf: window)
+        defer { suspension?.resume() }
+        AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, position)
+        AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, dimensions)
+        AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, position)
+    }
+
     /// Three-state minimized check for callers that must distinguish a window
     /// reported as restored from one that could not be resolved or queried.
     static func windowMinimizedState(windowID: CGWindowID, pid: pid_t) -> Bool? {
