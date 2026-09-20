@@ -58,6 +58,10 @@ enum WindowLayoutFeatureTests {
             (.upperCenterQuarter, 58, DefaultsKey.windowLayoutShortcutUpperCenterQuarter),
             (.lowerCenterQuarter, 59, DefaultsKey.windowLayoutShortcutLowerCenterQuarter),
             (.bottomQuarter, 60, DefaultsKey.windowLayoutShortcutBottomQuarter),
+            (.leftQuarter, 67, DefaultsKey.windowLayoutShortcutLeftQuarter),
+            (.leftMiddleQuarter, 68, DefaultsKey.windowLayoutShortcutLeftMiddleQuarter),
+            (.rightMiddleQuarter, 69, DefaultsKey.windowLayoutShortcutRightMiddleQuarter),
+            (.rightQuarter, 70, DefaultsKey.windowLayoutShortcutRightQuarter),
             (.topThird, 61, DefaultsKey.windowLayoutShortcutTopThird),
             (.middleThird, 62, DefaultsKey.windowLayoutShortcutMiddleThird),
             (.bottomThird, 63, DefaultsKey.windowLayoutShortcutBottomThird),
@@ -83,7 +87,12 @@ enum WindowLayoutFeatureTests {
                     && !layoutStrings.marginMaximize.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
                     && !layoutStrings.centerTwoThirds.isEmpty
-                    && !layoutStrings.quarters.isEmpty
+                    && !layoutStrings.quarterRows.isEmpty
+                    && !layoutStrings.quarterColumns.isEmpty
+                    && !layoutStrings.leftQuarter.isEmpty
+                    && !layoutStrings.leftMiddleQuarter.isEmpty
+                    && !layoutStrings.rightMiddleQuarter.isEmpty
+                    && !layoutStrings.rightQuarter.isEmpty
                     && !layoutStrings.topQuarter.isEmpty
                     && !layoutStrings.upperCenterQuarter.isEmpty
                     && !layoutStrings.lowerCenterQuarter.isEmpty
@@ -390,6 +399,10 @@ enum WindowLayoutFeatureTests {
             (.upperCenterQuarter, CGRect(x: 0, y: 470, width: 1440, height: 215)),
             (.lowerCenterQuarter, CGRect(x: 0, y: 255, width: 1440, height: 215)),
             (.bottomQuarter, CGRect(x: 0, y: 40, width: 1440, height: 215)),
+            (.leftQuarter, CGRect(x: 0, y: 40, width: 360, height: 860)),
+            (.leftMiddleQuarter, CGRect(x: 360, y: 40, width: 360, height: 860)),
+            (.rightMiddleQuarter, CGRect(x: 720, y: 40, width: 360, height: 860)),
+            (.rightQuarter, CGRect(x: 1080, y: 40, width: 360, height: 860)),
             (.topThird, CGRect(x: 0, y: 613, width: 1440, height: 287)),
             (.middleThird, CGRect(x: 0, y: 326, width: 1440, height: 288)),
             (.bottomThird, CGRect(x: 0, y: 40, width: 1440, height: 287)),
@@ -400,8 +413,20 @@ enum WindowLayoutFeatureTests {
             suite.expect(WindowLayoutGeometry.rect(for: action,
                                                    current: currentWindow,
                                                    visibleFrame: visibleFrame) == target,
-                   "\(action.rawValue) targets its full-width vertical strip")
+                   "\(action.rawValue) targets its strip")
         }
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .leftQuarter,
+                                                       targetRect: CGRect(x: 0, y: 40, width: 360, height: 860),
+                                                       actualSize: CGSize(width: 600, height: 860),
+                                                       visibleFrame: visibleFrame)
+               == CGRect(x: 0, y: 40, width: 600, height: 860),
+               "left quarter grows from the left edge of its column")
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .rightMiddleQuarter,
+                                                       targetRect: CGRect(x: 720, y: 40, width: 360, height: 860),
+                                                       actualSize: CGSize(width: 600, height: 860),
+                                                       visibleFrame: visibleFrame)
+               == CGRect(x: 480, y: 40, width: 600, height: 860),
+               "right middle quarter grows from the right edge of its column")
         suite.expect(WindowLayoutGeometry.anchoredRect(for: .topQuarter,
                                                        targetRect: CGRect(x: 0, y: 685, width: 1440, height: 215),
                                                        actualSize: CGSize(width: 1440, height: 400),

@@ -30,6 +30,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds, centerTwoThirds
     case topThird, middleThird, bottomThird, topTwoThirds, bottomTwoThirds
     case topQuarter, upperCenterQuarter, lowerCenterQuarter, bottomQuarter
+    case leftQuarter, leftMiddleQuarter, rightMiddleQuarter, rightQuarter
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
@@ -43,6 +44,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
         .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
         .topQuarter, .upperCenterQuarter, .lowerCenterQuarter, .bottomQuarter,
+        .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
@@ -106,6 +108,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         // 56 went to center two thirds upstream, so the top quarter takes the
         // next free id rather than moving an already-registered shortcut.
         case .topQuarter: return 66
+        case .leftQuarter: return 67
+        case .leftMiddleQuarter: return 68
+        case .rightMiddleQuarter: return 69
+        case .rightQuarter: return 70
         }
     }
 
@@ -145,6 +151,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .upperCenterQuarter: return DefaultsKey.windowLayoutShortcutUpperCenterQuarter
         case .lowerCenterQuarter: return DefaultsKey.windowLayoutShortcutLowerCenterQuarter
         case .bottomQuarter: return DefaultsKey.windowLayoutShortcutBottomQuarter
+        case .leftQuarter: return DefaultsKey.windowLayoutShortcutLeftQuarter
+        case .leftMiddleQuarter: return DefaultsKey.windowLayoutShortcutLeftMiddleQuarter
+        case .rightMiddleQuarter: return DefaultsKey.windowLayoutShortcutRightMiddleQuarter
+        case .rightQuarter: return DefaultsKey.windowLayoutShortcutRightQuarter
         case .previousDisplay: return DefaultsKey.windowLayoutShortcutPreviousDisplay
         case .nextDisplay: return DefaultsKey.windowLayoutShortcutNextDisplay
         case .topLeftSixth: return DefaultsKey.windowLayoutShortcutTopLeftSixth
@@ -182,6 +192,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
                 .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
                 .topQuarter, .upperCenterQuarter, .lowerCenterQuarter, .bottomQuarter,
+                .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
                 .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds:
             // New actions must never claim a system-wide combination unasked.
             return nil
@@ -255,6 +266,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .upperCenterQuarter: return text.upperCenterQuarter
         case .lowerCenterQuarter: return text.lowerCenterQuarter
         case .bottomQuarter: return text.bottomQuarter
+        case .leftQuarter: return text.leftQuarter
+        case .leftMiddleQuarter: return text.leftMiddleQuarter
+        case .rightMiddleQuarter: return text.rightMiddleQuarter
+        case .rightQuarter: return text.rightQuarter
         case .topLeftSixth: return text.topLeftSixth
         case .topCenterSixth: return text.topCenterSixth
         case .topRightSixth: return text.topRightSixth
@@ -271,13 +286,15 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         switch self {
         case .leftHalf: return "rectangle.lefthalf.inset.filled"
         case .rightHalf: return "rectangle.righthalf.inset.filled"
-        case .leftThird: return "rectangle.leftthird.inset.filled"
-        case .rightThird: return "rectangle.rightthird.inset.filled"
+        case .leftThird, .leftQuarter: return "rectangle.leftthird.inset.filled"
+        case .rightThird, .rightQuarter: return "rectangle.rightthird.inset.filled"
         case .topHalf, .topThird, .topTwoThirds, .topQuarter: return "rectangle.topthird.inset.filled"
         case .bottomHalf, .bottomThird, .bottomTwoThirds, .bottomQuarter: return "rectangle.bottomthird.inset.filled"
         case .centerHalf, .centerThird, .middleThird: return "rectangle.center.inset.filled"
         case .leftTwoThirds: return "rectangle.leadinghalf.filled"
         case .rightTwoThirds: return "rectangle.trailinghalf.filled"
+        case .leftMiddleQuarter: return "arrow.left"
+        case .rightMiddleQuarter: return "arrow.right"
         case .centerTwoThirds: return "rectangle.center.inset.filled"
         case .upperCenterQuarter: return "arrow.up"
         case .lowerCenterQuarter: return "arrow.down"
@@ -448,6 +465,7 @@ enum WindowLayoutGeometry {
         let thirdHeight = visibleFrame.height / 3
         let twoThirdsHeight = thirdHeight * 2
         let quarterHeight = visibleFrame.height / 4
+        let quarterWidth = visibleFrame.width / 4
         switch action {
         case .leftHalf:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
@@ -509,6 +527,18 @@ enum WindowLayoutGeometry {
         case .bottomQuarter:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
                           width: visibleFrame.width, height: quarterHeight).integral
+        case .leftQuarter:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                          width: quarterWidth, height: visibleFrame.height).integral
+        case .leftMiddleQuarter:
+            return CGRect(x: visibleFrame.minX + quarterWidth, y: visibleFrame.minY,
+                          width: quarterWidth, height: visibleFrame.height).integral
+        case .rightMiddleQuarter:
+            return CGRect(x: visibleFrame.minX + quarterWidth * 2, y: visibleFrame.minY,
+                          width: quarterWidth, height: visibleFrame.height).integral
+        case .rightQuarter:
+            return CGRect(x: visibleFrame.maxX - quarterWidth, y: visibleFrame.minY,
+                          width: quarterWidth, height: visibleFrame.height).integral
         case .topLeftSixth:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.midY,
                           width: thirdWidth, height: halfHeight).integral
@@ -586,7 +616,7 @@ enum WindowLayoutGeometry {
         case .bottomHalf, .bottomThird, .bottomTwoThirds, .bottomQuarter, .lowerCenterQuarter:
             origin.x = targetRect.minX
             origin.y = targetRect.minY
-        case .leftThird, .leftTwoThirds:
+        case .leftThird, .leftTwoThirds, .leftQuarter, .leftMiddleQuarter:
             origin.x = targetRect.minX
             origin.y = targetRect.minY
         case .centerThird, .centerHalf, .centerTwoThirds:
@@ -595,7 +625,7 @@ enum WindowLayoutGeometry {
         case .middleThird:
             origin.x = targetRect.minX
             origin.y = targetRect.midY - size.height / 2
-        case .rightThird, .rightTwoThirds:
+        case .rightThird, .rightTwoThirds, .rightMiddleQuarter, .rightQuarter:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
         case .topLeftSixth:
@@ -679,7 +709,7 @@ enum WindowLayoutGeometry {
             return abs(actualRect.minY - targetRect.minY) <= anchorTolerance
                 && fullWidth
                 && overlap > 0.45
-        case .leftThird, .leftTwoThirds:
+        case .leftThird, .leftTwoThirds, .leftQuarter, .leftMiddleQuarter:
             return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
@@ -691,7 +721,7 @@ enum WindowLayoutGeometry {
             return abs(actualRect.midY - targetRect.midY) <= anchorTolerance
                 && fullWidth
                 && overlap > 0.45
-        case .rightThird, .rightTwoThirds:
+        case .rightThird, .rightTwoThirds, .rightMiddleQuarter, .rightQuarter:
             return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45

@@ -225,8 +225,11 @@ struct WindowLayoutSettings: View {
         .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
         .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
     ]
-    private static let quarterActions: [WindowLayoutAction] = [
+    private static let quarterRowActions: [WindowLayoutAction] = [
         .topQuarter, .upperCenterQuarter, .lowerCenterQuarter, .bottomQuarter,
+    ]
+    private static let quarterColumnActions: [WindowLayoutAction] = [
+        .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
     ]
     private static let sixthActions: [WindowLayoutAction] = [
         .topLeftSixth, .topCenterSixth, .topRightSixth,
@@ -242,7 +245,8 @@ struct WindowLayoutSettings: View {
     private var placementSections: some View {
         actionSection(text.halves, Self.halfActions)
         actionSection(text.thirds, Self.thirdActions)
-        actionSection(text.quarters, Self.quarterActions)
+        actionSection(text.quarterRows, Self.quarterRowActions)
+        actionSection(text.quarterColumns, Self.quarterColumnActions)
         actionSection(text.sixths, Self.sixthActions)
         actionSection(text.corners, Self.cornerActions)
     }
