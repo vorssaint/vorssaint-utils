@@ -326,16 +326,21 @@ final class RecorderComposer {
                                  frameRate: Int,
                                  composer: RecorderComposer?,
                                  sourceSize: CGSize,
-                                 outputSize: CGSize) async -> AVMutableVideoComposition? {
+                                 outputSize: CGSize,
+                                 playbackSpeed: Double = 1) async -> AVMutableVideoComposition? {
         if let composer {
             // The handler may run concurrently; this composer only reads
             // immutable state while rendering each frame.
             nonisolated(unsafe) let threadSafeComposer = composer
+            let timing = RecorderExportTiming(speed: playbackSpeed)
             let composition = try? await AVMutableVideoComposition.videoComposition(
                 with: asset) { request in
+                    // Plans are built on the edited, unscaled clock. Map back
+                    // before looking up zooms, cursor shapes, captions and
+                    // privacy blurs, including frames on either side of a cut.
                     let rendered = threadSafeComposer.render(
                         request.sourceImage,
-                        at: CMTimeGetSeconds(request.compositionTime))
+                        at: timing.sourceTime(forOutputTime: CMTimeGetSeconds(request.compositionTime)))
                     request.finish(with: rendered, context: nil)
                 }
             guard let composition else { return nil }
