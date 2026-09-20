@@ -664,6 +664,11 @@ enum NotchSupport {
         defaults.object(forKey: DefaultsKey.notchShowInCaptures) as? Bool ?? true
     }
 
+    /// The closed island may cover the menus instead of giving way to them.
+    static func coversMenus(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchCoversMenus)
+    }
+
     static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {
         let choice = NotchIdleContent(rawValue: defaults.string(forKey: DefaultsKey.notchIdleContent) ?? "") ?? .none
         if choice == .battery, !AppFeature.monitorPower.isAvailable(in: defaults) { return .none }

@@ -1258,6 +1258,14 @@ final class NotchService: ObservableObject {
     }
 
     private func syncMenuSpaceMonitoring() {
+        if running, !suspended, NotchSupport.coversMenus() {
+            // Nothing to measure: the island keeps the room an empty bar
+            // would leave it, over whatever menus and status items are there.
+            stopMenuSpaceMonitoring()
+            applyMenuSpace(NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
+                                                       barHeight: geometry.menuBarHeight, occupied: []))
+            return
+        }
         guard AXIsProcessTrusted() else {
             stopMenuSpaceMonitoring()
             if geometry.compactSideRoom != nil {

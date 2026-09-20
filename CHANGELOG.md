@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows
 App Switcher shows more window previews, and shortcut fields accept macOS shortcuts. The mixer adds microphone volume; Dynamic Island adds compact layout, notifications, discovery, a stopwatch, sound bars and embedded Scratchpad; Command Bar expands emoji, calculations and layouts; utilities add Dock visibility holds, clipboard previews, port management, local IP, quit protection progress, arrow styles, home-folder installs and sideways scrolling, alongside scheduled Keep Awake with stricter automation and restored lid sleep, snippet sounds, menu recovery and redesigned settings with history navigation.
 
 ### Added
+- Dynamic Island can keep its timer, music and other compact activity on screen over the menus when the menu bar has no room, off by default under At rest in its settings.
 - The Network card shows the Mac's local IPv4 address with the connection name, copyable and hideable like the other blocks. Thanks to @muskecan.
 - Holding ⌘Q or ⌘W shows a progress bar in the confirmation prompt, which now names only the action being confirmed. Thanks to @ywu73.
 - Dock Preview can experimentally keep the Dock visible while previews are open, off by default under More options.
@@ -57,6 +58,7 @@ App Switcher shows more window previews, and shortcut fields accept macOS shortc
 - The media tools describe each compression level under the Low, Medium and High buttons. Thanks to @samanyudas.
 
 ### Fixed
+- Dynamic Island's volume and brightness rows share one layout, so their sliders and readouts line up, and the header's actions fade in on hover while the island is focused too.
 - App Switcher keeps an app's windows listed after Q until it really quits, including one that stops at a save prompt. Thanks to @PathGao.
 - Keep Awake restores lid sleep after a timer or battery cutoff, respecting macOS sleep protections. Thanks to @NongKnot.
 - Dynamic Island shows a video playing in a browser even when a music app is open but stopped. Thanks to @ruvelro.

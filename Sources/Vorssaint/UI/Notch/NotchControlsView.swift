@@ -185,7 +185,7 @@ struct NotchAudioControls: View {
             HStack(spacing: 10) {
                 mute
                 slider
-                outputMenu
+                inlineOutputMenu
             }
             .frame(height: NotchLayout.musicControlsRowHeight)
             .help(mixer.outputSwitchError ?? deviceName)
@@ -193,7 +193,7 @@ struct NotchAudioControls: View {
             HStack(spacing: 8) {
                 mute
                 slider
-                outputMenu
+                readoutMenu
             }
             .frame(height: 28)
             .help(mixer.outputSwitchError ?? deviceName)
@@ -203,11 +203,12 @@ struct NotchAudioControls: View {
                     mute
                     if showsDevice {
                         Text(FeatureStrings.notch(l10n.language).volume).lineLimit(1)
+                        Spacer(minLength: 0)
+                        percent
                     } else {
-                        outputMenu
+                        Spacer(minLength: 0)
+                        readoutMenu
                     }
-                    Spacer(minLength: 0)
-                    percent
                 }
                 .font(.system(size: 12, weight: .semibold))
                 slider
@@ -216,7 +217,8 @@ struct NotchAudioControls: View {
                         if let error = mixer.outputSwitchError {
                             Text(error).font(.system(size: 10)).foregroundStyle(.orange).lineLimit(1).help(error)
                         } else {
-                            outputMenu
+                            NotchDeviceMenu(title: l10n.s.mixerSystemOutputTitle, current: deviceName,
+                                            width: 154, lines: 1, alignment: .leading, items: outputItems)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -281,27 +283,47 @@ struct NotchAudioControls: View {
         return items
     }
 
-    @ViewBuilder private var outputMenu: some View {
-        if style != .card || !showsDevice {
-            NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: outputItems) {
-                HStack(spacing: 5) {
-                    if style == .row {
-                        percent
-                    } else {
-                        Image(systemName: "airplay.audio").font(.system(size: 14))
-                    }
-                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .frame(height: 24)
-                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
+    private var readoutMenu: some View {
+        NotchLevelReadoutMenu(title: l10n.s.mixerSystemOutputTitle, items: outputItems) { percent }
             .help(deviceName)
             .accessibilityValue(deviceName)
-        } else {
-            NotchDeviceMenu(title: l10n.s.mixerSystemOutputTitle, current: deviceName,
-                            width: 154, lines: 1, alignment: .leading, items: outputItems)
+    }
+
+    /// Under the player the readout is the slider itself; a glyph opens the chooser.
+    private var inlineOutputMenu: some View {
+        NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: outputItems) {
+            HStack(spacing: 5) {
+                Image(systemName: "airplay.audio").font(.system(size: 14))
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 4)
+            .frame(height: 24)
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .help(deviceName)
+        .accessibilityValue(deviceName)
+    }
+}
+
+/// Where a row or a short card folds its chooser into the readout: the whole
+/// percent at the width of "100%" with the menu's chevron beside it. Volume
+/// and brightness end on this same column, so their sliders line up.
+private struct NotchLevelReadoutMenu<Readout: View>: View {
+    let title: String
+    let items: [NotchMenuItem]
+    @ViewBuilder let readout: () -> Readout
+
+    var body: some View {
+        NotchMenuButton(title: title, items: items) {
+            HStack(spacing: 5) {
+                readout().frame(width: 36, alignment: .trailing)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 4)
+            .frame(height: 24)
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
     }
 }
@@ -322,28 +344,31 @@ private struct NotchBrightnessControls: View {
         Group {
             if style == .row {
                 HStack(spacing: 8) {
-                    displayMenu
+                    glyph
                     slider
-                    percent.frame(width: 34, alignment: .trailing)
+                    readoutMenu
                 }
                 .frame(height: 28)
                 .help(display?.name ?? FeatureStrings.brightness(l10n.language).noDisplays)
             } else {
                 VStack(spacing: 6) {
                     HStack(spacing: 7) {
+                        glyph
                         if showsDevice {
-                            Label(FeatureStrings.notch(l10n.language).brightness, systemImage: "sun.max.fill")
-                                .lineLimit(1)
+                            Text(FeatureStrings.notch(l10n.language).brightness).lineLimit(1)
+                            Spacer(minLength: 0)
+                            percent
                         } else {
-                            displayMenu
+                            Spacer(minLength: 0)
+                            readoutMenu
                         }
-                        Spacer(minLength: 0)
-                        percent
                     }
                     .font(.system(size: 12, weight: .semibold))
                     slider
-                    if showsDevice {
-                        displayMenu.frame(maxWidth: .infinity, alignment: .leading)
+                    if showsDevice, let display {
+                        NotchDeviceMenu(title: FeatureStrings.notch(l10n.language).brightness, current: display.name,
+                                        width: 154, lines: 1, alignment: .leading, items: displayItems(current: display))
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -355,29 +380,24 @@ private struct NotchBrightnessControls: View {
         .onAppear { service.refresh() }
     }
 
-    @ViewBuilder private var displayMenu: some View {
+    /// Volume leads with its mute button; the sun keeps that button's width
+    /// so both sliders start on the same line.
+    private var glyph: some View {
+        Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium)).frame(width: 18)
+    }
+
+    private func displayItems(current: BrightnessDisplay) -> [NotchMenuItem] {
+        displays.map { item in
+            NotchMenuItem(title: item.name, checked: item.id == current.id) { selectedID = item.id }
+        }
+    }
+
+    @ViewBuilder private var readoutMenu: some View {
         if let display {
-            let title = FeatureStrings.notch(l10n.language).brightness
-            let items = displays.map { item in
-                NotchMenuItem(title: item.name, checked: item.id == display.id) { selectedID = item.id }
-            }
-            if style == .card && showsDevice {
-                NotchDeviceMenu(title: title, current: display.name,
-                                width: 154, lines: 1, alignment: .leading, items: items)
-            } else {
-                NotchMenuButton(title: title, items: items) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium))
-                        Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
-                    }
-                    .frame(height: 24)
-                    .contentShape(Rectangle())
-                }
+            NotchLevelReadoutMenu(title: FeatureStrings.notch(l10n.language).brightness,
+                                  items: displayItems(current: display)) { percent }
                 .help(display.name)
                 .accessibilityValue(display.name)
-            }
-        } else {
-            Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium)).frame(width: 18)
         }
     }
 
