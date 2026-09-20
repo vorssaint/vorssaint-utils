@@ -225,7 +225,9 @@ struct NotchAudioControls: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            // A short card folds its padding so the readout row, the slider and
+            // their gap fit NotchLayout.minimumCardHeight without spilling past the surface.
+            .padding(.vertical, showsDevice ? 10 : 5)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .modifier(NotchControlSurface(cornerRadius: 18))
         }
@@ -372,7 +374,8 @@ private struct NotchBrightnessControls: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                // Folds like the audio card above, for the same minimum card height.
+                .padding(.vertical, showsDevice ? 10 : 5)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .modifier(NotchControlSurface(cornerRadius: 18))
             }

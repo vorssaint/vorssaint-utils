@@ -274,7 +274,9 @@ struct SwitcherSettings: View {
                          choices: [(String, String)]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingsRow(symbol: symbol, title: title, caption: caption) { EmptyView() }
-            HStack(spacing: 8) {
+            // The three screen choices outgrow the card at the default window
+            // width in most languages; wrapping keeps every label whole.
+            FlowLayoutLite(spacing: 8) {
                 ForEach(choices, id: \.0) { value, label in
                     let selected = selection.wrappedValue == value
                     Button {

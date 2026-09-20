@@ -119,7 +119,10 @@ final class NotchAudioLevelService: ObservableObject {
 
     private func giveUp(_ pid: pid_t, on identity: NotchMusicIdentity) {
         guard readerPID == pid else { return }
-        silence.giveUp(on: identity)
+        // Paused, the tap hears the player letting go of its audio, and the
+        // pause already armed the next play; only a play that stayed silent
+        // is written off.
+        if stopWork == nil { silence.giveUp(on: identity) }
         stop()
     }
 

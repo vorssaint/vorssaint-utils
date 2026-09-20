@@ -135,11 +135,11 @@ MUTATIONS = [
     ("switcher reveal before resize", "switcher", "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",
      "                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in\n"
      "                            DispatchQueue.main.async {\n"
-     "                                revealSelection(in: proxy, animated: true)\n"
+     "                                revealSelection(in: proxy, animated: false)\n"
      "                            }\n"
      "                        }",
      "                        .onChange(of: switcher.iconRowLayout.previewContentWidth) { _, _ in\n"
-     "                            revealSelection(in: proxy, animated: true)\n"
+     "                            revealSelection(in: proxy, animated: false)\n"
      "                        }",
      "previews search/narrowed without changing selection"),
     ("switcher loses replacement identity", "switcher", "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",

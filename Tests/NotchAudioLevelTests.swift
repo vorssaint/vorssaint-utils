@@ -226,12 +226,22 @@ enum NotchAudioLevelLifecycleContract {
         expect(Reader.instances.count == afterSilence + 1,
                "pausing and playing rearms the same track after silence")
         guard let resumed = Reader.instances.last else { return }
-        resumed.onUnavailable()
+        music.playback = playback(playing: false)
+        drain()
+        resumed.onSilence()
+        drain()
+        let afterPausedSilence = Reader.instances.count
+        music.playback = playback()
+        drain()
+        expect(resumed.stopped && Reader.instances.count == afterPausedSilence + 1,
+               "silence heard during the pause grace does not write the next play off")
+        guard let replayed = Reader.instances.last else { return }
+        replayed.onUnavailable()
         drain()
         let afterFailure = Reader.instances.count
         music.playback = playback()
         drain()
-        expect(resumed.stopped && Reader.instances.count == afterFailure + 1,
+        expect(replayed.stopped && Reader.instances.count == afterFailure + 1,
                "a current device failure releases the reader but permits the next playback update to retry")
     }
 }

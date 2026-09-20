@@ -34,6 +34,9 @@ enum NotchActivityTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerSoundEnabled] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerSoundEnabled),
                "the sound preference is registered and included in settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchCoversMenus] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCoversMenus),
+               "covering the menus stays off by default and travels with settings backups")
         suite.expect(NotchTimerAlert.maximumDuration == .seconds(300), "an alarm is limited to five minutes")
         var sounds = 0, stops = 0
         var elapsed: Duration = .zero
