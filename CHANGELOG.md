@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Screen recordings gain custom export speed. App Switcher shows more previews, and shortcut fields accept macOS shortcuts. The mixer adds microphone volume; Dynamic Island adds compact layouts, notifications, discovery, a stopwatch, sound bars, Scratchpad and optional menu overlap; Command Bar expands emoji, calculations and keyboard switching; utilities add clipboard previews, safer port management, local IP, quit protection progress, arrow styles, home-folder installs and sideways scrolling, alongside safer music blocking, Keep Awake automation, restored lid sleep, snippet sounds, menu recovery after updates and settings history.
+Screen recordings gain custom export speed. App Switcher shows more previews, and shortcut fields accept macOS shortcuts. The mixer adds microphone volume; Dynamic Island adds compact layouts, notifications, discovery, a stopwatch, sound bars, Scratchpad and optional menu overlap; Command Bar expands emoji, calculations and keyboard switching and no longer accesses Keychain for query learning; utilities add clipboard previews, safer port management, local IP, quit protection progress, arrow styles, home-folder installs and sideways scrolling, alongside safer music blocking, clearer Keep Awake scheduling and automation, restored lid sleep, snippet sounds, menu recovery after updates and settings history.
 
 ### Added
 - Screen recordings export video, GIFs and shared links at 0.25×–4×, with custom speeds, pitch-preserving audio and aligned privacy effects. The editing preview stays at 1×.
@@ -37,7 +37,7 @@ Screen recordings gain custom export speed. App Switcher shows more previews, an
 - Port Manager lists listening ports, handles failed refreshes and verifies process identity before offering termination through Kill Process. Thanks to @MrDXTR and @Yash121l.
 - The screenshot editor's arrow offers solid, outline, open, double-ended and scribbly styles, remembered for the next capture. Thanks to @kxnstandin.
 - The disk image installer can put apps in your home folder's Applications, a remembered choice that names the destination. Thanks to @JashRashne.
-- Keep Awake can run until a time you pick in the panel; a time already past today counts for tomorrow. Thanks to @EdenRochmanSharabi.
+- Keep Awake offers separate Duration and Until modes, with a compact hour/minute grid, exact keyboard entry and the ending day. Both Start and the main switch use the selected mode; a time already past today counts for tomorrow. Thanks to @EdenRochmanSharabi.
 - Settings goes back and forward through visited pages with the mouse side buttons, a Go menu or ⌘[ and ⌘]. Thanks to @pergioa.
 - Dynamic Island's controls can show a Scratchpad shortcut that opens the pad in one click, enabled under Content in its settings. Thanks to @sarat03.
 - The Uninstaller can list and remove apps from the Command Bar, including the one selected in Finder, once enabled in its settings. Thanks to @naveenkrdy.
@@ -62,6 +62,7 @@ Screen recordings gain custom export speed. App Switcher shows more previews, an
 - The media tools describe each compression level under the Low, Medium and High buttons. Thanks to @samanyudas.
 
 ### Fixed
+- Command Bar no longer requests Keychain access for query learning. Query-specific learning lasts until the app quits, while general usage ranking remains saved.
 - After an update, a missing menu bar icon gets one automatic recovery attempt that preserves its saved position and respects hidden menu bars.
 - App Switcher keeps an app's windows listed after Q until it really quits, including one that stops at a save prompt. Thanks to @PathGao.
 - Keep Awake restores lid sleep after timers, battery cutoffs and quitting, respecting system protections and pending changes. Thanks to @NongKnot.

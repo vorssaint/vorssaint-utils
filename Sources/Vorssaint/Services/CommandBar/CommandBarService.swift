@@ -226,6 +226,7 @@ final class CommandBarService: ObservableObject {
     private var restartURL: URL?
 
     private init() {
+        CommandBarLearning.discardLegacyQueryHabits()
         hotkey.onPress = { [weak self] in self?.toggle() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
@@ -235,7 +236,6 @@ final class CommandBarService: ObservableObject {
 
     func syncWithPreferences() {
         let available = AppFeature.commandBar.isAvailable
-        if available { CommandBarQueryHabits.warmInstallationKey() }
         let enabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarShortcut,
@@ -314,13 +314,6 @@ final class CommandBarService: ObservableObject {
         reloadPreferenceCaches()
         query = ""
         refreshResults()
-        CommandBarQueryHabits.warmInstallationKey { [weak self] in
-            DispatchQueue.main.async {
-                guard let self, self.presentationID == id, self.isVisible else { return }
-                self.preparedHabitQuery.reset()
-                self.refreshResults()
-            }
-        }
         adoptASCIIInputSource()
         present(panel)
         // Ordering the prepared panel is the keystroke path. Home is filled on
@@ -908,8 +901,6 @@ final class CommandBarService: ObservableObject {
             from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarDisabledSources) ?? "")
         usageCache = CommandBarUsage.decode(
             UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
-        queryHabitStore.reload(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
         shortcutCache = rowShortcuts
         compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
         hasCustomPosition = positionOffset != .zero
@@ -1034,8 +1025,6 @@ final class CommandBarService: ObservableObject {
         UserDefaults.standard.set(CommandBarUsage.encode(usage), forKey: DefaultsKey.commandBarUsage)
         queryMemory.forget(id: entry.id)
         queryHabitStore.remove(resultID: entry.id)
-        UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
-                                  forKey: DefaultsKey.commandBarQueryHabits)
         refreshAfterPreferenceChange()
     }
 
@@ -2442,8 +2431,6 @@ final class CommandBarService: ObservableObject {
                 queryHabitStore.record(preparedQuery: prepared,
                                        resultID: entry.id,
                                        now: now)
-                UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
-                                          forKey: DefaultsKey.commandBarQueryHabits)
             }
         }
     }

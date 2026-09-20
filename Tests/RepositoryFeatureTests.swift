@@ -1204,17 +1204,16 @@ enum RepositoryFeatureTests {
                "uninstall sources read back for uninstallation alignment check")
         let queryHabitSupportSource = repository.source(
             at: "Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift")
-        suite.expect(selfUninstallSource.contains("CommandBarQueryHabits.removeInstallationKey()")
-                && queryHabitSupportSource.contains("installationKeyCache.stopAndRemove {")
-                && queryHabitSupportSource.contains("SecItemDelete([")
-                && queryHabitSupportSource.contains("kSecClass: kSecClassGenericPassword")
-                && queryHabitSupportSource.contains("kSecAttrService: keyService")
-                && queryHabitSupportSource.contains("kSecAttrAccount: keyAccount")
-                && queryHabitSupportSource.contains("keyService = installationKeyService(")
-                && queryHabitSupportSource.contains("keyAccount = \"hmac-key\"")
-                && uninstallScriptSource.contains("/usr/bin/security delete-generic-password")
-                && uninstallScriptSource.contains("-s \"$BUNDLE.command-bar-query-habits\" -a \"hmac-key\""),
-               "both uninstall paths remove only the query-learning Keychain item")
+        let queryHabitServiceSource = repository.source(
+            at: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift")
+        suite.expect(!queryHabitSupportSource.isEmpty
+                && !queryHabitServiceSource.isEmpty
+                && !queryHabitSupportSource.contains("SecItem")
+                && !queryHabitSupportSource.contains("import Security")
+                && !selfUninstallSource.contains("removeInstallationKey")
+                && !uninstallScriptSource.contains("delete-generic-password")
+                && !queryHabitServiceSource.contains("DefaultsKey.commandBarQueryHabits"),
+               "query learning and uninstall never access Keychain or persist query habits")
         let requiredSubpaths = ["Library/Application Support", "Library/Caches", "Library/HTTPStorages"]
         for subpath in requiredSubpaths {
             suite.expect(selfUninstallSource.contains(subpath) && uninstallScriptSource.contains(subpath),
