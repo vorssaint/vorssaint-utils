@@ -1494,14 +1494,6 @@ enum CommandBarFeatureTests {
                 == ["emoji.grin", "emoji.fire", "emoji.wave"],
                "an unlearned category preserves its useful catalog order")
 
-        let officialHabitService = CommandBarQueryHabits.installationKeyService(
-            bundleID: "com.vorssaint.utils")
-        let developerHabitService = CommandBarQueryHabits.installationKeyService(
-            bundleID: "com.vorssaint.utils.dev")
-        suite.expect(officialHabitService == "com.vorssaint.utils.command-bar-query-habits"
-                && officialHabitService != developerHabitService,
-               "uninstalling one app variant cannot target the other variant's query key")
-
         let habitKey = Data(repeating: 0x31, count: 32)
         let otherHabitKey = Data(repeating: 0x72, count: 32)
         for shortQuery in ["w", "wa"] {
@@ -1618,141 +1610,17 @@ enum CommandBarFeatureTests {
         suite.expect(habitStoreCache.store == queryHabits,
                "reloading preferences replaces the decoded store with persisted learning")
 
-        let persistedHabitKey = Data(repeating: 0x44, count: 32)
-        var keyReads: [(OSStatus, Data?)] = [(errSecSuccess, persistedHabitKey)]
-        var generatedKeyCount = 0
-        var addedKeyCount = 0
-        var updatedKeyCount = 0
-        func habitKeyStore() -> CommandBarQueryHabitKeyStore {
-            CommandBarQueryHabitKeyStore(
-                read: { keyReads.removeFirst() },
-                randomKey: {
-                    generatedKeyCount += 1
-                    return persistedHabitKey
-                },
-                add: { _ in addedKeyCount += 1; return errSecSuccess },
-                update: { _ in updatedKeyCount += 1; return errSecSuccess })
-        }
-        suite.expect(CommandBarQueryHabits.loadInstallationKey(using: habitKeyStore())
-                == persistedHabitKey
-                && generatedKeyCount == 0 && addedKeyCount == 0 && updatedKeyCount == 0,
-               "a valid stored query key is used without mutation")
-
-        keyReads = [(errSecInteractionNotAllowed, nil)]
-        suite.expect(CommandBarQueryHabits.loadInstallationKey(using: habitKeyStore()) == nil
-                && generatedKeyCount == 0,
-               "a transient Keychain read error never creates an ephemeral query key")
-
-        keyReads = [(errSecItemNotFound, nil), (errSecSuccess, persistedHabitKey)]
-        suite.expect(CommandBarQueryHabits.loadInstallationKey(using: habitKeyStore())
-                == persistedHabitKey && generatedKeyCount == 1 && addedKeyCount == 1,
-               "a new query key is published only after successful read-back")
-
-        keyReads = [(errSecItemNotFound, nil), (errSecSuccess, persistedHabitKey)]
-        let duplicateStore = CommandBarQueryHabitKeyStore(
-            read: { keyReads.removeFirst() },
-            randomKey: { Data(repeating: 0x55, count: 32) },
-            add: { _ in errSecDuplicateItem },
-            update: { _ in errSecInternalError })
-        suite.expect(CommandBarQueryHabits.loadInstallationKey(using: duplicateStore)
-                == persistedHabitKey,
-               "a duplicate-item race uses the other writer's persisted query key")
-
-        keyReads = [(errSecSuccess, Data([0x01]))]
-        let failedRepairStore = CommandBarQueryHabitKeyStore(
-            read: { keyReads.removeFirst() },
-            randomKey: { persistedHabitKey },
-            add: { _ in errSecInternalError },
-            update: { _ in errSecInteractionNotAllowed })
-        suite.expect(CommandBarQueryHabits.loadInstallationKey(using: failedRepairStore) == nil,
-               "a malformed query key is not replaced or published when repair fails")
-
-        keyReads = [(errSecSuccess, Data([0x01])), (errSecSuccess, persistedHabitKey)]
-        let repairedStore = CommandBarQueryHabitKeyStore(
-            read: { keyReads.removeFirst() },
-            randomKey: { persistedHabitKey },
-            add: { _ in errSecInternalError },
-            update: { _ in errSecSuccess })
-        suite.expect(CommandBarQueryHabits.loadInstallationKey(using: repairedStore)
-                == persistedHabitKey,
-               "a repaired query key is published only after successful read-back")
-
-        keyReads = [(errSecItemNotFound, nil)]
-        let randomFailureStore = CommandBarQueryHabitKeyStore(
-            read: { keyReads.removeFirst() },
-            randomKey: { nil },
-            add: { _ in errSecSuccess },
-            update: { _ in errSecSuccess })
-        suite.expect(CommandBarQueryHabits.loadInstallationKey(using: randomFailureStore) == nil,
-               "random generation failure leaves query learning without a key")
-
-        keyReads = [(errSecItemNotFound, nil)]
-        let addFailureStore = CommandBarQueryHabitKeyStore(
-            read: { keyReads.removeFirst() },
-            randomKey: { persistedHabitKey },
-            add: { _ in errSecInteractionNotAllowed },
-            update: { _ in errSecSuccess })
-        suite.expect(CommandBarQueryHabits.loadInstallationKey(using: addFailureStore) == nil,
-               "a failed query-key insert never publishes its random candidate")
-
-        let loadStarted = DispatchSemaphore(value: 0)
-        let letLoadFinish = DispatchSemaphore(value: 0)
-        let cache = CommandBarQueryHabitKeyCache(
-            queue: DispatchQueue(label: "org.vorssaint.tests.command-bar-query-key")) {
-                loadStarted.signal()
-                letLoadFinish.wait()
-                return persistedHabitKey
-            }
-        let keyReady = DispatchSemaphore(value: 0)
-        cache.warm { keyReady.signal() }
-        suite.expect(loadStarted.wait(timeout: .now() + 1) == .success && cache.cachedKey == nil,
-               "query-key warm-up never waits on the typing path")
-        letLoadFinish.signal()
-        suite.expect(keyReady.wait(timeout: .now() + 1) == .success
-                && cache.cachedKey == persistedHabitKey,
-               "a background query-key load publishes a validated key and announces readiness")
-
-        let removalQueue = DispatchQueue(label: "org.vorssaint.tests.query-key-removal")
-        let removalLoadStarted = DispatchSemaphore(value: 0)
-        let finishRemovalLoad = DispatchSemaphore(value: 0)
-        let removedKeyReady = DispatchSemaphore(value: 0)
-        var keyLifecycle: [String] = []
-        let removalCache = CommandBarQueryHabitKeyCache(queue: removalQueue) {
-            keyLifecycle.append("load started")
-            removalLoadStarted.signal()
-            finishRemovalLoad.wait()
-            keyLifecycle.append("load finished")
-            return persistedHabitKey
-        }
-        removalCache.warm { removedKeyReady.signal() }
-        suite.expect(removalLoadStarted.wait(timeout: .now() + 1) == .success,
-               "the uninstall race starts with a key load in flight")
-        let keyRemoval = removalCache.stopAndRemove { keyLifecycle.append("removed") }
-        removalCache.warm { removedKeyReady.signal() }
-        finishRemovalLoad.signal()
-        suite.expect(keyRemoval.wait(timeout: .now() + 1) == .success,
-               "uninstall waits for key deletion after the pending load")
-        removalCache.warm { removedKeyReady.signal() }
-        removalQueue.sync {}
-        suite.expect(keyLifecycle == ["load started", "load finished", "removed"]
-                && removalCache.cachedKey == nil
-                && removedKeyReady.wait(timeout: .now()) == .timedOut,
-               "uninstall suppresses readiness and later warm-ups without recreating the key")
-
-        var retryCount = 0
-        let retryCache = CommandBarQueryHabitKeyCache(
-            queue: DispatchQueue(label: "org.vorssaint.tests.command-bar-query-key-retry")) {
-                retryCount += 1
-                return retryCount == 1 ? nil : persistedHabitKey
-            }
-        retryCache.warm()
-        let secondRetryDeadline = Date().addingTimeInterval(1)
-        while retryCache.cachedKey == nil && Date() < secondRetryDeadline {
-            retryCache.warm()
-            Thread.sleep(forTimeInterval: 0.001)
-        }
-        suite.expect(retryCount == 2 && retryCache.cachedKey == persistedHabitKey,
-               "a failed query-key warm-up remains retryable")
+        let sessionQuery = CommandBarQueryHabits.prepare("session choice")
+        let sessionChoices = CommandBarQueryHabits.recording(
+            [:], preparedQuery: sessionQuery, resultID: "app.session", now: barNow)
+        suite.expect(!sessionQuery.isEmpty && CommandBarQueryHabits.boost(
+            for: "app.session", preparedQuery: CommandBarQueryHabits.prepare("session choice"),
+            store: sessionChoices, now: barNow) > 0,
+            "query learning works immediately within the process without loading a stored key")
+        suite.expect(CommandBarQueryHabits.boost(
+            for: "app.session", preparedQuery: CommandBarQueryHabits.prepare("session choice", key: habitKey),
+            store: sessionChoices, now: barNow) == 0,
+            "a different session key cannot reuse past query learning")
         let completedEmoji = CommandBarCompletion.completedQuery(
             current: ":fire", title: "🔥  fire", matchTitle: "fire")
         suite.expect(completedEmoji == ":fire"
@@ -1784,6 +1652,11 @@ enum CommandBarFeatureTests {
         let learningDefaultsName = "com.vorssaint.tests.command-bar-learning"
         let learningDefaults = UserDefaults(suiteName: learningDefaultsName)!
         learningDefaults.set("usage", forKey: DefaultsKey.commandBarUsage)
+        learningDefaults.set("habits", forKey: DefaultsKey.commandBarQueryHabits)
+        CommandBarLearning.discardLegacyQueryHabits(in: learningDefaults)
+        suite.expect(learningDefaults.object(forKey: DefaultsKey.commandBarQueryHabits) == nil
+                && learningDefaults.string(forKey: DefaultsKey.commandBarUsage) == "usage",
+               "migration drops legacy query history while preserving general usage ranking")
         learningDefaults.set("habits", forKey: DefaultsKey.commandBarQueryHabits)
         CommandBarLearning.forgetAll(in: learningDefaults)
         suite.expect(learningDefaults.object(forKey: DefaultsKey.commandBarUsage) == nil

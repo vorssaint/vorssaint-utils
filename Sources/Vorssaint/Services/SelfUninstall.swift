@@ -182,7 +182,6 @@ enum SelfUninstall {
     }
 
     private static func removePreferences() {
-        CommandBarQueryHabits.removeInstallationKey()
         let id = bundleID
         UserDefaults.standard.removePersistentDomain(forName: id)
         let home = NSHomeDirectory()
