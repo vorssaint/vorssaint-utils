@@ -106,6 +106,12 @@ struct NotchView: View {
         }
     }
 
+    /// Centre battery content inside the wing's visible area, past its curved shoulder.
+    private var restingBatteryInset: CGFloat {
+        // Leave enough of the 44-point wing for the full 100% label at every height.
+        min(16, service.geometry.menuBarHeight * 0.28 + NotchLayout.compactEdgeGap)
+    }
+
     private var compact: some View {
         HStack(spacing: 0) {
             if service.idleContent != .none, service.geometry.restingWingWidth > 0 {
@@ -117,7 +123,9 @@ struct NotchView: View {
                                 .frame(width: min(22, service.geometry.menuBarHeight - 6), height: min(22, service.geometry.menuBarHeight - 6))
                                 .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
-                    case .battery: Image(systemName: "battery.100percent").font(.system(size: 12))
+                    case .battery:
+                        Image(systemName: "battery.100percent").font(.system(size: 12))
+                            .padding(.leading, restingBatteryInset)
                     case .none: EmptyView()
                     }
                 }.frame(width: service.geometry.restingWingWidth)
@@ -132,6 +140,8 @@ struct NotchView: View {
                     case .battery:
                         if let percent = service.power.chargePercent {
                             Text("\(percent)%").font(.system(size: 9, weight: .medium)).monospacedDigit()
+                                .lineLimit(1)
+                                .padding(.trailing, restingBatteryInset)
                         }
                     case .none: EmptyView()
                     }
@@ -192,6 +202,15 @@ struct NotchView: View {
                 hasSession: session.hasSession, width: size.width, height: size.height))
         case .calendar:
             size.height = max(size.height, NotchLayout.calendarMonthMinimumHeight)
+        case .clipboard:
+            // Search, spacing and a complete card with its action row.
+            size.height = max(size.height, NotchLayout.clipboardSearchHeight + NotchLayout.rowSpacing
+                              + NotchLayout.clipboardCardHeight)
+        case .camera:
+            // Keep permission and error messages, and the stop button, reachable.
+            size.height = max(size.height, 180)
+        case .mixer:
+            size.height = max(size.height, 180)
         case .music:
             let controlsRow = AppFeature.mixer.isAvailable || NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
                 ? NotchLayout.musicControlsRowHeight + NotchLayout.rowSpacing : 0
@@ -243,7 +262,20 @@ struct NotchView: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            headerActions(quickActions: quickActions)
+            if service.selected == .captures, !showsDetail, !service.showingSections,
+               let actions = service.captureActions {
+                actions.fixedSize()
+                Menu {
+                    Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
+                    Button(l10n.s.menuSettings, action: service.openSettings)
+                    Button(text.collapse, action: service.collapse)
+                } label: { Image(systemName: "ellipsis") }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel(text.title)
+            } else {
+                headerActions(quickActions: quickActions)
+            }
         }
         .frame(height: NotchLayout.headerHeight)
         .contentShape(Rectangle())

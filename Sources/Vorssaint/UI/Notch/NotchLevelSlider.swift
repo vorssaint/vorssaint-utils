@@ -16,6 +16,8 @@ struct NotchLevelSlider: NSViewRepresentable {
     var range: ClosedRange<Double> = 0...1
     var tint: Color = .white
     var vertical = false
+    /// A slimmer drawing can retain the native control's full hit area.
+    var trackThickness: CGFloat?
     /// A value worth a tick on the track, such as unity on a fader that boosts.
     var marker: Double?
     var valueLabel: String?
@@ -55,6 +57,7 @@ struct NotchLevelSlider: NSViewRepresentable {
         if slider.isVertical != vertical { slider.isVertical = vertical }
         (slider.cell as? NotchLevelCell)?.fill = NSColor(tint)
         (slider.cell as? NotchLevelCell)?.marker = marker
+        (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
         let bounded = value.isFinite ? min(upper, max(lower, value)) : lower
         if slider.doubleValue != bounded { slider.doubleValue = bounded }
         slider.isEnabled = context.environment.isEnabled
@@ -80,11 +83,17 @@ struct NotchLevelSlider: NSViewRepresentable {
 private final class NotchLevelCell: NSSliderCell {
     var fill: NSColor = .white
     var marker: Double?
+    var trackThickness: CGFloat?
     var trackingChanged: ((Bool) -> Void)?
     private var isFader: Bool { isVertical }
 
     override func barRect(flipped: Bool) -> NSRect {
         let bounds = controlView?.bounds ?? .zero
+        if let trackThickness {
+            return isFader
+                ? bounds.insetBy(dx: max(1, (bounds.width - trackThickness) / 2), dy: 1)
+                : bounds.insetBy(dx: 1, dy: max(1, (bounds.height - trackThickness) / 2))
+        }
         // Proportional so the same control reads as a chunky level bar and as
         // a slim playback position without a second cell.
         return isFader

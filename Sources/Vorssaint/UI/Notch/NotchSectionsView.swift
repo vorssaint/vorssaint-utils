@@ -17,11 +17,23 @@ struct NotchSectionsView: View {
             if sections.isEmpty {
                 NotchEmptyView(symbol: "magnifyingglass", message: FeatureStrings.clipboard(l10n.language).noResults)
             } else {
-                NotchRail(items: sections, rows: service.geometry.sectionRows(count: sections.count),
-                          itemWidth: NotchLayout.sectionTileWidth, width: service.contentSize.width,
-                          spacing: NotchLayout.sectionSpacing, rowSpacing: NotchLayout.sectionSpacing,
-                          scrollTarget: service.highlightedSection?.id) { module in
-                    tile(module)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NotchLayout.sectionSpacing),
+                                                  count: service.geometry.sectionColumns),
+                                  spacing: NotchLayout.sectionSpacing) {
+                            ForEach(sections) { module in
+                                tile(module).id(module.id)
+                            }
+                        }
+                    }
+                    .scrollIndicators(.automatic)
+                    .onAppear {
+                        if let section = service.highlightedSection { proxy.scrollTo(section.id) }
+                    }
+                    .onChange(of: service.highlightedSection) { _, section in
+                        if let section { proxy.scrollTo(section.id) }
+                    }
                 }
                 .accessibilityHint(text.sectionKeyboardHint)
             }

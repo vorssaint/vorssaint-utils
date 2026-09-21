@@ -59,6 +59,7 @@ final class NotchService: ObservableObject {
     @Published private(set) var modules: [NotchModule] = []
     @Published private(set) var notice: NotchNotice?
     @Published private(set) var noticeExpanded = false
+    @Published private(set) var captureActions: AnyView?
     @Published private(set) var captureContent: AnyView?
     /// Bumped when Command-W asks the Scratchpad page to close its selected
     /// pad, so the confirmation stays in the page as it does in the floating pad.
@@ -630,7 +631,7 @@ final class NotchService: ObservableObject {
         }
         let index = highlightedSection.flatMap { sections.firstIndex(of: $0) } ?? 0
         highlightedSection = sections[QuickToolsSupport.gridIndex(after: index, count: sections.count,
-                                                                   flow: .columns(rows: geometry.sectionRows(count: sections.count)),
+                                                                   flow: .rows(columns: geometry.sectionColumns),
                                                                    direction: direction)]
         return true
     }
@@ -1064,13 +1065,14 @@ final class NotchService: ObservableObject {
         !expanded && !dragPlaceholder && captureControls == nil
     }
 
-    func presentCapture(id: UUID, content: AnyView, height: CGFloat, fallback: @escaping () -> Void,
+    func presentCapture(id: UUID, content: AnyView, actions: AnyView? = nil, height: CGFloat, fallback: @escaping () -> Void,
                         close: @escaping () -> Void, hover: @escaping (Bool) -> Void) -> Bool {
         guard acceptsSystemFeedback, NotchSupport.routes(.capture) else { return false }
         let keepOpen = expanded && pinned
         captureID = id
         captureContentHeight = height
         captureContent = content
+        captureActions = actions
         captureFallback = fallback
         captureClose = close
         captureHover = hover
@@ -1105,6 +1107,7 @@ final class NotchService: ObservableObject {
     private func clearCapture() {
         captureID = nil
         captureContent = nil
+        captureActions = nil
         captureContentHeight = nil
         captureFallback = nil
         captureClose = nil
@@ -1134,7 +1137,7 @@ final class NotchService: ObservableObject {
         }
         let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
         guard open || geometry.isNotched || geometry.compactSideRoom != nil else {
-            panel?.orderOut(nil)
+            windowHost?.hide(animated: animated)
             removeScreenEdgeClickMonitors()
             return
         }

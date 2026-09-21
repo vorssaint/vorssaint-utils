@@ -13,6 +13,7 @@ struct NotchDownloadItem: Identifiable, Equatable {
     let fraction: Double?
     let completed: Bool
     var active = true
+    var date: Date = .distantPast
 }
 
 struct NotchPartialDownload: Equatable {
@@ -58,6 +59,7 @@ struct NotchDownloadPublication {
     private var url: URL
     private var initialFile: NotchDownloadSupport.FileSnapshot?
     private var lastFileIdentity: String?
+    private let date = Date()
 
     init?(_ progress: NotchDownloadProgressSnapshot, folder: URL) {
         guard !progress.isFinished, let url = NotchDownloadSupport.publishedURL(progress, folder: folder) else { return nil }
@@ -88,13 +90,78 @@ struct NotchDownloadPublication {
             fraction: completed ? 1 : progress.isFinished ? nil : NotchDownloadSupport.fraction(
                 completed: progress.completedUnitCount, total: progress.totalUnitCount,
                 reportedFraction: progress.fractionCompleted, indeterminate: progress.isIndeterminate),
-            completed: completed, active: !progress.isFinished && !progress.isPaused)
+            completed: completed, active: !progress.isFinished && !progress.isPaused, date: date)
     }
 }
 
 enum NotchDownloadSupport {
+    struct FolderSnapshot {
+        let partials: [URL: NotchPartialDownload]
+        let files: [NotchDownloadItem]
+    }
+
+    static let keys: Set<URLResourceKey> = [
+        .isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey,
+        .contentModificationDateKey, .creationDateKey, .addedToDirectoryDateKey,
+    ]
+
+    static func scanFolder(_ folder: URL) -> FolderSnapshot? {
+        var readFailed = false
+        guard let entries = FileManager.default.enumerator(at: folder,
+            includingPropertiesForKeys: Array(keys), options: [.skipsSubdirectoryDescendants, .skipsHiddenFiles],
+            errorHandler: { _, _ in readFailed = true; return false }) else { return nil }
+        var result: [URL: NotchPartialDownload] = [:]
+        var files: [NotchDownloadItem] = []
+        for case let entry as URL in entries {
+            let url = entry.standardizedFileURL
+            guard let values = try? entry.resourceValues(forKeys: keys),
+                  values.isSymbolicLink != true,
+                  values.isRegularFile == true || values.isDirectory == true else { continue }
+            guard let expected = expectedURL(for: url) else {
+                files.append(NotchDownloadItem(id: url.path, url: url, name: url.lastPathComponent,
+                    receivedBytes: values.fileSize.map(Int64.init), fraction: 1, completed: true,
+                    active: false, date: values.addedToDirectoryDate ?? values.creationDate
+                        ?? values.contentModificationDate ?? .distantPast))
+                continue
+            }
+            guard result.count < maximumObservedFiles else { continue }
+            var payloadValues = values
+            var contentURL: URL?
+            if values.isDirectory == true {
+                // A partial package can hold the real file. Inspect only its
+                // expected payload, never traverse other folders or resume data.
+                let payload = url.appendingPathComponent(expected.lastPathComponent)
+                if let found = try? payload.resourceValues(forKeys: keys),
+                   found.isRegularFile == true, found.isSymbolicLink != true {
+                    payloadValues = found
+                    contentURL = payload
+                }
+            }
+            result[url] = NotchPartialDownload(url: url, expectedURL: expected,
+                bytes: payloadValues.isRegularFile == true ? Int64(payloadValues.fileSize ?? 0) : 0,
+                resourceID: NotchDownloadSupport.fileIdentity(at: contentURL ?? url),
+                modified: payloadValues.contentModificationDate ?? .distantPast,
+                contentURL: contentURL)
+        }
+        return readFailed ? nil : FolderSnapshot(partials: result, files: files)
+    }
+
+    /// Published progress owns its destination until it finishes. Folder files
+    /// remain visible after the short completion notice expires.
+    static func mergedItems(active: [NotchDownloadItem], files: [NotchDownloadItem],
+                            finished: [NotchDownloadItem]) -> [NotchDownloadItem] {
+        var seen = Set<URL>()
+        let represented = Set(active.flatMap { [$0.url.standardizedFileURL,
+            (expectedURL(for: $0.url) ?? $0.url).standardizedFileURL] })
+        let candidates = active + files.filter { !represented.contains($0.url.standardizedFileURL) }
+            + finished.filter { !represented.contains($0.url.standardizedFileURL) }
+        return candidates.filter { seen.insert($0.url.standardizedFileURL).inserted }.sorted {
+            if $0.date != $1.date { return $0.date > $1.date }
+            return $0.url.path < $1.url.path
+        }
+    }
+
     static let maximumObservedFiles = 32
-    static let maximumDirectoryEntries = 4096
     static let percentSize: CGFloat = 10
     /// Progress rounds up to a full hundred near the end, and four of the
     /// languages part the number from its sign, so the narrowest wing cannot

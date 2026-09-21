@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Dynamic Island improves list readability and compact controls, preserves persistent notification alerts, shows files saved directly to Downloads, and keeps screenshot actions within reach.
+
+### Changed
+- Dynamic Island restores vertical calendar and clipboard lists and a vertical Explore grid with matching keyboard navigation. Long event titles can wrap. The mixer aligns its faders, enlarges volume controls and click targets, and shows the output device name above the controls.
+- Dynamic Island lists visible files and folders from the selected Downloads folder, newest first, including images saved directly from a browser.
+
+### Fixed
+- Dynamic Island keeps clipboard actions reachable in short layouts and fits the camera mirror at 4:3 with room for its stop button.
+- Dynamic Island leaves persistent native alerts open when replacing notifications, so mirroring an alarm does not dismiss it.
+- Screenshot preview actions stay in the Dynamic Island header above the image, including at smaller heights.
+- Dynamic Island animates its dismissal on displays without a camera cutout when there is no safe resting space in the menu bar.
+- Dynamic Island keeps the battery icon and percentage clear of its curved edges, including the full `100%` label.
+
 ## [3.4.0-beta.3] - 2026-09-20
 
 ### Summary

@@ -91,7 +91,7 @@ final class ScreenshotQuickPreviewController {
             hoverChanged: { [weak self] inside in self?.hoverChanged(inside) },
             embedded: wantsNotch)
         if wantsNotch, NotchService.shared.presentCapture(
-            id: presentationID, content: AnyView(content), height: Self.size(showingLink: model.sharedRecord != nil).height,
+            id: presentationID, content: AnyView(content), actions: AnyView(content.toolbar), height: Self.size(showingLink: model.sharedRecord != nil).height,
             fallback: { [weak self] in
                 guard let self else { return }
                 self.shownInNotch = false
@@ -448,9 +448,63 @@ private struct ScreenshotQuickPreviewView: View {
     let showQR: () -> Void
     let hoverChanged: (Bool) -> Void
     var embedded = false
+    var actionsOnly = false
+    var toolbar: Self {
+        var view = self
+        view.actionsOnly = true
+        return view
+    }
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
 
     var body: some View {
+        if actionsOnly { actionBar }
+        else { preview }
+    }
+
+    private var actionBar: some View {
+        HStack(spacing: 5) {
+            Button {
+                perform(.discard)
+            } label: {
+                Image(systemName: "trash")
+                    .frame(width: 22, height: 18)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .screenshotSafeHelp("\(strings.discardConfirm)  (⌫)")
+            .accessibilityLabel(strings.discardConfirm)
+            if model.qr != nil {
+                qrControl
+                    .transition(.scale.combined(with: .opacity))
+            }
+            actionButton(symbol: "square.and.arrow.down",
+                         title: strings.saveButton,
+                         shortcut: "⌘S",
+                         disabled: model.disabledActions.contains(.save)) {
+                perform(.save)
+            }
+            actionButton(symbol: "doc.on.doc",
+                         title: strings.copyButton,
+                         shortcut: "⌘C",
+                         disabled: model.disabledActions.contains(.copy)) {
+                perform(.copy)
+            }
+            if sharingEnabled, model.sharedRecord == nil {
+                shareMenu
+            }
+            if !embedded { Spacer(minLength: 4) }
+            Button { perform(.edit) } label: {
+                if embedded { Image(systemName: "pencil").frame(width: 22, height: 18) }
+                else { Text(strings.editButton) }
+            }
+            .accessibilityLabel(strings.editButton)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .screenshotSafeHelp("\(strings.editButton)  (⏎)")
+        }
+    }
+
+    private var preview: some View {
         VStack(spacing: 10) {
             Button {
                 perform(.edit)
@@ -478,44 +532,7 @@ private struct ScreenshotQuickPreviewView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            HStack(spacing: 5) {
-                Button {
-                    perform(.discard)
-                } label: {
-                    Image(systemName: "trash")
-                        .frame(width: 22, height: 18)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .screenshotSafeHelp("\(strings.discardConfirm)  (⌫)")
-                .accessibilityLabel(strings.discardConfirm)
-                if model.qr != nil {
-                    qrControl
-                        .transition(.scale.combined(with: .opacity))
-                }
-                actionButton(symbol: "square.and.arrow.down",
-                             title: strings.saveButton,
-                             shortcut: "⌘S",
-                             disabled: model.disabledActions.contains(.save)) {
-                    perform(.save)
-                }
-                actionButton(symbol: "doc.on.doc",
-                             title: strings.copyButton,
-                             shortcut: "⌘C",
-                             disabled: model.disabledActions.contains(.copy)) {
-                    perform(.copy)
-                }
-                if sharingEnabled, model.sharedRecord == nil {
-                    shareMenu
-                }
-                Spacer(minLength: 4)
-                Button(strings.editButton) {
-                    perform(.edit)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .screenshotSafeHelp("⏎")
-            }
+            if !embedded { actionBar }
         }
         .padding(10)
         .frame(width: embedded ? nil : ScreenshotQuickPreviewController.size(showingLink: false).width,
@@ -532,7 +549,14 @@ private struct ScreenshotQuickPreviewView: View {
                     .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
             }
         }
-        .onHover(perform: hoverChanged)
+        .onHover(perform: previewHoverChanged)
+    }
+
+    private func previewHoverChanged(_ inside: Bool) {
+        // The island tracks the image and header together. Leaving just the
+        // image must not restart dismissal while its actions are still hovered.
+        guard !embedded else { return }
+        hoverChanged(inside)
     }
 
     private func sharedLinkRow(_ record: ScreenshotShareRecord) -> some View {
@@ -630,7 +654,10 @@ private struct ScreenshotQuickPreviewView: View {
                               disabled: Bool = false,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: symbol)
+            Group {
+                if embedded { Image(systemName: symbol).frame(width: 22, height: 18) }
+                else { Label(title, systemImage: symbol) }
+            }
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)

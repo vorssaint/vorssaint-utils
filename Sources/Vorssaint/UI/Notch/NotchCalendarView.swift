@@ -16,7 +16,7 @@ struct NotchCalendarView: View {
     @State private var showingMonth = false
     private var text: NotchCalendarStrings { FeatureStrings.notchCalendar(l10n.language) }
     /// A month grid needs six rows beside an agenda; anything shorter shows
-    /// the week as a strip and the appointments as cards running sideways.
+    /// the week as a strip above a vertical agenda.
     private var showsMonth: Bool { size.height >= 300 && size.width >= 420 }
 
     var body: some View {
@@ -44,7 +44,11 @@ struct NotchCalendarView: View {
                         } else {
                             VStack(spacing: NotchLayout.rowSpacing) {
                                 weekStrip(now: context.date)
-                                appointmentRail(now: context.date)
+                                ScrollView {
+                                    appointmentList(now: context.date)
+                                }
+                                .scrollIndicators(.automatic)
+                                .id(selectedDay)
                             }
                         }
                     }
@@ -152,12 +156,6 @@ struct NotchCalendarView: View {
         let events: [NotchCalendarEvent]
     }
 
-    private struct AgendaItem: Identifiable {
-        let event: NotchCalendarEvent
-        let day: Date
-        var id: String { "\(day.timeIntervalSinceReferenceDate)/\(event.id)" }
-    }
-
     private func groups(now: Date) -> [DayGroup] {
         let days = selectedDay.map { [$0] } ?? (0..<7).compactMap {
             Calendar.current.date(byAdding: .day, value: $0, to: Calendar.current.startOfDay(for: now))
@@ -172,9 +170,9 @@ struct NotchCalendarView: View {
         let next = NotchCalendarSupport.next(calendar.events, now: now)
         if calendar.loading {
             ProgressView().controlSize(.small)
-                .frame(maxWidth: .infinity, minHeight: 150)
+                .frame(maxWidth: .infinity, minHeight: 72)
         } else if groups.isEmpty {
-            emptyAgenda.frame(maxWidth: .infinity, minHeight: 150)
+            emptyAgenda.frame(maxWidth: .infinity, minHeight: 72)
         } else {
             LazyVStack(alignment: .leading, spacing: 14) {
                 ForEach(groups, id: \.day) { group in
@@ -190,32 +188,6 @@ struct NotchCalendarView: View {
                 }
             }
             .padding(.bottom, 2)
-        }
-    }
-
-    /// Cards run sideways in as many rows as the remaining height holds.
-    @ViewBuilder private func appointmentRail(now: Date) -> some View {
-        let groups = groups(now: now)
-        let next = NotchCalendarSupport.next(calendar.events, now: now)
-        let height = max(0, size.height - NotchCalendarWeekStrip.height - NotchLayout.rowSpacing)
-        if calendar.loading {
-            ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if groups.isEmpty {
-            emptyAgenda.frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            let items = groups.flatMap { group in group.events.map { AgendaItem(event: $0, day: group.day) } }
-            let rows = NotchLayout.railRows(count: items.count,
-                                            perRow: NotchLayout.railCapacity(width: size.width, itemWidth: 200, spacing: 8),
-                                            rowHeight: 84, spacing: 8, height: height)
-            let cardHeight = (height - CGFloat(rows - 1) * 8) / CGFloat(rows)
-            NotchRail(items: items, rows: rows, itemWidth: 200, width: size.width) { item in
-                NotchCalendarEventRow(event: item.event, day: item.day, now: now, isNext: item.event.id == next?.id,
-                                      text: text, showsDay: selectedDay == nil) {
-                    openCalendar(showing: item.event)
-                }
-                .frame(height: cardHeight)
-            }
-            .frame(height: height, alignment: .top)
         }
     }
 
@@ -303,8 +275,6 @@ private struct NotchCalendarEventRow: View {
     let now: Date
     let isNext: Bool
     let text: NotchCalendarStrings
-    /// Cards in the rail name their day; a list already groups by it.
-    var showsDay = false
     let open: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -319,55 +289,48 @@ private struct NotchCalendarEventRow: View {
     }
 
     private var card: some View {
-        HStack(alignment: .top, spacing: 9) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(event.color.color)
-                .frame(width: 3)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                if showsDay || ongoing || isNext {
-                    HStack(spacing: 6) {
-                        if showsDay {
-                            NotchCalendarDayLabel(day: day, now: now, text: text)
-                        }
-                        if ongoing || isNext {
-                            Text(ongoing ? text.ongoing : text.next)
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
-                                .lineLimit(1)
-                        }
-                    }
-                }
-                Text(event.title.isEmpty ? text.untitled : event.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
-                    .lineLimit(2)
-                Group {
-                    if event.allDay {
-                        Text(text.allDay)
-                    } else if Calendar.current.isDate(event.start, inSameDayAs: day)
-                                && Calendar.current.isDate(event.end.addingTimeInterval(-1), inSameDayAs: day) {
-                        Text(event.start, format: .dateTime.hour().minute())
-                            + Text(" · ") + Text(event.end, format: .dateTime.hour().minute())
-                    } else {
-                        Text(event.start, format: .dateTime.day().month(.abbreviated).hour().minute())
-                            + Text(" → ") + Text(event.end, format: .dateTime.day().month(.abbreviated).hour().minute())
-                    }
-                }
-                .font(.system(size: 11)).monospacedDigit()
-                .foregroundStyle(.white.opacity(0.75))
-                .lineLimit(1)
-                Text(event.calendar)
-                    .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
-                if !event.location.isEmpty {
-                    Label(event.location, systemImage: "mappin")
-                        .font(.system(size: 10)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+        VStack(alignment: .leading, spacing: 4) {
+            if ongoing || isNext {
+                Text(ongoing ? text.ongoing : text.next)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
+                    .lineLimit(1)
+            }
+            Text(event.title.isEmpty ? text.untitled : event.title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
+                .fixedSize(horizontal: false, vertical: true)
+            Group {
+                if event.allDay {
+                    Text(text.allDay)
+                } else if Calendar.current.isDate(event.start, inSameDayAs: day)
+                            && Calendar.current.isDate(event.end.addingTimeInterval(-1), inSameDayAs: day) {
+                    Text(event.start, format: .dateTime.hour().minute())
+                        + Text(" · ") + Text(event.end, format: .dateTime.hour().minute())
+                } else {
+                    Text(event.start, format: .dateTime.day().month(.abbreviated).hour().minute())
+                        + Text(" → ") + Text(event.end, format: .dateTime.day().month(.abbreviated).hour().minute())
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .font(.system(size: 11)).monospacedDigit()
+            .foregroundStyle(.white.opacity(0.75))
+            .fixedSize(horizontal: false, vertical: true)
+            Text(event.calendar)
+                .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
+            if !event.location.isEmpty {
+                Label(event.location, systemImage: "mappin")
+                    .font(.system(size: 10)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 12)
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2).fill(event.color.color)
+                .frame(width: 3)
+                .accessibilityHidden(true)
         }
         .padding(10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(event.color.color.opacity(ongoing ? 0.2 : 0.1),
                     in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {

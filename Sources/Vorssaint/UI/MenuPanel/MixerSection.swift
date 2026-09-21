@@ -1038,6 +1038,7 @@ struct EditableVolumePercent<Label: View>: View {
     let currentPercent: Int
     let maximumPercent: Int
     let width: CGFloat
+    var height: CGFloat = 18
     let editorID: String
     @Binding var editingID: String?
     let accessibilityLabel: String
@@ -1062,7 +1063,7 @@ struct EditableVolumePercent<Label: View>: View {
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 3)
-            .frame(width: width, height: 18)
+            .frame(width: width, height: height)
             .background(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(nsColor: .controlBackgroundColor))

@@ -101,8 +101,7 @@ enum NotchLayout {
     static let spacing: CGFloat = 12
     static let bottomInset: CGFloat = 16
     static var chromeHeight: CGFloat { headerHeight + spacing + bottomInset }
-    /// The island stays a wide strip: every page lays its rows out inside the
-    /// preset's budget and runs sideways past it instead of growing downwards.
+    /// The island stays a wide strip: pages scroll within the preset's budget.
     static let compactContentHeight: CGFloat = 180
     static let spaciousContentHeight: CGFloat = 264
     /// Surfaces that are vertical by nature (the embedded app panel, a metric
@@ -122,6 +121,8 @@ enum NotchLayout {
     static let sectionTileHeight: CGFloat = 88
     static let sectionTileWidth: CGFloat = 92
     static let sectionSpacing: CGFloat = 8
+    static let clipboardSearchHeight: CGFloat = 36
+    static let clipboardCardHeight: CGFloat = 112
     static let emptyHeight: CGFloat = 140
     static let musicControlsRowHeight: CGFloat = 32
     static let musicIdleHeight: CGFloat = 84
@@ -146,6 +147,12 @@ enum NotchLayout {
     static func calendarMonthRowHeight(height: CGFloat) -> CGFloat {
         let room = height - calendarMonthHeaderHeight - calendarMonthWeekdayHeight - calendarMonthSpacing * 2
         return min(30, max(16, (room / 6).rounded(.down)))
+    }
+
+    /// Fit a 4:3 preview above the stop button, including narrow, tall islands.
+    static func cameraPreviewSize(in size: CGSize) -> CGSize {
+        let height = max(0, min(size.height - 28 - rowSpacing, size.width * 3 / 4))
+        return CGSize(width: height * 4 / 3, height: height)
     }
     /// Breathing room every compact strip keeps from its silhouette.
     static let compactEdgeGap: CGFloat = 5
@@ -982,7 +989,7 @@ struct NotchGeometry: Equatable {
         return min(max(preferred, cameraWidth + 36), screen.width - 24 - NotchQuickAccessLayout.gutter * 2)
     }
     var contentWidth: CGFloat { max(0, expandedWidth - NotchLayout.horizontalInset * 2) }
-    /// Rows a page may stack before it has to run sideways.
+    /// Content height available before a page needs to scroll.
     var contentBudget: CGFloat {
         switch layout {
         case .compact: return NotchLayout.compactContentHeight
@@ -1050,7 +1057,7 @@ struct NotchGeometry: Equatable {
                     : NotchLayout.railHeight(rows: toolRows(count: toolCount), rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing))
             case .timer:
                 contentHeight = min(budget, NotchLayout.timer(mode: timerMode, hasSession: timerHasSession, width: contentWidth, height: budget))
-            // Lists and previews fill the strip and run sideways past it.
+            // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad:
                 contentHeight = budget
             }
@@ -1061,12 +1068,17 @@ struct NotchGeometry: Equatable {
                       height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
     }
 
-    /// Search results and the gallery share one rail, so the keyboard walks
-    /// the same columns the eye does; the search itself sits in the header.
+    /// Leave room for a legacy scroll bar without narrowing the tiles below
+    /// their readable width. Keyboard navigation uses these same columns.
+    var sectionColumns: Int {
+        NotchLayout.railCapacity(width: contentWidth - 16, itemWidth: NotchLayout.sectionTileWidth,
+                                 spacing: NotchLayout.sectionSpacing)
+    }
+
+    /// Visible rows; additional rows remain reachable by vertical scrolling.
     func sectionRows(count: Int) -> Int {
         NotchLayout.railRows(count: count,
-                             perRow: NotchLayout.railCapacity(width: contentWidth, itemWidth: NotchLayout.sectionTileWidth,
-                                                              spacing: NotchLayout.sectionSpacing),
+                             perRow: sectionColumns,
                              rowHeight: NotchLayout.sectionTileHeight, spacing: NotchLayout.sectionSpacing, height: contentBudget)
     }
 

@@ -312,10 +312,15 @@ def main():
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
     write("NotchCompact.swift", "import AppKit\nimport SwiftUI\nextension NotchCompactTests {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraView:")
+          + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCalendarEventRow:")
+              .replace("private struct", "struct", 1)
           + declaration("Sources/Vorssaint/UI/Notch/NotchComponents.swift", "struct NotchRail<")
           + declaration("Sources/Vorssaint/UI/PlainTextEditor.swift", "struct PlainTextEditor:")
           + declaration(scratchpad_view, "struct NotchScratchpadView:")
-          + "}\nextension NotchCompactTests.ScratchpadService {\n"
+          + "}\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "extension NotchCalendarColor {")
+          + "extension NotchCompactTests.ScratchpadService {\n"
           + declaration(scratchpad_service, "    func clear(")
           + "}\nextension NotchCompactTests.Floating {\n"
           + declaration(scratchpad_service, "    private func focusText(").replace("private func", "func", 1)
@@ -537,6 +542,13 @@ def main():
           + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
 
     preview = "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift"
+    write("ScreenshotPreviewHover.swift", "import Foundation\n"
+          + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"
+          + "".join(declaration(preview, prefix).replace("private func", "func", 1)
+                    for prefix in ["    private func hoverChanged(", "    private func scheduleAutoDismiss("])
+          + "}\nstruct Preview {\nlet embedded: Bool\nlet hoverChanged: (Bool) -> Void\n"
+          + declaration(preview, "    private func previewHoverChanged(").replace("private func", "func", 1)
+          + "}\n}\n")
     selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
     refresh_methods = [
         "    private func screenCaptureToolDidChange()",
