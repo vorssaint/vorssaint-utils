@@ -22,16 +22,16 @@ struct NotchNoticeView: View {
         HStack(spacing: 0) {
             leading
                 .padding(.horizontal, inset)
-                .frame(width: wingWidth, height: geometry.menuBarHeight)
+                .frame(width: wingWidth, height: geometry.stripHeight)
                 .clipped()
             Color.clear.frame(width: geometry.noticeCameraGap)
             trailing
                 .padding(.horizontal, inset)
-                .frame(width: wingWidth, height: geometry.menuBarHeight)
+                .frame(width: wingWidth, height: geometry.stripHeight)
                 .clipped()
         }
         .foregroundStyle(.white)
-        .frame(height: geometry.menuBarHeight)
+        .frame(height: geometry.stripHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(notice.accessibilityText)
     }
@@ -39,7 +39,7 @@ struct NotchNoticeView: View {
     @ViewBuilder private var leading: some View {
         if let content = notice.notification {
             HStack(spacing: 8) {
-                NotchNotificationAppIcon(app: content.app, size: min(22, geometry.menuBarHeight - 4))
+                NotchNotificationAppIcon(app: content.app, size: min(22, geometry.stripHeight - 4))
                 Text(content.compactTitle)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
@@ -68,7 +68,7 @@ struct NotchNoticeView: View {
             Text(content.compactDetail)
                 .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.85))
-                .lineLimit(geometry.menuBarHeight >= 30 ? 2 : 1)
+                .lineLimit(geometry.stripHeight >= 30 ? 2 : 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else if let level = notice.level {
             NotchMeter(value: level, height: 5, tint: tint)

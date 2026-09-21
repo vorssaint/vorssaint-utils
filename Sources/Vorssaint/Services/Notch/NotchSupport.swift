@@ -11,7 +11,9 @@ enum NotchModule: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .controls: return "slider.horizontal.3"
-        case .mixer: return "slider.vertical.3"
+        // A speaker reads as sound at a glance; faders beside the settings
+        // gear looked like a second settings button.
+        case .mixer: return "speaker.wave.2"
         case .music: return "music.note"
         case .timer: return "timer"
         case .camera: return "web.camera"
@@ -156,8 +158,14 @@ enum NotchLayout {
     }
     /// Breathing room every compact strip keeps from its silhouette.
     static let compactEdgeGap: CGFloat = 5
-    /// Bottom corner `NotchShape` draws for a surface of this height.
-    static func surfaceRadius(height: CGFloat) -> CGFloat { min(28, height / 2) }
+    /// Corners of a surface of this height. A strip as tall as the camera
+    /// keeps the cutout's own corners, so the closed island and the last
+    /// frames of a collapse sit inside the notch instead of outlining a
+    /// rounder one; the open island reaches the full radius and shoulder.
+    static func surfaceRadius(height: CGFloat) -> CGFloat { min(28, height * 0.34) }
+    static func shoulder(height: CGFloat) -> CGFloat { min(shoulder, height * 0.19) }
+    /// Content clearance under a camera of the usual height.
+    static let nominalContentTop: CGFloat = 42
 
     static func preferredWidth(_ layout: NotchSize, custom: CGFloat) -> CGFloat {
         switch layout {
@@ -171,8 +179,8 @@ enum NotchLayout {
     /// the usual clearance; custom keeps the chosen height.
     static func nominalHeight(_ layout: NotchSize, custom: CGFloat) -> CGFloat {
         switch layout {
-        case .compact: return 42 + chromeHeight + compactContentHeight
-        case .spacious: return 42 + chromeHeight + spaciousContentHeight
+        case .compact: return nominalContentTop + chromeHeight + compactContentHeight
+        case .spacious: return nominalContentTop + chromeHeight + spaciousContentHeight
         case .custom: return custom
         }
     }
@@ -322,7 +330,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .recording: return "record.circle"
         case .speedTest: return "speedometer"
         case .panel: return "rectangle.topthird.inset.filled"
-        case .mixer: return "slider.vertical.3"
+        case .mixer: return NotchModule.mixer.symbol
         case .commandBar: return "command"
         case .scratchpad: return "note.text"
         case .music: return NotchModule.music.symbol
@@ -877,6 +885,10 @@ struct NotchGeometry: Equatable {
     }
 
     var safeContentTop: CGFloat { cameraHeight + 10 }
+    /// One row beside the camera. It extends the cutout, whose height a
+    /// physical camera sets and a simulated one shares with the bar: a bar
+    /// even a point taller would leave a dark line under the notch.
+    var stripHeight: CGFloat { cameraHeight }
     func activationArea(in size: CGSize, hasHeader: Bool, compactActivity: Bool) -> CGRect {
         let width = compactActivity ? cameraWidth : size.width
         let height = hasHeader ? min(safeContentTop, size.height)
@@ -889,7 +901,7 @@ struct NotchGeometry: Equatable {
         return available >= 44 ? available : 0
     }
     var collapsed: CGSize {
-        CGSize(width: min(screen.width - 24, cameraWidth + restingWingWidth * 2), height: menuBarHeight)
+        CGSize(width: min(screen.width - 24, cameraWidth + restingWingWidth * 2), height: stripHeight)
     }
     func restingSize(showsContent: Bool) -> CGSize {
         showsContent ? collapsed : CGSize(width: cameraWidth, height: cameraHeight)
@@ -906,7 +918,7 @@ struct NotchGeometry: Equatable {
     var musicCameraGap: CGFloat { cameraWidth }
     var compactMusicLabelInset: CGFloat {
         let height = compactActivityContentHeight
-        let shoulder = min(NotchLayout.shoulder, height * 0.28)
+        let shoulder = NotchLayout.shoulder(height: height)
         let bottom = NotchLayout.surfaceRadius(height: height)
         // Wings normally provide this room. When menus hide them, the center
         // text must also clear the silhouette's shoulders and bottom corners.
@@ -929,15 +941,15 @@ struct NotchGeometry: Equatable {
         let measuredRoom = compactSideRoom ?? 0
         let room = measuredRoom.isFinite ? max(0, measuredRoom).rounded(.down) : 0
         let wings = min(max(0, preferred - cameraWidth), room * 2)
-        return CGSize(width: cameraWidth + (wings >= 88 ? wings : 0), height: menuBarHeight)
+        return CGSize(width: cameraWidth + (wings >= 88 ? wings : 0), height: stripHeight)
     }
     var musicWingWidth: CGFloat { max(0, (musicStrip.width - musicCameraGap) / 2) }
 
     /// Only a physical camera may need a footer. A simulated cutout and all
     /// of its compact activity stay within the real menu bar's height.
     var compactActivityUsesFooter: Bool { isNotched && allowsActivityFooter && musicWingWidth < 44 }
-    var compactActivityContentHeight: CGFloat { compactActivityUsesFooter ? 32 : menuBarHeight }
-    var compactActivityTopPadding: CGFloat { compactActivityUsesFooter ? menuBarHeight : 0 }
+    var compactActivityContentHeight: CGFloat { compactActivityUsesFooter ? 32 : stripHeight }
+    var compactActivityTopPadding: CGFloat { compactActivityUsesFooter ? stripHeight : 0 }
     var compactActivityHorizontalPadding: CGFloat { compactActivityUsesFooter ? 4 : 0 }
     var compactActivityCameraGap: CGFloat { compactActivityUsesFooter ? 0 : musicCameraGap }
     var compactActivitySize: CGSize {
@@ -950,7 +962,7 @@ struct NotchGeometry: Equatable {
     }
     /// Where the silhouette's straight edge sits, once its shoulder has flared.
     var compactActivityShoulder: CGFloat {
-        min(NotchLayout.shoulder, compactActivitySize.height * 0.28)
+        NotchLayout.shoulder(height: compactActivitySize.height)
     }
     /// Inset that keeps a vertically centred box of `boxHeight`, itself rounded
     /// by `radius`, an even `gap` away from the strip's silhouette.
@@ -978,7 +990,7 @@ struct NotchGeometry: Equatable {
     var noticeCameraGap: CGFloat { cameraWidth }
 
     func noticeSize(wingWidth: CGFloat) -> CGSize {
-        CGSize(width: min(screen.width - 24, noticeCameraGap + wingWidth * 2), height: menuBarHeight)
+        CGSize(width: min(screen.width - 24, noticeCameraGap + wingWidth * 2), height: stripHeight)
     }
 
     func noticeWingWidth(preferred: CGFloat) -> CGFloat {

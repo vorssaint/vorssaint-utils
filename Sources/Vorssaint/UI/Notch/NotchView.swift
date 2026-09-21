@@ -109,7 +109,7 @@ struct NotchView: View {
     /// Centre battery content inside the wing's visible area, past its curved shoulder.
     private var restingBatteryInset: CGFloat {
         // Leave enough of the 44-point wing for the full 100% label at every height.
-        min(16, service.geometry.menuBarHeight * 0.28 + NotchLayout.compactEdgeGap)
+        min(16, NotchLayout.shoulder(height: service.geometry.stripHeight) + NotchLayout.compactEdgeGap)
     }
 
     private var compact: some View {
@@ -120,7 +120,7 @@ struct NotchView: View {
                     case .music:
                         if let artwork = music.artwork {
                             Image(nsImage: artwork).resizable().scaledToFill()
-                                .frame(width: min(22, service.geometry.menuBarHeight - 6), height: min(22, service.geometry.menuBarHeight - 6))
+                                .frame(width: min(22, service.geometry.stripHeight - 6), height: min(22, service.geometry.stripHeight - 6))
                                 .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
                     case .battery:
@@ -419,7 +419,7 @@ struct NotchShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         guard attached else { return Path(roundedRect: rect, cornerRadius: radius) }
-        let shoulder = min(NotchLayout.shoulder, rect.height * 0.28)
+        let shoulder = NotchLayout.shoulder(height: rect.height)
         let bottom = min(radius, rect.height / 2, (rect.width - shoulder * 2) / 2)
         let tangent: CGFloat = 0.55228475
         var path = Path()

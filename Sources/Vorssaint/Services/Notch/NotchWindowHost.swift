@@ -212,7 +212,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             return
         }
         // The silhouette's shoulders sit outside its vertical body.
-        let shoulder = min(NotchLayout.shoulder, targetSize.height * 0.28)
+        let shoulder = NotchLayout.shoulder(height: targetSize.height)
         let body = CGRect(x: (panel.frame.width - quickAccessNotchSize.width) / 2 + shoulder, y: 0,
                           width: quickAccessNotchSize.width - shoulder * 2, height: quickAccessNotchSize.height)
         container.motion.configure(configuration, body: body,

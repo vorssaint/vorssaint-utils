@@ -319,6 +319,30 @@ enum NotchTests {
         }
     }
 
+    /// The menu bar under a camera can be a point taller than the cutout.
+    /// Every closed strip follows the cutout, or a dark line shows under it.
+    private static func physicalStripContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        for barHeight: CGFloat in [24, 32, 33, 37, 40, 64] {
+            let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
+                                         menuBarHeight: barHeight, compactSideRoom: 100)
+            let strips = [geometry.restingSize(showsContent: true), geometry.collapsed, geometry.notice,
+                          geometry.noticeSize(wingWidth: 190), geometry.compactMusicGeometry.compactActivitySize,
+                          geometry.compactTimerGeometry(showsDownloads: true).compactActivitySize]
+            for size in strips {
+                suite.expect(size.height == geometry.cameraHeight && size.height == geometry.stripHeight,
+                       "a strip beside a physical camera is exactly as tall as the cutout")
+            }
+            suite.expect(geometry.menuBarHeight == max(32, barHeight),
+                   "the bar's own height remains available for measuring menu space")
+        }
+        let closed = NotchLayout.surfaceRadius(height: 32)
+        suite.expect(closed >= 8 && closed <= 12 && NotchLayout.shoulder(height: 32) >= 5 && NotchLayout.shoulder(height: 32) <= 8,
+               "a closed island keeps corners like the cutout's, so a collapse settles inside the notch")
+        suite.expect(NotchLayout.surfaceRadius(height: 286) == 28 && NotchLayout.shoulder(height: 286) == NotchLayout.shoulder,
+               "an open island keeps its full corner radius and shoulder")
+    }
+
     private static func musicLabelContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
         for height: CGFloat in [16, 22, 24, 28, 30, 33, 37, 64] {
@@ -326,7 +350,7 @@ enum NotchTests {
                 let geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
                                              menuBarHeight: height, compactSideRoom: room).compactMusicGeometry
                 let contentLeft = geometry.compactActivityWingWidth + geometry.compactMusicLabelInset
-                let bottomCurveEnd = min(NotchLayout.shoulder, height * 0.28) + min(28, height / 2)
+                let bottomCurveEnd = NotchLayout.shoulder(height: height) + NotchLayout.surfaceRadius(height: height)
                 suite.expect(contentLeft >= bottomCurveEnd + 4,
                        "center text clears the entire curved silhouette even after the music wings disappear")
                 suite.expect(geometry.compactActivityCameraGap - geometry.compactMusicLabelInset * 2 >= 50,
@@ -346,6 +370,7 @@ enum NotchTests {
         simulatedDisplayContracts(suite)
         menuSpaceReuseContracts(suite)
         menuBarHeightContracts(suite)
+        physicalStripContracts(suite)
         musicLabelContracts(suite)
         NotchPanelTests.run { suite.expect($0, $1) }
         NotchHoverTests.run(suite)
@@ -1027,9 +1052,9 @@ enum NotchTests {
                     for wing in [CGFloat(112), 190, 240] {
                         let size = geometry.noticeSize(wingWidth: wing)
                         let wings = geometry.noticeWingWidth(preferred: wing)
-                        suite.expect(size.height == geometry.menuBarHeight
+                        suite.expect(size.height == geometry.stripHeight && size.height == geometry.cameraHeight
                                && geometry.frame(for: size).maxY == frame.maxY,
-                               "feedback preserves the same camera clearance on physical and simulated notches")
+                               "feedback stays as tall as the camera cutout on physical and simulated notches")
                         suite.expect(wings > 0 && wings * 2 + geometry.noticeCameraGap == size.width,
                                "notice wings exactly fill their horizontal surface without entering the camera gap")
                         suite.expect(geometry.noticeCameraGap == geometry.cameraWidth,

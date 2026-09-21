@@ -67,11 +67,11 @@ struct NotchMixerView: View {
 
     @ViewBuilder private var desk: some View {
         if !AppVolumeMixer.isSupported {
-            NotchEmptyView(symbol: "slider.vertical.3", message: l10n.s.mixerUnavailable)
+            NotchEmptyView(symbol: NotchModule.mixer.symbol, message: l10n.s.mixerUnavailable)
         } else if mixer.needsPermission {
             permission
         } else if apps.isEmpty {
-            NotchEmptyView(symbol: "slider.vertical.3", message: l10n.s.mixerEmpty)
+            NotchEmptyView(symbol: NotchModule.mixer.symbol, message: l10n.s.mixerEmpty)
         } else {
             let apps = apps
             let ids = apps.compactMap(\.persistenceID)

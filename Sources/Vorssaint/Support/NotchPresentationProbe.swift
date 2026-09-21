@@ -494,7 +494,7 @@ enum NotchPresentationProbe {
                     while Date() < deadline {
                         RunLoop.current.run(until: Date().addingTimeInterval(0.008))
                         if abs(timerHost.panel.frame.maxY - screen.frame.maxY) > 0.5
-                            || abs(timerHost.panel.frame.height - barHeight) > 0.5
+                            || abs(timerHost.panel.frame.height - next.stripHeight) > 0.5
                             || abs(timerHost.contentTopOnScreen - screen.frame.maxY) > 0.5 {
                             failures.append("compact timer moved below the camera during a menu-space transition")
                             break

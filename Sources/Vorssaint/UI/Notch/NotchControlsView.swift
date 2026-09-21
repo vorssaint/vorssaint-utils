@@ -280,7 +280,7 @@ struct NotchAudioControls: View {
         }
         if notch.modules.contains(.mixer) {
             items.append(.separator)
-            items.append(NotchMenuItem(title: l10n.s.mixerSection, symbol: "slider.vertical.3") { notch.select(.mixer) })
+            items.append(NotchMenuItem(title: l10n.s.mixerSection, symbol: NotchModule.mixer.symbol) { notch.select(.mixer) })
         }
         return items
     }

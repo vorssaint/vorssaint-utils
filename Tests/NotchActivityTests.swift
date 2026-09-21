@@ -508,8 +508,8 @@ enum NotchActivityTests {
                                        && compact.compactActivityWingWidth == min(room, downloads ? 80 : 72).rounded(.down),
                                        "timer wings keep their readable width around larger cameras, including simultaneous downloads")
                                 suite.expect(compact.compactActivityCameraGap == original.cameraWidth
-                                       && compact.compactActivityContentHeight == original.menuBarHeight,
-                                       "narrower timer wings still clear the camera and preserve the menu bar height")
+                                       && compact.compactActivityContentHeight == original.stripHeight,
+                                       "narrower timer wings still clear the camera and keep the cutout's height")
                             } else if notched {
                                 suite.expect(!compact.compactActivityUsesFooter && compact.compactActivityWingWidth == 0,
                                        "unavailable menu space retracts timer wings without drawing over adjacent menus")
@@ -526,7 +526,7 @@ enum NotchActivityTests {
                             let positioned = compact.frame(for: compact.compactActivitySize)
                             suite.expect(screen.contains(positioned), "compact timer placement stays within the screen")
                             if notched {
-                                suite.expect(positioned.maxY == screen.maxY && positioned.height == original.menuBarHeight
+                                suite.expect(positioned.maxY == screen.maxY && positioned.height == original.cameraHeight
                                        && compact.compactActivityTopPadding == 0,
                                        "timer and simultaneous downloads stay beside the camera through menu-space changes")
                             }

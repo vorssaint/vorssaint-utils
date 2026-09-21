@@ -16,8 +16,12 @@ Dynamic Island improves list readability and playback controls, can hide in full
 - Dynamic Island keeps expanded playback controls visible while player access is being set up.
 - Dynamic Island restores vertical calendar and clipboard lists and a vertical Explore grid with matching keyboard navigation. Long event titles can wrap. The mixer aligns its faders, enlarges volume controls and click targets, and shows the output device name above the controls.
 - Dynamic Island lists visible files and folders from the selected Downloads folder, newest first, including images saved directly from a browser.
+- Dynamic Island shows the volume mixer with a speaker icon, so its floating button no longer looks like a second settings button.
+- The Dynamic Island layout editor previews the real home page at scale, with the cards and shortcuts you have configured.
 
 ### Fixed
+- Dynamic Island keeps the artist visible in Now Playing while a song plays; the music bars no longer push that line out.
+- Dynamic Island's resting strips for music, battery and level feedback match the camera cutout's height and corners, so no dark line shows under the notch and opening or closing settles into it.
 - Dynamic Island restores the Beta 3 music display at rest, with artwork on the left and the equalizer on the right. Clicking it opens the music controls.
 - Dynamic Island fills System with balanced rows of metrics that adapt to its width and scroll vertically when needed.
 - Dynamic Island keeps clipboard and mixer actions visible in short layouts and fits the camera mirror at 4:3 with room for its stop button. Horizontal scrollbars no longer cover controls.

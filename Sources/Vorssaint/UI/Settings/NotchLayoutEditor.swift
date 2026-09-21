@@ -24,6 +24,7 @@ struct NotchLayoutEditor: View {
     var body: some View {
         VStack(spacing: 12) {
             GeometryReader { proxy in
+                let scale = scale(in: proxy.size)
                 let frame = islandFrame(in: proxy.size)
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 22).fill(.quaternary.opacity(0.35))
@@ -38,9 +39,14 @@ struct NotchLayoutEditor: View {
                                 .allowsHitTesting(false)
                         }
                     }
-                    islandPreview(height: frame.height)
+                    // Laid out at the island's real size and scaled down, so the
+                    // silhouette, type and spacing keep the proportions on screen.
+                    islandPreview
+                        .background {
+                            NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: actualHeight)).fill(.black)
+                        }
+                        .scaleEffect(scale)
                         .frame(width: frame.width, height: frame.height)
-                        .background { NotchShape(attached: true, radius: 22).fill(.black) }
                         .position(x: frame.midX, y: frame.midY)
                     ForEach(NotchQuickAccessSide.allCases, id: \.self) { side in
                         let items = configuration.buttons.filter { $0.side == side }
@@ -83,18 +89,23 @@ struct NotchLayoutEditor: View {
                             .position(point(items.count, count: items.count, side: side, island: frame))
                         }
                     }
+                    // A grip on the corner, clear of the page inside the silhouette.
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
-                        .frame(width: 22, height: 22).background(.white.opacity(0.17), in: Circle())
+                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.accentColor)
+                        .frame(width: 24, height: 24)
+                        .background(.background, in: Circle())
+                        .overlay { Circle().strokeBorder(Color.accentColor.opacity(0.65), lineWidth: 1) }
+                        .shadow(color: .black.opacity(0.12), radius: 3, y: 2)
                         .contentShape(Circle())
                         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("island.editor")).onChanged { value in
                             if resizeStart == nil { resizeStart = CGSize(width: actualWidth, height: actualHeight) }
                             guard let start = resizeStart else { return }
                             size = NotchSize.custom.rawValue
-                            width = NotchSize.clamped(Double(start.width + value.translation.width / Self.previewScale), to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
-                            height = NotchSize.clamped(Double(start.height + value.translation.height / Self.previewScale), to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)
+                            width = NotchSize.clamped(Double(start.width + value.translation.width / scale), to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
+                            height = NotchSize.clamped(Double(start.height + value.translation.height / scale), to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)
                         }.onEnded { _ in resizeStart = nil })
-                        .position(x: frame.maxX - NotchLayout.shoulder - 17, y: frame.maxY - 17)
+                        // A short island slides the grip below the third right slot.
+                        .position(x: frame.maxX - 3, y: max(frame.maxY - 3, frame.minY + 139))
                         .accessibilityLabel(text.size)
                 }
                 .coordinateSpace(name: "island.editor")
@@ -110,9 +121,6 @@ struct NotchLayoutEditor: View {
     /// canvas fits the tallest custom island with its bottom drop zone below.
     private static let previewScale: CGFloat = 0.5
     private static let canvasHeight: CGFloat = NotchSize.heightRange.upperBound * previewScale + 20 + 58 + 2
-    /// Below this the preview shows only the title and the two cards: the
-    /// Content capsule would otherwise leave the black silhouette.
-    private static let fullPreviewHeight: CGFloat = 166
     private var layout: NotchSize { NotchSize(rawValue: size) ?? .compact }
     private var actualWidth: CGFloat {
         NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
@@ -121,18 +129,25 @@ struct NotchLayoutEditor: View {
         NotchLayout.nominalHeight(layout, custom: NotchSize.clamped(height, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight))
     }
 
+    /// A narrow window shrinks the whole island rather than only its width.
+    private func scale(in canvas: CGSize) -> CGFloat {
+        min(Self.previewScale, max(0.2, (canvas.width - 112) / actualWidth))
+    }
+
     private func islandFrame(in canvas: CGSize) -> CGRect {
-        let w = min(canvas.width - 112, actualWidth * Self.previewScale)
-        let h = actualHeight * Self.previewScale
+        let scale = scale(in: canvas)
+        let w = actualWidth * scale
+        let h = actualHeight * scale
         return CGRect(x: (canvas.width - w) / 2, y: 20, width: w, height: h)
     }
 
+    /// Buttons float clear of the silhouette, as the real ones do.
     private func point(_ index: Int, count: Int, side: NotchQuickAccessSide, island: CGRect) -> CGPoint {
         let slots = max(1, count)
         switch side {
-        case .left: return CGPoint(x: island.minX - 12, y: island.minY + 30 + CGFloat(index) * 40)
-        case .right: return CGPoint(x: island.maxX + 12, y: island.minY + 30 + CGFloat(index) * 40)
-        case .bottom: return CGPoint(x: island.midX + (CGFloat(index) - CGFloat(slots - 1) / 2) * 40, y: island.maxY + 26)
+        case .left: return CGPoint(x: island.minX - 18, y: island.minY + 30 + CGFloat(index) * 40)
+        case .right: return CGPoint(x: island.maxX + 18, y: island.minY + 30 + CGFloat(index) * 40)
+        case .bottom: return CGPoint(x: island.midX + (CGFloat(index) - CGFloat(slots - 1) / 2) * 40, y: island.maxY + 24)
         }
     }
 
@@ -206,30 +221,133 @@ struct NotchLayoutEditor: View {
         configuration.buttons.swapAt(from, to)
     }
 
-    private func islandPreview(height: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(text.controls).font(.system(size: 12, weight: .semibold))
-            Button(action: editContents) {
-                HStack(spacing: 10) {
-                    ForEach([NotchControlItem.volume, .brightness]) { item in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label(item.title(l10n), systemImage: item.symbol).font(.system(size: 10, weight: .medium))
-                            NotchMeter(value: item == .volume ? 0.45 : 0.65, height: 12)
-                        }.padding(10).frame(maxWidth: .infinity)
-                            .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
+    /// The home page as the island lays it out: the same items, rules and
+    /// components as the real Controls page, at the island's real size.
+    private var islandPreview: some View {
+        let items = NotchSupport.controls()
+        let levels = items.filter { $0 == .volume || $0 == .brightness }
+        let shortcuts = items.filter { $0 != .volume && $0 != .brightness && $0 != .music }
+        let contentWidth = max(0, actualWidth - NotchLayout.horizontalInset * 2)
+        let contentHeight = max(0, actualHeight - NotchLayout.nominalContentTop - NotchLayout.chromeHeight)
+        let controls = NotchLayout.controls(hasCards: items.contains(.music) || !levels.isEmpty,
+                                            shortcutCount: shortcuts.count, width: contentWidth, height: contentHeight)
+        return Button(action: editContents) {
+            Color.clear.contentShape(NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: actualHeight)))
+        }
+        .buttonStyle(.plain)
+        .help(editor.content)
+        .accessibilityLabel(editor.content)
+        .overlay {
+            VStack(spacing: NotchLayout.spacing) {
+                HStack {
+                    Text(text.controls).font(.system(size: 16, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.35)).frame(width: 28, height: 28)
+                }
+                .frame(height: NotchLayout.headerHeight)
+                VStack(spacing: NotchLayout.rowSpacing) {
+                    if items.isEmpty {
+                        NotchEmptyView(symbol: NotchModule.controls.symbol, message: text.empty)
+                    } else {
+                        if controls.cardRow > 0 { cards(levels, music: items.contains(.music), height: controls.cardRow) }
+                        if controls.shortcutRows > 0 {
+                            NotchRail(items: shortcuts, rows: controls.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
+                                      width: contentWidth, spacing: NotchLayout.shortcutSpacing,
+                                      rowSpacing: NotchLayout.shortcutSpacing) { item in
+                                NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {}
+                            }
+                        }
                     }
                 }
-            }.buttonStyle(.plain)
-            if height >= Self.fullPreviewHeight {
-                Button(action: editContents) {
-                    Label(editor.content, systemImage: "square.grid.2x2")
-                        .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.8))
-                        .frame(maxWidth: .infinity).padding(8)
-                        .background(.white.opacity(0.06), in: Capsule())
-                }.buttonStyle(.plain)
+                .frame(width: contentWidth, height: contentHeight, alignment: .top)
+                .clipped()
             }
-            Spacer(minLength: 0)
-        }.padding(.horizontal, 22).padding(.top, 24).padding(.bottom, 12).foregroundStyle(.white)
+            .padding(.horizontal, NotchLayout.horizontalInset)
+            .padding(.top, NotchLayout.nominalContentTop)
+            .padding(.bottom, NotchLayout.bottomInset)
+            .frame(width: actualWidth, height: actualHeight, alignment: .top)
+            .foregroundStyle(.white)
+            .environment(\.colorScheme, .dark)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        .frame(width: actualWidth, height: actualHeight)
+    }
+
+    /// Playback shares the row with the levels, as on the island: two levels
+    /// fold into one slim card beside it, a single one keeps its full card.
+    private func cards(_ levels: [NotchControlItem], music: Bool, height: CGFloat) -> some View {
+        HStack(spacing: NotchLayout.rowSpacing) {
+            if music {
+                musicCard(height: height)
+                if levels.count > 1 {
+                    VStack(spacing: 6) { ForEach(levels) { levelRow($0) } }
+                        .padding(.horizontal, 12)
+                        .frame(width: 160, height: height)
+                        .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+                } else if let single = levels.first {
+                    levelCard(single, height: height).frame(width: 160)
+                }
+            } else {
+                ForEach(levels) { levelCard($0, height: height).frame(maxWidth: .infinity) }
+            }
+        }
+        .frame(height: height)
+    }
+
+    private func musicCard(height: CGFloat) -> some View {
+        HStack(spacing: 12) {
+            NotchArtwork(image: nil, size: max(40, height - 24))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(FeatureStrings.radialMenu(l10n.language).mediaNothingPlaying)
+                    .font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                if height >= 84 {
+                    Text(text.musicHint).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+    }
+
+    private func levelCard(_ item: NotchControlItem, height: CGFloat) -> some View {
+        let showsDevice = height >= 88
+        return VStack(spacing: 6) {
+            HStack(spacing: 7) {
+                Image(systemName: item.symbol).font(.system(size: 12, weight: .medium)).frame(width: 18, height: 18)
+                Text(item.title(l10n)).lineLimit(1)
+                Spacer(minLength: 0)
+                Text(item == .volume ? "45%" : "65%").monospacedDigit()
+            }
+            .font(.system(size: 12, weight: .semibold))
+            NotchMeter(value: item == .volume ? 0.45 : 0.65, height: 22)
+                .frame(height: 28)
+            if showsDevice {
+                HStack(spacing: 4) {
+                    Text(l10n.s.mixerSystemOutputTitle).lineLimit(1)
+                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+                }
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, showsDevice ? 10 : 5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+    }
+
+    private func levelRow(_ item: NotchControlItem) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: item.symbol).font(.system(size: 12, weight: .medium)).frame(width: 18, height: 18)
+            NotchMeter(value: item == .volume ? 0.45 : 0.65, height: 18).frame(height: 24)
+            Text(item == .volume ? "45%" : "65%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+        }
+        .frame(height: 28)
     }
 }
 

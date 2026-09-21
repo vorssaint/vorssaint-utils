@@ -191,7 +191,7 @@ final class NotchService: ObservableObject {
     var surfaceSize: CGSize {
         if let captureControls {
             if captureControlsCollapsed {
-                return CGSize(width: geometry.cameraWidth + 56, height: geometry.menuBarHeight)
+                return CGSize(width: geometry.cameraWidth + 56, height: geometry.stripHeight)
             }
             return CGSize(width: geometry.expanded.width,
                           height: geometry.safeContentTop + 28 + 12 + NotchLayout.shortcutHeight + 16
