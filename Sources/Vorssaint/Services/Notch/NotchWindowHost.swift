@@ -31,6 +31,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var hidesWhenSettled = false
     private var targetUsesGlass = false
     private var mouseEventsBeforeHide: Bool?
+    private var frameProbe: NotchFrameProbe?
+    private var concealedForFrameChange = false
+    private var restoresKeyAfterFrameChange = false
     private var settledActions: [() -> Void] = []
     private(set) var targetSize: CGSize
     private(set) var resizeCount = 0
@@ -63,8 +66,11 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         appliedFrame = panel.frame
     }
 
+    /// Visible, or ordered out for the few milliseconds of a concealed frame change.
+    private var isPresented: Bool { panel.isVisible || concealedForFrameChange }
+
     func hide(animated: Bool) {
-        guard panel.isVisible else { return }
+        guard isPresented else { return }
         let animate = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         guard !hidesWhenSettled || !animate else { return }
         present(size: CGSize(width: currentGeometry.collapsed.width, height: 0), geometry: currentGeometry,
@@ -84,8 +90,15 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             mouseEventsBeforeHide = nil
         }
         canvas.updateContrast()
-        let revealing = revealFromHidden && !panel.isVisible
-        let canAnimate = animated && (panel.isVisible || revealing) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let revealing = revealFromHidden && !isPresented
+        if isPresented || revealing {
+            // Settle the probe on screen ahead of its first reading: a window
+            // ordered in and sized in one flush has no previous bounds to animate from.
+            let probe = frameProbe ?? NotchFrameProbe(collectionBehavior: panel.collectionBehavior)
+            frameProbe = probe
+            probe.attach(level: panel.level, screen: geometry.screen)
+        }
+        let canAnimate = animated && (isPresented || revealing) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let previousGutter = quickAccessConfiguration == nil ? 0 : NotchQuickAccessLayout.gutter
         let previousBottom: CGFloat = quickAccessConfiguration?.hasBottom == true ? NotchQuickAccessLayout.gutter : 0
         let previousFrame = currentGeometry.frame(for: CGSize(width: targetSize.width + previousGutter * 2, height: targetSize.height + previousBottom))
@@ -121,8 +134,6 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let sameScreen = geometry.screen == currentGeometry.screen
         animationGeneration += 1
         let generation = animationGeneration
-        isAnimating = false
-        canvas.stopMotion()
         targetSize = size
         currentGeometry = geometry
         resizeCount += 1
@@ -134,6 +145,14 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let envelope = NotchMotion.envelope(from: revealing ? previousPath.boundingBoxOfPath.size : canvas.bounds.size, to: size)
         let reservedGutter = max(quickAccessContainer?.gutter ?? 0, gutter)
         let reservedBottom = max(quickAccessContainer?.bottomInset ?? 0, bottom)
+        // The probe flushes the layer tree; the departing animation stays
+        // installed until then, so no frame shows its bare model path.
+        let concealed = concealForFrameChange(to: reservedFrame(mainSize: envelope, gutter: reservedGutter, bottom: reservedBottom),
+                                              generation: generation)
+        defer { if concealed { reinstateAfterFrameChange() } }
+        guard generation == animationGeneration else { return }
+        isAnimating = false
+        canvas.stopMotion()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         canvas.setContentSize(size)
@@ -176,28 +195,73 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
 
     private func settle() {
         let generation = animationGeneration
+        let gutter: CGFloat = quickAccessConfiguration == nil ? 0 : NotchQuickAccessLayout.gutter
+        let bottom: CGFloat = quickAccessConfiguration?.hasBottom == true ? NotchQuickAccessLayout.gutter : 0
+        // A departing island is ordered out below; its released bounds are never shown.
+        let concealed = !hidesWhenSettled
+            && concealForFrameChange(to: reservedFrame(mainSize: targetSize, gutter: gutter, bottom: bottom), generation: generation)
+        defer { if concealed { reinstateAfterFrameChange() } }
+        guard generation == animationGeneration else { return }
         isAnimating = false
         canvas.stopMotion()
         canvas.setUsesGlass(targetUsesGlass)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         canvas.setContentSize(targetSize)
-        setFrame(mainSize: targetSize, gutter: quickAccessConfiguration == nil ? 0 : NotchQuickAccessLayout.gutter,
-                 bottom: quickAccessConfiguration?.hasBottom == true ? NotchQuickAccessLayout.gutter : 0)
+        setFrame(mainSize: targetSize, gutter: gutter, bottom: bottom)
         guard generation == animationGeneration else { CATransaction.commit(); return }
         configureQuickAccess()
         canvas.layoutSubtreeIfNeeded()
         guard generation == animationGeneration else { CATransaction.commit(); return }
         CATransaction.commit()
         quickAccessContainer?.motion.setVisible(quickAccessConfiguration != nil, animated: quickAccessAnimate)
-        if hidesWhenSettled { panel.orderOut(nil) }
+        if hidesWhenSettled {
+            panel.orderOut(nil)
+            concealedForFrameChange = false
+            restoresKeyAfterFrameChange = false
+        }
         runSettledActions()
+    }
+
+    private func reservedFrame(mainSize: CGSize, gutter: CGFloat, bottom: CGFloat) -> CGRect {
+        currentGeometry.frame(for: CGSize(width: mainSize.width + gutter * 2, height: mainSize.height + bottom))
+    }
+
+    /// Mission Control switches the window server into a mode where every
+    /// change to an on-screen window's frame is animated by the server itself,
+    /// over about half a second, stretching the window's current pixels across
+    /// its previous bounds. The island only changes its frame at the ends of a
+    /// resize, so the settled island would smear over the reserved area. A
+    /// frame changed while the panel is ordered out is applied as is; the
+    /// panel returns a few milliseconds later, at the new bounds. Returns
+    /// whether this call concealed the panel; only that call reinstates it.
+    private func concealForFrameChange(to frame: CGRect, generation: Int) -> Bool {
+        // Ordering out ends an attached sheet; that dialog outranks a smooth resize.
+        guard !concealedForFrameChange, panel.isVisible, panel.attachedSheet == nil,
+              !NotchFrameProbe.matches(frame, panel.frame), let frameProbe else { return false }
+        // Flushing the probe can report a newer content size synchronously.
+        guard frameProbe.serverAnimatesFrames(level: panel.level, screen: currentGeometry.screen),
+              generation == animationGeneration, panel.isVisible else { return false }
+        concealedForFrameChange = true
+        restoresKeyAfterFrameChange = panel.isKeyWindow
+        panel.orderOut(nil)
+        CATransaction.flush()
+        return true
+    }
+
+    private func reinstateAfterFrameChange() {
+        guard concealedForFrameChange else { return }
+        concealedForFrameChange = false
+        panel.orderFrontRegardless()
+        CATransaction.flush()
+        if restoresKeyAfterFrameChange { panel.makeKey() }
+        restoresKeyAfterFrameChange = false
     }
 
     private func setFrame(mainSize: CGSize, gutter: CGFloat, bottom: CGFloat) {
         quickAccessContainer?.gutter = gutter
         quickAccessContainer?.bottomInset = bottom
-        panel.setFrame(currentGeometry.frame(for: CGSize(width: mainSize.width + gutter * 2, height: mainSize.height + bottom)), display: false)
+        panel.setFrame(reservedFrame(mainSize: mainSize, gutter: gutter, bottom: bottom), display: false)
         // A media measurement can arrive during AppKit layout. A nested
         // layoutSubtreeIfNeeded is then deferred, so reserve the actual canvas
         // and hosting view now, before the animated mask can expose new pixels.
@@ -232,7 +296,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     func containsHover(_ screenPoint: CGPoint) -> Bool {
-        guard panel.isVisible else { return false }
+        guard isPresented else { return false }
         // Hover follows the destination bounds, not a transient mask edge.
         // A resize must never turn a stationary pointer into an exit.
         if currentGeometry.contains(screenPoint, in: targetSize) { return true }
@@ -257,7 +321,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     func contains(_ screenPoint: CGPoint) -> Bool {
-        guard panel.isVisible else { return false }
+        guard isPresented else { return false }
         let local = canvas.convert(panel.convertPoint(fromScreen: screenPoint), from: nil)
         if canvas.containsVisiblePoint(local) { return true }
         guard let container = quickAccessContainer else { return false }
@@ -322,13 +386,77 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     func close() {
         animationGeneration += 1
         isAnimating = false
+        concealedForFrameChange = false
         canvas.stopMotion()
         quickAccessContainer?.motion.setVisible(false, animated: false)
         quickAccessContainer?.setHoverRects([])
         panel.orderOut(nil)
         panel.contentView = nil
+        frameProbe?.close()
+        frameProbe = nil
         runSettledActions()
     }
+}
+
+/// Nothing announces the window server's animated mode. An invisible two-point
+/// window resized right before the island's own frame change tells whether the
+/// server applies frames immediately: outside Mission Control the new size
+/// reads back at once, inside it the previous size is still reported while the
+/// server animates. Only a size change is applied synchronously, once the
+/// layer tree is flushed; a move is deferred and would read back stale anywhere.
+private final class NotchFrameProbe {
+    private let window: NotchPanel
+    private var grown = false
+
+    init(collectionBehavior: NSWindow.CollectionBehavior) {
+        window = NotchPanel(contentRect: CGRect(x: 0, y: 0, width: 2, height: 2),
+                            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.alphaValue = 0
+        window.ignoresMouseEvents = true
+        window.hidesOnDeactivate = false
+        window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
+        window.collectionBehavior = collectionBehavior
+        let content = NSView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
+        content.wantsLayer = true
+        window.contentView = content
+    }
+
+    /// AppKit aligns window bounds to pixels; sub-point differences are no change.
+    static func matches(_ frame: CGRect, _ other: CGRect) -> Bool {
+        abs(frame.minX - other.minX) <= 0.5 && abs(frame.minY - other.minY) <= 0.5
+            && abs(frame.width - other.width) <= 0.5 && abs(frame.height - other.height) <= 0.5
+    }
+
+    /// Keeps the probe on the island's display, below its menu bar so the
+    /// space measurements never count it, at the island's own level.
+    func attach(level: NSWindow.Level, screen: CGRect) {
+        if window.level != level { window.level = level }
+        let side: CGFloat = grown ? 40 : 2
+        let frame = CGRect(x: screen.minX, y: screen.minY, width: side, height: side)
+        if !Self.matches(frame, window.frame) { window.setFrame(frame, display: false) }
+        if !window.isVisible { window.orderFrontRegardless() }
+    }
+
+    /// Whether a frame set on an on-screen window right now would be animated.
+    /// Unknown geometry reads as immediate, keeping the ordinary resize.
+    func serverAnimatesFrames(level: NSWindow.Level, screen: CGRect) -> Bool {
+        grown.toggle()
+        attach(level: level, screen: screen)
+        window.contentView?.layoutSubtreeIfNeeded()
+        CATransaction.flush()
+        guard window.windowNumber > 0,
+              let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(window.windowNumber))
+                            as? [[String: Any]])?.first,
+              let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
+              let width = bounds["Width"], let height = bounds["Height"] else { return false }
+        return abs(width - window.frame.width) > 0.5 || abs(height - window.frame.height) > 0.5
+    }
+
+    func close() { window.orderOut(nil) }
 }
 
 final class NotchPanel: NSPanel {

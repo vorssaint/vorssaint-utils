@@ -176,8 +176,119 @@ enum NotchPresentationProbe {
         exit(1)
     }
 
+    /// Reads the bounds the window server currently shows for a window; while
+    /// Mission Control animates a frame change these trail the requested frame.
+    private static func serverSize(of window: NSWindow) -> CGSize? {
+        guard window.windowNumber > 0,
+              let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(window.windowNumber))
+                            as? [[String: Any]])?.first,
+              let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
+              let width = bounds["Width"], let height = bounds["Height"] else { return nil }
+        return CGSize(width: width, height: height)
+    }
+
+    /// Opt-in: shows Mission Control on this Mac for a few seconds. Inside it
+    /// the window server animates every frame change of a window on screen,
+    /// smearing the island's settled pixels over its reserved bounds; the host
+    /// must apply its frames there as immediately as it does on the desktop.
+    private static func runMissionControlAndExit() -> Never {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.prohibited)
+        guard let screen = NSScreen.main else { print("NOTCH MISSION CONTROL PROBE FAILED: no display"); exit(1) }
+        var failures: [String] = []
+        func advance(_ seconds: TimeInterval) {
+            RunLoop.current.run(until: Date().addingTimeInterval(seconds))
+        }
+        func toggleMissionControl() {
+            let launcher = Process()
+            launcher.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            launcher.arguments = ["-b", "com.apple.exposelauncher"]
+            do { try launcher.run() } catch { failures.append("could not toggle Mission Control: \(error)") }
+        }
+        let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
+                                     cameraWidth: screen.safeAreaInsets.top > 0 ? 210 : 0)
+        let host = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.collapsed, background: surface,
+                                  quickAccess: { AnyView(NotchQuickAccessView(service: .shared, motion: $0)) })
+        host.panel.alphaValue = 0
+        host.panel.ignoresMouseEvents = true
+        host.panel.orderFrontRegardless()
+        host.present(size: geometry.expanded, geometry: geometry, animated: false, quickAccess: .initial, usesGlass: true)
+        // A plain window shows the mode itself: on the desktop its new size
+        // reads back at once, in Mission Control the previous size lingers.
+        let witness = NSWindow(contentRect: CGRect(x: screen.frame.minX, y: screen.frame.minY, width: 2, height: 2),
+                               styleMask: [.borderless], backing: .buffered, defer: false)
+        witness.isOpaque = false
+        witness.backgroundColor = .clear
+        witness.hasShadow = false
+        witness.alphaValue = 0
+        witness.ignoresMouseEvents = true
+        witness.isReleasedWhenClosed = false
+        witness.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        let witnessContent = NSView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
+        witnessContent.wantsLayer = true
+        witness.contentView = witnessContent
+        witness.orderFrontRegardless()
+        advance(0.5)
+        func witnessLags() -> Bool {
+            let side: CGFloat = witness.frame.width > 2 ? 2 : 40
+            witness.setFrame(CGRect(x: screen.frame.minX, y: screen.frame.minY, width: side, height: side), display: false)
+            witnessContent.layoutSubtreeIfNeeded()
+            CATransaction.flush()
+            return serverSize(of: witness).map { abs($0.width - side) > 0.5 } ?? false
+        }
+        if witnessLags() { failures.append("the desktop already animated a plain frame change") }
+        toggleMissionControl()
+        advance(2)
+        guard witnessLags() else {
+            print("NOTCH MISSION CONTROL PROBE FAILED: Mission Control did not engage; nothing was verified")
+            witness.orderOut(nil)
+            host.close()
+            exit(1)
+        }
+        for (size, access) in [(geometry.collapsed, nil), (geometry.expanded, NotchQuickAccessConfiguration.initial),
+                               (geometry.collapsed, nil)] {
+            host.present(size: size, geometry: geometry, animated: true,
+                         transitionContent: access == nil ? .dismiss : .reveal, quickAccess: access, usesGlass: access != nil)
+            var settled = false
+            host.whenSettled { settled = true }
+            // The server must show the reserved frame throughout, and the
+            // settled one the moment it is released.
+            func smear() -> CGSize? {
+                guard let shown = serverSize(of: host.panel),
+                      abs(shown.width - host.panel.frame.width) > 0.5 || abs(shown.height - host.panel.frame.height) > 0.5
+                else { return nil }
+                return shown
+            }
+            var smeared: CGSize?
+            let deadline = Date().addingTimeInterval(3)
+            while !settled && smeared == nil && Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.008))
+                smeared = smear()
+            }
+            if smeared == nil { smeared = smear() }
+            if let smeared {
+                failures.append("Mission Control animated the island's frame to \(size): showing \(smeared), reserved \(host.panel.frame.size)")
+            } else if !settled {
+                failures.append("the island did not settle at \(size) inside Mission Control")
+            }
+            advance(0.7)
+            if let smeared = smear() {
+                failures.append("the settled island still shows \(smeared) for a frame of \(host.panel.frame.size)")
+            }
+            if !host.panel.isVisible { failures.append("the island stayed off screen after settling at \(size)") }
+        }
+        toggleMissionControl()
+        advance(1.5)
+        witness.orderOut(nil)
+        host.close()
+        print("NOTCH MISSION CONTROL PROBE \(failures.isEmpty ? "OK" : "FAILED")")
+        failures.forEach { print($0) }
+        exit(failures.isEmpty ? 0 : 1)
+    }
+
     static func runAndExit() -> Never {
         if CommandLine.arguments.contains("--media-layout") { NotchMediaPresentationProbe.runAndExit() }
+        if CommandLine.arguments.contains("--mission-control") { runMissionControlAndExit() }
         if let index = CommandLine.arguments.firstIndex(of: "--preview-notice"),
            CommandLine.arguments.indices.contains(index + 1) {
             previewNoticeAndExit(title: CommandLine.arguments[index + 1])

@@ -30,6 +30,7 @@ Dynamic Island improves list readability and playback controls, can hide in full
 - Screenshot preview actions stay in the Dynamic Island header above the image, with compact buttons that leave room for the title at smaller widths.
 - Dynamic Island animates its dismissal on displays without a camera cutout when there is no safe resting space in the menu bar.
 - Dynamic Island keeps the battery icon and percentage clear of its curved edges, including the full `100%` label.
+- Dynamic Island opens and closes cleanly inside Mission Control, instead of its closed shape briefly stretching over the area it occupied while open.
 
 ## [3.4.0-beta.3] - 2026-09-20
 
