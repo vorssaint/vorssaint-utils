@@ -192,6 +192,15 @@ struct NotchView: View {
                 hasSession: session.hasSession, width: size.width, height: size.height))
         case .calendar:
             size.height = max(size.height, NotchLayout.calendarMonthMinimumHeight)
+        case .clipboard:
+            // Search, spacing and a complete card with its action row.
+            size.height = max(size.height, NotchLayout.clipboardSearchHeight + NotchLayout.rowSpacing
+                              + NotchLayout.clipboardCardHeight)
+        case .camera:
+            // Keep permission and error messages, and the stop button, reachable.
+            size.height = max(size.height, 180)
+        case .mixer:
+            size.height = max(size.height, 180)
         case .music:
             let controlsRow = AppFeature.mixer.isAvailable || NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
                 ? NotchLayout.musicControlsRowHeight + NotchLayout.rowSpacing : 0

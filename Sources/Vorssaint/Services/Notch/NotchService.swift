@@ -628,7 +628,7 @@ final class NotchService: ObservableObject {
         }
         let index = highlightedSection.flatMap { sections.firstIndex(of: $0) } ?? 0
         highlightedSection = sections[QuickToolsSupport.gridIndex(after: index, count: sections.count,
-                                                                   flow: .columns(rows: geometry.sectionRows(count: sections.count)),
+                                                                   flow: .rows(columns: geometry.sectionColumns),
                                                                    direction: direction)]
         return true
     }

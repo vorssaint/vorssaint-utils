@@ -92,7 +92,7 @@ struct NotchMixerView: View {
                             updateArrangement { $0.move(source, to: target, after: after, visibleIDs: ids) }
                         },
                         sideways: true))
-                    .help(FeatureStrings.mixer(l10n.language).arrange)
+                    .help(app.name + "\n" + FeatureStrings.mixer(l10n.language).arrange)
             }
         }
     }
@@ -171,6 +171,8 @@ private struct NotchMasterFader: View {
 
     var body: some View {
         VStack(spacing: 4) {
+            NotchOutputDeviceMenu(width: 100, lines: 1)
+                .frame(height: 14)
             Button {
                 if let muted = mixer.systemOutputMuted { mixer.requestOutputAdjustment(muted: !muted) }
             } label: {
@@ -185,12 +187,11 @@ private struct NotchMasterFader: View {
             .buttonStyle(NotchButtonStyle(cornerRadius: 14))
             .disabled(mixer.systemOutputMuted == nil)
             .accessibilityLabel(muted ? l10n.s.actionUnmute : l10n.s.actionMute)
-            NotchOutputDeviceMenu(width: 100, lines: 2)
             if let level {
                 NotchLevelSlider(value: Binding(get: { level }, set: { mixer.requestOutputAdjustment(volume: $0) }),
-                                 label: l10n.s.mixerSystemOutputTitle, vertical: true)
+                                 label: l10n.s.mixerSystemOutputTitle, vertical: true, trackThickness: 8)
                     .frame(width: 24)
-                    .frame(maxHeight: .infinity)
+                    .frame(maxHeight: 140)
                 NotchEditablePercent(percent: Int((level * 100).rounded()), maximum: 100,
                                      editorID: "notch-system-output", editingID: $editingVolumeID,
                                      label: l10n.s.mixerSystemOutputTitle) {
@@ -356,7 +357,7 @@ private struct NotchMixerOptions: View {
     }
 }
 
-/// One app: icon, name, fader and level. The track ticks at unity, and the
+/// One app: actions above its icon, a fader and level. The track ticks at unity, and the
 /// fader turns amber in the boost range the way the panel's slider does.
 /// The panel row's menu, output picker and context menu fold into the
 /// column's own menu, with the route shown as a badge on the icon.
@@ -383,22 +384,18 @@ private struct NotchAppFader: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            icon
-                .frame(maxWidth: .infinity)
-                .frame(height: 28)
-                .overlay(alignment: .topTrailing) {
-                    if app.persistenceID != nil || !app.isBypassed { actionsMenu }
-                }
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 if isPinned {
                     Image(systemName: "pin.fill").font(.system(size: 8)).foregroundStyle(.secondary)
                         .accessibilityLabel(strings.pinFirst)
                 }
-                Text(app.name)
-                    .font(.system(size: 10, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                if app.persistenceID != nil || !app.isBypassed { actionsMenu }
             }
-            .frame(maxWidth: .infinity)
             .frame(height: 14)
+            icon
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .help(app.name)
             if app.isBypassed {
                 // Conferencing and pro audio apps manage their own sound: listed so
                 // their absence never reads as a bug, never tapped.
@@ -409,10 +406,10 @@ private struct NotchAppFader: View {
             } else {
                 NotchLevelSlider(value: Binding(get: { app.volume }, set: { mixer.setVolume($0, for: app) }),
                                  label: app.name, range: 0...AppVolumeMixer.maxVolume,
-                                 tint: boosting ? .orange : .white, vertical: true, marker: 1,
+                                 tint: boosting ? .orange : .white, vertical: true, trackThickness: 8, marker: 1,
                                  valueLabel: "\(percent)%")
                     .frame(width: 24)
-                    .frame(maxHeight: .infinity)
+                    .frame(maxHeight: 140)
                 HStack(spacing: 0) {
                     NotchEditablePercent(percent: percent, maximum: Int(AppVolumeMixer.maxVolume * 100),
                                          editorID: "notch-app:\(app.id)", editingID: $editingVolumeID,
@@ -447,7 +444,7 @@ private struct NotchAppFader: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: height)
+        .frame(height: height, alignment: .top)
         .contextMenu { actions }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(app.name)

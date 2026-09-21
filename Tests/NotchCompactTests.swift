@@ -8,6 +8,22 @@ import SwiftUI
 /// hidden; these contracts neither capture pixels nor send input events.
 enum NotchCompactTests {
     typealias L10n = NotchUpdateTests.L10n
+    final class CameraPreviewService: ObservableObject {
+        static let shared = CameraPreviewService()
+        @Published var isEmbeddedPresented = false
+        var stops = 0
+        func showEmbedded() { isEmbeddedPresented = true }
+        func hideEmbedded() {
+            guard isEmbeddedPresented else { return }
+            stops += 1
+            isEmbeddedPresented = false
+        }
+    }
+    struct CameraPreviewView: View {
+        let size: CGSize
+        let showsCameraMenu: Bool
+        var body: some View { Color.black.frame(width: size.width, height: size.height) }
+    }
     final class NotchService: ObservableObject {
         var presentationWindow: NSWindow?
         @Published var scratchpadCloseSerial = 0
@@ -141,10 +157,66 @@ enum NotchCompactTests {
         [view] + view.subviews.flatMap(descendants)
     }
     static func run(_ suite: TestSuite) {
+        camera(suite)
+        calendarRows(suite)
         rail(suite)
         scratchpad(suite)
         focus(suite)
         sizing(suite)
+    }
+    private static func calendarRows(_ suite: TestSuite) {
+        let day = Date(timeIntervalSince1970: 1_780_000_000)
+        for language in AppLanguage.allCases {
+            for width: CGFloat in [192, 304, 424] {
+                func height(title: String) -> CGFloat {
+                    let event = NotchCalendarEvent(id: "layout", title: title, calendar: "Calendar",
+                                                   start: day, end: day.addingTimeInterval(3600),
+                                                   allDay: false, location: "Meeting room")
+                    let host = NSHostingView(rootView: NotchCalendarEventRow(event: event, day: day, now: day,
+                                                                           isNext: true,
+                                                                           text: FeatureStrings.notchCalendar(language), open: {})
+                        .environment(\.locale, Locale(identifier: language.rawValue))
+                        .frame(width: width))
+                    host.layoutSubtreeIfNeeded()
+                    suite.expect(host.fittingSize.width == width && host.fittingSize.height.isFinite,
+                                 "agenda rows stay inside the available width in \(language.rawValue)")
+                    return host.fittingSize.height
+                }
+                let short = height(title: "Meeting")
+                let long = height(title: Array(repeating: "A long appointment title", count: 10).joined(separator: " "))
+                suite.expect(long > short + 40,
+                             "long agenda titles grow vertically instead of clipping into a fixed-height card")
+            }
+        }
+    }
+    private static func camera(_ suite: TestSuite) {
+        let service = CameraPreviewService.shared
+        service.isEmbeddedPresented = false
+        service.stops = 0
+        let host = NSHostingView(rootView: AnyView(VStack {
+            NotchCameraView(size: CGSize(width: 424, height: 180))
+        }))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 424, height: 180),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.contentView = nil; service.isEmbeddedPresented = false }
+        host.frame = NSRect(x: 0, y: 0, width: 424, height: 180)
+        settle(host)
+        service.showEmbedded()
+        settle(host)
+        suite.expect(service.isEmbeddedPresented && service.stops == 0,
+                     "starting the embedded camera does not dismiss it when the start card disappears")
+        service.hideEmbedded()
+        settle(host)
+        service.showEmbedded()
+        settle(host)
+        suite.expect(service.isEmbeddedPresented && service.stops == 1,
+                     "the camera can be stopped and started again within the same page")
+        host.rootView = AnyView(EmptyView())
+        settle(host)
+        suite.expect(!service.isEmbeddedPresented && service.stops == 2,
+                     "leaving the camera page still stops capture")
     }
     private static func rail(_ suite: TestSuite) {
         let state = RailState()
@@ -248,7 +320,7 @@ enum NotchCompactTests {
         for bar: CGFloat in [24, 32, 40, 48, 64] {
             let geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .custom,
                                          menuBarHeight: bar, customWidth: 360, customHeight: 260)
-            for module in [NotchModule.controls, .timer, .calendar, .files, .music] {
+            for module in [NotchModule.controls, .timer, .calendar, .files, .music, .clipboard, .camera, .mixer] {
                 page.service.selected = module
                 page.service.contentSize = geometry.contentSize(for: geometry.expandedSize(module: module))
                 let layout = page.pageSize
@@ -267,6 +339,12 @@ enum NotchCompactTests {
                     let required = NotchLayout.calendarMonthHeaderHeight + NotchLayout.calendarMonthWeekdayHeight
                         + NotchLayout.calendarMonthSpacing * 2 + 6 * NotchLayout.calendarMonthRowHeight(height: layout.height)
                     suite.expect(required <= layout.height, "all six month rows remain reachable at menu height \(bar)")
+                } else if module == .clipboard {
+                    suite.expect(layout.height >= NotchLayout.clipboardSearchHeight + NotchLayout.rowSpacing
+                                 + NotchLayout.clipboardCardHeight,
+                                 "a short clipboard page keeps the search field and a complete card reachable")
+                } else if module == .camera || module == .mixer {
+                    suite.expect(layout.height >= 180, "camera and mixer controls keep a usable height in a short island")
                 }
             }
         }

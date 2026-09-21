@@ -802,7 +802,23 @@ enum NotchTests {
         suite.expect(compact.sectionPickerSize(count: 1) == compact.sectionPickerSize(count: allModules.count)
                && compact.sectionRows(count: allModules.count) == 1 && spacious.sectionRows(count: allModules.count) == 2
                && tall.sectionRows(count: allModules.count) > 2,
-               "the gallery keeps one row on a compact island, two on a spacious one, and runs sideways beyond them")
+               "the gallery keeps one visible row on a compact island and two on a spacious one")
+        for geometry in [compact, spacious, tall] {
+            let columns = geometry.sectionColumns
+            let tileWidth = (geometry.contentWidth - 16 - CGFloat(columns - 1) * NotchLayout.sectionSpacing) / CGFloat(columns)
+            suite.expect(tileWidth >= NotchLayout.sectionTileWidth,
+                   "gallery tiles keep their readable width even with always-visible scroll bars")
+            suite.expect(QuickToolsSupport.gridIndex(after: 0, count: allModules.count,
+                                                     flow: .rows(columns: columns), direction: .down) == columns,
+                   "gallery Down follows the next visible row rather than the old sideways rail")
+        }
+        for size in [CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
+                     CGSize(width: 504, height: 264)] {
+            let preview = NotchLayout.cameraPreviewSize(in: size)
+            suite.expect(preview.width <= size.width && preview.height + 28 + NotchLayout.rowSpacing <= size.height
+                   && abs(preview.width / preview.height - 4.0 / 3.0) < 0.001,
+                   "camera preview preserves its aspect ratio and leaves the stop button inside the page")
+        }
         suite.expect(compact.contentSize(for: compact.sectionPickerSize(count: 0)).height == NotchLayout.emptyHeight
                && compact.contentSize(for: compact.sectionPickerSize(count: 1)).height == NotchLayout.sectionTileHeight,
                "an unmatched search keeps the recovery guidance's row and a match takes just its tiles, the search living in the header")
