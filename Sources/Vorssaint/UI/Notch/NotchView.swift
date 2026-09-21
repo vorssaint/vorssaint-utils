@@ -10,25 +10,43 @@ struct NotchView: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
+    @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var headerHovered = false
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
 
     var body: some View {
         surface
             .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
-            .background(.black)
             .foregroundStyle(.white)
             .contentShape(shape)
             .onChange(of: contrast) {
                 DispatchQueue.main.async { service.refreshPresentation(animated: false) }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // Fill the animation's reserved canvas, not just the destination
+            // size, so shrinking the island never exposes an empty background.
+            .background { NotchSurfaceBackground(glass: usesGlassSurface) }
             .environment(\.colorScheme, .dark)
             .environment(\.notchPresentation, true)
+            .environment(\.notchGlassSurface, usesGlassSurface)
             .tint(.white)
             .accessibilityIdentifier("notch.surface")
+    }
+
+    private var usesGlassSurface: Bool {
+#if compiler(>=6.2)
+        if #available(macOS 26, *), glass, !reduceTransparency {
+            // Resting wings, compact activities and small status notices keep
+            // blending into the physical camera cutout.
+            return service.expanded || service.peeking || service.dragPlaceholder
+                || service.noticeExpanded
+                || (service.captureControls != nil && !service.captureControlsCollapsed)
+        }
+#endif
+        return false
     }
 
     private var shape: NotchShape {

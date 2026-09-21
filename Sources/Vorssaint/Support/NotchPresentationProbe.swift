@@ -10,13 +10,20 @@ import QuartzCore
 /// clipboard, keyboard input or hardware controls. Tests keep the window
 /// invisible; the separate, explicitly requested notice preview is visible.
 enum NotchPresentationProbe {
+    /// Exercise the production backdrop, including its native glass rendering,
+    /// without changing the app's preferences or making the test windows visible.
+    private static var surface: AnyView {
+        AnyView(NotchSurfaceBackground(glass: CommandLine.arguments.contains("--glass"))
+            .environment(\.colorScheme, .dark))
+    }
+
     private static func checkHiddenReveal(screen: NSScreen) -> [String] {
         var failures: [String] = []
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         for safeArea: CGFloat in [0, 32] {
             let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: safeArea,
                                          cameraWidth: safeArea > 0 ? 210 : 0)
-            let host = NotchWindowHost(content: AnyView(Color.black), geometry: geometry, size: geometry.collapsed,
+            let host = NotchWindowHost(content: surface, geometry: geometry, size: geometry.collapsed,
                                       quickAccess: { AnyView(NotchQuickAccessView(service: .shared, motion: $0)) })
             host.panel.alphaValue = 0
             host.panel.ignoresMouseEvents = true
@@ -161,7 +168,7 @@ enum NotchPresentationProbe {
         guard let screen = NSScreen.main else { print("NOTCH PROBE FAILED: no display"); exit(1) }
         let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
                                      cameraWidth: screen.safeAreaInsets.top > 0 ? 210 : 0)
-        let host = NotchWindowHost(content: AnyView(Color.black), geometry: geometry, size: geometry.collapsed)
+        let host = NotchWindowHost(content: surface, geometry: geometry, size: geometry.collapsed)
         host.panel.alphaValue = 0
         host.panel.ignoresMouseEvents = true
         host.panel.orderFrontRegardless()
@@ -396,7 +403,7 @@ enum NotchPresentationProbe {
         if !NotchQuickAccessDrop(progress: 0, index: 0, edge: 86, top: 55, side: .left).path(in: dropBounds).isEmpty {
             failures.append("a withdrawn drop left a painted fragment")
         }
-        let bubbles = NotchWindowHost(content: AnyView(Color.black), geometry: geometry, size: geometry.collapsed,
+        let bubbles = NotchWindowHost(content: surface, geometry: geometry, size: geometry.collapsed,
                                       quickAccess: { AnyView(NotchQuickAccessView(service: .shared, motion: $0)) })
         bubbles.panel.alphaValue = 0
         bubbles.panel.ignoresMouseEvents = true
@@ -481,7 +488,7 @@ enum NotchPresentationProbe {
                 var timerGeometry = NotchGeometry(screen: screen.frame, safeAreaTop: 32, cameraWidth: 179,
                                                   menuBarHeight: barHeight, compactSideRoom: 100)
                 let initial = timerGeometry.compactTimerGeometry(showsDownloads: downloads)
-                let timerHost = NotchWindowHost(content: AnyView(Color.black), geometry: initial,
+                let timerHost = NotchWindowHost(content: surface, geometry: initial,
                                                 size: initial.compactActivitySize)
                 timerHost.panel.alphaValue = 0
                 timerHost.panel.ignoresMouseEvents = true
@@ -522,7 +529,7 @@ enum NotchPresentationProbe {
                 var geometry = NotchGeometry(screen: screen.frame, safeAreaTop: physical ? 32 : 0, cameraWidth: physical ? 180 : 0,
                                              menuBarHeight: barHeight, compactSideRoom: 64)
                 geometry.quickAccessBottomInset = NotchQuickAccessLayout.gutter
-                let host = NotchWindowHost(content: AnyView(Color.black), geometry: geometry, size: geometry.collapsed,
+                let host = NotchWindowHost(content: surface, geometry: geometry, size: geometry.collapsed,
                                           quickAccess: { _ in AnyView(Color.clear) })
                 host.panel.alphaValue = 0
                 host.panel.ignoresMouseEvents = true

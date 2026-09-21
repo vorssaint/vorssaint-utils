@@ -226,7 +226,66 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     }
 }
 
-/// The base remains opaque black. Optional glass belongs to controls alone.
+private struct NotchGlassSurfaceKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var notchGlassSurface: Bool {
+        get { self[NotchGlassSurfaceKey.self] }
+        set { self[NotchGlassSurfaceKey.self] = newValue }
+    }
+}
+
+/// Clear glass preserves the desktop's detail and edge refraction. A separate
+/// smoke gradient anchors the top to the camera and opens up toward the lip;
+/// a uniform regular material would frost the entire island into a grey slab.
+struct NotchSurfaceBackground: View {
+    let glass: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Group {
+#if compiler(>=6.2)
+            if #available(macOS 26, *), glass {
+                GeometryReader { proxy in
+                    let shape = NotchShape(attached: true,
+                                           radius: NotchLayout.surfaceRadius(height: proxy.size.height))
+                    Color.clear
+                        .glassEffect(.clear, in: shape)
+                        .overlay {
+                            shape.fill(LinearGradient(stops: [
+                                .init(color: .black, location: 0),
+                                .init(color: .black, location: 0.24),
+                                .init(color: .black.opacity(0.96), location: 0.46),
+                                .init(color: .black.opacity(contrast == .increased ? 0.90 : 0.82), location: 0.64),
+                                .init(color: .black.opacity(contrast == .increased ? 0.82 : 0.58), location: 0.82),
+                                .init(color: .black.opacity(contrast == .increased ? 0.72 : 0.12), location: 1)
+                            ], startPoint: .top, endPoint: .bottom))
+                        }
+                        .overlay {
+                            shape.stroke(LinearGradient(stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .white.opacity(0.04), location: 0.55),
+                                .init(color: .white.opacity(0.16), location: 0.84),
+                                .init(color: .white.opacity(0.62), location: 1)
+                            ], startPoint: .top, endPoint: .bottom), lineWidth: 0.75)
+                        }
+                }
+            } else {
+                Color.black
+            }
+#else
+            Color.black
+#endif
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Controls on the glass shell use quiet translucent fills, leaving the
+/// refraction to the island rather than stacking separate glass lenses.
 struct NotchControlSurface: ViewModifier {
     let cornerRadius: CGFloat
     var selected = false
@@ -234,20 +293,30 @@ struct NotchControlSurface: ViewModifier {
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.notchGlassSurface) private var glassSurface
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         Group {
-#if compiler(>=6.2)
-            if #available(macOS 26, *), glass, !reduceTransparency {
-                content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
-                    .glassEffect(.regular.interactive(interactive), in: shape)
+            if glassSurface {
+                content
+                    .background(.white.opacity(selected ? 0.11 : 0.045), in: shape)
+                    .overlay {
+                        shape.strokeBorder(.white.opacity(selected ? 0.16 : 0.065), lineWidth: 0.5)
+                            .allowsHitTesting(false)
+                    }
             } else {
-                content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
-            }
+#if compiler(>=6.2)
+                if #available(macOS 26, *), glass, !reduceTransparency {
+                    content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                        .glassEffect(.regular.interactive(interactive), in: shape)
+                } else {
+                    content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                }
 #else
-            content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
 #endif
+            }
         }
         .overlay {
             shape.strokeBorder(.white.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 0.75)

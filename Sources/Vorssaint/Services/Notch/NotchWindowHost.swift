@@ -445,7 +445,9 @@ private final class NotchCanvas: NSView {
         super.init(frame: CGRect(origin: .zero, size: size))
         autoresizesSubviews = false
         wantsLayer = true
-        layer?.backgroundColor = NSColor.black.cgColor
+        // NotchView paints the entire reserved canvas, including during a
+        // resize. An opaque backing here would hide the glass's backdrop.
+        layer?.backgroundColor = NSColor.clear.cgColor
         layer?.masksToBounds = true
         layer?.mask = silhouette
         addSubview(host)
