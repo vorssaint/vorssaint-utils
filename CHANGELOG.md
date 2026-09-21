@@ -16,6 +16,7 @@ Dynamic Island preserves persistent notification alerts, shows files saved direc
 - Dynamic Island leaves persistent native alerts open when replacing notifications, so mirroring an alarm does not dismiss it.
 - Screenshot preview actions stay in the Dynamic Island header above the image, including at smaller heights.
 - Dynamic Island animates its dismissal on displays without a camera cutout when there is no safe resting space in the menu bar.
+- Dynamic Island keeps the battery icon and percentage clear of its curved edges, including the full `100%` label.
 
 ## [3.4.0-beta.3] - 2026-09-20
 
