@@ -106,6 +106,12 @@ struct NotchView: View {
         }
     }
 
+    /// Centre battery content inside the wing's visible area, past its curved shoulder.
+    private var restingBatteryInset: CGFloat {
+        // Leave enough of the 44-point wing for the full 100% label at every height.
+        min(16, service.geometry.menuBarHeight * 0.28 + NotchLayout.compactEdgeGap)
+    }
+
     private var compact: some View {
         HStack(spacing: 0) {
             if service.idleContent != .none, service.geometry.restingWingWidth > 0 {
@@ -117,7 +123,9 @@ struct NotchView: View {
                                 .frame(width: min(22, service.geometry.menuBarHeight - 6), height: min(22, service.geometry.menuBarHeight - 6))
                                 .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
-                    case .battery: Image(systemName: "battery.100percent").font(.system(size: 12))
+                    case .battery:
+                        Image(systemName: "battery.100percent").font(.system(size: 12))
+                            .padding(.leading, restingBatteryInset)
                     case .none: EmptyView()
                     }
                 }.frame(width: service.geometry.restingWingWidth)
@@ -132,6 +140,8 @@ struct NotchView: View {
                     case .battery:
                         if let percent = service.power.chargePercent {
                             Text("\(percent)%").font(.system(size: 9, weight: .medium)).monospacedDigit()
+                                .lineLimit(1)
+                                .padding(.trailing, restingBatteryInset)
                         }
                     case .none: EmptyView()
                     }
