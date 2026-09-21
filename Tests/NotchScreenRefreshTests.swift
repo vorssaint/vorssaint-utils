@@ -58,6 +58,8 @@ enum NotchScreenRefreshContract {
         func resignKey() { resignations += 1 }
     }
     class State {
+        var hiddenInFullscreen = false
+        func fullscreenEnvironmentDidChange() {}
         var running = true
         var suspended = false
         var expanded = false
@@ -134,6 +136,17 @@ enum NotchScreenRefreshContract {
         service.screenParametersDidChange()
         suite.expect(service.preferenceSyncs == 2 && DispatchQueue.main.pending == 0,
                "stopping the island makes queued and later screen notifications inert")
+
+        let fullscreen = Service()
+        fullscreen.syncMenuSpaceMonitoring()
+        let fullscreenTimer = fullscreen.menuSpaceTimer
+        fullscreen.hiddenInFullscreen = true
+        fullscreen.syncMenuSpaceMonitoring()
+        suite.expect(fullscreen.menuSpaceTimer == nil && fullscreenTimer?.invalidated == true,
+                     "fullscreen hiding stops menu polling")
+        fullscreen.hiddenInFullscreen = false
+        fullscreen.syncMenuSpaceMonitoring()
+        suite.expect(fullscreen.menuSpaceTimer != nil, "leaving fullscreen restores menu monitoring")
 
         let virtual = Service()
         virtual.geometry.compactSideRoom = nil

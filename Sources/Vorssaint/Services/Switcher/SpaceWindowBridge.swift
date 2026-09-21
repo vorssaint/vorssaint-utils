@@ -99,6 +99,15 @@ enum SpaceWindowBridge {
             let currentSpace: UInt64?
         }
 
+        /// With separate Spaces, only the island's display controls visibility.
+        /// A shared Space applies to every display even if its UUID is absent.
+        func isFullscreen(on displayID: CGDirectDisplayID, separateSpaces: Bool) -> Bool {
+            let candidates = separateSpaces ? displays.filter { $0.displayID == displayID } : displays
+            return candidates.contains { display in
+                display.currentSpace.map { display.fullscreenSpaces.contains($0) } == true
+            }
+        }
+
         /// Displays in order.
         let displays: [DisplayInfo]
         /// Space ids in left-to-right order, one row per display.

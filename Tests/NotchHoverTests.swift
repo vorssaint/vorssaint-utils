@@ -46,6 +46,7 @@ enum NotchHoverTests {
     }
     enum NotchContentTransition { case none, reveal, dismiss, replace }
     class State {
+        var hiddenInFullscreen = false
         var showsSystemFeedback = true, routesNotices = true
         var running = true, suspended = false, inside = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false

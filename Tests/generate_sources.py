@@ -292,6 +292,12 @@ def main():
           + declaration(shelf, "    func completeInternalDrag(")
           + "}\n}\n")
     notch = "Sources/Vorssaint/Services/Notch/NotchService.swift"
+    write("NotchFullscreen.swift", "import CoreGraphics\nimport Foundation\nextension NotchFullscreenTests {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
+          + "final class Service: State {\n"
+          + declaration(notch, "    private func updateFullscreenVisibility(").replace("private func", "func", 1)
+          + declaration(notch, "    private func fullscreenEnvironmentDidChange()").replace("private func", "func", 1)
+          + "}\n}\n")
     write("NotchNotice.swift", "import AppKit\n" + declaration(notch, "struct NotchNotice:"))
     write("NotchVolumeFeedback.swift", "import Foundation\nimport Combine\n"
           + "extension NotchVolumeFeedbackTests {\nfinal class Service: State {\n"

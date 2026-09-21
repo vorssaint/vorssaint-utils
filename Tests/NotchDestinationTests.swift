@@ -37,6 +37,7 @@ enum NotchDestinationContract {
     }
 
     class State {
+        var hiddenInFullscreen = false
         var running = true
         var session = NotchSessionState()
         var suspended: Bool { !session.canPresent }

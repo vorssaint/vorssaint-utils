@@ -47,6 +47,7 @@ enum NotchMusicVisibilityTests {
     enum NSEvent { static let mouseLocation = CGPoint.zero }
 
     class State {
+        var hiddenInFullscreen = false
         var running = true
         var suspended = false
         var expanded = false
@@ -116,6 +117,13 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(reader.running && service.compactActivity == .music && service.surfaceSize.width > closed.width,
                    "enabled playback first appears beside both physical and simulated cameras")
+
+            service.hiddenInFullscreen = true
+            service.syncVisibleConsumers()
+            suite.expect(!reader.running, "fullscreen hiding stops the automatic playback reader")
+            service.hiddenInFullscreen = false
+            service.syncVisibleConsumers()
+            suite.expect(reader.running, "leaving fullscreen restarts the playback reader when music is enabled")
 
             defaults.set(NotchIdleContent.none.rawValue, forKey: DefaultsKey.notchIdleContent)
             service.syncVisibleConsumers()

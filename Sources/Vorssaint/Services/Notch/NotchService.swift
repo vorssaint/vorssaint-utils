@@ -104,6 +104,7 @@ final class NotchService: ObservableObject {
     private var running = false
     private var session = NotchSessionState()
     private var suspended: Bool { !session.canPresent }
+    private var hiddenInFullscreen = false
     private var settingsSignature = ""
     private var gesture = NotchGestureSupport()
     private var volumeBaseline: Double?
@@ -209,7 +210,7 @@ final class NotchService: ObservableObject {
 
     var presentationWindow: NSPanel? { panel }
     var acceptsSystemFeedback: Bool {
-        running && !suspended && panel != nil
+        running && !suspended && !hiddenInFullscreen && panel != nil
     }
     var showsSystemFeedback: Bool {
         acceptsSystemFeedback && !hiddenUntilHover
@@ -363,6 +364,7 @@ final class NotchService: ObservableObject {
         releaseMonitor()
         windowHost?.close()
         windowHost = nil
+        hiddenInFullscreen = false
     }
 
     /// Opening without a page shows what the closed island is already
@@ -384,7 +386,7 @@ final class NotchService: ObservableObject {
         guard NotchSupport.isEnabled(), !suspended else { return }
         if !running || self.panel == nil { syncWithPreferences() }
         else { refreshModules() }
-        guard let panel else { return }
+        guard !hiddenInFullscreen, let panel else { return }
         let destination = module.flatMap { modules.contains($0) ? $0 : nil } ?? reopeningModule
         let metric = metric.flatMap { metricIsAvailable($0) ? $0 : nil }
         let changesPresentation = !expanded || selected != destination
@@ -449,14 +451,14 @@ final class NotchService: ObservableObject {
 
     @discardableResult
     func showClipboard(toggle: Bool = false) -> Bool {
-        guard running, !suspended, NotchSupport.routesClipboardWindow() else { return false }
+        guard acceptsSystemFeedback, NotchSupport.routesClipboardWindow() else { return false }
         if toggle, expanded, selected == .clipboard, !showingAppPanel, !showingSections { collapse() }
         else { open(.clipboard) }
         return true
     }
 
     func hover(_ entered: Bool) {
-        guard running, !suspended else { return }
+        guard running, !suspended, !hiddenInFullscreen else { return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
         inside = hiddenUntilHover ? geometry.contains(point, in: geometry.collapsed)
@@ -1064,7 +1066,7 @@ final class NotchService: ObservableObject {
 
     func presentCapture(id: UUID, content: AnyView, height: CGFloat, fallback: @escaping () -> Void,
                         close: @escaping () -> Void, hover: @escaping (Bool) -> Void) -> Bool {
-        guard running, !suspended, panel != nil, NotchSupport.routes(.capture) else { return false }
+        guard acceptsSystemFeedback, NotchSupport.routes(.capture) else { return false }
         let keepOpen = expanded && pinned
         captureID = id
         captureContentHeight = height
@@ -1117,6 +1119,12 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
+        if hiddenInFullscreen {
+            windowHost?.hide(animated: false)
+            removeHiddenHoverMonitors()
+            removeScreenEdgeClickMonitors()
+            return
+        }
         syncHiddenHoverMonitoring()
         if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
             if hiddenUntilHover { windowHost?.hide(animated: animated) }
@@ -1259,6 +1267,7 @@ final class NotchService: ObservableObject {
     }
 
     private func syncMenuSpaceMonitoring() {
+        guard !hiddenInFullscreen else { stopMenuSpaceMonitoring(); return }
         if running, !suspended, NotchSupport.coversMenus() {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
@@ -1396,6 +1405,31 @@ final class NotchService: ObservableObject {
                 update: { [weak self] in self?.updateFileDrop(at: $0) == true }))
         } else { windowHost?.setFileDropActions(nil) }
         panel?.sharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
+        updateFullscreenVisibility(displayID: screen.notchDisplayID)
+    }
+
+    private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {
+        let hidden = UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)
+            && SpaceWindowBridge.topology()?.isFullscreen(on: displayID, separateSpaces: NSScreen.screensHaveSeparateSpaces) == true
+        guard hidden != hiddenInFullscreen else { return }
+        hiddenInFullscreen = hidden
+        if hidden {
+            hoverWork?.cancel(); hoverWork = nil
+            heldDrag = false
+            dragPlaceholder = false
+            cancelCaptureControls()
+            noticeWork?.cancel(); noticeWork = nil
+            notice = nil
+            noticeExpanded = false
+            collapse()
+        }
+    }
+
+    private func fullscreenEnvironmentDidChange() {
+        guard running, !suspended else { return }
+        updateScreen()
+        syncVisibleConsumers()
+        refreshPresentation(animated: false)
     }
 
     private func installObservers() {
@@ -1416,6 +1450,9 @@ final class NotchService: ObservableObject {
         session.onConsole = SessionActivity.shared.isActive
         session.locked = (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
         let workspace = NSWorkspace.shared.notificationCenter
+        observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
+            self?.fullscreenEnvironmentDidChange()
+        }
         observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in self?.applicationDidActivate() }
         observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in
             self?.updateSession { $0.sleeping = true }
@@ -1446,6 +1483,7 @@ final class NotchService: ObservableObject {
 
     private func applicationDidActivate() {
         guard !suspended else { return }
+        fullscreenEnvironmentDidChange()
         invalidateMenuSpace()
         let identifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         guard identifier != Bundle.main.bundleIdentifier, identifier != AssistiveKeyboard.bundleID else { return }
@@ -1772,6 +1810,12 @@ final class NotchService: ObservableObject {
     private func syncVisibleConsumers() {
         syncMenuSpaceMonitoring()
         guard running, !suspended else { releaseMonitor(); return }
+        if hiddenInFullscreen {
+            CameraPreviewService.shared.hideEmbedded()
+            NotchMusicService.shared.stop()
+            releaseMonitor()
+            return
+        }
         if !NotchCameraSupport.canPresent(expanded: expanded && !showingSections, selected: selected,
             appPanel: showingAppPanel, captureControls: captureControls != nil) {
             CameraPreviewService.shared.hideEmbedded()

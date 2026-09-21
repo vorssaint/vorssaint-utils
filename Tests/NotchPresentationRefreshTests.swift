@@ -74,6 +74,7 @@ enum NotchPresentationRefreshContract {
         }
     }
     class State: ObservableObject {
+        var hiddenInFullscreen = false
         let objectWillChange = ObservableObjectPublisher()
         var running = true, suspended = false
         var mode = NotchTimerMode.timer
@@ -115,6 +116,7 @@ enum NotchPresentationRefreshContract {
                                          timerMode: session.hasSession ? session.mode : mode)
         }
         func syncHiddenHoverMonitoring() {}
+        func removeHiddenHoverMonitors() {}
         func toggle() { expanded.toggle() }
         func collapse() { expanded = false }
         var edgeClicksEnabled = false
@@ -126,6 +128,18 @@ enum NotchPresentationRefreshContract {
         UserDefaults.standard.hides = false
         defer { UserDefaults.standard.hides = false }
         captureControlsChecks(suite)
+        let fullscreen = Service()
+        fullscreen.pinned = true
+        fullscreen.hiddenInFullscreen = true
+        fullscreen.refreshPresentation()
+        suite.expect(fullscreen.panel?.isVisible == false && !fullscreen.acceptsSystemFeedback
+                     && !fullscreen.edgeClicksEnabled,
+                     "fullscreen hides even a pinned island and stops routing feedback or edge clicks")
+        fullscreen.hiddenInFullscreen = false
+        fullscreen.refreshPresentation()
+        suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
+                     "leaving fullscreen restores the island and feedback routing")
+
         let service = Service()
         var contentSize = service.surfaceSize
         service.windowHost?.targetSize = contentSize
