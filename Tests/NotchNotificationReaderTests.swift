@@ -92,12 +92,17 @@ enum NotchNotificationReaderTests {
         let access = Access(), root = card(legacy: true)
         let action = "Name:Close\nTarget:0x0\nSelector:(null)"
         root.actions.append(action)
+        root.strings["AXSubrole"] = "AXNotificationCenterBanner"
         access.roots = [root]
         let reader = access.reader()
         let id = reader.read()!.items[0].id
         suite.expect(!reader.closeNative(id) && access.performed.isEmpty,
                "mirroring cannot close a native notification without a separate opt-in")
         access.allowClose = true
+        root.strings["AXSubrole"] = "AXNotificationCenterAlert"
+        suite.expect(!reader.closeNative(id) && access.performed.isEmpty,
+               "an alarm that becomes a persistent alert cannot be closed automatically")
+        root.strings["AXSubrole"] = "AXNotificationCenterBanner"
         suite.expect(reader.closeNative(id) && access.performed == [action] && access.presses.isEmpty,
                "closing invokes only the original close action, never opens the notification")
         access.performed = []
@@ -112,6 +117,22 @@ enum NotchNotificationReaderTests {
         root.actions = ["AXPress", "Name:Close All\nTarget:0x0\nSelector:(null)"]
         suite.expect(!reader.closeNative(nextID) && access.performed.isEmpty,
                "closing a single banner never falls back to clearing a group")
+        for role in ["AXNotificationCenterAlert", "AXNotificationCenterAlertStack"] {
+            let alert = card(legacy: true)
+            alert.actions.append(action)
+            access.roots = role.hasSuffix("Stack") ? [stack([alert])] : [alert]
+            let alertID = reader.read()!.items[0].id
+            suite.expect(!reader.closeNative(alertID) && access.performed.isEmpty,
+                   "persistent alerts and alarm stacks stay mirrored without dismissing their native sound")
+        }
+        let banner = card()
+        banner.actions.append(action)
+        let container = stack([banner])
+        container.strings["AXSubrole"] = "AXNotificationCenterBannerStack"
+        access.roots = [container]
+        let bannerID = reader.read()!.items[0].id
+        suite.expect(reader.closeNative(bannerID) && access.performed == [action],
+               "transient banners in modern stacks still honor native replacement")
     }
 
     private static func traversal(_ suite: TestSuite) {

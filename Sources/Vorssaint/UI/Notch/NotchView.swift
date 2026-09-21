@@ -243,7 +243,20 @@ struct NotchView: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            headerActions(quickActions: quickActions)
+            if service.selected == .captures, !showsDetail, !service.showingSections,
+               let actions = service.captureActions {
+                actions.fixedSize()
+                Menu {
+                    Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
+                    Button(l10n.s.menuSettings, action: service.openSettings)
+                    Button(text.collapse, action: service.collapse)
+                } label: { Image(systemName: "ellipsis") }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel(text.title)
+            } else {
+                headerActions(quickActions: quickActions)
+            }
         }
         .frame(height: NotchLayout.headerHeight)
         .contentShape(Rectangle())

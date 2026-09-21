@@ -80,6 +80,7 @@ enum NotchPresentationRefreshContract {
         var session = NotchTimerSession()
         var selected = NotchModule.timer
         var captureID: UUID?
+        var captureActions: Bool?
         var captureContent: Bool?
         var captureContentHeight: CGFloat?
         var captureFallback: (() -> Void)?
@@ -238,6 +239,8 @@ enum NotchPresentationRefreshContract {
                "ordinary openings keep their existing presentation behavior")
         simulated.expanded = false
         simulated.refreshPresentation()
+        suite.expect(simulated.windowHost?.hideAnimations.last == true,
+               "closing an expanded island without safe menu space animates its withdrawal")
         suite.expect(simulated.panel?.isVisible == false,
                "closing tools withdraws their simulated cutout if the center is still unverified")
 
