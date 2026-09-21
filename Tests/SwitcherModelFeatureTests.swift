@@ -1676,6 +1676,11 @@ enum SwitcherModelFeatureTests {
                "clipboard history shortcut defaults to Ctrl+Opt+Cmd+V")
         suite.expect(registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true,
                "the Finder cut and paste floating panel starts enabled")
+        suite.expect(registeredDefaults[DefaultsKey.finderCopyPathEnabled] as? Bool == false,
+               "copying selected Finder paths is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.finderCopyPathShortcut] as? String
+                == GlobalShortcut.finderCopyPathDefault.storageValue,
+               "copy path defaults to Ctrl-Shift-C")
         suite.expect(registeredDefaults[DefaultsKey.finderRenameEnabled] as? Bool == false,
                "the Finder rename shortcut is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.finderRenameShortcut] as? String == ":120",

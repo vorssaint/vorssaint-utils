@@ -7,8 +7,7 @@ import Combine
 import CoreGraphics
 import SwiftUI
 
-/// Cut and paste for files in Finder: ⌘X marks the current selection, ⌘V moves
-/// it into the folder you're viewing. A global event tap claims those two
+/// Windows-style file shortcuts in Finder. A global event tap claims enabled
 /// shortcuts only while Finder is frontmost and no text field is being edited,
 /// so renaming and text editing keep working untouched.
 ///
@@ -75,8 +74,14 @@ final class FinderCutPaste: ObservableObject {
     private var cutPasteEnabled = false
     private var showHUD = true
     private var pasteImageAsFileEnabled = false
+    private var copyPathEnabled = false
     private var imagePasteInProgress = false
+    private var copyPathInProgress = false
     private var appObserver: NSObjectProtocol?
+
+    private let routeLock = NSLock()
+    private var routeCopyPathShortcut = GlobalShortcut.finderCopyPathDefault
+    private var routeCopyPathEnabled = false
 
     private static let finderBundleID = "com.apple.finder"
     private static let syntheticPasteMarker: Int64 = 0x564F5249
@@ -102,14 +107,29 @@ final class FinderCutPaste: ObservableObject {
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
         let available = AppFeature.finderCutPaste.isAvailable
+        let copyPathShortcut = GlobalShortcut.saved(for: DefaultsKey.finderCopyPathShortcut,
+                                                     fallback: .finderCopyPathDefault)
         cutPasteEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
         showHUD = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
         pasteImageAsFileEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
-        if SessionActivitySupport.tapShouldRun(featureWanted: cutPasteEnabled || pasteImageAsFileEnabled,
-                                               accessibilityGranted: AXIsProcessTrusted(),
-                                               sessionIsActive: SessionActivity.shared.isActive) {
+        copyPathEnabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.finderCopyPathEnabled)
+        routeLock.withLock {
+            routeCopyPathShortcut = copyPathShortcut
+            routeCopyPathEnabled = copyPathEnabled
+        }
+        if copyPathEnabled {
+            SystemShortcutTakeover.claim(DefaultsKey.finderCopyPathShortcut,
+                                         shortcut: copyPathShortcut)
+        } else {
+            SystemShortcutTakeover.release(DefaultsKey.finderCopyPathShortcut)
+        }
+        if SessionActivitySupport.tapShouldRun(
+            featureWanted: cutPasteEnabled || pasteImageAsFileEnabled || copyPathEnabled,
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive) {
             installTap()
         } else {
             removeTap()
@@ -175,6 +195,7 @@ final class FinderCutPaste: ObservableObject {
     }
 
     private func removeTap() {
+        SystemShortcutTakeover.release(DefaultsKey.finderCopyPathShortcut)
         let snapshot = tapLifecycleLock.withLock {
             () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
             shouldStopTapThread = true
@@ -218,6 +239,9 @@ final class FinderCutPaste: ObservableObject {
                 userInfo: Unmanaged.passUnretained(self).toOpaque()
             ) else {
                 _ = clearEventTapThread()
+                DispatchQueue.main.async {
+                    SystemShortcutTakeover.release(DefaultsKey.finderCopyPathShortcut)
+                }
                 return
             }
 
@@ -251,7 +275,8 @@ final class FinderCutPaste: ObservableObject {
         }
     }
 
-    /// Runs on the tap thread. Every key except plain Command-X/C/V returns
+    /// Runs on the tap thread. Every key except plain Command-X/C/V and the
+    /// selected copy-path combination returns
     /// after reading only the event itself; the rare candidate is handed to
     /// the main thread where the service's UI and pasteboard state live.
     private func route(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -270,21 +295,29 @@ final class FinderCutPaste: ObservableObject {
 
         let flags = event.flags
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        guard flags.contains(.maskCommand),
-              !flags.contains(.maskControl), !flags.contains(.maskAlternate),
-              keyCode == Key.x || keyCode == Key.c || keyCode == Key.v
+        let modifiers = GlobalShortcutModifiers(cgFlags: flags)
+        let isFileShortcut = flags.contains(.maskCommand)
+            && !flags.contains(.maskControl) && !flags.contains(.maskAlternate)
+            && (keyCode == Key.x || keyCode == Key.c || keyCode == Key.v)
+        let copyPathRoute = routeLock.withLock {
+            (shortcut: routeCopyPathShortcut, enabled: routeCopyPathEnabled)
+        }
+        let isCopyPathShortcut = copyPathRoute.enabled
+            && copyPathRoute.shortcut.matches(keyCode: keyCode, modifiers: modifiers)
+        guard isFileShortcut || isCopyPathShortcut
         else { return Unmanaged.passUnretained(event) }
 
         var verdict: Unmanaged<CGEvent>?
         DispatchQueue.main.sync {
-            verdict = self.handle(event: event)
+            verdict = self.handle(event: event, isCopyPathShortcut: isCopyPathShortcut)
         }
         return verdict
     }
 
     /// Runs on the main thread, so reading `marked` and the pasteboard here is
     /// race-free.
-    private func handle(event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func handle(event: CGEvent,
+                        isCopyPathShortcut: Bool) -> Unmanaged<CGEvent>? {
         // Accessibility gone (e.g. reset): the AX focus check below would hang
         // inside the tap and freeze the keyboard, so pass the keystroke through.
         // Cached here to keep a live TCC round-trip off the per-keystroke path;
@@ -299,6 +332,12 @@ final class FinderCutPaste: ObservableObject {
               AXIsProcessTrusted(),
               !isEditingText()
         else { return Unmanaged.passUnretained(event) }
+
+        if isCopyPathShortcut {
+            guard copyPathEnabled else { return Unmanaged.passUnretained(event) }
+            if !copyPathInProgress { copySelectedPathsAsync() }
+            return nil
+        }
 
         switch keyCode {
         case Key.x:
@@ -334,6 +373,29 @@ final class FinderCutPaste: ObservableObject {
             return nil
         default:
             return Unmanaged.passUnretained(event)
+        }
+    }
+
+    // MARK: - Copy selected paths
+
+    /// Reads Finder off the tap and main threads, then writes the resulting
+    /// plain text through the app's serialized general-pasteboard lane.
+    private func copySelectedPathsAsync() {
+        copyPathInProgress = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let text = FinderCopyPathSupport.text(for: FinderBridge.selectionURLs()) else {
+                DispatchQueue.main.async { self?.copyPathInProgress = false }
+                return
+            }
+            GeneralPasteboardAccess.shared.async {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                let copied = pasteboard.setString(text, forType: .string)
+                DispatchQueue.main.async {
+                    self?.copyPathInProgress = false
+                    if !copied { NSSound.beep() }
+                }
+            }
         }
     }
 

@@ -180,6 +180,10 @@ struct GlobalShortcut: Equatable, Hashable {
     // combination; the others use the free ⌃⌥⌘ letters.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
                                                   modifiers: [.shift, .option, .command])
+    // Mirrors Windows' Ctrl-Shift-C "Copy as path" muscle memory while
+    // staying clear of Finder's own Command-Shift-C Computer shortcut.
+    static let finderCopyPathDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C),
+                                                       modifiers: [.control, .shift])
     static let finderRenameDefault = GlobalShortcut(keyCode: Int64(kVK_F2), modifiers: [])
     static let colorPickerDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C),
                                                    modifiers: [.control, .option, .command])
@@ -692,6 +696,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case clipboard
     case soundOutputSwitcher
     case pastePlain
+    case finderCopyPath
     case finderRename
     case colorPicker
     case screenOCR
@@ -724,6 +729,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return DefaultsKey.clipboardHistoryShortcut
         case .soundOutputSwitcher: return DefaultsKey.soundOutputSwitcherShortcut
         case .pastePlain: return DefaultsKey.pastePlainShortcut
+        case .finderCopyPath: return DefaultsKey.finderCopyPathShortcut
         case .finderRename: return DefaultsKey.finderRenameShortcut
         case .colorPicker: return DefaultsKey.colorPickerShortcut
         case .screenOCR: return DefaultsKey.screenOCRShortcut
@@ -756,6 +762,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return .clipboardDefault
         case .soundOutputSwitcher: return .soundOutputSwitcherDefault
         case .pastePlain: return .pastePlainDefault
+        case .finderCopyPath: return .finderCopyPathDefault
         case .finderRename: return .finderRenameDefault
         case .colorPicker: return .colorPickerDefault
         case .screenOCR: return .screenOCRDefault
@@ -807,6 +814,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return FeatureStrings.clipboard(L10n.shared.language).title
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle
         case .pastePlain: return strings.pastePlainName
+        case .finderCopyPath: return FeatureStrings.finderCopyPath(L10n.shared.language).title
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
         case .colorPicker: return strings.colorPickerName
         case .screenOCR: return strings.ocrName
@@ -865,6 +873,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
                                  DefaultsKey.clipboardHistoryShortcutEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
+        case .finderCopyPath: return [DefaultsKey.finderCopyPathEnabled]
         case .finderRename: return [DefaultsKey.finderRenameEnabled]
         case .colorPicker: return [DefaultsKey.colorPickerShortcutEnabled]
         case .screenOCR: return [DefaultsKey.screenOCRShortcutEnabled]
@@ -899,6 +908,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return .clipboardHistory
         case .soundOutputSwitcher: return .soundOutputSwitcher
         case .pastePlain: return .pastePlain
+        case .finderCopyPath: return .finderCutPaste
         case .finderRename: return .finderRename
         case .colorPicker: return .colorPicker
         case .screenOCR: return .screenOCR

@@ -1119,6 +1119,9 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.automationFinder, on: [DefaultsKey.finderPasteImageAsFile])
                 == [.finderCutPaste, .uninstaller, .quickToggles],
                "pasting copied images as files engages the shared Finder feature")
+        suite.expect(activeSet(.automationFinder, on: [DefaultsKey.finderCopyPathEnabled])
+                == [.finderCutPaste, .uninstaller, .quickToggles],
+               "copying selected paths engages the shared Finder feature")
         suite.expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
         suite.expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")

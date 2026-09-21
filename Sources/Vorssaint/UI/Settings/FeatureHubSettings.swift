@@ -838,7 +838,7 @@ extension AppFeature {
             return FeatureStrings.mouseClickDebounce(L10n.shared.language).title
         case .clipboardHistory: return FeatureStrings.clipboard(L10n.shared.language).title
         case .pastePlain: return s.pastePlainName
-        case .finderCutPaste: return s.cutPasteName
+        case .finderCutPaste: return FeatureStrings.finderRename(L10n.shared.language).pageTitle
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName

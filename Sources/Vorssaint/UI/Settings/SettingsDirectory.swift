@@ -179,7 +179,10 @@ enum SettingsDirectory {
                                        title: FeatureStrings.finderRename(language).pageTitle,
                                        icon: "filemenu.and.selection",
                                        featureKeywords: [
-                                        (.finderCutPaste, [s.cutPasteEnable]),
+                                        (.finderCutPaste,
+                                         [s.cutPasteEnable,
+                                          FeatureStrings.finderCopyPath(language).enableLabel,
+                                          FeatureStrings.finderCopyPath(language).shortcutLabel]),
                                         (.finderRename,
                                          [FeatureStrings.finderRename(language).enableLabel]),
                                        ]),

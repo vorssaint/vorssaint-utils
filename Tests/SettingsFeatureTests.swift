@@ -69,6 +69,9 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.finderRenameEnabled)
                 && backupKeys.contains(DefaultsKey.finderRenameShortcut),
                "the Finder rename choice and shortcut travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.finderCopyPathEnabled)
+                && backupKeys.contains(DefaultsKey.finderCopyPathShortcut),
+               "the Finder copy-path choice and shortcut travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.textSnippets)
                 && backupKeys.contains(DefaultsKey.textSnippetsEnabled),
                "snippets travel with the settings backup")

@@ -2759,6 +2759,13 @@ enum PointerInputFeatureTests {
                 && !FinderRenameSupport.acceptsFocusedRole("AXTextArea")
                 && !FinderRenameSupport.acceptsFocusedRole(nil),
                "Finder rename only acts outside editable fields with a known focus")
+        suite.expect(FinderCopyPathSupport.text(for: []) == nil,
+               "copy path leaves the clipboard alone when Finder has no selection")
+        suite.expect(FinderCopyPathSupport.text(for: [
+            URL(fileURLWithPath: "/Users/example/Folder one"),
+            URL(fileURLWithPath: "/tmp/report.txt"),
+        ]) == "/Users/example/Folder one\n/tmp/report.txt",
+               "copy path preserves Finder order and writes one full POSIX path per line")
 
 
 
