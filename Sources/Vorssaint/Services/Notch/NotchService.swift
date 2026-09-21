@@ -1423,6 +1423,9 @@ final class NotchService: ObservableObject {
             noticeExpanded = false
             collapse()
         }
+        // Space changes do not run a full preference sync. Restore volume
+        // key routing when the island becomes eligible for feedback again.
+        if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
     }
 
     private func fullscreenEnvironmentDidChange() {

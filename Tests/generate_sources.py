@@ -295,8 +295,12 @@ def main():
     write("NotchFullscreen.swift", "import CoreGraphics\nimport Foundation\nextension NotchFullscreenTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
           + "final class Service: State {\n"
+          + declaration(notch, "    var acceptsSystemFeedback: Bool {")
           + declaration(notch, "    private func updateFullscreenVisibility(").replace("private func", "func", 1)
           + declaration(notch, "    private func fullscreenEnvironmentDidChange()").replace("private func", "func", 1)
+          + "}\nfinal class PreciseVolumeRollerService: VolumeState {\n"
+          + "static let shared = PreciseVolumeRollerService()\n"
+          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    func syncWithPreferences()")
           + "}\n}\n")
     write("NotchNotice.swift", "import AppKit\n" + declaration(notch, "struct NotchNotice:"))
     write("NotchVolumeFeedback.swift", "import Foundation\nimport Combine\n"

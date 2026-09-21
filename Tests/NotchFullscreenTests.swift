@@ -10,8 +10,34 @@ enum NotchFullscreenTests {
         static let standard = Preferences()
         final class Preferences {
             var enabled = false
-            func bool(forKey key: String) -> Bool { enabled }
+            var preciseVolume = false
+            func bool(forKey key: String) -> Bool {
+                switch key {
+                case DefaultsKey.notchHideInFullscreen: return enabled
+                case DefaultsKey.preciseVolumeRollerEnabled: return preciseVolume
+                default: return false
+                }
+            }
         }
+    }
+    enum AppFeature {
+        static let mixer = Feature()
+        struct Feature { let isAvailable = true }
+    }
+    enum NotchSupport {
+        enum Event { case volume }
+        static func routes(_ event: Event) -> Bool { true }
+    }
+    enum SessionActivity {
+        static let shared = Session()
+        struct Session { let isActive = true }
+    }
+    static func AXIsProcessTrusted() -> Bool { true }
+    enum NotchService { static var shared = Service() }
+    class VolumeState {
+        var running = false
+        func start() { running = true }
+        func stop() { running = false }
     }
     enum NSScreen { static var screensHaveSeparateSpaces = true }
     enum SpaceWindowBridge {
@@ -21,13 +47,15 @@ enum NotchFullscreenTests {
     }
     class State {
         var running = true, suspended = false, hiddenInFullscreen = false
+        var panel: Bool? = true
+        var screenUpdate: (() -> Void)?
         var heldDrag = true, dragPlaceholder = true, noticeExpanded = true
         var hoverWork: DispatchWorkItem?, noticeWork: DispatchWorkItem?
         var notice: Bool? = true
         var collapses = 0, cancellations = 0, screenUpdates = 0, consumerSyncs = 0, refreshes = 0
         func cancelCaptureControls() { cancellations += 1 }
         func collapse() { collapses += 1 }
-        func updateScreen() { screenUpdates += 1 }
+        func updateScreen() { screenUpdates += 1; screenUpdate?() }
         func syncVisibleConsumers() { consumerSyncs += 1 }
         func refreshPresentation(animated: Bool) { refreshes += 1 }
     }
@@ -35,8 +63,11 @@ enum NotchFullscreenTests {
     static func run(_ suite: TestSuite) {
         defer {
             UserDefaults.standard.enabled = false
+            UserDefaults.standard.preciseVolume = false
             NSScreen.screensHaveSeparateSpaces = true
             SpaceWindowBridge.value = nil
+            NotchService.shared = Service()
+            PreciseVolumeRollerService.shared.stop()
         }
         let topology = Topology(displays: [
             .init(displayID: 1, spaces: [10, 11], fullscreenSpaces: [11], currentSpace: 10),
@@ -92,5 +123,33 @@ enum NotchFullscreenTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHideInFullscreen] as? Bool == false
                      && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchHideInFullscreen),
                      "fullscreen hiding is opt-in and included in settings backup")
+        volumeLifecycleChecks(topology, suite)
+    }
+
+    private static func volumeLifecycleChecks(_ topology: Topology, _ suite: TestSuite) {
+        // Run the production volume eligibility and fullscreen callbacks with
+        // an inert tap. No hardware keys, permissions or desktop Spaces change.
+        UserDefaults.standard.enabled = true
+        SpaceWindowBridge.value = topology
+        for preciseVolume in [false, true] {
+            UserDefaults.standard.preciseVolume = preciseVolume
+            let service = Service()
+            NotchService.shared = service
+            let volume = PreciseVolumeRollerService.shared
+            var displayID: CGDirectDisplayID = 2
+            service.screenUpdate = { [weak service] in service?.updateFullscreenVisibility(displayID: displayID) }
+            service.updateScreen()
+            volume.syncWithPreferences()
+            suite.expect(service.hiddenInFullscreen && volume.running == preciseVolume,
+                         "fullscreen startup keeps the tap only when the precise volume roller needs it")
+            displayID = 1
+            service.fullscreenEnvironmentDidChange()
+            suite.expect(!service.hiddenInFullscreen && service.acceptsSystemFeedback && volume.running,
+                         "returning to the desktop restores the volume tap without a preference change")
+            displayID = 2
+            service.fullscreenEnvironmentDidChange()
+            suite.expect(service.hiddenInFullscreen && volume.running == preciseVolume,
+                         "entering fullscreen releases the notch tap but preserves the precise volume roller")
+        }
     }
 }
