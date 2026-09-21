@@ -38,6 +38,7 @@ struct MetricsTests {
             ("app-updates", { AppUpdatesContract.run(suite) }),
             ("localization", { LocalizationTests.run(suite) }),
             ("cleaner", { CleanerEligibilityTests.run(suite) }),
+            ("force-quit", { ProcessForceQuitTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
             ("switcher", { SwitcherScrollContract.run(suite) }),
         ]

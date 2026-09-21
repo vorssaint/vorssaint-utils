@@ -120,6 +120,12 @@ def main():
           + declaration(playback_adapter, "    private static func makeTarget(").replace("private static", "static", 1)
           + declaration("Sources/NowPlayingAdapter/NowPlayingAdapter.swift", "private func sendPlaybackCommand(")
             .replace("private func", "static func", 1) + "}\n")
+    usage = "Sources/Vorssaint/Services/SystemMonitor/ProcessUsageService.swift"
+    write("ProcessForceQuit.swift", "import Darwin\nimport Foundation\n"
+          + "extension ProcessForceQuitTests {\nfinal class Service {\n"
+          + declaration(usage, "    func canForceQuit(")
+          + declaration(usage, "    private static func executableName(")
+          + "}\n}\n")
     write("NotchActivationButton.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
