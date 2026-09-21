@@ -562,6 +562,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift
         Sources/Vorssaint/Services/Display/LidDimmingSupport.swift
+        Sources/Vorssaint/Services/Display/SkyLightBridge.swift
+        Sources/Vorssaint/Services/Display/VirtualDisplayService.swift
+        Sources/Vorssaint/Services/Display/DisplayResolutionService.swift
+        Sources/Vorssaint/Services/Display/DisplayRecoveryManager.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerPolicy.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift
