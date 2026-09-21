@@ -549,7 +549,14 @@ private struct ScreenshotQuickPreviewView: View {
                     .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
             }
         }
-        .onHover(perform: hoverChanged)
+        .onHover(perform: previewHoverChanged)
+    }
+
+    private func previewHoverChanged(_ inside: Bool) {
+        // The island tracks the image and header together. Leaving just the
+        // image must not restart dismissal while its actions are still hovered.
+        guard !embedded else { return }
+        hoverChanged(inside)
     }
 
     private func sharedLinkRow(_ record: ScreenshotShareRecord) -> some View {
