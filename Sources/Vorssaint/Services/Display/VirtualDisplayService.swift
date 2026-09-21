@@ -100,6 +100,17 @@ public struct VirtualDisplayProfile: Identifiable, Hashable, Sendable {
         )
     }
 
+    /// CGVirtualDisplay HiDPI mode sizes are logical points. The descriptor's
+    /// maxPixelsWide/maxPixelsHigh stay in backing pixels, so a 5120×2880
+    /// backing surface advertises a 2560×1440 HiDPI mode.
+    public static func logicalHiDPIMode(fromBacking mode: VirtualDisplayModeEntry) -> VirtualDisplayModeEntry {
+        VirtualDisplayModeEntry(
+            width: max(1, mode.width / 2),
+            height: max(1, mode.height / 2),
+            refreshRate: mode.refreshRate
+        )
+    }
+
     /// Helper to pick or generate a profile matching a target display's current display mode.
     public static func profile(for displayID: CGDirectDisplayID) -> VirtualDisplayProfile {
         guard let mode = CGDisplayCopyDisplayMode(displayID) else {
@@ -157,7 +168,7 @@ public final class VirtualDisplayInstance: Identifiable {
         guard virtualDisplay == nil else { return }
 
         let descriptor = CGVirtualDisplayDescriptor()
-        descriptor.setDispatchQueue(DispatchQueue.main)
+        descriptor.setDispatchQueue(DispatchQueue.global(qos: .userInitiated))
         descriptor.name = self.name
         descriptor.maxPixelsWide = UInt32(profile.modes.map(\.width).max() ?? profile.defaultWidth)
         descriptor.maxPixelsHigh = UInt32(profile.modes.map(\.height).max() ?? profile.defaultHeight)
@@ -171,13 +182,22 @@ public final class VirtualDisplayInstance: Identifiable {
         descriptor.vendorID = 0xF0F0
         descriptor.productID = UInt32(min(profile.defaultWidth, 65535))
         descriptor.serialNum = self.serialNum
+        descriptor.serialNumber = self.serialNum
 
-        let display = CGVirtualDisplay(descriptor: descriptor)
+        guard let display = CGVirtualDisplay(descriptor: descriptor) else {
+            throw VirtualDisplayError.virtualDisplayCreationFailed
+        }
 
         let settings = CGVirtualDisplaySettings()
         settings.hiDPI = 1
-        settings.modes = profile.modes.map { mode in
-            CGVirtualDisplayMode(width: mode.width, height: mode.height, refreshRate: mode.refreshRate)
+        settings.rotation = 0
+        settings.modes = profile.modes.map { backingMode in
+            let logicalMode = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: backingMode)
+            return CGVirtualDisplayMode(
+                width: UInt32(logicalMode.width),
+                height: UInt32(logicalMode.height),
+                refreshRate: logicalMode.refreshRate
+            )
         }
 
         guard display.apply(settings) else {

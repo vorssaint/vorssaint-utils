@@ -769,5 +769,49 @@ enum DisplayRestorationTests {
         suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs.isEmpty
                      && UserDefaults.standard.stored.isEmpty && UserDefaults.standard.fingerprints.isEmpty,
                      "the built-in display comes back even when it reads as another monitor while off")
+
+        // PR #1773 display/HiDPI hardening contracts.
+        let qhdProfile = VirtualDisplayProfile.profile(matchingWidth: 2560, height: 1440)
+        if let backing = qhdProfile.modes.first(where: { $0.width == 5120 && $0.height == 2880 }) {
+            let logical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: backing)
+            suite.expect(logical.width == 2560 && logical.height == 1440,
+                         "virtual HiDPI exposes logical dimensions at half the backing size")
+        } else {
+            suite.expect(false, "QHD virtual profile contains a 5120×2880 backing mode")
+        }
+
+        let ultrawideProfile = VirtualDisplayProfile.profile(matchingWidth: 3440, height: 1440)
+        let ultrawideBacking = ultrawideProfile.modes[0]
+        let ultrawideLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: ultrawideBacking)
+        suite.expect(ultrawideBacking.width == 6880 && ultrawideBacking.height == 2880
+                     && ultrawideLogical.width == 3440 && ultrawideLogical.height == 1440,
+                     "nonstandard virtual HiDPI keeps a 2× backing surface and requested logical size")
+
+        let dynamicMode = DisplayResolutionMode(
+            width: 3024, height: 1964,
+            pixelWidth: 3024, pixelHeight: 1964,
+            refreshRate: 0
+        )
+        suite.expect(dynamicMode.refreshLabel == "—",
+                     "unknown or variable refresh never renders as 0 Hz")
+
+        let skyLightSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/SkyLightBridge.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(skyLightSource.contains("CGSGetCurrentDisplayModeFn")
+                     && skyLightSource.contains("-> Void"),
+                     "SkyLight bridge uses the current-mode API and void CGS ABI")
+
+        let resolutionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/DisplayResolutionService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!resolutionSource.contains("ioDisplayModeID")
+                     && resolutionSource.contains("previousVirtualMirrorLogicalSize"),
+                     "CGS indexes stay separate from IODisplayModeID and virtual state is snapshotted")
+
+        suite.expect(!FileManager.default.fileExists(
+            atPath: "Sources/Vorssaint/Services/Display/XDRBoostService.swift"),
+            "display integration does not ship an out-of-contract gamma overdrive path")
+
     }
 }

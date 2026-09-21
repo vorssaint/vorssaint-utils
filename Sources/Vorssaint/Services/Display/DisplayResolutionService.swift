@@ -46,7 +46,7 @@ public struct DisplayResolutionMode: Identifiable, Hashable, Sendable {
             pixelWidth: cgMode.pixelWidth,
             pixelHeight: cgMode.pixelHeight,
             refreshRate: cgMode.refreshRate,
-            modeNumber: cgMode.ioDisplayModeID,
+            modeNumber: nil,
             isHiDPI: cgMode.pixelWidth > cgMode.width
         )
     }
@@ -68,7 +68,7 @@ public struct DisplayResolutionMode: Identifiable, Hashable, Sendable {
             let rounded = (refreshRate * 100).rounded() / 100
             return String(format: "%g Hz", locale: Locale(identifier: "en_US_POSIX"), rounded)
         } else {
-            return "动态"
+            return "—"
         }
     }
 
@@ -242,19 +242,17 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         for displayID: CGDirectDisplayID,
         useWatchdog: Bool = true
     ) -> Bool {
-        // If a virtual mirror was active for this display, disable it before applying the native mode
-        if VirtualDisplayService.shared.isVirtualMirrorActive(for: displayID) {
-            do {
-                try VirtualDisplayService.shared.disableVirtualMirror(for: displayID)
-            } catch {
-                Self.log.error("Failed to disable virtual mirror prior to mode switch: \(error.localizedDescription)")
-            }
-        }
-
+        let hadVirtualMirror = VirtualDisplayService.shared.isVirtualMirrorActive(for: displayID)
+        let previousLogicalSize: CGSize? = hadVirtualMirror
+            ? currentModePerDisplay[displayID].map { CGSize(width: $0.width, height: $0.height) }
+            : nil
         let currentCGMode = CGDisplayCopyDisplayMode(displayID)
         let mirrorMaster = CGDisplayMirrorsDisplay(displayID)
-        let currentMirrorMasterID: CGDirectDisplayID? = (mirrorMaster != kCGNullDirectDisplay) ? mirrorMaster : nil
-        let currentCGSModeNumber: Int32? = currentModePerDisplay[displayID]?.modeNumber ?? currentCGMode?.ioDisplayModeID
+        // The virtual source disappears during teardown, so its transient ID
+        // must never become a rollback mirror master.
+        let currentMirrorMasterID: CGDirectDisplayID? =
+            (!hadVirtualMirror && mirrorMaster != kCGNullDirectDisplay) ? mirrorMaster : nil
+        let currentCGSModeNumber = SkyLightBridge.currentDisplayModeIndex(for: displayID)
 
         if useWatchdog {
             DisplayRecoveryManager.shared.beginAction(
@@ -262,9 +260,22 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 previousMode: currentCGMode,
                 previousCGSModeNumber: currentCGSModeNumber,
                 previousMirrorMasterID: currentMirrorMasterID,
+                previousVirtualMirrorLogicalSize: previousLogicalSize,
                 virtualDisplayCreated: false,
                 confirmationSeconds: 15
             )
+        }
+
+        // Snapshot first, mutate second. Otherwise leaving virtual HiDPI
+        // destroys the state the watchdog would need to recreate.
+        if hadVirtualMirror {
+            do {
+                try VirtualDisplayService.shared.disableVirtualMirror(for: displayID)
+            } catch {
+                Self.log.error("Failed to disable virtual mirror prior to mode switch: \(error.localizedDescription)")
+                if useWatchdog { DisplayRecoveryManager.shared.confirm() }
+                return false
+            }
         }
 
         var config: CGDisplayConfigRef?
@@ -280,28 +291,38 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         var applied = false
 
         if let modeNumber = mode.modeNumber {
-            let err = SkyLightBridge.configureDisplayMode(config: cfg, displayID: displayID, modeNumber: modeNumber)
-            if err == .success {
+            if SkyLightBridge.configureDisplayMode(config: cfg, displayID: displayID, modeNumber: modeNumber) {
                 applied = true
             } else {
-                Self.log.warning("SkyLightBridge.configureDisplayMode modeNumber \(modeNumber) failed with error \(err.rawValue), falling back to CGConfigureDisplayWithDisplayMode")
+                Self.log.warning("SkyLight CGSConfigureDisplayMode is unavailable; falling back to public CoreGraphics modes")
             }
         }
 
         if !applied {
             let options = [kCGDisplayShowDuplicateLowResolutionModes as String: true] as CFDictionary
             let allModes = (CGDisplayCopyAllDisplayModes(displayID, options) as? [CGDisplayMode]) ?? []
-            if let targetCGMode = allModes.first(where: {
+            let exactBacking = allModes.filter {
                 $0.width == mode.width &&
                 $0.height == mode.height &&
                 $0.pixelWidth == mode.pixelWidth &&
-                $0.pixelHeight == mode.pixelHeight &&
-                abs($0.refreshRate - mode.refreshRate) < 0.05
-            }) ?? allModes.first(where: {
-                $0.width == mode.width &&
-                $0.height == mode.height &&
-                abs($0.refreshRate - mode.refreshRate) < 0.05
-            }) {
+                $0.pixelHeight == mode.pixelHeight
+            }
+            let sameLogicalSize = allModes.filter {
+                $0.width == mode.width && $0.height == mode.height
+            }
+            let candidates = exactBacking.isEmpty ? sameLogicalSize : exactBacking
+            let targetCGMode: CGDisplayMode?
+            if mode.refreshRate > 0 {
+                targetCGMode = candidates.min {
+                    abs($0.refreshRate - mode.refreshRate) < abs($1.refreshRate - mode.refreshRate)
+                }
+            } else {
+                // CoreGraphics may report 0 for modes whose current refresh is
+                // dynamic/unspecified. Never require a literal 0 Hz mode.
+                targetCGMode = candidates.max { $0.refreshRate < $1.refreshRate }
+            }
+
+            if let targetCGMode {
                 let err = CGConfigureDisplayWithDisplayMode(cfg, displayID, targetCGMode, nil)
                 if err == .success {
                     applied = true
@@ -357,10 +378,20 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         switch currentStatus {
         case .virtualMirror:
             Self.log.info("Toggling HiDPI from virtualMirror -> disabling virtual mirror on display \(displayID)")
+            DisplayRecoveryManager.shared.beginAction(
+                targetDisplayID: displayID,
+                previousMode: CGDisplayCopyDisplayMode(displayID),
+                previousCGSModeNumber: SkyLightBridge.currentDisplayModeIndex(for: displayID),
+                previousMirrorMasterID: nil,
+                previousVirtualMirrorLogicalSize: CGSize(width: current.width, height: current.height),
+                virtualDisplayCreated: false,
+                confirmationSeconds: 15
+            )
             do {
                 try VirtualDisplayService.shared.disableVirtualMirror(for: displayID)
             } catch {
                 Self.log.error("Failed to disable virtual mirror for display \(displayID): \(error.localizedDescription)")
+                DisplayRecoveryManager.shared.confirm()
             }
             refresh()
 
@@ -386,7 +417,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 let currentCGMode = CGDisplayCopyDisplayMode(displayID)
                 let mirrorMaster = CGDisplayMirrorsDisplay(displayID)
                 let currentMirrorMasterID: CGDirectDisplayID? = (mirrorMaster != kCGNullDirectDisplay) ? mirrorMaster : nil
-                let currentCGSModeNumber: Int32? = current.modeNumber ?? currentCGMode?.ioDisplayModeID
+                let currentCGSModeNumber = SkyLightBridge.currentDisplayModeIndex(for: displayID)
 
                 DisplayRecoveryManager.shared.beginAction(
                     targetDisplayID: displayID,

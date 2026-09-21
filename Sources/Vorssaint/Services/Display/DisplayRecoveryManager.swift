@@ -13,6 +13,7 @@ public struct DisplayTransactionSnapshot: @unchecked Sendable {
     public let previousMode: CGDisplayMode?
     public let previousCGSModeNumber: Int32?
     public let previousMirrorMasterID: CGDirectDisplayID?
+    public let previousVirtualMirrorLogicalSize: CGSize?
     public let virtualDisplayCreated: Bool
     public let timestamp: Date
 
@@ -21,6 +22,7 @@ public struct DisplayTransactionSnapshot: @unchecked Sendable {
         previousMode: CGDisplayMode? = nil,
         previousCGSModeNumber: Int32? = nil,
         previousMirrorMasterID: CGDirectDisplayID? = nil,
+        previousVirtualMirrorLogicalSize: CGSize? = nil,
         virtualDisplayCreated: Bool = false,
         timestamp: Date = Date()
     ) {
@@ -28,6 +30,7 @@ public struct DisplayTransactionSnapshot: @unchecked Sendable {
         self.previousMode = previousMode
         self.previousCGSModeNumber = previousCGSModeNumber
         self.previousMirrorMasterID = previousMirrorMasterID
+        self.previousVirtualMirrorLogicalSize = previousVirtualMirrorLogicalSize
         self.virtualDisplayCreated = virtualDisplayCreated
         self.timestamp = timestamp
     }
@@ -60,6 +63,7 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
         previousMode: CGDisplayMode? = nil,
         previousCGSModeNumber: Int32? = nil,
         previousMirrorMasterID: CGDirectDisplayID? = nil,
+        previousVirtualMirrorLogicalSize: CGSize? = nil,
         virtualDisplayCreated: Bool = false,
         confirmationSeconds: Int = 15
     ) {
@@ -69,6 +73,7 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
                 previousMode: previousMode,
                 previousCGSModeNumber: previousCGSModeNumber,
                 previousMirrorMasterID: previousMirrorMasterID,
+                previousVirtualMirrorLogicalSize: previousVirtualMirrorLogicalSize,
                 virtualDisplayCreated: virtualDisplayCreated,
                 confirmationSeconds: confirmationSeconds
             )
@@ -79,6 +84,7 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
                     previousMode: previousMode,
                     previousCGSModeNumber: previousCGSModeNumber,
                     previousMirrorMasterID: previousMirrorMasterID,
+                    previousVirtualMirrorLogicalSize: previousVirtualMirrorLogicalSize,
                     virtualDisplayCreated: virtualDisplayCreated,
                     confirmationSeconds: confirmationSeconds
                 )
@@ -91,6 +97,7 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
         previousMode: CGDisplayMode?,
         previousCGSModeNumber: Int32?,
         previousMirrorMasterID: CGDirectDisplayID?,
+        previousVirtualMirrorLogicalSize: CGSize?,
         virtualDisplayCreated: Bool,
         confirmationSeconds: Int
     ) {
@@ -100,6 +107,7 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
             previousMode: previousMode,
             previousCGSModeNumber: previousCGSModeNumber,
             previousMirrorMasterID: previousMirrorMasterID,
+            previousVirtualMirrorLogicalSize: previousVirtualMirrorLogicalSize,
             virtualDisplayCreated: virtualDisplayCreated,
             timestamp: Date()
         )
@@ -183,20 +191,17 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
                 }
 
                 if let cgsModeNumber = snapshot.previousCGSModeNumber {
-                    let modeErr = SkyLightBridge.configureDisplayMode(config: cfg, displayID: snapshot.targetDisplayID, modeNumber: cgsModeNumber)
-                    if modeErr == .success {
+                    if SkyLightBridge.configureDisplayMode(config: cfg, displayID: snapshot.targetDisplayID, modeNumber: cgsModeNumber) {
                         hasChanges = true
-                        Self.log.info("Configured CGS mode number \(cgsModeNumber, privacy: .public) for display \(snapshot.targetDisplayID, privacy: .public).")
-                    } else {
-                        Self.log.error("Failed to restore CGS mode \(cgsModeNumber, privacy: .public) for display \(snapshot.targetDisplayID, privacy: .public): \(modeErr.rawValue, privacy: .public). Attempting CGDisplayMode fallback...")
-                        if let previousMode = snapshot.previousMode {
-                            let fallbackErr = CGConfigureDisplayWithDisplayMode(cfg, snapshot.targetDisplayID, previousMode, nil)
-                            if fallbackErr == .success {
-                                hasChanges = true
-                                Self.log.info("Configured CGDisplayMode fallback for display \(snapshot.targetDisplayID, privacy: .public).")
-                            } else {
-                                Self.log.error("Fallback CGConfigureDisplayWithDisplayMode also failed: \(fallbackErr.rawValue, privacy: .public)")
-                            }
+                        Self.log.info("Configured CGS mode index \(cgsModeNumber, privacy: .public) for display \(snapshot.targetDisplayID, privacy: .public).")
+                    } else if let previousMode = snapshot.previousMode {
+                        Self.log.warning("CGS mode restore unavailable; attempting public CGDisplayMode fallback.")
+                        let fallbackErr = CGConfigureDisplayWithDisplayMode(cfg, snapshot.targetDisplayID, previousMode, nil)
+                        if fallbackErr == .success {
+                            hasChanges = true
+                            Self.log.info("Configured CGDisplayMode fallback for display \(snapshot.targetDisplayID, privacy: .public).")
+                        } else {
+                            Self.log.error("Fallback CGConfigureDisplayWithDisplayMode failed: \(fallbackErr.rawValue, privacy: .public)")
                         }
                     }
                 } else if let previousMode = snapshot.previousMode {
@@ -222,6 +227,19 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
                 }
             } else {
                 Self.log.error("CGBeginDisplayConfiguration failed during rollback: \(beginErr.rawValue, privacy: .public)")
+            }
+        }
+
+        if let size = snapshot.previousVirtualMirrorLogicalSize {
+            do {
+                try VirtualDisplayService.shared.enableVirtualMirror(
+                    for: snapshot.targetDisplayID,
+                    width: max(1, Int(size.width.rounded())),
+                    height: max(1, Int(size.height.rounded()))
+                )
+                Self.log.info("Restored previous virtual HiDPI mirror for display \(snapshot.targetDisplayID, privacy: .public).")
+            } catch {
+                Self.log.error("Failed to recreate previous virtual HiDPI mirror: \(error.localizedDescription, privacy: .public)")
             }
         }
 
