@@ -94,6 +94,7 @@ struct MetricsTests {
             }),
             ("cleaner", { CleanerEligibilityTests.run(suite) }),
             ("uninstaller", { UninstallerFlowTests.run(suite) }),
+            ("force-quit", { ProcessForceQuitTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
             ("dock-autohide", {
                 DockAutohideHoldTests.run(suite)
