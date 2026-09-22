@@ -153,6 +153,11 @@ struct MetricsTests {
             }),
             ("wallpaper", { WallpaperContract.run(suite) }),
             ("emoji", { CommandBarEmojiContract.run(suite) }),
+            ("fast-reader", {
+                FastReaderEngineTests.run(suite)
+                FastReaderSelectionTests.run(suite)
+                FastReaderSessionTests.run(suite)
+            }),
         ]
         var selected = Set<String>()
         var listOnly = false

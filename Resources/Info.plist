@@ -82,5 +82,26 @@
 	<string>© 2026 Vorssaint</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- Fast Reader's Services menu entry. NSPortName below is rewritten to the
+	     Developer variant's app name by build.sh, so a Developer build and the
+	     official app never claim the same service. -->
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Read with Fast Reader</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>readWithFastReader</string>
+			<key>NSPortName</key>
+			<string>Vorssaint</string>
+			<key>NSSendTypes</key>
+			<array>
+				<string>NSStringPboardType</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -370,6 +370,13 @@ final class FeatureRuntime: ObservableObject {
             else { AgentUsageService.shared.stop() }
         },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
+        // Same one-call shape as every other binding here: syncShortcutRegistration()
+        // itself branches on AppFeature.fastReader.isAvailable, registering the
+        // shortcut when on and calling teardownForUninstall() when off, so this
+        // closure never has to know which direction the flip went. Naming
+        // .fastReader never instantiates FastReaderService — only running this
+        // closure does, and syncAtLaunch() only runs it for available features.
+        .fastReader: { FastReaderService.shared.syncShortcutRegistration() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
         .cleaner: {
             CleanerScheduler.shared.syncWithPreferences()

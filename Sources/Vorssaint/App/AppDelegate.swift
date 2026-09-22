@@ -44,6 +44,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var updateHighlightsIsReview = false
     private var updateShowcaseWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
+    /// `NSApp.servicesProvider` does not retain its target, so the Services
+    /// handler for "Read with Fast Reader" has to be held somewhere for the
+    /// life of the app, or the Services menu item silently stops working the
+    /// moment this instance would otherwise be deallocated.
+    private let fastReaderServiceProvider = FastReaderServiceProvider()
 
     // MARK: - Lifecycle
 
@@ -144,6 +149,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             KeepAwakeManager.shared.activateOnLaunchIfNeeded()
         }
         FanControlService.recoverIfNeeded()
+
+        // Info.plist declares "Read with Fast Reader" unconditionally — the
+        // NSServices entry exists whether or not the feature is installed —
+        // so the provider is set unconditionally too, not behind
+        // AppFeature.fastReader.isAvailable. The gate a switched-off feature
+        // needs lives inside FastReaderService.open(text:), which this only
+        // forwards to; setting or withholding servicesProvider here is the
+        // wrong layer for that check.
+        NSApp.servicesProvider = fastReaderServiceProvider
+        NSApp.registerServicesMenuSendTypes([.string], returnTypes: [])
+
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
