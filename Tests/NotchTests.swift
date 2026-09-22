@@ -132,7 +132,7 @@ enum NotchTests {
                 suite.expect(top >= cameraHeight, "the page always begins below the physical camera")
                 let area = geometry.activationArea(in: geometry.expanded, hasHeader: true,
                                                    compactActivity: false, expandedHeader: true)
-                if width >= 560 {
+                if width >= 480 {
                     suite.expect(geometry.headerCameraGap == 210 && geometry.headerTopInset == 0,
                                  "wide headers use the space beside the camera without reserving a blank top row")
                     suite.expect(area.width == 210 && area.height == cameraHeight
@@ -148,6 +148,13 @@ enum NotchTests {
                              && NotchLayout.systemCardHeight * 1.028 <= NotchLayout.systemCardHeight + inset * 2,
                              "even a full-width system card can grow on hover inside its viewport")
             }
+        }
+        for layout: NotchSize in [.compact, .spacious] {
+            let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 210, layout: layout)
+            suite.expect(geometry.headerTopInset == 0 && geometry.headerCameraGap == 210,
+                         "both presets place the title beside the camera without a blank top row")
+            suite.expect(geometry.quickAccessCenterY - NotchQuickAccessLayout.diameter / 2 == 38,
+                         "floating buttons keep six points of clearance below the menu bar in both presets")
         }
         let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious)
         suite.expect(simulated.headerTopInset == 0 && simulated.headerCameraGap == 0,

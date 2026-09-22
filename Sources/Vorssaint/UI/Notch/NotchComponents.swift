@@ -206,6 +206,7 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
                     LazyHStack(alignment: .top, spacing: spacing) {
                         ForEach(starts, id: \.self) { start in column(start).frame(width: itemWidth).id(start) }
                     }
+                    .contentShape(Rectangle())
                 }
                 .scrollIndicators(.never)
                 .onAppear {

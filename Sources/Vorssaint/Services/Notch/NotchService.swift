@@ -1596,6 +1596,7 @@ final class NotchService: ObservableObject {
         let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         if let token = NSEvent.addGlobalMonitorForEvents(matching: clicks, handler: { [weak self] _ in
             guard let self, !self.keepsWorkingSurface,
+                  self.windowHost?.contains(NSEvent.mouseLocation) != true,
                   (NSApp.delegate as? AppDelegate)?.isOverStatusItem(NSEvent.mouseLocation) != true,
                   !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) else { return }
             self.collapse()
@@ -1645,6 +1646,7 @@ final class NotchService: ObservableObject {
             }
             if clicks.contains(NSEvent.EventTypeMask(rawValue: 1 << event.type.rawValue)),
                event.window !== self.panel, !self.keepsWorkingSurface,
+               self.windowHost?.contains(NSEvent.mouseLocation) != true,
                (NSApp.delegate as? AppDelegate)?.isOverStatusItem(NSEvent.mouseLocation) != true,
                !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) { self.collapse() }
             return event

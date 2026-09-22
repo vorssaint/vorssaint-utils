@@ -908,12 +908,17 @@ struct NotchGeometry: Equatable {
     }
 
     var safeContentTop: CGFloat { cameraHeight + 10 }
-    /// Use the space beside a real camera for navigation. Narrow layouts keep
-    /// a full row below it; simulated cutouts need no empty camera row.
-    var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 260 ? cameraWidth : 0 }
+    /// A title and the compact actions each fit in a 100-point wing, including
+    /// the compact preset. Narrower layouts keep a full row below the camera.
+    var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 200 ? cameraWidth : 0 }
     var headerTopInset: CGFloat { !isNotched || headerCameraGap > 0 ? 0 : safeContentTop }
     var headerRowHeight: CGFloat { headerCameraGap > 0 ? max(cameraHeight, NotchLayout.headerHeight) : NotchLayout.headerHeight }
     var headerChromeHeight: CGFloat { headerRowHeight + NotchLayout.spacing + NotchLayout.bottomInset }
+    /// Floating circles sit below the menu bar even when the title fits beside the camera.
+    var quickAccessCenterY: CGFloat {
+        max(headerTopInset + headerRowHeight / 2,
+            menuBarHeight + 6 + NotchQuickAccessLayout.diameter / 2)
+    }
     /// One row beside the camera. It extends the cutout, whose height a
     /// physical camera sets and a simulated one shares with the bar: a bar
     /// even a point taller would leave a dark line under the notch.

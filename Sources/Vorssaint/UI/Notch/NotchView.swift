@@ -22,6 +22,9 @@ struct NotchView: View {
             .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
             .foregroundStyle(.white)
             .contentShape(shape)
+            // The backdrop is a separate, non-interactive hosting view. Claim
+            // empty space here so clicks and wheel events stay in this window.
+            .onTapGesture { }
             .onChange(of: reduceTransparency) {
                 DispatchQueue.main.async { service.refreshPresentation(animated: false) }
             }
@@ -184,6 +187,7 @@ struct NotchView: View {
                             .frame(height: contentOverflows ? pageSize.height : nil)
                             .frame(maxWidth: .infinity, alignment: .topLeading)
                             .padding(.bottom, 4)
+                            .contentShape(Rectangle())
                     }
                     .scrollIndicators(.automatic)
                 } else {
