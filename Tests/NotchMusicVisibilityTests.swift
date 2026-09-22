@@ -75,6 +75,7 @@ enum NotchMusicVisibilityTests {
         var openedByHover = false
         var sectionQuery = ""
         var highlightedSection: NotchModule?
+        var sectionRow = 0
         var hoverState = NotchHoverState()
         var hoverWork: DispatchWorkItem?
         var windowHost: Host?

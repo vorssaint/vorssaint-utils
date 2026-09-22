@@ -55,7 +55,9 @@ final class NotchService: ObservableObject {
     @Published private(set) var showingAppPanel = false
     @Published private(set) var showingSections = false
     @Published private(set) var sectionQuery = ""
-    @Published var highlightedSection: NotchModule?
+    @Published var highlightedSection: NotchModule? { didSet { revealHighlightedSection() } }
+    /// The gallery's first visible row; the rows above it have stepped away.
+    @Published private(set) var sectionRow = 0
     @Published private(set) var modules: [NotchModule] = []
     @Published private(set) var notice: NotchNotice?
     @Published private(set) var noticeExpanded = false
@@ -108,6 +110,7 @@ final class NotchService: ObservableObject {
     private var hiddenInFullscreen = false
     private var settingsSignature = ""
     private var gesture = NotchGestureSupport()
+    private var sectionScroll = NotchSectionScroll()
     private var volumeBaseline: Double?
     private var muteBaseline: Bool?
     private var volumeDeviceUID: String?
@@ -332,6 +335,7 @@ final class NotchService: ObservableObject {
         musicDetailVisible = false
         panel?.handleScroll = nil
         gesture = NotchGestureSupport()
+        sectionScroll = NotchSectionScroll()
         stopMenuSpaceMonitoring()
         geometry.compactSideRoom = nil
         hoverWork?.cancel(); hoverWork = nil
@@ -360,6 +364,7 @@ final class NotchService: ObservableObject {
         showingSections = false
         sectionQuery = ""
         highlightedSection = nil
+        sectionRow = 0
         inside = false
         hoverState = NotchHoverState()
         openedByHover = false
@@ -441,6 +446,7 @@ final class NotchService: ObservableObject {
             showingSections = false
             sectionQuery = ""
             highlightedSection = nil
+            sectionRow = 0
         }
         panel?.acceptsKeyFocus = false
         panel?.resignKey()
@@ -598,10 +604,39 @@ final class NotchService: ObservableObject {
             open(appPanel: showingAppPanel, metric: selectedMetric)
         } else {
             sectionQuery = ""
+            // The gallery opens from its top, stepping only as far as the
+            // current section's row.
+            sectionRow = 0
             highlightedSection = selected
             open(appPanel: showingAppPanel, metric: selectedMetric, sections: true)
         }
     }
+
+    private var sectionRowLimits: (rows: Int, visible: Int) {
+        let count = filteredSections.count
+        return (NotchSectionPaging.rows(count: count, columns: geometry.sectionColumns), geometry.sectionRows(count: count))
+    }
+
+    /// Keyboard moves and search results keep the highlighted tile's row in
+    /// view, moving the gallery no further than that row needs.
+    private func revealHighlightedSection() {
+        guard let target = highlightedSection, let index = filteredSections.firstIndex(of: target) else { return }
+        let limits = sectionRowLimits
+        let row = NotchSectionPaging.revealing(row: index / max(1, geometry.sectionColumns), first: sectionRow,
+                                               rows: limits.rows, visible: limits.visible)
+        if row != sectionRow { sectionRow = row }
+    }
+
+    /// Rest the gallery on `row`, within the rows it has.
+    func showSectionRow(_ row: Int) {
+        let limits = sectionRowLimits
+        let next = NotchSectionPaging.clamped(row, rows: limits.rows, visible: limits.visible)
+        guard next != sectionRow else { return }
+        sectionRow = next
+        provideHapticFeedback()
+    }
+
+    func scrollSections(by rows: Int) { showSectionRow(sectionRow + rows) }
 
     private func handleSectionKey(_ event: NSEvent) -> Bool {
         guard showingSections,
@@ -1597,12 +1632,36 @@ final class NotchService: ObservableObject {
     }
 
     private func syncGestures() {
-        guard NotchGestureSupport.isEnabled() else {
-            panel?.handleScroll = nil
-            gesture = NotchGestureSupport()
-            return
+        if !NotchGestureSupport.isEnabled() { gesture = NotchGestureSupport() }
+        panel?.handleScroll = { [weak self] event in self?.handleScroll(event) ?? false }
+    }
+
+    /// The gallery steps its rows from the wheel; every other scroll over the
+    /// island is a gesture candidate.
+    private func handleScroll(_ event: NSEvent) -> Bool {
+        handleSectionScroll(event) || handleGesture(event)
+    }
+
+    private func handleSectionScroll(_ event: NSEvent) -> Bool {
+        guard running, !suspended, expanded, showingSections, let panel, !trackingMenu,
+              event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else {
+            sectionScroll = NotchSectionScroll()
+            return false
         }
-        panel?.handleScroll = { [weak self] event in self?.handleGesture(event) ?? false }
+        let screenPoint = panel.convertPoint(toScreen: event.locationInWindow)
+        // The header keeps its own gesture; the tiles and the rest of the body step rows.
+        guard windowHost?.containsSurface(screenPoint) == true,
+              panel.frame.maxY - screenPoint.y > geometry.safeContentTop + NotchLayout.headerHeight else {
+            sectionScroll = NotchSectionScroll()
+            return false
+        }
+        let steps = sectionScroll.steps(deltaY: Double(event.scrollingDeltaY), timestamp: event.timestamp,
+                                        precise: event.hasPreciseScrollingDeltas, hasPhase: !event.phase.isEmpty,
+                                        began: event.phase.contains(.began),
+                                        ended: !event.phase.intersection([.ended, .cancelled]).isEmpty,
+                                        momentum: !event.momentumPhase.isEmpty)
+        if steps != 0 { scrollSections(by: steps) }
+        return true
     }
 
     private func handleGesture(_ event: NSEvent) -> Bool {

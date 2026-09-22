@@ -392,6 +392,7 @@ enum NotchTests {
         NotchNotificationTests.run(suite)
         NotchNotificationReaderTests.run(suite)
         NotchGestureTests.run(suite)
+        NotchSectionPagingTests.run(suite)
         NotchKeyboardLightTests.run(suite)
         NotchActivityTests.run(suite)
         NotchMusicExtrasTests.run(suite)
@@ -839,17 +840,28 @@ enum NotchTests {
         let compact = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210)
         let spacious = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .spacious)
         let tall = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: .custom, customHeight: 640)
-        suite.expect(tall.sectionPickerSize(count: 1).height < tall.sectionPickerSize(count: allModules.count).height,
-               "a short search result shrinks the gallery instead of reserving empty rows")
-        suite.expect(compact.sectionPickerSize(count: 1) == compact.sectionPickerSize(count: allModules.count)
-               && compact.sectionRows(count: allModules.count) == 1 && spacious.sectionRows(count: allModules.count) == 2
-               && tall.sectionRows(count: allModules.count) > 2,
-               "the gallery keeps one visible row on a compact island and two on a spacious one")
+        for geometry in [compact, spacious, tall] {
+            suite.expect(geometry.sectionPickerSize(count: 1).height < geometry.sectionPickerSize(count: allModules.count).height,
+                   "a short search result shrinks the gallery instead of reserving empty rows")
+        }
+        suite.expect(compact.sectionRows(count: allModules.count) == 3 && spacious.sectionRows(count: allModules.count) == 3
+               && compact.contentSize(for: compact.sectionPickerSize(count: allModules.count)).height <= compact.pageBudget
+               && tall.sectionRows(count: allModules.count)
+                   == NotchSectionPaging.rows(count: allModules.count, columns: tall.sectionColumns),
+               "the gallery is a page: presets show three whole rows and a tall island shows every row")
+        suite.expect(compact.sectionColumns == 4 && spacious.sectionColumns == 5
+               && compact.sectionColumns * compact.sectionRows(count: allModules.count) < allModules.count
+               && spacious.sectionColumns * spacious.sectionRows(count: allModules.count) >= allModules.count,
+               "a compact island steps one row to reach its last sections and a spacious one shows them all")
+        suite.expect(NotchLayout.sectionTileHeight * 2 + NotchLayout.sectionSpacing <= NotchLayout.compactContentHeight
+               && NotchLayout.sectionTileHeight * 3 + NotchLayout.sectionSpacing * 2 <= NotchLayout.pageContentHeight,
+               "two rows fit the compact strip and three rows fit the gallery's page exactly or better")
         for geometry in [compact, spacious, tall] {
             let columns = geometry.sectionColumns
-            let tileWidth = (geometry.contentWidth - 16 - CGFloat(columns - 1) * NotchLayout.sectionSpacing) / CGFloat(columns)
+            let tileWidth = (geometry.contentWidth - NotchLayout.sectionIndicatorWidth
+                             - CGFloat(columns - 1) * NotchLayout.sectionSpacing) / CGFloat(columns)
             suite.expect(tileWidth >= NotchLayout.sectionTileWidth,
-                   "gallery tiles keep their readable width even with always-visible scroll bars")
+                   "gallery tiles keep their readable width beside the row indicator")
             suite.expect(QuickToolsSupport.gridIndex(after: 0, count: allModules.count,
                                                      flow: .rows(columns: columns), direction: .down) == columns,
                    "gallery Down follows the next visible row rather than the old sideways rail")

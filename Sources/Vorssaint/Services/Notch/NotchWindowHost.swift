@@ -322,11 +322,15 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         currentGeometry.frame(for: canvas.visiblePath?.boundingBoxOfPath.size ?? targetSize)
     }
 
-    func contains(_ screenPoint: CGPoint) -> Bool {
+    /// The island's own surface, without the floating controls beside it.
+    func containsSurface(_ screenPoint: CGPoint) -> Bool {
         guard isPresented else { return false }
-        let local = canvas.convert(panel.convertPoint(fromScreen: screenPoint), from: nil)
-        if canvas.containsVisiblePoint(local) { return true }
-        guard let container = quickAccessContainer else { return false }
+        return canvas.containsVisiblePoint(canvas.convert(panel.convertPoint(fromScreen: screenPoint), from: nil))
+    }
+
+    func contains(_ screenPoint: CGPoint) -> Bool {
+        if containsSurface(screenPoint) { return true }
+        guard isPresented, let container = quickAccessContainer else { return false }
         return container.motion.contains(container.convert(panel.convertPoint(fromScreen: screenPoint), from: nil))
     }
 

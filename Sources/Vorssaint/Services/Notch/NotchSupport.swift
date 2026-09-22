@@ -120,9 +120,12 @@ enum NotchLayout {
     static let toolHeight: CGFloat = 72
     static let toolWidth: CGFloat = 76
     static let toolSpacing: CGFloat = 6
-    static let sectionTileHeight: CGFloat = 88
+    /// Three rows fit the gallery's page; two still fill a compact strip.
+    static let sectionTileHeight: CGFloat = 86
     static let sectionTileWidth: CGFloat = 92
     static let sectionSpacing: CGFloat = 8
+    /// The gallery's row indicator beside the tiles, with its gap.
+    static let sectionIndicatorWidth: CGFloat = 12
     static let clipboardSearchHeight: CGFloat = 36
     static let clipboardCardHeight: CGFloat = 104
     static let emptyHeight: CGFloat = 140
@@ -1092,22 +1095,23 @@ struct NotchGeometry: Equatable {
                       height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
     }
 
-    /// Leave room for a legacy scroll bar without narrowing the tiles below
+    /// Leave room for the row indicator without narrowing the tiles below
     /// their readable width. Keyboard navigation uses these same columns.
     var sectionColumns: Int {
-        NotchLayout.railCapacity(width: contentWidth - 16, itemWidth: NotchLayout.sectionTileWidth,
+        NotchLayout.railCapacity(width: contentWidth - NotchLayout.sectionIndicatorWidth, itemWidth: NotchLayout.sectionTileWidth,
                                  spacing: NotchLayout.sectionSpacing)
     }
 
-    /// Visible rows; additional rows remain reachable by vertical scrolling.
+    /// Visible rows. The gallery is a page like the app panel, so a preset
+    /// shows three rows before any row has to step in; the rest step in whole.
     func sectionRows(count: Int) -> Int {
         NotchLayout.railRows(count: count,
                              perRow: sectionColumns,
-                             rowHeight: NotchLayout.sectionTileHeight, spacing: NotchLayout.sectionSpacing, height: contentBudget)
+                             rowHeight: NotchLayout.sectionTileHeight, spacing: NotchLayout.sectionSpacing, height: pageBudget)
     }
 
     func sectionPickerSize(count: Int) -> CGSize {
-        let content = min(contentBudget, count == 0 ? NotchLayout.emptyHeight
+        let content = min(pageBudget, count == 0 ? NotchLayout.emptyHeight
             : NotchLayout.railHeight(rows: sectionRows(count: count), rowHeight: NotchLayout.sectionTileHeight, spacing: NotchLayout.sectionSpacing))
         let desiredHeight = safeContentTop + NotchLayout.chromeHeight + content
         return CGSize(width: expandedWidth, height: min(desiredHeight, screen.height - 48 - quickAccessBottomInset))
