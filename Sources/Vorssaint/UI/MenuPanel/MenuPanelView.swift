@@ -550,7 +550,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, fastReader
 
     var id: String { rawValue }
 
@@ -576,6 +576,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
         case .portManager: return .portManager
+        case .fastReader: return .fastReader
         }
     }
 }
@@ -609,6 +610,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityColorPicker) private var showColorPicker = true
     @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
+    @AppStorage(DefaultsKey.panelUtilityFastReader) private var showFastReader = true
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
@@ -776,6 +778,7 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .fastReader: return showFastReader
         }
     }
 
@@ -984,6 +987,20 @@ struct UtilitiesSection: View {
                                         ScratchpadService.shared.show()
                                     }
                                 })
+        case .fastReader:
+            UtilityActionButton(title: FeatureStrings.fastReader(l10n.language).pageTitle,
+                                caption: FeatureStrings.fastReader(l10n.language).panelCaption,
+                                systemImage: AppFeature.fastReader.symbolName,
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showFastReader,
+                                shortcutHint: shortcutHint(.fastReader),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        FastReaderService.shared.openWithCurrentSelection()
+                                    }
+                                })
         case .quickLauncher:
             UtilityActionButton(title: l10n.s.launcherName,
                                 caption: l10n.s.launcherCaption,
@@ -1097,6 +1114,7 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showFastReader = true
     }
 
     private func grantAccessibility() {

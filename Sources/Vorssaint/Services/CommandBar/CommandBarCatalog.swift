@@ -418,6 +418,16 @@ enum CommandBarCatalog {
                 shortcut: roleShortcut(.scratchpad),
                 run: { _ in afterBeat { ScratchpadService.shared.show() } }))
         }
+        if AppFeature.fastReader.isAvailable {
+            let fastReader = FeatureStrings.fastReader(language)
+            entries.append(CommandBarEntry(
+                id: "action.fastReader",
+                title: fastReader.openButton,
+                subtitle: area(.fastReader, under: fastReader.pageTitle),
+                icon: .symbol("text.line.first.and.arrowtriangle.forward"),
+                shortcut: roleShortcut(.fastReader),
+                run: { _ in afterBeat { FastReaderService.shared.openWithCurrentSelection() } }))
+        }
         if AppFeature.cameraPreview.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.cameraPreview",

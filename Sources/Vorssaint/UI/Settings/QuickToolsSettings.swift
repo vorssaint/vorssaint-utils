@@ -21,6 +21,12 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var scratchpadBackgroundOpacity = 0.0
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
+    @AppStorage(DefaultsKey.fastReaderShortcutEnabled) private var fastReaderShortcutEnabled = false
+    @AppStorage(DefaultsKey.fastReaderWordsPerMinute) private var fastReaderWordsPerMinute = 400
+    @AppStorage(DefaultsKey.fastReaderChunkSize) private var fastReaderChunkSize = 1
+    @AppStorage(DefaultsKey.fastReaderFocusPoint) private var fastReaderFocusPoint = true
+    @AppStorage(DefaultsKey.fastReaderPunctuationPause) private var fastReaderPunctuationPause = true
+    @AppStorage(DefaultsKey.fastReaderLongWordScaling) private var fastReaderLongWordScaling = true
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
 
@@ -263,6 +269,79 @@ struct QuickToolsSettings: View {
                     Text(FeatureStrings.scratchpad(l10n.language).pageTitle)
                 }
                 .settingsFormSectionAnchor(.scratchpad)
+            }
+
+            if AppFeature.fastReader.isAvailable {
+                Section {
+                    Button {
+                        FastReaderService.shared.openWithCurrentSelection()
+                    } label: {
+                        Label(FeatureStrings.fastReader(l10n.language).openButton,
+                              systemImage: AppFeature.fastReader.symbolName)
+                    }
+                    Text(FeatureStrings.fastReader(l10n.language).panelCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Stepper(value: $fastReaderWordsPerMinute,
+                            in: FastReaderEngine.wordsPerMinuteRange,
+                            step: 25) {
+                        HStack {
+                            Text(FeatureStrings.fastReader(l10n.language).speedTitle)
+                            Spacer()
+                            Text("\(fastReaderWordsPerMinute)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    Text(FeatureStrings.fastReader(l10n.language).speedCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Stepper(value: $fastReaderChunkSize,
+                            in: FastReaderEngine.chunkSizeRange,
+                            step: 1) {
+                        HStack {
+                            Text(FeatureStrings.fastReader(l10n.language).chunkTitle)
+                            Spacer()
+                            Text("\(fastReaderChunkSize)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    Text(FeatureStrings.fastReader(l10n.language).chunkCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(FeatureStrings.fastReader(l10n.language).focusPointTitle,
+                           isOn: $fastReaderFocusPoint)
+                    Text(FeatureStrings.fastReader(l10n.language).focusPointCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(FeatureStrings.fastReader(l10n.language).punctuationPauseTitle,
+                           isOn: $fastReaderPunctuationPause)
+                    Text(FeatureStrings.fastReader(l10n.language).punctuationPauseCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(FeatureStrings.fastReader(l10n.language).longWordScalingTitle,
+                           isOn: $fastReaderLongWordScaling)
+                    Text(FeatureStrings.fastReader(l10n.language).longWordScalingCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.quickToolShortcutToggle, isOn: $fastReaderShortcutEnabled)
+                        .onChange(of: fastReaderShortcutEnabled) { _, _ in
+                            FastReaderService.shared.syncShortcutRegistration()
+                        }
+                    ShortcutPreferenceRow(role: .fastReader,
+                                          isEnabled: fastReaderShortcutEnabled,
+                                          label: FeatureStrings.fastReader(l10n.language).shortcutTitle) {
+                        FastReaderService.shared.syncShortcutRegistration()
+                    }
+                    // No surface picker: `fastReaderSurface` has only one working
+                    // value (`.floating`) until Phase 2 adds the Dynamic Island
+                    // surface. Phase 2 will bind it with the already-translated
+                    // strings `surfaceTitle`, `surfaceFloating` and `surfaceNotch`.
+                } header: {
+                    Text(FeatureStrings.fastReader(l10n.language).pageTitle)
+                }
+                .settingsSectionAnchor(.fastReader)
             }
 
             if AppFeature.cleaningMode.isAvailable {

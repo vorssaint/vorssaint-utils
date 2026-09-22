@@ -188,6 +188,7 @@ enum RadialMenuProfilePreset: String, CaseIterable, Identifiable {
                 RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenRecorder.rawValue),
                 RadialMenuItem(kind: .tool, payload: RadialMenuTool.micMute.rawValue),
                 RadialMenuItem(kind: .tool, payload: RadialMenuTool.scratchpad.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.fastReader.rawValue),
             ]
         case .windowLayout:
             return [
@@ -340,7 +341,8 @@ private struct FailableRadialMenuItem: Decodable {
 /// blob; never rename them.
 enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     case screenshot, screenRecorder, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher,
-         cameraPreview, scratchpad, shelf, cleaner, uninstaller, appUpdates, cleaningMode, keepAwake
+         cameraPreview, scratchpad, shelf, cleaner, uninstaller, appUpdates, cleaningMode, keepAwake,
+         fastReader
 
     var id: String { rawValue }
 
@@ -361,6 +363,7 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
         case .appUpdates: return .appUpdates
         case .cleaningMode: return .cleaningMode
         case .keepAwake: return .keepAwake
+        case .fastReader: return .fastReader
         }
     }
 

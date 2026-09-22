@@ -67,6 +67,7 @@ enum QuickLauncherContract {
         }
         func showHistoryWindow() { events.append(name + ".showHistoryWindow") }
         func activate() { events.append(name + ".activate") }
+        func openWithCurrentSelection() { events.append(name + ".openWithCurrentSelection") }
     }
     enum KeepAwakeManager { static let shared = Spy(name: "keepAwake") }
     enum MicMuteService { static let shared = Spy(name: "micMute") }
@@ -76,6 +77,7 @@ enum QuickLauncherContract {
     enum ColorSamplerService { static let shared = Spy(name: "colorPicker") }
     enum CameraPreviewService { static let shared = Spy(name: "camera") }
     enum ScratchpadService { static let shared = Spy(name: "scratchpad") }
+    enum FastReaderService { static let shared = Spy(name: "fastReader") }
     enum ClipboardHistoryService { static let shared = Spy(name: "clipboard") }
     enum CleaningModeManager { static let shared = Spy(name: "cleaning") }
 
@@ -99,6 +101,7 @@ enum QuickLauncherContract {
             (.colorPicker, .colorPicker, "colorPicker.pick", 0.15),
             (.cameraPreview, .cameraPreview, "camera.show", 0.15),
             (.scratchpad, .scratchpad, "scratchpad.show", 0.15),
+            (.fastReader, .fastReader, "fastReader.openWithCurrentSelection", 0.15),
             (.clipboard, .clipboardHistory, "clipboard.showHistoryWindow", 0.1),
             (.cleaning, .cleaningMode, "cleaning.activate", 0.1),
             (.windowLayout, .windowLayout, nil, nil),
