@@ -14117,8 +14117,8 @@ struct MetricsTests {
         expect(mismatched.isEmpty,
                "every language fills a format the same way (\(mismatched.prefix(5).joined(separator: ", ")))")
         // Quotation marks are part of looking native and each language has its
-        // own. Checked against what the system itself ships on this Mac: French
-        // and Russian use the angled pair, German pairs a low opening mark with
+        // own. Checked against what the system itself ships on this Mac: French,
+        // Russian and Ukrainian use the angled pair, German pairs a low opening mark with
         // a high closing one, and every other language here uses the curly
         // pair. Spanish, Italian, Portuguese and Turkish had picked up the
         // angled pair, which reads as a translation from somewhere else.
@@ -14137,8 +14137,8 @@ struct MetricsTests {
         for (language, strings) in localizedStrings {
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
             let anglesUsed = values.contains { $0.contains("«") || $0.contains("»") }
-            expect(anglesUsed == (language == .fr || language == .ru),
-                   "only French and Russian quote with angled marks (\(language.rawValue))")
+            expect(anglesUsed == (language == .fr || language == .ru || language == .uk),
+                   "only French, Russian and Ukrainian quote with angled marks (\(language.rawValue))")
             let lowOpenUsed = values.contains { $0.contains("„") }
             expect(lowOpenUsed == (language == .de),
                    "only German opens a quote with the low mark (\(language.rawValue))")
@@ -25442,7 +25442,7 @@ struct MetricsTests {
         // number and is how the app already words several other counts. The
         // ones left out need no agreement: Turkish keeps the noun singular
         // after a number, and Chinese, Japanese and Korean do not inflect.
-        let agreeingLanguages: [AppLanguage] = [.enUS, .ptBR, .ru, .es, .de, .fr, .it]
+        let agreeingLanguages: [AppLanguage] = [.enUS, .ptBR, .ru, .uk, .es, .de, .fr, .it]
         for language in agreeingLanguages {
             let selection = FeatureStrings.commandBar(language).selectionCountFormat
             expect(!selection.hasPrefix("%d"),

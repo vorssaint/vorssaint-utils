@@ -458,5 +458,8 @@ extension KeepAwakeAutomationStrings {
         automationActive: "Активно, оскільки виконано автоматичну умову",
         pauseWhenLockedToggle: "Призупиняти, коли Mac заблоковано",
         pauseWhenLockedCaption: "Під час блокування діють звичайні правила сну; після розблокування сеанс продовжується.",
+        matchAny: "Будь-яка",
+        matchAll: "Усі",
+        automationCaptionAll: "Запускається лише коли всі обрані умови активні."
     )
 }

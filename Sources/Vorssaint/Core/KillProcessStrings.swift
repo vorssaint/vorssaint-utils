@@ -504,7 +504,7 @@ extension KillProcessFeatureStrings {
         commandBarCaption: "Додає запущені процеси в Панель команд, щоб ви могли знаходити та завершувати їх без відкриття Налаштувань.",
         refreshTooltip: "Оновити",
         pidLabelFormat: "PID %d",
-        processCountFormat: "%d процесів",
+        processCountFormat: "Процесів: %d",
         killButton: "Завершити",
         forceKillButton: "Примусово завершити",
         killAllFormat: "Завершити всі «%@»",
