@@ -14,16 +14,27 @@ private extension EnvironmentValues {
     }
 }
 
+/// The landing highlight: a tinted fill, an accent outline and a soft glow
+/// around the section a search, a legend or the Command Bar just brought
+/// into view, so the eye finds it before it fades.
 private struct SettingsSectionAnchorModifier: ViewModifier {
     let anchor: SettingsSectionAnchor
+    let cornerRadius: CGFloat
     @Environment(\.focusedSettingsSectionAnchor) private var focusedAnchor
 
     func body(content: Content) -> some View {
+        let focused = focusedAnchor == anchor
         content
             .id(anchor)
             .overlay {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.accentColor.opacity(focusedAnchor == anchor ? 0.10 : 0))
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.accentColor.opacity(focused ? 0.10 : 0))
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(focused ? 0.9 : 0), lineWidth: 2)
+                    .shadow(color: Color.accentColor.opacity(focused ? 0.5 : 0), radius: 14)
                     .allowsHitTesting(false)
             }
     }
@@ -70,12 +81,12 @@ private struct SettingsSectionFocusModifier: ViewModifier {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                 guard self.highlightID == request.id else { return }
                 focus(anchor, using: proxy)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
                     guard self.highlightID == request.id else { return }
                     if reduceMotion {
                         focusedAnchor = nil
                     } else {
-                        withAnimation(.easeOut(duration: 0.25)) {
+                        withAnimation(.easeOut(duration: 0.4)) {
                             focusedAnchor = nil
                         }
                     }
@@ -84,13 +95,15 @@ private struct SettingsSectionFocusModifier: ViewModifier {
         }
     }
 
+    /// Centered, so the section lands in the middle of the eye line rather
+    /// than at an edge of the window.
     private func focus(_ anchor: SettingsSectionAnchor, using proxy: ScrollViewProxy) {
         if reduceMotion {
-            proxy.scrollTo(anchor)
+            proxy.scrollTo(anchor, anchor: .center)
             focusedAnchor = anchor
         } else {
             withAnimation(.easeInOut(duration: 0.3)) {
-                proxy.scrollTo(anchor)
+                proxy.scrollTo(anchor, anchor: .center)
                 focusedAnchor = anchor
             }
         }
@@ -98,9 +111,10 @@ private struct SettingsSectionFocusModifier: ViewModifier {
 }
 
 extension View {
-    /// Marks a stable destination inside a Settings page.
-    func settingsSectionAnchor(_ anchor: SettingsSectionAnchor) -> some View {
-        modifier(SettingsSectionAnchorModifier(anchor: anchor))
+    /// Marks a stable destination inside a Settings page. The corner radius
+    /// is the destination's own, so the landing outline hugs it.
+    func settingsSectionAnchor(_ anchor: SettingsSectionAnchor, cornerRadius: CGFloat = 7) -> some View {
+        modifier(SettingsSectionAnchorModifier(anchor: anchor, cornerRadius: cornerRadius))
     }
 
     /// Handles one-shot destination requests for one Settings page.

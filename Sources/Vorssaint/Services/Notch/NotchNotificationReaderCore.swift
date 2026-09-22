@@ -26,6 +26,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
 
     private struct Target {
         let root: Access.Element
+        let transient: Bool
         let nativeIdentity: String?
         let item: NotchSystemNotification
     }
@@ -65,14 +66,15 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         beginRead()
         guard fetch({ try access.hasFocusedWindow() }) == false,
               let windows = fetch({ try access.windows() }), windows.count <= 32 else { return nil }
-        var roots: [Access.Element] = []
+        var roots: [(root: Access.Element, transient: Bool)] = []
         for window in windows { findBanners(window, depth: 0, into: &roots) }
         guard usable else { return nil }
         var items: [NotchSystemNotification] = []
         var nextTargets = targets
         var currentIDs = Set<UUID>()
         var identityCounts: [String: Int] = [:]
-        for root in roots {
+        for candidate in roots {
+            let root = candidate.root
             guard let content = content(root) else { continue }
             let identity = NotchNotificationSupport.nativeIdentity(string(root, "AXIdentifier"))
             if let identity { identityCounts[identity, default: 0] += 1 }
@@ -86,7 +88,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
             let item = NotchSystemNotification(id: id, content: content, received: old?.item.received ?? receivedDate(),
                 canOpen: rootActions.contains("AXPress"))
             nextTargets.removeAll { $0.item.id == id }
-            nextTargets.append(Target(root: root, nativeIdentity: identity, item: item))
+            nextTargets.append(Target(root: root, transient: candidate.transient, nativeIdentity: identity, item: item))
             items.append(item)
         }
         guard usable else { return nil }
@@ -110,7 +112,9 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
 
     func closeNative(_ id: UUID) -> Bool {
         beginRead()
-        guard allowsNativeClose(), let target = validatedTarget(id),
+        // Closing persistent alerts can stop alarms. Only transient banners
+        // may be replaced automatically; validate their current container too.
+        guard allowsNativeClose(), read() != nil, let target = validatedTarget(id), target.transient,
               let action = NotchNotificationSupport.closeAction(in: actions(target.root), title: nativeCloseTitle),
               usable, allowsNativeClose() else { return false }
         return access.perform(action, on: target.root)
@@ -141,36 +145,38 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         return target
     }
 
-    private func findBanners(_ node: Access.Element, depth: Int, into roots: inout [Access.Element]) {
+    private func findBanners(_ node: Access.Element, depth: Int, into roots: inout [(root: Access.Element, transient: Bool)]) {
         guard visit(depth: depth) else { return }
         let subrole = string(node, "AXSubrole") ?? ""
-        if NotchNotificationSupport.bannerRoles.contains(subrole) { roots.append(node); return }
+        if NotchNotificationSupport.bannerRoles.contains(subrole) {
+            roots.append((node, subrole == "AXNotificationCenterBanner")); return
+        }
         if NotchNotificationSupport.stackRoles.contains(subrole) {
-            findStackCards(node, depth: depth, into: &roots)
+            findStackCards(node, depth: depth, transient: subrole == "AXNotificationCenterBannerStack", into: &roots)
             return
         }
         for child in children(node) { findBanners(child, depth: depth + 1, into: &roots) }
     }
 
-    private func findStackCards(_ node: Access.Element, depth: Int, into roots: inout [Access.Element]) {
+    private func findStackCards(_ node: Access.Element, depth: Int, transient: Bool, into roots: inout [(root: Access.Element, transient: Bool)]) {
         guard usable else { return }
         if let card = content(node), !card.body.isEmpty || !card.app.isEmpty {
             // Modern stacks can be a structural wrapper around one complete
             // card. Descend only when the entire message is preserved; selecting
             // a title-only subgroup would lose its sender/body boundary.
             let completeChildren = children(node).filter { content($0) == card }
-            if completeChildren.isEmpty { roots.append(node) }
+            if completeChildren.isEmpty { roots.append((node, transient)) }
             else {
                 for child in completeChildren {
                     guard visit(depth: depth + 1) else { return }
-                    findStackCards(child, depth: depth + 1, into: &roots)
+                    findStackCards(child, depth: depth + 1, transient: transient, into: &roots)
                 }
             }
             return
         }
         for child in children(node) {
             guard visit(depth: depth + 1) else { return }
-            findStackCards(child, depth: depth + 1, into: &roots)
+            findStackCards(child, depth: depth + 1, transient: transient, into: &roots)
         }
     }
 

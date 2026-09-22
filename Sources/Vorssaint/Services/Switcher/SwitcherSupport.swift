@@ -54,6 +54,7 @@ final class SwitcherWindowFocusRetryState {
                         targetMinimizedState: Bool?,
                         targetAppWindowIDs: @autoclosure () -> Set<CGWindowID>,
                         targetAppFocusedWindowID: @autoclosure () -> CGWindowID?,
+                        ignoresForeground: Bool = false,
                         ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard isActive else { return false }
         isActive = SwitcherSupport.shouldContinueFocusRetry(
@@ -66,6 +67,7 @@ final class SwitcherWindowFocusRetryState {
             knownWindowIDs: knownWindowIDs,
             targetAppWindowIDs: targetAppWindowIDs(),
             targetAppFocusedWindowID: targetAppFocusedWindowID(),
+            ignoresForeground: ignoresForeground,
             ownPID: ownPID
         )
         observe(targetMinimizedState: targetMinimizedState)
@@ -349,6 +351,7 @@ struct SwitcherIconRowLayout: Equatable {
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
                         maximumWindowCount: Int = 1,
+                        sessionScope: SwitcherSessionScope = .allApps,
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
                         tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
@@ -364,7 +367,11 @@ struct SwitcherIconRowLayout: Equatable {
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
         // Reserve room for a pair whenever any app has multiple windows. Use
         // the whole list so selecting another app never moves the icon row.
-        let reservedCardCount = min(2, max(windowCount, maximumWindowCount))
+        // A focused-app session has no other apps to keep stationary; let
+        // its windows fill the available display before scrolling.
+        let reservedCardCount = sessionScope == .frontmostApp
+            ? max(windowCount, maximumWindowCount)
+            : min(2, max(windowCount, maximumWindowCount))
         let previewCeiling = min(maxPreviewContentWidth,
                                  max(Self.naturalPreviewWidth(cardCount: reservedCardCount),
                                      appRowSurfaceWidth - previewPanelPadding * 2))
@@ -1349,12 +1356,20 @@ enum SwitcherSupport {
                                          knownWindowIDs: Set<CGWindowID> = [],
                                          targetAppWindowIDs: @autoclosure () -> Set<CGWindowID> = [],
                                          targetAppFocusedWindowID: @autoclosure () -> CGWindowID? = nil,
+                                         ignoresForeground: Bool = false,
                                          ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard !targetIsMinimized
                 || (targetStartedMinimized && !targetWasObservedRestored)
         else { return false }
         let initialFrontmostPID = frontmostPID()
-        if let sourcePID, let initialFrontmostPID,
+        // A hop travels across desktops, and the system fronts whatever sits
+        // on top of each one it passes. Which app is in front while that runs
+        // says nothing about where the user wants to be, and reading it as
+        // "they moved on" leaves the window they picked behind that app. Such
+        // a pass gives up for the one signal that does carry intent: the app
+        // moved to a window it opened after the switch.
+        if !ignoresForeground,
+           let sourcePID, let initialFrontmostPID,
            initialFrontmostPID != targetPID && initialFrontmostPID != sourcePID && initialFrontmostPID != ownPID {
             return false
         }
@@ -1362,13 +1377,13 @@ enum SwitcherSupport {
         // may sit above a real window. Only query Accessibility when this app
         // is active and the cheap window-server list contains something new.
         // An unavailable focus reading preserves the previous retry behavior.
-        guard initialFrontmostPID == targetPID,
+        guard ignoresForeground || initialFrontmostPID == targetPID,
               !knownWindowIDs.isEmpty,
               !targetAppWindowIDs().isSubset(of: knownWindowIDs) else { return true }
         let focusedWindowID = targetAppFocusedWindowID()
         // Accessibility can wait on the other process. Do not act on the old
         // foreground observation if the user left the app during that wait.
-        guard frontmostPID() == targetPID else { return false }
+        if !ignoresForeground, frontmostPID() != targetPID { return false }
         guard let focusedWindowID else { return true }
         return knownWindowIDs.contains(focusedWindowID)
     }

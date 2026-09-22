@@ -24,6 +24,11 @@ struct NotchEqualizerBars: View {
                              levels: isPlaying && !reduceMotion ? live : nil)
             .frame(width: CGFloat(count) * barWidth + CGFloat(count - 1) * barWidth * 0.85,
                    height: height)
+            // A hosted view has no baseline of its own, so beside text it
+            // would hang below the line and make the row taller. The bars
+            // stand on the baseline like the glyphs next to them.
+            .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
+            .alignmentGuide(.lastTextBaseline) { $0[.bottom] }
             .accessibilityHidden(true)
             .allowsHitTesting(false)
     }

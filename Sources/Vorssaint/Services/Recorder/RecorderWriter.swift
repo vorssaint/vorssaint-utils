@@ -15,6 +15,12 @@ import CoreMedia
 /// and awaited, so no buffer can still be in flight.
 final class RecorderWriter {
 
+    enum AppendOutcome {
+        case appended
+        case notReady
+        case dropped
+    }
+
     private let writer: AVAssetWriter
     private let videoInput: AVAssetWriterInput
     private let systemAudioInput: AVAssetWriterInput?
@@ -149,16 +155,18 @@ final class RecorderWriter {
         started = true
     }
 
-    func append(_ sampleBuffer: CMSampleBuffer, kind: RecorderCaptureEngine.Kind) {
-        guard !failed else { return }
+    @discardableResult
+    func append(_ sampleBuffer: CMSampleBuffer,
+                kind: RecorderCaptureEngine.Kind) -> AppendOutcome {
+        guard !failed else { return .dropped }
         let presentation = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        guard presentation.isValid else { return }
+        guard presentation.isValid else { return .dropped }
 
-        guard started else { return }
+        guard started else { return .dropped }
         let duration = CMSampleBufferGetDuration(sampleBuffer)
         let seconds = duration.isValid && !duration.isIndefinite ? max(0, duration.seconds) : 0
         guard let mapped = pauseClock.sampleTime(start: presentation.seconds,
-                                                 duration: seconds) else { return }
+                                                 duration: seconds) else { return .dropped }
         let shifted = CMTime(seconds: mapped, preferredTimescale: 600_000_000)
 
         switch kind {
@@ -166,32 +174,42 @@ final class RecorderWriter {
             // Hold the first captured image over startup latency. Keep the
             // shared origin and every later timestamp so audio stays aligned.
             let videoTime: CMTime = videoFrameCount == 0 ? .zero : shifted
-            guard videoInput.isReadyForMoreMediaData,
-                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: videoTime)
-            else { return }
+            guard videoInput.isReadyForMoreMediaData else { return .notReady }
+            guard let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: videoTime)
+            else { return .dropped }
             if videoInput.append(retimed) {
                 videoFrameCount += 1
                 lastVideoSample = sampleBuffer
                 lastVideoTime = videoTime
+                return .appended
             } else {
                 failed = true
+                return .dropped
             }
         case .systemAudio:
-            guard let systemAudioInput, systemAudioInput.isReadyForMoreMediaData,
+            guard let systemAudioInput else { return .dropped }
+            guard systemAudioInput.isReadyForMoreMediaData else { return .notReady }
+            guard
                   let interleaved = Self.interleavedAudioSample(sampleBuffer, converter: &systemAudioConverter),
                   let retimed = RecorderSampleTiming.retimed(interleaved, to: shifted)
-            else { return }
-            if !systemAudioInput.append(retimed) {
+            else { return .dropped }
+            guard systemAudioInput.append(retimed) else {
                 failed = true
+                return .dropped
             }
+            return .appended
         case .microphone:
-            guard let microphoneInput, microphoneInput.isReadyForMoreMediaData,
+            guard let microphoneInput else { return .dropped }
+            guard microphoneInput.isReadyForMoreMediaData else { return .notReady }
+            guard
                   let interleaved = Self.interleavedAudioSample(sampleBuffer, converter: &microphoneConverter),
                   let retimed = RecorderSampleTiming.retimed(interleaved, to: shifted)
-            else { return }
-            if !microphoneInput.append(retimed) {
+            else { return .dropped }
+            guard microphoneInput.append(retimed) else {
                 failed = true
+                return .dropped
             }
+            return .appended
         }
     }
 

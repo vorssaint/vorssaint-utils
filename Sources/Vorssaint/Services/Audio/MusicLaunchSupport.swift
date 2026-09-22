@@ -3,18 +3,15 @@
 
 import Foundation
 
-/// Decides whether a music-app launch was caused by a media key. The system
-/// launches that app on play, next, previous, fast-forward and rewind when no
-/// other player is around; a recent press of one of those keys is what the
-/// blocker is for. Opening the app from the Dock, Spotlight or a double-click
-/// has no such press, so it must be left alone.
+/// Only an observed media key can explain an automatic music-app launch.
+/// Absence of a click is not evidence: voice, automation and login can all
+/// open an app intentionally without a keyboard or pointer gesture.
 enum MusicLaunchSupport {
     static let systemDefinedEventTypeRawValue: UInt32 = 14
     static let auxiliaryControlButtonsSubtype = 8
     static let keyDownState = 10
     /// Launch Services needs a moment after the key to start the app.
     static let launchArmWindow: TimeInterval = 2.0
-
     static let playPauseKeyCode: UInt16 = 16
     static let nextTrackKeyCode: UInt16 = 17
     static let previousTrackKeyCode: UInt16 = 18
@@ -38,8 +35,16 @@ enum MusicLaunchSupport {
         return musicLaunchKeyCodes.contains(keyCode)
     }
 
-    static func shouldBlockLaunch(now: TimeInterval, lastTriggerAt: TimeInterval?) -> Bool {
-        guard let lastTriggerAt else { return false }
-        return now - lastTriggerAt <= launchArmWindow
+    /// A newer click or key press takes precedence over a media key. Invalid
+    /// or expired evidence always leaves the launch alone. An infinite gesture
+    /// age means the session has never seen one, and still needs a real key.
+    static func shouldBlockLaunch(now: TimeInterval,
+                                  lastTriggerAt: TimeInterval?,
+                                  secondsSinceUserGesture: TimeInterval) -> Bool {
+        guard now.isFinite, now >= 0, let lastTriggerAt,
+              lastTriggerAt.isFinite, lastTriggerAt >= 0,
+              !secondsSinceUserGesture.isNaN, secondsSinceUserGesture >= 0 else { return false }
+        let elapsed = now - lastTriggerAt
+        return (0...launchArmWindow).contains(elapsed) && secondsSinceUserGesture > elapsed
     }
 }

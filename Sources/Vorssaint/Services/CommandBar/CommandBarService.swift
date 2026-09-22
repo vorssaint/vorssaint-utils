@@ -226,6 +226,7 @@ final class CommandBarService: ObservableObject {
     private var restartURL: URL?
 
     private init() {
+        CommandBarLearning.discardLegacyQueryHabits()
         hotkey.onPress = { [weak self] in self?.toggle() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
@@ -235,12 +236,12 @@ final class CommandBarService: ObservableObject {
 
     func syncWithPreferences() {
         let available = AppFeature.commandBar.isAvailable
-        if available { CommandBarQueryHabits.warmInstallationKey() }
         let enabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarShortcut,
                                             fallback: .commandBarDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.commandBarShortcut)
         reloadPreferenceCaches()
         syncRowHotkeys()
         if available {
@@ -313,13 +314,7 @@ final class CommandBarService: ObservableObject {
         reloadPreferenceCaches()
         query = ""
         refreshResults()
-        CommandBarQueryHabits.warmInstallationKey { [weak self] in
-            DispatchQueue.main.async {
-                guard let self, self.presentationID == id, self.isVisible else { return }
-                self.preparedHabitQuery.reset()
-                self.refreshResults()
-            }
-        }
+        adoptASCIIInputSource()
         present(panel)
         // Ordering the prepared panel is the keystroke path. Home is filled on
         // the next main-loop turn, when a close or newer opening can supersede it.
@@ -419,6 +414,7 @@ final class CommandBarService: ObservableObject {
             rows = []
             sectionTitles = [:]
         }
+        restoreSuspendedInputSource()
         removeMonitors()
         panel?.orderOut(nil)
         // Leaving mid-review through this path (global shortcut, outside
@@ -461,6 +457,73 @@ final class CommandBarService: ObservableObject {
         query = ""
         presentationLifecycle.hide()
         clearIndex()
+    }
+
+    // MARK: - The bar's own keyboard layout
+
+    /// The input source the bar switched away from on open, put back on
+    /// close. Recorded whenever TIS accepts the switch: a switch that never
+    /// landed restores a source the bar never left — a no-op — while a
+    /// missing record would strand the typist on the borrowed layout.
+    private var suspendedInputSourceID: String?
+
+    var hasBorrowedInputSource: Bool {
+        suspendedInputSourceID != nil
+    }
+
+    /// One-shot switch to the first enabled ASCII layout, read fresh on every
+    /// open like every other preference on this path. TIS talks to the
+    /// text-input server from the main thread, the way the Super key switch
+    /// already does.
+    private func adoptASCIIInputSource() {
+        let apply = {
+            guard UserDefaults.standard.bool(forKey: DefaultsKey.commandBarASCIILayoutEnabled) else {
+                self.restoreSuspendedInputSource()
+                return
+            }
+            let currentID = InputSourceSelection.currentSourceID()
+            guard let target = InputSourceSelection.asciiLayoutID(
+                currentID: currentID,
+                snapshots: InputSourceSelection.snapshots())
+            else { return }
+            // The record belongs to acceptance, not the landing: a switch
+            // that never landed only restores a source the bar never left —
+            // a no-op — while a missed record strands the typist on the
+            // borrowed layout.
+            guard InputSourceSelection.select(sourceID: target) else { return }
+            self.suspendedInputSourceID = currentID
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.sync(execute: apply)
+        }
+    }
+
+    private func restoreSuspendedInputSource() {
+        guard let sourceID = suspendedInputSourceID else { return }
+        // The switch waits for the next turn of the main loop. A close reached
+        // through a key (Esc, Return, ⌘,) runs inside that key event's own
+        // dispatch, and TIS quietly ignores a source switch asked for there —
+        // the same hide() restores fine from a click or the hotkey, which
+        // stand outside any key event. Waiting is safe: the presentation id
+        // is captured now, and beginPresentation replaces it on the next
+        // open. Keep the original source until restoration actually runs:
+        // reopening while ASCII is still active borrows the same source.
+        let presentationID = self.presentationID
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.presentationID == presentationID,
+                  self.suspendedInputSourceID == sourceID else { return }
+            self.restoreBorrowedInputSource()
+        }
+    }
+
+    /// The termination path cannot wait for another main-loop turn. Keep a
+    /// refused restoration pending so a later close or termination can retry.
+    func restoreBorrowedInputSource() {
+        guard let sourceID = suspendedInputSourceID,
+              InputSourceSelection.select(sourceID: sourceID) else { return }
+        suspendedInputSourceID = nil
     }
 
     /// Re-fits the panel to its content as the result list grows and
@@ -572,7 +635,12 @@ final class CommandBarService: ObservableObject {
             hotkey.onPress = { [weak self] in self?.runRow(withStableKey: key) }
             // A combination another app already holds is refused by the system.
             // Saying so beats a row that shows a key it will never answer to.
-            if !hotkey.sync(enabled: true, shortcut: shortcut) { refused.insert(key) }
+            // Row combinations live inside one dictionary, so a claim is
+            // named by the row it belongs to.
+            if !hotkey.sync(enabled: true, shortcut: shortcut,
+                            storageKey: "\(DefaultsKey.commandBarRowShortcuts).\(key)") {
+                refused.insert(key)
+            }
             rowHotkeys.append(hotkey)
             index += 1
         }
@@ -833,8 +901,6 @@ final class CommandBarService: ObservableObject {
             from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarDisabledSources) ?? "")
         usageCache = CommandBarUsage.decode(
             UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
-        queryHabitStore.reload(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
         shortcutCache = rowShortcuts
         compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
         hasCustomPosition = positionOffset != .zero
@@ -959,8 +1025,6 @@ final class CommandBarService: ObservableObject {
         UserDefaults.standard.set(CommandBarUsage.encode(usage), forKey: DefaultsKey.commandBarUsage)
         queryMemory.forget(id: entry.id)
         queryHabitStore.remove(resultID: entry.id)
-        UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
-                                  forKey: DefaultsKey.commandBarQueryHabits)
         refreshAfterPreferenceChange()
     }
 
@@ -2367,8 +2431,6 @@ final class CommandBarService: ObservableObject {
                 queryHabitStore.record(preparedQuery: prepared,
                                        resultID: entry.id,
                                        now: now)
-                UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
-                                          forKey: DefaultsKey.commandBarQueryHabits)
             }
         }
     }
@@ -3048,8 +3110,14 @@ final class CommandBarService: ObservableObject {
                 }
             }
             // In a checklist, native controls own Tab, Space and arrows.
-            // Only Return in the search field means the flow's primary action.
+            // Only Return in the search field means the flow's primary action,
+            // and only a fresh press: a Return still held from the app list
+            // must not confirm the review the moment its scan finishes.
             if self.mode.isUninstallFlow {
+                if event.isARepeat,
+                   Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter {
+                    return nil
+                }
                 return self.handleUninstallKey(Int(event.keyCode),
                                                searchFieldFocused: panel.firstResponder is NSTextView)
                     ? nil : event

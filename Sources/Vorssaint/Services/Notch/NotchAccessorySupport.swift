@@ -13,6 +13,9 @@ enum NotchAccessorySupport {
     }
 
     static func symbol(for kind: PeripheralBatteryKind, name: String) -> String {
+        let kind = kind == .device
+            ? PeripheralBatterySupport.kind(product: name, primaryUsagePage: nil, primaryUsage: nil, usagePairs: [])
+            : kind
         switch kind {
         case .audio:
             let model = name.lowercased()
@@ -22,8 +25,8 @@ enum NotchAccessorySupport {
             return "headphones"
         case .keyboard: return "keyboard"
         case .mouse: return "computermouse"
-        case .trackpad: return "trackpad"
-        case .device: return "battery.25percent"
+        case .trackpad: return "rectangle.and.hand.point.up.left"
+        case .device: return "dot.radiowaves.left.and.right"
         }
     }
 

@@ -40,11 +40,10 @@ struct NotchTimerStrip: View {
                     }
                 }
                 .padding(.leading, iconInset)
-                .padding(.trailing, geometry.compactActivityUsesFooter ? 0 : 8)
-                // Leading and trailing wings anchor to their own edge, so the
-                // silhouette's curve decides the margin instead of the content.
+                // The camera already separates the wings; only the outside
+                // edge needs clearance from the silhouette.
                 .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
-                       alignment: .leading)
+                       alignment: .trailing)
                 .contentShape(Rectangle())
             }
             .accessibilityLabel(service.hasDownloadActivity ? FeatureStrings.notchFiles(l10n.language).downloadsTitle
@@ -77,10 +76,9 @@ struct NotchTimerStrip: View {
                         .lineLimit(1).minimumScaleFactor(0.65)
                 }
             }
-            .padding(.leading, geometry.compactActivityUsesFooter ? 0 : 8)
             .padding(.trailing, textInset)
             .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
-                   alignment: .trailing)
+                   alignment: .leading)
             .contentShape(Rectangle())
         }
         .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))

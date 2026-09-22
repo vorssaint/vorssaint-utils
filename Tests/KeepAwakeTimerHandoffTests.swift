@@ -42,7 +42,7 @@ enum KeepAwakeTimerHandoffTests {
         let any = dockedOnBattery(requireAll: false)
         expect(any.continueAutomaticallyAfterTimerIfNeeded()
                 && any.activations.count == 1
-                && any.activations.first?.minutes == 0
+                && any.activations.first?.end == nil
                 && any.activations.first?.trigger == .automation
                 && any.activeAutomationConditions == [.externalDisplay],
                "the same timer still hands over under Any, which is today's behaviour")

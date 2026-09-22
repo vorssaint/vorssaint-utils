@@ -21,6 +21,10 @@ struct NotchCalendarStrings {
     let requestFailed: String
     let previousMonth: String
     let nextMonth: String
+    let previousWeek: String
+    let nextWeek: String
+    /// The month grid, offered from the week strip of a short island.
+    let month: String
     let emptyDay: String
     let hasEvents: String
 }
@@ -46,6 +50,9 @@ extension FeatureStrings {
             requestFailed: "Could not request calendar access. Please try again.",
             previousMonth: "Previous month",
             nextMonth: "Next month",
+            previousWeek: "Previous week",
+            nextWeek: "Next week",
+            month: "Month",
             emptyDay: "No appointments on this day",
             hasEvents: "Has appointments")
         case .ptBR: return NotchCalendarStrings(
@@ -66,6 +73,9 @@ extension FeatureStrings {
             requestFailed: "Não foi possível pedir acesso ao calendário. Tente novamente.",
             previousMonth: "Mês anterior",
             nextMonth: "Próximo mês",
+            previousWeek: "Semana anterior",
+            nextWeek: "Próxima semana",
+            month: "Mês",
             emptyDay: "Nenhum compromisso neste dia",
             hasEvents: "Tem compromissos")
         case .es: return NotchCalendarStrings(
@@ -86,6 +96,9 @@ extension FeatureStrings {
             requestFailed: "No se pudo solicitar acceso al calendario. Inténtalo de nuevo.",
             previousMonth: "Mes anterior",
             nextMonth: "Mes siguiente",
+            previousWeek: "Semana anterior",
+            nextWeek: "Semana siguiente",
+            month: "Mes",
             emptyDay: "No hay citas este día",
             hasEvents: "Tiene citas")
         case .de: return NotchCalendarStrings(
@@ -106,6 +119,9 @@ extension FeatureStrings {
             requestFailed: "Der Kalenderzugriff konnte nicht angefordert werden. Versuche es erneut.",
             previousMonth: "Vorheriger Monat",
             nextMonth: "Nächster Monat",
+            previousWeek: "Vorherige Woche",
+            nextWeek: "Nächste Woche",
+            month: "Monat",
             emptyDay: "Keine Termine an diesem Tag",
             hasEvents: "Termine vorhanden")
         case .fr: return NotchCalendarStrings(
@@ -126,6 +142,9 @@ extension FeatureStrings {
             requestFailed: "Impossible de demander l’accès au calendrier. Réessayez.",
             previousMonth: "Mois précédent",
             nextMonth: "Mois suivant",
+            previousWeek: "Semaine précédente",
+            nextWeek: "Semaine suivante",
+            month: "Mois",
             emptyDay: "Aucun rendez-vous ce jour-là",
             hasEvents: "Rendez-vous prévus")
         case .it: return NotchCalendarStrings(
@@ -146,6 +165,9 @@ extension FeatureStrings {
             requestFailed: "Impossibile richiedere l’accesso al calendario. Riprova.",
             previousMonth: "Mese precedente",
             nextMonth: "Mese successivo",
+            previousWeek: "Settimana precedente",
+            nextWeek: "Settimana successiva",
+            month: "Mese",
             emptyDay: "Nessun appuntamento in questo giorno",
             hasEvents: "Appuntamenti presenti")
         case .ru: return NotchCalendarStrings(
@@ -166,6 +188,9 @@ extension FeatureStrings {
             requestFailed: "Не удалось запросить доступ к календарю. Повторите попытку.",
             previousMonth: "Предыдущий месяц",
             nextMonth: "Следующий месяц",
+            previousWeek: "Предыдущая неделя",
+            nextWeek: "Следующая неделя",
+            month: "Месяц",
             emptyDay: "В этот день встреч нет",
             hasEvents: "Есть встречи")
         case .tr: return NotchCalendarStrings(
@@ -186,6 +211,9 @@ extension FeatureStrings {
             requestFailed: "Takvim erişimi istenemedi. Tekrar deneyin.",
             previousMonth: "Önceki ay",
             nextMonth: "Sonraki ay",
+            previousWeek: "Önceki hafta",
+            nextWeek: "Sonraki hafta",
+            month: "Ay",
             emptyDay: "Bu gün için randevu yok",
             hasEvents: "Randevu var")
         case .ja: return NotchCalendarStrings(
@@ -206,6 +234,9 @@ extension FeatureStrings {
             requestFailed: "カレンダーへのアクセスを要求できませんでした。もう一度お試しください。",
             previousMonth: "前の月",
             nextMonth: "次の月",
+            previousWeek: "前の週",
+            nextWeek: "次の週",
+            month: "月",
             emptyDay: "この日の予定はありません",
             hasEvents: "予定あり")
         case .ko: return NotchCalendarStrings(
@@ -226,6 +257,9 @@ extension FeatureStrings {
             requestFailed: "캘린더 접근을 요청할 수 없습니다. 다시 시도하세요.",
             previousMonth: "이전 달",
             nextMonth: "다음 달",
+            previousWeek: "이전 주",
+            nextWeek: "다음 주",
+            month: "월",
             emptyDay: "이 날의 일정 없음",
             hasEvents: "일정 있음")
         case .zhHans: return NotchCalendarStrings(
@@ -246,6 +280,9 @@ extension FeatureStrings {
             requestFailed: "无法请求日历访问权限，请重试。",
             previousMonth: "上个月",
             nextMonth: "下个月",
+            previousWeek: "上一周",
+            nextWeek: "下一周",
+            month: "月",
             emptyDay: "当天没有日程",
             hasEvents: "有日程")
         case .zhTW: return NotchCalendarStrings(
@@ -266,6 +303,9 @@ extension FeatureStrings {
             requestFailed: "無法要求行事曆取用權限，請再試一次。",
             previousMonth: "上個月",
             nextMonth: "下個月",
+            previousWeek: "上一週",
+            nextWeek: "下一週",
+            month: "月",
             emptyDay: "當天沒有行程",
             hasEvents: "有行程")
         case .zhHK: return NotchCalendarStrings(
@@ -286,6 +326,9 @@ extension FeatureStrings {
             requestFailed: "無法要求日曆取用權限，請重試。",
             previousMonth: "上個月",
             nextMonth: "下個月",
+            previousWeek: "上一週",
+            nextWeek: "下一週",
+            month: "月",
             emptyDay: "當天沒有行程",
             hasEvents: "有行程")
         case .uk: return NotchCalendarStrings(
@@ -306,6 +349,9 @@ extension FeatureStrings {
             requestFailed: "Не вдалося запросити доступ до календаря. Спробуйте ще раз.",
             previousMonth: "Попередній місяць",
             nextMonth: "Наступний місяць",
+            previousWeek: "Попередній тиждень",
+            nextWeek: "Наступний тиждень",
+            month: "Місяць",
             emptyDay: "Цього дня немає подій",
             hasEvents: "Є події")
         }

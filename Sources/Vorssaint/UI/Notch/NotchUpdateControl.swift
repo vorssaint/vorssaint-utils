@@ -8,6 +8,7 @@ import SwiftUI
 struct NotchUpdateControl: View {
     @ObservedObject private var updates = UpdateService.shared
     let action: () -> Void
+    var compact = false
     @ObservedObject private var l10n = L10n.shared
 
     @ViewBuilder var body: some View {
@@ -16,9 +17,15 @@ struct NotchUpdateControl: View {
             let tint: Color = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? .orange : .blue
             let title = "\(l10n.s.updateBannerTitle), \(l10n.s.versionPrefix) \(version)"
             Button(action: action) {
-                Label(l10n.s.updateBannerAction, systemImage: "arrow.down.circle.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
+                Group {
+                    if compact {
+                        Image(systemName: "arrow.down.circle.fill")
+                    } else {
+                        Label(l10n.s.updateBannerAction, systemImage: "arrow.down.circle.fill")
+                    }
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
             }
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.capsule)
@@ -40,15 +47,17 @@ struct NotchUpdateControl: View {
     private func progressIndicator(title: String, fraction: Double? = nil) -> some View {
         HStack(spacing: 5) {
             ProgressView().controlSize(.small)
-            if let fraction {
-                Text(fraction, format: .percent.precision(.fractionLength(0)))
-                    .monospacedDigit()
-            } else {
-                Text(title).lineLimit(1).truncationMode(.tail)
+            if !compact {
+                if let fraction {
+                    Text(fraction, format: .percent.precision(.fractionLength(0)))
+                        .monospacedDigit()
+                } else {
+                    Text(title).lineLimit(1).truncationMode(.tail)
+                }
             }
         }
         .font(.system(size: 10, weight: .medium))
-        .frame(maxWidth: 110)
+        .frame(maxWidth: compact ? nil : 110)
         .help(title)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)

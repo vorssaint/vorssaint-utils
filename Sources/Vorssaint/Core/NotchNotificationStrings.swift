@@ -29,7 +29,7 @@ extension FeatureStrings {
             dismiss: "Dismiss",
             unavailable: "This notification can no longer accept this action.",
             dismissSystemBanner: "Dismiss the system banner",
-            dismissSystemBannerHint: "Dismiss the original after it appears in the Dynamic Island. It may still appear briefly.")
+            dismissSystemBannerHint: "Dismiss the original shortly after it appears in the Dynamic Island. Longer sounds may still be cut off.")
         case .ptBR: return NotchNotificationStrings(
             title: "Notificações",
             description: "Novas notificações do sistema no Dynamic Island.",
@@ -40,7 +40,7 @@ extension FeatureStrings {
             dismiss: "Dispensar",
             unavailable: "Esta notificação não aceita mais esta ação.",
             dismissSystemBanner: "Recolher aviso do sistema",
-            dismissSystemBannerHint: "Dispensa o aviso original após aparecer no Dynamic Island. Ele ainda pode aparecer brevemente.")
+            dismissSystemBannerHint: "Recolhe o aviso original pouco depois de aparecer no Dynamic Island. Sons mais longos ainda podem ser cortados.")
         case .es: return NotchNotificationStrings(
             title: "Notificaciones",
             description: "Nuevas notificaciones del sistema en el Dynamic Island.",
@@ -51,7 +51,7 @@ extension FeatureStrings {
             dismiss: "Descartar",
             unavailable: "Esta notificación ya no admite esta acción.",
             dismissSystemBanner: "Cerrar el aviso del sistema",
-            dismissSystemBannerHint: "Cierra el aviso original después de aparecer en el Dynamic Island. Puede verse brevemente.")
+            dismissSystemBannerHint: "Cierra el aviso original poco después de aparecer en el Dynamic Island. Los sonidos más largos aún pueden cortarse.")
         case .de: return NotchNotificationStrings(
             title: "Mitteilungen",
             description: "Neue Systemmitteilungen im Dynamic Island.",
@@ -62,7 +62,7 @@ extension FeatureStrings {
             dismiss: "Verwerfen",
             unavailable: "Diese Mitteilung unterstützt diese Aktion nicht mehr.",
             dismissSystemBanner: "Systemhinweis schließen",
-            dismissSystemBannerHint: "Schließt den ursprünglichen Hinweis nach der Anzeige in der Dynamic Island. Er kann kurz sichtbar sein.")
+            dismissSystemBannerHint: "Schließt den ursprünglichen Hinweis kurz nach der Anzeige in der Dynamic Island. Längere Töne können weiterhin abgeschnitten werden.")
         case .fr: return NotchNotificationStrings(
             title: "Notifications",
             description: "Les nouvelles notifications système dans le Dynamic Island.",
@@ -73,7 +73,7 @@ extension FeatureStrings {
             dismiss: "Ignorer",
             unavailable: "Cette notification ne permet plus cette action.",
             dismissSystemBanner: "Fermer la bannière système",
-            dismissSystemBannerHint: "Ferme la bannière d’origine après son affichage dans l’encoche. Elle peut apparaître brièvement.")
+            dismissSystemBannerHint: "Ferme la bannière d’origine peu après son affichage dans la Dynamic Island. Les sons plus longs peuvent encore être interrompus.")
         case .it: return NotchNotificationStrings(
             title: "Notifiche",
             description: "Nuove notifiche di sistema nel Dynamic Island.",
@@ -84,7 +84,7 @@ extension FeatureStrings {
             dismiss: "Ignora",
             unavailable: "Questa notifica non consente più questa azione.",
             dismissSystemBanner: "Chiudi l’avviso di sistema",
-            dismissSystemBannerHint: "Chiude l’avviso originale dopo averlo mostrato nel Dynamic Island. Potrebbe apparire brevemente.")
+            dismissSystemBannerHint: "Chiude l’avviso originale poco dopo la comparsa nel Dynamic Island. I suoni più lunghi potrebbero comunque interrompersi.")
         case .ru: return NotchNotificationStrings(
             title: "Уведомления",
             description: "Новые системные уведомления в вырезе экрана.",
@@ -95,7 +95,7 @@ extension FeatureStrings {
             dismiss: "Убрать",
             unavailable: "Это уведомление больше не поддерживает данное действие.",
             dismissSystemBanner: "Закрывать системное уведомление",
-            dismissSystemBannerHint: "Закрывает исходное уведомление после показа в вырезе. Оно может ненадолго появиться.")
+            dismissSystemBannerHint: "Закрывает исходное уведомление вскоре после показа в Dynamic Island. Более длинные звуки всё ещё могут обрываться.")
         case .tr: return NotchNotificationStrings(
             title: "Bildirimler",
             description: "Yeni sistem bildirimleri çentikte.",
@@ -106,7 +106,7 @@ extension FeatureStrings {
             dismiss: "Kapat",
             unavailable: "Bu bildirim artık bu işlemi desteklemiyor.",
             dismissSystemBanner: "Sistem bildirimini kapat",
-            dismissSystemBannerHint: "Çentikte gösterildikten sonra asıl bildirimi kapatır. Bildirim kısa süre görünebilir.")
+            dismissSystemBannerHint: "Asıl bildirimi Dynamic Island’da göründükten kısa süre sonra kapatır. Daha uzun sesler yine de kesilebilir.")
         case .ja: return NotchNotificationStrings(
             title: "通知",
             description: "新しいシステム通知をDynamic Islandに表示します。",
@@ -117,7 +117,7 @@ extension FeatureStrings {
             dismiss: "閉じる",
             unavailable: "この通知では、この操作を実行できなくなりました。",
             dismissSystemBanner: "システムの通知を閉じる",
-            dismissSystemBannerHint: "Dynamic Islandに表示した後、元の通知を閉じます。一瞬表示される場合があります。")
+            dismissSystemBannerHint: "Dynamic Islandに表示された少し後に元の通知を閉じます。長い通知音は途中で切れる場合があります。")
         case .ko: return NotchNotificationStrings(
             title: "알림",
             description: "새 시스템 알림을 Dynamic Island에서 확인하세요.",
@@ -128,7 +128,7 @@ extension FeatureStrings {
             dismiss: "닫기",
             unavailable: "이 알림에서는 더 이상 이 동작을 사용할 수 없습니다.",
             dismissSystemBanner: "시스템 알림 닫기",
-            dismissSystemBannerHint: "Dynamic Island에 표시한 뒤 원래 알림을 닫습니다. 잠시 표시될 수 있습니다.")
+            dismissSystemBannerHint: "Dynamic Island에 표시된 잠시 후 원래 알림을 닫습니다. 긴 알림음은 여전히 중간에 끊길 수 있습니다.")
         case .zhHans: return NotchNotificationStrings(
             title: "通知",
             description: "在Dynamic Island中查看新的系统通知。",
@@ -139,7 +139,7 @@ extension FeatureStrings {
             dismiss: "忽略",
             unavailable: "此通知已无法执行此操作。",
             dismissSystemBanner: "收起系统通知",
-            dismissSystemBannerHint: "在Dynamic Island中显示后关闭原通知。原通知仍可能短暂出现。")
+            dismissSystemBannerHint: "在Dynamic Island中显示片刻后关闭原通知。较长的提示音仍可能被截断。")
         case .zhTW: return NotchNotificationStrings(
             title: "通知",
             description: "在Dynamic Island中查看新的系統通知。",
@@ -150,7 +150,7 @@ extension FeatureStrings {
             dismiss: "關閉",
             unavailable: "此通知已無法執行此操作。",
             dismissSystemBanner: "收起系統通知",
-            dismissSystemBannerHint: "在Dynamic Island中顯示後關閉原通知。原通知仍可能短暫出現。")
+            dismissSystemBannerHint: "在Dynamic Island中顯示片刻後關閉原通知。較長的提示音仍可能被截斷。")
         case .zhHK: return NotchNotificationStrings(
             title: "通知",
             description: "在Dynamic Island中查看新的系統通知。",
@@ -161,7 +161,7 @@ extension FeatureStrings {
             dismiss: "關閉",
             unavailable: "此通知已無法執行此操作。",
             dismissSystemBanner: "收起系統通知",
-            dismissSystemBannerHint: "在Dynamic Island顯示後關閉原通知。原通知仍可能短暫出現。")
+            dismissSystemBannerHint: "在Dynamic Island顯示片刻後關閉原通知。較長的提示音仍可能被截斷。")
         case .uk: return NotchNotificationStrings(
             title: "Сповіщення",
             description: "Нові системні сповіщення у Dynamic Island.",
@@ -172,7 +172,7 @@ extension FeatureStrings {
             dismiss: "Відхилити",
             unavailable: "Це сповіщення більше не підтримує цю дію.",
             dismissSystemBanner: "Закривати системний банер",
-            dismissSystemBannerHint: "Закриває оригінальний банер після його появи у Dynamic Island. Він може ненадовго з’явитися.")
+            dismissSystemBannerHint: "Закриває оригінальний банер невдовзі після появи у Dynamic Island. Довші звуки все ще можуть обриватися.")
         }
     }
 }

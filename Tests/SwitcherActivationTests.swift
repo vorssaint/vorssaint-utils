@@ -8,6 +8,7 @@ import ApplicationServices
 /// activate an app or post input. Native window ordering is validated separately.
 enum SwitcherActivationTests {
     static var events: [String] = []
+    static var records: [[UInt8]] = []
     static var canRaise = true
 
     final class App {
@@ -44,11 +45,12 @@ enum SwitcherActivationTests {
         static var postEventRecord: ((UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> CGError)?
     }
     static func reset(raise: Bool = true, front: CGError = .success, down: CGError = .success, up: CGError = .success) {
-        events = []; canRaise = raise
+        events = []; records = []; canRaise = raise
         Bridge.processForPID = { pid, _ in events.append("owner:\(pid)"); return noErr }
         Bridge.setFrontProcess = { _, id, _ in events.append("front:\(id)"); return front }
         Bridge.postEventRecord = { _, bytes in
             events.append("event:\(bytes[8])")
+            records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
             return bytes[8] == 1 ? down : up
         }
     }
@@ -59,6 +61,16 @@ enum SwitcherActivationTests {
         reset(); select()
         suite.expect(events == ["owner:20", "front:77", "event:1", "event:2", "raise:77:20:false"],
                      "a delivered window selection raises the exact window without activating every sibling")
+        // The press and release that make the window key must name the window
+        // and carry no location: a point near the frame's corner hits the
+        // resize border, and the window then grew toward the screen corner.
+        let windowIDBytes = withUnsafeBytes(of: CGWindowID(77).littleEndian, Array.init)
+        suite.expect(records.count == 2 && records.allSatisfy { record in
+            record[0x04] == 0xf8 && record[0x3a] == 0x10
+                && Array(record[0x3c..<0x40]) == windowIDBytes
+                && record[0x20..<0x30].allSatisfy { $0 == 0xff }
+        }, "the key-making click names the window and points nowhere")
+        suite.expect(records.map { $0[0x08] } == [1, 2], "the click is a press followed by a release")
         reset(raise: false); select()
         suite.expect(events.contains("activate:20:false"), "a window lost by Accessibility retains cooperative recovery")
         reset(front: .failure); select()

@@ -35,7 +35,7 @@ This one feeds window titles and thumbnails in the switcher and Dock Preview. If
 
 ### System Audio Recording
 
-This one powers per app volume and output routing in the mixer. If the mixer says it needs permission, open System Settings, Privacy and Security, Screen and System Audio Recording, and switch Vorssaint on. Audio is processed only for the local mixer.
+This permission is used by the mixer, the optional live equalizer and system audio capture for recordings. If a feature asks for it, open System Settings, Privacy and Security, Screen and System Audio Recording, and switch Vorssaint on. See the [permissions guide](PERMISSIONS.md#system-audio-recording) for what each feature does with the audio.
 
 ### Automation
 

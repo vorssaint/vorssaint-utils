@@ -85,8 +85,8 @@ enum InstalledApps {
     /// live in - /Applications or ~/Applications - at any depth, not just
     /// directly inside them. Matches `installedApplications`'s own walk of
     /// these same two roots, which recurses into subfolders (an installer
-    /// that drops its app inside a vendor subfolder, e.g.
-    /// /Applications/Adobe/Photoshop.app, is exactly what that walk already
+    /// that drops its app inside a vendor subfolder, such as
+    /// /Applications/Vendor/App.app, is exactly what that walk already
     /// treats as installed) - this used to require the app sit directly in
     /// one of the roots, which meant a bundle `installedApplications` would
     /// list could still be refused here.

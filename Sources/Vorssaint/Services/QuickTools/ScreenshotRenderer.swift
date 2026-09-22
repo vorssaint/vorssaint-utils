@@ -79,11 +79,11 @@ enum ScreenshotRenderer {
                     context.strokeEllipse(in: annotation.rect)
                 }
             case .line:
-                drawLine(annotation, in: context, scale: scale, arrow: false,
+                drawLine(annotation, in: context, scale: scale,
                          shadowsEnabled: annotationShadowsEnabled)
             case .arrow:
-                drawLine(annotation, in: context, scale: scale, arrow: true,
-                         shadowsEnabled: annotationShadowsEnabled)
+                drawArrow(annotation, in: context, scale: scale,
+                          shadowsEnabled: annotationShadowsEnabled)
             case .freehand:
                 drawFreehand(annotation, in: context, scale: scale,
                              shadowsEnabled: annotationShadowsEnabled)
@@ -122,7 +122,6 @@ enum ScreenshotRenderer {
     private static func drawLine(_ annotation: ScreenshotSupport.Annotation,
                                  in context: CGContext,
                                  scale: CGFloat,
-                                 arrow: Bool,
                                  shadowsEnabled: Bool) {
         guard annotation.points.count >= 2 else { return }
         let start = annotation.points[0]
@@ -130,24 +129,48 @@ enum ScreenshotRenderer {
         let width = annotation.stroke.width * scale
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
+        context.setStrokeColor(color(annotation.color))
+        context.setLineWidth(width)
+        context.setLineCap(.round)
+        context.beginPath()
+        context.move(to: start)
+        context.addLine(to: end)
+        context.strokePath()
+        context.restoreGState()
+    }
 
-        guard arrow else {
-            context.setStrokeColor(color(annotation.color))
-            context.setLineWidth(width)
-            context.setLineCap(.round)
-            context.beginPath()
-            context.move(to: start)
-            context.addLine(to: end)
-            context.strokePath()
-            context.restoreGState()
-            return
-        }
+    private static func drawArrow(_ annotation: ScreenshotSupport.Annotation,
+                                  in context: CGContext,
+                                  scale: CGFloat,
+                                  shadowsEnabled: Bool) {
+        guard annotation.points.count >= 2 else { return }
+        let start = annotation.points[0]
+        let end = annotation.points[1]
+        let width = annotation.stroke.width * scale
 
+        context.saveGState()
+        applyShadow(context, scale: scale, enabled: shadowsEnabled)
+        context.setStrokeColor(color(annotation.color))
         context.setFillColor(color(annotation.color))
-        context.addPath(ScreenshotSupport.arrowSilhouette(from: start,
-                                                          to: end,
-                                                          strokeWidth: width))
-        context.fillPath()
+        context.setLineWidth(width)
+        context.setLineJoin(.round)
+        context.setLineCap(.round)
+
+        if let outline = ScreenshotSupport.arrowStrokePath(from: start,
+                                                           to: end,
+                                                           strokeWidth: width,
+                                                           style: annotation.arrowStyle,
+                                                           seed: annotation.scribbleSeed) {
+            // Shaft and head in one stroke: the shadow falls on the whole arrow
+            // once, instead of the head shading the shaft where they meet.
+            context.addPath(outline)
+            context.strokePath()
+        } else {
+            context.addPath(ScreenshotSupport.arrowSilhouette(from: start,
+                                                              to: end,
+                                                              strokeWidth: width))
+            context.fillPath()
+        }
         context.restoreGState()
     }
 

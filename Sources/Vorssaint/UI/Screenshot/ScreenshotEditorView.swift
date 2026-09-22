@@ -837,6 +837,15 @@ struct ScreenshotEditorView: View {
         }
     }
 
+    private var showsArrowStyleControls: Bool {
+        if model.tool == .arrow { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .arrow
+    }
+
     /// Depth only means something once a shape is picked, and only when there
     /// is something else for it to pass.
     private var showsLayerControls: Bool {
@@ -893,6 +902,10 @@ struct ScreenshotEditorView: View {
 
     private var styleBar: some View {
         HStack(spacing: 10) {
+            if showsArrowStyleControls {
+                arrowStyleMenu
+                Divider().frame(height: 16)
+            }
             if showsStickerControls {
                 stickerMenu
                 Divider().frame(height: 16)
@@ -932,6 +945,40 @@ struct ScreenshotEditorView: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.16), radius: 12, y: 3)
+    }
+
+    /// The same kind of menu as the sticker picker: an inline picker gives
+    /// each style a native row with a checkmark, and the sample images come
+    /// from the editor's own renderer, so the menu shows exactly what draws.
+    private var arrowStyleMenu: some View {
+        Menu {
+            Picker(strings.arrowStyleLabel, selection: $model.arrowStyle) {
+                ForEach(ScreenshotSupport.ArrowStyleID.allCases, id: \.self) { style in
+                    Label {
+                        Text(strings.arrowStyleTitle(style))
+                    } icon: {
+                        Image(nsImage: ScreenshotArrowStyleSamples.image(for: style))
+                    }
+                    .tag(style)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 5) {
+                Image(nsImage: ScreenshotArrowStyleSamples.image(for: model.arrowStyle))
+                    .renderingMode(.template)
+                Text(strings.arrowStyleTitle(model.arrowStyle))
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 7)
+            .frame(height: 24)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .screenshotSafeHelp(strings.arrowStyleLabel)
+        .accessibilityLabel(strings.arrowStyleLabel)
     }
 
     private var stickerMenu: some View {
@@ -1369,6 +1416,60 @@ extension ScreenshotSupport.Tool {
         case .redact: return strings.toolRedact
         case .crop: return strings.toolCrop
         }
+    }
+}
+
+/// Small samples of each arrow style, drawn by the editor's own renderer so
+/// the menu and the toolbar show exactly what a stroke will look like. They
+/// are templates, so menus tint them like their text.
+private enum ScreenshotArrowStyleSamples {
+    private static let images: [ScreenshotSupport.ArrowStyleID: NSImage] = Dictionary(
+        uniqueKeysWithValues: ScreenshotSupport.ArrowStyleID.allCases.map { ($0, render($0)) })
+
+    static func image(for style: ScreenshotSupport.ArrowStyleID) -> NSImage {
+        images[style] ?? render(style)
+    }
+
+    private static func render(_ style: ScreenshotSupport.ArrowStyleID) -> NSImage {
+        let size = NSSize(width: 36, height: 16)
+        let image = NSImage(size: size)
+        image.isTemplate = true
+        // Rasterized at 2x so the sample stays crisp on Retina displays.
+        let scale: CGFloat = 2
+        let pixels = CGSize(width: size.width * scale, height: size.height * scale)
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                            pixelsWide: Int(pixels.width),
+                                            pixelsHigh: Int(pixels.height),
+                                            bitsPerSample: 8,
+                                            samplesPerPixel: 4,
+                                            hasAlpha: true,
+                                            isPlanar: false,
+                                            colorSpaceName: .deviceRGB,
+                                            bytesPerRow: 0,
+                                            bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: bitmap)?.cgContext
+        else { return image }
+        bitmap.size = size
+        // The renderer works in top-down image pixels.
+        context.translateBy(x: 0, y: pixels.height)
+        context.scaleBy(x: 1, y: -1)
+        // A thin sample; the fixed seed keeps the scribbly one stable.
+        let sample = ScreenshotSupport.Annotation(
+            tool: .arrow,
+            points: [CGPoint(x: 3 * scale, y: pixels.height / 2),
+                     CGPoint(x: pixels.width - 3 * scale, y: pixels.height / 2)],
+            color: .black,
+            stroke: .small,
+            arrowStyle: style,
+            scribbleSeed: 0x5343524942424C59)
+        ScreenshotRenderer.drawAnnotations([sample],
+                                           in: context,
+                                           pixelated: nil,
+                                           imageSize: pixels,
+                                           scale: scale,
+                                           annotationShadowsEnabled: false)
+        image.addRepresentation(bitmap)
+        return image
     }
 }
 

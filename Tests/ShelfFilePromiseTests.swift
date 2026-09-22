@@ -36,7 +36,7 @@ enum ShelfFilePromiseTests {
         func drain() { queue?.waitUntilAllOperationsAreFinished() }
     }
 
-    static func run(expect: @escaping (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appendingPathComponent("vorss-promise-tests-\(UUID())")
         defer { try? fm.removeItem(at: root) }
@@ -49,7 +49,7 @@ enum ShelfFilePromiseTests {
         func settle(_ condition: () -> Bool) {
             let deadline = Date().addingTimeInterval(3)
             while !condition() && Date() < deadline { pump() }
-            expect(condition(), "file promise completion arrives without a polling timer")
+            suite.expect(condition(), "file promise completion arrives without a polling timer")
         }
         func entries(_ url: URL) -> [URL] {
             (try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)) ?? []
@@ -64,22 +64,22 @@ enum ShelfFilePromiseTests {
             try Data("first byte".utf8).write(to: partial)
             let pauseEnd = Date().addingTimeInterval(0.25)
             while Date() < pauseEnd { pump() }
-            expect(result == nil && entries(store).isEmpty, "a paused, unfinished save never becomes a shelf file")
+            suite.expect(result == nil && entries(store).isEmpty, "a paused, unfinished save never becomes a shelf file")
             receiver.send(0, text: "all bytes")
             settle { result != nil }
-            expect(result?.failed == false && result?.urls.count == 1, "a confirmed complete file is delivered once")
+            suite.expect(result?.failed == false && result?.urls.count == 1, "a confirmed complete file is delivered once")
             let saved = result!.urls[0]
-            expect(saved.lastPathComponent == "  attachment.txt  ", "original spaces in the filename survive")
-            expect(try String(contentsOf: saved, encoding: .utf8) == "all bytes", "the shelf copy contains the completed bytes")
+            suite.expect(saved.lastPathComponent == "  attachment.txt  ", "original spaces in the filename survive")
+            suite.expect(try String(contentsOf: saved, encoding: .utf8) == "all bytes", "the shelf copy contains the completed bytes")
             receiver.drain()
-            expect(entries(incoming).isEmpty, "completed incoming files are removed")
-            expect(ShelfPersistenceSupport.containsKeptFile(under: saved.deletingLastPathComponent().path,
+            suite.expect(entries(incoming).isEmpty, "completed incoming files are removed")
+            suite.expect(ShelfPersistenceSupport.containsKeptFile(under: saved.deletingLastPathComponent().path,
                                                           keptPaths: [saved.path]), "startup keeps the parent of a stored attachment")
-            expect(!ShelfPersistenceSupport.containsKeptFile(under: store.appendingPathComponent("other").path,
+            suite.expect(!ShelfPersistenceSupport.containsKeptFile(under: store.appendingPathComponent("other").path,
                                                            keptPaths: [saved.path]), "startup can remove an unreferenced sibling directory")
             let mode = try fm.attributesOfItem(atPath: saved.deletingLastPathComponent().path)[.posixPermissions] as! NSNumber
-            expect(mode.intValue & 0o777 == 0o700, "stored attachments have an owner-only parent")
-        } catch { expect(false, "file promise completion fixture failed: \(error)") }
+            suite.expect(mode.intValue & 0o777 == 0o700, "stored attachments have an owner-only parent")
+        } catch { suite.expect(false, "file promise completion fixture failed: \(error)") }
 
         do {
             let (incoming, store) = fixture("same-names")
@@ -89,17 +89,17 @@ enum ShelfFilePromiseTests {
             transfer.receive([receiver])
             receiver.send(0, text: "first")
             receiver.drain(); pump()
-            expect(result == nil, "one advertised file type does not truncate a legacy batch")
+            suite.expect(result == nil, "one advertised file type does not truncate a legacy batch")
             receiver.send(1, text: "second")
             receiver.send(2, text: "third")
             settle { result != nil }
             let urls = result!.urls
-            expect(urls.count == 3 && Set(urls).count == 3, "repeated names have separate destinations without a crash")
-            expect(try urls.map { try String(contentsOf: $0, encoding: .utf8) } == ["first", "second", "third"],
+            suite.expect(urls.count == 3 && Set(urls).count == 3, "repeated names have separate destinations without a crash")
+            suite.expect(try urls.map { try String(contentsOf: $0, encoding: .utf8) } == ["first", "second", "third"],
                    "each same-name callback is copied inside its reader before the source replaces it")
             receiver.drain()
-            expect(entries(incoming).isEmpty, "multi-file incoming directory is cleaned after all callbacks")
-        } catch { expect(false, "duplicate-name fixture failed: \(error)") }
+            suite.expect(entries(incoming).isEmpty, "multi-file incoming directory is cleaned after all callbacks")
+        } catch { suite.expect(false, "duplicate-name fixture failed: \(error)") }
 
         let (incoming, store) = fixture("cancel")
         var cancelledResults = 0
@@ -111,8 +111,8 @@ enum ShelfFilePromiseTests {
         transfer.cancel()
         receiver.send(1)
         receiver.drain(); pump()
-        expect(cancelledResults == 0, "cancellation never publishes a partial or late delivery")
-        expect(entries(store).isEmpty && entries(incoming).isEmpty, "cancellation removes copies and eventual incoming files")
+        suite.expect(cancelledResults == 0, "cancellation never publishes a partial or late delivery")
+        suite.expect(entries(store).isEmpty && entries(incoming).isEmpty, "cancellation removes copies and eventual incoming files")
 
         let (queuedIncoming, queuedStore) = fixture("cancel-queued")
         var queuedResults = 0
@@ -127,8 +127,8 @@ enum ShelfFilePromiseTests {
         let queuedDeadline = Date().addingTimeInterval(3)
         while queuedResults == 0, !entries(queuedStore).isEmpty, Date() < queuedDeadline { pump() }
         queuedReceiver.drain()
-        expect(queuedResults == 0, "cancel wins over an already queued main-thread completion")
-        expect(entries(queuedStore).isEmpty, "the queued completion discards its copies after cancellation")
+        suite.expect(queuedResults == 0, "cancel wins over an already queued main-thread completion")
+        suite.expect(entries(queuedStore).isEmpty, "the queued completion discards its copies after cancellation")
 
         let (errorIncoming, errorStore) = fixture("errors")
         var failed: ShelfFilePromiseTransfer.Result?
@@ -138,8 +138,8 @@ enum ShelfFilePromiseTests {
         failedReceiver.send(0)
         failedReceiver.send(1, error: CocoaError(.fileWriteUnknown), url: root)
         settle { failed != nil }
-        expect(failed!.failed && failed!.urls.count == 1, "a failed native callback preserves successful files and reports failure")
-        expect(fm.fileExists(atPath: root.path), "the URL accompanying an error is ignored")
+        suite.expect(failed!.failed && failed!.urls.count == 1, "a failed native callback preserves successful files and reports failure")
+        suite.expect(fm.fileExists(atPath: root.path), "the URL accompanying an error is ignored")
         failedReceiver.drain()
 
         do {
@@ -152,11 +152,11 @@ enum ShelfFilePromiseTests {
             transfer.receive([receiver])
             receiver.send(0, url: outside)
             settle { unsafe != nil }
-            expect(unsafe!.failed && unsafe!.urls.isEmpty, "a promised URL outside its private destination is rejected")
+            suite.expect(unsafe!.failed && unsafe!.urls.isEmpty, "a promised URL outside its private destination is rejected")
             ShelfFilePromiseTransfer.discard([outside, store], in: store)
-            expect(try String(contentsOf: outside, encoding: .utf8) == "keep me", "cleanup never deletes a caller-supplied outside path")
+            suite.expect(try String(contentsOf: outside, encoding: .utf8) == "keep me", "cleanup never deletes a caller-supplied outside path")
             receiver.drain()
-        } catch { expect(false, "path containment fixture failed: \(error)") }
+        } catch { suite.expect(false, "path containment fixture failed: \(error)") }
 
         let (batchIncoming, batchStore) = fixture("reverse-order")
         var batch: ShelfFilePromiseTransfer.Result?
@@ -165,7 +165,7 @@ enum ShelfFilePromiseTests {
         batchTransfer.receive([batchReceiver])
         batchReceiver.send(1); batchReceiver.send(0)
         settle { batch != nil }
-        expect(batch!.urls.map(\.lastPathComponent) == ["first.txt", "second.txt"], "source order survives out-of-order completion")
+        suite.expect(batch!.urls.map(\.lastPathComponent) == ["first.txt", "second.txt"], "source order survives out-of-order completion")
         batchReceiver.drain()
 
         let (largeIncoming, largeStore) = fixture("over-capacity")
@@ -173,9 +173,9 @@ enum ShelfFilePromiseTests {
         let largeTransfer = ShelfFilePromiseTransfer(temporaryDirectory: largeIncoming, storeDirectory: largeStore,
                                                      maximumFiles: 1) { _ in oversized = true }!
         let largeReceiver = Receiver(["one.txt", "two.txt"])
-        expect(!largeTransfer.receive([largeReceiver]), "actual legacy names are checked against capacity before accepting")
+        suite.expect(!largeTransfer.receive([largeReceiver]), "actual legacy names are checked against capacity before accepting")
         largeReceiver.send(0); largeReceiver.send(1); largeReceiver.drain(); pump()
-        expect(!oversized && entries(largeIncoming).isEmpty && entries(largeStore).isEmpty,
+        suite.expect(!oversized && entries(largeIncoming).isEmpty && entries(largeStore).isEmpty,
                "over-capacity receipts are cleaned without adding files")
 
         do {
@@ -188,7 +188,7 @@ enum ShelfFilePromiseTests {
             try Data("incomplete".utf8).write(to: partial)
             receiver.send(0, error: CocoaError(.fileWriteUnknown), url: partial)
             settle { partialFailure != nil }
-            expect(partialFailure!.failed && partialFailure!.urls.isEmpty, "even an existing partial file is ignored when AppKit reports failure")
+            suite.expect(partialFailure!.failed && partialFailure!.urls.isEmpty, "even an existing partial file is ignored when AppKit reports failure")
             receiver.drain()
 
             let (directoryIncoming, directoryStore) = fixture("directory")
@@ -201,7 +201,7 @@ enum ShelfFilePromiseTests {
             try Data("nested".utf8).write(to: directory.appendingPathComponent("child.txt"))
             directoryReceiver.send(0, url: directory)
             settle { directoryResult != nil }
-            expect(try String(contentsOf: directoryResult!.urls[0].appendingPathComponent("child.txt"), encoding: .utf8) == "nested",
+            suite.expect(try String(contentsOf: directoryResult!.urls[0].appendingPathComponent("child.txt"), encoding: .utf8) == "nested",
                    "a completed promised directory is copied with its contents")
             directoryReceiver.drain()
 
@@ -214,10 +214,10 @@ enum ShelfFilePromiseTests {
             try fm.createSymbolicLink(at: link, withDestinationURL: root)
             linkReceiver.send(0, url: link)
             settle { linkResult != nil }
-            expect(linkResult!.failed && linkResult!.urls.isEmpty && fm.fileExists(atPath: root.path),
+            suite.expect(linkResult!.failed && linkResult!.urls.isEmpty && fm.fileExists(atPath: root.path),
                    "a promised symlink cannot redirect copying or cleanup outside the incoming directory")
             linkReceiver.drain()
-        } catch { expect(false, "failed-file and directory fixtures failed: \(error)") }
+        } catch { suite.expect(false, "failed-file and directory fixtures failed: \(error)") }
 
         let (earlyIncoming, earlyStore) = fixture("early-callback")
         var earlyResult: ShelfFilePromiseTransfer.Result?
@@ -226,14 +226,14 @@ enum ShelfFilePromiseTests {
         earlyReceiver.finishDuringReceive = true
         earlyTransfer.receive([earlyReceiver])
         settle { earlyResult != nil }
-        expect(earlyResult!.urls.count == 1 && !earlyResult!.failed,
+        suite.expect(earlyResult!.urls.count == 1 && !earlyResult!.failed,
                "a reader that finishes before receive returns cannot outrun initialization")
         earlyReceiver.drain()
 
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: ShelfPromiseDeliveryStrings.localized(language)).children
                 .compactMap { $0.value as? String }
-            expect(!strings.isEmpty && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(!strings.isEmpty && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "file promise messages are complete in \(language.rawValue)")
         }
     }

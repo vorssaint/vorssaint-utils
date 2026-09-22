@@ -51,6 +51,18 @@ enum MixerNativeDragTests {
         info.draggingSource = origin
         info.draggingPasteboard.setString("app.other", forType: MixerAppDragSource.pasteboardType)
         suite.expect(!destination.performDragOperation(info), "the payload must match the actual native source")
+
+        // The island's desk runs sideways: the insertion side comes from x.
+        info.draggingPasteboard.setString("app.a", forType: MixerAppDragSource.pasteboardType)
+        destination.source = MixerAppDragSource(id: "app.c", icon: icon, onBegin: { _ in }, onEnd: {},
+                                               canMove: { _, _ in true }, onTarget: { marker = $0 },
+                                               move: { _, _, _ in }, sideways: true)
+        info.draggingLocation = destination.convert(NSPoint(x: 280, y: 5), to: nil)
+        suite.expect(destination.draggingEntered(info) == .move && marker == MixerAppDropTarget(id: "app.c", after: true),
+                     "a sideways column takes its right half as insertion after, whatever the height")
+        info.draggingLocation = destination.convert(NSPoint(x: 20, y: 40), to: nil)
+        suite.expect(destination.draggingEntered(info) == .move && marker?.after == false,
+                     "the left half of a sideways column offers insertion before")
     }
 
     private final class DragInfo: NSObject, NSDraggingInfo {

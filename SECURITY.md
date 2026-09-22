@@ -12,12 +12,6 @@ Use GitHub's private vulnerability reporting for this repository.
 
 That opens a private security advisory that only you and the maintainer can see.
 
-<!--
-TODO for the maintainer. If you would like to offer a dedicated security contact
-email alongside GitHub private advisories, add it here. No private email address
-is published in this repository today, so the link above is the canonical route.
--->
-
 When you write it up, please include as much as you can.
 
 - A description of the issue and the impact it could have.

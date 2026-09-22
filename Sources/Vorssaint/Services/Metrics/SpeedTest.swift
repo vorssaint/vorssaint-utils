@@ -14,6 +14,9 @@ import Foundation
 final class SpeedTest: NSObject, ObservableObject {
     static let shared = SpeedTest()
 
+    typealias Clock = () -> TimeInterval
+    typealias TimeBoxScheduler = (OperationQueue, TimeInterval, @escaping () -> Void) -> () -> Void
+
     enum Phase: Equatable {
         case idle, latency, download, upload, done
         case failed(String)
@@ -32,6 +35,8 @@ final class SpeedTest: NSObject, ObservableObject {
 
     private let host = "https://speed.cloudflare.com"
     private let sampleSeconds: TimeInterval
+    private let clock: Clock
+    private let scheduleTimeBox: TimeBoxScheduler
     // Cloudflare's __down caps the size just under 100 MB (100 MB+ returns ~nothing),
     // so request under that and loop chunks back-to-back until the time box — that
     // keeps a fast link's pipe full for a full measurement window.
@@ -43,13 +48,21 @@ final class SpeedTest: NSObject, ObservableObject {
     private var task: URLSessionTask?
     private var kind: Kind = .none           // touched only on `queue`
     private var transferred: Int64 = 0       // touched only on `queue`
-    private var startedAt: CFAbsoluteTime = 0
+    private var startedAt: TimeInterval = 0
     private var finished = false
     private var generation = 0
-    private var stopWork: DispatchWorkItem?
+    private var cancelTimeBox: (() -> Void)?
 
-    init(configuration: URLSessionConfiguration = .ephemeral, sampleSeconds: TimeInterval = 5) {
+    init(configuration: URLSessionConfiguration = .ephemeral, sampleSeconds: TimeInterval = 5,
+         clock: @escaping Clock = { ProcessInfo.processInfo.systemUptime },
+         scheduleTimeBox: @escaping TimeBoxScheduler = { queue, delay, action in
+             let work = DispatchWorkItem { queue.addOperation(action) }
+             DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: work)
+             return { work.cancel() }
+         }) {
         self.sampleSeconds = sampleSeconds
+        self.clock = clock
+        self.scheduleTimeBox = scheduleTimeBox
         super.init()
         queue.maxConcurrentOperationCount = 1
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -72,7 +85,7 @@ final class SpeedTest: NSObject, ObservableObject {
         queue.addOperation { [weak self] in
             guard let self else { return }
             self.generation += 1
-            self.stopWork?.cancel(); self.stopWork = nil
+            self.cancelTimeBox?(); self.cancelTimeBox = nil
             self.task?.cancel(); self.task = nil
             self.kind = .none
             self.finished = true
@@ -94,11 +107,11 @@ final class SpeedTest: NSObject, ObservableObject {
             return
         }
         let url = URL(string: "\(host)/__down?bytes=0")!
-        let started = CFAbsoluteTimeGetCurrent()
+        let started = clock()
         let generation = self.generation
         task = session.dataTask(with: url) { [weak self] _, response, error in
             guard let self else { return }
-            let rtt = (CFAbsoluteTimeGetCurrent() - started) * 1000
+            let rtt = (self.clock() - started) * 1000
             // Continue on the delegate queue so the transfer phase's `kind` is set
             // there too — otherwise the byte-counting delegate could miss it.
             self.queue.addOperation {
@@ -121,18 +134,14 @@ final class SpeedTest: NSObject, ObservableObject {
         transferred = 0
         finished = false
         setPhase(transfer == .download ? .download : .upload)
-        startedAt = CFAbsoluteTimeGetCurrent()
+        startedAt = clock()
 
         let generation = self.generation
-        let work = DispatchWorkItem { [weak self] in
-            self?.queue.addOperation {
-                guard let self, self.generation == generation else { return }
-                self.finishTransfer(timedOut: true)
-            }
+        cancelTimeBox?()   // defensive: never leave a previous time box armed
+        cancelTimeBox = scheduleTimeBox(queue, sampleSeconds) { [weak self] in
+            guard let self, self.generation == generation else { return }
+            self.finishTransfer(timedOut: true)
         }
-        stopWork?.cancel()   // defensive: never leave a previous time box armed
-        stopWork = work
-        DispatchQueue.global().asyncAfter(deadline: .now() + sampleSeconds, execute: work)
         beginChunk()
     }
 
@@ -156,9 +165,9 @@ final class SpeedTest: NSObject, ObservableObject {
     private func finishTransfer(timedOut: Bool) {
         guard !finished else { return }
         finished = true
-        stopWork?.cancel(); stopWork = nil
+        cancelTimeBox?(); cancelTimeBox = nil
 
-        let elapsed = CFAbsoluteTimeGetCurrent() - startedAt
+        let elapsed = clock() - startedAt
         let bytes = transferred
         if timedOut { task?.cancel() }
         task = nil
@@ -185,7 +194,7 @@ final class SpeedTest: NSObject, ObservableObject {
     private func fail(_ error: Error) {
         generation += 1
         finished = true
-        stopWork?.cancel(); stopWork = nil
+        cancelTimeBox?(); cancelTimeBox = nil
         task?.cancel(); task = nil
         kind = .none
         setPhase(.failed(error.localizedDescription))

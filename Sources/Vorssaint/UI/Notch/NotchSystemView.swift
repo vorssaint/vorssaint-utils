@@ -4,7 +4,7 @@
 import SwiftUI
 
 struct NotchSystemView: View {
-    var columns = 3
+    let size: CGSize
     let select: (MetricDetailKind) -> Void
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var l10n = L10n.shared
@@ -63,6 +63,18 @@ struct NotchSystemView: View {
                               level: disk.map { 1 - $0.usedFraction },
                               wantsAttention: disk.map { 1 - $0.usedFraction < 0.1 } ?? false))
         }
+        // The panel's power and fan sections, as cards opening the same details.
+        if AppFeature.monitorPower.isAvailable {
+            let power = snapshot.power
+            cards.append(Card(kind: .power, title: l10n.s.powerSection, symbol: "powerplug.fill",
+                              value: power?.systemWatts.map(MetricFormat.wattsCompact),
+                              detail: power?.externalConnected == true ? power?.adapterWatts.map(MetricFormat.watts) : nil))
+        }
+        if AppFeature.fanControl.isAvailable, !snapshot.fanSpeeds.isEmpty {
+            let strings = FeatureStrings.fanControl(l10n.language)
+            cards.append(Card(kind: .fan, title: strings.menuBarTitle, symbol: "fanblades",
+                              value: snapshot.fanSpeeds.first.map { String(format: strings.rpmFormat, Int($0.rounded())) }))
+        }
         return cards
     }
 
@@ -76,34 +88,63 @@ struct NotchSystemView: View {
         if cards.isEmpty {
             NotchEmptyView(symbol: "gauge.with.dots.needle.50percent", message: l10n.s.monitorUnavailable)
         } else {
-            NotchTileGrid(items: cards, columns: columns, spacing: 10) { card in
-                Button { select(card.kind) } label: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label(card.title, systemImage: card.symbol)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary).lineLimit(1)
-                        Text(card.value ?? "…")
-                            .font(.system(size: card.detail == nil ? 25 : 17, weight: .medium, design: .rounded))
-                            .monospacedDigit().contentTransition(.numericText()).lineLimit(1).minimumScaleFactor(0.75)
-                            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: card.value)
-                        if let detail = card.detail {
-                            Text(detail).font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
-                        } else if let level = card.level {
-                            NotchMeter(value: level, tint: card.wantsAttention ? .orange : .white)
-                        }
+            let inset = NotchLayout.systemHoverInset(width: size.width)
+            let rows = NotchLayout.systemRowRanges(count: cards.count, width: size.width - inset * 2)
+            let height = NotchLayout.railHeight(rows: rows.count, rowHeight: NotchLayout.systemCardHeight,
+                                               spacing: NotchLayout.rowSpacing) + inset * 2
+            Group {
+                if height > size.height {
+                    ScrollView {
+                        grid(cards: cards, rows: rows).padding(inset)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-                    .padding(12)
-                    .modifier(NotchControlSurface(cornerRadius: 18))
+                } else {
+                    grid(cards: cards, rows: rows).padding(inset)
                 }
-                .buttonStyle(NotchButtonStyle(cornerRadius: 18))
-                .accessibilityElement(children: .ignore)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { select(card.kind) }
-                .accessibilityLabel(card.title)
-                .accessibilityValue([card.value, card.detail].compactMap { $0 }.joined(separator: ", "))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private func grid(cards: [Card], rows: [Range<Int>]) -> some View {
+        VStack(spacing: NotchLayout.rowSpacing) {
+            ForEach(rows, id: \.lowerBound) { row in
+                HStack(spacing: NotchLayout.rowSpacing) {
+                    ForEach(Array(cards[row])) { card in
+                        cardButton(card)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
             }
         }
+    }
+
+    private func cardButton(_ card: Card) -> some View {
+        Button { select(card.kind) } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(card.title, systemImage: card.symbol)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary).lineLimit(1)
+                Text(card.value ?? "…")
+                    .font(.system(size: card.detail == nil ? 22 : 15, weight: .medium, design: .rounded))
+                    .monospacedDigit().contentTransition(.numericText()).lineLimit(1).minimumScaleFactor(0.75)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: card.value)
+                if let detail = card.detail {
+                    Text(detail).font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+                } else if let level = card.level {
+                    NotchMeter(value: level, tint: card.wantsAttention ? .orange : .white)
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: NotchLayout.systemCardHeight)
+            .modifier(NotchControlSurface(cornerRadius: 18))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 18))
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { select(card.kind) }
+        .accessibilityLabel(card.title)
+        .accessibilityValue([card.value, card.detail].compactMap { $0 }.joined(separator: ", "))
     }
 
     private func percent(_ value: Double?) -> String? {

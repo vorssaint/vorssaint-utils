@@ -169,6 +169,8 @@ struct Strings {
     let keepAwakeEndsIn: String        // + remaining
     let keepAwakeUntilDisabled: String
     let keepAwakeNormalRules: String
+    let keepAwakeUntilLabel: String
+    let keepAwakeUntilStart: String
     let keepAwakeOptions: String
     let keepAwakeMouseJiggle: String
     let keepAwakeMouseJiggleCaption: String
@@ -340,7 +342,6 @@ struct Strings {
     let switcherNoWindows: String
     let switcherIconRowMode: String
     let switcherIconRowModeCaption: String
-    let switcherSimpleMode: String
     let switcherSimpleModeCaption: String
     let switcherShortcutHintApps: String
     let switcherShortcutHintWindows: String
@@ -368,6 +369,10 @@ struct Strings {
     let dockPreviewOpenDelayCaption: String
     let dockPreviewQuitAppOnClose: String
     let dockPreviewQuitAppOnCloseCaption: String
+    let dockPreviewKeepDockVisible: String
+    let dockPreviewKeepDockVisibleCaption: String
+    let dockPreviewOrderByCreation: String
+    let dockPreviewOrderByCreationCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -596,6 +601,9 @@ struct Strings {
     let mediaCompressionLow: String
     let mediaCompressionMedium: String
     let mediaCompressionHigh: String
+    let mediaCompressionLowDescription: String
+    let mediaCompressionMediumDescription: String
+    let mediaCompressionHighDescription: String
     let mediaMaxSize: String
     let mediaSizingResolution: String
     let mediaSizingFileSize: String
@@ -669,8 +677,8 @@ struct Strings {
     let shelfSelectedFormat: String      // + count
     let shelfHint: String
     let shelfItemImage: String
-    // Three forms, not two: Russian agrees a noun with the number in front of
-    // it as one, as two through four, and as five or more. Every other
+    // Three forms, not two: Russian and Ukrainian agree a noun with the number
+    // in front of it as one, as two through four, and as five or more. Every other
     // language here needs only the first and the last, and repeats the last
     // in the middle slot. A pile always holds two or more, so the items count
     // has no singular of its own.
@@ -844,6 +852,8 @@ struct Strings {
 
     // MARK: Panel — network
     let networkSection: String
+    let networkIPAddresses: String
+    let networkLocalIP: String
     let networkDownload: String
     let networkUpload: String
     let networkThisSession: String
@@ -952,7 +962,6 @@ struct Strings {
     let monitorItemDiskProtection: String
     let monitorItemDiskTools: String
     let monitorPanelConfigHint: String
-    let monitorOrderSection: String
     let monitorOrderHint: String
     let obStepPanelTitle: String
     let obStepPanelBody: String
@@ -1026,10 +1035,10 @@ struct Strings {
     let updateShowcaseUnavailable: String
     let updateShowcaseRestart: String
     let showMenuBarIcon: String
-    let showMenuBarIconCaption: String
     let menuBarIconStillHiddenTitle: String
     let menuBarIconStillHiddenBody: String
     let menuBarIconManagerHintFormat: String  // + manager name (twice)
+    let menuBarIconDisallowedBody: String
 
     // MARK: Configurable shortcuts
     let shortcutRecording: String
@@ -1042,6 +1051,10 @@ struct Strings {
     let shortcutDeleteHint: String
     let shortcutNotCaptured: String
     let shortcutConflictFormat: String
+    let shortcutTakeOverOffer: String
+    let shortcutTakeOverAction: String
+    let shortcutTakeOverCaption: String
+    let shortcutTakeOverDismiss: String
     let shortcutUnavailable: String
     let shelfShortcutToggle: String
     let switcherUsageHintFormat: String
@@ -1050,6 +1063,7 @@ struct Strings {
     let musicBlockSection: String
     let musicBlockTitle: String
     let musicBlockCaption: String
+    let musicBlockUnavailable: String
     let musicBlockReplacementLabel: String
     let musicBlockReplacementNone: String
     let musicBlockChooseApp: String
@@ -1241,6 +1255,8 @@ extension Strings {
         keepAwakeEndsIn: "Termina em",
         keepAwakeUntilDisabled: "Ativo até você desativar",
         keepAwakeNormalRules: "O Mac segue as regras normais de energia",
+        keepAwakeUntilLabel: "Até",
+        keepAwakeUntilStart: "Iniciar",
         keepAwakeOptions: "Opções",
         keepAwakeMouseJiggle: "Mover cursor levemente",
         keepAwakeMouseJiggleCaption: "Durante uma sessão, move o cursor um pouco no intervalo escolhido.",
@@ -1401,7 +1417,6 @@ extension Strings {
         switcherNoWindows: "Nenhuma janela aberta",
         switcherIconRowMode: "Mostrar %@ com ícones grandes",
         switcherIconRowModeCaption: "Mostra um ícone por app com os previews das janelas do app acima.",
-        switcherSimpleMode: "Alternador simples",
         switcherSimpleModeCaption: "Mostra ícones de apps e títulos das janelas, sem previews nem captura da tela pelo alternador.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
@@ -1429,6 +1444,10 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Quanto tempo o ponteiro precisa ficar sobre um ícone antes de o painel abrir.",
         dockPreviewQuitAppOnClose: "Encerrar o app com o botão ×",
         dockPreviewQuitAppOnCloseCaption: "No Dock Preview, × encerra o app inteiro em vez de fechar apenas aquela janela.",
+        dockPreviewKeepDockVisible: "Manter Dock visível (experimental)",
+        dockPreviewKeepDockVisibleCaption: "Suspende o ocultamento automático enquanto o preview está aberto e restaura ao sair. Pode reajustar janelas. Se o app for interrompido, reabra-o para restaurar o Dock.",
+        dockPreviewOrderByCreation: "Ordenar janelas por criação",
+        dockPreviewOrderByCreationCaption: "Mostra primeiro as janelas mais antigas em vez das usadas mais recentemente.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -1651,6 +1670,9 @@ extension Strings {
         mediaCompressionLow: "Baixa",
         mediaCompressionMedium: "Média",
         mediaCompressionHigh: "Alta",
+        mediaCompressionLowDescription: "Alta qualidade, arquivo grande",
+        mediaCompressionMediumDescription: "Equilíbrio entre qualidade e tamanho do arquivo",
+        mediaCompressionHighDescription: "Baixa qualidade, arquivo pequeno",
         mediaMaxSize: "Tamanho",
         mediaSizingResolution: "Resolução",
         mediaSizingFileSize: "Tamanho do arquivo",
@@ -1883,6 +1905,8 @@ extension Strings {
         betaFeatureWarning: "Beta. Você pode encontrar alguns bugs.",
 
         networkSection: "Rede",
+        networkIPAddresses: "Endereços IP",
+        networkLocalIP: "IPv4 local",
         networkDownload: "Download",
         networkUpload: "Upload",
         networkThisSession: "Nesta sessão",
@@ -1986,7 +2010,6 @@ extension Strings {
         monitorItemDiskProtection: "Proteção externa",
         monitorItemDiskTools: "Ferramentas",
         monitorPanelConfigHint: "Abra um bloco para escolher o que ele mostra.",
-        monitorOrderSection: "Ordem das seções",
         monitorOrderHint: "Arraste para reordenar as seções do painel e use o olho para mostrar ou ocultar cada uma.",
         obStepPanelTitle: "O que aparece no painel",
         obStepPanelBody: "Abra cada bloco e escolha exatamente o que mostrar quando você clica no ícone.",
@@ -2058,10 +2081,10 @@ extension Strings {
         updateShowcaseUnavailable: "Não foi possível carregar o vídeo agora. Você ainda pode continuar.",
         updateShowcaseRestart: "Voltar ao início",
         showMenuBarIcon: "Mostrar ícone na barra de menus",
-        showMenuBarIconCaption: "Se o ícone do Vorssaint sumir (o macOS pode esconder ícones quando a barra de menus fica sem espaço, comum em Macs com notch), reabra o Vorssaint pela pasta Aplicativos ou pelo Spotlight: isso recria o ícone e, se ele ainda estiver escondido, abre esta janela.",
         menuBarIconStillHiddenTitle: "O ícone continua escondido",
         menuBarIconStillHiddenBody: "O ícone foi recriado, mas o macOS não deu um lugar visível a ele. A barra de menus provavelmente está sem espaço: remova alguns ícones da barra (ou feche apps com menus longos) e tente de novo.",
         menuBarIconManagerHintFormat: "O %@ está aberto e pode estar guardando o ícone na seção oculta dele. Procure o Vorssaint lá, ou configure o %@ para sempre mostrar o Vorssaint.",
+        menuBarIconDisallowedBody: "O macOS está impedindo o Vorssaint de aparecer na barra de menus. Abra Ajustes do Sistema > Barra de Menus, encontre o Vorssaint na lista de apps e ative “Permitir na Barra de Menus” (Allow in the Menu Bar). O ícone aparece assim que a opção é ligada.",
         shortcutRecording: "Pressione o novo atalho",
         shortcutReset: "Redefinir",
         shortcutNone: "Nenhum",
@@ -2072,12 +2095,17 @@ extension Strings {
         shortcutDeleteHint: "Delete remove.",
         shortcutNotCaptured: "Nada foi capturado. O macOS ou outro app já usa essa combinação. Tente outra.",
         shortcutConflictFormat: "Este atalho já está em uso por %@.",
+        shortcutTakeOverOffer: "O macOS usa %@ em um atalho próprio.",
+        shortcutTakeOverAction: "Assumir enquanto o Vorssaint estiver aberto",
+        shortcutTakeOverCaption: "O macOS recupera a tecla sempre que o Vorssaint não estiver aberto ou este recurso estiver desligado.",
+        shortcutTakeOverDismiss: "Não assumir",
         shortcutUnavailable: "O macOS recusou este atalho. Escolha outro.",
         shelfShortcutToggle: "Atalho da área temporária",
         switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
         musicBlockSection: "Teclas de mídia",
         musicBlockTitle: "Impedir que o Música abra sozinho",
-        musicBlockCaption: "O app Música deixa de abrir ao tocar nas teclas de mídia. Você ainda pode abri-lo quando quiser.",
+        musicBlockCaption: "Bloqueia a abertura do app de música após detectar uma tecla de mídia. Requer acesso à Acessibilidade. Comandos de fones sem uma tecla detectada são preservados.",
+        musicBlockUnavailable: "Esta proteção está indisponível agora. Desligue e ligue a opção para tentar novamente.",
         musicBlockReplacementLabel: "Abrir no lugar",
         musicBlockReplacementNone: "Nenhum",
         musicBlockChooseApp: "Escolher app…",
@@ -2268,6 +2296,8 @@ extension Strings {
         keepAwakeEndsIn: "Ends in",
         keepAwakeUntilDisabled: "Active until you turn it off",
         keepAwakeNormalRules: "The Mac follows its normal energy rules",
+        keepAwakeUntilLabel: "Until",
+        keepAwakeUntilStart: "Start",
         keepAwakeOptions: "Options",
         keepAwakeMouseJiggle: "Move pointer slightly",
         keepAwakeMouseJiggleCaption: "During a session, moves the pointer a little at the chosen interval.",
@@ -2428,7 +2458,6 @@ extension Strings {
         switcherNoWindows: "No open windows",
         switcherIconRowMode: "Show %@ with large icons",
         switcherIconRowModeCaption: "Shows one icon per app with that app’s window previews above it.",
-        switcherSimpleMode: "Simple app switcher",
         switcherSimpleModeCaption: "Shows app icons and window titles, without previews or screen capture by the switcher.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
@@ -2456,6 +2485,10 @@ extension Strings {
         dockPreviewOpenDelayCaption: "How long the pointer has to rest on an icon before its panel opens.",
         dockPreviewQuitAppOnClose: "Quit the app with the × button",
         dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × quits the whole app instead of closing only that window.",
+        dockPreviewKeepDockVisible: "Keep Dock visible (experimental)",
+        dockPreviewKeepDockVisibleCaption: "Pauses auto-hide while the preview is open and restores it when you leave. May resize windows. If the app is interrupted, reopen it to restore the Dock.",
+        dockPreviewOrderByCreation: "Order windows by creation time",
+        dockPreviewOrderByCreationCaption: "Show older windows first instead of the ones you used most recently.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app’s windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
@@ -2678,6 +2711,9 @@ extension Strings {
         mediaCompressionLow: "Low",
         mediaCompressionMedium: "Medium",
         mediaCompressionHigh: "High",
+        mediaCompressionLowDescription: "High quality, large file size",
+        mediaCompressionMediumDescription: "Balanced quality and file size",
+        mediaCompressionHighDescription: "Low quality, small file size",
         mediaMaxSize: "Size",
         mediaSizingResolution: "Resolution",
         mediaSizingFileSize: "File size",
@@ -2910,6 +2946,8 @@ extension Strings {
         betaFeatureWarning: "Beta. You may run into some bugs.",
 
         networkSection: "Network",
+        networkIPAddresses: "IP addresses",
+        networkLocalIP: "Local IPv4",
         networkDownload: "Download",
         networkUpload: "Upload",
         networkThisSession: "This session",
@@ -3013,7 +3051,6 @@ extension Strings {
         monitorItemDiskProtection: "External protection",
         monitorItemDiskTools: "Tools",
         monitorPanelConfigHint: "Open a block to choose what it shows.",
-        monitorOrderSection: "Section order",
         monitorOrderHint: "Drag to reorder the panel sections and use the eye to show or hide each one.",
         obStepPanelTitle: "What’s in the panel",
         obStepPanelBody: "Open each block and pick exactly what shows when you click the icon.",
@@ -3085,10 +3122,10 @@ extension Strings {
         updateShowcaseUnavailable: "The video could not load right now. You can still continue.",
         updateShowcaseRestart: "Restart",
         showMenuBarIcon: "Show menu bar icon",
-        showMenuBarIconCaption: "If Vorssaint’s icon disappears (macOS can hide menu bar icons when the bar runs out of room, common on Macs with a notch), reopen Vorssaint from Applications or Spotlight: that rebuilds the icon and, if it’s still hidden, opens this window.",
         menuBarIconStillHiddenTitle: "The icon is still hidden",
         menuBarIconStillHiddenBody: "The icon was rebuilt, but macOS did not give it a visible spot. The menu bar is probably out of room: remove some menu bar icons (or close apps with long menus) and try again.",
         menuBarIconManagerHintFormat: "%@ is open and may be keeping the icon in its hidden section. Look for Vorssaint there, or set %@ to always show Vorssaint.",
+        menuBarIconDisallowedBody: "macOS is keeping Vorssaint out of the menu bar. Open System Settings > Menu Bar, find Vorssaint in the app list and turn on “Allow in the Menu Bar”. The icon appears as soon as the switch is on.",
         shortcutRecording: "Press the new shortcut",
         shortcutReset: "Reset",
         shortcutNone: "None",
@@ -3099,12 +3136,17 @@ extension Strings {
         shortcutDeleteHint: "Delete clears.",
         shortcutNotCaptured: "Nothing was captured. macOS or another app already uses that combination. Try another one.",
         shortcutConflictFormat: "This shortcut is already used by %@.",
+        shortcutTakeOverOffer: "macOS uses %@ for one of its own shortcuts.",
+        shortcutTakeOverAction: "Take over while Vorssaint runs",
+        shortcutTakeOverCaption: "macOS gets the key back whenever Vorssaint is not running or this feature is off.",
+        shortcutTakeOverDismiss: "Don’t take over",
         shortcutUnavailable: "macOS rejected this shortcut. Choose another one.",
         shelfShortcutToggle: "Shelf shortcut",
         switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",
         musicBlockSection: "Media keys",
         musicBlockTitle: "Stop Music from opening on its own",
-        musicBlockCaption: "The Music app no longer opens when you press the media keys. You can still open it yourself.",
+        musicBlockCaption: "Blocks the music app opening after a detected media key. Requires Accessibility access. Headphone commands without a detected key are left alone.",
+        musicBlockUnavailable: "This protection is unavailable right now. Turn it off and on to try again.",
         musicBlockReplacementLabel: "Open instead",
         musicBlockReplacementNone: "None",
         musicBlockChooseApp: "Choose app…",

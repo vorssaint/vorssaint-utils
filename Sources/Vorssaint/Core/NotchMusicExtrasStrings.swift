@@ -115,7 +115,7 @@ extension FeatureStrings {
             openPlayer: "Abrir reprodutor",
             liveEqualizer: "Barras seguem a música",
             liveEqualizerDescription: "Mova as barras do Dynamic Island com o som do seu reprodutor.",
-            liveEqualizerHint: "Ouve a saída de áudio do próprio player para mover as barras. O macOS pede uma vez permissão para gravar o áudio do sistema. Nada é guardado nem enviado. Sem ela, as barras mantêm o movimento habitual.",
+            liveEqualizerHint: "Ouve a saída de áudio do próprio reprodutor para mover as barras. O macOS pede uma vez permissão para gravar o áudio do sistema. Nada é guardado nem enviado. Sem ela, as barras mantêm o movimento habitual.",
             liveEqualizerUnavailable: "Requer macOS 14.4 ou posterior.")
         case .es: return NotchMusicExtrasStrings(
             lyrics: "Letra",

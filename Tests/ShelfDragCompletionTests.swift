@@ -47,7 +47,7 @@ enum ShelfDragCompletionContract {
 enum ShelfDragCompletionTests {
     private typealias Context = ShelfDragCompletionContract
 
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         for pinned in [false, true] {
             for close in [false, true] {
                 for accepted in [false, true] {
@@ -61,15 +61,15 @@ enum ShelfDragCompletionTests {
                         let id = UUID()
                         service.beginInternalDrag(ids: [id], from: notch.presentationWindow)
                         service.internalDragWasMerged = merged
-                        expect(notch.heldDrag, "a drag from the notch holds its working surface")
+                        suite.expect(notch.heldDrag, "a drag from the notch holds its working surface")
                         service.completeInternalDrag(dropAccepted: accepted)
                         let transferred = accepted && !merged
-                        expect(notch.closures == (transferred && close && !pinned ? 1 : 0),
+                        suite.expect(notch.closures == (transferred && close && !pinned ? 1 : 0),
                                "notch completion honors accepted drops, local merges, its pin and the close preference")
-                        expect(service.removed == (transferred ? [id] : []) && !notch.heldDrag
+                        suite.expect(service.removed == (transferred ? [id] : []) && !notch.heldDrag
                                && service.internalDragWindow == nil && service.activeInternalDragIDs.isEmpty,
                                "completion preserves removal policy and always releases the drag's source")
-                        expect(service.floatingClosures == 0 && service.dockedClosures == 0,
+                        suite.expect(service.floatingClosures == 0 && service.dockedClosures == 0,
                                "closing an embedded shelf leaves the separate presentations alone")
                     }
                 }
@@ -87,9 +87,9 @@ enum ShelfDragCompletionTests {
             notch.pinned = true
             Context.UserDefaults.standard.removeAfterDrop = false
             service.beginInternalDrag(ids: [UUID()], from: source)
-            expect(!notch.heldDrag, "a separate shelf cannot hold an unrelated notch open")
+            suite.expect(!notch.heldDrag, "a separate shelf cannot hold an unrelated notch open")
             service.completeInternalDrag(dropAccepted: true)
-            expect(service.floatingClosures == (docked ? 0 : 1) && service.dockedClosures == (docked ? 1 : 0)
+            suite.expect(service.floatingClosures == (docked ? 0 : 1) && service.dockedClosures == (docked ? 1 : 0)
                    && notch.closures == 0 && service.removed.isEmpty,
                    "separate shelf completion retains its own close, pin and removal behavior")
         }
@@ -110,7 +110,7 @@ enum ShelfDragCompletionTests {
             default: notch.presentationWindow = Context.Window(); notch.heldDrag = false
             }
             service.completeInternalDrag(dropAccepted: true)
-            expect(notch.closures == 0 && service.floatingClosures == 0,
+            suite.expect(notch.closures == 0 && service.floatingClosures == 0,
                    "an old drag cannot close a different destination or a replacement notch window")
         }
     }

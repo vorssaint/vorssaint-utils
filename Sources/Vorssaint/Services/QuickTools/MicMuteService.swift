@@ -13,7 +13,8 @@ import Foundation
 /// one, else its input volume drops to zero and the saved level comes back on
 /// unmute. A device that arrives while muted is muted as it appears, the mute
 /// is re-asserted when the default input changes, and the state survives app
-/// relaunches via the persisted flag.
+/// relaunches via the persisted flag. A device this app silenced stays its to
+/// release even while unplugged: it gets its level back when it returns.
 final class MicMuteService: ObservableObject {
     static let shared = MicMuteService()
 
@@ -31,6 +32,13 @@ final class MicMuteService: ObservableObject {
     /// A sweep that finished after a newer one started must not publish what
     /// it saw.
     private var applyGeneration = 0
+    /// What the last request asked for, kept from the moment it is queued.
+    /// `isMuted` and the persisted flag only follow once the sweep has
+    /// published, so a device change or a preference sync that lands while a
+    /// sweep is still running must re-assert the request in flight, never the
+    /// state it is replacing: read from the flag, a mute still being applied
+    /// looked like "unmuted, with claims to release" and was silently undone.
+    private var wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
     private let inputVolumeLock = NSLock()
     private var inputVolumeBlocked = false
     private var inputVolumeLifetime = UUID()
@@ -63,18 +71,23 @@ final class MicMuteService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.micMuteShortcut,
                                             fallback: .micMuteDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.micMuteShortcut)
 
-        let wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
         if available {
             if wantsMute {
                 apply(muted: true, announce: false)
+            } else if hasOutstandingClaims {
+                // A device this app silenced and never got to release: it
+                // was away at the unmute, or the app went down. Its level
+                // comes back now if it is here, else when it returns.
+                apply(muted: false, announce: false)
             }
             isMuted = wantsMute
         } else {
             // Switching the feature off must not strand a muted microphone
             // with no control left to unmute it.
-            if wantsMute {
+            if wantsMute || hasOutstandingClaims {
                 apply(muted: false, announce: false)
                 UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
             }
@@ -83,14 +96,20 @@ final class MicMuteService: ObservableObject {
         syncListeners()
     }
 
-    /// The listeners only exist to keep an active mute true while devices come
-    /// and go, so they live exactly as long as the mute does.
+    /// The listeners exist to keep an active mute true while devices come and
+    /// go, and to catch a claimed device coming back so it can be released;
+    /// they live only as long as one of those is pending.
     private func syncListeners() {
-        if isMuted {
+        if isMuted || (AppFeature.micMute.isAvailable && hasOutstandingClaims) {
             installListeners()
         } else {
             removeListeners()
         }
+    }
+
+    /// Devices this app silenced and has not yet put back, present or not.
+    private var hasOutstandingClaims: Bool {
+        !(UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? []).isEmpty
     }
 
     func suspend() {
@@ -126,25 +145,15 @@ final class MicMuteService: ObservableObject {
     /// failure this feature cannot afford, so this one waits.
     func unmuteForTeardown() {
         let defaults = UserDefaults.standard
-        guard defaults.bool(forKey: DefaultsKey.micMuteActive) else { return }
-        let savedVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:]
-        // Missing means never tracked; an empty list means tracked and owning
-        // nothing, and the sweep must keep those two apart.
-        let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
-        let legacyVolume = defaults.double(forKey: DefaultsKey.micMuteSavedVolume)
-
+        // A mute still being applied has not reached the flag yet, and a claim
+        // is a device this app owes its level back whatever the flag says.
+        guard wantsMute || defaults.bool(forKey: DefaultsKey.micMuteActive) || hasOutstandingClaims else { return }
         // Any sweep still in flight loses its right to publish, and this one
         // runs behind it on the same serial queue.
         applyGeneration += 1
-        let outcome = halQueue.sync {
-            Self.applyToDevices(muted: false,
-                                savedVolumes: savedVolumes,
-                                mutedDevices: mutedDevices,
-                                legacyVolume: legacyVolume)
-        }
+        wantsMute = false
+        _ = halQueue.sync { Self.sweep(muted: false) }
         defaults.set(false, forKey: DefaultsKey.micMuteActive)
-        defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
-        defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
         isMuted = false
         inputVolumeLock.withLock {
             inputVolumeBlocked = false
@@ -153,55 +162,76 @@ final class MicMuteService: ObservableObject {
         removeListeners()
     }
 
-    /// Silently re-asserts the persisted state; used when the set of input
-    /// devices, or the default one, changes underneath us.
+    /// Silently re-asserts the wanted state; used when the set of input
+    /// devices, or the default one, changes underneath us. Unmuted, the same
+    /// change is the moment a device this app still has to release may have
+    /// come back.
     private func reapplyIfNeeded() {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) else { return }
-        apply(muted: true, announce: false)
+        if wantsMute {
+            apply(muted: true, announce: false)
+        } else if hasOutstandingClaims {
+            apply(muted: false, announce: false)
+        }
     }
 
     // MARK: - Applying
 
     /// Hands the sweep to the audio queue and keeps the published state, the
-    /// persisted state and the HUD on the main thread, where they belong.
+    /// wanted state and the HUD on the main thread, where they belong.
     private func apply(muted: Bool, announce: Bool) {
+        wantsMute = muted
         inputVolumeLock.withLock {
             inputVolumeBlocked = muted
             inputVolumeLifetime = UUID()
         }
-        let defaults = UserDefaults.standard
-        let savedVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:]
-        let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
-        let legacyVolume = defaults.double(forKey: DefaultsKey.micMuteSavedVolume)
-
         applyGeneration += 1
         let generation = applyGeneration
         halQueue.async { [weak self] in
-            let outcome = Self.applyToDevices(muted: muted,
-                                              savedVolumes: savedVolumes,
-                                              mutedDevices: mutedDevices,
-                                              legacyVolume: legacyVolume)
+            let outcome = Self.sweep(muted: muted)
             DispatchQueue.main.async {
                 self?.finish(outcome, muted: muted, announce: announce, generation: generation)
             }
         }
     }
 
+    /// Runs on `halQueue`. The record of what this app silenced is read here
+    /// and written back here, so every sweep starts from what the one before
+    /// it recorded. Two sweeps back to back are the normal case, not the
+    /// exception: one headset connecting fires both listeners, and a quick
+    /// double press queues two. Read on the main thread when each was asked
+    /// for, both would start from the same record; the second would then find
+    /// the devices the first had just silenced already quiet and unclaimed,
+    /// leave them to "the user", and the unmute would never release them.
+    private static func sweep(muted: Bool) -> MuteOutcome {
+        let defaults = UserDefaults.standard
+        let outcome = applyToDevices(
+            muted: muted,
+            savedVolumes: defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:],
+            // Missing means never tracked; an empty list means tracked and
+            // owning nothing, and the sweep must keep those two apart.
+            mutedDevices: defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices),
+            legacyVolume: defaults.double(forKey: DefaultsKey.micMuteSavedVolume))
+        // A sweep that reached nothing leaves the record alone: it is what a
+        // later unmute needs to put every level back.
+        if outcome.applied {
+            defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
+            defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
+        }
+        return outcome
+    }
+
     /// Main thread. Publishes one sweep.
     private func finish(_ outcome: MuteOutcome, muted: Bool, announce: Bool, generation: Int) {
-        // A sweep that reached nothing leaves the recorded state alone: it is
-        // what a later unmute needs to put every level back.
         guard generation == applyGeneration else { return }
         guard outcome.applied else {
+            // Nothing was reached, so the request is dropped as it always was:
+            // the published state stays what it is, and so does the wanted one.
+            wantsMute = isMuted
             inputVolumeLock.withLock { inputVolumeBlocked = isMuted }
             return
         }
-        let defaults = UserDefaults.standard
-        defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
-        defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
-
         if isMuted != muted { isMuted = muted }
-        defaults.set(muted, forKey: DefaultsKey.micMuteActive)
+        UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
         syncListeners()
         guard announce else { return }
         QuickToolHUD.show(icon: muted ? "mic.slash.fill" : "mic.fill",
@@ -228,8 +258,9 @@ final class MicMuteService: ObservableObject {
                                        legacyVolume: Double) -> MuteOutcome {
         let devices = inputDevices()
         guard !devices.isEmpty else {
-            // Nothing to silence. An unmute has still done its job.
-            return MuteOutcome(applied: !muted, savedVolumes: savedVolumes, mutedDevices: [])
+            // Nothing to silence. An unmute has still done its job, and keeps
+            // its claims for the devices that are away.
+            return MuteOutcome(applied: !muted, savedVolumes: savedVolumes, mutedDevices: mutedDevices ?? [])
         }
         return muted
             ? mute(devices, savedVolumes: savedVolumes, mutedDevices: mutedDevices)
@@ -239,7 +270,10 @@ final class MicMuteService: ObservableObject {
     private static func mute(_ devices: [InputDevice],
                              savedVolumes: [String: Double],
                              mutedDevices: [String]?) -> MuteOutcome {
-        var outcome = MuteOutcome(applied: false, savedVolumes: savedVolumes, mutedDevices: [])
+        var outcome = MuteOutcome(applied: false,
+                                  savedVolumes: savedVolumes,
+                                  mutedDevices: MicMuteSupport.absentClaims(recorded: mutedDevices,
+                                                                            present: devices.map(\.uid)))
         let owned = Set(mutedDevices ?? [])
         for device in devices {
             // Already silent: a microphone the user muted themselves is left
@@ -278,9 +312,12 @@ final class MicMuteService: ObservableObject {
                                savedVolumes: [String: Double],
                                mutedDevices: [String]?,
                                legacyVolume: Double) -> MuteOutcome {
-        var outcome = MuteOutcome(applied: false, savedVolumes: savedVolumes, mutedDevices: [])
-        let targets = Set(MicMuteSupport.restoreTargets(recorded: mutedDevices,
-                                                        present: devices.map(\.uid)))
+        let present = devices.map(\.uid)
+        var outcome = MuteOutcome(applied: false,
+                                  savedVolumes: savedVolumes,
+                                  mutedDevices: MicMuteSupport.absentClaims(recorded: mutedDevices,
+                                                                            present: present))
+        let targets = Set(MicMuteSupport.restoreTargets(recorded: mutedDevices, present: present))
         var attempted = false
         for device in devices where targets.contains(device.uid) {
             // A saved level only leaves once the device really opened: a
@@ -461,7 +498,8 @@ final class MicMuteService: ObservableObject {
     // MARK: - Listeners
 
     /// Two changes can defeat an active mute: a device arriving (a headset
-    /// connecting mid call) and the default input moving. Both re-assert it.
+    /// connecting mid call) and the default input moving. Both re-assert it,
+    /// and both are how a device still owed its level back announces itself.
     private static let watchedSelectors: [AudioObjectPropertySelector] = [
         kAudioHardwarePropertyDevices,
         kAudioHardwarePropertyDefaultInputDevice,

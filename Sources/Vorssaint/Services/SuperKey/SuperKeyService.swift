@@ -838,14 +838,16 @@ final class SuperKeyService: ObservableObject {
     /// or cancel on its own, the same way the Input menu does.
     private static func selectNextInputSource() {
         let apply = {
-            let sources = selectableInputSources()
-            let ids = sources.compactMap { inputSourceString($0, property: kTISPropertyInputSourceID) }
+            let sources = InputSourceSelection.selectableInputSources()
+            let ids = sources.compactMap {
+                InputSourceSelection.inputSourceString($0, property: kTISPropertyInputSourceID)
+            }
             guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
-            let currentID = inputSourceString(current, property: kTISPropertyInputSourceID)
+            let currentID = InputSourceSelection.inputSourceString(current, property: kTISPropertyInputSourceID)
             guard let nextID = SuperKeySupport.nextInputSourceID(currentID: currentID,
                                                                  enabledIDs: ids),
                   let next = sources.first(where: {
-                      inputSourceString($0, property: kTISPropertyInputSourceID) == nextID
+                      InputSourceSelection.inputSourceString($0, property: kTISPropertyInputSourceID) == nextID
                   })
             else { return }
             _ = TISSelectInputSource(next)
@@ -858,28 +860,6 @@ final class SuperKeyService: ObservableObject {
         } else {
             DispatchQueue.main.sync(execute: apply)
         }
-    }
-
-    private static func selectableInputSources() -> [TISInputSource] {
-        guard let list = TISCreateInputSourceList(nil, false) else { return [] }
-        let values = list.takeRetainedValue() as NSArray
-        return (values as! [TISInputSource]).filter {
-            inputSourceString($0, property: kTISPropertyInputSourceCategory)
-                == kTISCategoryKeyboardInputSource as String
-                && inputSourceBool($0, property: kTISPropertyInputSourceIsSelectCapable)
-        }
-    }
-
-    private static func inputSourceString(_ source: TISInputSource,
-                                          property: CFString) -> String? {
-        guard let pointer = TISGetInputSourceProperty(source, property) else { return nil }
-        return Unmanaged<CFString>.fromOpaque(pointer).takeUnretainedValue() as String
-    }
-
-    private static func inputSourceBool(_ source: TISInputSource,
-                                        property: CFString) -> Bool {
-        guard let pointer = TISGetInputSourceProperty(source, property) else { return false }
-        return CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque(pointer).takeUnretainedValue())
     }
 
     // MARK: - Caps Lock itself

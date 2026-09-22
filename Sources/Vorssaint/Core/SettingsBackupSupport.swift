@@ -60,6 +60,7 @@ enum SettingsBackupSupport {
         DefaultsKey.notchQuickAccessSide,
         DefaultsKey.notchQuickAccessSecond,
         DefaultsKey.notchQuickAccessThird,
+        DefaultsKey.systemShortcutTakeOverKeys,
         // Experience flags: a restored Mac must not replay onboarding or the
         // feature intros the user has already been through.
         DefaultsKey.hasOnboarded,
@@ -76,6 +77,7 @@ enum SettingsBackupSupport {
     /// out by construction (they are not preference keys), listed here only
     /// when they would otherwise slip in through the registered set.
     static let machineStateKeys: Set<String> = [
+        DefaultsKey.dockPreviewRestoreAutohide,
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
         DefaultsKey.micMuteActive,
@@ -136,6 +138,10 @@ enum SettingsBackupSupport {
         DefaultsKey.systemShortcutsSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
+        // Restoring it would skip the one-time recheck of the cache above on
+        // a Mac that still holds its own stale verdicts.
+        DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
+        DefaultsKey.brightnessForcedSoftwarePaths,
     ]
 
     /// The file's content: an envelope with the format version, the app
