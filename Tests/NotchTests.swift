@@ -202,7 +202,10 @@ enum NotchTests {
             for percent in 0...100 {
                 let notice = NotchNotice(event: event, title: "Level", detail: "\(percent)%",
                                          symbol: "speaker.wave.2", level: Double(percent) / 100)
-                suite.expect(notice.preferredWingWidth == 112, "level changes keep a stable compact width")
+                let wing = notice.preferredWingWidth
+                suite.expect(wing == 80, "level changes keep a stable compact width without an empty outer margin")
+                suite.expect(width(notice.detail) + 18 + 8 + 16 <= wing && wing - 16 >= 64,
+                             "every percentage fits beside its icon while the opposite meter remains readable")
             }
         }
         let long = NotchNotice(event: .accessory, title: String(repeating: "Device ", count: 100),

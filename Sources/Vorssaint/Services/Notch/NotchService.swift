@@ -20,7 +20,9 @@ struct NotchNotice: Equatable {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
         let trailing = level == nil ? (detail as NSString).size(withAttributes: [.font: font]).width : 0
-        if level != nil, event != .accessory { return 112 }
+        // Reserve enough for the widest percentage without giving the short
+        // label the same oversized wing used by text notices.
+        if level != nil, event != .accessory { return 80 }
         // Battery labels need breathing room at both the curved edge and the
         // camera. Long accessory names still use bounded truncation.
         let maximum: CGFloat = event == .accessory && level == nil ? 160 : 240

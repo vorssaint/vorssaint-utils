@@ -265,6 +265,9 @@ def main():
     write("NotchPlaybackRouting.swift", "import Foundation\nimport ObjectiveC\nextension NotchPlaybackRoutingContract {\n"
           + declaration(playback_adapter, "    private struct Identity:").replace("private struct", "struct", 1)
           + declaration(playback_adapter, "    static var target:")
+          + declaration(playback_adapter, "    static var sourceReply:")
+          + declaration(playback_adapter, "    static func choose(")
+          + declaration(playback_adapter, "    static func select()")
           + declaration(playback_adapter, "    static func publish(").replace("    static func", "    @discardableResult\n    static func", 1)
           + declaration(playback_adapter, "    static func validatedTarget(")
           + declaration(playback_adapter, "    static func readInfo(")
@@ -643,6 +646,8 @@ def main():
     write("NotchMusicControls.swift", "import Foundation\n\nextension NotchMusicCommandContract {\n"
           + "final class Service {\ntypealias Command = NotchPlaybackCommand\n"
           + "var playback: NotchPlayback?\nvar generation = UUID()\nvar queueRequest: UUID?\n"
+          + "var sources: [NotchPlaybackSource] = []\nvar artwork: NSObject?\nvar artworkTint: NotchArtworkTint?\n"
+          + "func updateAutomation(for playback: NotchPlayback?) {}\nfunc setQueueVisible(_ visible: Bool) { queueVisible = visible }\n"
           + "var queueVisible = true\nvar queueLoading = false\nvar queueActionPending = false\n"
           + "var commandFailed = false\nvar queueActionFailed = false\nvar commandPending = false\n"
           + "var canSeek: Bool { playback?.canSeek == true }\n"
@@ -656,6 +661,7 @@ def main():
           + declaration(music, "    func stop()")
           + declaration(music, "    private func connectionEnded()").replace("private func", "func", 1)
           + declaration(music, "    func seek(")
+          + declaration(music, "    func selectSource(")
           + declaration(music, "    func send(_ command: Command)").replace("    func", "    @discardableResult\n    func", 1)
           + declaration(music, "    func send(_ command: Command, context:").replace("    func", "    @discardableResult\n    func", 1)
           + "}\n}\n")

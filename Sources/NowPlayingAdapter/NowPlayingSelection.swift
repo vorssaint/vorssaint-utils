@@ -15,6 +15,7 @@ enum NotchNativePlayback {
         let path: NSObject
         var itemIdentifier: String?
         var allowsDirectCommands = false
+        var applicationBundleIdentifier: String?
 
         var isRunning: Bool {
             guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return false }
@@ -28,6 +29,19 @@ enum NotchNativePlayback {
     private static var selected: Target?
     private static var identity: Identity?
     private static var context: NotchPlaybackContext?
+    private static var sources: [NotchPlaybackSource] = []
+    private static var selection: NotchPlaybackSource.Selection?
+
+    static var sourceReply: [String: Any] {
+        lock.lock(); defer { lock.unlock() }
+        return ["sources": sources.map(\.reply), "sourceIsAutomatic": selection == nil]
+    }
+
+    static func choose(_ requested: NotchPlaybackSource.Selection?) {
+        lock.lock(); defer { lock.unlock() }
+        guard requested == nil || sources.contains(where: { $0.selection == requested && $0.hasTrack }) else { return }
+        selection = requested
+    }
 
     private struct Identity: Equatable {
         let item: String?
@@ -55,13 +69,27 @@ enum NotchNativePlayback {
     }
 
     static func select() -> Target? {
+        var discovered = false
+        defer {
+            if !discovered {
+                // A failed scan is not evidence that the chosen player ended.
+                lock.lock(); sources = []; lock.unlock()
+            }
+        }
         typealias ReadClient = @convention(c) (DispatchQueue, @escaping @convention(block) (AnyObject?) -> Void) -> Void
+        typealias ReadClients = @convention(c) (DispatchQueue, @escaping @convention(block) (NSArray?) -> Void) -> Void
         typealias PID = @convention(c) (AnyObject) -> Int32
+        typealias ClientString = @convention(c) (AnyObject) -> Unmanaged<CFString>?
         guard let getClient = function(handle, "MRMediaRemoteGetNowPlayingClient", as: ReadClient.self),
               let getPID = function(handle, "MRNowPlayingClientGetProcessIdentifier", as: PID.self) else { return nil }
         let group = DispatchGroup()
+        let clientsGroup = DispatchGroup()
         let resultsLock = NSLock()
         var systemPID: Int32?
+        var clientPIDs: [Int32] = []
+        var clientPresentation: [Int32: (name: String?, application: String?)] = [:]
+        let getName = function(handle, "MRNowPlayingClientGetDisplayName", as: ClientString.self)
+        let getParent = function(handle, "MRNowPlayingClientGetParentAppBundleIdentifier", as: ClientString.self)
         group.enter()
         getClient(callbacks) { client in
             resultsLock.lock()
@@ -69,37 +97,80 @@ enum NotchNativePlayback {
             resultsLock.unlock()
             group.leave()
         }
+        // Browsers need to remain discoverable when a music app owns the
+        // system's current player. Enumerate registered clients, not all apps.
+        if let getClients = function(handle, "MRMediaRemoteGetNowPlayingClients", as: ReadClients.self) {
+            clientsGroup.enter()
+            getClients(callbacks) { clients in
+                resultsLock.lock()
+                clientPIDs = (clients as? [AnyObject] ?? []).prefix(16).map(getPID)
+                for client in (clients as? [AnyObject] ?? []).prefix(16) {
+                    clientPresentation[getPID(client)] = (getName?(client)?.takeUnretainedValue() as String?,
+                                                         getParent?(client)?.takeUnretainedValue() as String?)
+                }
+                resultsLock.unlock()
+                clientsGroup.leave()
+            }
+        }
         guard group.wait(timeout: .now() + 0.5) == .success else { return nil }
+        // Failure to enumerate extra sources must not hide the known player.
+        _ = clientsGroup.wait(timeout: .now() + 0.2)
         resultsLock.lock()
         let currentPID = systemPID
+        let registeredPIDs = clientPIDs
+        let presentation = clientPresentation
         resultsLock.unlock()
+        let chosenPID = lock.withLock { selection?.pid }
         var applications = NSWorkspace.shared.runningApplications.filter(isMusicApp)
-        if let currentPID, !applications.contains(where: { $0.processIdentifier == currentPID }),
-           let current = NSRunningApplication(processIdentifier: currentPID) {
-            applications.append(current)
+        for pid in registeredPIDs + [currentPID, target?.pid, chosenPID].compactMap({ $0 }) {
+            if pid > 0, !applications.contains(where: { $0.processIdentifier == pid }),
+               let current = NSRunningApplication(processIdentifier: pid) {
+                applications.append(current)
+            }
         }
         // A bounded fan-out; no timers or queries survive the adapter process.
         guard applications.count <= 16 else { return nil }
         var candidates: [(Target, NotchPlaybackSource)] = []
         for app in applications {
-            guard let candidate = makeTarget(app) else { continue }
+            guard var candidate = makeTarget(app) else { continue }
+            // Safari publishes through WebKit's helper. Keep its exact process
+            // for routing, and use the parent app only for presentation/opening.
+            candidate.applicationBundleIdentifier = presentation[candidate.pid]?.application
+                .flatMap { NotchPlaybackCommand.validIdentifier($0) ? $0 : nil }
             group.enter()
             readInfo(candidate, artwork: false, queue: callbacks) { info in
                 let source = NotchPlaybackSource(pid: candidate.pid, bundleIdentifier: candidate.bundleIdentifier,
                     isMusicApp: isMusicApp(app),
                     isPlaying: (info?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue ?? 0 > 0,
-                    hasTrack: (info?["kMRMediaRemoteNowPlayingInfoTitle"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                    hasTrack: (info?["kMRMediaRemoteNowPlayingInfoTitle"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+                    displayName: presentation[candidate.pid]?.name ?? app.localizedName)
                 resultsLock.lock()
                 candidates.append((candidate, source))
                 resultsLock.unlock()
                 group.leave()
             }
         }
-        guard group.wait(timeout: .now() + 1) == .success else { return nil }
+        // Keep completed reads when an unrelated client misses the deadline.
+        _ = group.wait(timeout: .now() + 1)
         resultsLock.lock()
         let ready = candidates
         resultsLock.unlock()
-        let source = NotchPlaybackSource.preferred(in: ready.map(\.1), previousPID: target?.pid, systemPID: currentPID)
+        lock.lock()
+        sources = ready.map(\.1).filter(\.hasTrack).sorted { $0.pid < $1.pid }
+        if let selection {
+            let app = NSRunningApplication(processIdentifier: selection.pid)
+            let ended = app == nil || app?.isTerminated == true || app?.bundleIdentifier != selection.bundleIdentifier
+            let lostTrack = ready.contains { $0.1.selection == selection && !$0.1.hasTrack }
+            if ended || lostTrack { self.selection = nil }
+        }
+        let requested = selection
+        lock.unlock()
+        discovered = true
+        // An unanswered selected player stays selected, but exposes no stale
+        // controls. The empty surface still lets the user choose another one.
+        if let requested, !ready.contains(where: { $0.1.selection == requested && $0.1.hasTrack }) { return nil }
+        let source = NotchPlaybackSource.preferred(in: ready.map(\.1), previousPID: target?.pid,
+                                                   systemPID: currentPID, selection: requested)
         guard var chosen = ready.first(where: { $0.1 == source })?.0 else { return nil }
         typealias IsSystemPlayer = @convention(c) (AnyObject, Selector) -> Bool
         let systemPlayer = ["isSystemMediaApplication", "isSystemPodcastsApplication", "isSystemBooksApplication"].contains { name in

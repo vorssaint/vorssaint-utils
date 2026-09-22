@@ -1023,7 +1023,7 @@ struct NotchGeometry: Equatable {
         return max(0, flat, shoulder + corner - radius - span - compactActivityHorizontalPadding)
     }
     var notice: CGSize {
-        noticeSize(wingWidth: 112)
+        noticeSize(wingWidth: 80)
     }
     var noticeCameraGap: CGFloat { cameraWidth }
 

@@ -7,6 +7,8 @@ import Combine
 final class NotchMusicService: ObservableObject {
     static let shared = NotchMusicService()
     @Published private(set) var playback: NotchPlayback?
+    @Published private(set) var sources: [NotchPlaybackSource] = []
+    @Published private(set) var sourceIsAutomatic = true
     /// True from the first request until the adapter's first reply. Until then
     /// a missing playback is unknown, not "nothing playing".
     @Published private(set) var awaitingPlayback = false
@@ -118,10 +120,14 @@ final class NotchMusicService: ObservableObject {
             }
             let image = cachedImage
             let tint = cachedTint
+            let sources = NotchPlaybackSource.decode(reply?["sources"])
+            let automatic = reply?["sourceIsAutomatic"] as? Bool ?? true
             DispatchQueue.main.async {
                 guard let self, self.generation == requested else { return }
                 self.updateArtwork(image, tint: tint, playback: next)
                 self.playback = next
+                self.sources = sources
+                self.sourceIsAutomatic = automatic
                 self.awaitingPlayback = false
                 self.updateAutomation(for: next)
                 NotchLyricsService.shared.playbackChanged(next)
@@ -246,12 +252,29 @@ final class NotchMusicService: ObservableObject {
         input = nil
         output = nil
         playback = nil
+        sources = []
+        sourceIsAutomatic = true
         artwork = nil
         artworkTint = nil
         commandFailed = false
     }
 
     typealias Command = NotchPlaybackCommand
+
+    func selectSource(_ selection: NotchPlaybackSource.Selection?) {
+        guard selection == nil || sources.contains(where: { $0.selection == selection }),
+              send(.source(selection)) else { return }
+        cancelAutomationAction()
+        setQueueVisible(false)
+        // Remove the old controls while the adapter validates and reads the
+        // new source. No gesture can borrow the previous player's context.
+        playback = nil
+        artwork = nil
+        artworkTint = nil
+        awaitingPlayback = true
+        updateAutomation(for: nil)
+        NotchLyricsService.shared.playbackChanged(nil)
+    }
 
     func setQueueVisible(_ visible: Bool) {
         queueVisible = visible && NotchQueueSupport.isEnabled() && playback != nil
@@ -337,7 +360,11 @@ final class NotchMusicService: ObservableObject {
         case .queue, .queuePlay: guard queueVisible, NotchQueueSupport.isEnabled() else { return false }
         default: break
         }
-        guard (playback != nil || command == .queueStop), process?.isRunning == true, let input else { return false }
+        switch command {
+        case .source, .queueStop: break
+        default: guard playback != nil else { return false }
+        }
+        guard process?.isRunning == true, let input else { return false }
         if command.requiresPlaybackContext {
             guard let context, context == playback?.commandContext else { return false }
             guard !commandPending, let playback else { return false }

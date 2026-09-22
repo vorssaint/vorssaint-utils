@@ -102,14 +102,18 @@ struct NotchMusicView: View {
                 .frame(width: 76, height: 76)
                 .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
-                Text(text.mediaNothingPlaying).font(.system(size: 17, weight: .semibold))
+                if !service.sources.isEmpty || !service.sourceIsAutomatic {
+                    sourcePicker(nil)
+                } else {
+                    Text(text.mediaNothingPlaying).font(.system(size: 17, weight: .semibold))
+                }
                 Text(FeatureStrings.notch(l10n.language).musicHint)
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }.frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(height: height)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     private func extraButton(_ target: MusicExtra, title: String, symbol: String) -> some View {
@@ -157,6 +161,9 @@ struct NotchMusicView: View {
                         .font(.system(size: roomy ? 20 : 16, weight: .semibold))
                         .lineLimit(titleLines).help(playback.track.title ?? text.mediaNowPlaying)
                     Spacer(minLength: 0)
+                    if service.sources.count > 1 || !service.sourceIsAutomatic {
+                        sourcePicker(playback)
+                    }
                     if playback.isPlaying {
                         NotchLiveEqualizerBars(bars: 3, barWidth: 2.5, height: 12, tint: accent)
                             .transition(.opacity)
@@ -174,6 +181,37 @@ struct NotchMusicView: View {
             NotchMusicTransport(playback: playback, compact: !roomy).frame(maxWidth: .infinity)
         }
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func sourcePicker(_ playback: NotchPlayback?) -> some View {
+        let extras = FeatureStrings.notchMusicExtras(l10n.language)
+        let pid = playback?.track.appPID
+        let name = service.sources.first(where: { $0.pid == pid })?.displayName
+            ?? pid.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
+            ?? playback?.track.appBundleIdentifier ?? extras.playbackSource
+        return Menu {
+            Button { service.selectSource(nil) } label: {
+                if service.sourceIsAutomatic { Label(extras.automaticSource, systemImage: "checkmark") }
+                else { Text(extras.automaticSource) }
+            }
+            Divider()
+            ForEach(service.sources, id: \.pid) { source in
+                let title = source.displayName ?? NSRunningApplication(processIdentifier: source.pid)?.localizedName ?? source.bundleIdentifier
+                Button { service.selectSource(source.selection) } label: {
+                    if !service.sourceIsAutomatic, source.pid == pid {
+                        Label(title, systemImage: "checkmark")
+                    } else { Text(title) }
+                }
+            }
+        } label: {
+            Text(name).lineLimit(1).truncationMode(.tail)
+        }
+        .menuStyle(.borderlessButton)
+        .frame(maxWidth: 110)
+        .font(.system(size: 10, weight: .medium))
+        .foregroundStyle(.secondary)
+        .accessibilityLabel(extras.playbackSource)
+        .help(extras.playbackSource)
     }
 }
 
