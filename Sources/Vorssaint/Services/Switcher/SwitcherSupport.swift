@@ -14,13 +14,13 @@ struct SwitcherScrollNavigation {
         guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
             return 0
         }
-        let phase = NSEvent.Phase(rawValue: UInt(event.getIntegerValueField(.scrollWheelEventScrollPhase)))
-        if phase.contains(.began) || lastTimestamp.map({ event.timestamp &- $0 > 250_000_000 }) == true {
+        let phase = CGScrollPhase(rawValue: UInt32(truncatingIfNeeded: event.getIntegerValueField(.scrollWheelEventScrollPhase)))
+        if phase == .began || lastTimestamp.map({ event.timestamp &- $0 > 250_000_000 }) == true {
             accumulated = 0
         }
         lastTimestamp = event.timestamp
         guard event.getIntegerValueField(.scrollWheelEventMomentumPhase) == 0,
-              phase.intersection([.ended, .cancelled]).isEmpty else {
+              phase != .ended, phase != .cancelled else {
             accumulated = 0
             return 0
         }

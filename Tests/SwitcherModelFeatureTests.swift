@@ -14,12 +14,12 @@ import VMStatisticsCompat
 enum SwitcherModelFeatureTests {
     private static func scrollNavigationChecks(_ suite: TestSuite) {
         func event(_ vertical: Int32, horizontal: Int32 = 0, continuous: Bool = false,
-                   phase: NSEvent.Phase = [], momentum: Int64 = 0,
+                   phase: CGScrollPhase? = nil, momentum: Int64 = 0,
                    timestamp: CGEventTimestamp = 1_000_000_000) -> CGEvent {
             let event = CGEvent(scrollWheelEvent2Source: nil, units: continuous ? .pixel : .line,
                                 wheelCount: 2, wheel1: vertical, wheel2: horizontal, wheel3: 0)!
             event.setIntegerValueField(.scrollWheelEventIsContinuous, value: continuous ? 1 : 0)
-            event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+            event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase?.rawValue ?? 0))
             event.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentum)
             event.timestamp = timestamp
             return event
@@ -49,9 +49,18 @@ enum SwitcherModelFeatureTests {
         _ = navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began))
         suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began)) == 0,
                      "a new gesture does not inherit the previous remainder")
-        _ = navigation.selectionDelta(for: event(-step, continuous: true, phase: .ended))
-        suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true)) == 0,
-                     "ending a gesture resets its remainder")
+        for phase in [CGScrollPhase.ended, .cancelled] {
+            for terminalDelta in [Int32(0), -step] {
+                navigation = SwitcherScrollNavigation()
+                _ = navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began))
+                suite.expect(navigation.selectionDelta(for: event(terminalDelta, continuous: true, phase: phase)) == 0,
+                             "terminal Core Graphics phase \(phase) with delta \(terminalDelta) preserves selection")
+                suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .changed)) == 0,
+                             "terminal Core Graphics phase \(phase) clears the previous remainder")
+                suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .changed)) == 1,
+                             "scrolling after Core Graphics phase \(phase) accumulates from zero")
+            }
+        }
         suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, timestamp: 2_000_000_000)) == 0,
                      "a pause resets the remainder for devices without gesture phases")
         suite.expect(navigation.selectionDelta(for: event(-10 * step, continuous: true)) == 1,
