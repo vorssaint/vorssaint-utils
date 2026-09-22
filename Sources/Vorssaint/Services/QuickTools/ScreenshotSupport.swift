@@ -1418,6 +1418,18 @@ enum ScreenshotSupport {
         }
     }
 
+    enum ArrowStyleID: String, CaseIterable {
+        case filled, outline, open, doubleEnded, scribbly
+
+        static func sanitized(_ raw: String?) -> ArrowStyleID {
+            ArrowStyleID(rawValue: raw ?? "") ?? .filled
+        }
+    }
+
+    static func randomScribbleSeed() -> UInt64 {
+        UInt64.random(in: UInt64.min...UInt64.max)
+    }
+
     enum StickerID: String, CaseIterable {
         case check, cross, star, heart, thumbsUp, thumbsDown,
              smile, laugh, party, fire, warning, eyes
@@ -1472,6 +1484,8 @@ enum ScreenshotSupport {
         var text: String
         var color: ColorID
         var stroke: StrokeID
+        var arrowStyle: ArrowStyleID
+        var scribbleSeed: UInt64
         var number: Int
 
         init(id: UUID = UUID(),
@@ -1481,6 +1495,8 @@ enum ScreenshotSupport {
              text: String = "",
              color: ColorID = .red,
              stroke: StrokeID = .medium,
+             arrowStyle: ArrowStyleID = .filled,
+             scribbleSeed: UInt64? = nil,
              number: Int = 0) {
             self.id = id
             self.tool = tool
@@ -1489,7 +1505,40 @@ enum ScreenshotSupport {
             self.text = text
             self.color = color
             self.stroke = stroke
+            self.arrowStyle = arrowStyle
+            self.scribbleSeed = scribbleSeed
+                ?? (arrowStyle == .scribbly
+                    ? ScreenshotSupport.randomScribbleSeed()
+                    : 0)
             self.number = number
+        }
+    }
+
+    /// The style values the editor controls should show for a picked mark.
+    struct SelectionStyle: Equatable {
+        let color: ColorID?
+        let stroke: StrokeID?
+        let arrowStyle: ArrowStyleID?
+    }
+
+    static func selectionStyle(for annotation: Annotation) -> SelectionStyle {
+        switch annotation.tool {
+        case .arrow:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: annotation.stroke,
+                                  arrowStyle: annotation.arrowStyle)
+        case .line, .rect, .ellipse, .freehand, .text:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: annotation.stroke,
+                                  arrowStyle: nil)
+        case .highlight, .counter, .redact:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: nil,
+                                  arrowStyle: nil)
+        case .sticker, .pixelate, .select, .crop:
+            return SelectionStyle(color: nil,
+                                  stroke: nil,
+                                  arrowStyle: nil)
         }
     }
 
@@ -1820,6 +1869,139 @@ enum ScreenshotSupport {
                     clockwise: true)
         path.closeSubpath()
         return path
+    }
+
+    /// Shaft and heads of a stroked arrow style as one path, so a single
+    /// stroke draws the whole arrow and casts one shadow. The solid style is a
+    /// filled silhouette rather than a stroke and answers nil.
+    static func arrowStrokePath(from tail: CGPoint,
+                                to tip: CGPoint,
+                                strokeWidth: CGFloat,
+                                style: ArrowStyleID,
+                                seed: UInt64) -> CGPath? {
+        let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
+        let path = CGMutablePath()
+        switch style {
+        case .filled:
+            return nil
+        case .outline:
+            path.addLines(between: [tail, CGPoint(x: (head.left.x + head.right.x) / 2,
+                                                  y: (head.left.y + head.right.y) / 2)])
+            path.addLines(between: [head.left, tip, head.right])
+            path.closeSubpath()
+        case .open:
+            path.addLines(between: [tail, tip])
+            path.addLines(between: [head.left, tip, head.right])
+        case .doubleEnded:
+            let tailHead = arrowHead(from: tip, to: tail, strokeWidth: strokeWidth)
+            path.addLines(between: [tail, tip])
+            path.addLines(between: [head.left, tip, head.right])
+            path.addLines(between: [tailHead.left, tail, tailHead.right])
+        case .scribbly:
+            let geometry = scribblyArrowGeometry(from: tail,
+                                                 to: tip,
+                                                 strokeWidth: strokeWidth,
+                                                 seed: seed)
+            path.addLines(between: geometry.shaft)
+            path.addLines(between: geometry.leftWing)
+            path.addLines(between: geometry.rightWing)
+        }
+        return path
+    }
+
+    /// A lightly hand-drawn arrow made from stable, seeded wobble. The seed
+    /// belongs to the annotation so a redraw or export keeps the same sketch,
+    /// while each newly created scribbly arrow gets its own variation.
+    struct ScribblyArrowGeometry: Equatable {
+        let shaft: [CGPoint]
+        let leftWing: [CGPoint]
+        let rightWing: [CGPoint]
+    }
+
+    static func scribblyArrowGeometry(from tail: CGPoint,
+                                      to tip: CGPoint,
+                                      strokeWidth: CGFloat,
+                                      seed: UInt64) -> ScribblyArrowGeometry {
+        let dx = tip.x - tail.x
+        let dy = tip.y - tail.y
+        let distance = hypot(dx, dy)
+        let angle = atan2(dy, dx)
+        let direction = CGPoint(x: cos(angle), y: sin(angle))
+        let perpendicular = CGPoint(x: -direction.y, y: direction.x)
+        let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
+        let base = CGPoint(x: (head.left.x + head.right.x) / 2,
+                           y: (head.left.y + head.right.y) / 2)
+        var randomizer = ScribbleRandomizer(seed: seed)
+        let shaftSegments = max(4, min(24, Int(ceil(distance / max(10, strokeWidth * 3)))))
+        let shaftWobble = min(max(1, strokeWidth * 0.35), distance * 0.025)
+        let shaft = roughPath(from: tail,
+                              to: base,
+                              segments: shaftSegments,
+                              direction: direction,
+                              perpendicular: perpendicular,
+                              wobble: shaftWobble,
+                              randomizer: &randomizer)
+        let wingWobble = min(max(0.8, strokeWidth * 0.22), distance * 0.035)
+        let leftWing = roughPath(from: head.left,
+                                 to: tip,
+                                 segments: 3,
+                                 wobble: wingWobble,
+                                 randomizer: &randomizer)
+        let rightWing = roughPath(from: head.right,
+                                  to: tip,
+                                  segments: 3,
+                                  wobble: wingWobble,
+                                  randomizer: &randomizer)
+        return ScribblyArrowGeometry(shaft: shaft,
+                                     leftWing: leftWing,
+                                     rightWing: rightWing)
+    }
+
+    private struct ScribbleRandomizer {
+        private var state: UInt64
+
+        init(seed: UInt64) {
+            state = seed == 0 ? 0x9E3779B97F4A7C15 : seed
+        }
+
+        mutating func signedUnit() -> CGFloat {
+            state = state &* 2862933555777941757 &+ 3037000493
+            let normalized = Double(state) / Double(UInt64.max)
+            return CGFloat(normalized * 2 - 1)
+        }
+    }
+
+    private static func roughPath(from start: CGPoint,
+                                  to end: CGPoint,
+                                  segments: Int,
+                                  direction: CGPoint? = nil,
+                                  perpendicular: CGPoint? = nil,
+                                  wobble: CGFloat,
+                                  randomizer: inout ScribbleRandomizer) -> [CGPoint] {
+        let lineX = end.x - start.x
+        let lineY = end.y - start.y
+        let length = hypot(lineX, lineY)
+        let pathDirection = direction
+            ?? CGPoint(x: lineX / max(length, 0.001), y: lineY / max(length, 0.001))
+        let pathPerpendicular = perpendicular
+            ?? CGPoint(x: -pathDirection.y, y: pathDirection.x)
+        let count = max(1, segments)
+        return (0...count).map { index in
+            let progress = CGFloat(index) / CGFloat(count)
+            guard index != 0, index != count else {
+                return CGPoint(x: start.x + lineX * progress,
+                               y: start.y + lineY * progress)
+            }
+            let envelope = CGFloat(sin(Double.pi * Double(progress)))
+            let sideOffset = randomizer.signedUnit() * wobble * envelope
+            let forwardOffset = randomizer.signedUnit() * wobble * 0.28 * envelope
+            return CGPoint(x: start.x + lineX * progress
+                                + pathPerpendicular.x * sideOffset
+                                + pathDirection.x * forwardOffset,
+                           y: start.y + lineY * progress
+                                + pathPerpendicular.y * sideOffset
+                                + pathDirection.y * forwardOffset)
+        }
     }
 
     /// Distance from a point to a segment, for hit-testing lines and arrows.

@@ -1001,6 +1001,10 @@ struct MediaWorkspaceView: View {
                     compressionButton(level, value: value)
                 }
             }
+            Text(compressionDescription(for: MediaCompressionLevel.nearest(to: value.wrappedValue)))
+                .font(.system(size: compact ? 9.5 : 10.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1260,6 +1264,14 @@ struct MediaWorkspaceView: View {
         case .gifMaker: return l10n.s.mediaToolGIF
         case .imageCompressor: return l10n.s.mediaToolImage
         case .textExtractor: return l10n.s.mediaToolText
+        }
+    }
+
+    private func compressionDescription(for level: MediaCompressionLevel) -> String {
+        switch level {
+        case .low: return l10n.s.mediaCompressionLowDescription
+        case .medium: return l10n.s.mediaCompressionMediumDescription
+        case .high: return l10n.s.mediaCompressionHighDescription
         }
     }
 

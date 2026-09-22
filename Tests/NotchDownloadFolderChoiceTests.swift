@@ -134,7 +134,7 @@ enum NotchDownloadFolderChoiceContract {
 enum NotchDownloadFolderChoiceTests {
     private typealias Context = NotchDownloadFolderChoiceContract
 
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         for pinned in [false, true] {
             for menu in [false, true] {
                 Context.reset(pinned: pinned, menuAction: menu)
@@ -142,18 +142,18 @@ enum NotchDownloadFolderChoiceTests {
                 let notch = Context.NotchService.shared
                 let window = notch.presentationWindow!
                 service.chooseFolder()
-                guard let panel = service.chooser else { expect(false, "the folder chooser was created"); continue }
-                expect(panel.parent === window && !panel.standalone && Context.NSApp.activatedWithAttachedSheet,
+                guard let panel = service.chooser else { suite.expect(false, "the folder chooser was created"); continue }
+                suite.expect(panel.parent === window && !panel.standalone && Context.NSApp.activatedWithAttachedSheet,
                        "notch buttons and menus attach the picker before application activation")
-                expect(notch.expanded && notch.pinned == pinned,
+                suite.expect(notch.expanded && notch.pinned == pinned,
                        "opening the native sheet preserves the working surface and existing pin")
                 panel.finish(.OK)
-                expect(Context.NSApp.keyWindow !== window && window.focusReturns == 0,
+                suite.expect(Context.NSApp.keyWindow !== window && window.focusReturns == 0,
                        "focus is not restored before native dismissal finishes")
                 Context.DispatchQueue.main.drain()
-                expect(Context.NSApp.keyWindow === window && window.focusReturns == 1 && notch.pinned == pinned,
+                suite.expect(Context.NSApp.keyWindow === window && window.focusReturns == 1 && notch.pinned == pinned,
                        "successful folder selection returns to the same Downloads surface without altering pin")
-                expect(Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsFolderBookmark] as? Data == Data([1, 2, 3])
+                suite.expect(Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsFolderBookmark] as? Data == Data([1, 2, 3])
                        && Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsEnabled] as? Bool == true,
                        "only successful selection saves the folder authority and enables monitoring")
             }
@@ -164,18 +164,18 @@ enum NotchDownloadFolderChoiceTests {
         cancelled.chooseFolder()
         cancelled.chooser?.finish(.cancel)
         Context.DispatchQueue.main.drain()
-        expect(original.focusReturns == 1 && Context.UserDefaults.standard.values.isEmpty,
+        suite.expect(original.focusReturns == 1 && Context.UserDefaults.standard.values.isEmpty,
                "Cancel returns to the still-open origin without saving a folder or enabling downloads")
 
         Context.reset(fromNotch: false, pinned: true)
         let settings = Context.Service()
         let backgroundNotch = Context.NotchService.shared.presentationWindow!
         settings.chooseFolder()
-        expect(settings.chooser?.standalone == true && settings.chooser?.parent == nil,
+        suite.expect(settings.chooser?.standalone == true && settings.chooser?.parent == nil,
                "a Settings action never borrows a pinned notch as its parent")
         settings.chooser?.finish(.OK)
         Context.DispatchQueue.main.drain()
-        expect(backgroundNotch.focusReturns == 0 && Context.NSApp.keyWindow === Context.NSApp.settingsWindow,
+        suite.expect(backgroundNotch.focusReturns == 0 && Context.NSApp.keyWindow === Context.NSApp.settingsWindow,
                "Settings selection stays in Settings and never opens or focuses the notch")
 
         for interruption in 0..<7 {
@@ -195,7 +195,7 @@ enum NotchDownloadFolderChoiceTests {
             }
             panel.finish(.OK)
             Context.DispatchQueue.main.drain()
-            expect(window.focusReturns == 0 && Context.UserDefaults.standard.values.isEmpty,
+            suite.expect(window.focusReturns == 0 && Context.UserDefaults.standard.values.isEmpty,
                    "stop, disable, lock, section change, collapse, replacement or hide rejects the stale folder result")
         }
         for interruption in 0..<4 {
@@ -211,7 +211,7 @@ enum NotchDownloadFolderChoiceTests {
             default: Context.AppFeature.notchDownloads.isAvailable = false
             }
             Context.DispatchQueue.main.drain()
-            expect(window.focusReturns == 0, "an interruption during native dismissal cancels the deferred focus return too")
+            suite.expect(window.focusReturns == 0, "an interruption during native dismissal cancels the deferred focus return too")
         }
         Context.reset()
         let newer = Context.Service()
@@ -223,7 +223,7 @@ enum NotchDownloadFolderChoiceTests {
         newer.chooseFolder()
         newer.chooser?.finish(.cancel)
         Context.DispatchQueue.main.drain()
-        expect(window.focusReturns == 0, "a newer Settings chooser supersedes the old pending notch return")
+        suite.expect(window.focusReturns == 0, "a newer Settings chooser supersedes the old pending notch return")
 
         Context.reset()
         let failed = Context.Service()
@@ -232,7 +232,7 @@ enum NotchDownloadFolderChoiceTests {
         failed.chooser?.url = Context.Location(fails: true)
         failed.chooser?.finish(.OK)
         Context.DispatchQueue.main.drain()
-        expect(failed.folderUnavailable && failureOrigin.focusReturns == 1 && Context.UserDefaults.standard.values.isEmpty,
+        suite.expect(failed.folderUnavailable && failureOrigin.focusReturns == 1 && Context.UserDefaults.standard.values.isEmpty,
                "a failed folder grant returns to the existing error surface without saving or enabling anything")
     }
 }

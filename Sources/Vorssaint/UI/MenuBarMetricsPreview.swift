@@ -21,6 +21,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
+    @AppStorage(DefaultsKey.menuBarFanSpeed) private var fanSpeed = false
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
@@ -33,6 +34,10 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var networkUploadFirst = false
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
+    @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
+    @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
+    @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMetrics = false
+    @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
         let _ = metricOrder
@@ -47,8 +52,20 @@ struct MenuBarMetricsPreview: View {
         let _ = networkUploadFirst
         let _ = memoryStyle
         let _ = temperatureUnit
-        let lines = MenuBarRenderer.lines(for: monitor.snapshot, metrics: activeMetrics)
-        let stacked = lines.count > 1
+        let _ = metricSpacing
+        let metrics = activeMetrics
+        let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics)
+        // Separate items are their own status items, which macOS seats to
+        // the left of the one that was there first.
+        let items = separateMetrics
+            ? StatusItemController.metricStatusGroups(for: metrics, strings: l10n.s)
+                .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics) }
+                .filter { !$0.isEmpty }
+            : []
+        // The steady state of the hide option: a pending update or a muted
+        // microphone brings the real icon back, and the preview does not
+        // pretend to know about either.
+        let iconHidden = hideIconWithMetrics && (!lines.isEmpty || !items.isEmpty)
 
         HStack(spacing: 12) {
             Spacer()
@@ -58,20 +75,18 @@ struct MenuBarMetricsPreview: View {
                 Image(systemName: "battery.75")
                     .foregroundStyle(.white.opacity(0.5))
             }
-            HStack(spacing: 5) {
-                glyph
-                    .frame(width: BlackHoleGlyph.pointSize.width,
-                           height: BlackHoleGlyph.pointSize.height)
-                if !lines.isEmpty {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                            HStack(spacing: 0) {
-                                ForEach(Array(line.enumerated()), id: \.offset) { _, segment in
-                                    segmentView(segment, stacked: stacked)
-                                }
-                            }
-                            .frame(height: MenuBarRenderer.statusLineHeight(stacked: stacked))
-                        }
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                linesView(item)
+            }
+            if !iconHidden || !lines.isEmpty {
+                HStack(spacing: 5) {
+                    if !iconHidden {
+                        glyph
+                            .frame(width: BlackHoleGlyph.pointSize.width,
+                                   height: BlackHoleGlyph.pointSize.height)
+                    }
+                    if !lines.isEmpty {
+                        linesView(lines)
                     }
                 }
             }
@@ -84,6 +99,20 @@ struct MenuBarMetricsPreview: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.black.opacity(0.82))
         )
+    }
+
+    private func linesView(_ lines: [[MenuBarSegment]]) -> some View {
+        let stacked = lines.count > 1
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                HStack(spacing: 0) {
+                    ForEach(Array(line.enumerated()), id: \.offset) { _, segment in
+                        segmentView(segment, stacked: stacked)
+                    }
+                }
+                .frame(height: MenuBarRenderer.statusLineHeight(stacked: stacked))
+            }
+        }
     }
 
     private var activeMetrics: [MenuBarMetric] {
@@ -100,6 +129,7 @@ struct MenuBarMetricsPreview: View {
         let _ = batteryTime
         let _ = peripheralBattery
         let _ = power
+        let _ = fanSpeed
         return MenuBarMetric.enabled(in: .standard)
     }
 

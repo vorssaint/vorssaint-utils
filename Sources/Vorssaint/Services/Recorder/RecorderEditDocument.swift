@@ -17,6 +17,8 @@ struct RecorderEditDocument: Codable, Equatable {
     var trimStart: Double
     var trimEnd: Double
     var quality: String
+    /// Export only: editing, cuts and overlays stay on their original clock.
+    var exportSpeed: Double
     var keepsSystemAudio: Bool
     var gifSize: String
     var gifFrameRate: Int
@@ -54,6 +56,7 @@ struct RecorderEditDocument: Codable, Equatable {
     init(trimStart: Double = 0,
          trimEnd: Double = 0,
          quality: String = RecorderSupport.Quality.balanced.rawValue,
+         exportSpeed: Double = 1,
          keepsSystemAudio: Bool = true,
          gifSize: String = RecorderSupport.GIFSize.medium.rawValue,
          gifFrameRate: Int = 12,
@@ -78,6 +81,7 @@ struct RecorderEditDocument: Codable, Equatable {
         self.trimStart = trimStart
         self.trimEnd = trimEnd
         self.quality = quality
+        self.exportSpeed = exportSpeed
         self.keepsSystemAudio = keepsSystemAudio
         self.gifSize = gifSize
         self.gifFrameRate = gifFrameRate
@@ -109,6 +113,7 @@ struct RecorderEditDocument: Codable, Equatable {
         trimEnd = try container.decodeIfPresent(Double.self, forKey: .trimEnd) ?? 0
         quality = try container.decodeIfPresent(String.self, forKey: .quality)
             ?? RecorderSupport.Quality.balanced.rawValue
+        exportSpeed = try container.decodeIfPresent(Double.self, forKey: .exportSpeed) ?? 1
         keepsSystemAudio = try container.decodeIfPresent(Bool.self, forKey: .keepsSystemAudio) ?? true
         gifSize = try container.decodeIfPresent(String.self, forKey: .gifSize)
             ?? RecorderSupport.GIFSize.medium.rawValue
@@ -152,6 +157,16 @@ struct RecorderEditDocument: Codable, Equatable {
         RecorderTimeline.outputDuration(trim: trim(duration: duration),
                                         cuts: RecorderTimeline.normalized(cuts: cuts,
                                                                           duration: duration))
+    }
+
+    var exportTiming: RecorderExportTiming {
+        RecorderExportTiming(speed: exportSpeed)
+    }
+
+    /// Separate from the editor's duration so seeking and undo retain their
+    /// source-time meaning. Speed is applied after trimming and cutting.
+    func exportDuration(duration: Double) -> Double {
+        exportTiming.outputTime(forSourceTime: outputDuration(duration: duration))
     }
 
     /// The zooms as they will actually be applied: normalized, and empty when
@@ -278,7 +293,7 @@ struct RecorderEditDocument: Codable, Equatable {
 
     /// Whether the finished video would run differently, which is what forces
     /// the preview to be rebuilt from a new composition rather than just
-    /// redrawn.
+    /// redrawn. Export speed deliberately does not change preview timing.
     func affectsTiming(_ other: RecorderEditDocument) -> Bool {
         cuts != other.cuts || trimStart != other.trimStart || trimEnd != other.trimEnd
     }
@@ -297,7 +312,7 @@ struct RecorderEditDocument: Codable, Equatable {
         return trim.start > 0.01 || trim.end < duration - 0.01 || !keepsSystemAudio
             || !keepsMicrophone || systemAudioGain != 1 || microphoneGain != 1
             || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty || !blurs.isEmpty
-            || !images.isEmpty
+            || !images.isEmpty || exportTiming.speed != 1
     }
 
     /// A damaged or hand-edited document can never wedge the editor: every
@@ -308,6 +323,7 @@ struct RecorderEditDocument: Codable, Equatable {
         document.trimStart = trim.start
         document.trimEnd = trim.end
         document.quality = resolvedQuality.rawValue
+        document.exportSpeed = exportTiming.speed
         document.gifSize = resolvedGIFSize.rawValue
         document.gifFrameRate = resolvedGIFFrameRate
         document.aspect = resolvedAspect.rawValue
@@ -335,6 +351,28 @@ struct RecorderEditDocument: Codable, Equatable {
         guard let data, let document = try? JSONDecoder().decode(RecorderEditDocument.self, from: data)
         else { return RecorderEditDocument() }
         return document
+    }
+}
+
+/// A bounded conversion between the edited timeline and the exported clock.
+/// The source clock here is after cuts, not the original recording's clock.
+struct RecorderExportTiming {
+    static let speedRange = 0.25...4.0
+    static let presets: [Double] = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4]
+    let speed: Double
+
+    init(speed: Double) {
+        self.speed = speed.isFinite && speed > 0
+            ? min(Self.speedRange.upperBound, max(Self.speedRange.lowerBound, speed))
+            : 1
+    }
+
+    func outputTime(forSourceTime seconds: Double) -> Double {
+        seconds / speed
+    }
+
+    func sourceTime(forOutputTime seconds: Double) -> Double {
+        seconds * speed
     }
 }
 

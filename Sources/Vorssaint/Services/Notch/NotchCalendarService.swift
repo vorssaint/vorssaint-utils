@@ -23,7 +23,9 @@ private actor NotchCalendarReader {
             return NotchCalendarEvent(id: identifier + ":" + String(start.timeIntervalSinceReferenceDate),
                                       title: event.title ?? "", calendar: event.calendar.title,
                                       start: start, end: end, allDay: event.isAllDay,
-                                      location: event.location ?? "", color: tint)
+                                      location: event.location ?? "", color: tint,
+                                      calendarItemIdentifier: event.calendarItemIdentifier,
+                                      recurring: event.hasRecurrenceRules || event.isDetached)
         }
     }
 }

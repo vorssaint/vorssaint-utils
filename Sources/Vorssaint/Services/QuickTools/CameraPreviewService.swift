@@ -55,7 +55,8 @@ final class CameraPreviewService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.cameraPreviewShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.cameraPreviewShortcut,
                                             fallback: .cameraPreviewDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.cameraPreviewShortcut)
         if !available {
             hide()
         } else if !NotchCameraSupport.isEnabled() {

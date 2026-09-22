@@ -111,6 +111,8 @@ enum SettingsDirectory {
                                        featureKeywords: [
                                         (.scrollInverter, [s.invertMouseScroll, s.invertVerticalScroll,
                                                            s.invertHorizontalScroll]),
+                                        (.scrollHorizontal, [s.scrollHorizontalName,
+                                                            s.scrollHorizontalModifierLabel]),
                                         (.middleClick, [s.middleClickTapPicker]),
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay]),
@@ -210,6 +212,10 @@ enum SettingsDirectory {
                                       title: FeatureStrings.killProcess(language).pageTitle,
                                       icon: "xmark.octagon",
                                       keywords: ["force quit", "process", "cpu", "memory", "kill"]),
+                SettingsDirectoryItem(page: .portManager,
+                                      title: FeatureStrings.portManager(language).title,
+                                      icon: "network",
+                                      keywords: ["port", "ports", "listening", "socket", "PID", "kill port"]),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .notch,

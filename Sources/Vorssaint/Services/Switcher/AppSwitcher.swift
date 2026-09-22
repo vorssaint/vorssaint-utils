@@ -167,6 +167,11 @@ final class AppSwitcher: ObservableObject {
     /// the way out.
     private var closingItemIDs: Set<String> = []
     private var commitPendingForClose = false
+    /// Live only while a session is open; see `startObservingTermination`.
+    private var terminationObserver: NSObjectProtocol?
+    /// Apps already asked to quit this session, so a repeated Q is ignored
+    /// while a window closing through W is not.
+    private var quittingPIDs: Set<pid_t> = []
 
     // Virtual key codes handled during a session.
     private enum KeyCode {
@@ -442,13 +447,13 @@ final class AppSwitcher: ObservableObject {
         let (apps, windows) = routeLock.withLock { (routeShortcut, routeWindowShortcut) }
         let takeOver = UserDefaults.standard.bool(
             forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
-        SystemShortcutTakeover.apply(
-            desired: SwitcherSupport.nativeHotkeyIDs(
+        SystemShortcutTakeover.setWanted(
+            SwitcherSupport.nativeHotkeyIDs(
                 takeOverSystemShortcuts: takeOver,
                 appsShortcut: apps,
                 windowShortcut: windows,
-                liveEntries: SymbolicHotKeys.entries(for: SwitcherNativeSymbolicHotKey.ids) ?? [])
-        )
+                liveEntries: SymbolicHotKeys.entries(for: SwitcherNativeSymbolicHotKey.ids) ?? []),
+            for: SystemShortcutTakeover.switcherSource)
     }
 
     /// What the switcher will ask to keep switched off once it is running,
@@ -482,7 +487,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func restoreNativeHotkeys() {
-        SystemShortcutTakeover.apply(desired: [])
+        SystemShortcutTakeover.setWanted([], for: SystemShortcutTakeover.switcherSource)
     }
 
     private func clearEventTapThread() -> Bool {
@@ -1041,6 +1046,7 @@ final class AppSwitcher: ObservableObject {
             }
         }
 
+        startObservingTermination(generation: generation)
         if pending.commitWhenReady {
             commitSession()
         } else if capturesPreviews {
@@ -1339,15 +1345,64 @@ final class AppSwitcher: ObservableObject {
         closeWindow(windows[selectedIndex])
     }
 
-    /// Quits the app owning the selected window (⌘Tab → Q), removes its windows
-    /// from the grid and keeps the session open — mirroring the system switcher.
+    /// Asks the app owning the selected window to quit (⌘Tab → Q) and keeps the
+    /// session open — mirroring the system switcher. The request is not the
+    /// answer: an app with unsaved work stays up on its own save sheet. Its
+    /// windows are treated like closing ones: still listed, never raised on
+    /// release, gone when macOS reports the app gone, and given back if it is
+    /// still running after about as long as a closing window gets.
     private func quitSelectedApp() {
         guard windows.indices.contains(selectedIndex) else { return }
         let pid = windows[selectedIndex].pid
         guard let app = NSRunningApplication(processIdentifier: pid),
               app.bundleIdentifier != Defaults.finderBundleIdentifier else { return }
-        app.terminate()
+        guard !quittingPIDs.contains(pid), app.terminate() else { return }
+        quittingPIDs.insert(pid)
+        // Only what this quit marked is given back; a window W is closing
+        // keeps its own mark.
+        let markedIDs = Set(sessionItems.lazy.filter { $0.pid == pid }.map(\.id))
+            .subtracting(closingItemIDs)
+        closingItemIDs.formUnion(markedIDs)
+        let generation = routeLock.withLock { sessionStartGeneration }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            guard let self, self.sessionActive,
+                  self.routeLock.withLock({ self.sessionStartGeneration == generation }),
+                  self.quittingPIDs.contains(pid) else { return }
+            if app.isTerminated {
+                self.removeTerminatedApp(pid: pid)
+            } else {
+                self.quittingPIDs.remove(pid)
+                self.closingItemIDs.subtract(markedIDs)
+                self.resumePendingCommitAfterClose()
+            }
+        }
+    }
 
+    /// Watches for terminations while a session is open, so a quit the app
+    /// finishes later still updates the grid. The generation ties the observer
+    /// to the session that started it.
+    private func startObservingTermination(generation: UInt64) {
+        stopObservingTermination()
+        terminationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self, self.sessionActive,
+                  self.routeLock.withLock({ self.sessionStartGeneration == generation }),
+                  let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            else { return }
+            self.removeTerminatedApp(pid: app.processIdentifier)
+        }
+    }
+
+    private func stopObservingTermination() {
+        guard let terminationObserver else { return }
+        NSWorkspace.shared.notificationCenter.removeObserver(terminationObserver)
+        self.terminationObserver = nil
+    }
+
+    private func removeTerminatedApp(pid: pid_t) {
+        quittingPIDs.remove(pid)
+        guard sessionActive, sessionItems.contains(where: { $0.pid == pid }) else { return }
         let removedIDs = Set(sessionItems.lazy.filter { $0.pid == pid }.map(\.id))
         closingItemIDs.subtract(removedIDs)
         let removedBeforeSelection = windows[..<selectedIndex].filter { $0.pid == pid }.count
@@ -1512,6 +1567,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func endSession() {
+        stopObservingTermination()
         cancelLetterConfirmation()
         SwitcherAppIconCache.endSession()
         sessionActive = false
@@ -1541,6 +1597,7 @@ final class AppSwitcher: ObservableObject {
         shiftBackNavigationHeld = false
         shiftBackChordDeadline = 0
         closingItemIDs = []
+        quittingPIDs = []
         commitPendingForClose = false
     }
 
@@ -1728,6 +1785,7 @@ final class AppSwitcher: ObservableObject {
             appCount: usesWindowRow ? items.count : appGroups.count,
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: items),
             maximumWindowCount: usesWindowRow ? 1 : appGroups.map(\.windowCount).max() ?? 1,
+            sessionScope: sessionScope,
             screenVisibleFrame: screen.visibleFrame,
             showsShortcutHints: showsShortcutHints,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
@@ -1742,6 +1800,7 @@ final class AppSwitcher: ObservableObject {
             appCount: usesWindowRow ? windows.count : appGroups.count,
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
             maximumWindowCount: usesWindowRow ? 1 : appGroups.map(\.windowCount).max() ?? 1,
+            sessionScope: sessionScope,
             screenVisibleFrame: placementVisibleFrame,
             showsShortcutHints: showsShortcutHints,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth

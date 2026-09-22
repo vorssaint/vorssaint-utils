@@ -60,7 +60,7 @@ enum MixerInputVolumeContract {
     final class QuickToolHotkey {
         var onPress: (() -> Void)?
         init(id: Int) {}
-        func sync(enabled: Bool, shortcut: GlobalShortcut) -> Bool { true }
+        func sync(enabled: Bool, shortcut: GlobalShortcut, storageKey: String) -> Bool { true }
         func unregister() {}
     }
     struct GlobalShortcut {

@@ -29,7 +29,14 @@ enum SelfUninstall {
                 detachFromSystem()
                 removeSudoersRuleIfPresent {           // may show one admin prompt
                     resetTCC()
-                    DispatchQueue.main.async(execute: completion)
+                    DispatchQueue.main.async {
+                        // The published permissions still say granted. Read the
+                        // reset state now, or a grant made before the next poll
+                        // looks unchanged and the suspended taps never resume.
+                        Permissions.shared.refresh()
+                        BrightnessService.shared.resumeInputTaps()
+                        completion()
+                    }
                 }
             }
         }
@@ -40,12 +47,16 @@ enum SelfUninstall {
     static func uninstallCompletely(onFailure: @escaping () -> Void) {
         DispatchQueue.main.async {
             guard suspendInputInterceptors() else {
+                BrightnessService.shared.resumeInputTaps()
                 onFailure()
                 return
             }
             DispatchQueue.global(qos: .userInitiated).async {
                 guard detachFromSystem() else {
-                    DispatchQueue.main.async(execute: onFailure)
+                    DispatchQueue.main.async {
+                        BrightnessService.shared.resumeInputTaps()
+                        onFailure()
+                    }
                     return
                 }
                 removeSudoersRuleIfPresent {
@@ -83,6 +94,7 @@ enum SelfUninstall {
         WindowLayoutService.shared.suspend()
         AppSwitcher.shared.suspend()
         DockPreviewService.shared.stop()
+        BrightnessService.shared.suspendInputTaps()
         AutoQuitService.shared.suspend()
         FinderCutPaste.shared.suspend()
         FinderRenameService.shared.suspend()
@@ -93,8 +105,10 @@ enum SelfUninstall {
         SuperKeyService.shared.suspend()
         DockClickService.shared.suspend()
         MiddleClickService.shared.suspend()
+        QuitProtectionService.shared.suspend()
         PastePlainService.shared.suspend()
         SnippetLibraryService.shared.suspend()
+        TextSnippetService.shared.suspend()
         ScreenCaptureService.shared.suspend()
         RecentCaptureService.shared.suspend()
         QuickLauncherService.shared.suspend()
@@ -168,7 +182,6 @@ enum SelfUninstall {
     }
 
     private static func removePreferences() {
-        CommandBarQueryHabits.removeInstallationKey()
         let id = bundleID
         UserDefaults.standard.removePersistentDomain(forName: id)
         let home = NSHomeDirectory()

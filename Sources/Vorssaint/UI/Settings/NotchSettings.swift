@@ -25,10 +25,13 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = false
     @AppStorage(DefaultsKey.notchLyricsOnline) private var lyricsOnline = false
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = false
+    @AppStorage(DefaultsKey.notchLiveEqualizer) private var liveEqualizer = false
     @AppStorage(DefaultsKey.notchEnabled) private var enabled = false
     @AppStorage(DefaultsKey.notchDisplay) private var display = NotchDisplay.automatic.rawValue
     @AppStorage(DefaultsKey.notchOpenOnHover) private var hover = true
+    @AppStorage(DefaultsKey.notchHideInFullscreen) private var hideInFullscreen = false
     @AppStorage(DefaultsKey.notchHideUntilHover) private var hideUntilHover = false
+    @AppStorage(DefaultsKey.notchCoversMenus) private var coversMenus = false
     @AppStorage(DefaultsKey.notchHoverDelay) private var hoverDelay = NotchSupport.defaultHoverDelay
     @AppStorage(DefaultsKey.notchReturnHome) private var returnHome = false
     @AppStorage(DefaultsKey.notchHomeModule) private var homeModule = NotchModule.controls.rawValue
@@ -55,6 +58,9 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCaptureControls) private var captureControls = true
     @AppStorage(DefaultsKey.notchQuickPanel) private var quickPanel = true
     @AppStorage(DefaultsKey.notchAppPanel) private var appPanel = true
+    @AppStorage(DefaultsKey.notchScratchpad) private var scratchpad = true
+    @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessControlEnabled = false
+    @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
     @State private var tab = NotchSettingsTab.layout
@@ -65,9 +71,9 @@ struct NotchSettings: View {
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     private var configuration: [String] {
-        [String(enabled), String(calendarEnabled), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
-         String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), display, String(hover), hidden, order, String(volume),
-         String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), captureAction, String(showInCaptures), String(returnHome), homeModule]
+        [String(enabled), String(calendarEnabled), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
+         String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, String(hover), hidden, order, String(volume),
+         String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), captureAction, String(showInCaptures), String(returnHome), homeModule, String(scratchpad)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -91,7 +97,7 @@ struct NotchSettings: View {
                 Toggle(text.enable, isOn: $enabled).labelsHidden().toggleStyle(.switch)
                     .disabled(!AppFeature.notch.isAvailable).accessibilityLabel(text.enable)
             }
-            if enabled, AppFeature.notch.isAvailable, !(hover && hideUntilHover), !notch.geometry.isNotched, !permissions.accessibility {
+            if enabled, AppFeature.notch.isAvailable, !(hover && hideUntilHover), !coversMenus, !notch.geometry.isNotched, !permissions.accessibility {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(text.menuBarAccessHint)
                         .font(.callout).foregroundStyle(.secondary)
@@ -138,7 +144,7 @@ struct NotchSettings: View {
             NotchLayoutEditor(configuration: access, size: $size, width: $customWidth, height: $customHeight) {
                 selectedModule = .controls; tab = .content
             }
-            section(text.size) {
+            SettingsCard(title: text.size) {
                 HStack(spacing: 10) {
                     choice(text.compact, symbol: "rectangle.compress.vertical", selected: size == NotchSize.compact.rawValue) { size = NotchSize.compact.rawValue }
                     choice(text.spacious, symbol: "rectangle.expand.vertical", selected: size == NotchSize.spacious.rawValue) { size = NotchSize.spacious.rawValue }
@@ -166,7 +172,7 @@ struct NotchSettings: View {
                     }
                 }
             }
-            section(selectedModule.title(l10n.language)) {
+            SettingsCard(title: selectedModule.title(l10n.language)) {
                 if selectedModule.isAvailable() { moduleOptions }
                 else { Text(text.disabled).font(.callout).foregroundStyle(.secondary) }
             }
@@ -192,22 +198,28 @@ struct NotchSettings: View {
                 }
             }
         case .music:
-            Toggle(text.playingMusic, isOn: $showPlayingMusic)
             let music = FeatureStrings.notchMusicExtras(l10n.language)
-            Toggle(music.enableLyrics, isOn: $lyricsEnabled).disabled(!AppFeature.notchLyrics.isAvailable)
+            switchRow("music.note", text.playingMusic, isOn: $showPlayingMusic)
+            switchRow("text.quote", music.enableLyrics, isOn: $lyricsEnabled)
+                .disabled(!AppFeature.notchLyrics.isAvailable)
             if lyricsEnabled, AppFeature.notchLyrics.isAvailable {
-                Toggle(music.online, isOn: $lyricsOnline)
-                Text(music.onlineHint).font(.caption).foregroundStyle(.secondary)
+                switchRow("globe", music.online, caption: music.onlineHint, isOn: $lyricsOnline)
+                    .padding(.leading, settingsRowTextInset)
             }
-            Toggle(music.enableQueue, isOn: $queueEnabled).disabled(!AppFeature.notchQueue.isAvailable)
-            Text(music.queueDescription).font(.caption).foregroundStyle(.secondary)
+            switchRow("list.bullet", music.enableQueue, caption: music.queueDescription, isOn: $queueEnabled)
+                .disabled(!AppFeature.notchQueue.isAvailable)
+            switchRow("waveform", music.liveEqualizer,
+                      caption: NotchAudioLevelSupport.isSupported ? music.liveEqualizerHint : music.liveEqualizerUnavailable,
+                      isOn: $liveEqualizer)
+                .disabled(!NotchAudioLevelSupport.isSupported || !AppFeature.notchLiveEqualizer.isAvailable)
         case .notifications:
             let notifications = FeatureStrings.notchNotifications(l10n.language)
-            Toggle(notifications.dismissSystemBanner, isOn: $dismissNativeNotifications)
-            Text(notifications.dismissSystemBannerHint).font(.caption).foregroundStyle(.secondary)
+            switchRow("bell.slash", notifications.dismissSystemBanner, caption: notifications.dismissSystemBannerHint,
+                      isOn: $dismissNativeNotifications)
             if notificationsEnabled, !permissions.accessibility { PermissionRow(kind: .accessibility) }
         case .downloads:
             NotchDownloadsSettingsControls()
+                .toggleStyle(TrailingSwitchToggleStyle())
         case .calendar:
             let calendar = FeatureStrings.notchCalendar(l10n.language)
             Text(calendar.permission).font(.callout).foregroundStyle(.secondary)
@@ -218,7 +230,7 @@ struct NotchSettings: View {
                 Button(calendar.settings, action: permissions.openCalendarSettings)
             }
         case .timer:
-            Toggle(FeatureStrings.notchActivities(l10n.language).soundEnabled, isOn: $timerSoundEnabled)
+            switchRow("speaker.wave.2", FeatureStrings.notchActivities(l10n.language).soundEnabled, isOn: $timerSoundEnabled)
                 .disabled(!AppFeature.notchTimer.isAvailable)
         case .camera:
             Text(FeatureStrings.notchActivities(l10n.language).cameraHint).font(.callout).foregroundStyle(.secondary)
@@ -230,20 +242,22 @@ struct NotchSettings: View {
             }
         case .files:
             destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
-            if shelfWindow { Toggle(text.dragReveal, isOn: $dragReveal) }
+            if shelfWindow { switchRow("hand.draw", text.dragReveal, isOn: $dragReveal) }
             if AppFeature.mediaTools.isAvailable {
                 Text(FeatureStrings.notchFiles(l10n.language).optimizeDropHint)
                     .font(.caption).foregroundStyle(.secondary)
             }
         case .clipboard:
             destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
-            Toggle(text.clipboardActivity, isOn: $clipboard)
-            Text(text.privacy).font(.caption).foregroundStyle(.secondary)
+            switchRow("doc.on.clipboard", text.clipboardActivity, caption: text.privacy, isOn: $clipboard)
         case .captures:
-            Toggle(text.captureActivity, isOn: $capture).disabled(!AppFeature.screenshot.isAvailable)
+            switchRow("camera.viewfinder", text.captureActivity, isOn: $capture).disabled(!AppFeature.screenshot.isAvailable)
             if capture {
                 ScreenshotDefaultActionPicker(strings: FeatureStrings.screenshot(l10n.language), selection: $captureAction)
+                    .padding(.leading, settingsRowTextInset)
             }
+        case .scratchpad:
+            destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
         default:
             Text(editor.reorderHint).font(.callout).foregroundStyle(.secondary)
         }
@@ -251,24 +265,35 @@ struct NotchSettings: View {
 
     private var activityPage: some View {
         VStack(alignment: .leading, spacing: 20) {
-            section(editor.resting) {
+            SettingsCard(title: editor.resting) {
                 HStack(spacing: 10) {
                     idleChoice(.none, title: text.idleNone, symbol: "minus")
                     idleChoice(.battery, title: text.battery, symbol: "battery.75percent")
                     idleChoice(.music, title: text.music, symbol: "music.note")
                 }
+                switchRow("menubar.rectangle", text.coverMenus, caption: text.coverMenusHint, isOn: $coversMenus)
             }
-            section(editor.feedback) {
+            SettingsCard(title: editor.feedback) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
-                    toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: AppFeature.mixer.isAvailable)
-                    toggleCard(text.brightness, symbol: "sun.max", value: $brightness, available: AppFeature.brightness.isAvailable)
+                    toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: AppFeature.mixer.isAvailable,
+                               reason: enableFeatureReason(.mixer))
+                    toggleCard(text.brightness, symbol: "sun.max", value: $brightness,
+                               available: AppFeature.brightness.isAvailable && brightnessControlEnabled,
+                               reason: AppFeature.brightness.isAvailable ? editor.enableSetting(FeatureStrings.brightness(l10n.language).enable) : enableFeatureReason(.brightness))
                     toggleCard(FeatureStrings.brightness(l10n.language).keyboardLight, symbol: "light.max", value: $keyboardLight,
-                              available: AppFeature.brightness.isAvailable && BrightnessService.keyboardLightIsSupported)
-                    toggleCard(text.battery, symbol: "battery.75percent", value: $battery, available: AppFeature.monitorPower.isAvailable)
+                              available: AppFeature.brightness.isAvailable && BrightnessService.keyboardLightIsSupported,
+                              reason: !AppFeature.brightness.isAvailable ? enableFeatureReason(.brightness) : editor.keyboardLightUnavailable)
+                    toggleCard(text.battery, symbol: "battery.75percent", value: $battery, available: AppFeature.monitorPower.isAvailable,
+                               reason: enableFeatureReason(.monitorPower))
                     toggleCard(FeatureStrings.notchActivities(l10n.language).accessories, symbol: "headphones", value: $accessoriesEnabled,
-                              available: AppFeature.notchAccessories.isAvailable && AppFeature.monitorPower.isAvailable)
-                    toggleCard(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboard, available: AppFeature.clipboardHistory.isAvailable)
-                    toggleCard(text.captures, symbol: "camera.viewfinder", value: $capture, available: AppFeature.screenshot.isAvailable)
+                              available: AppFeature.notchAccessories.isAvailable && AppFeature.monitorPower.isAvailable,
+                              reason: enableFeatureReason(AppFeature.monitorPower.isAvailable ? .notchAccessories : .monitorPower))
+                    toggleCard(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboard,
+                               available: AppFeature.clipboardHistory.isAvailable && clipboardHistoryEnabled && NotchSupport.modules().contains(.clipboard),
+                               reason: clipboardFeedbackReason)
+                    toggleCard(text.captures, symbol: "camera.viewfinder", value: $capture,
+                               available: AppFeature.screenshot.isAvailable && NotchSupport.modules().contains(.captures),
+                               reason: AppFeature.screenshot.isAvailable ? editor.showPage(text.captures) : enableFeatureReason(.screenshot))
                 }
                 if accessoriesEnabled { Text(FeatureStrings.notchActivities(l10n.language).accessoryDescription).font(.caption).foregroundStyle(.secondary) }
                 if enabled, (volume || brightness || keyboardLight), !permissions.accessibility { PermissionRow(kind: .accessibility) }
@@ -278,7 +303,7 @@ struct NotchSettings: View {
 
     private var behaviorPage: some View {
         VStack(alignment: .leading, spacing: 20) {
-            section(editor.opening) {
+            SettingsCard(title: editor.opening) {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     choice(editor.clickOpen, symbol: "cursorarrow", selected: !hover) { hideUntilHover = false; hover = false }
                     choice(editor.hoverPreview, symbol: "rectangle.topthird.inset.filled", selected: hover && !hoverExpand && !hideUntilHover) { hideUntilHover = false; hover = true; hoverExpand = false }
@@ -286,40 +311,49 @@ struct NotchSettings: View {
                     choice(editor.hiddenUntilHover, symbol: "eye.slash", selected: hover && hideUntilHover) { hover = true; hoverExpand = true; hideUntilHover = true }
                 }
                 if hover { hoverDelayControl }
-                Toggle(FeatureStrings.notchGestures(l10n.language).title, isOn: $gesturesEnabled).disabled(!AppFeature.notchGestures.isAvailable)
-                if gesturesEnabled { Text(FeatureStrings.notchGestures(l10n.language).hint).font(.caption).foregroundStyle(.secondary) }
-                Toggle(text.hapticFeedback, isOn: $hapticFeedback)
-                Picker(editor.reopening, selection: Binding(get: {
-                    returnHome ? (NotchModule(rawValue: homeModule) ?? .controls).rawValue : ""
-                }, set: { value in
-                    returnHome = !value.isEmpty
-                    if returnHome { homeModule = value }
-                })) {
-                    Text(editor.lastPage).tag("")
-                    ForEach(NotchSupport.modules()) { module in
-                        Text(module.title(l10n.language)).tag(module.rawValue)
+                switchRow("hand.draw", FeatureStrings.notchGestures(l10n.language).title,
+                          caption: gesturesEnabled ? FeatureStrings.notchGestures(l10n.language).hint : nil,
+                          isOn: $gesturesEnabled)
+                    .disabled(!AppFeature.notchGestures.isAvailable)
+                switchRow("waveform.path", text.hapticFeedback, isOn: $hapticFeedback)
+                SettingsRow(symbol: "arrow.uturn.backward", title: editor.reopening) {
+                    Picker(editor.reopening, selection: Binding(get: {
+                        returnHome ? (NotchModule(rawValue: homeModule) ?? .controls).rawValue : ""
+                    }, set: { value in
+                        returnHome = !value.isEmpty
+                        if returnHome { homeModule = value }
+                    })) {
+                        Text(editor.lastPage).tag("")
+                        ForEach(NotchSupport.modules()) { module in
+                            Text(module.title(l10n.language)).tag(module.rawValue)
+                        }
+                        if let saved = NotchModule(rawValue: homeModule), !NotchSupport.modules().contains(saved) {
+                            Text(saved.title(l10n.language)).tag(homeModule).disabled(true)
+                        }
                     }
-                    if let saved = NotchModule(rawValue: homeModule), !NotchSupport.modules().contains(saved) {
-                        Text(saved.title(l10n.language)).tag(homeModule).disabled(true)
-                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
                 }
             }
-            section(text.display) {
+            SettingsCard(title: text.display) {
+                switchRow("arrow.up.left.and.arrow.down.right", text.hideInFullscreen, isOn: $hideInFullscreen)
                 HStack(spacing: 8) {
                     choice(text.automatic, symbol: "display.2", selected: display == NotchDisplay.automatic.rawValue) { display = NotchDisplay.automatic.rawValue }
                     choice(text.builtIn, symbol: "laptopcomputer", selected: display == NotchDisplay.builtIn.rawValue) { display = NotchDisplay.builtIn.rawValue }
                     choice(text.mainDisplay, symbol: "display", selected: display == NotchDisplay.main.rawValue) { display = NotchDisplay.main.rawValue }
                 }
             }
-            section(editor.destinations) {
-                destination(text.panel, symbol: "rectangle.topthird.inset.filled", value: $appPanel)
+            SettingsCard(title: editor.destinations) {
+                destination(text.panel, symbol: "bubble.middle.top", value: $appPanel)
+                Text(editor.appPanelHint).font(.caption).foregroundStyle(.secondary)
                 destination(text.tools, symbol: "square.grid.2x2", value: $quickPanel, available: AppFeature.quickLauncher.isAvailable)
                 destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
                 destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
                 destination(text.captures, symbol: "camera.viewfinder", value: $captureControls)
+                destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad, available: AppFeature.scratchpad.isAvailable)
             }
-            section(editor.privacy) {
-                Toggle(text.showInCaptures, isOn: $showInCaptures)
+            SettingsCard(title: editor.privacy) {
+                switchRow("camera.viewfinder", text.showInCaptures, isOn: $showInCaptures)
             }
         }
     }
@@ -342,14 +376,6 @@ struct NotchSettings: View {
         }
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 13) {
-            Text(title).font(.headline)
-            content()
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 16))
-    }
-
     private func choice(_ title: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 8) {
@@ -362,9 +388,20 @@ struct NotchSettings: View {
         }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    private func toggleCard(_ title: String, symbol: String, value: Binding<Bool>, available: Bool) -> some View {
-        NotchEditorItem(symbol: symbol, title: title, included: value, available: available) { value.wrappedValue.toggle() }
-            .disabled(!available)
+    private func enableFeatureReason(_ feature: AppFeature) -> String {
+        editor.enableFeature(feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
+    }
+
+    private var clipboardFeedbackReason: String {
+        let title = FeatureStrings.clipboard(l10n.language).title
+        if !AppFeature.clipboardHistory.isAvailable { return enableFeatureReason(.clipboardHistory) }
+        if !clipboardHistoryEnabled { return editor.enableSetting(FeatureStrings.clipboard(l10n.language).enable) }
+        return editor.showPage(title)
+    }
+
+    private func toggleCard(_ title: String, symbol: String, value: Binding<Bool>, available: Bool, reason: String? = nil) -> some View {
+        NotchEditorItem(symbol: symbol, title: title, included: value, available: available,
+                        unavailableReason: available ? nil : reason ?? text.disabled) { value.wrappedValue.toggle() }
     }
 
     private func idleChoice(_ item: NotchIdleContent, title: String, symbol: String) -> some View {
@@ -385,21 +422,27 @@ struct NotchSettings: View {
     }
 
     private func destination(_ title: String, symbol: String, value: Binding<Bool>, available: Bool = true) -> some View {
-        HStack {
-            Label(title, systemImage: symbol).font(.callout).lineLimit(2)
-            Spacer(minLength: 10)
+        SettingsRow(symbol: symbol, title: title) {
             Picker(title, selection: value) {
                 Text(text.title).tag(true)
                 Text(editor.separate).tag(false)
-            }.pickerStyle(.segmented).labelsHidden().frame(width: 238)
+            }.pickerStyle(.segmented).labelsHidden().fixedSize()
         }.disabled(!available)
+    }
+
+    /// An option with its icon, one line and a switch, like every other page.
+    private func switchRow(_ symbol: String, _ title: String, caption: String? = nil, isOn: Binding<Bool>) -> some View {
+        SettingsRow(symbol: symbol, title: title, caption: caption) {
+            Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)
+        }
     }
 
     private func dimensionSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, fallback: Double) -> some View {
         let bounded = Binding(get: { NotchSize.clamped(value.wrappedValue, to: range, fallback: fallback) },
                               set: { value.wrappedValue = NotchSize.clamped($0, to: range, fallback: fallback) })
-        return HStack {
-            Slider(value: bounded, in: range, step: 10) { Text(title) }
+        return HStack(spacing: 12) {
+            Text(title).fixedSize()
+            Slider(value: bounded, in: range, step: 10) { Text(title) }.labelsHidden()
             Text(Int(bounded.wrappedValue), format: .number)
                 .monospacedDigit().foregroundStyle(.secondary).frame(width: 38)
         }

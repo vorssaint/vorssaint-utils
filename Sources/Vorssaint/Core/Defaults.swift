@@ -27,6 +27,10 @@ enum DefaultsKey {
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeRunningApps = "keepAwakeRunningApps"
     static let keepAwakeRunningAppBundleIDs = "keepAwakeRunningAppBundleIDs"
+    // Match mode over the automation conditions: false is Any (one matching
+    // condition starts a session), true is All (every enabled condition has
+    // to match, and losing one ends the session). Issue #1587.
+    static let keepAwakeAutomationRequireAll = "keepAwakeAutomationRequireAll"
     static let keepAwakePauseWhenLocked = "keepAwakePauseWhenLocked"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
@@ -41,6 +45,8 @@ enum DefaultsKey {
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
+    static let scrollHorizontalEnabled = "scrollHorizontalEnabled"
+    static let scrollHorizontalModifier = "scrollHorizontalModifier"
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
     static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
     static let focusFollowsMouseExceptions = "focusFollowsMouseExceptions"
@@ -79,6 +85,9 @@ enum DefaultsKey {
     // folded into the shared one, and then retired.
     static let switcherNativeHotkeysSuppressed = "switcherNativeHotkeysSuppressed"
     static let systemShortcutsSuppressed = "systemShortcutsSuppressed"
+    // Storage keys of shortcuts the user chose to take over from macOS. A
+    // preference, exported.
+    static let systemShortcutTakeOverKeys = "systemShortcutTakeOverKeys"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
     static let switcherIconRowMode = "switcherIconRowMode"
@@ -97,10 +106,13 @@ enum DefaultsKey {
     static let switcherCurrentDisplayOnly = "switcherCurrentDisplayOnly" // list only windows on the display under the pointer (issue #1391)
     static let minimalWindowPreviews = "minimalWindowPreviews"
     static let dockPreviewEnabled = "dockPreviewEnabled"
+    static let dockPreviewKeepDockVisible = "dockPreviewKeepDockVisible"
+    static let dockPreviewRestoreAutohide = "dockPreviewRestoreAutohide" // local crash recovery; never backed up
     static let dockPreviewCurrentSpaceOnly = "dockPreviewCurrentSpaceOnly"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
     static let dockPreviewOpenDelay = "dockPreviewOpenDelay" // milliseconds the cursor must rest on a Dock icon before its panel opens (DockPreviewSupport.openDelayMillisecondsRange)
     static let dockPreviewQuitAppOnClose = "dockPreviewQuitAppOnClose" // the preview card's close button quits the owning app instead of closing one window
+    static let dockPreviewOrderByCreation = "dockPreviewOrderByCreation" // order Dock Preview windows by ascending window ID (creation proxy) instead of last use
     static let dockClickMinimize = "dockClickMinimize"    // click the active app's Dock icon to minimize its windows
     static let dockClickHide = "dockClickHide"            // click the active app's Dock icon to hide the app
     static let dockClickCycleWindows = "dockClickCycleWindows" // click the active app's Dock icon to cycle through its windows
@@ -137,6 +149,7 @@ enum DefaultsKey {
     static let diskImageInstallerTrashesDownload = "diskImageInstallerTrashesDownload"
     static let diskImageInstallerRevealsApp = "diskImageInstallerRevealsApp"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
+    static let diskImageInstallerUseUserApplications = "diskImageInstallerUseUserApplications"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
     // Quit/close protection: each shortcut owns its full configuration and app list.
@@ -181,6 +194,13 @@ enum DefaultsKey {
     // answer reads. Kept local so wake handling does not repeatedly probe a
     // sensitive display path.
     static let brightnessDDCWriteOnlyPaths = "brightnessDDCWriteOnlyPaths"
+    // Set once the paths cached before paired discovery requests have been
+    // dropped, so a monitor written off then is classified again exactly once.
+    static let brightnessDDCWriteOnlyPathsRechecked = "brightnessDDCWriteOnlyPathsRechecked"
+    // Per-monitor connection paths a person has told this app to dim in
+    // software: the only way to know a write-only channel swallows its writes
+    // is to watch the panel, which no probe can do. Issue #1589.
+    static let brightnessForcedSoftwarePaths = "brightnessForcedSoftwarePaths"
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"
@@ -379,6 +399,7 @@ enum DefaultsKey {
     static let monitorNetSpeed = "monitorNetSpeed"
     static let monitorNetApps = "monitorNetApps"
     static let monitorNetTotals = "monitorNetTotals"
+    static let monitorNetAddresses = "monitorNetAddresses"
     static let monitorNetTest = "monitorNetTest"
     static let monitorDiskUsage = "monitorDiskUsage"
     static let monitorDiskActivity = "monitorDiskActivity"
@@ -474,6 +495,8 @@ enum DefaultsKey {
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
     static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
+    static let clipboardHistoryMenuBarPreview = "clipboardHistoryMenuBarPreview" // show latest copy next to the menu bar icon
+    static let clipboardHistoryMenuBarPreviewLength = "clipboardHistoryMenuBarPreviewLength" // characters shown before truncating
 
     // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
     // Deliberately outside the clipboardHistory family, since it clears the
@@ -507,6 +530,8 @@ enum DefaultsKey {
     static let commandBarShortcut = "commandBarShortcut"
     /// Compact mode: an empty field shows nothing but itself. Off by default
     static let commandBarCompactMode = "commandBarCompactMode"
+    /// The ASCII layout borrowed while the bar is open, restored on close. Off by default
+    static let commandBarASCIILayoutEnabled = "commandBarASCIILayoutEnabled"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
     static let commandBarQueryHabits = "commandBarQueryHabits" // keyed query digests → app row ids
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
@@ -582,6 +607,7 @@ enum DefaultsKey {
     static let screenshotLastTool = "screenshotLastTool"
     static let screenshotLastColor = "screenshotLastColor"
     static let screenshotLastStroke = "screenshotLastStroke"
+    static let screenshotLastArrowStyle = "screenshotLastArrowStyle"
     static let screenshotLastSticker = "screenshotLastSticker"
     static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
     static let screenshotToolOrder = "screenshotToolOrder"
@@ -621,6 +647,7 @@ enum DefaultsKey {
     static let recorderEditorPresets = "recorderEditorPresets"
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
+    static let panelUtilityPortManager = "panelUtilityPortManager"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -672,6 +699,8 @@ enum DefaultsKey {
     static let notchShowPlayingMusic = "notchShowPlayingMusic"
     static let notchIdleContent = "notchIdleContent"
     static let notchHiddenControls = "notchHiddenControls"
+    // Travels with the controls so old backups migrate and later choices survive.
+    static let notchScratchpadControlHidden = "notchScratchpadControlHidden"
     static let notchControlOrder = "notchControlOrder"
     static let notchSize = "notchSize"
     static let notchCustomWidth = "notchCustomWidth"
@@ -682,6 +711,7 @@ enum DefaultsKey {
     static let notchCaptureControls = "notchCaptureControls"
     static let notchQuickPanel = "notchQuickPanel"
     static let notchAppPanel = "notchAppPanel"
+    static let notchScratchpad = "notchScratchpad"
     static let notchHoverExpands = "notchHoverExpands"
     static let notchGesturesEnabled = "notchGesturesEnabled"
     static let notchKeyboardLight = "notchKeyboardLight"
@@ -699,6 +729,7 @@ enum DefaultsKey {
     static let notchAccessoriesEnabled = "notchAccessoriesEnabled"
     static let notchLyricsEnabled = "notchLyricsEnabled"
     static let notchLyricsOnline = "notchLyricsOnline"
+    static let notchLiveEqualizer = "notchLiveEqualizer"
     static let notchQueueEnabled = "notchQueueEnabled"
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
@@ -706,7 +737,9 @@ enum DefaultsKey {
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     static let notchOpenOnHover = "notchOpenOnHover"
+    static let notchHideInFullscreen = "notchHideInFullscreen"
     static let notchHideUntilHover = "notchHideUntilHover"
+    static let notchCoversMenus = "notchCoversMenus"
     static let notchHoverDelay = "notchHoverDelay"
     static let notchReturnHome = "notchReturnHome"
     static let notchHomeModule = "notchHomeModule"
@@ -917,6 +950,10 @@ enum Defaults {
     static let defaultKeyboardDebounceWindowMs = 5
     static let defaultSnippetSoundName = "Tink"
     static let allowedKeyboardDebounceWindowRange = 0...500
+    /// Stepper increment for the keyboard debounce window. Kept at 1 ms so
+    /// magnetic-keyboard users can pick values below the old 5 ms UI step
+    /// without changing the stored range (issue #1551).
+    static let keyboardDebounceWindowStep = 1
     static let defaultMouseClickDebounceWindowMs = 25
     static let allowedMouseClickDebounceWindowRange = 5...100
     static let allowedMenuBarPresets = ["dense"]
@@ -936,6 +973,8 @@ enum Defaults {
     static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000, 10_000, 0]
     static let allowedClipboardAutoClearDelayRange = 5...3_600
     static let defaultClipboardAutoClearDelay = 20
+    static let allowedClipboardMenuBarPreviewLengthRange = 5...50
+    static let defaultClipboardMenuBarPreviewLength = 20
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
@@ -951,6 +990,7 @@ enum Defaults {
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeRunningApps: false,
         DefaultsKey.keepAwakeRunningAppBundleIDs: [String](),
+        DefaultsKey.keepAwakeAutomationRequireAll: false,
         DefaultsKey.keepAwakePauseWhenLocked: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
@@ -962,6 +1002,8 @@ enum Defaults {
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.scrollInverterHorizontalEnabled: false,
+        DefaultsKey.scrollHorizontalEnabled: false,
+        DefaultsKey.scrollHorizontalModifier: ScrollHorizontalModifier.shift.rawValue,
         DefaultsKey.focusFollowsMouseEnabled: false,
         DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
         DefaultsKey.smoothScrollEnabled: false,
@@ -1008,9 +1050,11 @@ enum Defaults {
         DefaultsKey.minimalWindowPreviews: false,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewCurrentSpaceOnly: false,
+        DefaultsKey.dockPreviewKeepDockVisible: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
         DefaultsKey.dockPreviewOpenDelay: DockPreviewSupport.defaultOpenDelayMilliseconds,
         DefaultsKey.dockPreviewQuitAppOnClose: false,
+        DefaultsKey.dockPreviewOrderByCreation: false,
         DefaultsKey.dockClickMinimize: false,
         DefaultsKey.dockClickHide: false,
         DefaultsKey.dockClickCycleWindows: false,
@@ -1135,6 +1179,7 @@ enum Defaults {
         DefaultsKey.notchShowPlayingMusic: true,
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
+        DefaultsKey.notchScratchpadControlHidden: false,
         DefaultsKey.notchControlOrder: "",
         DefaultsKey.notchSize: NotchSize.spacious.rawValue,
         DefaultsKey.notchCustomWidth: NotchSize.defaultWidth,
@@ -1145,6 +1190,7 @@ enum Defaults {
         DefaultsKey.notchCaptureControls: true,
         DefaultsKey.notchQuickPanel: true,
         DefaultsKey.notchAppPanel: true,
+        DefaultsKey.notchScratchpad: true,
         DefaultsKey.notchHoverExpands: true,
         DefaultsKey.notchGesturesEnabled: true,
         DefaultsKey.notchKeyboardLight: false,
@@ -1163,12 +1209,15 @@ enum Defaults {
         DefaultsKey.notchCalendarEnabled: true,
         DefaultsKey.notchLyricsEnabled: false,
         DefaultsKey.notchLyricsOnline: false,
+        DefaultsKey.notchLiveEqualizer: false,
         DefaultsKey.notchQueueEnabled: false,
         DefaultsKey.notchDownloadsEnabled: false,
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
         DefaultsKey.notchOpenOnHover: true,
+        DefaultsKey.notchHideInFullscreen: false,
         DefaultsKey.notchHideUntilHover: false,
+        DefaultsKey.notchCoversMenus: false,
         DefaultsKey.notchHoverDelay: NotchSupport.defaultHoverDelay,
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
@@ -1319,6 +1368,7 @@ enum Defaults {
         DefaultsKey.monitorNetSpeed: true,
         DefaultsKey.monitorNetApps: true,
         DefaultsKey.monitorNetTotals: true,
+        DefaultsKey.monitorNetAddresses: true,
         DefaultsKey.monitorNetTest: true,
         DefaultsKey.monitorDiskUsage: true,
         DefaultsKey.monitorDiskActivity: true,
@@ -1390,6 +1440,8 @@ enum Defaults {
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
         DefaultsKey.clipboardHistoryQuickPreview: false,
+        DefaultsKey.clipboardHistoryMenuBarPreview: false,
+        DefaultsKey.clipboardHistoryMenuBarPreviewLength: Defaults.defaultClipboardMenuBarPreviewLength,
         DefaultsKey.clipboardAutoClearOnDelay: false,
         DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
         DefaultsKey.clipboardAutoClearOnSleep: false,
@@ -1403,6 +1455,7 @@ enum Defaults {
         DefaultsKey.pastePlainShortcut: GlobalShortcut.pastePlainDefault.storageValue,
         DefaultsKey.finderRenameEnabled: false,
         DefaultsKey.finderRenameShortcut: GlobalShortcut.finderRenameDefault.storageValue,
+        DefaultsKey.diskImageInstallerUseUserApplications: false,
         DefaultsKey.diskImageInstallerTrashesDownload: true,
         DefaultsKey.diskImageInstallerRevealsApp: false,
         DefaultsKey.colorPickerShortcutEnabled: false,
@@ -1421,6 +1474,7 @@ enum Defaults {
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
         DefaultsKey.commandBarCompactMode: false,
+        DefaultsKey.commandBarASCIILayoutEnabled: false,
         DefaultsKey.commandBarDisabledSources: "",
         DefaultsKey.commandBarAliases: "",
         DefaultsKey.commandBarPins: "",
@@ -1462,6 +1516,7 @@ enum Defaults {
         DefaultsKey.recorderEditorPresets: Data(),
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
+        DefaultsKey.panelUtilityPortManager: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
@@ -1498,6 +1553,7 @@ enum Defaults {
         DefaultsKey.screenshotLastTool: "arrow",
         DefaultsKey.screenshotLastColor: "red",
         DefaultsKey.screenshotLastStroke: "medium",
+        DefaultsKey.screenshotLastArrowStyle: "filled",
         DefaultsKey.screenshotLastSticker: "check",
         DefaultsKey.screenshotAnnotationShadows: false,
         DefaultsKey.screenshotToolOrder: ScreenshotSupport.Tool.defaultOrderStorage,
@@ -1571,6 +1627,33 @@ enum Defaults {
         migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+        recheckBrightnessDDCWriteOnlyPaths(in: defaults)
+        hideScratchpadControlOnce(in: defaults)
+    }
+
+    /// The Scratchpad tile joined the controls hidden by default after lists
+    /// had been saved without it, and a saved list is read whole: a setup
+    /// customized before then would show a tile nobody asked for. Once, so
+    /// showing it afterwards stays the user's choice.
+    static func hideScratchpadControlOnce(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.notchScratchpadControlHidden) else { return }
+        defaults.set(true, forKey: DefaultsKey.notchScratchpadControlHidden)
+        guard let saved = defaults.string(forKey: DefaultsKey.notchHiddenControls) else { return }
+        var hidden = saved.split(separator: ",").map(String.init)
+        guard !hidden.contains(NotchControlItem.scratchpad.rawValue) else { return }
+        hidden.append(NotchControlItem.scratchpad.rawValue)
+        defaults.set(hidden.joined(separator: ","), forKey: DefaultsKey.notchHiddenControls)
+    }
+
+    /// Discovery used to send one request per read, which reads a monitor that
+    /// answers only paired requests as write-only. That verdict is cached and
+    /// never re-probed, so it would outlive the fix: drop the cache once.
+    static func recheckBrightnessDDCWriteOnlyPaths(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked) else {
+            return
+        }
+        defaults.set(true, forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked)
+        defaults.removeObject(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
     }
 
     static func migrateBatteryTemperatureVisibility(in defaults: UserDefaults) {
@@ -1863,6 +1946,12 @@ enum Defaults {
     static func sanitizedClipboardAutoClearDelay(_ seconds: Int) -> Int {
         min(max(seconds, allowedClipboardAutoClearDelayRange.lowerBound),
             allowedClipboardAutoClearDelayRange.upperBound)
+    }
+
+    /// Same clamping reasoning as sanitizedClipboardAutoClearDelay above.
+    static func sanitizedClipboardMenuBarPreviewLength(_ characters: Int) -> Int {
+        min(max(characters, allowedClipboardMenuBarPreviewLengthRange.lowerBound),
+            allowedClipboardMenuBarPreviewLengthRange.upperBound)
     }
 
     static func sanitizedMenuBarPreset(_ preset: String) -> String {

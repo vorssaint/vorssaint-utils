@@ -51,7 +51,7 @@ enum NotchScreenEdgeClickTests {
         var openings = 0
     }
 
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         for screen in [CGRect(x: 0, y: 0, width: 1470, height: 956),
                        CGRect(x: -1920, y: 956, width: 1920, height: 1080)] {
             for localDelivery in [false, true] {
@@ -59,13 +59,13 @@ enum NotchScreenEdgeClickTests {
                 service.geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180)
                 service.syncScreenEdgeClicks()
                 for _ in 0..<100 { service.syncScreenEdgeClicks() }
-                expect(NSEvent.global.count == 1 && NSEvent.local.count == 1, "refreshes keep exactly one pair of edge-click monitors")
+                suite.expect(NSEvent.global.count == 1 && NSEvent.local.count == 1, "refreshes keep exactly one pair of edge-click monitors")
                 let top = CGPoint(x: screen.midX, y: screen.maxY)
                 func send(_ type: NSEvent.EventType, _ point: CGPoint, window: Panel? = nil) {
                     let event = NSEvent(type, point: point, window: window)
                     if localDelivery {
                         for handler in Array(NSEvent.local.values) {
-                            expect(handler(event) === event, "local observation preserves normal event delivery")
+                            suite.expect(handler(event) === event, "local observation preserves normal event delivery")
                         }
                     } else { for handler in Array(NSEvent.global.values) { handler(event) } }
                 }
@@ -74,24 +74,24 @@ enum NotchScreenEdgeClickTests {
                 send(.leftMouseDown, CGPoint(x: top.x, y: top.y - 2)); send(.leftMouseUp, top)
                 send(.leftMouseDown, CGPoint(x: top.x, y: top.y + 0.5)); send(.leftMouseUp, top)
                 send(.leftMouseDown, top, window: service.panel); send(.leftMouseUp, top)
-                expect(service.openings == 0, "release-only, nearby menus, lower clicks and native notch clicks never cause duplicate opening")
+                suite.expect(service.openings == 0, "release-only, nearby menus, lower clicks and native notch clicks never cause duplicate opening")
                 send(.leftMouseDown, top); send(.leftMouseDragged, top); send(.leftMouseUp, top)
                 send(.leftMouseDown, top); send(.leftMouseUp, CGPoint(x: screen.minX, y: screen.maxY))
-                expect(service.openings == 0, "dragging or releasing outside cancels an edge click")
+                suite.expect(service.openings == 0, "dragging or releasing outside cancels an edge click")
                 service.windowHost?.acceptsPoint = false
                 send(.leftMouseDown, top); send(.leftMouseUp, top)
                 service.windowHost?.acceptsPoint = true
                 service.keepsWorkingSurface = true
                 send(.leftMouseDown, top); send(.leftMouseUp, top)
                 service.keepsWorkingSurface = false
-                expect(service.openings == 0, "transparent corners and an active menu or modal preserve their own interactions")
+                suite.expect(service.openings == 0, "transparent corners and an active menu or modal preserve their own interactions")
                 let pendingHover = DispatchWorkItem {}
                 service.hoverWork = pendingHover
                 send(.leftMouseDown, top)
-                expect(service.openings == 0 && pendingHover.isCancelled && service.hoverState.suppressed,
+                suite.expect(service.openings == 0 && pendingHover.isCancelled && service.hoverState.suppressed,
                        "pressing the edge cancels hover and waits for release")
                 send(.leftMouseUp, CGPoint(x: top.x, y: top.y - 0.5))
-                expect(service.openings == 1 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                suite.expect(service.openings == 1 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                        "a menu-bar click opens exactly once on either display, then removes both monitors")
                 service.removeScreenEdgeClickMonitors()
             }
@@ -108,7 +108,7 @@ enum NotchScreenEdgeClickTests {
             disable(service)
             service.syncScreenEdgeClicks()
             service.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
-            expect(service.openings == 0 && service.screenEdgePressArea == nil
+            suite.expect(service.openings == 0 && service.screenEdgePressArea == nil
                    && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                    "leaving an eligible presentation cancels the press and removes every monitor")
         }
@@ -116,13 +116,13 @@ enum NotchScreenEdgeClickTests {
         service.geometry = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0)
         service.compactActivityIsVisible = true
         service.syncScreenEdgeClicks()
-        expect(service.screenEdgeClickArea?.width == service.geometry.cameraWidth
+        suite.expect(service.screenEdgeClickArea?.width == service.geometry.cameraWidth
                && service.screenEdgeClickArea?.maxY == service.geometry.screen.maxY,
                "the simulated camera retains the same screen-edge activation area as a physical cutout")
         let point = CGPoint(x: service.geometry.screen.midX, y: service.geometry.screen.maxY)
         service.handleScreenEdgeClick(.leftMouseDown, at: point, isNotchWindow: false)
         service.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
-        expect(service.openings == 1 && service.screenEdgeClickMonitors.isEmpty,
+        suite.expect(service.openings == 1 && service.screenEdgeClickMonitors.isEmpty,
                "clicking the top edge opens a simulated notch exactly once and stops its closed-state monitors")
     }
 }

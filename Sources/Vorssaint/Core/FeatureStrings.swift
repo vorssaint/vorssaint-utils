@@ -105,21 +105,26 @@ struct MixerFeatureStrings {
     let unpin: String
     let moveUp: String
     let moveDown: String
+    /// The island runs the rows sideways, pinned ones first.
+    let pinFirst: String
+    let moveLeft: String
+    let moveRight: String
     let arrange: String
+    let actions: String
 
-    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", arrange: "Hold Command and drag to reorder")
-    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", arrange: "Segure Command e arraste para reorganizar")
-    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin")
-    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", arrange: "Удерживайте Command и перетащите для изменения порядка")
-    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", arrange: "Mantén pulsado Command y arrastra para reordenar")
-    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen")
-    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", arrange: "Maintenez Command et faites glisser pour réorganiser")
-    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive", pin: "Fissa in alto", unpin: "Rimuovi fissaggio", moveUp: "Sposta su", moveDown: "Sposta giù", arrange: "Tieni premuto Command e trascina per riordinare")
-    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す", pin: "一番上に固定", unpin: "固定を解除", moveUp: "上に移動", moveDown: "下に移動", arrange: "Commandキーを押しながらドラッグして並べ替え")
-    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기", pin: "맨 위에 고정", unpin: "고정 해제", moveUp: "위로 이동", moveDown: "아래로 이동", arrange: "Command 키를 누른 채 드래그하여 순서 변경")
-    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App", pin: "置顶", unpin: "取消置顶", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 并拖移以重新排列")
-    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 並拖移以重新排列")
-    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", arrange: "按住 Command 並拖移以重新排列")
+    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", pinFirst: "Pin to Front", moveLeft: "Move Left", moveRight: "Move Right", arrange: "Hold Command and drag to reorder", actions: "Actions")
+    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", pinFirst: "Fixar no início", moveLeft: "Mover para a esquerda", moveRight: "Mover para a direita", arrange: "Segure Command e arraste para reorganizar", actions: "Ações")
+    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", pinFirst: "Başa sabitle", moveLeft: "Sola taşı", moveRight: "Sağa taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin", actions: "Eylemler")
+    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
+    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", pinFirst: "Fijar al principio", moveLeft: "Mover a la izquierda", moveRight: "Mover a la derecha", arrange: "Mantén pulsado Command y arrastra para reordenar", actions: "Acciones")
+    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", pinFirst: "Vorne anheften", moveLeft: "Nach links bewegen", moveRight: "Nach rechts bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen", actions: "Aktionen")
+    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", pinFirst: "Épingler au début", moveLeft: "Déplacer vers la gauche", moveRight: "Déplacer vers la droite", arrange: "Maintenez Command et faites glisser pour réorganiser", actions: "Actions")
+    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive", pin: "Fissa in alto", unpin: "Rimuovi fissaggio", moveUp: "Sposta su", moveDown: "Sposta giù", pinFirst: "Fissa all’inizio", moveLeft: "Sposta a sinistra", moveRight: "Sposta a destra", arrange: "Tieni premuto Command e trascina per riordinare", actions: "Azioni")
+    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す", pin: "一番上に固定", unpin: "固定を解除", moveUp: "上に移動", moveDown: "下に移動", pinFirst: "先頭に固定", moveLeft: "左に移動", moveRight: "右に移動", arrange: "Commandキーを押しながらドラッグして並べ替え", actions: "アクション")
+    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기", pin: "맨 위에 고정", unpin: "고정 해제", moveUp: "위로 이동", moveDown: "아래로 이동", pinFirst: "맨 앞에 고정", moveLeft: "왼쪽으로 이동", moveRight: "오른쪽으로 이동", arrange: "Command 키를 누른 채 드래그하여 순서 변경", actions: "동작")
+    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App", pin: "置顶", unpin: "取消置顶", moveUp: "上移", moveDown: "下移", pinFirst: "置于最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 并拖移以重新排列", actions: "操作")
+    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
+    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
 }
 
 extension SettingsCategoryStrings {
@@ -188,7 +193,11 @@ extension ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
         autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
         autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다.",
-        deleteSelectedFormat: "%d개 삭제"
+        deleteSelectedFormat: "%d개 삭제",
+        menuBarPreview: "메뉴 막대에 최근 복사 항목 표시",
+        menuBarPreviewCaption: "아이콘 옆에 최근 복사한 내용의 축약된 미리보기를 표시합니다. 클릭하면 기록이 열립니다.",
+        menuBarPreviewLength: "미리보기 길이",
+        menuBarPreviewLengthSuffix: "자"
     )
 }
 
@@ -475,6 +484,10 @@ struct ClipboardFeatureStrings {
     let autoClearOnScreenLock: String
     let autoClearCaption: String
     let deleteSelectedFormat: String
+    let menuBarPreview: String
+    let menuBarPreviewCaption: String
+    let menuBarPreviewLength: String
+    let menuBarPreviewLengthSuffix: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -530,7 +543,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Clear clipboard on display sleep",
         autoClearOnScreenLock: "Clear clipboard on screen lock",
         autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
-        deleteSelectedFormat: "Delete %d"
+        deleteSelectedFormat: "Delete %d",
+        menuBarPreview: "Show latest copy in the menu bar",
+        menuBarPreviewCaption: "Shows a shortened preview of your last copy next to the icon. Click it to open the history.",
+        menuBarPreviewLength: "Preview length",
+        menuBarPreviewLengthSuffix: "characters"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -587,7 +604,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
         autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
         autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico.",
-        deleteSelectedFormat: "Apagar %d"
+        deleteSelectedFormat: "Apagar %d",
+        menuBarPreview: "Mostrar a última cópia na barra de menus",
+        menuBarPreviewCaption: "Mostra uma prévia resumida da sua última cópia ao lado do ícone. Clique nela para abrir o histórico.",
+        menuBarPreviewLength: "Tamanho da prévia",
+        menuBarPreviewLengthSuffix: "caracteres"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -644,7 +665,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
         autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
         autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır.",
-        deleteSelectedFormat: "%d öğeyi sil"
+        deleteSelectedFormat: "%d öğeyi sil",
+        menuBarPreview: "Menü çubuğunda son kopyalananı göster",
+        menuBarPreviewCaption: "Simgenin yanında son kopyalananın kısaltılmış bir önizlemesini gösterir. Geçmişi açmak için üzerine tıkla.",
+        menuBarPreviewLength: "Önizleme uzunluğu",
+        menuBarPreviewLengthSuffix: "karakter"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -701,7 +726,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
         autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
         autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории.",
-        deleteSelectedFormat: "Удалить: %d"
+        deleteSelectedFormat: "Удалить: %d",
+        menuBarPreview: "Показывать последнюю скопированную запись в строке меню",
+        menuBarPreviewCaption: "Показывает сокращённый предпросмотр последней скопированной записи рядом со значком. Нажмите на него, чтобы открыть историю.",
+        menuBarPreviewLength: "Длина предпросмотра",
+        menuBarPreviewLengthSuffix: "символов"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -758,7 +787,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
         autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
         autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial.",
-        deleteSelectedFormat: "Eliminar %d"
+        deleteSelectedFormat: "Eliminar %d",
+        menuBarPreview: "Mostrar la última copia en la barra de menús",
+        menuBarPreviewCaption: "Muestra una vista previa abreviada de tu última copia junto al icono. Haz clic para abrir el historial.",
+        menuBarPreviewLength: "Longitud de la vista previa",
+        menuBarPreviewLengthSuffix: "caracteres"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -815,7 +848,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
         autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
         autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf.",
-        deleteSelectedFormat: "%d löschen"
+        deleteSelectedFormat: "%d löschen",
+        menuBarPreview: "Letzte Kopie in der Menüleiste anzeigen",
+        menuBarPreviewCaption: "Zeigt eine gekürzte Vorschau deiner letzten Kopie neben dem Symbol. Klicke darauf, um den Verlauf zu öffnen.",
+        menuBarPreviewLength: "Vorschaulänge",
+        menuBarPreviewLengthSuffix: "Zeichen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -872,7 +909,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Vider le presse-papiers à l’extinction de l’écran",
         autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l’écran",
         autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l’historique.",
-        deleteSelectedFormat: "Supprimer %d"
+        deleteSelectedFormat: "Supprimer %d",
+        menuBarPreview: "Afficher la dernière copie dans la barre des menus",
+        menuBarPreviewCaption: "Affiche un aperçu raccourci de votre dernière copie à côté de l’icône. Cliquez dessus pour ouvrir l’historique.",
+        menuBarPreviewLength: "Longueur de l’aperçu",
+        menuBarPreviewLengthSuffix: "caractères"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -929,7 +970,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
         autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
         autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia.",
-        deleteSelectedFormat: "Elimina %d"
+        deleteSelectedFormat: "Elimina %d",
+        menuBarPreview: "Mostra l’ultima copia nella barra dei menu",
+        menuBarPreviewCaption: "Mostra un’anteprima abbreviata dell’ultima copia accanto all’icona. Fai clic per aprire la cronologia.",
+        menuBarPreviewLength: "Lunghezza dell’anteprima",
+        menuBarPreviewLengthSuffix: "caratteri"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -986,7 +1031,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
         autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
         autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。",
-        deleteSelectedFormat: "%d件を削除"
+        deleteSelectedFormat: "%d件を削除",
+        menuBarPreview: "メニューバーに直前のコピーを表示",
+        menuBarPreviewCaption: "アイコンの横に直前のコピーの短縮プレビューを表示します。クリックすると履歴が開きます。",
+        menuBarPreviewLength: "プレビューの長さ",
+        menuBarPreviewLengthSuffix: "文字"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1043,7 +1092,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
         autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
         autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。",
-        deleteSelectedFormat: "删除 %d 项"
+        deleteSelectedFormat: "删除 %d 项",
+        menuBarPreview: "在菜单栏显示最近拷贝的内容",
+        menuBarPreviewCaption: "在图标旁显示最近拷贝内容的简短预览，点击即可打开历史记录。",
+        menuBarPreviewLength: "预览长度",
+        menuBarPreviewLengthSuffix: "个字符"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1100,7 +1153,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
         autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。",
-        deleteSelectedFormat: "刪除 %d 個"
+        deleteSelectedFormat: "刪除 %d 個",
+        menuBarPreview: "在選單列顯示最近複製的內容",
+        menuBarPreviewCaption: "在圖示旁顯示最近複製內容的簡短預覽，點選即可開啟紀錄。",
+        menuBarPreviewLength: "預覽長度",
+        menuBarPreviewLengthSuffix: "個字元"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1157,7 +1214,11 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
         autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
-        deleteSelectedFormat: "刪除 %d 個"
+        deleteSelectedFormat: "刪除 %d 個",
+        menuBarPreview: "在選單列顯示最近複製的內容",
+        menuBarPreviewCaption: "在圖示旁顯示最近複製內容的簡短預覽，按一下即可開啟記錄。",
+        menuBarPreviewLength: "預覽長度",
+        menuBarPreviewLengthSuffix: "個字元"
     )
 }
 

@@ -21,6 +21,8 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     let allDay: Bool
     let location: String
     var color: NotchCalendarColor = .fallback
+    var calendarItemIdentifier = ""
+    var recurring = false
 }
 
 enum NotchCalendarSupport {
@@ -29,6 +31,15 @@ enum NotchCalendarSupport {
         let offset = (calendar.component(.weekday, from: month.start) - calendar.firstWeekday + 7) % 7
         guard let start = calendar.date(byAdding: .day, value: -offset, to: month.start) else { return [] }
         return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+    }
+
+    /// The seven days around `date`, from the calendar's first weekday. Every
+    /// week lies inside the 42-day grid `monthDays` reads for any of its days.
+    static func weekDays(containing date: Date, calendar: Calendar = .current) -> [Date] {
+        let day = calendar.startOfDay(for: date)
+        let offset = (calendar.component(.weekday, from: day) - calendar.firstWeekday + 7) % 7
+        guard let start = calendar.date(byAdding: .day, value: -offset, to: day) else { return [] }
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
 
     static func readInterval(month: Date?, now: Date, calendar: Calendar = .current) -> DateInterval {
@@ -86,6 +97,24 @@ enum NotchCalendarSupport {
 
     static func next(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
         upcoming(events, now: now).first { !$0.allDay }
+    }
+
+    /// The link Calendar resolves to one appointment. A series shares one
+    /// identifier across its occurrences, so the clicked start (UTC, or the
+    /// local day for all-day events) picks the right one.
+    static func eventURL(_ event: NotchCalendarEvent, calendar: Calendar = .current) -> URL? {
+        guard !event.calendarItemIdentifier.isEmpty,
+              let identifier = event.calendarItemIdentifier
+                .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }
+        var path = "ical://ekevent/"
+        if event.recurring {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = event.allDay ? calendar.timeZone : TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+            path += formatter.string(from: event.start) + "/"
+        }
+        return URL(string: path + identifier + "?method=show&options=more")
     }
 
     static func nextRefresh(_ events: [NotchCalendarEvent], now: Date,

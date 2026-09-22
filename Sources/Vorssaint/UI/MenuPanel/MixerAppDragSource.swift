@@ -15,6 +15,8 @@ struct MixerAppDragSource: NSViewRepresentable {
     let canMove: (String, String) -> Bool
     let onTarget: (MixerAppDropTarget?) -> Void
     let move: (String, String, Bool) -> Void
+    /// Columns running sideways read the insertion side from the pointer's x.
+    var sideways = false
 
     func makeNSView(context: Context) -> DragView { DragView() }
 
@@ -69,7 +71,8 @@ struct MixerAppDragSource: NSViewRepresentable {
                   source.canMove(sourceID, targetID) else { return nil }
             let point = convert(sender.draggingLocation, from: nil)
             guard bounds.contains(point) else { return nil }
-            return (sourceID, MixerAppDropTarget(id: targetID, after: point.y > bounds.midY))
+            let after = source.sideways ? point.x > bounds.midX : point.y > bounds.midY
+            return (sourceID, MixerAppDropTarget(id: targetID, after: after))
         }
 
         override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -121,6 +124,11 @@ struct MixerAppReorderModifier: ViewModifier {
     let dragChanged: (Bool) -> Void
     let canMove: (String, String) -> Bool
     let move: (String, String, Bool) -> Void
+    var sideways = false
+
+    private var markerEdge: Alignment {
+        sideways ? (target?.after == true ? .trailing : .leading) : (target?.after == true ? .bottom : .top)
+    }
 
     func body(content: Content) -> some View {
         content
@@ -132,11 +140,13 @@ struct MixerAppReorderModifier: ViewModifier {
                                    onTarget: { next in
                                        if next != nil || target?.id == id { target = next }
                                    },
-                                   move: move)
+                                   move: move,
+                                   sideways: sideways)
             }
-            .overlay(alignment: target?.after == true ? .bottom : .top) {
+            .overlay(alignment: markerEdge) {
                 if target?.id == id, draggingID != nil {
-                    Capsule().fill(Color.accentColor).frame(height: 2)
+                    Capsule().fill(Color.accentColor)
+                        .frame(width: sideways ? 2 : nil, height: sideways ? nil : 2)
                         .allowsHitTesting(false)
                 }
             }

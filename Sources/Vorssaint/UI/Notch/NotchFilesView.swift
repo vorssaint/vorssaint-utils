@@ -20,7 +20,7 @@ struct NotchFilesView: View {
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: NotchLayout.rowSpacing) {
             if service.choosingFileDropDestination, AppFeature.mediaTools.isAvailable {
                 HStack(spacing: NotchFileToolsSupport.dropSpacing) {
                     dropDestination(FeatureStrings.notch(l10n.language).files, symbol: "tray.and.arrow.down",
@@ -48,10 +48,13 @@ struct NotchFilesView: View {
                                selection: shelf.selection,
                                expandedBatches: shelf.expandedBatches,
                                revealID: shelf.revealTargetID,
-                               revealSerial: shelf.addSerial)
+                               revealSerial: shelf.addSerial,
+                               sideways: true)
                     .frame(maxHeight: .infinity)
                 HStack {
-                    Text(l10n.s.shelfHint).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+                    Text(shelf.selection.isEmpty ? l10n.s.shelfHint
+                         : String(format: l10n.s.shelfSelectedFormat, shelf.selection.count))
+                        .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
                     Spacer()
                     if AppFeature.mediaTools.isAvailable {
                         NotchIconButton(symbol: "wand.and.stars", title: l10n.s.mediaName) {
@@ -67,7 +70,16 @@ struct NotchFilesView: View {
                     }
                     .background(ShelfSharePickerAnchor(anchor: shareAnchor))
                     .disabled(!shelf.hasFilesForActions)
-                    clearMenu
+                    // The shelf's trash takes the selection first, the whole
+                    // shelf only when nothing is selected.
+                    if shelf.selection.isEmpty {
+                        clearMenu
+                    } else {
+                        NotchIconButton(symbol: "trash.fill", title: l10n.s.shelfRemoveSelected) {
+                            shelf.removeItems(Array(shelf.selection))
+                        }
+                        .disabled(archives.isRunning)
+                    }
                 }
             }
             if !service.choosingFileDropDestination, !archives.mediaPresented, AppFeature.mediaTools.isAvailable {

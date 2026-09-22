@@ -55,13 +55,13 @@ enum NotchMediaPresentationProbe {
         var body: some View {
             VStack(spacing: NotchLayout.spacing) {
                 Text("Files").frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: NotchLayout.headerHeight)
+                    .frame(height: model.geometry.headerRowHeight)
                 MediaWorkspaceView(compact: true, media: model.media, initialTool: .videoCompressor,
                                    preservesServiceState: true, workspace: model.workspace,
                                    onContentHeightChange: model.measured, onToolChange: model.willChange)
             }
             .padding(.horizontal, NotchLayout.horizontalInset)
-            .padding(.top, model.geometry.safeContentTop)
+            .padding(.top, model.geometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: model.size.width, height: model.size.height, alignment: .top)
             .background(.black).foregroundStyle(.white)
@@ -127,6 +127,12 @@ enum NotchMediaPresentationProbe {
             if !ready { failures.append("layout resize \(Int(height)) did not reserve its drawing area") }
             if !reduceMotion, intermediate < 3 { failures.append("layout resize \(Int(height)) has no visible intermediate frames") }
             print("MEDIA BACKING from=\(Int(from)) to=\(Int(height)) reserved=\(ready) intermediate=\(intermediate)")
+        }
+        // A present made from inside AppKit layout cannot flush the layer tree,
+        // so the frame probe reads stale there; that must not pass for
+        // Mission Control and order the island out on the desktop.
+        if backing.concealedFrameChanges != 0 {
+            failures.append("layout resizes concealed the island \(backing.concealedFrameChanges) times outside Mission Control")
         }
         backing.close()
         for index in [3, 2, 1, 0, 2, 3] {

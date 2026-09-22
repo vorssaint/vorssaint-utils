@@ -2,7 +2,7 @@
 "NSAppleEventsUsageDescription" = "Vorssaint verwendet Automation, um Dateien zu verschieben, Objekte in den Papierkorb zu legen, angeforderte Befehle zu öffnen und die Wiedergabe in deinen Medienapps zu steuern.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint nutzt den Ton jeder App, um ihre Lautstärke im Mixer zu regeln und den Ton des Mac in die Bildschirmaufnahmen aufzunehmen, die du startest. Nichts verlässt deinen Mac.";
+"NSAudioCaptureUsageDescription" = "Vorssaint nutzt den Ton jeder App, um ihre Lautstärke im Mixer zu regeln, die Musikbalken von Dynamic Island zu bewegen und den Ton des Mac in die Bildschirmaufnahmen aufzunehmen, die du startest. Nichts verlässt deinen Mac.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint verwendet Bluetooth nur, um den Akkustand verbundener Peripheriegeräte zu lesen. Nichts verlässt deinen Mac.";

@@ -10,21 +10,29 @@ struct NotchCameraView: View {
     private var text: NotchActivityStrings { FeatureStrings.notchActivities(l10n.language) }
 
     var body: some View {
-        VStack(spacing: 14) {
+        Group {
             if service.isEmbeddedPresented {
-                CameraPreviewView(size: CGSize(width: size.width,
-                    height: max(80, min(size.width * 0.75, size.height - 50))), showsCameraMenu: true)
-                Button(text.stopCamera, action: service.hideEmbedded)
-                    .buttonStyle(.bordered)
+                // The preview takes the height the island leaves beside its
+                // stop button and keeps the camera's own proportions.
+                VStack(spacing: NotchLayout.rowSpacing) {
+                    CameraPreviewView(size: NotchLayout.cameraPreviewSize(in: size), showsCameraMenu: true)
+                    Button(text.stopCamera, action: service.hideEmbedded)
+                        .buttonStyle(.bordered).controlSize(.small)
+                }
             } else {
-                Spacer(minLength: 0)
-                Image(systemName: "web.camera").font(.system(size: 34, weight: .light))
-                    .foregroundStyle(.secondary).accessibilityHidden(true)
-                Text(text.cameraHint).font(.callout).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                Button(text.startCamera, action: service.showEmbedded)
-                    .buttonStyle(.borderedProminent)
-                Spacer(minLength: 0)
+                HStack(spacing: 16) {
+                    Image(systemName: "web.camera").font(.system(size: 30, weight: .light))
+                        .foregroundStyle(.secondary).accessibilityHidden(true)
+                        .frame(width: 56, height: 56)
+                        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(text.cameraHint).font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button(text.startCamera, action: service.showEmbedded)
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
+                .padding(.horizontal, 12)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

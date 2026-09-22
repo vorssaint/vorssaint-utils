@@ -330,6 +330,14 @@ enum WindowDirectionalGestureSupport {
         if degrees >= 247.5 && degrees < 292.5 { return .bottomHalf }
         return .bottomRight
     }
+
+    /// Holding the ring open keeps keys auto-repeating. Those repeats must not
+    /// force maximize/minimize, or the default ⌃⌥Space binding fights the
+    /// pointer aim (#1566). The event is still swallowed so repeats do not
+    /// leak to the front app.
+    static func shouldApplyKeyboardManualOverride(isAutorepeat: Bool) -> Bool {
+        !isAutorepeat
+    }
 }
 
 enum WindowEdgeDragClassification: Equatable {

@@ -10,6 +10,7 @@ struct NotchMusicStrip: View {
     @ObservedObject private var l10n = L10n.shared
 
     private var geometry: NotchGeometry { service.compactActivityGeometry }
+    private var innerInset: CGFloat { geometry.isNotched ? 0 : 8 }
 
     private static let edgeGap = NotchLayout.compactEdgeGap
     private static let barWidth: CGFloat = 1.8
@@ -21,7 +22,7 @@ struct NotchMusicStrip: View {
         min(26, geometry.compactActivityContentHeight - Self.edgeGap * 2)
     }
     private var artworkSide: CGFloat {
-        max(0, min(preferredArtworkSide, geometry.compactActivityWingWidth - artworkInset - 8))
+        max(0, min(preferredArtworkSide, geometry.compactActivityWingWidth - artworkInset - innerInset))
     }
     private var artworkRadius: CGFloat { artworkSide * 0.28 }
     private var artworkInset: CGFloat {
@@ -29,7 +30,7 @@ struct NotchMusicStrip: View {
                                                       radius: preferredArtworkSide * 0.28,
                                                       gap: Self.edgeGap)
         // A short wing gives clearance back before the cover turns into a chip.
-        return max(0, min(ideal, geometry.compactActivityWingWidth - min(preferredArtworkSide, 20) - 8))
+        return max(0, min(ideal, geometry.compactActivityWingWidth - min(preferredArtworkSide, 20) - innerInset))
     }
     /// Mirrors `NotchEqualizerBars`, whose spacing follows its bar width.
     private var barsWidth: CGFloat {
@@ -39,7 +40,7 @@ struct NotchMusicStrip: View {
         let ideal = geometry.compactActivityEdgeInset(boxHeight: barHeight,
                                                       radius: Self.barWidth / 2,
                                                       gap: Self.edgeGap)
-        return max(0, min(ideal, geometry.compactActivityWingWidth - barsWidth - 8))
+        return max(0, min(ideal, geometry.compactActivityWingWidth - barsWidth - innerInset))
     }
 
     private var title: String { music.playback?.track.title ?? FeatureStrings.radialMenu(l10n.language).mediaNowPlaying }
@@ -75,9 +76,8 @@ struct NotchMusicStrip: View {
                     }
                 }
                 .padding(.leading, artworkInset)
-                .padding(.trailing, 8)
-                // Keep the wings spread out while clearing the curved edges.
-                .frame(width: geometry.compactActivityWingWidth, alignment: .leading)
+                .padding(.trailing, innerInset)
+                .frame(width: geometry.compactActivityWingWidth, alignment: geometry.isNotched ? .trailing : .leading)
                 .clipped()
                 Group {
                     if fillsCameraGap { trackLabel } else { Color.clear }
@@ -86,15 +86,15 @@ struct NotchMusicStrip: View {
                 .clipped()
                 HStack {
                     if geometry.compactActivityWingWidth >= 44 {
-                        NotchEqualizerBars(isPlaying: music.playback?.isPlaying == true,
-                                           bars: Self.barCount, barWidth: Self.barWidth,
-                                           height: barHeight,
-                                           tint: music.artworkTint?.color ?? .white)
+                        NotchLiveEqualizerBars(isPlaying: music.playback?.isPlaying == true,
+                                               bars: Self.barCount, barWidth: Self.barWidth,
+                                               height: barHeight,
+                                               tint: music.artworkTint?.color ?? .white)
                     }
                 }
-                .padding(.leading, 8)
+                .padding(.leading, innerInset)
                 .padding(.trailing, barsInset)
-                .frame(width: geometry.compactActivityWingWidth, alignment: .trailing)
+                .frame(width: geometry.compactActivityWingWidth, alignment: geometry.isNotched ? .leading : .trailing)
             }
             .frame(height: geometry.compactActivityContentHeight)
             .contentShape(Rectangle())

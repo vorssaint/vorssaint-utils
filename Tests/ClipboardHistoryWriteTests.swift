@@ -4,7 +4,7 @@
 import AppKit
 
 struct ClipboardHistoryWriteTests {
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         let png = Data([1, 2, 3])
         let tiff = Data([4, 5, 6])
         let rich = NSAttributedString(string: "saved rich text")
@@ -18,9 +18,9 @@ struct ClipboardHistoryWriteTests {
             let pasteboard = FakeHistoryPasteboard()
             pasteboard.rejectedOperations = [requiredOperation]
             let result = write.write(to: pasteboard, isExpired: { false })
-            expect(result?.succeeded == false, "failed \(name) write reports failure")
-            expect(result?.changeCount == 12, "failed \(name) preserves final change count")
-            expect(pasteboard.operations == ["clear", requiredOperation, "count"],
+            suite.expect(result?.succeeded == false, "failed \(name) write reports failure")
+            suite.expect(result?.changeCount == 12, "failed \(name) preserves final change count")
+            suite.expect(pasteboard.operations == ["clear", requiredOperation, "count"],
                    "failed \(name) skips optional representations")
         }
 
@@ -31,17 +31,17 @@ struct ClipboardHistoryWriteTests {
             let pasteboard = FakeHistoryPasteboard()
             pasteboard.rejectedOperations = [optionalOperation]
             let result = write.write(to: pasteboard, isExpired: { false })
-            expect(result?.succeeded == true,
+            suite.expect(result?.succeeded == true,
                    "successful \(name) remains successful if optional representation fails")
-            expect(pasteboard.operations.contains(optionalOperation),
+            suite.expect(pasteboard.operations.contains(optionalOperation),
                    "successful \(name) attempts optional representation")
-            expect(result?.changeCount == 13, "\(name) returns count after optional write")
+            suite.expect(result?.changeCount == 13, "\(name) returns count after optional write")
         }
 
         for (name, write, _) in writes {
             let pasteboard = FakeHistoryPasteboard()
             let result = write.write(to: pasteboard, isExpired: { false })
-            expect(result?.succeeded == true, "successful \(name) reports success")
+            suite.expect(result?.succeeded == true, "successful \(name) reports success")
         }
 
         // Expire before clear, after each mutation, and during the final
@@ -56,15 +56,15 @@ struct ClipboardHistoryWriteTests {
                     pasteboard.operations.count >= allowedCalls
                 }
                 if allowedCalls == 0 {
-                    expect(result == nil && pasteboard.operations.isEmpty,
+                    suite.expect(result == nil && pasteboard.operations.isEmpty,
                            "expired \(name) leaves clipboard untouched before clear")
                 } else {
                     let expectedMutations = Array(mutations.prefix(allowedCalls))
-                    expect(result?.succeeded == false,
+                    suite.expect(result?.succeeded == false,
                            "expired \(name) reports failure at boundary \(allowedCalls)")
-                    expect(result?.changeCount == 10 + expectedMutations.count,
+                    suite.expect(result?.changeCount == 10 + expectedMutations.count,
                            "expired \(name) retains final change count at boundary \(allowedCalls)")
-                    expect(pasteboard.operations == expectedMutations + ["count"],
+                    suite.expect(pasteboard.operations == expectedMutations + ["count"],
                            "expired \(name) only reads count after boundary \(allowedCalls)")
                 }
             }
@@ -72,10 +72,10 @@ struct ClipboardHistoryWriteTests {
 
         let textPasteboard = FakeHistoryPasteboard()
         _ = ClipboardHistoryWrite.text("exact saved text").write(to: textPasteboard, isExpired: { false })
-        expect(textPasteboard.strings == ["exact saved text"], "text write preserves saved text")
+        suite.expect(textPasteboard.strings == ["exact saved text"], "text write preserves saved text")
         let imagePasteboard = FakeHistoryPasteboard()
         _ = ClipboardHistoryWrite.image(png: png, tiff: tiff).write(to: imagePasteboard, isExpired: { false })
-        expect(imagePasteboard.data == [png, tiff], "image write preserves PNG and TIFF payloads")
+        suite.expect(imagePasteboard.data == [png, tiff], "image write preserves PNG and TIFF payloads")
     }
 }
 

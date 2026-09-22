@@ -7,13 +7,7 @@ import UniformTypeIdentifiers
 
 final class URLCleanerService: ObservableObject {
     static let shared = URLCleanerService()
-    private static let automaticRewriteTypes: Set<NSPasteboard.PasteboardType> = [
-        .string,
-        NSPasteboard.PasteboardType(UTType.url.identifier),
-        NSPasteboard.PasteboardType("public.url-name"),
-        NSPasteboard.PasteboardType("NSStringPboardType"),
-        NSPasteboard.PasteboardType("NSURLPboardType"),
-    ]
+    private static let urlType = NSPasteboard.PasteboardType(UTType.url.identifier)
 
     @Published private(set) var isRunning = false
     @Published private(set) var lastCleaned: String?
@@ -153,21 +147,20 @@ final class URLCleanerService: ObservableObject {
             return PollResult(changeCount: changeCount, cleaned: nil)
         }
 
-        guard let text = pasteboard.string(forType: .string),
+        // The types decide before any content is read: a picture or a file
+        // is never fetched only to be left alone. Some "copy link" commands
+        // put the link on the pasteboard only as a URL, with no text next
+        // to it.
+        guard URLCleaning.canRewritePasteboard(types: (pasteboard.types ?? []).map(\.rawValue)),
+              let text = pasteboard.string(forType: .string) ?? pasteboard.string(forType: urlType),
               let cleaned = URLCleaning.clean(text, rules: rules),
               cleaned.url != text.trimmingCharacters(in: .whitespacesAndNewlines),
-              canSafelyRewriteAutomatically(pasteboard),
               !token.isCancelled else {
             return PollResult(changeCount: changeCount, cleaned: nil)
         }
 
         let rewrittenChangeCount = writeToPasteboard(cleaned.url)
         return PollResult(changeCount: rewrittenChangeCount, cleaned: cleaned)
-    }
-
-    private static func canSafelyRewriteAutomatically(_ pasteboard: NSPasteboard) -> Bool {
-        guard let types = pasteboard.types, !types.isEmpty else { return false }
-        return Set(types).isSubset(of: automaticRewriteTypes)
     }
 
     private static var rules: URLCleaning.Rules {
@@ -183,7 +176,7 @@ final class URLCleanerService: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(urlString, forType: .string)
-        pasteboard.setString(urlString, forType: NSPasteboard.PasteboardType(UTType.url.identifier))
+        pasteboard.setString(urlString, forType: urlType)
         return pasteboard.changeCount
     }
 

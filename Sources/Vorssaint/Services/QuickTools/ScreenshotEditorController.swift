@@ -49,6 +49,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             applyStyleToSelection()
         }
     }
+    @Published var arrowStyle: ScreenshotSupport.ArrowStyleID {
+        didSet {
+            UserDefaults.standard.set(arrowStyle.rawValue,
+                                      forKey: DefaultsKey.screenshotLastArrowStyle)
+            applyStyleToSelection()
+        }
+    }
     @Published var sticker: ScreenshotSupport.StickerID {
         didSet {
             UserDefaults.standard.set(sticker.rawValue,
@@ -166,6 +173,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             defaults.string(forKey: DefaultsKey.screenshotLastColor))
         stroke = ScreenshotSupport.StrokeID.sanitized(
             defaults.string(forKey: DefaultsKey.screenshotLastStroke))
+        arrowStyle = ScreenshotSupport.ArrowStyleID.sanitized(
+            defaults.string(forKey: DefaultsKey.screenshotLastArrowStyle))
         sticker = ScreenshotSupport.StickerID.sanitized(
             defaults.string(forKey: DefaultsKey.screenshotLastSticker))
         annotationShadowsEnabled = defaults.bool(
@@ -503,15 +512,26 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Selection styling
 
-    /// Applies color or thickness changes to the selected annotation.
+    /// Applies color, thickness, or arrow style changes to the selected annotation.
     private func applyStyleToSelection() {
         guard let selectedID,
               let index = annotations.firstIndex(where: { $0.id == selectedID })
         else { return }
-        guard annotations[index].color != color || annotations[index].stroke != stroke else { return }
+        let arrowStyleChanged = annotations[index].tool == .arrow
+            && annotations[index].arrowStyle != arrowStyle
+        guard annotations[index].color != color
+                || annotations[index].stroke != stroke
+                || arrowStyleChanged
+        else { return }
         registerUndo()
         annotations[index].color = color
         annotations[index].stroke = stroke
+        if annotations[index].tool == .arrow {
+            if arrowStyleChanged, arrowStyle == .scribbly {
+                annotations[index].scribbleSeed = ScreenshotSupport.randomScribbleSeed()
+            }
+            annotations[index].arrowStyle = arrowStyle
+        }
         if annotations[index].tool == .text {
             annotations[index].rect = ScreenshotRenderer.textBounds(
                 annotations[index].text,
@@ -531,6 +551,18 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         annotations[index].text = sticker.rawValue
     }
 
+    /// Copies only the controls that have meaning for the picked annotation.
+    /// Unused values remain available as defaults for the next new mark.
+    private func syncControls(to annotation: ScreenshotSupport.Annotation) {
+        let style = ScreenshotSupport.selectionStyle(for: annotation)
+        if let color = style.color { self.color = color }
+        if let stroke = style.stroke { self.stroke = stroke }
+        if let arrowStyle = style.arrowStyle { self.arrowStyle = arrowStyle }
+        if annotation.tool == .sticker {
+            sticker = ScreenshotSupport.StickerID.sanitized(annotation.text)
+        }
+    }
+
     // MARK: - Gestures (image-pixel coordinates)
 
     func beginDrag(at point: CGPoint) {
@@ -541,6 +573,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             editingSelectedAnnotation = true
             beginSelectDrag(at: point)
             return
+        }
+        if tool != .select, tool != .crop {
+            selectedID = nil
         }
         switch tool {
         case .select:
@@ -564,7 +599,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             registerUndo()
             dragRegistered = true
             let annotation = ScreenshotSupport.Annotation(
-                tool: tool, points: [point, point], color: color, stroke: stroke)
+                tool: tool, points: [point, point], color: color, stroke: stroke,
+                arrowStyle: arrowStyle)
             annotations.append(annotation)
             draftID = annotation.id
         case .freehand:
@@ -612,13 +648,11 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 }
             }
         }
-        selectedID = hitTest(point)
-        if let selectedID, let hit = annotations.first(where: { $0.id == selectedID }) {
-            if hit.tool == .sticker {
-                self.selectedID = nil
-                sticker = ScreenshotSupport.StickerID.sanitized(hit.text)
-                self.selectedID = selectedID
-            }
+        let hitID = hitTest(point)
+        self.selectedID = nil
+        if let hitID, let hit = annotations.first(where: { $0.id == hitID }) {
+            syncControls(to: hit)
+            self.selectedID = hitID
             moveOrigin = hit.rect
             movePoints = hit.points
             clearTextSelection()
@@ -800,14 +834,16 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private func finishSelectDrag(at point: CGPoint, isTap: Bool) {
         textSelectionAnchor = nil
         guard isTap, !dragRegistered else { return }
-        selectedID = hitTest(point)
-        if let selectedID,
-           let hit = annotations.first(where: { $0.id == selectedID }),
-           hit.tool == .text {
-            editingTextID = selectedID
-        } else if selectedID == nil, let word = wordIndex(at: point) {
+        let hitID = hitTest(point)
+        self.selectedID = nil
+        if let hitID, let hit = annotations.first(where: { $0.id == hitID }) {
+            syncControls(to: hit)
+            self.selectedID = hitID
+            editingTextID = hit.tool == .text ? hitID : nil
+            clearTextSelection()
+        } else if let word = wordIndex(at: point) {
             selectedWordIndexes = [word]
-        } else if selectedID == nil {
+        } else {
             clearTextSelection()
         }
     }
@@ -824,10 +860,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             selectedID = nil
             return false
         }
-        if hit.tool == .sticker {
-            selectedID = nil
-            sticker = ScreenshotSupport.StickerID.sanitized(hit.text)
-        }
+        self.selectedID = nil
+        syncControls(to: hit)
         selectedID = hitID
         editingTextID = hit.tool == .text ? hitID : nil
         clearTextSelection()
