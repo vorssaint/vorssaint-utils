@@ -12,15 +12,26 @@ import ApplicationServices
 /// it. Nothing is read while the bar is closed, and the text never leaves the
 /// Mac or reaches disk.
 enum CommandBarSelectionReader {
-    /// A selection longer than this is a document, not a phrase; offering to
-    /// retype it would be slower than doing it by hand.
+    /// Command Bar's own choice of cap: a selection longer than this is a
+    /// document, not a phrase; offering to retype it would be slower than
+    /// doing it by hand. This is only the default — the cap is a parameter of
+    /// `readSelectedText` and `truncate` below, so a caller with a different
+    /// notion of "too long" (reading a whole document aloud, say) can pass
+    /// its own instead.
     static let maximumLength = 20_000
 
-    /// The selected text of whatever is in front, read through Accessibility.
-    /// Blocking, so callers run it off the main thread. Empty when nothing is
-    /// selected, when the app does not tell Accessibility what is selected, or
-    /// when the front app is us (the field's own text is not a selection).
-    static func readSelectedText() -> String {
+    /// The selected text of whatever is in front, read through Accessibility,
+    /// then trimmed and capped at `maximumLength`. Blocking, so callers run it
+    /// off the main thread. Empty when nothing is selected, when the app does
+    /// not tell Accessibility what is selected, when the front app is us (the
+    /// field's own text is not a selection), or when the trimmed selection is
+    /// longer than `maximumLength`.
+    ///
+    /// The cap is the caller's to choose, not a fact about Accessibility: it
+    /// is a judgment about how long a plausible answer can be. Command Bar
+    /// keeps its own judgment by keeping the default above; it does not have
+    /// to know that another caller exists to keep behaving the same way.
+    static func readSelectedText(maximumLength: Int = Self.maximumLength) -> String {
         guard AXIsProcessTrusted() else { return "" }
         guard let front = NSWorkspace.shared.frontmostApplication,
               front.bundleIdentifier != Bundle.main.bundleIdentifier else { return "" }
@@ -35,6 +46,13 @@ enum CommandBarSelectionReader {
         AXUIElementSetMessagingTimeout(app, 0.35)
         guard let focused = copyElement(app, kAXFocusedUIElementAttribute),
               let text = copyString(focused, kAXSelectedTextAttribute) else { return "" }
+        return truncate(text, maximumLength: maximumLength)
+    }
+
+    /// Trims surrounding whitespace, then enforces the cap. Text over the
+    /// limit comes back empty, not a truncated prefix: a selection clipped
+    /// mid-sentence would be a worse answer than no answer at all.
+    static func truncate(_ text: String, maximumLength: Int) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.count <= maximumLength ? trimmed : ""
     }
