@@ -25,6 +25,7 @@ Clipboard History images open in the Screenshot Editor, the capture preview can 
 ### Fixed
 - Settings search keeps focus while you type, instead of accepting only the first letter and beeping for the rest. Thanks to @overstock718.
 - App Switcher keeps the right order after quick app switches, instead of falling back to older windows when an app has not reported its focused window yet. Thanks to @MaximilianMauroner.
+- App Switcher and Dock Preview no longer press a control in apps that read a missing click location as their top-left corner.
 
 ## [3.4.0-beta.4] - 2026-09-23
 
