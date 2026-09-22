@@ -81,6 +81,10 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// always lands the caret in the text.
     func toggle() {
         guard !modalInteractionActive else { return }
+        if NotchService.shared.showScratchpad(toggle: true) {
+            if isVisible { hide() }
+            return
+        }
         if isVisible, panel?.isKeyWindow == true {
             hide()
         } else {
@@ -90,6 +94,10 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     func show() {
         guard AppFeature.scratchpad.isAvailable, !modalInteractionActive else { return }
+        if NotchService.shared.showScratchpad() {
+            if isVisible { hide() }
+            return
+        }
         if isVisible {
             focusText(requiresKeyWindow: false)
             return

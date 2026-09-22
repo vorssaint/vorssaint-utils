@@ -117,6 +117,8 @@ enum NotchLayout {
     static let shortcutSpacing: CGFloat = 8
     static let systemCardHeight: CGFloat = 72
     static let systemCardWidth: CGFloat = 128
+    /// Leave room for the card's hover scale, including a single full-width card.
+    static func systemHoverInset(width: CGFloat) -> CGFloat { ceil(max(0, width) * 0.015) + 1 }
     static let toolHeight: CGFloat = 72
     static let toolWidth: CGFloat = 76
     static let toolSpacing: CGFloat = 6
@@ -223,6 +225,17 @@ enum NotchLayout {
 
     static func railHeight(rows: Int, rowHeight: CGFloat, spacing: CGFloat) -> CGFloat {
         CGFloat(max(1, rows)) * rowHeight + CGFloat(max(0, rows - 1)) * spacing
+    }
+
+    /// The columns a rail spreads its items over. A rail whose columns all
+    /// fit lays the items out in reading order, this many per row, and
+    /// centers a short last row; one that scrolls fills its columns instead.
+    static func railColumns(count: Int, rows: Int) -> Int {
+        (max(0, count) + max(1, rows) - 1) / max(1, rows)
+    }
+
+    static func railFits(columns: Int, itemWidth: CGFloat, spacing: CGFloat, width: CGFloat) -> Bool {
+        CGFloat(columns) * itemWidth + CGFloat(max(0, columns - 1)) * spacing <= width
     }
 
     /// Square artwork, its gap, the three compact transport buttons, and
@@ -648,8 +661,9 @@ enum NotchSupport {
         return music ? .music : nil
     }
 
-    static func gestureIsOverHeader(expanded: Bool, peeking: Bool, fromTop: CGFloat, safeTop: CGFloat) -> Bool {
-        (expanded || peeking) && (safeTop...safeTop + NotchLayout.headerHeight).contains(fromTop)
+    static func gestureIsOverHeader(expanded: Bool, peeking: Bool, fromTop: CGFloat, safeTop: CGFloat,
+                                    height: CGFloat = NotchLayout.headerHeight) -> Bool {
+        (expanded || peeking) && (safeTop...safeTop + height).contains(fromTop)
     }
 
     static func keepsPermissionSurface(requesting: Bool, resolvedAt: TimeInterval?, now: TimeInterval) -> Bool {
@@ -793,6 +807,11 @@ enum NotchSupport {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchAppPanel)
     }
 
+    static func routesScratchpad(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && (defaults.object(forKey: DefaultsKey.notchScratchpad) as? Bool ?? true)
+            && modules(in: defaults).contains(.scratchpad)
+    }
+
     /// A notice the pointer holds open is being read. Only the same kind of
     /// message or something the user just did may take its place.
     static func shouldReplace(_ current: NotchEvent?, with incoming: NotchEvent, held: Bool = false) -> Bool {
@@ -864,6 +883,7 @@ struct NotchGeometry: Equatable {
     let menuBarHeight: CGFloat
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
+    var requiresFullWidthHeader = false
     private var allowsActivityFooter = true
     private var minimumCompactWidth: CGFloat = 0
 
@@ -888,11 +908,21 @@ struct NotchGeometry: Equatable {
     }
 
     var safeContentTop: CGFloat { cameraHeight + 10 }
+    /// Use the space beside a real camera for navigation. Narrow layouts keep
+    /// a full row below it; simulated cutouts need no empty camera row.
+    var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 260 ? cameraWidth : 0 }
+    var headerTopInset: CGFloat { !isNotched || headerCameraGap > 0 ? 0 : safeContentTop }
+    var headerRowHeight: CGFloat { headerCameraGap > 0 ? max(cameraHeight, NotchLayout.headerHeight) : NotchLayout.headerHeight }
+    var headerChromeHeight: CGFloat { headerRowHeight + NotchLayout.spacing + NotchLayout.bottomInset }
     /// One row beside the camera. It extends the cutout, whose height a
     /// physical camera sets and a simulated one shares with the bar: a bar
     /// even a point taller would leave a dark line under the notch.
     var stripHeight: CGFloat { cameraHeight }
-    func activationArea(in size: CGSize, hasHeader: Bool, compactActivity: Bool) -> CGRect {
+    func activationArea(in size: CGSize, hasHeader: Bool, compactActivity: Bool, expandedHeader: Bool = false) -> CGRect {
+        if expandedHeader, headerTopInset == 0 {
+            return CGRect(x: (size.width - headerCameraGap) / 2, y: 0,
+                          width: headerCameraGap, height: min(cameraHeight, size.height))
+        }
         let width = compactActivity ? cameraWidth : size.width
         let height = hasHeader ? min(safeContentTop, size.height)
             : compactActivity && compactActivityUsesFooter ? compactActivityTopPadding : size.height
@@ -914,7 +944,7 @@ struct NotchGeometry: Equatable {
     var compactMusicGeometry: NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        compact.compactSideRoom = room.isFinite && room >= 44 ? min(56, room) : 0
+        compact.compactSideRoom = room.isFinite && room >= 44 ? min(isNotched ? 44 : 56, room) : 0
         compact.allowsActivityFooter = false
         return compact
     }
@@ -930,8 +960,8 @@ struct NotchGeometry: Equatable {
     func compactTimerGeometry(showsDownloads: Bool) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        let wing: CGFloat = showsDownloads ? 80 : 72
-        compact.compactSideRoom = room.isFinite && room >= 72 ? min(wing, room) : 0
+        let wing: CGFloat = showsDownloads ? 80 : 64
+        compact.compactSideRoom = room.isFinite && room >= 64 ? min(wing, room) : 0
         // A wider simulated camera must not consume the timer's text budget.
         compact.minimumCompactWidth = cameraWidth + wing * 2
         // Menu changes, including full-screen transitions, must not push the
@@ -1023,7 +1053,7 @@ struct NotchGeometry: Equatable {
         switch layout {
         case .compact: return NotchLayout.compactContentHeight
         case .spacious: return NotchLayout.spaciousContentHeight
-        case .custom: return max(0, customHeight - safeContentTop - NotchLayout.chromeHeight)
+        case .custom: return max(0, customHeight - headerTopInset - headerChromeHeight)
         }
     }
     /// Room a vertical surface gets: the budget, or a readable page where a
@@ -1034,13 +1064,23 @@ struct NotchGeometry: Equatable {
     var musicExtrasHeight: CGFloat { layout == .custom ? min(216, contentBudget) : 216 }
 
     func systemRows(cards: Int) -> Int {
-        NotchLayout.systemRowRanges(count: cards, width: contentWidth).count
+        NotchLayout.systemRowRanges(count: cards, width: contentWidth - NotchLayout.systemHoverInset(width: contentWidth) * 2).count
     }
 
     func toolRows(count: Int) -> Int {
         NotchLayout.railRows(count: count,
                              perRow: NotchLayout.railCapacity(width: contentWidth, itemWidth: NotchLayout.toolWidth, spacing: NotchLayout.toolSpacing),
                              rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: contentBudget)
+    }
+
+    /// The arrows walk the tiles the way the rail draws them: reading order
+    /// while every column fits, the columns it fills once it scrolls.
+    func toolFlow(count: Int) -> QuickToolsSupport.GridFlow {
+        let rows = toolRows(count: count)
+        let columns = NotchLayout.railColumns(count: count, rows: rows)
+        return NotchLayout.railFits(columns: columns, itemWidth: NotchLayout.toolWidth,
+                                    spacing: NotchLayout.toolSpacing, width: contentWidth)
+            ? .rows(columns: columns) : .columns(rows: rows)
     }
 
     /// `toolCount` is nil while the launcher edits its grid or hosts a
@@ -1077,7 +1117,8 @@ struct NotchGeometry: Equatable {
             case .system:
                 let cards = max(0, systemCards)
                 contentHeight = min(budget, cards == 0 ? NotchLayout.emptyHeight
-                    : NotchLayout.railHeight(rows: systemRows(cards: cards), rowHeight: NotchLayout.systemCardHeight, spacing: NotchLayout.rowSpacing))
+                    : NotchLayout.railHeight(rows: systemRows(cards: cards), rowHeight: NotchLayout.systemCardHeight, spacing: NotchLayout.rowSpacing)
+                        + NotchLayout.systemHoverInset(width: contentWidth) * 2)
             case .tools:
                 guard let toolCount else { contentHeight = pageBudget; break }
                 contentHeight = min(budget, toolCount == 0 ? NotchLayout.emptyHeight
@@ -1089,7 +1130,7 @@ struct NotchGeometry: Equatable {
                 contentHeight = budget
             }
         }
-        var preferredHeight = safeContentTop + NotchLayout.chromeHeight + contentHeight
+        var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
         if layout == .custom { preferredHeight = min(preferredHeight, customHeight) }
         return CGSize(width: expandedWidth,
                       height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
@@ -1113,13 +1154,13 @@ struct NotchGeometry: Equatable {
     func sectionPickerSize(count: Int) -> CGSize {
         let content = min(pageBudget, count == 0 ? NotchLayout.emptyHeight
             : NotchLayout.railHeight(rows: sectionRows(count: count), rowHeight: NotchLayout.sectionTileHeight, spacing: NotchLayout.sectionSpacing))
-        let desiredHeight = safeContentTop + NotchLayout.chromeHeight + content
+        let desiredHeight = headerTopInset + headerChromeHeight + content
         return CGSize(width: expandedWidth, height: min(desiredHeight, screen.height - 48 - quickAccessBottomInset))
     }
 
     func contentSize(for size: CGSize) -> CGSize {
         CGSize(width: max(0, size.width - NotchLayout.horizontalInset * 2),
-               height: max(0, size.height - safeContentTop - NotchLayout.chromeHeight))
+               height: max(0, size.height - headerTopInset - headerChromeHeight))
     }
     var appPanelSize: CGSize { contentSize(for: expandedSize(module: .tools, panel: true)) }
     func frame(for size: CGSize) -> CGRect {

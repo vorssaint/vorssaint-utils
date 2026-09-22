@@ -10,6 +10,7 @@ enum NotchDestinationContract {
     enum ReviewDefaults { static var current: UserDefaults! }
     enum NotchContentTransition { case none, reveal, replace }
     final class Panel {
+        var isKeyWindow = true
         var acceptsKeyFocus = false
         func makeKey() {}
     }
@@ -37,6 +38,8 @@ enum NotchDestinationContract {
     }
 
     class State {
+        var acceptsSystemFeedback = true
+        func collapse() { expanded = false }
         var hiddenInFullscreen = false
         var running = true
         var session = NotchSessionState()
@@ -90,6 +93,7 @@ enum NotchDestinationContract {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        scratchpadContracts(defaults: defaults, suite: suite)
         reopeningContracts(defaults: defaults, suite: suite)
         for resting in [NotchIdleContent.none, .music] {
             defaults.set(resting.rawValue, forKey: DefaultsKey.notchIdleContent)
@@ -166,6 +170,25 @@ enum NotchDestinationContract {
         service.open(.tools)
         suite.expect(launcher.selectedIndex == nil, "an empty Tools module leaves keyboard activation without a target")
         sessionContracts(suite)
+    }
+
+    private static func scratchpadContracts(defaults: UserDefaults, suite: TestSuite) {
+        let service = Service()
+        suite.expect(service.showScratchpad(toggle: true) && service.expanded && service.selected == .scratchpad,
+                     "the Scratchpad shortcut opens its configured island destination")
+        service.panel?.isKeyWindow = false
+        suite.expect(service.showScratchpad(toggle: true) && service.expanded,
+                     "a visible Scratchpad without keyboard focus is focused instead of closed")
+        service.panel?.isKeyWindow = true
+        suite.expect(service.showScratchpad(toggle: true) && !service.expanded,
+                     "the shortcut closes a Scratchpad that already owns the keyboard")
+        defaults.set(false, forKey: DefaultsKey.notchScratchpad)
+        suite.expect(!service.showScratchpad() && !service.expanded,
+                     "choosing a separate Scratchpad window leaves the island untouched")
+        defaults.set(true, forKey: DefaultsKey.notchScratchpad)
+        service.acceptsSystemFeedback = false
+        suite.expect(!service.showScratchpad() && !service.expanded,
+                     "an unavailable island hands Scratchpad opening back to its ordinary window")
     }
 
     private static func reopeningContracts(defaults: UserDefaults, suite: TestSuite) {

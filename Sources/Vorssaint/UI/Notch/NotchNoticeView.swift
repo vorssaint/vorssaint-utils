@@ -21,12 +21,12 @@ struct NotchNoticeView: View {
     var body: some View {
         HStack(spacing: 0) {
             leading
-                .padding(.horizontal, inset)
+                .padding(.leading, inset)
                 .frame(width: wingWidth, height: geometry.stripHeight)
                 .clipped()
             Color.clear.frame(width: geometry.noticeCameraGap)
             trailing
-                .padding(.horizontal, inset)
+                .padding(.trailing, inset)
                 .frame(width: wingWidth, height: geometry.stripHeight)
                 .clipped()
         }
@@ -55,9 +55,10 @@ struct NotchNoticeView: View {
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
                     .lineLimit(1)
+                    .truncationMode(.middle)
                     .contentTransition(.numericText())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .trailing)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: notice.detail)
             .transaction { $0.disablesAnimations = false }
         }

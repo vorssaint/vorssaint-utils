@@ -144,7 +144,7 @@ struct NotchView: View {
                             .padding(.leading, restingBatteryInset)
                     case .none: EmptyView()
                     }
-                }.frame(width: service.geometry.restingWingWidth)
+                }.frame(width: service.geometry.restingWingWidth, alignment: .trailing)
                 Color.clear.frame(width: service.geometry.cameraWidth)
                 Group {
                     switch service.idleContent {
@@ -161,7 +161,7 @@ struct NotchView: View {
                         }
                     case .none: EmptyView()
                     }
-                }.frame(width: service.geometry.restingWingWidth)
+                }.frame(width: service.geometry.restingWingWidth, alignment: .leading)
             } else { Color.clear }
         }
         .foregroundStyle(.white.opacity(0.9))
@@ -194,7 +194,7 @@ struct NotchView: View {
             .clipped()
         }
         .padding(.horizontal, NotchLayout.horizontalInset)
-        .padding(.top, service.geometry.safeContentTop)
+        .padding(.top, service.expandedGeometry.headerTopInset)
         .padding(.bottom, NotchLayout.bottomInset)
         .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
     }
@@ -252,55 +252,99 @@ struct NotchView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: service.expandedGeometry.headerCameraGap > 0 ? 0 : 6) {
             let quickActions = NotchQuickAccessConfiguration.current().actions
-            if service.showingSections {
-                NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
-                Text(text.sectionsTitle)
-                    .font(.system(size: 16, weight: .semibold))
-                    .lineLimit(1)
-                    .layoutPriority(-1)
-                NotchSectionSearch(service: service)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else if showsDetail || service.modules.isEmpty {
-                if showsDetail {
-                    NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.goBack)
+            HStack(spacing: 6) {
+                if service.showingSections {
+                    NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
+                    if service.expandedGeometry.headerCameraGap == 0 {
+                        Text(text.sectionsTitle)
+                            .font(.system(size: 16, weight: .semibold))
+                            .lineLimit(1)
+                            .layoutPriority(-1)
+                    }
+                    NotchSectionSearch(service: service, maximumFieldWidth: service.expandedGeometry.headerCameraGap > 0
+                                       ? max(24, (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 - 100) : 150)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if showsDetail || service.modules.isEmpty {
+                    if showsDetail {
+                        NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.goBack)
+                    }
+                    Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric?.title(l10n.s) ?? text.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    if !quickActions.contains(.explore) {
+                        NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
+                    }
+                    Text(service.selected.title(l10n.language))
+                        .font(.system(size: 16, weight: .semibold))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric?.title(l10n.s) ?? text.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                if !quickActions.contains(.explore) {
-                    NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
+            }
+            .frame(width: service.expandedGeometry.headerCameraGap > 0 ? (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 : nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
+            if service.expandedGeometry.headerCameraGap > 0 {
+                Color.clear.frame(width: service.expandedGeometry.headerCameraGap)
+            }
+            HStack(spacing: 6) {
+                if service.selected == .captures, !showsDetail, !service.showingSections,
+                   let actions = service.captureActions {
+                    actions.fixedSize()
+                    Menu {
+                        Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
+                        Button(l10n.s.menuSettings, action: service.openSettings)
+                        Button(text.collapse, action: service.collapse)
+                    } label: { Image(systemName: "ellipsis") }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .accessibilityLabel(text.title)
+                } else if service.expandedGeometry.headerCameraGap > 0 {
+                    cameraHeaderActions
+                } else {
+                    headerActions(quickActions: quickActions)
                 }
-                Text(service.selected.title(l10n.language))
-                    .font(.system(size: 16, weight: .semibold))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if service.selected == .captures, !showsDetail, !service.showingSections,
-               let actions = service.captureActions {
-                actions.fixedSize()
-                Menu {
-                    Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
-                    Button(l10n.s.menuSettings, action: service.openSettings)
-                    Button(text.collapse, action: service.collapse)
-                } label: { Image(systemName: "ellipsis") }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .accessibilityLabel(text.title)
-            } else {
-                headerActions(quickActions: quickActions)
-            }
+            .frame(width: service.expandedGeometry.headerCameraGap > 0 ? (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 : nil,
+                   alignment: .trailing)
         }
-        .frame(height: NotchLayout.headerHeight)
+        .frame(height: service.expandedGeometry.headerRowHeight)
         .contentShape(Rectangle())
         .onHover { headerHovered = $0 }
         .onAppear { UpdateService.shared.checkIfStale() }
         // Collapsing under the pointer takes the row away without a final
         // hover(false); the next opening starts with the actions out of sight.
         .onDisappear { headerHovered = false }
+    }
+
+    private var cameraHeaderActions: some View {
+        ViewThatFits(in: .horizontal) {
+            cameraHeaderActions(compactUpdate: false).fixedSize(horizontal: true, vertical: false)
+            cameraHeaderActions(compactUpdate: true).fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private func cameraHeaderActions(compactUpdate: Bool) -> some View {
+        HStack(spacing: 6) {
+            NotchUpdateControl(action: service.showUpdate, compact: compactUpdate)
+            Menu {
+                if service.selected == .tools, !showsDetail, !service.showingSections, launcher.activeUtility == nil {
+                    Button(text.customizeTools) { launcher.isEditing.toggle() }
+                }
+                Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
+                Button(l10n.s.menuSettings, action: service.openSettings)
+                Button(text.collapse, action: service.collapse)
+            } label: {
+                Image(systemName: service.pinned ? "pin.fill" : "ellipsis")
+                    .frame(width: 28, height: 28)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .accessibilityLabel(text.title)
+        }
     }
 
     /// The header's actions keep their room but stay out of sight until the

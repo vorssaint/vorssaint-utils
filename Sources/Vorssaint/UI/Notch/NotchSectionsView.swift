@@ -158,6 +158,7 @@ struct NotchSectionsView: View {
 /// keyboard already goes to it while the gallery is open.
 struct NotchSectionSearch: View {
     @ObservedObject var service: NotchService
+    var maximumFieldWidth: CGFloat = 150
     @ObservedObject private var l10n = L10n.shared
     @FocusState private var searching: Bool
     @State private var hovered = false
@@ -177,7 +178,7 @@ struct NotchSectionSearch: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .focused($searching)
-                .frame(width: expanded ? 150 : 1)
+                .frame(width: expanded ? maximumFieldWidth : 1)
                 .opacity(expanded ? 1 : 0)
                 .accessibilityLabel(text.searchSections)
             if !service.sectionQuery.isEmpty {

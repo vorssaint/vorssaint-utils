@@ -61,7 +61,8 @@ struct NotchCalendarView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .environment(\.locale, Locale(identifier: l10n.language.rawValue))
+        // App translations must not override the user's region or 12/24-hour clock.
+        .environment(\.locale, .autoupdatingCurrent)
         .onAppear { calendar.showMonth(focus) }
         .onChange(of: focus) { previous, date in
             // A month read already covers every week of that month, so

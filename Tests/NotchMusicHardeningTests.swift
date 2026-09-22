@@ -26,6 +26,8 @@ enum NotchLyricsContract {
         func invalidateAndCancel() { cancelled = true }
     }
     final class Window {
+        struct Level { let rawValue: Int }
+        var level = Level(rawValue: 26)
         var isVisible = true
         var attached = false
         var focused = false
@@ -34,7 +36,10 @@ enum NotchLyricsContract {
     typealias NSWindow = Window
     enum NSApplication { enum ModalResponse { case OK, cancel } }
     final class Panel {
+        static weak var current: Panel?
+        var level = Window.Level(rawValue: 0)
         var cancelled = false
+        var focused = false
         var allowedContentTypes: [UTType] = []
         var allowsMultipleSelection = true
         var canChooseDirectories = true
@@ -42,13 +47,13 @@ enum NotchLyricsContract {
         var url: URL?
         weak var parent: Window?
         private var completed: ((NSApplication.ModalResponse) -> Void)?
-        func beginSheetModal(for parent: Window, completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
-            self.parent = parent
-            parent.attached = true
+        func begin(completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
+            Self.current = self
             completed = completionHandler
         }
+        func makeKeyAndOrderFront(_ sender: Any?) { focused = true }
         func finish(_ response: NSApplication.ModalResponse) {
-            parent?.attached = false
+            Self.current = nil
             completed?(response)
             parent?.focused = false
         }
@@ -89,7 +94,7 @@ enum NotchLyricsContract {
     final class Application {
         func activate(ignoringOtherApps: Bool) {
             let notch = NotchService.shared
-            if notch.presentationWindow?.attached != true, !notch.pinned { notch.expanded = false }
+            if Panel.current == nil, !notch.pinned { notch.expanded = false }
         }
     }
     static func resetPresentation() {
@@ -287,8 +292,9 @@ enum NotchMusicHardeningTests {
                 service.update(playback: playback("same-song"), visible: true)
                 service.importLyrics()
                 guard let panel = service.importPanel else { suite.expect(false, "a visible lyrics surface can choose a file"); continue }
-                suite.expect(panel.parent === parent && parent.attached && notch.expanded && notch.pinned == pinned,
-                       "lyrics imports attach before activation and preserve the existing pin")
+                suite.expect(panel.parent == nil && !parent.attached && panel.focused && panel.level.rawValue > parent.level.rawValue
+                       && notch.expanded && notch.pinned == pinned,
+                       "lyrics imports focus a standalone chooser above the island without moving it or changing its pin")
                 panel.url = file
                 panel.finish(.OK)
                 suite.expect(!parent.focused && service.lyrics == nil,

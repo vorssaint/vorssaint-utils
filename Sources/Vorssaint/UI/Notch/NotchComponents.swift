@@ -164,8 +164,9 @@ struct NotchArtwork: View {
 }
 
 /// Items fill each column top to bottom and continue sideways, so a short
-/// island scrolls to the side and never down. Columns spread across the full
-/// width whenever everything fits without scrolling.
+/// island scrolls to the side and never down. Whenever everything fits
+/// without scrolling, the items read left to right instead, in rows of equal
+/// cells across the full width, and a short last row sits centered.
 struct NotchRail<Item: Identifiable, Content: View>: View {
     let items: [Item]
     let rows: Int
@@ -177,9 +178,11 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     @ViewBuilder let content: (Item) -> Content
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var columns: Int { NotchLayout.railColumns(count: items.count, rows: rows) }
     private var starts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, rows))) }
+    private var rowStarts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, columns))) }
     private var fits: Bool {
-        CGFloat(starts.count) * itemWidth + CGFloat(max(0, starts.count - 1)) * spacing <= width
+        NotchLayout.railFits(columns: columns, itemWidth: itemWidth, spacing: spacing, width: width)
     }
 
     // Scroll to the column itself: its identity is known before lazy children
@@ -191,8 +194,9 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
 
     var body: some View {
         if fits {
-            HStack(alignment: .top, spacing: spacing) {
-                ForEach(starts, id: \.self) { start in column(start).frame(maxWidth: .infinity) }
+            let cell = (width - CGFloat(max(0, columns - 1)) * spacing) / CGFloat(max(1, columns))
+            VStack(spacing: rowSpacing) {
+                ForEach(rowStarts, id: \.self) { start in row(start, cell: cell) }
             }
         } else {
             ScrollViewReader { proxy in
@@ -215,6 +219,15 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
                 }
             }
         }
+    }
+
+    private func row(_ start: Int, cell: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: spacing) {
+            ForEach(items[start..<min(items.count, start + max(1, columns))]) { item in
+                content(item).frame(width: cell)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func column(_ start: Int) -> some View {
