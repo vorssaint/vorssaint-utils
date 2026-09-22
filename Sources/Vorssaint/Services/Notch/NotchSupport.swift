@@ -345,7 +345,8 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .screenshot: return "camera.viewfinder"
         case .recording: return "record.circle"
         case .speedTest: return "speedometer"
-        case .panel: return "rectangle.topthird.inset.filled"
+        // The app panel opens as a bubble under the menu bar icon.
+        case .panel: return "bubble.middle.top"
         case .mixer: return NotchModule.mixer.symbol
         case .commandBar: return "command"
         case .scratchpad: return "note.text"

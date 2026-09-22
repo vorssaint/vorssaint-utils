@@ -17,8 +17,8 @@ enum NotchPanelTests {
                "the island stays an accessible window for assistive technology")
         panel.collectionBehavior = NotchPanel.overlayCollectionBehavior
         expect(panel.collectionBehavior.contains([.canJoinAllSpaces, .fullScreenAuxiliary])
-               && panel.collectionBehavior.intersection([.managed, .stationary, .transient]) == .transient,
-               "the island floats across Spaces, with no conflicting desktop animation policy")
+               && panel.collectionBehavior.intersection([.managed, .stationary, .transient]) == .stationary,
+               "the island stays in place when the desktop is revealed, with no conflicting window motion policy")
         sheetContracts(expect: expect)
     }
 

@@ -195,7 +195,8 @@ struct NotchView: View {
                 }
             }
             .frame(width: service.contentSize.width, height: service.contentSize.height, alignment: .top)
-            .clipped()
+            .clipShape(NotchPageClip(top: service.expandedGeometry.headerTopInset
+                                        + service.expandedGeometry.headerRowHeight + NotchLayout.spacing))
         }
         .padding(.horizontal, NotchLayout.horizontalInset)
         .padding(.top, service.expandedGeometry.headerTopInset)
@@ -540,5 +541,19 @@ extension NotchModule: PanelOrderItem {
         case .tools: return FeatureStrings.notch(language).tools
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         }
+    }
+}
+
+/// A page may draw into the island's own margins and behind its header, which
+/// the silhouette already bounds: the artwork's halo and hover growth fade out
+/// there instead of ending at a hard edge. The header stays above the page.
+private struct NotchPageClip: Shape {
+    /// From the top of the page to the top of the island.
+    let top: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path(CGRect(x: rect.minX - NotchLayout.horizontalInset, y: rect.minY - top,
+                    width: rect.width + NotchLayout.horizontalInset * 2,
+                    height: rect.height + top + NotchLayout.bottomInset))
     }
 }

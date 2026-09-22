@@ -367,5 +367,28 @@ enum NotchPlaybackRoutingTests {
                      "discovered sources remain available when the global player has no metadata")
         Adapter.choose(.init(pid: 30, bundleIdentifier: "test.player.30"))
         suite.expect(Adapter.select()?.pid == 30, "an empty automatic result can be recovered by choosing a discovered source")
+
+        // Sixteen registered clients plus one music app exceed the bound.
+        let crowd = (Int32(100)...115).map { $0 }
+        Adapter.selection = nil
+        Adapter.applications = ([10] + crowd).map {
+            Adapter.NSRunningApplication(bundleIdentifier: "test.player.\($0)", processIdentifier: $0)
+        }
+        Adapter.registeredPIDs = crowd
+        Adapter.systemPID = 10
+        Adapter.sourceMetadata = Dictionary(uniqueKeysWithValues: ([10] + crowd).map {
+            ($0, ["kMRMediaRemoteNowPlayingInfoTitle": "Track \($0)"] as [String: Any])
+        })
+        Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.sources.count == 16,
+                     "more candidates than the bound still yield the playing music app")
+        Adapter.selection = .init(pid: 115, bundleIdentifier: "test.player.115")
+        suite.expect(Adapter.select()?.pid == 115, "a chosen source enumerated last keeps its place in the bound")
+        Adapter.selection = nil
+        Adapter.systemPID = 115
+        Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
+        Adapter.sourceMetadata[115]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
+        suite.expect(Adapter.select()?.pid == 115,
+                     "the system's current player enumerated last keeps its place in the bound")
     }
 }

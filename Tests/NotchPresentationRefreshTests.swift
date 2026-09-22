@@ -183,6 +183,22 @@ enum NotchPresentationRefreshContract {
         material.refreshPresentation(animated: false)
         suite.expect(material.windowHost?.usesGlass == true, "expanded notification requests the glass backdrop")
 
+        let closing = Service()
+        closing.refreshPresentation(animated: false)
+        let open = closing.windowHost?.frame ?? .zero
+        for (point, stillOver) in [(CGPoint(x: open.midX, y: open.minY + 4), false), (CGPoint(x: open.midX, y: open.maxY - 1), true)] {
+            closing.expanded = true
+            closing.refreshPresentation(animated: false)
+            NSEvent.mouseLocation = point
+            closing.hoverState.close(pointerInside: closing.windowHost?.containsHover(point) == true)
+            closing.expanded = false
+            closing.refreshPresentation()
+            suite.expect(closing.hoverState.suppressed == stillOver, stillOver
+                ? "a pointer still over the closed island keeps it from reopening until it leaves"
+                : "closing away from a pointer that has not moved lets its next approach open the island")
+        }
+        NSEvent.mouseLocation = .zero
+
         let service = Service()
         var contentSize = service.surfaceSize
         service.windowHost?.targetSize = contentSize

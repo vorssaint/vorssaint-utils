@@ -105,6 +105,11 @@ final class NotchService: ObservableObject {
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
+            // Like the lyrics chooser, these panels stand beside the island
+            // instead of hanging from it; a click in them is not a click away.
+            || (expanded && MediaWorkspaceView.panelModalActive)
+            || (expanded && selected == .downloads && NotchDownloadService.shared.isChoosingFolder)
+            || (expanded && selected == .scratchpad && ScratchpadService.shared.modalInteractionActive)
             || (expanded && !showingSections && selected == .calendar && Permissions.shared.keepsCalendarPrompt)
             || (expanded && !showingSections && selected == .files && fileInteractionActive)
             || CameraPreviewService.shared.keepsNotchPermissionPrompt
@@ -1215,6 +1220,10 @@ final class NotchService: ObservableObject {
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
                             usesGlass: usesGlassSurface)
+        // Closing can shrink the island away from a pointer that has not moved,
+        // with no boundary crossing to report it. Only a pointer still over the
+        // island may keep its next approach from opening it.
+        if windowHost?.containsHover(NSEvent.mouseLocation) != true { hoverState.update(pointerInside: false) }
         let activationRect: CGRect
         if captureControls != nil {
             activationRect = captureControlsCollapsed ? CGRect(origin: .zero, size: size) : .zero

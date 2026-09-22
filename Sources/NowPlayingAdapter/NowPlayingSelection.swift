@@ -121,20 +121,23 @@ enum NotchNativePlayback {
         let presentation = clientPresentation
         resultsLock.unlock()
         let chosenPID = lock.withLock { selection?.pid }
-        var applications = NSWorkspace.shared.runningApplications.filter(isMusicApp)
-        for pid in registeredPIDs + [currentPID, target?.pid, chosenPID].compactMap({ $0 }) {
+        let musicPIDs = NSWorkspace.shared.runningApplications.filter(isMusicApp).map(\.processIdentifier)
+        var applications: [NSRunningApplication] = []
+        // A bounded fan-out; no timers or queries survive the adapter process.
+        // Past the bound, only the least likely clients are skipped: chosen,
+        // current and followed players first, then music apps, then the rest.
+        for pid in [chosenPID, currentPID, target?.pid].compactMap({ $0 }) + musicPIDs + registeredPIDs {
+            guard applications.count < 16 else { break }
             if pid > 0, !applications.contains(where: { $0.processIdentifier == pid }),
                let current = NSRunningApplication(processIdentifier: pid) {
                 applications.append(current)
             }
         }
-        // A bounded fan-out; no timers or queries survive the adapter process.
-        guard applications.count <= 16 else { return nil }
         var candidates: [(Target, NotchPlaybackSource)] = []
         for app in applications {
             guard var candidate = makeTarget(app) else { continue }
-            // Safari publishes through WebKit's helper. Keep its exact process
-            // for routing, and use the parent app only for presentation/opening.
+            // A browser can publish through a web content helper. Keep its exact
+            // process for routing, and use the parent app only for presentation/opening.
             candidate.applicationBundleIdentifier = presentation[candidate.pid]?.application
                 .flatMap { NotchPlaybackCommand.validIdentifier($0) ? $0 : nil }
             group.enter()

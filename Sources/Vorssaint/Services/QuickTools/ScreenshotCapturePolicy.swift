@@ -33,14 +33,17 @@ enum ScreenshotCapturePolicy {
         hideVorssaintWindows ? ownWindowIDs : ownWindowIDs.intersection(protectedWindowIDs)
     }
 
+    /// Process names of window border tools. They draw transparent,
+    /// layer-zero windows over the real ones; picking one captures only the
+    /// painted border.
+    static let borderOverlayOwners: Set<String> = ["borders", "jankyborders"]
+
     static func canPickWindow(_ windowID: CGWindowID,
                               isOwnWindow: Bool,
                               hideVorssaintWindows: Bool,
                               protectedWindowIDs: Set<CGWindowID>,
                               ownerName: String? = nil) -> Bool {
-        // JankyBorders creates transparent, layer-zero windows over the real
-        // windows. Picking those captures only their painted border.
-        if let ownerName, ["borders", "jankyborders"].contains(ownerName.lowercased()) { return false }
+        if let ownerName, borderOverlayOwners.contains(ownerName.lowercased()) { return false }
         return !isOwnWindow
             || (!hideVorssaintWindows && !protectedWindowIDs.contains(windowID))
     }

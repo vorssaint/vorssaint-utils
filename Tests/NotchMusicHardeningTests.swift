@@ -144,6 +144,7 @@ enum NotchMusicHardeningTests {
     static func run(_ suite: TestSuite) {
         sourcePriority(suite)
         sourceSwitching(suite)
+        artworkInheritance(suite)
         NotchPlaybackRoutingTests.run(suite)
         lyricExpansion(suite)
         lyricLifecycle(suite)
@@ -197,6 +198,48 @@ enum NotchMusicHardeningTests {
         service.stop()
     }
 
+    /// The adapter flags bytes equal to its previous reading as unchanged,
+    /// even when that reading belonged to the previous song.
+    private static func artworkInheritance(_ suite: TestSuite) {
+        let start = Date(timeIntervalSince1970: 100)
+        func at(_ seconds: TimeInterval) -> Date { start.addingTimeInterval(seconds) }
+        func reading(_ title: String, _ artwork: String = "") -> NotchPlayback? {
+            NotchPlayback.decode(Data("{\"pid\":42,\"kMRMediaRemoteNowPlayingInfoTitle\":\"\(title)\"\(artwork)}".utf8),
+                                 previousArtwork: Data([1, 2, 3]))
+        }
+        let first = reading("First", ",\"artworkBase64\":\"AQID\"")
+        let repeated = reading("Second", ",\"artworkUnchanged\":true")
+        let missing = reading("Second")
+        let own = reading("Second", ",\"artworkBase64\":\"BAUG\"")
+        suite.expect(repeated?.track.artworkData == first?.track.artworkData && missing?.track.artworkData == nil,
+                     "an unchanged-artwork reply for a new song decodes to the previous song's cover")
+        var cache = NotchArtworkCache<String>()
+        cache.update("first", for: first, now: start)
+        cache.update("first", for: repeated, now: at(0.2))
+        cache.update("first", for: repeated, now: at(0.4))
+        suite.expect(cache.artwork == "first" && cache.expiresAt == nil,
+                     "a cover repeated on a new song stays visible without flickering")
+        cache.update(nil, for: missing, now: at(0.8))
+        cache.expire(at: at(1.6))
+        suite.expect(cache.artwork == "first", "the repeated cover keeps the usual grace period")
+        cache.expire(at: at(1.8))
+        suite.expect(cache.artwork == nil, "a new song without artwork cannot keep the previous song's cover")
+
+        cache = NotchArtworkCache<String>()
+        cache.update("first", for: first, now: start)
+        cache.update("first", for: repeated, now: at(0.2))
+        cache.update(nil, for: missing, now: at(10))
+        suite.expect(cache.artwork == "first" && cache.expiresAt == nil,
+                     "songs sharing one cover keep it through later metadata-only replies")
+        cache = NotchArtworkCache<String>()
+        cache.update("first", for: first, now: start)
+        cache.update("first", for: repeated, now: at(0.2))
+        cache.update("second", for: own, now: at(0.4))
+        cache.update(nil, for: missing, now: at(0.8))
+        suite.expect(cache.artwork == "second" && cache.expiresAt == nil,
+                     "the new song's own cover survives its metadata-only replies")
+    }
+
     private static func sourcePriority(_ suite: TestSuite) {
         func source(_ pid: Int32, music: Bool, playing: Bool = true, track: Bool = true) -> NotchPlaybackSource {
             NotchPlaybackSource(pid: pid, bundleIdentifier: "test.player.\(pid)", isMusicApp: music,
@@ -231,7 +274,7 @@ enum NotchMusicHardeningTests {
         let decoded = NotchPlaybackSource.decode([browser.reply, music.reply, browser.reply])
         suite.expect(decoded == [music, browser], "source replies have stable ordering and reject duplicate processes")
         var helper = browser
-        helper.displayName = "Safari"
+        helper.displayName = "Browser"
         suite.expect(NotchPlaybackSource.decode([helper.reply]) == [helper] && helper.selection == browser.selection,
                      "a browser helper displays its owning app without changing the command destination")
         helper.displayName = String(repeating: "x", count: 257)

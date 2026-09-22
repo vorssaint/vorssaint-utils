@@ -16,17 +16,10 @@ struct NotchScratchpadView: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var loadFailed = false
     @State private var copied = false
-    @State private var dialog: Dialog?
-    @State private var renameDraft = ""
     @State private var hoveredPadID: UUID?
     @State private var editor = EditorHandle()
     private var text: ScratchpadFeatureStrings { FeatureStrings.scratchpad(l10n.language) }
     private static let editorInset = NSSize(width: 6, height: 6)
-
-    private enum Dialog {
-        case rename(ScratchpadPad)
-        case close(ScratchpadPad)
-    }
 
     /// Holds the editor's text view so a tab change can aim the caret at it
     /// and a clear can go through its undo. Weak, since the view belongs to
@@ -95,29 +88,6 @@ struct NotchScratchpadView: View {
             guard !Task.isCancelled else { return }
             copied = false
         }
-        .alert(dialogTitle, isPresented: Binding(get: { dialog != nil }, set: { if !$0 { dialog = nil } })) {
-            switch dialog {
-            case .rename(let entry):
-                TextField(entry.name, text: $renameDraft)
-                Button(text.cancel, role: .cancel) { dialog = nil }
-                Button(text.saveName) {
-                    pad.renamePad(entry.id, to: renameDraft)
-                    dialog = nil
-                }
-            case .close(let entry):
-                Button(text.cancel, role: .cancel) { dialog = nil }
-                Button(text.closePad, role: .destructive) {
-                    _ = pad.closePad(entry.id)
-                    dialog = nil
-                }
-            case nil:
-                EmptyView()
-            }
-        } message: {
-            if case .close(let entry) = dialog {
-                Text(String(format: text.deletePadMessageFormat, entry.name))
-            }
-        }
     }
 
     private var toolbar: some View {
@@ -171,7 +141,7 @@ struct NotchScratchpadView: View {
                 Button(text.clearAction, role: .destructive) { pad.clear(through: editor.view) }
                     .disabled(pad.text.isEmpty)
                 Divider()
-                Button(text.openButton) { service.perform { pad.show() } }
+                Button(text.openButton) { service.perform { pad.show(allowsIsland: false) } }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 12, weight: .medium))
@@ -231,14 +201,6 @@ struct NotchScratchpadView: View {
         .help(entry.name)
     }
 
-    private var dialogTitle: String {
-        switch dialog {
-        case .rename: return text.renamePad
-        case .close: return text.closePad
-        case nil: return ""
-        }
-    }
-
     /// The caret lands at the end of the pad's text, as the floating pad
     /// puts it after a tab change.
     private func focusEditor() {
@@ -250,14 +212,57 @@ struct NotchScratchpadView: View {
     }
 
     private func presentRename(_ entry: ScratchpadPad) {
-        renameDraft = entry.name
-        dialog = .rename(entry)
+        DispatchQueue.main.async {
+            let field = NSTextField(string: entry.name)
+            field.frame = NSRect(x: 0, y: 0, width: 240, height: 24)
+            let alert = NSAlert()
+            alert.messageText = text.renamePad
+            alert.accessoryView = field
+            alert.addButton(withTitle: text.saveName)
+            alert.addButton(withTitle: text.cancel)
+            alert.window.initialFirstResponder = field
+            guard runAboveIsland(alert) == .alertFirstButtonReturn else { return }
+            pad.renamePad(entry.id, to: field.stringValue)
+        }
     }
 
     /// An empty pad goes without asking, like in the floating pad.
     private func requestClose(_ entry: ScratchpadPad) {
         guard pad.canClosePad else { return }
-        if ScratchpadSupport.requiresCloseConfirmation(entry) { dialog = .close(entry) }
-        else { _ = pad.closePad(entry.id) }
+        guard ScratchpadSupport.requiresCloseConfirmation(entry) else { _ = pad.closePad(entry.id); return }
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = text.closePad
+            alert.informativeText = String(format: text.deletePadMessageFormat, entry.name)
+            alert.addButton(withTitle: text.closePad).hasDestructiveAction = true
+            alert.addButton(withTitle: text.cancel)
+            guard runAboveIsland(alert) == .alertFirstButtonReturn else { return }
+            _ = pad.closePad(entry.id)
+        }
+    }
+
+    /// A SwiftUI alert hangs from the island as a sheet, which moves and
+    /// reskins the borderless surface. The question opens on its own, above
+    /// the island, which gets the keyboard back afterwards.
+    private func runAboveIsland(_ alert: NSAlert) -> NSApplication.ModalResponse {
+        let island = service.presentationWindow
+        var observers: [NSObjectProtocol] = []
+        if let island {
+            // The modal session puts the alert at the modal panel level, below
+            // the island, and puts it back there when it activates the app or
+            // makes the alert key. Raise it once running and after each of those.
+            let level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+            let raise: (Notification) -> Void = { _ in alert.window.level = level }
+            observers = [NSWindow.didBecomeKeyNotification, NSApplication.didBecomeActiveNotification].map {
+                NotificationCenter.default.addObserver(forName: $0, object: nil, queue: .main, using: raise)
+            }
+            DispatchQueue.main.async { alert.window.level = level }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        // A closed island declines key status, so this only returns to an open one.
+        if let island, island.isVisible { island.makeKey() }
+        return response
     }
 }

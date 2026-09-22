@@ -308,9 +308,9 @@ enum NotchPresentationProbe {
         host.panel.ignoresMouseEvents = true
         host.panel.orderFrontRegardless()
         var failures = checkHiddenReveal(screen: screen)
-        if host.panel.collectionBehavior.intersection([.managed, .transient, .stationary]) != .transient
+        if host.panel.collectionBehavior.intersection([.managed, .transient, .stationary]) != .stationary
             || !host.panel.collectionBehavior.contains(.canJoinAllSpaces) {
-            failures.append("the island must float across Spaces without following the desktop's window motion")
+            failures.append("the island must stay stationary when revealing the desktop, without a conflicting window motion policy")
         }
         if host.panel.level.rawValue <= NSWindow.Level.statusBar.rawValue
             || host.panel.level.rawValue >= NSWindow.Level.popUpMenu.rawValue {

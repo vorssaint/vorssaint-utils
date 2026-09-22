@@ -85,6 +85,9 @@ struct NotchPlayback: Equatable {
 /// Keeps one decoded cover in memory. Metadata-only updates of the same song
 /// retain it; a new song gets a short grace period while its artwork arrives.
 /// The deadline never moves with repeated missing-artwork replies.
+/// A player can report a new song before replacing the old cover. The same
+/// bytes on a new song stay visible, but become its own cover only if no
+/// missing-artwork reply follows within that song's grace period.
 struct NotchArtworkCache<Artwork> {
     static var transitionDuration: TimeInterval { 1.5 }
     private struct Identity: Equatable {
@@ -106,6 +109,8 @@ struct NotchArtworkCache<Artwork> {
     }
 
     private var identity: Identity?
+    private var artworkData: Data?
+    private var inheritedUntil: Date?
     private(set) var artwork: Artwork?
     private(set) var expiresAt: Date?
 
@@ -113,14 +118,21 @@ struct NotchArtworkCache<Artwork> {
         guard let playback else { self = Self(); return }
         let next = Identity(playback)
         if identity?.pid != next.pid || identity?.bundle != next.bundle { self = Self() }
+        if identity != next || inheritedUntil.map({ now >= $0 }) == true { inheritedUntil = nil }
         if let incoming {
+            if artworkData == nil || playback.track.artworkData != artworkData {
+                inheritedUntil = nil
+            } else if identity != next {
+                inheritedUntil = now.addingTimeInterval(Self.transitionDuration)
+            }
             artwork = incoming
             identity = next
+            artworkData = playback.track.artworkData
             expiresAt = nil
-        } else if identity == next {
+        } else if identity == next, inheritedUntil == nil {
             expiresAt = nil
         } else if artwork != nil {
-            if expiresAt == nil { expiresAt = now.addingTimeInterval(Self.transitionDuration) }
+            if expiresAt == nil { expiresAt = inheritedUntil ?? now.addingTimeInterval(Self.transitionDuration) }
             expire(at: now)
         }
     }

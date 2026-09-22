@@ -59,9 +59,10 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         panel.isReleasedWhenClosed = false
         panel.animationBehavior = .none
         panel.level = NotchPanel.normalLevel
-        // Transient overlays float across Spaces. Stationary windows follow
-        // the desktop's transition; the two behaviors are mutually exclusive.
-        // AppKit hides a transient overlay while Mission Control is open.
+        // Stationary keeps the island in place when the desktop is revealed,
+        // where files are dragged onto it; a transient overlay is swept away
+        // with the windows. The two behaviors are mutually exclusive, and the
+        // stationary one also slides with the desktop between Spaces.
         panel.collectionBehavior = NotchPanel.overlayCollectionBehavior
         panel.contentView = quickAccessContainer ?? canvas
         canvas.layoutSubtreeIfNeeded()
@@ -490,7 +491,7 @@ private final class NotchFrameProbe {
 
 final class NotchPanel: NSPanel {
     static let overlayCollectionBehavior: NSWindow.CollectionBehavior = [
-        .canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle
+        .canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle
     ]
     // Status items own the screen edge at their level, even when our view's
     // hit test includes it. Keep the island above them, below native menus.

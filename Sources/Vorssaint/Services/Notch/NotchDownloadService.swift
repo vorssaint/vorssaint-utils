@@ -51,6 +51,7 @@ final class NotchDownloadService: ObservableObject {
     private var scanning = false
     private var rescan = false
     private var chooser: NSOpenPanel?
+    var isChoosingFolder: Bool { chooser != nil }
     private var chooserID = UUID()
     private let queue = DispatchQueue(label: "com.vorssaint.notch.downloads", qos: .utility)
 
@@ -115,10 +116,14 @@ final class NotchDownloadService: ObservableObject {
             }
         }
         if let parent {
-            // Attach before activation so the notch's existing sheet handling
-            // protects the working surface when another app gives up focus.
-            panel.beginSheetModal(for: parent, completionHandler: completed)
+            // An attached sheet moves/reskins a borderless island. Keep the
+            // chooser independent and above its parent instead, without
+            // changing the pin; isChoosingFolder keeps the surface alive.
+            panel.level = NSWindow.Level(rawValue: parent.level.rawValue + 1)
+            panel.begin(completionHandler: completed)
             NSApp.activate(ignoringOtherApps: true)
+            // Activation alone can leave the nonactivating island holding focus.
+            panel.makeKeyAndOrderFront(nil)
         } else {
             NSApp.activate(ignoringOtherApps: true)
             panel.begin(completionHandler: completed)

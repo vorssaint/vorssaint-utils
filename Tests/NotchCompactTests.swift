@@ -59,7 +59,7 @@ enum NotchCompactTests {
         func selectPad(_ id: UUID) {}
         func copyAll() {}
         func togglePreview() { isPreviewing.toggle() }
-        func show() {}
+        func show(allowsIsland: Bool = true) {}
         func exportText(suggestedName: String, from window: NSWindow? = nil) {}
     }
     struct NotchEmptyView: View {
