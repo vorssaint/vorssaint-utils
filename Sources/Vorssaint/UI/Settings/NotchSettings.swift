@@ -31,7 +31,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchOpenOnHover) private var hover = true
     @AppStorage(DefaultsKey.notchHideInFullscreen) private var hideInFullscreen = false
     @AppStorage(DefaultsKey.notchHideUntilHover) private var hideUntilHover = false
-    @AppStorage(DefaultsKey.notchCoversMenus) private var coversMenus = false
+    @AppStorage(DefaultsKey.notchCoversMenus) private var coversMenus = true
     @AppStorage(DefaultsKey.notchHoverDelay) private var hoverDelay = NotchSupport.defaultHoverDelay
     @AppStorage(DefaultsKey.notchReturnHome) private var returnHome = false
     @AppStorage(DefaultsKey.notchHomeModule) private var homeModule = NotchModule.controls.rawValue

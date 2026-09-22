@@ -1202,7 +1202,7 @@ enum Defaults {
         DefaultsKey.notchOpenOnHover: true,
         DefaultsKey.notchHideInFullscreen: false,
         DefaultsKey.notchHideUntilHover: false,
-        DefaultsKey.notchCoversMenus: false,
+        DefaultsKey.notchCoversMenus: true,
         DefaultsKey.notchHoverDelay: NotchSupport.defaultHoverDelay,
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,

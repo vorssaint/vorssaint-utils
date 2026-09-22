@@ -303,6 +303,14 @@ def main():
           + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    func syncWithPreferences()")
           + "}\n}\n")
     write("NotchNotice.swift", "import AppKit\n" + declaration(notch, "struct NotchNotice:"))
+    recorder = "Sources/Vorssaint/Services/Recorder/RecorderEditorController.swift"
+    write("RecorderZoomAiming.swift", "import Foundation\nimport Combine\n"
+          + "extension RecorderZoomAimingTests {\nfinal class Model: State {\n"
+          + declaration(recorder, "    @Published var selectedZoomID:")
+          + "".join(declaration(recorder, prefix) for prefix in [
+              "    func beginAiming(", "    func endAiming(", "    func aim(",
+              "    func beginPickingBlurArea(", "    func endPickingBlurArea("])
+          + "}\n}\n")
     write("NotchVolumeFeedback.swift", "import Foundation\nimport Combine\n"
           + "extension NotchVolumeFeedbackTests {\nfinal class Service: State {\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [

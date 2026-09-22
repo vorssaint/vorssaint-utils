@@ -251,6 +251,12 @@ struct NotchView: View {
             || (service.selected == .tools && launcher.isEditing && launcher.activeUtility == nil)
     }
 
+    private var headerFeedback: NotchNotice? {
+        guard let notice = service.notice, notice.level != nil,
+              [.volume, .brightness, .keyboardLight].contains(notice.event) else { return nil }
+        return notice
+    }
+
     private var header: some View {
         HStack(spacing: service.expandedGeometry.headerCameraGap > 0 ? 0 : 6) {
             let quickActions = NotchQuickAccessConfiguration.current().actions
@@ -286,6 +292,13 @@ struct NotchView: View {
             }
             .frame(width: service.expandedGeometry.headerCameraGap > 0 ? (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 : nil)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Keep search mounted so a media key never discards its focus.
+            .opacity(headerFeedback == nil ? 1 : 0)
+            .allowsHitTesting(headerFeedback == nil)
+            .accessibilityHidden(headerFeedback != nil)
+            .overlay(alignment: .leading) {
+                if let notice = headerFeedback { NotchExpandedLevelView(notice: notice) }
+            }
             .clipped()
             if service.expandedGeometry.headerCameraGap > 0 {
                 Color.clear.frame(width: service.expandedGeometry.headerCameraGap)

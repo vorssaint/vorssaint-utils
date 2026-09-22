@@ -41,6 +41,7 @@ struct MetricsTests {
             }),
             ("recorder", {
                 RecorderFeatureTests.run(suite)
+                RecorderZoomAimingTests.run(suite)
                 RecorderExportSpeedTests.run(suite)
                 RecorderExportRenderingTests.run(suite)
             }),

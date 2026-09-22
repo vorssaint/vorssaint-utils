@@ -30,6 +30,8 @@ final class NotchMusicService: ObservableObject {
     private var wantsPlayback = false
     private var restartCount = 0
     private var restartWork: DispatchWorkItem?
+    private var artworkCache = NotchArtworkCache<(image: NSImage, tint: NotchArtworkTint?)>()
+    private var artworkWork: DispatchWorkItem?
     private var automationTarget: NotchMusicAutomation.Target?
     private var automationDiscovery = DispatchWorkItem {}
     private var automationCancellation = DispatchWorkItem {}
@@ -118,8 +120,7 @@ final class NotchMusicService: ObservableObject {
             let tint = cachedTint
             DispatchQueue.main.async {
                 guard let self, self.generation == requested else { return }
-                self.artwork = image
-                self.artworkTint = tint
+                self.updateArtwork(image, tint: tint, playback: next)
                 self.playback = next
                 self.awaitingPlayback = false
                 self.updateAutomation(for: next)
@@ -164,6 +165,25 @@ final class NotchMusicService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + Double(restartCount), execute: work)
     }
 
+    private func updateArtwork(_ image: NSImage?, tint: NotchArtworkTint?, playback: NotchPlayback?) {
+        artworkWork?.cancel()
+        artworkWork = nil
+        artworkCache.update(image.map { (image: $0, tint: tint) }, for: playback)
+        artwork = artworkCache.artwork?.image
+        artworkTint = artworkCache.artwork?.tint
+        guard let deadline = artworkCache.expiresAt else { return }
+        let requested = generation
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.generation == requested, self.artworkCache.expiresAt == deadline else { return }
+            self.artworkCache.expire(at: deadline)
+            self.artwork = self.artworkCache.artwork?.image
+            self.artworkTint = self.artworkCache.artwork?.tint
+            self.artworkWork = nil
+        }
+        artworkWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, deadline.timeIntervalSinceNow), execute: work)
+    }
+
     /// One averaged pixel is all a halo needs, and it costs nothing next to
     /// decoding the cover itself. Runs on the reader's queue, once per cover.
     private static func artworkTint(of image: NSImage) -> NotchArtworkTint? {
@@ -196,6 +216,9 @@ final class NotchMusicService: ObservableObject {
     }
 
     private func disconnect() {
+        artworkWork?.cancel()
+        artworkWork = nil
+        artworkCache = .init()
         automationDiscovery.cancel()
         automationConsentCancellation.cancel()
         automationTarget = nil

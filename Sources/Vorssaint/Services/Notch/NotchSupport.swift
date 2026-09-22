@@ -712,7 +712,7 @@ enum NotchSupport {
 
     /// The closed island may cover the menus instead of giving way to them.
     static func coversMenus(in defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: DefaultsKey.notchCoversMenus)
+        defaults.object(forKey: DefaultsKey.notchCoversMenus) as? Bool ?? true
     }
 
     static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {

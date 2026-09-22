@@ -372,7 +372,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         previewTask?.cancel()
         // While an area is being drawn the stage shows the recording as
         // captured; whatever changed meanwhile is drawn when the drawing ends.
-        guard duration > 0, sourceSize.width > 0, !isPickingBlurArea else { return }
+        guard duration > 0, sourceSize.width > 0, !isPickingBlurArea, !isAimingZoom else { return }
         let document = document
         let track = pointerTrack
         let sourceSize = sourceSize
@@ -634,7 +634,9 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Zooms
 
-    @Published var selectedZoomID: UUID?
+    @Published var selectedZoomID: UUID? {
+        didSet { if selectedZoomID != oldValue { endAiming() } }
+    }
     /// A drag is one edit, not one per mouse-moved: the document changes
     /// freely while the finger is down and the whole thing lands on the undo
     /// stack once, when it is let go.
@@ -809,18 +811,27 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
 
     /// True while the next click on the picture sets where the selected zoom
     /// looks, instead of playing or pausing.
-    @Published var isAimingZoom = false
+    @Published private(set) var isAimingZoom = false
 
     func beginAiming() {
         guard selectedZoomID != nil else { return }
         pause()
+        endPickingBlurArea()
+        previewTask?.cancel()
+        player.currentItem?.videoComposition = nil
         isAimingZoom = true
+    }
+
+    func endAiming() {
+        guard isAimingZoom else { return }
+        isAimingZoom = false
+        rebuildPreview()
     }
 
     /// A click on the stage, turned into a spot in the recorded area's own
     /// 0...1 space so a later change of shape or quality cannot invalidate it.
     func aim(at location: CGPoint, in viewSize: CGSize) {
-        defer { isAimingZoom = false }
+        defer { endAiming() }
         guard let point = RecorderSupport.unitPoint(at: location,
                                                     in: viewSize,
                                                     sourceSize: sourceSize),
@@ -1168,6 +1179,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     func beginPickingBlurArea() {
         guard selectedBlurID != nil else { return }
         pause()
+        endAiming()
         previewTask?.cancel()
         player.currentItem?.videoComposition = nil
         isPickingBlurArea = true
@@ -1737,7 +1749,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                     return nil
                 }
                 if self.model.isAimingZoom {
-                    self.model.isAimingZoom = false
+                    self.model.endAiming()
                     return nil
                 }
                 if self.model.isPickingBlurArea {
