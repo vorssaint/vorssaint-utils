@@ -771,6 +771,24 @@ enum DisplayRestorationTests {
                      "the built-in display comes back even when it reads as another monitor while off")
 
         // PR #1773 display/HiDPI hardening contracts.
+        let recovery = DisplayRecoveryManager.shared
+        recovery.confirm()
+        let firstRecovery = recovery.beginAction(targetDisplayID: 0xA001, confirmationSeconds: 60)
+        let preservedSnapshot = recovery.currentSnapshot?.targetDisplayID
+        let secondRecovery = recovery.beginAction(targetDisplayID: 0xA002, confirmationSeconds: 60)
+        suite.expect(firstRecovery && !secondRecovery
+                     && preservedSnapshot == 0xA001
+                     && recovery.currentSnapshot?.targetDisplayID == 0xA001,
+                     "a second display mutation cannot replace an unconfirmed recovery snapshot")
+        recovery.confirm()
+
+        let orphanedTargets = VirtualDisplayService.orphanedTargetIDs(
+            associatedTargetIDs: [11, 22, 33],
+            onlineDisplayIDs: [11, 33, 44]
+        )
+        suite.expect(orphanedTargets == [22],
+                     "virtual HiDPI cleanup removes only targets that actually left the online topology")
+
         let qhdProfile = VirtualDisplayProfile.profile(matchingWidth: 2560, height: 1440)
         if let backing = qhdProfile.modes.first(where: { $0.width == 5120 && $0.height == 2880 }) {
             let logical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: backing)
@@ -808,6 +826,39 @@ enum DisplayRestorationTests {
         suite.expect(!resolutionSource.contains("ioDisplayModeID")
                      && resolutionSource.contains("previousVirtualMirrorLogicalSize"),
                      "CGS indexes stay separate from IODisplayModeID and virtual state is snapshotted")
+        suite.expect(resolutionSource.contains("guard DisplayRecoveryManager.shared.beginAction(")
+                     && resolutionSource.contains("Failed to disable virtual mirror prior to mode switch")
+                     && resolutionSource.contains("DisplayRecoveryManager.shared.rollback()"),
+                     "display mutations serialize on the recovery snapshot and failures after virtual teardown roll back")
+
+        let brightnessSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(brightnessSource.contains("isVirtualMirrorTarget(for: id)")
+                     && brightnessSource.contains("activeTopology.contains(id) || virtualMirrorTarget"),
+                     "the physical virtual-HiDPI target remains a controllable brightness/resolution row")
+
+        let virtualSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/VirtualDisplayService.swift",
+            encoding: .utf8)) ?? ""
+        if let disableRange = virtualSource.range(of: "public func disableVirtualMirror(for targetDisplayID:"),
+           let completeRange = virtualSource.range(
+               of: "let completeErr = CGCompleteDisplayConfiguration",
+               range: disableRange.lowerBound..<virtualSource.endIndex),
+           let removeRange = virtualSource.range(
+               of: "associatedDummies.removeValue(forKey: targetDisplayID)",
+               range: disableRange.lowerBound..<virtualSource.endIndex) {
+            suite.expect(completeRange.lowerBound < removeRange.lowerBound,
+                         "virtual mirror ownership is retained until CoreGraphics commits teardown")
+        } else {
+            suite.expect(false, "virtual mirror teardown source contract is present")
+        }
+
+        let brightnessSectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(brightnessSectionSource.contains(".disabled(recoveryManager.awaitingConfirmation)"),
+                     "resolution and HiDPI controls are disabled while rollback confirmation is pending")
 
         suite.expect(!FileManager.default.fileExists(
             atPath: "Sources/Vorssaint/Services/Display/XDRBoostService.swift"),

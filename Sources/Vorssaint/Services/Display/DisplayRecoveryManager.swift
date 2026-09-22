@@ -58,6 +58,11 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
     }
 
     /// Begins a monitored display mutation action with a countdown watchdog.
+    ///
+    /// Only one unconfirmed display mutation may exist at a time. Refusing a
+    /// second action preserves the original snapshot so Escape/timeout always
+    /// returns the complete display topology to the state the user last saw.
+    @discardableResult
     public func beginAction(
         targetDisplayID: CGDirectDisplayID,
         previousMode: CGDisplayMode? = nil,
@@ -66,9 +71,9 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
         previousVirtualMirrorLogicalSize: CGSize? = nil,
         virtualDisplayCreated: Bool = false,
         confirmationSeconds: Int = 15
-    ) {
+    ) -> Bool {
         if Thread.isMainThread {
-            _beginAction(
+            return _beginAction(
                 targetDisplayID: targetDisplayID,
                 previousMode: previousMode,
                 previousCGSModeNumber: previousCGSModeNumber,
@@ -77,18 +82,17 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
                 virtualDisplayCreated: virtualDisplayCreated,
                 confirmationSeconds: confirmationSeconds
             )
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?._beginAction(
-                    targetDisplayID: targetDisplayID,
-                    previousMode: previousMode,
-                    previousCGSModeNumber: previousCGSModeNumber,
-                    previousMirrorMasterID: previousMirrorMasterID,
-                    previousVirtualMirrorLogicalSize: previousVirtualMirrorLogicalSize,
-                    virtualDisplayCreated: virtualDisplayCreated,
-                    confirmationSeconds: confirmationSeconds
-                )
-            }
+        }
+        return DispatchQueue.main.sync {
+            self._beginAction(
+                targetDisplayID: targetDisplayID,
+                previousMode: previousMode,
+                previousCGSModeNumber: previousCGSModeNumber,
+                previousMirrorMasterID: previousMirrorMasterID,
+                previousVirtualMirrorLogicalSize: previousVirtualMirrorLogicalSize,
+                virtualDisplayCreated: virtualDisplayCreated,
+                confirmationSeconds: confirmationSeconds
+            )
         }
     }
 
@@ -100,7 +104,11 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
         previousVirtualMirrorLogicalSize: CGSize?,
         virtualDisplayCreated: Bool,
         confirmationSeconds: Int
-    ) {
+    ) -> Bool {
+        guard !awaitingConfirmation, currentSnapshot == nil else {
+            Self.log.warning("Refusing display mutation for display \(targetDisplayID, privacy: .public): another configuration is awaiting confirmation.")
+            return false
+        }
         cancelTimer()
         let snapshot = DisplayTransactionSnapshot(
             targetDisplayID: targetDisplayID,
@@ -117,6 +125,7 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
         self.awaitingConfirmation = true
         Self.log.info("Display mutation started for display \(targetDisplayID, privacy: .public). Watchdog started with \(seconds)s countdown.")
         startTimer()
+        return true
     }
 
     /// Confirms the current display configuration and cancels the watchdog timer.

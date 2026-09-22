@@ -1915,9 +1915,14 @@ final class BrightnessService: ObservableObject {
             // decides from covers every online display, exactly like the live
             // reading it replaces.
             if (info?["kCGDisplayIsVirtualDevice"] as? Bool ?? false) { virtualIDs.insert(id) }
-            // A mirroring display follows its source; the source's slider is
-            // the real control.
-            guard CGDisplayMirrorsDisplay(id) == 0 else { continue }
+            // Ordinary mirror targets follow their source and do not need a
+            // separate row. A physical target managed by our virtual HiDPI
+            // mirror is different: that row is the only stable in-app handle
+            // for brightness, resolution and turning virtual HiDPI back off.
+            let virtualMirrorTarget = VirtualDisplayService.shared.isVirtualMirrorTarget(for: id)
+            if CGDisplayMirrorsDisplay(id) != kCGNullDirectDisplay && !virtualMirrorTarget {
+                continue
+            }
             if let info,
                (info["kCGDisplayIsVirtualDevice"] as? Bool ?? false)
                 || (info["kCGDisplayIsAirPlay"] as? Bool ?? false) {
@@ -1925,7 +1930,7 @@ final class BrightnessService: ObservableObject {
             }
             let isBuiltIn = CGDisplayIsBuiltin(id) != 0
             let name = Self.displayName(id, info: info, screenNames: screenNames)
-            let isActive = activeTopology.contains(id)
+            let isActive = activeTopology.contains(id) || virtualMirrorTarget
 
             if !isActive {
                 stateLock.lock()

@@ -239,6 +239,45 @@ public final class VirtualDisplayService: @unchecked Sendable {
         return associatedDummies.values.contains { $0.displayID == displayID }
     }
 
+    /// Returns true only when the ID is the physical target of a virtual HiDPI mirror.
+    public func isVirtualMirrorTarget(for displayID: CGDirectDisplayID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return associatedDummies[displayID] != nil
+    }
+
+    /// Pure topology helper used by screen-change recovery and regression tests.
+    static func orphanedTargetIDs(
+        associatedTargetIDs: Set<CGDirectDisplayID>,
+        onlineDisplayIDs: Set<CGDirectDisplayID>
+    ) -> Set<CGDirectDisplayID> {
+        associatedTargetIDs.subtracting(onlineDisplayIDs)
+    }
+
+    /// Tears down virtual sources whose physical targets have actually left the
+    /// online display list. There is no target left to unmirror; releasing the
+    /// retained CGVirtualDisplay is the safe cleanup and removes the invisible desktop.
+    @discardableResult
+    public func removeVirtualMirrorsForMissingTargets(
+        onlineDisplayIDs: Set<CGDirectDisplayID>
+    ) -> [CGDirectDisplayID] {
+        lock.lock()
+        let orphaned = Self.orphanedTargetIDs(
+            associatedTargetIDs: Set(associatedDummies.keys),
+            onlineDisplayIDs: onlineDisplayIDs
+        )
+        let removed = orphaned.compactMap { targetID -> (CGDirectDisplayID, VirtualDisplayInstance)? in
+            guard let instance = associatedDummies.removeValue(forKey: targetID) else { return nil }
+            return (targetID, instance)
+        }
+        lock.unlock()
+
+        for (_, instance) in removed {
+            instance.stop()
+        }
+        return removed.map(\.0).sorted()
+    }
+
     /// Returns the virtual display ID mirroring the target physical display, if active.
     public func virtualDisplayID(for targetDisplayID: CGDirectDisplayID) -> CGDirectDisplayID? {
         lock.lock()
@@ -319,33 +358,42 @@ public final class VirtualDisplayService: @unchecked Sendable {
     }
 
     /// Disables virtual mirroring for the target physical display and destroys the dummy display.
+    ///
+    /// Keep the association alive until CoreGraphics commits the unmirror. If
+    /// begin/configure/complete fails, the caller can still roll back from the
+    /// existing dummy instead of discovering that the recovery state was destroyed first.
     public func disableVirtualMirror(for targetDisplayID: CGDirectDisplayID) throws {
         lock.lock()
-        let instance = associatedDummies.removeValue(forKey: targetDisplayID)
+        let instance = associatedDummies[targetDisplayID]
         lock.unlock()
 
         var config: CGDisplayConfigRef?
         let beginErr = CGBeginDisplayConfiguration(&config)
         guard beginErr == .success, let cfg = config else {
-            instance?.stop()
             throw VirtualDisplayError.configurationFailed(beginErr)
         }
 
         let mirrorErr = CGConfigureDisplayMirrorOfDisplay(cfg, targetDisplayID, kCGNullDirectDisplay)
         if mirrorErr != .success {
             CGCancelDisplayConfiguration(cfg)
-            instance?.stop()
             throw VirtualDisplayError.configurationFailed(mirrorErr)
         }
 
         let completeErr = CGCompleteDisplayConfiguration(cfg, .forSession)
         if completeErr != .success {
             CGCancelDisplayConfiguration(cfg)
-            instance?.stop()
             throw VirtualDisplayError.configurationFailed(completeErr)
         }
 
-        instance?.stop()
+        lock.lock()
+        let removed: VirtualDisplayInstance?
+        if let instance, associatedDummies[targetDisplayID] === instance {
+            removed = associatedDummies.removeValue(forKey: targetDisplayID)
+        } else {
+            removed = nil
+        }
+        lock.unlock()
+        removed?.stop()
     }
 
     /// Restores all display mirrors to native unmirrored state and tears down all active dummy instances.

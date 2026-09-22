@@ -129,7 +129,28 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         }
     }
 
+    private static func onlineDisplayIDs() -> Set<CGDirectDisplayID>? {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success else { return nil }
+        guard count > 0 else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &ids, &count) == .success else { return nil }
+        return Set(ids.prefix(Int(count)))
+    }
+
     private func _performRefresh() {
+        // The screen-change notification is also our lifecycle signal for a
+        // physical target disappearing. Only mutate virtual state after a
+        // successful online-list query; a transient query failure must never
+        // be mistaken for every monitor being unplugged.
+        if let onlineIDs = Self.onlineDisplayIDs() {
+            let removedTargets = VirtualDisplayService.shared
+                .removeVirtualMirrorsForMissingTargets(onlineDisplayIDs: onlineIDs)
+            if !removedTargets.isEmpty {
+                Self.log.info("Removed orphaned virtual HiDPI mirrors for targets \(String(describing: removedTargets), privacy: .public).")
+            }
+        }
+
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else {
             modesPerDisplay = [:]
@@ -255,7 +276,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         let currentCGSModeNumber = SkyLightBridge.currentDisplayModeIndex(for: displayID)
 
         if useWatchdog {
-            DisplayRecoveryManager.shared.beginAction(
+            guard DisplayRecoveryManager.shared.beginAction(
                 targetDisplayID: displayID,
                 previousMode: currentCGMode,
                 previousCGSModeNumber: currentCGSModeNumber,
@@ -263,7 +284,10 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 previousVirtualMirrorLogicalSize: previousLogicalSize,
                 virtualDisplayCreated: false,
                 confirmationSeconds: 15
-            )
+            ) else {
+                Self.log.warning("Ignoring display mode change for \(displayID): another configuration is awaiting confirmation.")
+                return false
+            }
         }
 
         // Snapshot first, mutate second. Otherwise leaving virtual HiDPI
@@ -273,7 +297,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 try VirtualDisplayService.shared.disableVirtualMirror(for: displayID)
             } catch {
                 Self.log.error("Failed to disable virtual mirror prior to mode switch: \(error.localizedDescription)")
-                if useWatchdog { DisplayRecoveryManager.shared.confirm() }
+                if useWatchdog { DisplayRecoveryManager.shared.rollback() }
                 return false
             }
         }
@@ -283,7 +307,11 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         guard beginErr == .success, let cfg = config else {
             Self.log.error("CGBeginDisplayConfiguration failed: \(beginErr.rawValue)")
             if useWatchdog {
-                DisplayRecoveryManager.shared.confirm()
+                if hadVirtualMirror {
+                    DisplayRecoveryManager.shared.rollback()
+                } else {
+                    DisplayRecoveryManager.shared.confirm()
+                }
             }
             return false
         }
@@ -336,7 +364,11 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
             CGCancelDisplayConfiguration(cfg)
             Self.log.error("Unable to find suitable CGDisplayMode for \(mode.label) on display \(displayID)")
             if useWatchdog {
-                DisplayRecoveryManager.shared.confirm()
+                if hadVirtualMirror {
+                    DisplayRecoveryManager.shared.rollback()
+                } else {
+                    DisplayRecoveryManager.shared.confirm()
+                }
             }
             refresh()
             return false
@@ -378,7 +410,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         switch currentStatus {
         case .virtualMirror:
             Self.log.info("Toggling HiDPI from virtualMirror -> disabling virtual mirror on display \(displayID)")
-            DisplayRecoveryManager.shared.beginAction(
+            guard DisplayRecoveryManager.shared.beginAction(
                 targetDisplayID: displayID,
                 previousMode: CGDisplayCopyDisplayMode(displayID),
                 previousCGSModeNumber: SkyLightBridge.currentDisplayModeIndex(for: displayID),
@@ -386,12 +418,15 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 previousVirtualMirrorLogicalSize: CGSize(width: current.width, height: current.height),
                 virtualDisplayCreated: false,
                 confirmationSeconds: 15
-            )
+            ) else {
+                Self.log.warning("Ignoring HiDPI disable for \(displayID): another configuration is awaiting confirmation.")
+                return
+            }
             do {
                 try VirtualDisplayService.shared.disableVirtualMirror(for: displayID)
             } catch {
                 Self.log.error("Failed to disable virtual mirror for display \(displayID): \(error.localizedDescription)")
-                DisplayRecoveryManager.shared.confirm()
+                DisplayRecoveryManager.shared.rollback()
             }
             refresh()
 
@@ -419,14 +454,17 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 let currentMirrorMasterID: CGDirectDisplayID? = (mirrorMaster != kCGNullDirectDisplay) ? mirrorMaster : nil
                 let currentCGSModeNumber = SkyLightBridge.currentDisplayModeIndex(for: displayID)
 
-                DisplayRecoveryManager.shared.beginAction(
+                guard DisplayRecoveryManager.shared.beginAction(
                     targetDisplayID: displayID,
                     previousMode: currentCGMode,
                     previousCGSModeNumber: currentCGSModeNumber,
                     previousMirrorMasterID: currentMirrorMasterID,
                     virtualDisplayCreated: true,
                     confirmationSeconds: 15
-                )
+                ) else {
+                    Self.log.warning("Ignoring virtual HiDPI enable for \(displayID): another configuration is awaiting confirmation.")
+                    return
+                }
 
                 do {
                     try VirtualDisplayService.shared.enableVirtualMirror(
@@ -437,7 +475,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                     Self.log.info("Successfully enabled virtual mirror HiDPI for display \(displayID)")
                 } catch {
                     Self.log.error("Failed to enable virtual mirror for display \(displayID): \(error.localizedDescription)")
-                    DisplayRecoveryManager.shared.confirm()
+                    DisplayRecoveryManager.shared.rollback()
                 }
                 refresh()
             }
