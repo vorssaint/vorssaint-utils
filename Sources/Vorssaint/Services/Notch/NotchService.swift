@@ -1671,7 +1671,7 @@ final class NotchService: ObservableObject {
         let screenPoint = panel.convertPoint(toScreen: event.locationInWindow)
         // The header keeps its own gesture; the tiles and the rest of the body step rows.
         guard windowHost?.containsSurface(screenPoint) == true,
-              panel.frame.maxY - screenPoint.y > geometry.safeContentTop + NotchLayout.headerHeight else {
+              panel.frame.maxY - screenPoint.y > expandedGeometry.headerTopInset + expandedGeometry.headerRowHeight else {
             sectionScroll = NotchSectionScroll()
             return false
         }

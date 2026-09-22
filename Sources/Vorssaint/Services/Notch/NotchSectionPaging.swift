@@ -41,6 +41,7 @@ struct NotchSectionScroll {
     /// mice) end when their events pause.
     static let sequenceGap = 0.35
     private var distance = 0.0
+    private var direction = 0
     private var stepped = false
     private var lastTimestamp: TimeInterval?
 
@@ -61,9 +62,12 @@ struct NotchSectionScroll {
         lastTimestamp = timestamp
         // Turning back starts over with the short first step, so a change
         // of mind answers as quickly as the first movement did.
-        if distance != 0, deltaY != 0, (distance < 0) != (deltaY < 0) { distance = 0; stepped = false }
+        if deltaY != 0 {
+            let incomingDirection = deltaY < 0 ? 1 : -1
+            if direction != 0, direction != incomingDirection { distance = 0; stepped = false }
+            direction = incomingDirection
+        }
         distance += deltaY
-        let direction = distance < 0 ? 1 : -1
         var steps = 0
         while abs(distance) >= (stepped ? Self.rowStep : Self.firstStep) {
             distance += Double(direction) * (stepped ? Self.rowStep : Self.firstStep)
