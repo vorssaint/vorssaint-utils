@@ -52,6 +52,15 @@ enum NotchTests {
                && NotchLayout.railHeight(rows: 3, rowHeight: 74, spacing: 8) == 238
                && NotchLayout.railHeight(rows: 0, rowHeight: 74, spacing: 8) == 74,
                "a rail's height is its rows and the gaps between them")
+        suite.expect(NotchLayout.railColumns(count: 11, rows: 2) == 6
+               && NotchLayout.railColumns(count: 8, rows: 2) == 4
+               && NotchLayout.railColumns(count: 0, rows: 0) == 0
+               && NotchLayout.railFits(columns: 6, itemWidth: 76, spacing: 8, width: 496)
+               && !NotchLayout.railFits(columns: 6, itemWidth: 76, spacing: 8, width: 495),
+               "a rail spreads its items over the fewest columns its rows allow and fits once they all do")
+        let compact = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 32, cameraWidth: 180)
+        suite.expect(compact.toolFlow(count: 8) == .rows(columns: 4) && compact.toolFlow(count: 12) == .columns(rows: 2),
+                     "the launcher's arrows read across the rows that fit and follow the columns once the rail scrolls")
         let single = (0..<5).map { QuickToolsSupport.gridIndex(after: 2, count: 5, flow: .columns(rows: 1),
                                                                 direction: [.left, .right, .up, .down, .left][$0]) }
         suite.expect(single == [1, 3, 2, 2, 1], "in one row the side arrows walk the tiles and the vertical pair stays put")

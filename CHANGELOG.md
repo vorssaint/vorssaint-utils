@@ -18,6 +18,7 @@ Dynamic Island improves list readability and playback controls, can hide in full
 - Dynamic Island lists visible files and folders from the selected Downloads folder, newest first, including images saved directly from a browser.
 - Dynamic Island shows the volume mixer with a speaker icon, so its floating button no longer looks like a second settings button.
 - The Dynamic Island layout editor previews the real home page at scale, with the cards and shortcuts you have configured.
+- Dynamic Island fills shortcut and Explore rows in reading order when they fit without scrolling, and centers a short last row instead of leaving a gap in the last column. Arrow keys in Explore follow the same arrangement.
 - With Liquid Glass enabled, the expanded Dynamic Island uses clear glass with a dark top that fades toward the lower edge, keeping the desktop's detail and refraction visible. Resting and compact strips stay black, and Reduce Transparency keeps the solid surface.
 
 ### Fixed

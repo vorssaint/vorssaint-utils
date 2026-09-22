@@ -1574,10 +1574,11 @@ final class NotchService: ObservableObject {
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {
                 let launcher = QuickLauncherService.shared
-                // The rail fills columns; the editing grid keeps its rows.
+                // The rail reads across its rows until it scrolls; the
+                // editing grid keeps its own rows.
                 let flow: QuickToolsSupport.GridFlow = launcher.isEditing
                     ? .rows(columns: NotchSupport.toolColumns)
-                    : .columns(rows: self.geometry.toolRows(count: launcher.visibleItems.count))
+                    : self.geometry.toolFlow(count: launcher.visibleItems.count)
                 return launcher.handlePanelKey(event, flow: flow)
             }
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53 {

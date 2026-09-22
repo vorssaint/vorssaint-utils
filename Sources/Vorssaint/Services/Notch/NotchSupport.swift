@@ -222,6 +222,17 @@ enum NotchLayout {
         CGFloat(max(1, rows)) * rowHeight + CGFloat(max(0, rows - 1)) * spacing
     }
 
+    /// The columns a rail spreads its items over. A rail whose columns all
+    /// fit lays the items out in reading order, this many per row, and
+    /// centers a short last row; one that scrolls fills its columns instead.
+    static func railColumns(count: Int, rows: Int) -> Int {
+        (max(0, count) + max(1, rows) - 1) / max(1, rows)
+    }
+
+    static func railFits(columns: Int, itemWidth: CGFloat, spacing: CGFloat, width: CGFloat) -> Bool {
+        CGFloat(columns) * itemWidth + CGFloat(max(0, columns - 1)) * spacing <= width
+    }
+
     /// Square artwork, its gap, the three compact transport buttons, and
     /// horizontal padding. Track titles truncate within the remaining space.
     static func musicCardMinimumWidth(height: CGFloat) -> CGFloat {
@@ -1038,6 +1049,16 @@ struct NotchGeometry: Equatable {
         NotchLayout.railRows(count: count,
                              perRow: NotchLayout.railCapacity(width: contentWidth, itemWidth: NotchLayout.toolWidth, spacing: NotchLayout.toolSpacing),
                              rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: contentBudget)
+    }
+
+    /// The arrows walk the tiles the way the rail draws them: reading order
+    /// while every column fits, the columns it fills once it scrolls.
+    func toolFlow(count: Int) -> QuickToolsSupport.GridFlow {
+        let rows = toolRows(count: count)
+        let columns = NotchLayout.railColumns(count: count, rows: rows)
+        return NotchLayout.railFits(columns: columns, itemWidth: NotchLayout.toolWidth,
+                                    spacing: NotchLayout.toolSpacing, width: contentWidth)
+            ? .rows(columns: columns) : .columns(rows: rows)
     }
 
     /// `toolCount` is nil while the launcher edits its grid or hosts a

@@ -122,6 +122,7 @@ enum NotchCompactTests {
     final class RailState: ObservableObject {
         @Published var selected: Int?
         @Published var rows = 2
+        @Published var count = 1000
         var realized = Set<Int>()
     }
     struct Marker: NSViewRepresentable {
@@ -136,7 +137,7 @@ enum NotchCompactTests {
     struct Rail: View {
         @ObservedObject var state: RailState
         var body: some View {
-            let entries = (0..<1000).map { NotchCompactTests.Entry(id: $0) }
+            let entries = (0..<state.count).map { NotchCompactTests.Entry(id: $0) }
             return NotchRail(items: entries, rows: state.rows, itemWidth: 76, width: 424,
                              scrollTarget: state.selected, content: marker)
                 .frame(width: 424, height: 152)
@@ -240,6 +241,25 @@ enum NotchCompactTests {
         }
         suite.expect(state.realized.count < 500,
                      "jumping to distant selections does not realize the intervening history")
+        // Five tiles over two rows fit three columns wide: they read across
+        // the rows, and the two on the last row sit centered under the three.
+        state.count = 5
+        state.rows = 2
+        state.selected = nil
+        settle(host)
+        let frames = (0..<5).compactMap { id in
+            descendants(host).first { $0.identifier?.rawValue == "rail-\(id)" }.map { $0.convert($0.bounds, to: host) }
+        }
+        suite.expect(frames.count == 5
+               && frames[0].minY == frames[1].minY && frames[1].minY == frames[2].minY
+               && frames[0].minX < frames[1].minX && frames[1].minX < frames[2].minX
+               && frames[3].minY == frames[4].minY && frames[3].minY != frames[0].minY,
+               "a rail that fits reads left to right along its rows")
+        suite.expect(frames.count == 5
+               && abs(frames[3].width - frames[0].width) < 0.5
+               && abs(frames[3].midX - (frames[0].midX + frames[1].midX) / 2) < 0.5
+               && abs((frames[3].minX + frames[4].maxX) / 2 - host.bounds.midX) < 0.5,
+               "a short last row keeps the cell width and sits centered under the row above")
     }
     private static func scratchpad(_ suite: TestSuite) {
         let pad = ScratchpadService.shared
