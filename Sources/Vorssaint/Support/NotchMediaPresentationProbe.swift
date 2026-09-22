@@ -128,6 +128,12 @@ enum NotchMediaPresentationProbe {
             if !reduceMotion, intermediate < 3 { failures.append("layout resize \(Int(height)) has no visible intermediate frames") }
             print("MEDIA BACKING from=\(Int(from)) to=\(Int(height)) reserved=\(ready) intermediate=\(intermediate)")
         }
+        // A present made from inside AppKit layout cannot flush the layer tree,
+        // so the frame probe reads stale there; that must not pass for
+        // Mission Control and order the island out on the desktop.
+        if backing.concealedFrameChanges != 0 {
+            failures.append("layout resizes concealed the island \(backing.concealedFrameChanges) times outside Mission Control")
+        }
         backing.close()
         for index in [3, 2, 1, 0, 2, 3] {
             guard let picker = host.panel.contentView.flatMap({ picker(in: $0) }) else {

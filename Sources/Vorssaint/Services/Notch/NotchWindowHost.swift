@@ -37,6 +37,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var settledActions: [() -> Void] = []
     private(set) var targetSize: CGSize
     private(set) var resizeCount = 0
+    private(set) var concealedFrameChanges = 0
 
     init(content: AnyView, geometry: NotchGeometry, size: CGSize,
          background: (NotchBackdropPresentation) -> AnyView = { _ in AnyView(Color.black) },
@@ -243,6 +244,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         guard frameProbe.serverAnimatesFrames(level: panel.level, screen: currentGeometry.screen),
               generation == animationGeneration, panel.isVisible else { return false }
         concealedForFrameChange = true
+        concealedFrameChanges += 1
         restoresKeyAfterFrameChange = panel.isKeyWindow
         panel.orderOut(nil)
         CATransaction.flush()
@@ -442,13 +444,22 @@ private final class NotchFrameProbe {
     }
 
     /// Whether a frame set on an on-screen window right now would be animated.
-    /// Unknown geometry reads as immediate, keeping the ordinary resize.
+    /// Unknown geometry reads as immediate, keeping the ordinary resize, and so
+    /// does a flush that could not commit: inside an AppKit layout pass or an
+    /// explicit transaction the layer tree stays pending, the server still
+    /// shows the old size, and that lag would pass for Mission Control on the
+    /// desktop. The probe's presentation layer trails its model exactly then.
+    /// The reading waits for the server to apply the flushed commit, up to a
+    /// frame (5 ms median, 15 ms at the 90th percentile in the presentation
+    /// checks); a direct window-server query waits just the same.
     func serverAnimatesFrames(level: NSWindow.Level, screen: CGRect) -> Bool {
         grown.toggle()
         attach(level: level, screen: screen)
         window.contentView?.layoutSubtreeIfNeeded()
         CATransaction.flush()
-        guard window.windowNumber > 0,
+        guard let layer = window.contentView?.layer, let committed = layer.presentation()?.bounds.size,
+              abs(committed.width - layer.bounds.width) <= 0.5, abs(committed.height - layer.bounds.height) <= 0.5,
+              window.windowNumber > 0,
               let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(window.windowNumber))
                             as? [[String: Any]])?.first,
               let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],

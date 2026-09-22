@@ -247,6 +247,7 @@ enum NotchPresentationProbe {
         }
         for (size, access) in [(geometry.collapsed, nil), (geometry.expanded, NotchQuickAccessConfiguration.initial),
                                (geometry.collapsed, nil)] {
+            let concealedBefore = host.concealedFrameChanges
             host.present(size: size, geometry: geometry, animated: true,
                          transitionContent: access == nil ? .dismiss : .reveal, quickAccess: access, usesGlass: access != nil)
             var settled = false
@@ -276,6 +277,9 @@ enum NotchPresentationProbe {
                 failures.append("the settled island still shows \(smeared) for a frame of \(host.panel.frame.size)")
             }
             if !host.panel.isVisible { failures.append("the island stayed off screen after settling at \(size)") }
+            if host.concealedFrameChanges == concealedBefore {
+                failures.append("the host applied the frame change to \(size) on screen inside Mission Control")
+            }
         }
         toggleMissionControl()
         advance(1.5)
@@ -554,6 +558,9 @@ enum NotchPresentationProbe {
         host.setActivationArea(.zero, title: "", willPress: {}, activate: {})
         host.present(size: geometry.expanded, geometry: geometry, animated: true, usesGlass: true)
         host.whenSettled { completedActions += 1 }
+        // The desktop applies frames at once; only Mission Control warrants
+        // ordering the island out around a frame change.
+        if host.concealedFrameChanges != 0 { failures.append("the desktop concealed the island for \(host.concealedFrameChanges) frame changes") }
         host.close()
         advance(0.02)
         if completedActions != 2 || host.panel.isVisible { failures.append("closing the host lost a pending action or reopened the window") }
