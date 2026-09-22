@@ -58,6 +58,9 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCaptureControls) private var captureControls = true
     @AppStorage(DefaultsKey.notchQuickPanel) private var quickPanel = true
     @AppStorage(DefaultsKey.notchAppPanel) private var appPanel = true
+    @AppStorage(DefaultsKey.notchScratchpad) private var scratchpad = true
+    @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessControlEnabled = false
+    @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
     @State private var tab = NotchSettingsTab.layout
@@ -70,7 +73,7 @@ struct NotchSettings: View {
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, String(hover), hidden, order, String(volume),
-         String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), captureAction, String(showInCaptures), String(returnHome), homeModule]
+         String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), captureAction, String(showInCaptures), String(returnHome), homeModule, String(scratchpad)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -253,6 +256,8 @@ struct NotchSettings: View {
                 ScreenshotDefaultActionPicker(strings: FeatureStrings.screenshot(l10n.language), selection: $captureAction)
                     .padding(.leading, settingsRowTextInset)
             }
+        case .scratchpad:
+            destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
         default:
             Text(editor.reorderHint).font(.callout).foregroundStyle(.secondary)
         }
@@ -270,15 +275,25 @@ struct NotchSettings: View {
             }
             SettingsCard(title: editor.feedback) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
-                    toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: AppFeature.mixer.isAvailable)
-                    toggleCard(text.brightness, symbol: "sun.max", value: $brightness, available: AppFeature.brightness.isAvailable)
+                    toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: AppFeature.mixer.isAvailable,
+                               reason: enableFeatureReason(.mixer))
+                    toggleCard(text.brightness, symbol: "sun.max", value: $brightness,
+                               available: AppFeature.brightness.isAvailable && brightnessControlEnabled,
+                               reason: AppFeature.brightness.isAvailable ? editor.enableSetting(FeatureStrings.brightness(l10n.language).enable) : enableFeatureReason(.brightness))
                     toggleCard(FeatureStrings.brightness(l10n.language).keyboardLight, symbol: "light.max", value: $keyboardLight,
-                              available: AppFeature.brightness.isAvailable && BrightnessService.keyboardLightIsSupported)
-                    toggleCard(text.battery, symbol: "battery.75percent", value: $battery, available: AppFeature.monitorPower.isAvailable)
+                              available: AppFeature.brightness.isAvailable && BrightnessService.keyboardLightIsSupported,
+                              reason: !AppFeature.brightness.isAvailable ? enableFeatureReason(.brightness) : editor.keyboardLightUnavailable)
+                    toggleCard(text.battery, symbol: "battery.75percent", value: $battery, available: AppFeature.monitorPower.isAvailable,
+                               reason: enableFeatureReason(.monitorPower))
                     toggleCard(FeatureStrings.notchActivities(l10n.language).accessories, symbol: "headphones", value: $accessoriesEnabled,
-                              available: AppFeature.notchAccessories.isAvailable && AppFeature.monitorPower.isAvailable)
-                    toggleCard(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboard, available: AppFeature.clipboardHistory.isAvailable)
-                    toggleCard(text.captures, symbol: "camera.viewfinder", value: $capture, available: AppFeature.screenshot.isAvailable)
+                              available: AppFeature.notchAccessories.isAvailable && AppFeature.monitorPower.isAvailable,
+                              reason: enableFeatureReason(AppFeature.monitorPower.isAvailable ? .notchAccessories : .monitorPower))
+                    toggleCard(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboard,
+                               available: AppFeature.clipboardHistory.isAvailable && clipboardHistoryEnabled && NotchSupport.modules().contains(.clipboard),
+                               reason: clipboardFeedbackReason)
+                    toggleCard(text.captures, symbol: "camera.viewfinder", value: $capture,
+                               available: AppFeature.screenshot.isAvailable && NotchSupport.modules().contains(.captures),
+                               reason: AppFeature.screenshot.isAvailable ? editor.showPage(text.captures) : enableFeatureReason(.screenshot))
                 }
                 if accessoriesEnabled { Text(FeatureStrings.notchActivities(l10n.language).accessoryDescription).font(.caption).foregroundStyle(.secondary) }
                 if enabled, (volume || brightness || keyboardLight), !permissions.accessibility { PermissionRow(kind: .accessibility) }
@@ -329,11 +344,13 @@ struct NotchSettings: View {
                 }
             }
             SettingsCard(title: editor.destinations) {
-                destination(text.panel, symbol: "rectangle.topthird.inset.filled", value: $appPanel)
+                destination(text.panel, symbol: "bubble.middle.top", value: $appPanel)
+                Text(editor.appPanelHint).font(.caption).foregroundStyle(.secondary)
                 destination(text.tools, symbol: "square.grid.2x2", value: $quickPanel, available: AppFeature.quickLauncher.isAvailable)
                 destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
                 destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
                 destination(text.captures, symbol: "camera.viewfinder", value: $captureControls)
+                destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad, available: AppFeature.scratchpad.isAvailable)
             }
             SettingsCard(title: editor.privacy) {
                 switchRow("camera.viewfinder", text.showInCaptures, isOn: $showInCaptures)
@@ -371,9 +388,20 @@ struct NotchSettings: View {
         }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    private func toggleCard(_ title: String, symbol: String, value: Binding<Bool>, available: Bool) -> some View {
-        NotchEditorItem(symbol: symbol, title: title, included: value, available: available) { value.wrappedValue.toggle() }
-            .disabled(!available)
+    private func enableFeatureReason(_ feature: AppFeature) -> String {
+        editor.enableFeature(feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
+    }
+
+    private var clipboardFeedbackReason: String {
+        let title = FeatureStrings.clipboard(l10n.language).title
+        if !AppFeature.clipboardHistory.isAvailable { return enableFeatureReason(.clipboardHistory) }
+        if !clipboardHistoryEnabled { return editor.enableSetting(FeatureStrings.clipboard(l10n.language).enable) }
+        return editor.showPage(title)
+    }
+
+    private func toggleCard(_ title: String, symbol: String, value: Binding<Bool>, available: Bool, reason: String? = nil) -> some View {
+        NotchEditorItem(symbol: symbol, title: title, included: value, available: available,
+                        unavailableReason: available ? nil : reason ?? text.disabled) { value.wrappedValue.toggle() }
     }
 
     private func idleChoice(_ item: NotchIdleContent, title: String, symbol: String) -> some View {
@@ -412,8 +440,9 @@ struct NotchSettings: View {
     private func dimensionSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, fallback: Double) -> some View {
         let bounded = Binding(get: { NotchSize.clamped(value.wrappedValue, to: range, fallback: fallback) },
                               set: { value.wrappedValue = NotchSize.clamped($0, to: range, fallback: fallback) })
-        return HStack {
-            Slider(value: bounded, in: range, step: 10) { Text(title) }
+        return HStack(spacing: 12) {
+            Text(title).fixedSize()
+            Slider(value: bounded, in: range, step: 10) { Text(title) }.labelsHidden()
             Text(Int(bounded.wrappedValue), format: .number)
                 .monospacedDigit().foregroundStyle(.secondary).frame(width: 38)
         }

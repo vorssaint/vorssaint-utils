@@ -74,13 +74,18 @@ enum NotchUpdateTests {
             L10n.shared.language = language
             for state in samples {
                 UpdateService.shared.state = state
-                let host = NSHostingView(rootView: NotchUpdateControl(action: {})
-                    .environment(\.colorScheme, .dark))
-                host.layoutSubtreeIfNeeded()
-                let size = host.fittingSize
-                suite.expect(size.width.isFinite && size.width > 0 && size.width <= 150
-                       && size.height > 0 && size.height <= NotchLayout.headerHeight,
-                       "\(language.rawValue) update action and progress fit the existing header budget (\(size))")
+                for compact in [false, true] {
+                    let host = NSHostingView(rootView: NotchUpdateControl(action: {}, compact: compact)
+                        .environment(\.colorScheme, .dark))
+                    host.layoutSubtreeIfNeeded()
+                    let size = host.fittingSize
+                    // The narrowest camera wing is 130 points; its menu and
+                    // spacing leave 86 points for the compact update control.
+                    let maximumWidth: CGFloat = compact ? 86 : 150
+                    suite.expect(size.width.isFinite && size.width > 0 && size.width <= maximumWidth
+                           && size.height > 0 && size.height <= NotchLayout.headerHeight,
+                           "\(language.rawValue) update action and progress fit the \(compact ? "camera wing" : "full header") budget (\(size))")
+                }
             }
         }
     }

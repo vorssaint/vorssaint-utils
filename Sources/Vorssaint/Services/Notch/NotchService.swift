@@ -20,8 +20,11 @@ struct NotchNotice: Equatable {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
         let trailing = level == nil ? (detail as NSString).size(withAttributes: [.font: font]).width : 0
-        // Reserve the icon, spacing and both insets before limiting long names.
-        return min(240, max(112, ceil(max(leading + 18 + 8, trailing)) + 32))
+        if level != nil, event != .accessory { return 112 }
+        // Only the outer edge needs padding. Long accessory names truncate
+        // instead of making both wings as wide as the full name.
+        let maximum: CGFloat = event == .accessory && level == nil ? 160 : 240
+        return min(maximum, max(88, ceil(max(leading + 18 + 8, trailing)) + 16))
     }
 
     var accessibilityText: String {
@@ -96,6 +99,7 @@ final class NotchService: ObservableObject {
     private var fileInteractionActive = false
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
+            || NotchLyricsService.shared.isImporting
             || (expanded && !showingSections && selected == .calendar && Permissions.shared.keepsCalendarPrompt)
             || (expanded && !showingSections && selected == .files && fileInteractionActive)
             || CameraPreviewService.shared.keepsNotchPermissionPrompt
@@ -172,7 +176,7 @@ final class NotchService: ObservableObject {
         let shortcuts = controls.filter { $0 != .volume && $0 != .brightness && $0 != .music }.count
         let musicExtras = NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
         let launcher = QuickLauncherService.shared
-        return geometry.expandedSize(module: showingAppPanel ? .tools : selected,
+        return expandedGeometry.expandedSize(module: showingAppPanel ? .tools : selected,
                                      detail: selectedMetric != nil, panel: showingAppPanel, shortcutCount: shortcuts,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
                                      musicHasControlsRow: AppFeature.mixer.isAvailable || musicExtras,
@@ -187,7 +191,14 @@ final class NotchService: ObservableObject {
                                      timerMode: NotchTimerService.shared.session.hasSession
                                         ? NotchTimerService.shared.session.mode : NotchTimerSupport.savedMode())
     }
-    var contentSize: CGSize { geometry.contentSize(for: expandedSize) }
+    var expandedGeometry: NotchGeometry {
+        var result = geometry
+        // Capture editing has a full toolbar whose actions must stay reachable.
+        result.requiresFullWidthHeader = selected == .captures && captureActions != nil
+            && !showingSections && !showingAppPanel && selectedMetric == nil
+        return result
+    }
+    var contentSize: CGSize { expandedGeometry.contentSize(for: expandedSize) }
     var usesGlassSurface: Bool {
         expanded || peeking || dragPlaceholder || noticeExpanded
             || (captureControls != nil && !captureControlsCollapsed)
@@ -696,8 +707,16 @@ final class NotchService: ObservableObject {
     /// The pad lives in the island when its page is on; otherwise the
     /// shortcut opens the floating pad as it always did.
     func openScratchpad() {
-        if modules.contains(.scratchpad) { open(.scratchpad) }
-        else { perform { ScratchpadService.shared.show() } }
+        if !showScratchpad() { perform { ScratchpadService.shared.show() } }
+    }
+
+    @discardableResult
+    func showScratchpad(toggle: Bool = false) -> Bool {
+        guard NotchSupport.routesScratchpad(), acceptsSystemFeedback else { return false }
+        if toggle, expanded, selected == .scratchpad, !showingAppPanel, !showingSections,
+           selectedMetric == nil, panel?.isKeyWindow == true { collapse() }
+        else { open(.scratchpad) }
+        return true
     }
 
     func openAppPanel(toggle: Bool = false) {
@@ -1151,7 +1170,7 @@ final class NotchService: ObservableObject {
         // Preferences can change computed dimensions without publishing a
         // service property. Update SwiftUI's layout along with the native host.
         if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
-        windowHost?.present(size: size, geometry: geometry, animated: animated,
+        windowHost?.present(size: size, geometry: expanded ? expandedGeometry : geometry, animated: animated,
                             transitionContent: transitionContent,
                             quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil,
                             revealFromHidden: captureControls == nil
@@ -1164,8 +1183,8 @@ final class NotchService: ObservableObject {
         } else if notice != nil || dragPlaceholder {
             activationRect = .zero
         } else {
-            activationRect = (compactActivityIsVisible ? compactActivityGeometry : geometry)
-                .activationArea(in: size, hasHeader: expanded || peeking, compactActivity: compactActivityIsVisible)
+            activationRect = (expanded ? expandedGeometry : compactActivityIsVisible ? compactActivityGeometry : geometry)
+                .activationArea(in: size, hasHeader: expanded || peeking, compactActivity: compactActivityIsVisible, expandedHeader: expanded)
         }
         let text = FeatureStrings.notch(L10n.shared.language)
         windowHost?.setActivationArea(activationRect, title: expanded ? text.collapse : text.open,
@@ -1616,7 +1635,8 @@ final class NotchService: ObservableObject {
         guard windowHost?.contains(screenPoint) == true else { gesture = NotchGestureSupport(); return false }
         let fromTop = panel.frame.maxY - screenPoint.y
         let inHeader = NotchSupport.gestureIsOverHeader(expanded: expanded, peeking: peeking,
-                                                       fromTop: fromTop, safeTop: geometry.safeContentTop)
+                                                       fromTop: fromTop, safeTop: expanded ? expandedGeometry.headerTopInset : geometry.safeContentTop,
+                                                       height: expanded ? expandedGeometry.headerRowHeight : NotchLayout.headerHeight)
         let interaction = NotchGestureSupport.nativeInteraction(at: panel.contentView?.hitTest(event.locationInWindow))
         let musicSurface = modules.contains(.music)
             && (compactMusicIsVisible || (expanded && selected == .music && !showingAppPanel && !showingSections))

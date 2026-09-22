@@ -7,12 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island improves list readability and playback controls, can hide in full screen, preserves persistent notification alerts, shows files saved directly to Downloads, keeps screenshot actions within reach, and wears clear glass when Liquid Glass is enabled. App Switcher and Dock Preview bring windows forward without resizing them.
+Dynamic Island improves list readability and playback controls, tightens spacing around the camera, clarifies its settings, can hide in full screen, preserves persistent notification alerts, shows files saved directly to Downloads, keeps screenshot actions within reach, and wears clear glass when Liquid Glass is enabled. App Switcher and Dock Preview bring windows forward without resizing them.
 
 ### Added
 - Dynamic Island can hide while an app is in full screen on its selected display. The option is off by default.
 
 ### Changed
+- Dynamic Island uses tighter compact strips and places navigation beside the camera when there is room. Update controls adapt to narrow headers in every language. Thanks to Pinea for the feedback.
+- Dynamic Island explains unavailable indicators, distinguishes app-panel opening from hover preview, spaces custom-size sliders clearly, and adds Scratchpad to the choice of opening destinations.
 - Dynamic Island keeps expanded playback controls visible while player access is being set up.
 - Dynamic Island restores vertical calendar and clipboard lists and a vertical Explore grid with matching keyboard navigation. Long event titles can wrap. The mixer aligns its faders, enlarges volume controls and click targets, and shows the output device name above the controls.
 - Dynamic Island lists visible files and folders from the selected Downloads folder, newest first, including images saved directly from a browser.
@@ -21,6 +23,9 @@ Dynamic Island improves list readability and playback controls, can hide in full
 - With Liquid Glass enabled, the expanded Dynamic Island uses clear glass with a dark top that fades toward the lower edge, keeping the desktop's detail and refraction visible. Resting and compact strips stay black, and Reduce Transparency keeps the solid surface.
 
 ### Fixed
+- Dynamic Island's calendar respects the system's regional date and 12/24-hour time preferences.
+- Dynamic Island leaves room for System cards to grow on hover and keeps accessory notices compact, with device icons that do not suggest an incorrect battery level.
+- Importing lyrics opens a separate file chooser above Dynamic Island, preserving its size, appearance and keyboard focus.
 - App Switcher and Dock Preview bring the selected window forward without resizing it toward the top-left corner of the screen.
 - Dynamic Island keeps the artist visible in Now Playing while a song plays; the music bars no longer push that line out.
 - Dynamic Island's resting strips for music, battery and level feedback match the camera cutout's height and corners, so no dark line shows under the notch and opening or closing settles into it.
@@ -31,7 +36,7 @@ Dynamic Island improves list readability and playback controls, can hide in full
 - Screenshot preview actions stay in the Dynamic Island header above the image, with compact buttons that leave room for the title at smaller widths.
 - Dynamic Island animates its dismissal on displays without a camera cutout when there is no safe resting space in the menu bar.
 - Dynamic Island keeps the battery icon and percentage clear of its curved edges, including the full `100%` label.
-- Dynamic Island opens and closes cleanly inside Mission Control, instead of its closed shape briefly stretching over the area it occupied while open.
+- Dynamic Island stays at the screen edge when switching Spaces and hides while Mission Control is open.
 
 ## [3.4.0-beta.3] - 2026-09-20
 

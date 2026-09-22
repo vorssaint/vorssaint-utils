@@ -88,16 +88,17 @@ struct NotchSystemView: View {
         if cards.isEmpty {
             NotchEmptyView(symbol: "gauge.with.dots.needle.50percent", message: l10n.s.monitorUnavailable)
         } else {
-            let rows = NotchLayout.systemRowRanges(count: cards.count, width: size.width)
+            let inset = NotchLayout.systemHoverInset(width: size.width)
+            let rows = NotchLayout.systemRowRanges(count: cards.count, width: size.width - inset * 2)
             let height = NotchLayout.railHeight(rows: rows.count, rowHeight: NotchLayout.systemCardHeight,
-                                               spacing: NotchLayout.rowSpacing)
+                                               spacing: NotchLayout.rowSpacing) + inset * 2
             Group {
                 if height > size.height {
                     ScrollView {
-                        grid(cards: cards, rows: rows)
+                        grid(cards: cards, rows: rows).padding(inset)
                     }
                 } else {
-                    grid(cards: cards, rows: rows)
+                    grid(cards: cards, rows: rows).padding(inset)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

@@ -59,9 +59,10 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         panel.isReleasedWhenClosed = false
         panel.animationBehavior = .none
         panel.level = NotchPanel.normalLevel
-        // Stationary and transient are mutually exclusive. Keep the island
-        // anchored when the desktop is revealed, outside the system's window motion.
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        // Transient overlays float across Spaces. Stationary windows follow
+        // the desktop's transition; the two behaviors are mutually exclusive.
+        // AppKit hides a transient overlay while Mission Control is open.
+        panel.collectionBehavior = NotchPanel.overlayCollectionBehavior
         panel.contentView = quickAccessContainer ?? canvas
         canvas.layoutSubtreeIfNeeded()
         appliedFrame = panel.frame
@@ -287,7 +288,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let body = CGRect(x: (panel.frame.width - quickAccessNotchSize.width) / 2 + shoulder, y: 0,
                           width: quickAccessNotchSize.width - shoulder * 2, height: quickAccessNotchSize.height)
         container.motion.configure(configuration, body: body,
-                                   headerTop: currentGeometry.safeContentTop + NotchLayout.headerHeight / 2,
+                                   headerTop: currentGeometry.headerTopInset + currentGeometry.headerRowHeight / 2,
                                    animated: quickAccessAnimate)
         container.setHoverRects(container.motion.hoverRects.map { $0.intersection(container.bounds) })
     }
@@ -471,6 +472,9 @@ private final class NotchFrameProbe {
 }
 
 final class NotchPanel: NSPanel {
+    static let overlayCollectionBehavior: NSWindow.CollectionBehavior = [
+        .canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle
+    ]
     // Status items own the screen edge at their level, even when our view's
     // hit test includes it. Keep the island above them, below native menus.
     static let normalLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)

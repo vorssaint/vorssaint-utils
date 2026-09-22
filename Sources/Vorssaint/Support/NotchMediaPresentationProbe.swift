@@ -55,13 +55,13 @@ enum NotchMediaPresentationProbe {
         var body: some View {
             VStack(spacing: NotchLayout.spacing) {
                 Text("Files").frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: NotchLayout.headerHeight)
+                    .frame(height: model.geometry.headerRowHeight)
                 MediaWorkspaceView(compact: true, media: model.media, initialTool: .videoCompressor,
                                    preservesServiceState: true, workspace: model.workspace,
                                    onContentHeightChange: model.measured, onToolChange: model.willChange)
             }
             .padding(.horizontal, NotchLayout.horizontalInset)
-            .padding(.top, model.geometry.safeContentTop)
+            .padding(.top, model.geometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: model.size.width, height: model.size.height, alignment: .top)
             .background(.black).foregroundStyle(.white)

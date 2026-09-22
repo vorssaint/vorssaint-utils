@@ -113,6 +113,41 @@ enum NotchTests {
                "the artwork grows with the preset and shrinks with a custom height down to a legible floor")
     }
 
+    private static func presentationSpacingContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: -1470, y: 80, width: 1470, height: 956)
+        for width in [360.0, 480, 560, 720] {
+            for cameraHeight: CGFloat in [24, 32, 40, 64] {
+                let geometry = NotchGeometry(screen: screen, safeAreaTop: cameraHeight, cameraWidth: 210,
+                                             layout: .custom, customWidth: width, customHeight: 400)
+                let top = geometry.headerTopInset + geometry.headerRowHeight + NotchLayout.spacing
+                suite.expect(top >= cameraHeight, "the page always begins below the physical camera")
+                let area = geometry.activationArea(in: geometry.expanded, hasHeader: true,
+                                                   compactActivity: false, expandedHeader: true)
+                if width >= 560 {
+                    suite.expect(geometry.headerCameraGap == 210 && geometry.headerTopInset == 0,
+                                 "wide headers use the space beside the camera without reserving a blank top row")
+                    suite.expect(area.width == 210 && area.height == cameraHeight
+                                 && area.midX == geometry.expanded.width / 2,
+                                 "the collapse target covers only the camera, leaving header controls clickable")
+                } else {
+                    suite.expect(geometry.headerCameraGap == 0 && geometry.headerTopInset >= cameraHeight,
+                                 "narrow headers keep a complete usable row below the camera")
+                }
+                let content = geometry.contentSize(for: geometry.expandedSize(module: .system, systemCards: 1))
+                let inset = NotchLayout.systemHoverInset(width: content.width)
+                suite.expect((content.width - inset * 2) * 1.028 <= content.width
+                             && NotchLayout.systemCardHeight * 1.028 <= NotchLayout.systemCardHeight + inset * 2,
+                             "even a full-width system card can grow on hover inside its viewport")
+            }
+        }
+        let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious)
+        suite.expect(simulated.headerTopInset == 0 && simulated.headerCameraGap == 0,
+                     "a display without a camera does not reserve a blank expanded header row")
+        suite.expect(simulated.activationArea(in: simulated.expanded, hasHeader: true,
+                                             compactActivity: false, expandedHeader: true).isEmpty,
+                     "simulated header controls are never covered by an invisible collapse button")
+    }
+
     private static func noticeLayoutContracts(_ suite: TestSuite) {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         func width(_ text: String) -> CGFloat {
@@ -133,9 +168,10 @@ enum NotchTests {
                                                  cameraWidth: physical ? 180 : 0, menuBarHeight: height)
                     for notice in notices {
                         let wing = geometry.noticeWingWidth(preferred: notice.preferredWingWidth)
-                        let content = wing - 32
-                        suite.expect(width(notice.level == nil ? notice.title : notice.detail) + 18 + 8 <= content,
-                               "power and accessory labels fit beside their icon without truncation in \(language)")
+                        let content = wing - 16
+                        suite.expect((notice.event == .accessory && notice.level == nil && wing == 160)
+                               || width(notice.level == nil ? notice.title : notice.detail) + 18 + 8 <= content,
+                               "power labels fit and long accessory names use bounded truncation in \(language)")
                         suite.expect(notice.level != nil || width(notice.detail) <= content,
                                "connection status and charge percentage fit the opposite wing in \(language)")
                         let size = geometry.noticeSize(wingWidth: notice.preferredWingWidth)
@@ -155,7 +191,7 @@ enum NotchTests {
         }
         let long = NotchNotice(event: .accessory, title: String(repeating: "Device ", count: 100),
                                detail: "Connected", symbol: "headphones")
-        suite.expect(long.preferredWingWidth <= 240 && long.accessibilityText.contains(long.title),
+        suite.expect(long.preferredWingWidth == 160 && long.accessibilityText.contains(long.title),
                "very long device names have bounded visual width and retain their full accessible name")
         let narrow = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 640, height: 480),
                                    safeAreaTop: 32, cameraWidth: 210)
@@ -219,8 +255,9 @@ enum NotchTests {
                            && geometry.safeContentTop == physical.safeContentTop,
                            "a simulated notch keeps the physical profile and content clearance without claiming hardware exists")
                     suite.expect(geometry.restingSize(showsContent: false) == physical.restingSize(showsContent: false)
-                           && geometry.notice == physical.notice && geometry.expanded == physical.expanded,
-                           "idle, feedback and expanded simulations use the same proportions as a physical cutout")
+                           && geometry.notice == physical.notice && geometry.expanded.width == physical.expanded.width
+                           && geometry.contentSize(for: geometry.expanded) == physical.contentSize(for: physical.expanded),
+                           "simulated and physical cutouts share compact proportions and the same usable page budget")
                     let sizes = [geometry.restingSize(showsContent: false), geometry.collapsed, geometry.peek,
                                  geometry.notice, geometry.noticeSize(wingWidth: 190)]
                         + NotchModule.allCases.map { geometry.expandedSize(module: $0) }
@@ -365,6 +402,7 @@ enum NotchTests {
 
     static func run(_ suite: TestSuite) {
         railContracts(suite)
+        presentationSpacingContracts(suite)
         noticeLayoutContracts(suite)
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)
@@ -673,6 +711,16 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "clipboard event respects the history capture switch")
         defaults.set(true, forKey: DefaultsKey.clipboardHistoryEnabled)
         suite.expect(NotchSupport.routes(.clipboard, in: defaults), "explicit clipboard activity opt-in is honored")
+        suite.expect(NotchSupport.routesScratchpad(in: defaults), "Scratchpad defaults to its visible island page")
+        defaults.set(false, forKey: DefaultsKey.notchScratchpad)
+        suite.expect(!NotchSupport.routesScratchpad(in: defaults), "Scratchpad can use its separate window without hiding its page")
+        defaults.set(true, forKey: DefaultsKey.notchScratchpad)
+        defaults.set("scratchpad", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(!NotchSupport.routesScratchpad(in: defaults), "a hidden Scratchpad page falls back to its window")
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        defaults.set(false, forKey: AppFeature.scratchpad.availabilityKey)
+        suite.expect(!NotchSupport.routesScratchpad(in: defaults), "an unavailable Scratchpad cannot be routed to the island")
+        defaults.set(true, forKey: AppFeature.scratchpad.availabilityKey)
         suite.expect(NotchSupport.routesClipboardWindow(in: defaults), "clipboard opening defaults to the enabled island")
         defaults.set(false, forKey: DefaultsKey.notchClipboardWindow)
         suite.expect(!NotchSupport.routesClipboardWindow(in: defaults), "clipboard can still use its separate window")
@@ -705,7 +753,7 @@ enum NotchTests {
 
         let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
-                                DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
+                                DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel, DefaultsKey.notchScratchpad,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
                                 DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
@@ -934,7 +982,7 @@ enum NotchTests {
                 for height in [NotchSize.heightRange.lowerBound, 400.0, 520.0, 640.0] {
                     let custom = NotchGeometry(screen: frame, safeAreaTop: 32, cameraWidth: 210,
                                                layout: .custom, customWidth: width, customHeight: height)
-                    let available = height - custom.safeContentTop - NotchLayout.chromeHeight
+                    let available = height - custom.headerTopInset - custom.headerChromeHeight
                     suite.expect(custom.contentBudget == available, "a custom island's budget is what its height leaves below the chrome")
                     for module in NotchModule.allCases {
                         let size = custom.expandedSize(module: module)
@@ -996,7 +1044,7 @@ enum NotchTests {
                 suite.expect(quiet.width == geometry.cameraWidth && quiet.height <= geometry.menuBarHeight,
                        "empty idle does not reserve wings or a footer for unsolicited widgets")
                 suite.expect(geometry.contentSize(for: geometry.expanded).height
-                       == geometry.expanded.height - geometry.safeContentTop - NotchLayout.headerHeight
+                       == geometry.expanded.height - geometry.headerTopInset - geometry.headerRowHeight
                            - NotchLayout.spacing - NotchLayout.bottomInset,
                        "content reserves one top navigation row, its spacing and the bottom inset")
                 suite.expect(geometry.safeContentTop > geometry.cameraHeight, "controls always clear the physical camera")
@@ -1021,7 +1069,8 @@ enum NotchTests {
                     suite.expect(NotchMotion.envelope(from: envelope, to: geometry.collapsed) == envelope,
                            "an interrupted closing retains its backing area until the silhouette settles")
                 }
-                suite.expect(geometry.peek.height < geometry.expanded.height / 3,
+                suite.expect(geometry.peek.height <= geometry.cameraHeight + NotchLayout.headerHeight + 32
+                       && geometry.peek.height < geometry.expanded.height,
                        "hover reveals a small target instead of the entire panel")
             }
         }
@@ -1071,10 +1120,10 @@ enum NotchTests {
                < NotchMotion.duration(from: idle, to: roomy.notice),
                "horizontal dismissal remains quicker than opening")
         let compactMusic = roomy.compactMusicGeometry
-        suite.expect(compactMusic.compactActivityWingWidth == 56
+        suite.expect(compactMusic.compactActivityWingWidth == 44
                && compactMusic.compactActivityCameraGap == roomy.cameraWidth
-               && compactMusic.compactActivitySize.width == roomy.cameraWidth + 112,
-               "compact music reserves full cover wings outside the physical camera")
+               && compactMusic.compactActivitySize.width == roomy.cameraWidth + 88,
+               "compact music uses narrow wings without padding against the physical camera")
         for available: CGFloat in [0, 27, 43, 44, 45, 55, 56, 100, .nan, .infinity] {
             var tight = roomy
             tight.compactSideRoom = available

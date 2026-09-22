@@ -90,7 +90,7 @@ enum NotchFileToolsTests {
                     let content = geometry.contentSize(for: size)
                     suite.expect(area.minX > size.width / 2 && area.maxX == size.width - NotchLayout.horizontalInset,
                            "the media target is confined to the right-hand card at every island width")
-                    suite.expect(area.minY == geometry.safeContentTop + NotchLayout.headerHeight + NotchLayout.spacing
+                    suite.expect(area.minY == geometry.headerTopInset + geometry.headerRowHeight + NotchLayout.spacing
                            && area.maxY == size.height - NotchLayout.bottomInset,
                            "the target excludes the header and margins on both physical and simulated cutouts")
                     suite.expect(area.width * 2 + NotchFileToolsSupport.dropSpacing == content.width && area.height == content.height,

@@ -125,8 +125,17 @@ struct NotchLayoutEditor: View {
     private var actualWidth: CGFloat {
         NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
     }
+    private var previewGeometry: NotchGeometry {
+        NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: 32,
+                      cameraWidth: 210, layout: layout, customWidth: width, customHeight: height)
+    }
     private var actualHeight: CGFloat {
-        NotchLayout.nominalHeight(layout, custom: NotchSize.clamped(height, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight))
+        if layout == .custom { return previewGeometry.customHeight }
+        let items = NotchSupport.controls()
+        return previewGeometry.expandedSize(module: .controls,
+            shortcutCount: items.filter { $0 != .volume && $0 != .brightness && $0 != .music }.count,
+            sliderCount: items.filter { $0 == .volume || $0 == .brightness }.count,
+            controlsHaveMusic: items.contains(.music)).height
     }
 
     /// A narrow window shrinks the whole island rather than only its width.
@@ -228,7 +237,7 @@ struct NotchLayoutEditor: View {
         let levels = items.filter { $0 == .volume || $0 == .brightness }
         let shortcuts = items.filter { $0 != .volume && $0 != .brightness && $0 != .music }
         let contentWidth = max(0, actualWidth - NotchLayout.horizontalInset * 2)
-        let contentHeight = max(0, actualHeight - NotchLayout.nominalContentTop - NotchLayout.chromeHeight)
+        let contentHeight = max(0, actualHeight - previewGeometry.headerTopInset - previewGeometry.headerChromeHeight)
         let controls = NotchLayout.controls(hasCards: items.contains(.music) || !levels.isEmpty,
                                             shortcutCount: shortcuts.count, width: contentWidth, height: contentHeight)
         return Button(action: editContents) {
@@ -239,13 +248,17 @@ struct NotchLayoutEditor: View {
         .accessibilityLabel(editor.content)
         .overlay {
             VStack(spacing: NotchLayout.spacing) {
-                HStack {
+                HStack(spacing: 0) {
                     Text(text.controls).font(.system(size: 16, weight: .semibold)).lineLimit(1)
-                    Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if previewGeometry.headerCameraGap > 0 {
+                        Color.clear.frame(width: previewGeometry.headerCameraGap)
+                    }
                     Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white.opacity(0.35)).frame(width: 28, height: 28)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .frame(height: NotchLayout.headerHeight)
+                .frame(height: previewGeometry.headerRowHeight)
                 VStack(spacing: NotchLayout.rowSpacing) {
                     if items.isEmpty {
                         NotchEmptyView(symbol: NotchModule.controls.symbol, message: text.empty)
@@ -264,7 +277,7 @@ struct NotchLayoutEditor: View {
                 .clipped()
             }
             .padding(.horizontal, NotchLayout.horizontalInset)
-            .padding(.top, NotchLayout.nominalContentTop)
+            .padding(.top, previewGeometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: actualWidth, height: actualHeight, alignment: .top)
             .foregroundStyle(.white)

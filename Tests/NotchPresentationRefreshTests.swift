@@ -91,6 +91,8 @@ enum NotchPresentationRefreshContract {
         var captureHover: ((Bool) -> Void)?
         var pinned = false
         var showingSections = false
+        var showingAppPanel = false
+        var selectedMetric: Bool?
         var expanded = true
         var peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
         var noticeExpanded = false
@@ -110,12 +112,13 @@ enum NotchPresentationRefreshContract {
         var panel: Panel? { windowHost?.panel }
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210)
+        var expandedGeometry: NotchGeometry { geometry }
         var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
         var surfaceSize: CGSize {
             if captureControls != nil { return captureControlsCollapsed ? geometry.collapsed : geometry.peek }
             if !expanded, compactActivityIsVisible { return compactActivityGeometry.compactActivitySize }
             if !expanded { return geometry.collapsed }
-            return geometry.expandedSize(module: selected, capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
+            return expandedGeometry.expandedSize(module: selected, capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
                                          timerHasSession: session.hasSession,
                                          timerMode: session.hasSession ? session.mode : mode)
         }
@@ -131,6 +134,23 @@ enum NotchPresentationRefreshContract {
     static func run(_ suite: TestSuite) {
         UserDefaults.standard.hides = false
         defer { UserDefaults.standard.hides = false }
+        let toolbar = Service()
+        toolbar.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                                          safeAreaTop: 32, cameraWidth: 210, layout: .spacious)
+        suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
+                     "a standard wide page puts its header beside the camera")
+        toolbar.selected = .captures
+        toolbar.captureActions = true
+        toolbar.captureContent = true
+        toolbar.captureContentHeight = 150
+        toolbar.refreshPresentation(animated: false)
+        suite.expect(toolbar.expandedGeometry.headerCameraGap == 0
+                     && toolbar.expandedGeometry.headerTopInset == 42
+                     && toolbar.windowHost?.activationRect.height == 42,
+                     "a capture toolbar keeps a full row below the camera without losing actions to the cutout")
+        toolbar.showingSections = true
+        suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
+                     "leaving capture editing restores the compact header layout")
         captureControlsChecks(suite)
         let fullscreen = Service()
         fullscreen.pinned = true

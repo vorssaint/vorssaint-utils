@@ -34,6 +34,15 @@ struct NotchEditorStrings {
     let activationTime: String
     let activationTimeHint: String
     let activationTimeFormat: String
+    let enableFeatureFormat: String
+    let enableSettingFormat: String
+    let showPageFormat: String
+    let keyboardLightUnavailable: String
+    let appPanelHint: String
+
+    func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
+    func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
+    func showPage(_ title: String) -> String { String(format: showPageFormat, title) }
 }
 
 extension FeatureStrings {
@@ -69,7 +78,12 @@ extension FeatureStrings {
             lastPage: "Last page",
             activationTime: "Activation time",
             activationTimeHint: "Keep the pointer over the island for this long to open it.",
-            activationTimeFormat: "%.2f s"
+            activationTimeFormat: "%.2f s",
+            enableFeatureFormat: "Enable “%@” in Features.",
+            enableSettingFormat: "Enable “%@” in its settings.",
+            showPageFormat: "Show “%@” on the Content tab.",
+            keyboardLightUnavailable: "Keyboard backlight control is unavailable on this Mac.",
+            appPanelHint: "Choose where clicking the Vorssaint menu bar icon opens the app panel, on any display."
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -101,7 +115,12 @@ extension FeatureStrings {
             lastPage: "Última página",
             activationTime: "Tempo de ativação",
             activationTimeHint: "Mantenha o ponteiro sobre a ilha por esse tempo para abrir.",
-            activationTimeFormat: "%.2f s"
+            activationTimeFormat: "%.2f s",
+            enableFeatureFormat: "Ative “%@” em Recursos.",
+            enableSettingFormat: "Ative “%@” nas configurações do recurso.",
+            showPageFormat: "Mostre “%@” na aba Conteúdo.",
+            keyboardLightUnavailable: "O controle da luz do teclado não está disponível neste Mac.",
+            appPanelHint: "Escolha onde o painel abre ao clicar no ícone do Vorssaint na barra de menus, em qualquer tela."
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -133,7 +152,12 @@ extension FeatureStrings {
             lastPage: "Última página",
             activationTime: "Tiempo de activación",
             activationTimeHint: "Mantén el puntero sobre la isla durante este tiempo para abrirla.",
-            activationTimeFormat: "%.2f s"
+            activationTimeFormat: "%.2f s",
+            enableFeatureFormat: "Activa “%@” en Funciones.",
+            enableSettingFormat: "Activa “%@” en sus ajustes.",
+            showPageFormat: "Muestra “%@” en la pestaña Contenido.",
+            keyboardLightUnavailable: "El control de la luz del teclado no está disponible en este Mac.",
+            appPanelHint: "Elige dónde se abre el panel al pulsar el icono de Vorssaint en la barra de menús, en cualquier pantalla."
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -165,7 +189,12 @@ extension FeatureStrings {
             lastPage: "Letzte Seite",
             activationTime: "Aktivierungszeit",
             activationTimeHint: "Halte den Zeiger so lange über der Insel, um sie zu öffnen.",
-            activationTimeFormat: "%.2f s"
+            activationTimeFormat: "%.2f s",
+            enableFeatureFormat: "Aktiviere „%@“ unter Funktionen.",
+            enableSettingFormat: "Aktiviere „%@“ in den zugehörigen Einstellungen.",
+            showPageFormat: "Blende „%@“ im Tab Inhalt ein.",
+            keyboardLightUnavailable: "Die Tastaturbeleuchtung lässt sich auf diesem Mac nicht steuern.",
+            appPanelHint: "Wähle, wo ein Klick auf das Vorssaint-Menüleistensymbol das App-Panel öffnet, auf jedem Bildschirm."
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -197,7 +226,12 @@ extension FeatureStrings {
             lastPage: "Dernière page",
             activationTime: "Délai d’activation",
             activationTimeHint: "Laissez le pointeur sur l’île pendant cette durée pour l’ouvrir.",
-            activationTimeFormat: "%.2f s"
+            activationTimeFormat: "%.2f s",
+            enableFeatureFormat: "Activez « %@ » dans Fonctionnalités.",
+            enableSettingFormat: "Activez « %@ » dans ses réglages.",
+            showPageFormat: "Affichez « %@ » dans l’onglet Contenu.",
+            keyboardLightUnavailable: "Le contrôle du rétroéclairage du clavier est indisponible sur ce Mac.",
+            appPanelHint: "Choisissez où un clic sur l’icône Vorssaint de la barre des menus ouvre le panneau, sur tout écran."
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -229,7 +263,12 @@ extension FeatureStrings {
             lastPage: "Ultima pagina",
             activationTime: "Tempo di attivazione",
             activationTimeHint: "Mantieni il puntatore sull’isola per questo tempo per aprirla.",
-            activationTimeFormat: "%.2f s"
+            activationTimeFormat: "%.2f s",
+            enableFeatureFormat: "Attiva “%@” in Funzioni.",
+            enableSettingFormat: "Attiva “%@” nelle relative impostazioni.",
+            showPageFormat: "Mostra “%@” nella scheda Contenuto.",
+            keyboardLightUnavailable: "Il controllo della retroilluminazione della tastiera non è disponibile su questo Mac.",
+            appPanelHint: "Scegli dove si apre il pannello facendo clic sull’icona di Vorssaint nella barra dei menu, su qualsiasi schermo."
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -261,7 +300,12 @@ extension FeatureStrings {
             lastPage: "Последняя страница",
             activationTime: "Время активации",
             activationTimeHint: "Удерживайте указатель над островом в течение этого времени, чтобы открыть его.",
-            activationTimeFormat: "%.2f с"
+            activationTimeFormat: "%.2f с",
+            enableFeatureFormat: "Включите «%@» в разделе функций.",
+            enableSettingFormat: "Включите «%@» в соответствующих настройках.",
+            showPageFormat: "Покажите «%@» на вкладке содержимого.",
+            keyboardLightUnavailable: "Управление подсветкой клавиатуры недоступно на этом Mac.",
+            appPanelHint: "Выберите, где открывать панель при нажатии значка Vorssaint в строке меню на любом экране."
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -293,7 +337,12 @@ extension FeatureStrings {
             lastPage: "Son sayfa",
             activationTime: "Etkinleştirme süresi",
             activationTimeHint: "Açmak için imleci bu süre boyunca adanın üzerinde tutun.",
-            activationTimeFormat: "%.2f sn"
+            activationTimeFormat: "%.2f sn",
+            enableFeatureFormat: "Özellikler’de “%@” özelliğini etkinleştirin.",
+            enableSettingFormat: "İlgili ayarlarda “%@” seçeneğini etkinleştirin.",
+            showPageFormat: "İçerik sekmesinde “%@” sayfasını gösterin.",
+            keyboardLightUnavailable: "Bu Mac’te klavye aydınlatması denetimi kullanılamıyor.",
+            appPanelHint: "Herhangi bir ekranda menü çubuğundaki Vorssaint simgesine tıklanınca panelin nerede açılacağını seçin."
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -325,7 +374,12 @@ extension FeatureStrings {
             lastPage: "前回のページ",
             activationTime: "開くまでの時間",
             activationTimeHint: "島の上にポインタをこの時間置くと開きます。",
-            activationTimeFormat: "%.2f 秒"
+            activationTimeFormat: "%.2f 秒",
+            enableFeatureFormat: "機能で「%@」を有効にしてください。",
+            enableSettingFormat: "該当する設定で「%@」を有効にしてください。",
+            showPageFormat: "コンテンツタブで「%@」を表示してください。",
+            keyboardLightUnavailable: "このMacではキーボードのバックライトを制御できません。",
+            appPanelHint: "どの画面でも、メニューバーのVorssaintアイコンをクリックしたときにパネルを開く場所を選択します。"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -357,7 +411,12 @@ extension FeatureStrings {
             lastPage: "마지막 페이지",
             activationTime: "활성화 시간",
             activationTimeHint: "이 시간 동안 섬 위에 포인터를 두면 열립니다.",
-            activationTimeFormat: "%.2f초"
+            activationTimeFormat: "%.2f초",
+            enableFeatureFormat: "기능에서 “%@”을(를) 활성화하세요.",
+            enableSettingFormat: "해당 설정에서 “%@”을(를) 활성화하세요.",
+            showPageFormat: "콘텐츠 탭에서 “%@”을(를) 표시하세요.",
+            keyboardLightUnavailable: "이 Mac에서는 키보드 백라이트를 제어할 수 없습니다.",
+            appPanelHint: "어느 화면에서든 메뉴 막대의 Vorssaint 아이콘을 클릭할 때 패널이 열릴 위치를 선택하세요."
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -389,7 +448,12 @@ extension FeatureStrings {
             lastPage: "上次的页面",
             activationTime: "激活时间",
             activationTimeHint: "将指针在岛上停留此时长即可打开。",
-            activationTimeFormat: "%.2f 秒"
+            activationTimeFormat: "%.2f 秒",
+            enableFeatureFormat: "在功能中启用“%@”。",
+            enableSettingFormat: "在相应设置中启用“%@”。",
+            showPageFormat: "在内容标签页中显示“%@”。",
+            keyboardLightUnavailable: "此 Mac 无法控制键盘背光。",
+            appPanelHint: "选择在任意显示器上点击菜单栏的 Vorssaint 图标时打开面板的位置。"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -421,7 +485,12 @@ extension FeatureStrings {
             lastPage: "上次的頁面",
             activationTime: "啟用時間",
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
-            activationTimeFormat: "%.2f 秒"
+            activationTimeFormat: "%.2f 秒",
+            enableFeatureFormat: "在功能中啟用「%@」。",
+            enableSettingFormat: "在對應設定中啟用「%@」。",
+            showPageFormat: "在內容標籤頁中顯示「%@」。",
+            keyboardLightUnavailable: "此 Mac 無法控制鍵盤背光。",
+            appPanelHint: "選擇在任何螢幕上按一下選單列的 Vorssaint 圖像時開啟面板的位置。"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -453,7 +522,12 @@ extension FeatureStrings {
             lastPage: "上次的頁面",
             activationTime: "啟用時間",
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
-            activationTimeFormat: "%.2f 秒"
+            activationTimeFormat: "%.2f 秒",
+            enableFeatureFormat: "在功能中啟用「%@」。",
+            enableSettingFormat: "在相應設定中啟用「%@」。",
+            showPageFormat: "在內容標籤頁中顯示「%@」。",
+            keyboardLightUnavailable: "此 Mac 無法控制鍵盤背光。",
+            appPanelHint: "選擇在任何螢幕上按一下選單列的 Vorssaint 圖像時開啟面板的位置。"
         )
         }
     }
