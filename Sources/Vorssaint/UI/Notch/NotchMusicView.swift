@@ -208,6 +208,7 @@ struct NotchMusicView: View {
         }
         .menuStyle(.borderlessButton)
         .frame(maxWidth: 110)
+        .fixedSize()
         .font(.system(size: 10, weight: .medium))
         .foregroundStyle(.secondary)
         .accessibilityLabel(extras.playbackSource)
