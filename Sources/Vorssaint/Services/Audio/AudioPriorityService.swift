@@ -27,11 +27,13 @@ final class AudioPriorityService: ObservableObject {
     @Published private(set) var deviceNames: [String: String] = [:]
 
     private var cancellables = Set<AnyCancellable>()
-    private var enforceDebouce: DispatchWorkItem?
+    private var enforceDebounce: DispatchWorkItem?
     private var settledOutputUIDs: Set<String>?
     private var settledInputUIDs: Set<String>?
     private var pendingOutputUIDs: Set<String>?
     private var pendingInputUIDs: Set<String>?
+    private var pendingOutputPreferenceChange = false
+    private var pendingInputPreferenceChange = false
     private var started = false
 
     private init() {}
@@ -60,7 +62,7 @@ final class AudioPriorityService: ObservableObject {
 
         // The published device models also change when only the default flag
         // changes. Compare eligible UID sets so a manual selection anywhere
-        // remains in effect until hardware actually connects or disconnects.
+        // remains in effect until hardware changes or the user edits priority.
         AppVolumeMixer.shared.$outputDevices
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.observeOutputDevices($0) }
@@ -79,12 +81,14 @@ final class AudioPriorityService: ObservableObject {
         guard started else { return }
         started = false
         cancellables.removeAll()
-        enforceDebouce?.cancel()
-        enforceDebouce = nil
+        enforceDebounce?.cancel()
+        enforceDebounce = nil
         settledOutputUIDs = nil
         settledInputUIDs = nil
         pendingOutputUIDs = nil
         pendingInputUIDs = nil
+        pendingOutputPreferenceChange = false
+        pendingInputPreferenceChange = false
         AudioInputDeviceManager.shared.setInputPriorityActive(false)
     }
 
@@ -105,24 +109,35 @@ final class AudioPriorityService: ObservableObject {
     // MARK: - Public API (UI)
 
     func setOutputPriorityEnabled(_ enabled: Bool) {
+        let becameEnabled = enabled && !outputPriorityEnabled
         let defaults = UserDefaults.standard
         defaults.set(enabled, forKey: DefaultsKey.audioPriorityOutputEnabled)
         outputPriorityEnabled = enabled
         mergeAvailableDevicesIntoPriorityLists()
         updateDeviceNames()
+        if becameEnabled {
+            pendingOutputPreferenceChange = true
+            scheduleEnforcement()
+        }
     }
 
     func setInputPriorityEnabled(_ enabled: Bool) {
+        let becameEnabled = enabled && !inputPriorityEnabled
         let defaults = UserDefaults.standard
         defaults.set(enabled, forKey: DefaultsKey.audioPriorityInputEnabled)
         inputPriorityEnabled = enabled
         AudioInputDeviceManager.shared.setInputPriorityActive(enabled)
         mergeAvailableDevicesIntoPriorityLists()
         updateDeviceNames()
+        if becameEnabled {
+            pendingInputPreferenceChange = true
+            scheduleEnforcement()
+        }
     }
 
     func setOutputPriorityUIDs(_ uids: [String]) {
         let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
+        guard sanitized != outputPriorityUIDs else { return }
         let defaults = UserDefaults.standard
         if sanitized.isEmpty {
             defaults.removeObject(forKey: DefaultsKey.audioPriorityOutputUIDs)
@@ -131,10 +146,15 @@ final class AudioPriorityService: ObservableObject {
         }
         outputPriorityUIDs = sanitized
         updateDeviceNames()
+        if outputPriorityEnabled {
+            pendingOutputPreferenceChange = true
+            scheduleEnforcement()
+        }
     }
 
     func setInputPriorityUIDs(_ uids: [String]) {
         let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
+        guard sanitized != inputPriorityUIDs else { return }
         let defaults = UserDefaults.standard
         if sanitized.isEmpty {
             defaults.removeObject(forKey: DefaultsKey.audioPriorityInputUIDs)
@@ -143,6 +163,10 @@ final class AudioPriorityService: ObservableObject {
         }
         inputPriorityUIDs = sanitized
         updateDeviceNames()
+        if inputPriorityEnabled {
+            pendingInputPreferenceChange = true
+            scheduleEnforcement()
+        }
     }
 
     // MARK: - Device name tracking
@@ -226,7 +250,7 @@ final class AudioPriorityService: ObservableObject {
 
     // MARK: - Enforcement
 
-    /// Coalesces connect/disconnect bursts into one pass. Core Audio can
+    /// Coalesces connect/disconnect bursts and list edits into one pass. Core Audio can
     /// briefly publish an incomplete inventory while changing only the
     /// default device, so compare the final settled set with the last settled
     /// set instead of treating every intermediate publication as hardware.
@@ -266,31 +290,33 @@ final class AudioPriorityService: ObservableObject {
 
     private func scheduleEnforcement() {
         guard started else { return }
-        enforceDebouce?.cancel()
+        enforceDebounce?.cancel()
         let work = DispatchWorkItem { [weak self] in
             self?.enforceAvailabilityChanges()
         }
-        enforceDebouce = work
+        enforceDebounce = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.eventEnforcementDelay, execute: work)
     }
 
     private func enforceAvailabilityChanges() {
         guard started else { return }
-        enforceDebouce = nil
-        let enforceOutput = pendingOutputUIDs.map {
+        enforceDebounce = nil
+        let enforceOutput = pendingOutputPreferenceChange || (pendingOutputUIDs.map {
             MixerRoutingSupport.deviceAvailabilityChanged(
                 previousUIDs: settledOutputUIDs,
                 currentUIDs: $0)
-        } ?? false
-        let enforceInput = pendingInputUIDs.map {
+        } ?? false)
+        let enforceInput = pendingInputPreferenceChange || (pendingInputUIDs.map {
             MixerRoutingSupport.deviceAvailabilityChanged(
                 previousUIDs: settledInputUIDs,
                 currentUIDs: $0)
-        } ?? false
+        } ?? false)
         if let pendingOutputUIDs { settledOutputUIDs = pendingOutputUIDs }
         if let pendingInputUIDs { settledInputUIDs = pendingInputUIDs }
         pendingOutputUIDs = nil
         pendingInputUIDs = nil
+        pendingOutputPreferenceChange = false
+        pendingInputPreferenceChange = false
         mergeAvailableDevicesIntoPriorityLists()
         updateDeviceNames()
 

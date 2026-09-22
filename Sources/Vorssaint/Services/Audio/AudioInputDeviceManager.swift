@@ -49,10 +49,9 @@ final class AudioInputDeviceManager: ObservableObject {
     /// for as long as the audio daemon holds the device, and that is exactly
     /// the moment the listeners fire.
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.audioinput.hal", qos: .userInitiated)
-    /// The system input as it was before this app first pointed it somewhere
-    /// else, and the device it was pointed at. Choosing a microphone here
-    /// changes a system setting, so switching the feature off or quitting puts
-    /// the original back.
+    /// The system input before this app first changed it, and the device it
+    /// applied. The singular preferred-microphone behavior restores the
+    /// original on stop; an active priority selection survives a quit.
     private var inputDeviceBeforeOverride: String?
     private var appliedInputDeviceUID: String?
     /// True while Audio device priority is steering the input: the singular
@@ -86,7 +85,14 @@ final class AudioInputDeviceManager: ObservableObject {
 
     func stop() {
         removeVolumeListeners()
-        restoreOriginalInputDevice()
+        // Priority selections are meant to survive a quit and the next
+        // launch. Only the singular preferred-microphone override is restored.
+        if !inputPriorityIsActive {
+            restoreOriginalInputDevice()
+        } else {
+            inputDeviceBeforeOverride = nil
+            appliedInputDeviceUID = nil
+        }
         guard listenerInstalled else { return }
         listenerInstalled = false
         // A sweep already reading the HAL must not publish into a manager that
