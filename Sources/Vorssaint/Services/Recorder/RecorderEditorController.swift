@@ -768,6 +768,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// pointer, which is what an automatic one does.
     func setSelectedZoomFocus(_ focus: CGPoint?) {
         guard let id = selectedZoomID else { return }
+        defer { if focus == nil { endAiming() } }
         beginInteraction()
         var next = document
         next.zoomSegments = next.zoomSegments.map { segment -> RecorderTimeline.ZoomSegment in

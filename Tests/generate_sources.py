@@ -309,6 +309,7 @@ def main():
           + declaration(recorder, "    @Published var selectedZoomID:")
           + "".join(declaration(recorder, prefix) for prefix in [
               "    func beginAiming(", "    func endAiming(", "    func aim(",
+              "    func setSelectedZoomFocus(",
               "    func beginPickingBlurArea(", "    func endPickingBlurArea("])
           + "}\n}\n")
     write("NotchVolumeFeedback.swift", "import Foundation\nimport Combine\n"

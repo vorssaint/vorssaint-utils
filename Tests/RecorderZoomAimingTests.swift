@@ -18,12 +18,26 @@ enum RecorderZoomAimingTests {
         var isAimingZoom = false
         var isPickingBlurArea = false
         var sourceSize = CGSize(width: 1000, height: 500)
-        var focus: CGPoint?
+        var document: RecorderEditDocument = {
+            var document = RecorderEditDocument()
+            document.zoomSegments = [.init(start: 0, end: 5, amount: 2)]
+            return document
+        }()
+        var focus: CGPoint? {
+            guard let segment = document.zoomSegments.first,
+                  let x = segment.focusX, let y = segment.focusY else { return nil }
+            return CGPoint(x: x, y: y)
+        }
         var pauseCount = 0
         var rebuildCount = 0
         func pause() { pauseCount += 1 }
-        func rebuildPreview() { rebuildCount += 1 }
-        func setSelectedZoomFocus(_ point: CGPoint) { focus = point }
+        func rebuildPreview() {
+            rebuildCount += 1
+            player.currentItem?.videoComposition = "edited"
+        }
+        func beginInteraction() {}
+        func applyDuringInteraction(_ next: RecorderEditDocument) { document = next }
+        func commitZoomEdit() {}
     }
 
     static func run(_ suite: TestSuite) {
@@ -31,7 +45,7 @@ enum RecorderZoomAimingTests {
         model.beginAiming()
         suite.expect(!model.isAimingZoom && model.player.currentItem?.videoComposition == "edited",
                      "aiming requires a selected zoom and otherwise leaves the preview alone")
-        model.selectedZoomID = UUID()
+        model.selectedZoomID = model.document.zoomSegments[0].id
         model.beginAiming()
         suite.expect(model.isAimingZoom && model.previewTask?.cancelled == true
                      && model.player.currentItem?.videoComposition == nil && model.pauseCount == 1,
@@ -54,7 +68,7 @@ enum RecorderZoomAimingTests {
         model.selectedZoomID = nil
         suite.expect(!model.isAimingZoom && model.rebuildCount == 4,
                      "deselecting or deleting the zoom exits raw-preview mode")
-        model.selectedZoomID = UUID()
+        model.selectedZoomID = model.document.zoomSegments[0].id
         model.beginAiming()
         model.selectedBlurID = UUID()
         model.beginPickingBlurArea()
@@ -64,5 +78,16 @@ enum RecorderZoomAimingTests {
         model.beginAiming()
         suite.expect(model.isAimingZoom && !model.isPickingBlurArea,
                      "switching back to zoom aiming ends blur selection")
+        let rebuilds = model.rebuildCount
+        model.setSelectedZoomFocus(nil)
+        suite.expect(model.focus == nil && !model.isAimingZoom
+                     && model.player.currentItem?.videoComposition == "edited"
+                     && model.rebuildCount == rebuilds + 1,
+                     "following the pointer cancels manual aiming and restores the edited preview")
+        model.beginAiming()
+        model.setSelectedZoomFocus(nil)
+        suite.expect(!model.isAimingZoom && model.player.currentItem?.videoComposition == "edited"
+                     && model.rebuildCount == rebuilds + 2,
+                     "following the pointer restores the preview even when the focus was already unset")
     }
 }
