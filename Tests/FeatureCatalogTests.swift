@@ -180,6 +180,18 @@ enum FeatureCatalogTests {
         suite.expect(disabledTapMouseGate.buttonUp(1),
                "a fresh press after the tap gap still needs its own release")
 
+        var expiredWaitGate = CleaningMouseReleaseGate()
+        expiredWaitGate.buttonDown(1)
+        suite.expect(!expiredWaitGate.requestDeactivation() && expiredWaitGate.releaseWaitExpired()
+                && expiredWaitGate.pressedButtons.isEmpty && expiredWaitGate.deactivationPending,
+               "an unlock stops waiting for a release that never arrives once the wait runs out")
+        var idleWaitGate = CleaningMouseReleaseGate()
+        idleWaitGate.buttonDown(0)
+        suite.expect(!idleWaitGate.releaseWaitExpired() && idleWaitGate.pressedButtons == [0],
+               "the wait limit leaves presses alone when no unlock was asked for")
+        suite.expect(CleaningMouseReleaseGate.releaseWaitLimit > 0 && CleaningMouseReleaseGate.releaseWaitLimit <= 10,
+               "a pending cleaning unlock has a short maximum wait")
+
         // The counters above build their own windows, so nothing else here
         // fails if the shipped constant regresses. Pin it at the source: the
         // 2s window made the gesture impossible for anyone pressing Escape
@@ -206,6 +218,9 @@ enum FeatureCatalogTests {
         suite.expect(cleaningCode.contains("self.mouseReleaseGate.deactivationPending,")
                 && cleaningCode.contains("self.mouseReleaseGate.pressedButtons.isEmpty else { return }"),
                "queued cleaning teardown rechecks the current press state")
+        suite.expect(cleaningCode.contains("armReleaseDeadline()\n        guard mouseReleaseGate.requestDeactivation()")
+                && cleaningCode.contains("releaseDeadline?.cancel()"),
+               "every user unlock arms the release deadline and teardown cancels it")
 
         // The counter above cannot see how events reach it, and the real HID
         // gesture is not reproducible headlessly. Pin the two properties of the

@@ -20,6 +20,7 @@ struct PanelRecentCapturesView: View {
 struct RecentCapturesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = RecentCaptureService.shared
+    @Environment(\.notchPresentation) private var inNotch
     @State private var confirmingClear = false
 
     var onClose: (() -> Void)?
@@ -61,7 +62,7 @@ struct RecentCapturesView: View {
                 .font(.system(size: 12, weight: .semibold))
             Spacer()
             Button {
-                confirmingClear = true
+                if inNotch { confirmClearAboveIsland() } else { confirmingClear = true }
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 11, weight: .semibold))
@@ -82,6 +83,15 @@ struct RecentCapturesView: View {
                 .help(l10n.s.uninstallerCancel)
                 .accessibilityLabel(l10n.s.uninstallerCancel)
             }
+        }
+    }
+
+    /// The dialog would hang from the island as a sheet; there it asks on its own.
+    private func confirmClearAboveIsland() {
+        DispatchQueue.main.async {
+            guard NSAlert.confirmAboveIsland(text.clear, message: "", action: text.clear, destructive: true,
+                                             cancel: l10n.s.uninstallerCancel) else { return }
+            history.clear()
         }
     }
 

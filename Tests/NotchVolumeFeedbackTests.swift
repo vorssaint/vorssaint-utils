@@ -26,6 +26,7 @@ enum NotchVolumeFeedbackTests {
         var volumeDeviceUID: String?
         var volumeBaseline: Double?
         var muteBaseline: Bool?
+        var ownVolumeAdjustmentUntil: TimeInterval = 0
         var expanded = false
         var notice: NotchNotice?
         var presented: [NotchNotice] = []
@@ -104,6 +105,32 @@ enum NotchVolumeFeedbackTests {
             drain()
             suite.expect(service.notice?.level == 0.6 && service.presented.count == 1,
                    "volume changes supply header feedback while the island is open on any page")
+            service.presented.removeAll()
+            // Each step of the island's slider or mute button marks its change.
+            service.noteOwnVolumeAdjustment()
+            mixer.systemOutputVolume = 0.35
+            drain()
+            service.noteOwnVolumeAdjustment()
+            mixer.systemOutputMuted = true
+            drain()
+            suite.expect(service.presented.isEmpty,
+                   "the island's own level and mute controls leave the open header's title alone")
+            service.showCurrentVolume()
+            suite.expect(service.presented.count == 1 && service.notice?.level == 0,
+                   "a volume key right after an own adjustment still shows feedback")
+            service.presented.removeAll()
+            service.ownVolumeAdjustmentUntil = 0
+            mixer.systemOutputMuted = false
+            drain()
+            suite.expect(service.presented.count == 1 && service.notice?.level == 0.35,
+                   "a change after the own adjustment's moment shows in the open header again")
+            service.presented.removeAll()
+            service.expanded = false
+            service.noteOwnVolumeAdjustment()
+            mixer.systemOutputVolume = 0.5
+            drain()
+            suite.expect(service.presented.count == 1,
+                   "a closed island keeps its volume feedback whatever changed the level")
             service.presented.removeAll()
             service.subscriptions.removeAll()
             mixer.publish(device: "stopped-output", volume: 0.1, muted: false)

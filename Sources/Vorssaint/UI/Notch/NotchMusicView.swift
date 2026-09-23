@@ -206,7 +206,8 @@ struct NotchMusicView: View {
             ForEach(service.sources, id: \.pid) { source in
                 let title = source.displayName ?? NSRunningApplication(processIdentifier: source.pid)?.localizedName ?? source.bundleIdentifier
                 Button { service.selectSource(source.selection) } label: {
-                    if !service.sourceIsAutomatic, source.pid == pid {
+                    // The chosen row, even while the automatic player fills its gap.
+                    if source.pid == service.selectedSourcePID {
                         Label(title, systemImage: "checkmark")
                     } else { Text(title) }
                 }
@@ -220,6 +221,8 @@ struct NotchMusicView: View {
         .font(.system(size: 10, weight: .medium))
         .foregroundStyle(.secondary)
         .accessibilityLabel(extras.playbackSource)
+        .accessibilityValue([service.sourceIsAutomatic ? extras.automaticSource : nil,
+                             playback == nil ? nil : name].compactMap { $0 }.joined(separator: ", "))
         .help(extras.playbackSource)
     }
 }
@@ -233,6 +236,7 @@ private struct NotchMusicTransport: View {
     @ObservedObject private var service = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     private var height: CGFloat { compact ? 36 : 44 }
 
@@ -284,7 +288,8 @@ private struct NotchMusicTransport: View {
         .buttonStyle(NotchButtonStyle(cornerRadius: height / 2))
         .disabled(!service.canPerform(.toggle)
                   && (service.automationAvailability?.access != .consent || service.requestingAutomation))
-        .keyboardShortcut(.space, modifiers: [])
+        // A preview in Settings must not take Space from the window it sits in.
+        .keyboardShortcut(preview ? nil : KeyboardShortcut(.space, modifiers: []))
         .accessibilityLabel(text.mediaPlayPause)
         .help(service.automationAvailability?.access == .consent
               ? FeatureStrings.notchMusicExtras(l10n.language).allowPlayback : text.mediaPlayPause)

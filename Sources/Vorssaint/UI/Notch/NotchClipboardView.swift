@@ -113,6 +113,9 @@ struct NotchClipboardView: View {
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5)).foregroundStyle(.tertiary).lineLimit(1)
                 Spacer(minLength: 0)
+                if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                    NotchIconButton(symbol: "pencil", title: text.edit) { history.editImage(entry) }
+                }
                 NotchIconButton(symbol: copiedID == entry.id ? "checkmark" : "doc.on.doc",
                                 title: copiedID == entry.id ? text.copied : text.copy) { copy(entry) }
                 NotchIconButton(symbol: entry.isPinned ? "pin.fill" : "pin",

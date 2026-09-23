@@ -53,6 +53,8 @@ final class NotchDownloadService: ObservableObject {
     private var chooser: NSOpenPanel?
     var isChoosingFolder: Bool { chooser != nil }
     private var chooserID = UUID()
+    /// The pending chooser was begun from the island's Downloads page.
+    private var chooserInNotch = false
     private let queue = DispatchQueue(label: "com.vorssaint.notch.downloads", qos: .utility)
 
     private init() {}
@@ -90,9 +92,11 @@ final class NotchDownloadService: ObservableObject {
         let requested = UUID()
         chooserID = requested
         chooser = panel
+        chooserInNotch = beganInNotch
         let completed: (NSApplication.ModalResponse) -> Void = { [weak self, weak panel, weak parent] response in
             guard let self, let panel, self.chooser === panel, self.chooserID == requested else { return }
             self.chooser = nil
+            self.chooserInNotch = false
             guard !beganInNotch || parent.map(self.canReturnToDownloads) == true else { return }
             if response == .OK, let url = panel.url, AppFeature.notchDownloads.isAvailable {
                 do {
@@ -120,6 +124,8 @@ final class NotchDownloadService: ObservableObject {
             // chooser independent and above its parent instead, without
             // changing the pin; isChoosingFolder keeps the surface alive.
             panel.level = NSWindow.Level(rawValue: parent.level.rawValue + 1)
+            // Like the sheet it replaces, it stays up while another app is active.
+            panel.hidesOnDeactivate = false
             panel.begin(completionHandler: completed)
             NSApp.activate(ignoringOtherApps: true)
             // Activation alone can leave the nonactivating island holding focus.
@@ -155,8 +161,17 @@ final class NotchDownloadService: ObservableObject {
 
     private func cancelFolderChoice() {
         chooserID = UUID()
+        chooserInNotch = false
         chooser?.cancel(nil)
         chooser = nil
+    }
+
+    /// The island's Downloads page went away: a folder chosen now could no
+    /// longer return to it and would be dropped in silence, so its chooser
+    /// ends with it. One begun in Settings stays up.
+    func cancelNotchFolderChoice() {
+        guard chooserInNotch, chooser != nil else { return }
+        cancelFolderChoice()
     }
 
     func stop() {

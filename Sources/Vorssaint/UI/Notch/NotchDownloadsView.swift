@@ -36,6 +36,7 @@ struct NotchDownloadsView: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = false
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
@@ -72,6 +73,9 @@ struct NotchDownloadsView: View {
                 }
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Another section or a collapse takes the page away; its chooser
+        // could no longer return the folder here. Settings keeps its own.
+        .onDisappear { if !preview { downloads.cancelNotchFolderChoice() } }
     }
 
     private func downloadCard(_ item: NotchDownloadItem) -> some View {

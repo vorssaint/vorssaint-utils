@@ -433,6 +433,9 @@ final class ScreenshotService: ObservableObject {
                 case .edit:
                     self.openEditor(with: capture)
                     return [.edit]
+                case .pin:
+                    ScreenshotPinController.shared.pin(image: capture.image, scale: capture.scale)
+                    return [.pin]
                 case .copy:
                     return self.copyDirect(capture) ? [.copy] : []
                 case .save:
@@ -507,8 +510,12 @@ final class ScreenshotService: ObservableObject {
     private static func clipboardCapture(
         from pasteboard: NSPasteboard
     ) -> ScreenshotSelectionController.Capture? {
-        guard let image = clipboardImage(from: pasteboard),
-              image.size.width > 0, image.size.height > 0
+        guard let image = clipboardImage(from: pasteboard) else { return nil }
+        return imageCapture(from: image)
+    }
+
+    static func imageCapture(from image: NSImage) -> ScreenshotSelectionController.Capture? {
+        guard image.size.width > 0, image.size.height > 0
         else { return nil }
         var rect = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil),

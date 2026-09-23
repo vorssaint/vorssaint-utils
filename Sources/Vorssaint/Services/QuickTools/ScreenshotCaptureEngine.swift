@@ -193,7 +193,11 @@ enum ScreenshotCaptureEngine {
         guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                                     kCGNullWindowID) as? [[String: Any]]
         else { return [] }
-        return info.compactMap { entry in
+        return captureWindows(in: info)
+    }
+
+    private static func captureWindows(in info: [[String: Any]]) -> [ScreenshotCapturePolicy.CaptureWindow] {
+        info.compactMap { entry in
             guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
                   let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
                   let id = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
@@ -206,7 +210,8 @@ enum ScreenshotCaptureEngine {
                 frame: CGRect(x: boundsDict["X"] ?? 0,
                               y: boundsDict["Y"] ?? 0,
                               width: boundsDict["Width"] ?? 0,
-                              height: boundsDict["Height"] ?? 0))
+                              height: boundsDict["Height"] ?? 0),
+                isUntitled: (entry[kCGWindowName as String] as? String)?.isEmpty ?? true)
         }
     }
 
@@ -333,18 +338,19 @@ enum ScreenshotCaptureEngine {
                                                     kCGNullWindowID) as? [[String: Any]]
         else { return [] }
         let ownPID = Int32(ProcessInfo.processInfo.processIdentifier)
+        let decorations = ScreenshotCapturePolicy.decorationWindowIDs(frontToBack: captureWindows(in: info))
         return info.compactMap { entry in
             guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
                   let pid = entry[kCGWindowOwnerPID as String] as? Int32,
                   let id = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat]
             else { return nil }
-            guard ScreenshotCapturePolicy.canPickWindow(
+            guard !decorations.contains(id),
+                  ScreenshotCapturePolicy.canPickWindow(
                 id,
                 isOwnWindow: pid == ownPID,
                 hideVorssaintWindows: hideVorssaintWindows,
-                protectedWindowIDs: protectedWindowIDs,
-                ownerName: entry[kCGWindowOwnerName as String] as? String)
+                protectedWindowIDs: protectedWindowIDs)
             else { return nil }
             let bounds = CGRect(x: boundsDict["X"] ?? 0,
                                 y: boundsDict["Y"] ?? 0,

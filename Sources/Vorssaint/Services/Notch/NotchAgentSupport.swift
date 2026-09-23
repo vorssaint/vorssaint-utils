@@ -274,13 +274,6 @@ enum AgentFormat {
         return formatter.string(from: weeks ? DateComponents(weekOfMonth: count / 7) : DateComponents(day: count)) ?? ""
     }
 
-    /// A time of day, with its weekday once it is not today.
-    static func moment(_ date: Date, now: Date, locale: Locale, calendar: Calendar = .autoupdatingCurrent) -> String {
-        calendar.isDate(date, inSameDayAs: now)
-            ? date.formatted(.dateTime.hour().minute().locale(locale))
-            : date.formatted(.dateTime.weekday(.abbreviated).hour().minute().locale(locale))
-    }
-
     /// A running stopwatch: "0:42", "12:05", "1:02:05".
     static func clock(_ seconds: TimeInterval) -> String {
         let total = Int(max(0, seconds.isFinite ? seconds : 0))

@@ -21,6 +21,7 @@ final class ScreenshotQuickPreviewModel: ObservableObject {
 final class ScreenshotQuickPreviewController {
     enum Action {
         case edit
+        case pin
         case copy
         case save
         case saveAndCopy
@@ -493,6 +494,17 @@ private struct ScreenshotQuickPreviewView: View {
                 shareMenu
             }
             if !embedded { Spacer(minLength: 4) }
+            if embedded {
+                Button {
+                    perform(.pin)
+                } label: {
+                    Image(systemName: "pin").frame(width: 28, height: 28)
+                }
+                .modifier(ScreenshotPreviewActionStyle(embedded: true))
+                .controlSize(.small)
+                .screenshotSafeHelp(strings.pinButton)
+                .accessibilityLabel(strings.pinButton)
+            }
             Button { perform(.edit) } label: {
                 if embedded { Image(systemName: "pencil").frame(width: 28, height: 28) }
                 else { Text(strings.editButton) }
@@ -502,6 +514,23 @@ private struct ScreenshotQuickPreviewView: View {
             .controlSize(.small)
             .screenshotSafeHelp("\(strings.editButton)  (⏎)")
         }
+    }
+
+    private var thumbnailPinButton: some View {
+        Button {
+            perform(.pin)
+        } label: {
+            Image(systemName: "pin")
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 24, height: 24)
+                .background(.regularMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(6)
+        .screenshotSafeHelp(strings.pinButton)
+        .accessibilityLabel(strings.pinButton)
     }
 
     private var preview: some View {
@@ -526,6 +555,12 @@ private struct ScreenshotQuickPreviewView: View {
             .onDrag(dragItem)
             .screenshotSafeHelp(strings.editButton)
             .accessibilityLabel(strings.editButton)
+            .overlay(alignment: .topTrailing) {
+                // The floating action row already fills its fixed width in
+                // longer languages, so the pin rides on the thumbnail there
+                // instead of squeezing Save, Copy and Edit.
+                if !embedded { thumbnailPinButton }
+            }
 
             if let record = model.sharedRecord {
                 sharedLinkRow(record)

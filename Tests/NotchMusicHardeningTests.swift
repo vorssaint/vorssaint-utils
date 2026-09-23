@@ -38,6 +38,7 @@ enum NotchLyricsContract {
     final class Panel {
         static weak var current: Panel?
         var level = Window.Level(rawValue: 0)
+        var hidesOnDeactivate = true
         var cancelled = false
         var focused = false
         var allowedContentTypes: [UTType] = []
@@ -144,6 +145,7 @@ enum NotchMusicHardeningTests {
     static func run(_ suite: TestSuite) {
         sourcePriority(suite)
         sourceSwitching(suite)
+        sourceRestore(suite)
         artworkInheritance(suite)
         NotchPlaybackRoutingTests.run(suite)
         lyricExpansion(suite)
@@ -188,6 +190,27 @@ enum NotchMusicHardeningTests {
                      "a discovered source is selectable from the empty playback state")
         suite.expect(!service.send(.toggle) && !service.send(.next) && !service.send(.seek(10)),
                      "allowing source selection without playback never enables transport commands")
+        let written = service.input?.fileHandleForWriting.written.count ?? 0
+        service.playback = current
+        service.selectSource(nil)
+        service.queue.drain()
+        suite.expect(service.playback == current && service.input?.fileHandleForWriting.written.count == written,
+                     "choosing Automatic while it is already in effect leaves the page and the adapter alone")
+        service.sourceIsAutomatic = false
+        service.selectedSourcePID = 42
+        service.sources = [browser, NotchPlaybackSource(pid: 42, bundleIdentifier: "test.music", isMusicApp: true,
+                                                        isPlaying: true, hasTrack: true)]
+        service.selectSource(.init(pid: 42, bundleIdentifier: "test.music"))
+        service.queue.drain()
+        suite.expect(service.playback == current && service.input?.fileHandleForWriting.written.count == written,
+                     "choosing the source already shown leaves the page and the adapter alone")
+        // The chosen browser waits for its next video while music fills the gap.
+        service.selectedSourcePID = 202
+        service.selectSource(browser.selection)
+        service.queue.drain()
+        suite.expect(service.playback == current && service.input?.fileHandleForWriting.written.count == written,
+                     "choosing the source that waits for its next track leaves the stand-in shown")
+        service.playback = nil
         service.selectSource(nil)
         service.queue.drain()
         let automatic = service.input?.fileHandleForWriting.written.last.flatMap {
@@ -195,6 +218,48 @@ enum NotchMusicHardeningTests {
         }
         suite.expect(automatic == NotchPlaybackRequest(command: .source(nil)),
                      "a selected source that is not responding can be released from the empty state")
+        service.stop()
+    }
+
+    /// The adapter keeps a choice only while it runs, and it stops on lock,
+    /// sleep or when the page closes. The service gives the choice back.
+    private static func sourceRestore(_ suite: TestSuite) {
+        typealias Contract = NotchMusicCommandContract
+        Contract.DispatchQueue.main = Contract.Scheduler()
+        defer { Contract.DispatchQueue.main = Contract.Scheduler() }
+        let service = Contract.Service()
+        let browser = NotchPlaybackSource(pid: 202, bundleIdentifier: "test.browser", isMusicApp: false,
+                                          isPlaying: true, hasTrack: true)
+        func lastRequest() -> NotchPlaybackRequest? {
+            service.queue.drain()
+            let line = service.input?.fileHandleForWriting.written.last.flatMap { String(data: $0, encoding: .utf8) }
+            return line.flatMap { NotchPlaybackRequest(message: $0.trimmingCharacters(in: .newlines)) }
+        }
+        let restore = NotchPlaybackRequest(command: .source(browser.selection))
+        service.start()
+        service.sources = [browser]
+        service.selectSource(browser.selection)
+        service.stop()
+        service.start()
+        suite.expect(lastRequest() == restore && service.restoringSource,
+                     "locking, sleeping or closing the page gives the next adapter the chosen source back")
+        suite.expect(!service.acceptsSourceReply(automatic: true, sources: [browser]),
+                     "the new adapter's reading from before the restored choice is not shown")
+        suite.expect(service.acceptsSourceReply(automatic: true, sources: [browser]),
+                     "only that one reading is held back")
+        suite.expect(service.chosenSource == browser.selection, "a choice the adapter still lists is kept")
+        service.connectionEnded()
+        Contract.DispatchQueue.main.drain()
+        suite.expect(lastRequest() == restore, "an adapter restarted after it ended gets the choice back as well")
+        suite.expect(service.acceptsSourceReply(automatic: true, sources: []) && service.chosenSource == nil,
+                     "a choice the adapter reports gone is forgotten")
+        service.connectionEnded()
+        Contract.DispatchQueue.main.drain()
+        suite.expect(lastRequest() == nil && !service.restoringSource, "a forgotten choice is not restored")
+        service.selectSource(browser.selection)
+        service.sourceIsAutomatic = false
+        service.selectSource(nil)
+        suite.expect(service.chosenSource == nil, "choosing Automatic forgets the choice")
         service.stop()
     }
 
@@ -285,6 +350,13 @@ enum NotchMusicHardeningTests {
         suite.expect(NotchPlaybackSource.decode([malformed]).isEmpty
                      && NotchPlaybackSource.decode(Array(repeating: browser.reply, count: 17)).isEmpty,
                      "invalid and unbounded source replies cannot populate the chooser")
+        var waiting = browser.reply
+        waiting["hasTrack"] = false
+        let chosen = NotchPlaybackSource.decode([waiting], selectedPID: 20).first
+        suite.expect(NotchPlaybackSource.decode([waiting]).isEmpty && chosen?.pid == 20 && chosen?.hasTrack == false,
+                     "a source without a track is listed only while it is the chosen one")
+        suite.expect(NotchPlaybackSource.decodePID(20) == 20 && NotchPlaybackSource.decodePID(true) == nil,
+                     "the chosen source's process is validated like a listed one")
         for command in [NotchPlaybackCommand.source(browser.selection), .source(nil)] {
             let request = NotchPlaybackRequest(command: command)
             suite.expect(request.message.flatMap(NotchPlaybackRequest.init(message:)) == request,
@@ -417,7 +489,7 @@ enum NotchMusicHardeningTests {
                 service.importLyrics()
                 guard let panel = service.importPanel else { suite.expect(false, "a visible lyrics surface can choose a file"); continue }
                 suite.expect(panel.parent == nil && !parent.attached && panel.focused && panel.level.rawValue > parent.level.rawValue
-                       && notch.expanded && notch.pinned == pinned,
+                       && !panel.hidesOnDeactivate && notch.expanded && notch.pinned == pinned,
                        "lyrics imports focus a standalone chooser above the island without moving it or changing its pin")
                 panel.url = file
                 panel.finish(.OK)
@@ -698,6 +770,23 @@ enum NotchMusicHardeningTests {
         Contract.DispatchQueue.main.drain()
         suite.expect(service.launches == replacementLaunches,
                "a delayed recovery from an ended subscription cannot launch inside its replacement")
+        // Two quick exits spend the budget. An adapter that then runs for over
+        // a minute before it ends is not crash looping.
+        service.connectionEnded()
+        Contract.DispatchQueue.main.drain()
+        service.connectionEnded()
+        Contract.DispatchQueue.main.drain()
+        service.uptime += 61
+        let budgetLaunches = service.launches
+        service.connectionEnded()
+        Contract.DispatchQueue.main.drain()
+        suite.expect(service.launches == budgetLaunches + 1,
+               "an adapter that ran for over a minute gets a fresh restart budget")
+        service.connectionEnded()
+        Contract.DispatchQueue.main.drain()
+        service.connectionEnded()
+        suite.expect(Contract.DispatchQueue.main.jobs.isEmpty && !service.awaitingPlayback,
+               "quick exits after that still stop after two retries")
 
         for raw: Any in [true, 0, -1, 42.5, Double(Int32.max) + 1] {
             suite.expect(NotchPlaybackContext(reply: ["pid": raw, "playbackRevision": UUID().uuidString]) == nil,

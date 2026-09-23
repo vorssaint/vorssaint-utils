@@ -52,6 +52,9 @@ enum NotchPlaybackRoutingContract {
     static var reply: [String: Any] = [:]
     static var sources: [NotchPlaybackSource] = []
     static var selection: NotchPlaybackSource.Selection?
+    static var releaseAt: TimeInterval?
+    /// Stands in for the system uptime read by the extracted selection.
+    static var uptime: TimeInterval = 0
     static var refreshes = 0
     static var discovering = false
     static var applications: [NSRunningApplication] = []
@@ -191,7 +194,24 @@ enum NotchPlaybackRoutingTests {
         unidentified.itemIdentifier = nil
         suite.expect(!Adapter.send(2, to: unidentified) && Adapter.command == nil,
                "native commands require the receiver's content identity")
+        replyEncoding(suite)
         recordingContext(suite)
+    }
+
+    /// JSONSerialization raises an exception `try?` cannot catch on NaN or
+    /// infinity, which would end the adapter mid-reply.
+    private static func replyEncoding(_ suite: TestSuite) {
+        typealias Adapter = NotchPlaybackRoutingContract
+        let reply: [String: Any] = ["kMRMediaRemoteNowPlayingInfoDuration": Double.infinity,
+                                    "kMRMediaRemoteNowPlayingInfoElapsedTime": Double.nan,
+                                    "kMRMediaRemoteNowPlayingInfoPlaybackRate": 1.0,
+                                    "pid": Int32(20)]
+        let decoded = (try? JSONSerialization.jsonObject(with: Adapter.encodedReply(reply))) as? [String: Any]
+        suite.expect(decoded?.count == 2 && decoded?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? Double == 1,
+                     "a live stream's non-finite duration or position is left out of an otherwise intact reply")
+        let nested: [String: Any] = ["sources": [["pid": -Double.infinity]]]
+        let fallback = String(data: Adapter.encodedReply(nested), encoding: .utf8)
+        suite.expect(fallback == "{\"error\":\"json\"}", "any other invalid value reads as an error instead of ending the adapter")
     }
 
     private static func recordingContext(_ suite: TestSuite) {
@@ -318,6 +338,8 @@ enum NotchPlaybackRoutingTests {
             Adapter.sources = []
             Adapter.selection = nil
             Adapter.selected = nil
+            Adapter.releaseAt = nil
+            Adapter.uptime = 0
         }
         _ = Adapter.select()
         let browser = NotchPlaybackSource.Selection(pid: 20, bundleIdentifier: "test.player.20")
@@ -344,9 +366,40 @@ enum NotchPlaybackRoutingTests {
                      "a failed discovery clears unavailable rows without resetting the manual choice")
         Adapter.available = true
         suite.expect(Adapter.select()?.pid == 20, "discovery recovery restores the chosen source")
+        // A browser clears its track between videos.
         Adapter.sourceMetadata[20] = [:]
-        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection == nil,
-                     "a confirmed loss of track releases manual selection")
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection == browser,
+                     "a chosen source without a track keeps the choice while the automatic player shows")
+        suite.expect(Adapter.sources.contains(where: { $0.pid == 20 && !$0.hasTrack })
+                     && Adapter.sourceReply["selectedPID"] as? Int32 == 20,
+                     "the chooser keeps the chosen row and its mark while it waits for a track")
+        Adapter.uptime = 4
+        Adapter.sourceMetadata[20] = ["kMRMediaRemoteNowPlayingInfoTitle": "Next video"]
+        suite.expect(Adapter.select()?.pid == 20 && Adapter.selection == browser,
+                     "the chosen source shows again with its next track")
+        Adapter.sourceMetadata[20] = [:]
+        _ = Adapter.select()
+        Adapter.uptime = 8
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection == browser,
+                     "a track seen again restarts the five-second wait")
+        Adapter.uptime = 9
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection == nil
+                     && !Adapter.sources.contains(where: { $0.pid == 20 }),
+                     "a chosen source still without a track after five seconds releases the choice")
+        Adapter.registeredPIDs = [10, 20, 30]
+        Adapter.sourceMetadata[20] = ["kMRMediaRemoteNowPlayingInfoTitle": "Browser track"]
+        _ = Adapter.select()
+        Adapter.choose(browser)
+        Adapter.sourceMetadata[20] = [:]
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection == browser,
+                     "choosing a released source again starts a fresh wait")
+        Adapter.uptime = 13
+        Adapter.choose(.init(pid: 30, bundleIdentifier: "test.player.30"))
+        Adapter.sourceMetadata[30] = [:]
+        Adapter.uptime = 15
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection?.pid == 30,
+                     "a new choice starts its own wait instead of inheriting the previous one")
+        Adapter.sourceMetadata[30] = ["kMRMediaRemoteNowPlayingInfoTitle": "Track 30", "kMRMediaRemoteNowPlayingInfoPlaybackRate": 1]
         Adapter.sourceMetadata[20] = ["kMRMediaRemoteNowPlayingInfoTitle": "Browser track"]
         Adapter.registeredPIDs = [10, 20, 30]
         _ = Adapter.select()

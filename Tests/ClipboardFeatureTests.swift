@@ -556,6 +556,7 @@ enum ClipboardFeatureTests {
                     "the secret mark keeps the exact name the apps that write it use")
 
         ClipboardHistoryWriteTests.run(suite)
+        ClipboardHistoryImageEditorTests.run(suite)
         ClipboardHistoryAccessTests.run(suite)
 
         let pasteboardAccess = GeneralPasteboardAccess(label: "Vorssaint.Tests.PasteboardAccess")

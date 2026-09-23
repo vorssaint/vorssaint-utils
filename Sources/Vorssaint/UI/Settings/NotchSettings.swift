@@ -100,7 +100,7 @@ struct NotchSettings: View {
                 Toggle(text.enable, isOn: $enabled).labelsHidden().toggleStyle(.switch)
                     .disabled(!AppFeature.notch.isAvailable).accessibilityLabel(text.enable)
             }
-            if enabled, AppFeature.notch.isAvailable, !(hover && hideUntilHover), !coversMenus, !notch.geometry.isNotched, !permissions.accessibility {
+            if enabled, AppFeature.notch.isAvailable, !(hover && hideUntilHover), !notch.geometry.isNotched, !permissions.accessibility {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(text.menuBarAccessHint)
                         .font(.callout).foregroundStyle(.secondary)
@@ -231,7 +231,7 @@ struct NotchSettings: View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(editor.sections).font(.headline)
-                Text(editor.reorderHint).font(.caption).foregroundStyle(.secondary)
+                Text(editor.sectionsHint).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 6)
@@ -366,7 +366,7 @@ struct NotchSettings: View {
                     idleChoice(.battery, title: text.battery, symbol: "battery.75percent")
                     idleChoice(.music, title: text.music, symbol: "music.note")
                     // Offered once the section is on; the island would show nothing before.
-                    if agentsEnabled, NotchAgentSupport.isEnabled() {
+                    if offersAgentsResting {
                         idleChoice(.agents, title: FeatureStrings.notchAgents(l10n.language).restingTitle, symbol: "sparkles")
                     }
                 }
@@ -560,6 +560,15 @@ struct NotchSettings: View {
                         reservesReason: reservesReason) { value.wrappedValue.toggle() }
     }
 
+    private var offersAgentsResting: Bool { agentsEnabled && NotchAgentSupport.isEnabled() }
+
+    /// What the closed island rests with. A saved AI reading waits, unchanged,
+    /// while its section is off, and the island rests empty meanwhile.
+    private var restingChoice: NotchIdleContent {
+        let choice: NotchIdleContent = NotchIdleContent(rawValue: idle) ?? .none
+        return choice == .agents && !offersAgentsResting ? .none : choice
+    }
+
     private func idleChoice(_ item: NotchIdleContent, title: String, symbol: String) -> some View {
         Button { idle = item.rawValue } label: {
             VStack(spacing: 14) {
@@ -573,8 +582,8 @@ struct NotchSettings: View {
                 }.foregroundStyle(.white).padding(10).background(.black, in: Capsule())
                 Text(title).font(.system(size: 11, weight: .medium))
             }.frame(maxWidth: .infinity).padding(.vertical, 14)
-                .background((NotchIdleContent(rawValue: idle) ?? .none) == item ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-        }.buttonStyle(.plain).accessibilityAddTraits((NotchIdleContent(rawValue: idle) ?? .none) == item ? .isSelected : [])
+                .background(restingChoice == item ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+        }.buttonStyle(.plain).accessibilityAddTraits(restingChoice == item ? .isSelected : [])
     }
 
     private func destination(_ title: String, symbol: String, value: Binding<Bool>, available: Bool = true) -> some View {

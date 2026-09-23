@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
 
 /// Main-thread capture admission. Expiring a result does not release the
 /// actual queued read; stop/start must not release it either.
@@ -616,6 +616,13 @@ enum ClipboardHistorySensitiveText {
 }
 
 enum ClipboardHistoryImageSupport {
+    static func editorImage(for entry: ClipboardHistoryEntry, directory: URL) -> NSImage? {
+        guard entry.kind == .image, let name = entry.imageFile,
+              !name.isEmpty, (name as NSString).lastPathComponent == name
+        else { return nil }
+        return NSImage(contentsOf: directory.appendingPathComponent(name))
+    }
+
     static let imageExtensions: Set<String> = [
         "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "webp", "bmp", "ico", "icns", "svg", "avif"
     ]

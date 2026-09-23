@@ -1597,16 +1597,16 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.0-beta.3",
+        suite.expect(plistVersion == "3.4.0-beta.4",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "90",
+        suite.expect(plistBuild == "91",
                "every app version needs its own incremented bundle build")
         suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
                "the support prompt remains deliberately pinned to 3.3.2")
         suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0-beta.1",
                "the prepared tour belongs to the first 3.4 beta without changing the installed version")
-        for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.10"] {
+        for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.10"] {
             suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
                    && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: "3.3.3"),
                    "the notch tour introduces this beta cycle to new and returning users")
@@ -3898,6 +3898,40 @@ enum SwitcherModelFeatureTests {
                && appGroups[0].windowCount == 2
                && appGroups[1].representativeIndex == 2,
                "App Switcher icon-row mode keeps one row entry per app")
+        let windowlessApps = [SwitcherItem.appOnly(appName: "Gamma", pid: 303),
+                              SwitcherItem.appOnly(appName: "Delta", pid: 404)]
+        let dividerViewSource = switcherCardSource
+            .replacingOccurrences(of: #"(?s)/\*.*?\*/|//[^\n]*"#, with: "", options: .regularExpression)
+            .filter { !$0.isWhitespace }
+        suite.expect(dividerViewSource.contains("SwitcherSupport.windowlessAppDividerPIDs("),
+               "the switcher view uses the windowless-app boundary decision")
+        let dividerPresentation = sourceBody(of: dividerViewSource, from: ".separatorColor", to: ".onHover")
+        suite.expect(dividerPresentation.contains(".allowsHitTesting(false)")
+               && dividerPresentation.contains(".accessibilityHidden(true)"),
+               "the switcher renders a system-colored windowless-app divider without pointer or accessibility targets")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: []) == [],
+               "an empty app row has no windowless divider")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: groupedSwitcherItems) == []
+               && SwitcherSupport.windowlessAppDividerPIDs(items: windowlessApps) == [],
+               "a row with only one kind of app has no divider")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: groupedSwitcherItems + windowlessApps) == [303],
+               "windowless apps are separated once after all windows of the preceding apps")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [groupedSwitcherItems[0],
+                                                               windowlessApps[0],
+                                                               groupedSwitcherItems[2],
+                                                               windowlessApps[1]]) == [303, 202, 404],
+               "dividers follow each windowless boundary without changing recent-use order")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [windowlessApps[0],
+                                                               groupedSwitcherItems[0]]) == [101],
+               "a leading windowless group has a divider after it, never before the first icon")
+        let dividerHiddenWindow = SwitcherItem.window(id: 4, title: "Hidden", appName: "Hidden", pid: 505,
+                                                      isOnScreen: false, isAppHidden: true, frame: .zero)
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [groupedSwitcherItems[0].withMinimized(true),
+                                                               dividerHiddenWindow] + windowlessApps) == [303],
+               "minimized and hidden windows still belong to apps with windows")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [SwitcherItem.appOnly(appName: "Alpha", pid: 101)]
+                                                        + groupedSwitcherItems + windowlessApps) == [303],
+               "an app with any real window is never marked windowless by an app-only entry")
         var cappedAppWindows: [SwitcherItem] = []
         var cappedAppRepresentatives: [SwitcherItem] = []
         for appIndex in 1...25 {
@@ -4056,6 +4090,8 @@ enum SwitcherModelFeatureTests {
         let afterSecondSwitch = WindowUseOrder.promoting(1, previous: 2, in: afterFirstSwitch)
         suite.expect(afterSecondSwitch == [1, 2],
                "App Switcher use history toggles back after two consecutive switcher uses")
+
+        WindowFocusHistoryTests.run { suite.expect($0, $1) }
 
         // Issue #388: the switcher put the app the user had just used far down
         // the list. The order used to come from a history that only the

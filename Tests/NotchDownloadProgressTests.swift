@@ -72,6 +72,21 @@ enum NotchDownloadProgressTests {
         try FileManager.default.removeItem(at: image)
         suite.expect(NotchDownloadSupport.scanFolder(root)?.files.contains { $0.url.path == image.path } == false,
                "deleted files disappear from the next folder snapshot")
+        let crowded = folder.resolvingSymlinksInPath().appendingPathComponent("crowded")
+        try FileManager.default.createDirectory(at: crowded, withIntermediateDirectories: true)
+        for index in 0..<(NotchDownloadSupport.maximumListedFiles + 20) {
+            try Data().write(to: crowded.appendingPathComponent("entry-\(index)"))
+        }
+        let listed = NotchDownloadSupport.scanFolder(crowded)?.files ?? []
+        let listedNames = Set(listed.map(\.name))
+        let unlistedDates = try FileManager.default.contentsOfDirectory(at: crowded,
+            includingPropertiesForKeys: Array(NotchDownloadSupport.keys))
+            .filter { !listedNames.contains($0.lastPathComponent) }
+            .compactMap { try? $0.resourceValues(forKeys: NotchDownloadSupport.keys) }
+            .map { $0.addedToDirectoryDate ?? $0.creationDate ?? $0.contentModificationDate ?? .distantPast }
+        suite.expect(listed.count == NotchDownloadSupport.maximumListedFiles && unlistedDates.count == 20
+                     && unlistedDates.allSatisfy { date in listed.allSatisfy { $0.date >= date } },
+               "a crowded folder hands the main queue only its newest entries")
     }
 
     private static func progressAndCompletion(folder: URL, suite: TestSuite) throws {

@@ -176,10 +176,17 @@ private struct NotchMasterFader: View {
     private var level: Double? { mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 } }
     private var muted: Bool { mixer.systemOutputMuted == true }
 
+    /// The fader already shows the level it sets, so the open header keeps
+    /// its title instead of repeating it.
+    private func adjustOutput(volume: Double? = nil, muted: Bool? = nil) {
+        NotchService.shared.noteOwnVolumeAdjustment()
+        mixer.requestOutputAdjustment(volume: volume, muted: muted)
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             Button {
-                if let muted = mixer.systemOutputMuted { mixer.requestOutputAdjustment(muted: !muted) }
+                if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
             } label: {
                 Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(.system(size: 15, weight: .medium))
@@ -193,13 +200,13 @@ private struct NotchMasterFader: View {
             .disabled(mixer.systemOutputMuted == nil)
             .accessibilityLabel(muted ? l10n.s.actionUnmute : l10n.s.actionMute)
             if let level {
-                NotchLevelSlider(value: Binding(get: { level }, set: { mixer.requestOutputAdjustment(volume: $0) }),
+                NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
                                  label: l10n.s.mixerSystemOutputTitle, vertical: true, trackThickness: 28)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
                 NotchEditablePercent(percent: Int((level * 100).rounded()), maximum: 100,
                                      editorID: "notch-system-output", editingID: $editingVolumeID,
                                      label: l10n.s.mixerSystemOutputTitle, height: 28) {
-                    mixer.requestOutputAdjustment(volume: $0)
+                    adjustOutput(volume: $0)
                 }
             } else {
                 Text(l10n.s.mixerOutputUnavailable).font(.system(size: 10)).foregroundStyle(.secondary)

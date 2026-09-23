@@ -113,6 +113,8 @@ final class NotchLyricsService: ObservableObject {
         // An attached sheet moves/reskins a borderless island. Keep the chooser
         // independent and above its parent instead, without changing the pin.
         panel.level = NSWindow.Level(rawValue: parent.level.rawValue + 1)
+        // Like the sheet it replaces, it stays up while another app is active.
+        panel.hidesOnDeactivate = false
         importPanel = panel
         let requested = generation
         panel.begin { [weak self, weak panel, weak parent] response in

@@ -111,10 +111,14 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     }
 
     func closeNative(_ id: UUID) -> Bool {
-        beginRead()
         // Closing persistent alerts can stop alarms. Only transient banners
         // may be replaced automatically; validate their current container too.
-        guard allowsNativeClose(), read() != nil, let target = validatedTarget(id), target.transient,
+        guard allowsNativeClose(), read() != nil else { return false }
+        // The refresh can spend nearly the whole traversal on a large stack.
+        // Validation gets a budget of its own so a busy center does not leave
+        // the banner open; a check it cannot finish still closes nothing.
+        beginRead()
+        guard let target = validatedTarget(id), target.transient,
               let action = NotchNotificationSupport.closeAction(in: actions(target.root), title: nativeCloseTitle),
               usable, allowsNativeClose() else { return false }
         return access.perform(action, on: target.root)

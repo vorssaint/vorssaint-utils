@@ -31,16 +31,31 @@ enum NotchNativePlayback {
     private static var context: NotchPlaybackContext?
     private static var sources: [NotchPlaybackSource] = []
     private static var selection: NotchPlaybackSource.Selection?
+    /// System uptime at which the chosen source, still without a track, is
+    /// released. A monotonic clock, so changing the time cannot stretch it.
+    private static var releaseAt: TimeInterval?
 
     static var sourceReply: [String: Any] {
         lock.lock(); defer { lock.unlock() }
-        return ["sources": sources.map(\.reply), "sourceIsAutomatic": selection == nil]
+        var reply: [String: Any] = ["sources": sources.map(\.reply), "sourceIsAutomatic": selection == nil]
+        // The chosen source stays marked while the automatic player fills a gap.
+        reply["selectedPID"] = selection?.pid
+        return reply
+    }
+
+    /// When the chosen source, waiting for its next track, is due for release.
+    /// Nil once that time has passed, so a failed read never repeats at once.
+    static var pendingRelease: TimeInterval? {
+        lock.lock(); defer { lock.unlock() }
+        guard selection != nil, let releaseAt, releaseAt > ProcessInfo.processInfo.systemUptime else { return nil }
+        return releaseAt
     }
 
     static func choose(_ requested: NotchPlaybackSource.Selection?) {
         lock.lock(); defer { lock.unlock() }
         guard requested == nil || sources.contains(where: { $0.selection == requested && $0.hasTrack }) else { return }
         selection = requested
+        releaseAt = nil
     }
 
     private struct Identity: Equatable {
@@ -158,20 +173,33 @@ enum NotchNativePlayback {
         resultsLock.lock()
         let ready = candidates
         resultsLock.unlock()
+        let now = ProcessInfo.processInfo.systemUptime
         lock.lock()
-        sources = ready.map(\.1).filter(\.hasTrack).sorted { $0.pid < $1.pid }
         if let selection {
             let app = NSRunningApplication(processIdentifier: selection.pid)
             let ended = app == nil || app?.isTerminated == true || app?.bundleIdentifier != selection.bundleIdentifier
             let lostTrack = ready.contains { $0.1.selection == selection && !$0.1.hasTrack }
-            if ended || lostTrack { self.selection = nil }
+            if ready.contains(where: { $0.1.selection == selection && $0.1.hasTrack }) { releaseAt = nil }
+            // A browser clears its track between videos. The choice outlasts
+            // five seconds without one, while the automatic player fills in.
+            if lostTrack, releaseAt == nil { releaseAt = now + 5 }
+            let expired = releaseAt.map { now >= $0 } == true
+            if ended || expired {
+                self.selection = nil
+                releaseAt = nil
+            }
         }
         let requested = selection
+        let bridging = requested != nil && releaseAt != nil
+        // The chooser keeps the chosen row, and its checkmark, during a gap.
+        sources = ready.map(\.1).filter { $0.hasTrack || bridging && $0.selection == requested }
+            .sorted { $0.pid < $1.pid }
         lock.unlock()
         discovered = true
         // An unanswered selected player stays selected, but exposes no stale
         // controls. The empty surface still lets the user choose another one.
-        if let requested, !ready.contains(where: { $0.1.selection == requested && $0.1.hasTrack }) { return nil }
+        if let requested, !bridging,
+           !ready.contains(where: { $0.1.selection == requested && $0.1.hasTrack }) { return nil }
         let source = NotchPlaybackSource.preferred(in: ready.map(\.1), previousPID: target?.pid,
                                                    systemPID: currentPID, selection: requested)
         guard var chosen = ready.first(where: { $0.1 == source })?.0 else { return nil }

@@ -214,6 +214,7 @@ enum ScratchpadExportContract {
         var url: URL?
         var parent: Window?
         var level = Window.Level(rawValue: 0)
+        var hidesOnDeactivate = true
         var standalone = false
         var focused = false
         var modalCalls = 0
@@ -257,9 +258,16 @@ enum ScratchpadExportContract {
         typealias DispatchQueue = Queue
         typealias NotchService = Island
         typealias QuickToolHUD = HUD
+        static let padID = UUID()
         var NSApp = Application()
         var panel: Window?
-        var text = "Notes to export"
+        var document: ScratchpadDocument? = ScratchpadDocument.initial(
+            defaultName: "Notes", id: Fixture.padID, text: "Notes to export")
+        var selectedPadID: UUID? = Fixture.padID
+        /// Like the service, every edit lands in the document's selected pad.
+        var text = "Notes to export" {
+            didSet { document?.updateSelectedText(text, modifiedAt: Date()) }
+        }
         var modalInteractionActive = false
         var flushes = 0
         func flushSave() { flushes += 1 }
@@ -310,7 +318,7 @@ enum ScratchpadExportContract {
                                      "floating-pad export returns focus only to its own host")
                     } else {
                         suite.expect(panel.parent == nil && panel.standalone && panel.focused && panel.modalCalls == 0
-                                     && panel.level.rawValue > island.level.rawValue,
+                                     && panel.level.rawValue > island.level.rawValue && !panel.hidesOnDeactivate,
                                      "island export opens its own dialog above its host instead of attaching or opening behind it")
                         panel.finish(response)
                         suite.expect(island.focusCount == 0, "completion defers focus until dismissal finishes")
@@ -320,10 +328,11 @@ enum ScratchpadExportContract {
                     }
                     suite.expect(!service.modalInteractionActive, "completion releases the export guard")
                     let saved = try String(contentsOf: destination, encoding: .utf8)
-                    suite.expect(saved == (response == .OK ? "Notes to export" : "Previous file"),
-                                 "export preserves its captured text and cancellation never writes")
+                    suite.expect(saved == (response == .OK ? "A later edit" : "Previous file"),
+                                 "export writes the pad as it is when the save is confirmed and cancellation never writes")
                 }
             }
+            try editsWhileOpen(suite, root: root)
             let service = Service()
             let island = Window()
             Island.shared.presentationWindow = island
@@ -341,5 +350,37 @@ enum ScratchpadExportContract {
         } catch {
             suite.expect(false, "export fixture completes: \(error)")
         }
+    }
+
+    /// The island's dialog does not block its pad. Choosing another tab
+    /// meanwhile still saves the pad that asked; closing that pad reports the
+    /// failed export and writes nothing.
+    private static func editsWhileOpen(_ suite: TestSuite, root: URL) throws {
+        let island = Window()
+        Island.shared.presentationWindow = island
+        let switching = Service()
+        let chosen = root.appendingPathComponent("chosen.txt")
+        switching.exportText(suggestedName: "Notes.txt", from: island)
+        switching.document = switching.document?.addingPad(defaultName: "Notes")
+        switching.text = "Another pad"
+        Panel.latest?.url = chosen
+        Panel.latest?.finish(.OK)
+        Queue.drain()
+        let exported = try String(contentsOf: chosen, encoding: .utf8)
+        suite.expect(exported == "Notes to export", "choosing another tab during export still saves the pad that asked")
+
+        let closing = Service()
+        let kept = root.appendingPathComponent("kept.txt")
+        try "Previous file".write(to: kept, atomically: true, encoding: .utf8)
+        closing.exportText(suggestedName: "Notes.txt", from: island)
+        let added = closing.document?.addingPad(defaultName: "Notes")
+        closing.document = added?.removing(Fixture.padID)
+        let failures = HUD.errors
+        Panel.latest?.url = kept
+        Panel.latest?.finish(.OK)
+        Queue.drain()
+        let untouched = try String(contentsOf: kept, encoding: .utf8)
+        suite.expect(untouched == "Previous file" && HUD.errors == failures + 1,
+                     "a pad closed while its dialog is open reports the failed export and writes nothing")
     }
 }

@@ -33,6 +33,8 @@ private let maximumArtworkBytes = 12 * 1_024 * 1_024
 // Only the watch process enables this cache. Its reads run serially.
 private var watching = false
 private var previousArtwork: Data?
+/// Set by the watch process: schedules another read at a system uptime.
+private var readAt: ((TimeInterval) -> Void)?
 
 func function<T>(_ handle: UnsafeMutableRawPointer?, _ name: String, as type: T.Type) -> T? {
     guard let handle, let symbol = dlsym(handle, name) else { return nil }
@@ -41,8 +43,20 @@ func function<T>(_ handle: UnsafeMutableRawPointer?, _ name: String, as type: T.
 
 private let emissionLock = NSLock()
 
+/// JSONSerialization raises an Objective-C exception on NaN or infinity,
+/// which `try?` cannot catch. A player can report either for a live stream,
+/// so such a number is left out; any other invalid value reads as an error.
+func encodedReply(_ reply: [String: Any]) -> Data {
+    let finite = reply.filter { ($0.value as? Double)?.isFinite != false }
+    guard JSONSerialization.isValidJSONObject(finite),
+          let data = try? JSONSerialization.data(withJSONObject: finite) else {
+        return Data("{\"error\":\"json\"}".utf8)
+    }
+    return data
+}
+
 func emit(_ reply: [String: Any]) {
-    let data = (try? JSONSerialization.data(withJSONObject: reply)) ?? Data("{\"error\":\"json\"}".utf8)
+    let data = encodedReply(reply)
     emissionLock.lock()
     defer { emissionLock.unlock() }
     FileHandle.standardOutput.write(data)
@@ -58,6 +72,9 @@ public func vorssaintNowPlayingGet() {
         return
     }
     let selected = watching ? NotchNativePlayback.select() : nil
+    // No player may report a change while the chosen source waits for its
+    // next track. Read again when that wait ends, so the release shows.
+    if watching, let release = NotchNativePlayback.pendingRelease { readAt?(release) }
     if watching, selected == nil {
         NotchNativePlayback.publish(nil)
         previousArtwork = nil
@@ -200,6 +217,10 @@ public func vorssaintNowPlayingWatch() {
         let work = DispatchWorkItem { vorssaintNowPlayingGet() }
         pending = work
         reader.asyncAfter(deadline: .now() + 0.12, execute: work)
+    }
+    readAt = { uptime in
+        let delay = max(0, uptime - ProcessInfo.processInfo.systemUptime)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { refresh() }
     }
     let observers = names.map { name in
         NotificationCenter.default.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { _ in refresh() }

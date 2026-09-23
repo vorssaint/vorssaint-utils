@@ -303,7 +303,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// The island's dialog floats just above it: a sheet would move and
     /// reskin the borderless surface.
     func exportText(suggestedName: String, from window: NSWindow? = nil) {
-        guard !text.isEmpty, !modalInteractionActive,
+        guard !text.isEmpty, !modalInteractionActive, let padID = selectedPadID,
               let sourceWindow = window ?? panel, sourceWindow.isVisible else { return }
         modalInteractionActive = true
         flushSave()
@@ -312,11 +312,16 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         savePanel.canCreateDirectories = true
         savePanel.isExtensionHidden = false
         savePanel.nameFieldStringValue = suggestedName
-        let content = text
         let complete: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             self?.modalInteractionActive = false
             if response == .OK, let url = savePanel.url {
                 do {
+                    // The island's dialog leaves the pad editable, so the file
+                    // gets the pad as it is when the save is confirmed. A pad
+                    // closed meanwhile is reported like any failed write.
+                    guard let content = self?.document?.pads.first(where: { $0.id == padID })?.text else {
+                        throw CocoaError(.fileNoSuchFile)
+                    }
                     try content.write(to: url, atomically: true, encoding: .utf8)
                 } catch {
                     // A read-only volume or a full disk used to end here in
@@ -335,6 +340,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             // modalInteractionActive keeps the island's working surface
             // while its independent dialog is up.
             savePanel.level = NSWindow.Level(rawValue: sourceWindow.level.rawValue + 1)
+            // Like the sheet it replaces, it stays up while another app is active.
+            savePanel.hidesOnDeactivate = false
             savePanel.begin(completionHandler: complete)
             NSApp.activate(ignoringOtherApps: true)
             // Activation alone can leave the nonactivating island holding focus.

@@ -259,6 +259,20 @@ enum NotchScreenRefreshContract {
         suite.expect(covering.menuSpaceTimer != nil && covering.reads == 1,
                "giving way to the menus again resumes the existing reader")
 
+        let idleSimulated = Service()
+        idleSimulated.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                                               safeAreaTop: 0, cameraWidth: 0)
+        idleSimulated.idleContent = .none
+        idleSimulated.accessibilityGranted = false
+        idleSimulated.coversMenus = true
+        idleSimulated.syncMenuSpaceMonitoring()
+        suite.expect(idleSimulated.appliedRooms.isEmpty && idleSimulated.geometry.compactSideRoom == nil,
+               "a simulated cutout with nothing to show still gives way to the menus")
+        idleSimulated.compactActivity = true
+        idleSimulated.syncMenuSpaceMonitoring()
+        suite.expect(idleSimulated.geometry.compactSideRoom.map { $0 > 0 } == true,
+               "compact activity on a simulated cutout covers the menus")
+
         let physical = Service()
         physical.idleContent = .none
         physical.syncMenuSpaceMonitoring()

@@ -37,6 +37,7 @@ final class SmoothScrollService: ObservableObject {
     private var engine = SmoothScrollSupport.Engine()
     private var lastFrameTimestamp: TimeInterval?
     private var currentResponse = SmoothScrollSupport.defaultResponse
+    private var currentCoast = SmoothScrollSupport.defaultCoast
     /// Sub-pixel leftovers kept between frames, so a wheel that moves in
     /// fractions of a pixel still travels its full distance.
     private var carryVertical: Double = 0
@@ -348,6 +349,9 @@ final class SmoothScrollService: ObservableObject {
         currentResponse = SmoothScrollSupport.sanitizedResponse(
             defaults.integer(forKey: DefaultsKey.smoothScrollResponse)
         )
+        currentCoast = SmoothScrollSupport.sanitizedCoast(
+            defaults.integer(forKey: DefaultsKey.smoothScrollCoast)
+        )
         glideFromContinuous = traits.isContinuous
         startGlideIfNeeded()
         // The tick itself is swallowed; the glide replays its distance.
@@ -424,7 +428,7 @@ final class SmoothScrollService: ObservableObject {
             elapsed = firstElapsed
         }
         lastFrameTimestamp = timestamp
-        let frame = engine.advance(elapsed: elapsed, response: currentResponse)
+        let frame = engine.advance(elapsed: elapsed, response: currentResponse, coast: currentCoast)
 
         // The frame that empties the budget is the glide's last, so it spends
         // the leftovers rather than saving them for a frame that never comes.

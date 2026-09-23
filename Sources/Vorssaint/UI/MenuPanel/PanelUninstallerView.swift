@@ -10,6 +10,7 @@ struct PanelUninstallerView: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var uninstaller = AppUninstaller.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @Environment(\.notchPresentation) private var inNotch
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
     @State private var pendingHomebrewRemoval: HomebrewPackage?
@@ -333,6 +334,18 @@ struct PanelUninstallerView: View {
     }
 
     private func presentHomebrewRemovalConfirmation(for package: HomebrewPackage) {
+        // The alert would hang from the island as a sheet; there it asks on its own.
+        guard !inNotch else {
+            DispatchQueue.main.async {
+                guard NSAlert.confirmAboveIsland(l10n.s.homebrewConfirmUninstallTitle,
+                                                 message: String(format: l10n.s.homebrewConfirmUninstallBodyFormat,
+                                                                 package.displayName),
+                                                 action: l10n.s.homebrewUninstall, destructive: true,
+                                                 cancel: l10n.s.uninstallerCancel) else { return }
+                uninstaller.removeSelectedWithHomebrew()
+            }
+            return
+        }
         PanelInteractionState.shared.isPresentingPopoverModal = true
         pendingHomebrewRemoval = package
     }

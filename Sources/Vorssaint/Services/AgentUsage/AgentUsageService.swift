@@ -31,7 +31,7 @@ final class AgentUsageService: ObservableObject {
     private static let poll: TimeInterval = 2
     private static let pollWindow: TimeInterval = 30 * 60
 
-    private let queue = DispatchQueue(label: "com.vorssaint.agent-usage", qos: .utility)
+    private let queue = DispatchQueue(label: "com.vorssaint.agent-usage", qos: .utility, autoreleaseFrequency: .workItem)
     private let home = FileManager.default.homeDirectoryForCurrentUser
 
     /// Lets a stop end a first read that is still going on the queue.
@@ -44,6 +44,8 @@ final class AgentUsageService: ObservableObject {
 
     // Main thread.
     private var running = false
+    /// Reading waits while the island is away; what was read stays.
+    private var paused = false
     private var session = 0
     private var cancellation = Cancellation()
     private var timer: Timer?
@@ -63,7 +65,11 @@ final class AgentUsageService: ObservableObject {
     private var watchedRoots: [AgentLogRoot] = []
     private var poller: DispatchSourceTimer?
     private var publishScheduled = false
+    /// The last snapshot handed over, to tell when time alone changes it.
+    private var published = AgentUsageSnapshot()
     private var claudePlan: AgentPlan?
+    /// The organization Claude Code signs in to, when its profile says.
+    private var claudeOrganization: String?
     private var claudeProfileModified: Date?
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
@@ -88,13 +94,45 @@ final class AgentUsageService: ObservableObject {
             cancellation = Cancellation()
             providers = wanted
             start(session: session, providers: Set(wanted), cancellation: cancellation)
+        } else if paused {
+            resume()
         }
         syncPrices()
+    }
+
+    /// Stops reading while the island is away, as with the display asleep or
+    /// the Mac locked, and keeps what was read: reading every log again on the
+    /// way back costs far more than the pause saves.
+    func pause() {
+        guard running, !paused else { return }
+        paused = true
+        timer?.invalidate()
+        timer = nil
+        queue.async { [self] in
+            poller?.cancel()
+            poller = nil
+            watcher?.stop()
+        }
+    }
+
+    /// Reads what the agents wrote meanwhile, from where each log stopped.
+    private func resume() {
+        paused = false
+        startTimer()
+        queue.async { [self] in
+            guard readerSession >= 0 else { return }
+            watch(AgentLogRoot.all(home: home).filter { enabled.contains($0.provider) })
+            filesChanged([], rescan: true)
+            startPolling()
+            // Time went by meanwhile: a window or the day may have moved on.
+            schedulePublish()
+        }
     }
 
     func stop() {
         guard running else { return }
         running = false
+        paused = false
         session += 1
         cancellation.cancel()
         timer?.invalidate()
@@ -113,10 +151,12 @@ final class AgentUsageService: ObservableObject {
             watchedRoots = []
             store = AgentUsageStore()
             cursors.removeAll()
+            published = AgentUsageSnapshot()
             previousLimits.removeAll()
             warned.removeAll()
             budgetDay = nil
             claudePlan = nil
+            claudeOrganization = nil
             claudeProfileModified = nil
             claudeAppModified = nil
             claudeAppSamples = []
@@ -136,11 +176,15 @@ final class AgentUsageService: ObservableObject {
 
     // MARK: Reading
 
-    private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation) {
+    private func startTimer() {
         let timer = Timer(timeInterval: Self.tick, repeats: true) { [weak self] _ in self?.tickTimer() }
         timer.tolerance = 10
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation) {
+        startTimer()
         queue.async { [self] in
             readerSession = session
             enabled = providers
@@ -158,6 +202,8 @@ final class AgentUsageService: ObservableObject {
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
+            // The account Claude Code uses picks the Claude app's readings.
+            readClaudePlan()
             readClaudeApp(now: now)
             store.reportsTransitions = true
             previousLimits = store.limits
@@ -167,7 +213,6 @@ final class AgentUsageService: ObservableObject {
                store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
                 budgetDay = today
             }
-            readClaudePlan()
             watch(roots)
             startPolling()
             publish()
@@ -179,17 +224,24 @@ final class AgentUsageService: ObservableObject {
         poller?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + Self.poll, repeating: Self.poll, leeway: .milliseconds(500))
-        timer.setEventHandler { [weak self] in self?.pollOpenLogs(within: Self.pollWindow) }
+        timer.setEventHandler { [weak self] in
+            guard let self, self.pollOpenLogs(within: Self.pollWindow) else { return }
+            self.checkLimits()
+            self.schedulePublish()
+        }
         timer.resume()
         poller = timer
     }
 
     /// Reads the logs that grew, were replaced or disappeared since the last
-    /// look, among those an agent may still be writing.
-    private func pollOpenLogs(within window: TimeInterval) {
-        guard readerSession >= 0 else { return }
+    /// look, among those an agent may still be writing. True when that
+    /// changed what is stored.
+    private func pollOpenLogs(within window: TimeInterval) -> Bool {
+        guard readerSession >= 0 else { return false }
         let now = Date()
-        let working = Set(store.live.map(\.id))
+        // A turn gone quiet, as while it waits for an approval, is noticed
+        // as soon as its work resumes.
+        let working = Set(store.turns.keys).union(store.waiting.keys)
         var changed = false
         for (path, cursor) in cursors
         where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
@@ -197,19 +249,18 @@ final class AgentUsageService: ObservableObject {
             let exists = stat(path, &info) == 0
             guard !exists || UInt64(max(0, info.st_size)) != cursor.offset
                     || UInt64(info.st_ino) != cursor.identity else { continue }
-            read(path, provider: cursor.provider)
-            changed = true
+            if read(path, provider: cursor.provider) { changed = true }
         }
-        guard changed else { return }
-        checkLimits()
-        schedulePublish()
+        return changed
     }
 
-    private func read(_ path: String, provider: AgentProvider) {
+    /// True when the log had entries to apply, or was gone and took a
+    /// working turn with it.
+    @discardableResult
+    private func read(_ path: String, provider: AgentProvider) -> Bool {
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
-            store.forget(file: path)
-            return
+            return store.forget(file: path)
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
@@ -221,10 +272,11 @@ final class AgentUsageService: ObservableObject {
             case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
             }
         }
-        guard !entries.isEmpty else { return }
-        let finished = store.apply(entries, file: path, provider: provider,
-                                   tracksTurns: cursor.tracksTurns, modified: cursor.modified, now: now)
+        guard !entries.isEmpty else { return false }
+        let finished = store.apply(entries, file: path, provider: provider, tracksTurns: cursor.tracksTurns,
+                                   parent: cursor.parent, modified: cursor.modified, now: now)
         finished.forEach(report)
+        return true
     }
 
     private func watch(_ roots: [AgentLogRoot]) {
@@ -241,16 +293,20 @@ final class AgentUsageService: ObservableObject {
 
     private func filesChanged(_ paths: [String], rescan: Bool) {
         guard readerSession >= 0, !watchedRoots.isEmpty else { return }
+        var changed = false
         if rescan {
             for file in AgentLogReader.discover(watchedRoots, since: Date().addingTimeInterval(-Self.horizon)) {
-                read(file.path, provider: file.provider)
+                if read(file.path, provider: file.provider) { changed = true }
             }
         } else {
             for path in Set(paths) where AgentLogReader.isLog(path) {
                 guard let root = watchedRoots.first(where: { path.hasPrefix($0.url.path + "/") }) else { continue }
-                read(path, provider: root.provider)
+                if read(path, provider: root.provider) { changed = true }
             }
         }
+        // Every snapshot adds up the whole history; saved tool output and
+        // lines with nothing to keep change nothing it shows.
+        guard changed else { return }
         checkLimits()
         schedulePublish()
     }
@@ -271,18 +327,19 @@ final class AgentUsageService: ObservableObject {
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
+            let before = inputs
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
             store.dropRecords(before: now.addingTimeInterval(-Self.horizon))
             // A log kept open through a long pause reports nothing when work
             // resumes; the day's logs are looked at less often than recent ones.
-            pollOpenLogs(within: 86_400)
+            var changed = pollOpenLogs(within: 86_400)
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {
                 let roots = AgentLogRoot.all(home: home).filter { enabled.contains($0.provider) }
                 if roots.filter(\.exists) != watchedRoots {
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
-                        read(file.path, provider: file.provider)
+                        if read(file.path, provider: file.provider) { changed = true }
                     }
                     watch(roots)
                 }
@@ -292,8 +349,29 @@ final class AgentUsageService: ObservableObject {
             readClaudeApp(now: now)
             checkLimits()
             reportRenewals(now: now)
-            publish()
+            // A snapshot adds up the whole history, so one is made only when
+            // something it shows changed, or when time alone changes it.
+            if changed || inputs != before || AgentUsageSummary.movesWithClock(published, now: now) {
+                schedulePublish()
+            }
         }
+    }
+
+    /// The stored state a snapshot is made from, compared across a tick.
+    private struct Inputs: Equatable {
+        let records: Int
+        let turns: [String: AgentLiveSession]
+        let limits: [AgentProvider: AgentLimits]
+        let codexPlan: String?
+        let claudePlan: AgentPlan?
+        let claudeOrganization: String?
+        let claudeApp: [AgentClaudeAppUsage.Sample]
+    }
+
+    /// Runs on `queue`.
+    private var inputs: Inputs {
+        Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
+               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples)
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
@@ -305,8 +383,11 @@ final class AgentUsageService: ObservableObject {
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
         let next = AgentUsageSummary.snapshot(records: store.records, limits: store.limits, live: store.live,
                                               plans: plans, providers: enabled, now: Date())
+        published = next
         checkBudget(next)
-        let checked = enabled.contains(.claude) ? claudeAppSamples.last?.date : nil
+        let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
+            claudeOrganization == nil || $0.organization == nil || $0.organization == claudeOrganization
+        })?.date : nil
         let listed = AgentPricing.list.updated
         let prices = listed == AgentPriceList.empty.updated ? nil : listed
         DispatchQueue.main.async { [weak self] in
@@ -382,8 +463,10 @@ final class AgentUsageService: ObservableObject {
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let account = json["oauthAccount"] as? [String: Any] else {
             claudePlan = nil
+            claudeOrganization = nil
             return
         }
+        claudeOrganization = account["organizationUuid"] as? String
         claudePlan = AgentPlans.claude(organizationType: account["organizationType"] as? String,
                                        rateLimitTier: account["organizationRateLimitTier"] as? String
                                         ?? account["userRateLimitTier"] as? String)
@@ -408,10 +491,11 @@ final class AgentUsageService: ObservableObject {
         }
         // Claude Code's own first request can place the session's start.
         let recent = store.records.filter {
-            $0.provider == .claude && $0.date <= now && now.timeIntervalSince($0.date) < 2 * AgentUsageSummary.blockLength
+            $0.provider == .claude && $0.date <= now && now.timeIntervalSince($0.date) < AgentUsageSummary.blockHistory
         }
         let start = AgentUsageSummary.currentBlock(recent, now: now)?.start
-        if let limits = AgentClaudeAppUsage.limits(from: claudeAppSamples, now: now, sessionStart: start) {
+        if let limits = AgentClaudeAppUsage.limits(from: claudeAppSamples, now: now, sessionStart: start,
+                                                   organization: claudeOrganization) {
             store.setLimits(limits)
         } else if store.limits[.claude]?.source == .claudeApp {
             store.clearLimits(.claude)

@@ -76,6 +76,26 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                let strings = SettingsNavigationStrings.localized(l10n.language)
+                Button {
+                    router.goBack(isPageVisible: isPageVisible)
+                } label: {
+                    Label(strings.back, systemImage: "chevron.backward")
+                }
+                .disabled(!router.canGoBack(isPageVisible: isPageVisible))
+                .help(strings.back)
+
+                Button {
+                    router.goForward(isPageVisible: isPageVisible)
+                } label: {
+                    Label(strings.forward, systemImage: "chevron.forward")
+                }
+                .disabled(!router.canGoForward(isPageVisible: isPageVisible))
+                .help(strings.forward)
+            }
+        }
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
         .onAppear { ensureVisiblePage() }
         .onChange(of: features.revision) { _, _ in ensureVisiblePage() }
@@ -130,51 +150,12 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func sidebarList(searchResults: SearchResultsSnapshot) -> some View {
-        if hasSearchQuery {
-            searchResultsList(searchResults)
-        } else {
-            normalSidebarList
-        }
-    }
-
-    private var normalSidebarList: some View {
-        List(selection: $router.page) {
-            ForEach(sidebarSections, id: \.title) { section in
-                let items = section.items.filter {
-                    FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable }
-                        && SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
-                                                         keywords: $0.keywords)
-                }
-                if !items.isEmpty {
-                    Section(section.title) {
-                        ForEach(items) { item in
-                            Label {
-                                Text(item.title)
-                            } icon: {
-                                Image(systemName: item.icon)
-                                    // The sidebar's automatic icon tint can briefly disappear
-                                    // while the window activates. Resolve it in the icon itself.
-                                    .foregroundStyle(router.page == item.page
-                                        ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
-                            }
-                            .tag(item.page)
-                        }
-                    }
-                }
-            }
-        }
-        .listStyle(.sidebar)
-    }
-
-    @ViewBuilder
-    private func searchResultsList(_ searchResults: SearchResultsSnapshot) -> some View {
         ScrollViewReader { proxy in
-            List {
-                ForEach(searchResults.groups) { group in
-                    searchPageRow(group, searchResults: searchResults)
-                    ForEach(group.suggestions) { suggestion in
-                        searchSuggestionRow(suggestion, searchResults: searchResults)
-                    }
+            List(selection: $router.page) {
+                if hasSearchQuery {
+                    searchResultRows(searchResults)
+                } else {
+                    normalSidebarRows
                 }
             }
             .listStyle(.sidebar)
@@ -187,10 +168,63 @@ struct SettingsView: View {
                     withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(id) }
                 }
             }
+            .onChange(of: hasSearchQuery) { _, searching in
+                // The list stays in place across a search so the field keeps
+                // focus, which also keeps the results' scroll offset. Centering
+                // the first page clamps the pages back to the very top, where a
+                // fresh list starts; a top anchor leaves the list's inset hidden.
+                guard !searching else { return }
+                DispatchQueue.main.async {
+                    if let first = firstSidebarPage { proxy.scrollTo(first, anchor: .center) }
+                }
+            }
             .background {
                 SearchKeyMonitor(customSearchFocused: sidebarSearchFocused) { keyCode in
                     handleSearchKey(keyCode, searchResults: searchResults.items)
                 }
+            }
+        }
+    }
+
+    private var firstSidebarPage: SettingsPage? {
+        sidebarSections.lazy.flatMap(\.items)
+            .first { FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable } }?
+            .page
+    }
+
+    @ViewBuilder
+    private var normalSidebarRows: some View {
+        ForEach(sidebarSections, id: \.title) { section in
+            let items = section.items.filter {
+                FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable }
+                    && SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
+                                                     keywords: $0.keywords)
+            }
+            if !items.isEmpty {
+                Section(section.title) {
+                    ForEach(items) { item in
+                        Label {
+                            Text(item.title)
+                        } icon: {
+                            Image(systemName: item.icon)
+                                // The sidebar's automatic icon tint can briefly disappear
+                                // while the window activates. Resolve it in the icon itself.
+                                .foregroundStyle(router.page == item.page
+                                    ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
+                        }
+                        .tag(item.page)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func searchResultRows(_ searchResults: SearchResultsSnapshot) -> some View {
+        ForEach(searchResults.groups, id: \.parentSuggestion.id) { group in
+            searchPageRow(group, searchResults: searchResults)
+            ForEach(group.suggestions) { suggestion in
+                searchSuggestionRow(suggestion, searchResults: searchResults)
             }
         }
     }
@@ -346,9 +380,13 @@ struct SettingsView: View {
     /// switched off in the hub; fall back to the hub itself, where the
     /// feature can be brought back.
     private func ensureVisiblePage() {
-        if !FeatureVisibilitySupport.isPageVisible(router.page, isAvailable: { $0.isAvailable }) {
+        if !isPageVisible(router.page) {
             router.page = .features
         }
+    }
+
+    private func isPageVisible(_ page: SettingsPage) -> Bool {
+        FeatureVisibilitySupport.isPageVisible(page, isAvailable: { $0.isAvailable })
     }
 
     @ViewBuilder

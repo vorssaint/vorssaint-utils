@@ -552,6 +552,29 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
+    func editImage(_ entry: ClipboardHistoryEntry) {
+        guard entry.kind == .image, AppFeature.screenshot.isAvailable,
+              let directory = ClipboardImageStore.directory else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let capture = autoreleasepool {
+                ClipboardHistoryImageSupport.editorImage(for: entry, directory: directory)
+                    .flatMap { ScreenshotService.imageCapture(from: $0) }
+            }
+            DispatchQueue.main.async {
+                guard AppFeature.screenshot.isAvailable else { return }
+                guard let capture else {
+                    NSSound.beep()
+                    return
+                }
+                self.hideHistoryWindow()
+                (NSApp.delegate as? AppDelegate)?.closePopover()
+                NotchService.shared.perform {
+                    ScreenshotService.shared.openEditor(with: capture)
+                }
+            }
+        }
+    }
+
     /// No paste follows these two, so nothing has to wait for the write: the
     /// window closes now and a stale entry simply leaves the clipboard as the
     /// user left it.

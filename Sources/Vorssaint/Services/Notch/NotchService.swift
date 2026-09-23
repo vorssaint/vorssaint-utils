@@ -128,6 +128,8 @@ final class NotchService: ObservableObject {
     private var volumeBaseline: Double?
     private var muteBaseline: Bool?
     private var volumeDeviceUID: String?
+    /// System uptime until which an output change counts as the island's own.
+    private var ownVolumeAdjustmentUntil: TimeInterval = 0
     private var notchNeedsMonitor = false
     private var menuSpaceTimer: Timer?
     private var menuSpaceReading = false
@@ -339,6 +341,9 @@ final class NotchService: ObservableObject {
         // feature must still cancel it before presentation resumes.
         NotchFileToolsService.shared.syncWithPreferences()
         if !NotchFileToolsService.shared.offersMediaDrop { endFileDrop() }
+        // Paused while the island is away, the section still stops at once
+        // when it is turned off.
+        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -397,6 +402,7 @@ final class NotchService: ObservableObject {
     func stop(restoreCapture: Bool = true) {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
+        AgentUsageService.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -436,7 +442,7 @@ final class NotchService: ObservableObject {
         NotchDownloadService.shared.stop()
         NotchCalendarService.shared.stop()
         NotchNotificationService.shared.stop()
-        AgentUsageService.shared.stop()
+        AgentUsageService.shared.pause()
         settingsSignature = ""
         expanded = false
         peeking = false
@@ -1418,7 +1424,10 @@ final class NotchService: ObservableObject {
 
     private func syncMenuSpaceMonitoring() {
         guard !hiddenInFullscreen else { stopMenuSpaceMonitoring(); return }
-        if running, !suspended, NotchSupport.coversMenus() {
+        // Covering keeps activity on screen; a simulated cutout with nothing
+        // to show still gives way to the menus beneath it.
+        if running, !suspended, NotchSupport.coversMenus(),
+           geometry.isNotched || compactActivity != nil || idleContent != .none {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
             stopMenuSpaceMonitoring()
@@ -1580,8 +1589,15 @@ final class NotchService: ObservableObject {
     }
 
     private func fullscreenEnvironmentDidChange() {
-        guard running, !suspended else { return }
+        // Only the opt-in option depends on Spaces and the active app.
+        guard running, !suspended,
+              hiddenInFullscreen || UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)
+        else { return }
+        let wasHidden = hiddenInFullscreen
         updateScreen()
+        // An unchanged state must not cut short a transition on screen, such
+        // as the island closing after a click in another app.
+        guard hiddenInFullscreen != wasHidden else { return }
         syncVisibleConsumers()
         refreshPresentation(animated: false)
     }
@@ -1959,6 +1975,13 @@ final class NotchService: ObservableObject {
         showVolume(volume, muted: mixer.systemOutputMuted)
     }
 
+    /// The island's own output controls already show the level they set.
+    /// Their changes, and the device's reading that follows, leave the open
+    /// header's title in place instead of covering it with the same level.
+    func noteOwnVolumeAdjustment() {
+        ownVolumeAdjustmentUntil = ProcessInfo.processInfo.systemUptime + 1
+    }
+
     private func bindVolumeEvents() {
         let mixer = AppVolumeMixer.shared
         volumeDeviceUID = mixer.currentOutputDeviceUID
@@ -1985,6 +2008,8 @@ final class NotchService: ObservableObject {
         defer { volumeBaseline = volume; muteBaseline = muted }
         guard volumeDeviceUID != nil, let volume, volumeBaseline != nil,
               volume != volumeBaseline || (muteBaseline != nil && muted != muteBaseline) else { return }
+        // Volume keys still announce themselves through showCurrentVolume.
+        guard !expanded || ProcessInfo.processInfo.systemUptime >= ownVolumeAdjustmentUntil else { return }
         showVolume(volume, muted: muted)
     }
 

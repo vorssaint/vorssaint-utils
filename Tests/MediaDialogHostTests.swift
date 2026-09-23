@@ -18,6 +18,7 @@ enum MediaDialogHostContract {
         static weak var current: NSSavePanel?
         weak var parent: Island?
         var level = NSWindow.Level(rawValue: 0)
+        var hidesOnDeactivate = true
         var focused = false
         var modalRuns = 0
         private var completed: ((NSApplication.ModalResponse) -> Void)?
@@ -93,7 +94,8 @@ enum MediaDialogHostTests {
             var responses: [NSApplication.ModalResponse] = []
             Context.Dialogs.runPanelModal(panel) { responses.append($0) }
             expect(panel.parent == nil && island.attachedSheet == nil && panel.focused && panel.modalRuns == 0
-                   && panel.level.rawValue > island.level.rawValue && Context.NSApp.activations == [true],
+                   && panel.level.rawValue > island.level.rawValue && Context.NSApp.activations == [true]
+                   && !panel.hidesOnDeactivate,
                    "a dialog begun from the island opens above it on its own before activation, never as a sheet "
                    + "that moves the island or an application-modal window that opens behind it")
             let second = Context.NSSavePanel()

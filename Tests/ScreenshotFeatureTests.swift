@@ -119,17 +119,30 @@ enum ScreenshotFeatureTests {
             protectedWindowIDs: protectedScreenshotWindows
         ), "screenshot cannot pick its own protected capture UI")
 
-        let stackedOwners: [(CGWindowID, String)] = [(80, "borders"), (81, "Editor")]
-        let pickableIDs = stackedOwners.filter { id, owner in
-            ScreenshotCapturePolicy.canPickWindow(id, isOwnWindow: false,
-                hideVorssaintWindows: true, protectedWindowIDs: [], ownerName: owner)
-        }.map(\.0)
-        suite.expect(pickableIDs == [81],
-               "border overlays are skipped so clicking a decorated window captures its content")
-        for owner in ScreenshotCapturePolicy.borderOverlayOwners.map({ $0.uppercased() }) {
-            suite.expect(!ScreenshotCapturePolicy.canPickWindow(80, isOwnWindow: false,
-                hideVorssaintWindows: false, protectedWindowIDs: [], ownerName: owner),
-                "border overlays stay unpickable regardless of the own-window visibility preference")
+        // Another process can draw a border around a window as a window of its
+        // own; clicking there has to capture the window it surrounds.
+        let framed = ScreenshotCapturePolicy.CaptureWindow(
+            id: 81, ownerPID: 500, frame: CGRect(x: 100, y: 100, width: 800, height: 600))
+        let decoration = ScreenshotCapturePolicy.CaptureWindow(
+            id: 80, ownerPID: 700, frame: framed.frame.insetBy(dx: -12, dy: -12), isUntitled: true)
+        suite.expect(ScreenshotCapturePolicy.decorationWindowIDs(frontToBack: [decoration, framed]) == [80]
+                     && ScreenshotCapturePolicy.decorationWindowIDs(frontToBack: [framed, decoration]) == [80],
+                     "a border drawn around a window by another process is never the picked window")
+        let between = ScreenshotCapturePolicy.CaptureWindow(
+            id: 90, ownerPID: 800, frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+        suite.expect(ScreenshotCapturePolicy.decorationWindowIDs(frontToBack: [decoration, between, framed]).isEmpty,
+                     "a border only frames the window right next to it in the stack")
+        let ordinary: [ScreenshotCapturePolicy.CaptureWindow] = [
+            .init(id: 82, ownerPID: 600, frame: framed.frame.insetBy(dx: -16, dy: -16)),
+            .init(id: 83, ownerPID: 600, frame: framed.frame, isUntitled: true),
+            .init(id: 84, ownerPID: 600, frame: CGRect(x: 90, y: 80, width: 830, height: 640), isUntitled: true),
+            .init(id: 85, ownerPID: 600, frame: framed.frame.insetBy(dx: -40, dy: -40), isUntitled: true),
+            .init(id: 86, ownerPID: 500, frame: framed.frame.insetBy(dx: -12, dy: -12), isUntitled: true),
+        ]
+        for window in ordinary {
+            suite.expect(ScreenshotCapturePolicy.decorationWindowIDs(frontToBack: [window, framed]).isEmpty
+                         && ScreenshotCapturePolicy.decorationWindowIDs(frontToBack: [framed, window]).isEmpty,
+                         "a titled, equal, uneven, distant or same-app window stays pickable (\(window.id))")
         }
 
         // A sheet or dialog the app stacked on the clicked window is a window

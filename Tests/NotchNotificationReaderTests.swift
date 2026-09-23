@@ -86,6 +86,40 @@ enum NotchNotificationReaderTests {
         interruption(suite)
         identity(suite)
         nativeClosing(suite)
+        busyClosing(suite)
+    }
+
+    /// The refresh before a close can spend nearly the whole traversal on a
+    /// large stack. Validation keeps headroom of its own, and a refresh that
+    /// cannot finish still closes nothing.
+    private static func busyClosing(_ suite: TestSuite) {
+        let access = Access(), action = "Name:Close\nTarget:0x0\nSelector:(null)"
+        access.allowClose = true
+        let banners = (0..<22).map { _ in card() }
+        for banner in banners { banner.actions.append(action) }
+        let container = stack(banners)
+        container.strings["AXSubrole"] = "AXNotificationCenterBannerStack"
+        func center(padding: Int) -> [Node] {
+            [container, Node("AXWindow", children: (0..<padding).map { _ in Node("AXGroup") })]
+        }
+        let reader = access.reader()
+        // Plain nodes fill the rest until one more would fail the refresh itself.
+        var padding = 0
+        while padding < 64 {
+            access.roots = center(padding: padding + 1)
+            guard reader.read() != nil else { break }
+            padding += 1
+        }
+        access.roots = center(padding: padding)
+        guard padding < 64, let id = reader.read()?.items.last?.id else {
+            suite.expect(false, "a large stack fills the refresh's traversal budget"); return
+        }
+        suite.expect(reader.closeNative(id) && access.performed == [action],
+                     "a refresh that used nearly every node still leaves validation room to close the banner")
+        access.performed = []
+        access.roots = center(padding: padding + 1)
+        suite.expect(!reader.closeNative(id) && access.performed.isEmpty,
+                     "a refresh that runs out of nodes closes nothing")
     }
 
     private static func nativeClosing(_ suite: TestSuite) {
