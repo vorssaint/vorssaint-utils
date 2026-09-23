@@ -14,6 +14,8 @@ struct NotchNotice: Equatable {
     var level: Double? = nil
     var notification: NotchNotificationContent? = nil
     var notificationID: UUID? = nil
+    /// The agent an AI notice is about, which tints its mark.
+    var agent: AgentProvider? = nil
 
     var preferredWingWidth: CGFloat {
         if notification != nil { return 190 }
@@ -159,8 +161,13 @@ final class NotchService: ObservableObject {
         NotchSupport.showsMusicActivity(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
     }
 
+    var hasAgentActivity: Bool {
+        NotchAgentSupport.showsLiveActivity() && !AgentUsageService.shared.snapshot.live.isEmpty
+    }
+
     var compactActivity: NotchCompactActivity? {
-        NotchSupport.compactActivity(timer: hasTimerActivity, downloads: hasDownloadActivity, music: hasMusicActivity)
+        NotchSupport.compactActivity(timer: hasTimerActivity, downloads: hasDownloadActivity,
+                                     agents: hasAgentActivity, music: hasMusicActivity)
     }
 
     private var compactActivityIsVisible: Bool {
@@ -174,33 +181,89 @@ final class NotchService: ObservableObject {
         switch compactActivity {
         case .music: return geometry.compactMusicGeometry
         case .timer: return geometry.compactTimerGeometry(showsDownloads: hasDownloadActivity)
+        case .agents: return geometry.compactAgentGeometry(wing: agentStripWing)
         default: return geometry
         }
+    }
+
+    /// The wider of the two sides, the reading or the working agents' marks,
+    /// with the clearance from the silhouette's curve that the strip keeps
+    /// and air beside the camera.
+    private var agentStripWing: CGFloat {
+        let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
+        let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let shape = NotchAgentSupport.readingShape(NotchAgentSupport.stripReading(
+            AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
+            display: NotchAgentSupport.limitDisplay(), now: Date()))
+        let width = (shape as NSString).size(withAttributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+        ]).width
+        let reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        // The marks on the other side, drawn as the strip draws them: two
+        // working agents share a smaller size, each in a frame wider than it.
+        let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
+        let mark = CGFloat(working > 1 ? 11 : 14)
+        let frame = mark * 1.45 + 1
+        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
+            + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+        return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
     var expandedSize: CGSize {
         if showingSections {
             return geometry.sectionPickerSize(count: filteredSections.count)
         }
+        let musicExtras = NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
+        let launcher = QuickLauncherService.shared
+        return pageSize(in: expandedGeometry, module: showingAppPanel ? .tools : selected,
+                        detail: selectedMetric != nil, panel: showingAppPanel,
+                        musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
+                        fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
+                            && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
+                        toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
+                        capturePreviewHeight: captureContent == nil ? nil : captureContentHeight)
+    }
+
+    /// The open island as Settings previews a section: at rest, with no
+    /// detail, app panel, capture or media editor in front of the page.
+    func previewSize(for module: NotchModule) -> CGSize {
+        pageSize(in: geometry, module: module, detail: false, panel: false, musicExtraHeight: 0, fileMediaHeight: nil,
+                 toolCount: QuickLauncherService.shared.visibleItems.count, capturePreviewHeight: nil)
+    }
+
+    /// The tallest island a preview can show: a page that fills the budget.
+    var previewLargestSize: CGSize { geometry.expandedSize(module: .calendar) }
+
+    private func pageSize(in geometry: NotchGeometry, module: NotchModule, detail: Bool, panel: Bool,
+                          musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
+                          capturePreviewHeight: CGFloat?) -> CGSize {
         let controls = NotchSupport.controls()
         let sliders = controls.filter { $0 == .volume || $0 == .brightness }.count
         let shortcuts = controls.filter { $0 != .volume && $0 != .brightness && $0 != .music }.count
         let musicExtras = NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
-        let launcher = QuickLauncherService.shared
-        return expandedGeometry.expandedSize(module: showingAppPanel ? .tools : selected,
-                                     detail: selectedMetric != nil, panel: showingAppPanel, shortcutCount: shortcuts,
+        return geometry.expandedSize(module: module, detail: detail, panel: panel, shortcutCount: shortcuts,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
                                      musicHasControlsRow: AppFeature.mixer.isAvailable || musicExtras,
-                                     musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
-                                     fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
-                                        && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
+                                     musicExtraHeight: musicExtraHeight, fileMediaHeight: fileMediaHeight,
                                      systemCards: NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery,
                                                                                fans: SystemMonitor.shared.snapshot.fanSpeeds.count),
-                                     toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
-                                     capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
+                                     toolCount: toolCount, capturePreviewHeight: capturePreviewHeight,
                                      timerHasSession: NotchTimerService.shared.session.hasSession,
                                      timerMode: NotchTimerService.shared.session.hasSession
-                                        ? NotchTimerService.shared.session.mode : NotchTimerSupport.savedMode())
+                                        ? NotchTimerService.shared.session.mode : NotchTimerSupport.savedMode(),
+                                     agentsHeight: module == .agents && !detail && !panel
+                                        ? agentsContentHeight(width: geometry.contentWidth) : nil)
+    }
+
+    /// The AI page is as tall as the cards it shows; nil while the logs are
+    /// first read, when the page fills the island with its progress.
+    private func agentsContentHeight(width: CGFloat) -> CGFloat? {
+        let usage = AgentUsageService.shared.snapshot
+        guard usage.loaded else { return nil }
+        let providers = NotchAgentSupport.providers().filter(usage.seen.contains)
+        guard !providers.isEmpty else { return 0 }
+        return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers), width: width))
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -286,6 +349,7 @@ final class NotchService: ObservableObject {
         NotchCalendarService.shared.syncWithPreferences()
         NotchNotificationService.shared.syncWithPreferences()
         NotchAudioLevelService.shared.syncWithPreferences()
+        AgentUsageService.shared.syncWithPreferences()
         updateScreen()
         syncGestures()
         NotchTimerService.shared.syncWithPreferences()
@@ -310,6 +374,10 @@ final class NotchService: ObservableObject {
         syncNoticeWithPreferences()
         syncVisibleConsumers()
         refreshPresentation(animated: false)
+        // Pages read their preferences as they draw, and a change that keeps
+        // the island's size publishes nothing else: hiding a control left the
+        // open island, and the preview in Settings, as they were.
+        objectWillChange.send()
         if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
         if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
     }
@@ -368,6 +436,7 @@ final class NotchService: ObservableObject {
         NotchDownloadService.shared.stop()
         NotchCalendarService.shared.stop()
         NotchNotificationService.shared.stop()
+        AgentUsageService.shared.stop()
         settingsSignature = ""
         expanded = false
         peeking = false
@@ -991,6 +1060,12 @@ final class NotchService: ObservableObject {
         (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
+    /// Opens the Dynamic Island settings on one section's options.
+    func openSettings(showing module: NotchModule) {
+        SettingsRouter.shared.notchModule = module
+        openSettings()
+    }
+
     func perform(_ action: @escaping () -> Void) {
         collapse()
         if let windowHost { windowHost.whenSettled(action) }
@@ -1089,7 +1164,7 @@ final class NotchService: ObservableObject {
         }
         open(selectedNotice.event == .download ? .downloads : selectedNotice.event == .timer ? .timer
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
-             : selectedNotice.event == .clipboard ? .clipboard : .controls)
+             : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents : .controls)
     }
 
     func showBrightness(_ level: Double) -> Bool {
@@ -1802,6 +1877,24 @@ final class NotchService: ObservableObject {
                     detail: item.name, symbol: "arrow.down.circle.fill"))
             }
         }
+        if modules.contains(.agents) {
+            // Only what changes the island's size or strip: a turn starting or
+            // ending, the first read landing, and which agents have cards.
+            AgentUsageService.shared.$snapshot
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen) }
+                .removeDuplicates(by: ==)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.syncMenuSpaceMonitoring()
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
+        if NotchSupport.routes(.agents) {
+            AgentUsageService.shared.events.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showAgentEvent($0) }
+                .store(in: &subscriptions)
+        }
         stopPower()
         if NotchSupport.routes(.volume) {
             bindVolumeEvents()
@@ -1826,6 +1919,38 @@ final class NotchService: ObservableObject {
             }.store(in: &subscriptions)
         }
         if NotchSupport.routes(.battery) || idleContent == .battery { startPower() }
+    }
+
+    private func showAgentEvent(_ event: AgentUsageEvent) {
+        let text = FeatureStrings.notchAgents(L10n.shared.language)
+        let locale = L10n.shared.language.formattingLocale()
+        let remaining = NotchAgentSupport.limitDisplay() == .remaining
+        func window(_ window: AgentLimitWindow) -> String {
+            switch window.kind {
+            case .session: return text.session
+            case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
+            case .other: return window.minutes.map { AgentFormat.duration(TimeInterval($0) * 60, locale: locale, units: 1) }
+                ?? text.readoutLimit
+            }
+        }
+        switch event {
+        case .finished(let provider, let duration, let cost, _, _):
+            show(NotchNotice(event: .agents, title: text.finished(provider.displayName),
+                             detail: [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]
+                                .filter { !$0.isEmpty }.joined(separator: " · "),
+                             symbol: provider.symbol, agent: provider))
+        case .limitWarning(let provider, let limit):
+            let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
+            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
+                             detail: remaining ? text.left(share) : text.usedShare(share),
+                             symbol: "exclamationmark.triangle.fill", agent: provider))
+        case .limitReset(let provider, let limit):
+            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
+                             detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider))
+        case .budgetReached(let spent, _):
+            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
+                             symbol: "dollarsign.circle.fill"))
+        }
     }
 
     func showCurrentVolume() {

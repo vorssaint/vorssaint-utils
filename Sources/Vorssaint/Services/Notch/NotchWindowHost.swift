@@ -500,6 +500,13 @@ final class NotchPanel: NSPanel {
     var handleScroll: ((NSEvent) -> Bool)?
     override var canBecomeKey: Bool { acceptsKeyFocus }
     override var canBecomeMain: Bool { false }
+    // Liquid Glass swaps to a flat, blurred stand-in in a window that looks
+    // inactive, and a non-activating panel only looks active while it holds
+    // key focus: an island opened by hover stayed dull until clicked. Like
+    // the menu bar it hangs from, the island always looks active, without
+    // taking the keyboard from the app in front. AppKit's own glass windows
+    // answer this private question the same way.
+    @objc func _hasActiveAppearanceIgnoringKeyFocus() -> Bool { true }
     // AppKit describes a non-activating panel as a system dialog, which tiling
     // window managers then track and list on whichever space is current; the
     // borderless overlays they leave alone are undescribed windows.

@@ -15,6 +15,7 @@ struct NotchMusicView: View {
     @State private var extra: MusicExtra?
     private enum MusicExtra { case lyrics, queue }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     /// The cover's own colour, used for its halo and for the moving parts that
     /// belong to this track. Neutral covers keep the panel white.
@@ -75,13 +76,19 @@ struct NotchMusicView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear { syncExtras(); service.refreshAutomation() }
+        .onAppear {
+            // A preview in Settings leaves the island's size and extras alone.
+            guard !preview else { return }
+            syncExtras()
+            service.refreshAutomation()
+        }
         .onChange(of: extra) { syncExtras() }
         .onChange(of: service.playback.map(NotchMusicIdentity.init)) { syncExtras() }
         .onChange(of: features.revision) { syncExtras() }
         .onChange(of: lyricsEnabled) { syncExtras() }
         .onChange(of: queueEnabled) { syncExtras() }
         .onDisappear {
+            guard !preview else { return }
             NotchService.shared.setMusicDetailsVisible(false)
             NotchLyricsService.shared.hide()
             service.setQueueVisible(false)
@@ -89,6 +96,7 @@ struct NotchMusicView: View {
     }
 
     private func syncExtras() {
+        guard !preview else { return }
         NotchService.shared.setMusicDetailsVisible(openExtra != nil)
         NotchLyricsService.shared.update(playback: service.playback, visible: extra == .lyrics)
         service.setQueueVisible(extra == .queue)
@@ -387,6 +395,7 @@ struct NotchMusicControlsView: View {
     var height: CGFloat = NotchLayout.cardHeight
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
 
     var body: some View {
@@ -426,6 +435,6 @@ struct NotchMusicControlsView: View {
         .frame(maxWidth: .infinity)
         .frame(height: height)
         .modifier(NotchControlSurface(cornerRadius: 18))
-        .onAppear { music.refreshAutomation() }
+        .onAppear { if !preview { music.refreshAutomation() } }
     }
 }

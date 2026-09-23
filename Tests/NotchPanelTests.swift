@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import SwiftUI
 
 /// The production panel class is compiled here. Creating it deferred neither
 /// shows a window nor needs a running application; the sheet check orders a
@@ -20,6 +21,53 @@ enum NotchPanelTests {
                && panel.collectionBehavior.intersection([.managed, .stationary, .transient]) == .stationary,
                "the island stays in place when the desktop is revealed, with no conflicting window motion policy")
         sheetContracts(expect: expect)
+        activeGlass(expect: expect)
+    }
+
+    /// Liquid Glass draws a dull stand-in in a window that looks inactive. The
+    /// island never takes key focus when hover opens it, yet its glass must
+    /// render as in a window that holds focus. Neither panel is ordered in.
+    private static func activeGlass(expect: (Bool, String) -> Void) {
+#if compiler(>=6.2)
+        guard #available(macOS 26, *) else { return }
+        _ = NSApplication.shared
+        func rendered(in panel: NSPanel) -> [String] {
+            let host = NSHostingView(rootView: Color.clear.glassEffect(.clear, in: Rectangle()).frame(width: 200, height: 100))
+            host.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+            panel.contentView = host
+            host.layoutSubtreeIfNeeded()
+            host.displayIfNeeded()
+            CATransaction.flush()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            var lines: [String] = []
+            func walk(_ layer: CALayer, depth: Int) {
+                var line = "\(depth) \(type(of: layer)) \(layer.opacity) \(layer.isHidden)"
+                for case let filter as NSObject in layer.filters ?? [] {
+                    line += " \(filter.value(forKey: "name") ?? "")"
+                    let keys = filter.responds(to: NSSelectorFromString("inputKeys"))
+                        ? filter.value(forKey: "inputKeys") as? [String] ?? [] : []
+                    for key in keys.sorted() {
+                        if let number = filter.value(forKey: key) as? NSNumber { line += " \(key)=\(number)" }
+                    }
+                }
+                lines.append(line)
+                layer.sublayers?.forEach { walk($0, depth: depth + 1) }
+            }
+            if let layer = host.layer { walk(layer, depth: 0) }
+            return lines
+        }
+        let frame = CGRect(x: -4000, y: -4000, width: 200, height: 100)
+        let island = NotchPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let focused = NotchPanelFocusReference(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
+                                               backing: .buffered, defer: false)
+        island.isReleasedWhenClosed = false
+        focused.isReleasedWhenClosed = false
+        defer { island.close(); focused.close() }
+        let islandGlass = rendered(in: island)
+        expect(!island.isKeyWindow && !islandGlass.isEmpty && islandGlass == rendered(in: focused),
+               "the island's Liquid Glass renders as in a focused window from the moment it opens, "
+               + "without taking key focus from the app in front")
+#endif
     }
 
     private static func sheetContracts(expect: (Bool, String) -> Void) {
@@ -50,4 +98,12 @@ enum NotchPanelTests {
         island.orderOut(nil)
         expect(!island.isVisible, "ordering out without a sheet stays an ordinary hide")
     }
+}
+
+/// A window that answers every appearance question as one holding focus does.
+private final class NotchPanelFocusReference: NSPanel {
+    @objc func _hasActiveAppearance() -> Bool { true }
+    @objc func _hasActiveAppearanceIgnoringKeyFocus() -> Bool { true }
+    @objc func hasKeyAppearance() -> Bool { true }
+    @objc func hasMainAppearance() -> Bool { true }
 }

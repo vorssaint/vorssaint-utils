@@ -14,6 +14,8 @@ struct NotchNoticeView: View {
     private var tint: Color {
         switch notice.event {
         case .brightness, .keyboardLight: return .yellow
+        // A warning reads as one in any agent's color; other AI notices wear it.
+        case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         default: return .white
         }
     }
@@ -49,10 +51,18 @@ struct NotchNoticeView: View {
             }
         } else {
             HStack(spacing: 8) {
-                Image(systemName: notice.symbol)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(tint)
-                    .frame(width: 18)
+                Group {
+                    // A notice about the agent itself wears its mark; warnings
+                    // and renewals keep a symbol that says what happened.
+                    if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
+                        NotchAgentMark(provider: agent, size: 13)
+                    } else {
+                        Image(systemName: notice.symbol)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(tint)
+                    }
+                }
+                .frame(width: 18)
                 Text(notice.level == nil ? notice.title : notice.detail)
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()

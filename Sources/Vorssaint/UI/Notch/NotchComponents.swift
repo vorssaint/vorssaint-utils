@@ -249,6 +249,17 @@ extension EnvironmentValues {
         get { self[NotchGlassSurfaceKey.self] }
         set { self[NotchGlassSurfaceKey.self] = newValue }
     }
+
+    /// A page drawn in Settings to preview the island. It shows what the
+    /// island shows but must leave the island's state and the keyboard alone.
+    var notchSettingsPreview: Bool {
+        get { self[NotchSettingsPreviewKey.self] }
+        set { self[NotchSettingsPreviewKey.self] = newValue }
+    }
+}
+
+private struct NotchSettingsPreviewKey: EnvironmentKey {
+    static let defaultValue = false
 }
 
 /// The native host publishes the same path used by its animated mask. Keeping
