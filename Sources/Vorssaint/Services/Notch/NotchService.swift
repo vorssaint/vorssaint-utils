@@ -1685,7 +1685,9 @@ final class NotchService: ObservableObject {
                 captureClose?()
                 clearCapture()
                 tearDownPresentation()
+                // The keys go back to the system while nothing can show them.
                 if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
+                if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
             }
         }
         // A dark display does not stop an alarm while the same user and Mac
