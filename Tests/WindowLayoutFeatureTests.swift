@@ -81,6 +81,12 @@ enum WindowLayoutFeatureTests {
         suite.expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
+        // A strip that borrowed another placement's glyph would show two
+        // different places as the same picture wherever the actions are listed.
+        for (action, _, _) in verticalLayouts {
+            suite.expect(WindowLayoutAction.allCases.allSatisfy { $0 == action || $0.symbolName != action.symbolName },
+                   "\(action.rawValue) draws a glyph no other placement uses")
+        }
         for language in AppLanguage.allCases {
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
