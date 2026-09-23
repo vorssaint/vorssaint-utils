@@ -882,3 +882,40 @@ enum CommandBarCompletion {
         value == completedValue ? original : nil
     }
 }
+
+enum CommandBarAppSort {
+    enum Column { case name, alias, shortcut, pinned }
+
+    static func sorted<Item>(_ items: [Item], by column: Column, ascending: Bool,
+                             title: (Item) -> String, key: (Item) -> String,
+                             aliases: [String: String], shortcuts: [String: GlobalShortcut],
+                             pins: Set<String>) -> [Item] {
+        func text(_ item: Item) -> String? {
+            switch column {
+            case .name: return title(item)
+            case .alias: return aliases[key(item)].flatMap { $0.isEmpty ? nil : $0 }
+            case .shortcut: return shortcuts[key(item)]?.displayString
+            case .pinned: return nil
+            }
+        }
+        func byTitle(_ lhs: Item, _ rhs: Item) -> Bool {
+            title(lhs).localizedStandardCompare(title(rhs)) == .orderedAscending
+        }
+        return items.sorted { lhs, rhs in
+            if column == .pinned {
+                let left = pins.contains(key(lhs)), right = pins.contains(key(rhs))
+                if left != right { return ascending ? left : right }
+                return byTitle(lhs, rhs)
+            }
+            switch (text(lhs), text(rhs)) {
+            case (nil, nil): return byTitle(lhs, rhs)
+            case (nil, _): return false
+            case (_, nil): return true
+            case let (left?, right?):
+                let order = left.localizedStandardCompare(right)
+                if order == .orderedSame { return byTitle(lhs, rhs) }
+                return ascending ? order == .orderedAscending : order == .orderedDescending
+            }
+        }
+    }
+}
