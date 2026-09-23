@@ -161,7 +161,7 @@ public final class VirtualDisplayInstance: Identifiable {
     ) {
         self.profile = profile
         self.serialNum = serialNum
-        self.name = customName ?? "HiDPI 源 · \(profile.aspectRatioLabel)"
+        self.name = customName ?? "Vorssaint HiDPI · \(profile.aspectRatioLabel)"
     }
 
     public func start() throws {
@@ -246,6 +246,13 @@ public final class VirtualDisplayService: @unchecked Sendable {
         return associatedDummies[displayID] != nil
     }
 
+    /// Returns the physical targets currently associated with virtual sources.
+    public func virtualMirrorTargetIDs() -> Set<CGDirectDisplayID> {
+        lock.lock()
+        defer { lock.unlock() }
+        return Set(associatedDummies.keys)
+    }
+
     /// Pure topology helper used by screen-change recovery and regression tests.
     static func orphanedTargetIDs(
         associatedTargetIDs: Set<CGDirectDisplayID>,
@@ -320,7 +327,7 @@ public final class VirtualDisplayService: @unchecked Sendable {
 
         let instance = VirtualDisplayInstance(
             profile: profile,
-            customName: "HiDPI 源 (\(width)×\(height))"
+            customName: "Vorssaint HiDPI · \(width)×\(height)"
         )
         try instance.start()
 

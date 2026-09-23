@@ -1098,17 +1098,13 @@ extension Strings {
         shelfShortcutFinderSelectionCaption: "Finder öndeyken kısayol, rafı seçili dosyalar içinde olacak şekilde açar. Hiçbir şey seçili değilse her zamanki gibi açılır.",
         spacesOrderName: "Space sırasını sabit tut",
         spacesOrderCaption: "macOS’un Space’leri son kullanıma göre yeniden sıralamasını engeller, böylece belirlediğiniz sırada kalırlar. Seçenek kapatıldığında önceki ayar geri yüklenir. Değişikliği uygulamak için Dock bir kez yeniden başlayabilir.",
-        hiDPILabel: "HiDPI",
         nativeHiDPI: "Yerel HiDPI",
         virtualHiDPI: "Sanal HiDPI",
         standardResolution: "Standart Çözünürlük (1x)",
-        resolutionMenuTitle: "Çözünürlük",
         recoveryKeep: "Ayarları Koru",
         recoveryRevert: "Geri Dön",
         recoveryCountdownTitle: "Bu ekran ayarlarını koru?",
         recoveryCountdownRemaining: { "\($0) sn içinde otomatik geri dönülecek" },
         toggleHiDPICaption: "Retina HiDPI ölçeklemeyi aç/kapat",
-        xdrBoostTitle: "XDR 1600 nits Maksimum Parlaklık",
-        xdrBoostCaption: "Liquid Retina XDR ve EDR ekranlarda 1600 nits’e kadar tepe parlaklığın kilidini açar."
     )
 }

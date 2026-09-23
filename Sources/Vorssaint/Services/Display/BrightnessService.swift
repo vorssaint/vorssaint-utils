@@ -843,8 +843,13 @@ final class BrightnessService: ObservableObject {
         let virtual = Set(online.filter {
             displayInfoDictionary($0)?["kCGDisplayIsVirtualDevice"] as? Bool ?? false
         })
+        let virtualMirrorTargets = Set(online.filter {
+            VirtualDisplayService.shared.isVirtualMirrorTarget(for: $0)
+        })
         return BrightnessSupport.drawableDisplayIDs(
-            onlineDisplayIDs: online, activeDisplayIDs: active, virtualDisplayIDs: virtual)
+            onlineDisplayIDs: online,
+            activeDisplayIDs: active.union(virtualMirrorTargets),
+            virtualDisplayIDs: virtual)
     }
 
     /// Switches one display on or off inside a display reconfiguration
@@ -1907,14 +1912,9 @@ final class BrightnessService: ObservableObject {
         var built: [BrightnessDisplay] = []
         var newRoutes: [CGDirectDisplayID: Route] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
-        var virtualIDs = Set<CGDirectDisplayID>()
 
         for id in onlineIDs {
             let info = Self.displayInfoDictionary(id)
-            // Read before the mirroring guard below, so the snapshot the panel
-            // decides from covers every online display, exactly like the live
-            // reading it replaces.
-            if (info?["kCGDisplayIsVirtualDevice"] as? Bool ?? false) { virtualIDs.insert(id) }
             // Ordinary mirror targets follow their source and do not need a
             // separate row. A physical target managed by our virtual HiDPI
             // mirror is different: that row is the only stable in-app handle
@@ -1979,9 +1979,7 @@ final class BrightnessService: ObservableObject {
                                            brightness: 0.5, readable: false))
         }
 
-        let drawableIDs = BrightnessSupport.drawableDisplayIDs(
-            onlineDisplayIDs: seenTopology, activeDisplayIDs: activeTopology,
-            virtualDisplayIDs: virtualIDs)
+        let drawableIDs = Self.drawableDisplayIDs(online: seenTopology, active: activeTopology)
 
         stateLock.lock()
         let disabledSnapshots = managedDisabledDisplays

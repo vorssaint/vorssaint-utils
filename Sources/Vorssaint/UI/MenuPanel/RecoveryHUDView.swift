@@ -33,7 +33,6 @@ public final class RecoveryHUDController: ObservableObject, @unchecked Sendable 
     public private(set) var panels: [NSPanel] = []
     private var cancellables = Set<AnyCancellable>()
     private var localMonitor: Any?
-    private var globalMonitor: Any?
     private var screenObserver: NSObjectProtocol?
     private var isClosing: Bool = false
 
@@ -152,7 +151,7 @@ public final class RecoveryHUDController: ObservableObject, @unchecked Sendable 
     }
 
     private func startMonitoring() {
-        guard localMonitor == nil, globalMonitor == nil else { return }
+        guard localMonitor == nil else { return }
 
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
@@ -160,19 +159,12 @@ public final class RecoveryHUDController: ObservableObject, @unchecked Sendable 
             return handled ? nil : event
         }
 
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            _ = self?.handleKeyDown(keyCode: event.keyCode)
-        }
     }
 
     private func stopMonitoring() {
         if let local = localMonitor {
             NSEvent.removeMonitor(local)
             localMonitor = nil
-        }
-        if let global = globalMonitor {
-            NSEvent.removeMonitor(global)
-            globalMonitor = nil
         }
     }
 

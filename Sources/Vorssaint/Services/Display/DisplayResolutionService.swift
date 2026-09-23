@@ -106,16 +106,30 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
     @Published public private(set) var hiDPIStatusPerDisplay: [CGDirectDisplayID: HiDPIStatus] = [:]
 
     private var cancellables = Set<AnyCancellable>()
+    private var pendingScreenRefresh: DispatchWorkItem?
 
     private init() {
         refresh()
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                Self.log.info("Screen parameters changed notification received; refreshing display resolution modes.")
-                self?.refresh()
+                self?.scheduleScreenRefresh()
             }
             .store(in: &cancellables)
+    }
+
+    /// Display mode notifications can arrive in bursts while EDR ramps. Keep
+    /// one refresh scheduled from the first event so those bursts do not run
+    /// repeated CoreGraphics/SkyLight mode enumeration on the main thread.
+    private func scheduleScreenRefresh() {
+        guard pendingScreenRefresh == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingScreenRefresh = nil
+            self.refresh()
+        }
+        pendingScreenRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
     /// Refreshes all active displays, available modes, current mode, and HiDPI status.
@@ -143,7 +157,8 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         // physical target disappearing. Only mutate virtual state after a
         // successful online-list query; a transient query failure must never
         // be mistaken for every monitor being unplugged.
-        if let onlineIDs = Self.onlineDisplayIDs() {
+        let onlineIDs = Self.onlineDisplayIDs()
+        if let onlineIDs {
             let removedTargets = VirtualDisplayService.shared
                 .removeVirtualMirrorsForMissingTargets(onlineDisplayIDs: onlineIDs)
             if !removedTargets.isEmpty {
@@ -152,19 +167,25 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         }
 
         var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else {
+        guard CGGetActiveDisplayList(0, nil, &count) == .success else {
+            return
+        }
+        var activeIDs: [CGDirectDisplayID] = []
+        if count > 0 {
+            var displayIDs = [CGDirectDisplayID](repeating: 0, count: Int(count))
+            guard CGGetActiveDisplayList(count, &displayIDs, &count) == .success else {
+                return
+            }
+            activeIDs = Array(displayIDs.prefix(Int(count)))
+        }
+
+        if activeIDs.isEmpty && VirtualDisplayService.shared.virtualMirrorTargetIDs().isEmpty {
             modesPerDisplay = [:]
             currentModePerDisplay = [:]
             hiDPIStatusPerDisplay = [:]
             return
         }
 
-        var displayIDs = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &displayIDs, &count) == .success else {
-            return
-        }
-
-        let activeIDs = Array(displayIDs.prefix(Int(count)))
         var newModesPerDisplay: [CGDirectDisplayID: [DisplayResolutionMode]] = [:]
         var newCurrentModePerDisplay: [CGDirectDisplayID: DisplayResolutionMode] = [:]
         var newHiDPIStatusPerDisplay: [CGDirectDisplayID: HiDPIStatus] = [:]
@@ -193,6 +214,31 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 let status: HiDPIStatus = VirtualDisplayService.shared.isVirtualMirrorActive(for: displayID) ? .virtualMirror : .none
                 newHiDPIStatusPerDisplay[displayID] = status
             }
+        }
+
+        // A physical monitor being mirrored to a virtual HiDPI source can be
+        // omitted from CGGetActiveDisplayList. The brightness service still
+        // exposes that online physical target, so mirror the source's mode
+        // snapshot onto its target as well; otherwise its resolution row has
+        // no currentMode and disappears entirely.
+        for targetID in VirtualDisplayService.shared.virtualMirrorTargetIDs() {
+            guard let sourceID = VirtualDisplayService.shared.virtualDisplayID(for: targetID) else { continue }
+            // Keep mode indices tied to the physical display. CGS mode numbers
+            // belong to the display they were queried from; carrying the
+            // virtual source's indices into applyMode(targetID:) could select
+            // an unrelated physical mode after the mirror is removed.
+            let availableModes = queryModes(for: targetID)
+            newModesPerDisplay[targetID] = availableModes
+
+            if let sourceCurrent = newCurrentModePerDisplay[sourceID] {
+                newCurrentModePerDisplay[targetID] = sourceCurrent
+            } else if let currentCG = CGDisplayCopyDisplayMode(sourceID) {
+                let currentRaw = DisplayResolutionMode(cgMode: currentCG)
+                newCurrentModePerDisplay[targetID] = availableModes.first(where: { $0.matches(currentRaw) }) ?? currentRaw
+            } else if let fallback = availableModes.first {
+                newCurrentModePerDisplay[targetID] = fallback
+            }
+            newHiDPIStatusPerDisplay[targetID] = .virtualMirror
         }
 
         self.modesPerDisplay = newModesPerDisplay

@@ -1098,17 +1098,13 @@ extension Strings {
         shelfShortcutFinderSelectionCaption: "Finder が最前面にあるとき、ショートカットで選択中のファイルが入った状態のシェルフを開きます。何も選択していない場合は通常どおり開きます。",
         spacesOrderName: "スペースの順序を固定",
         spacesOrderCaption: "最近の使用状況に応じてmacOSがスペースを並べ替えないようにし、設定した順序を保ちます。オフにすると以前の設定に戻ります。変更を適用するためにDockが一度再起動することがあります。",
-        hiDPILabel: "HiDPI",
         nativeHiDPI: "ネイティブ HiDPI",
         virtualHiDPI: "仮想 HiDPI",
         standardResolution: "標準解像度 (1x)",
-        resolutionMenuTitle: "解像度",
         recoveryKeep: "設定を保持",
         recoveryRevert: "元に戻す",
         recoveryCountdownTitle: "このディスプレイ設定を保持しますか？",
         recoveryCountdownRemaining: { "\($0)秒後に自動で元に戻します" },
         toggleHiDPICaption: "Retina HiDPI スケーリングの切り替え",
-        xdrBoostTitle: "XDR 1600 nits ピーク輝度",
-        xdrBoostCaption: "Liquid Retina XDR および EDR 対応ディスプレイで最大 1600 nits のピーク輝度を解放します。"
     )
 }

@@ -1098,17 +1098,13 @@ extension Strings {
         shelfShortcutFinderSelectionCaption: "Quand le Finder est au premier plan, le raccourci ouvre l’étagère avec les fichiers sélectionnés déjà dedans. Sans sélection, elle s’ouvre comme d’habitude.",
         spacesOrderName: "Garder les Espaces dans un ordre fixe",
         spacesOrderCaption: "Empêche macOS de réorganiser les Espaces selon leur utilisation récente, pour qu’ils restent dans l’ordre choisi. Votre réglage précédent revient quand cette option est désactivée. Le Dock peut redémarrer une fois pour appliquer le changement.",
-        hiDPILabel: "HiDPI",
         nativeHiDPI: "HiDPI natif",
         virtualHiDPI: "HiDPI virtuel",
         standardResolution: "Résolution standard (1x)",
-        resolutionMenuTitle: "Résolution",
         recoveryKeep: "Conserver les réglages",
         recoveryRevert: "Rétablir",
         recoveryCountdownTitle: "Conserver ces réglages d’affichage\u{00A0}?",
         recoveryCountdownRemaining: { "Rétablissement automatique dans \($0) s" },
         toggleHiDPICaption: "Basculer la mise à l’échelle Retina HiDPI",
-        xdrBoostTitle: "Luminosité XDR 1600 nits",
-        xdrBoostCaption: "Débloque jusqu’à 1600 nits de rétroéclairage de crête sur les écrans Liquid Retina XDR et EDR."
     )
 }

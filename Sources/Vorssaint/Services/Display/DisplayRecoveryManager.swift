@@ -260,19 +260,30 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
 
     /// Performs cleanup on application termination: rolls back unconfirmed changes and destroys virtual displays.
     public func cleanupOnExit() {
+        cleanupVirtualDisplayState(reason: "application exit")
+    }
+
+    /// A disabled Brightness feature no longer has a panel where the user can
+    /// turn virtual HiDPI off, so restore the pending transaction and remove
+    /// every virtual mirror before that control disappears.
+    public func cleanupForBrightnessFeatureRemoval() {
+        cleanupVirtualDisplayState(reason: "Brightness feature disabled")
+    }
+
+    private func cleanupVirtualDisplayState(reason: String) {
         if Thread.isMainThread {
-            _cleanupOnExit()
+            _cleanupVirtualDisplayState(reason: reason)
         } else {
             DispatchQueue.main.sync {
-                self._cleanupOnExit()
+                self._cleanupVirtualDisplayState(reason: reason)
             }
         }
     }
 
-    private func _cleanupOnExit() {
-        Self.log.info("DisplayRecoveryManager executing cleanup on exit.")
+    private func _cleanupVirtualDisplayState(reason: String) {
+        Self.log.info("DisplayRecoveryManager cleaning virtual display state for \(reason, privacy: .public).")
         if awaitingConfirmation {
-            Self.log.warning("Display configuration transaction was still pending at exit. Performing rollback.")
+            Self.log.warning("Display configuration transaction was still pending. Performing rollback before cleanup.")
             _rollback()
         }
         VirtualDisplayService.shared.destroyAll()

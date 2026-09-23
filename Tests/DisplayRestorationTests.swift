@@ -830,6 +830,10 @@ enum DisplayRestorationTests {
                      && resolutionSource.contains("Failed to disable virtual mirror prior to mode switch")
                      && resolutionSource.contains("DisplayRecoveryManager.shared.rollback()"),
                      "display mutations serialize on the recovery snapshot and failures after virtual teardown roll back")
+        suite.expect(resolutionSource.contains("let availableModes = queryModes(for: targetID)")
+                     && resolutionSource.contains("newModesPerDisplay[targetID] = availableModes")
+                     && resolutionSource.contains("newHiDPIStatusPerDisplay[targetID] = .virtualMirror"),
+                     "mirror rows use physical-target mode indices and virtual-source current state")
 
         let brightnessSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
