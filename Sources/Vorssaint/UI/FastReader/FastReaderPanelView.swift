@@ -213,29 +213,8 @@ struct FastReaderPanelView: View {
             .padding(.horizontal, 0)
     }
 
-    /// Splits a chunk's tokens into the text before the focus letter, the
-    /// focus letter itself, and the text after it. `orpToken` names which
-    /// token in the chunk carries the focus; that token's own `orpIndex`
-    /// is a grapheme offset into its text, so the split walks characters
-    /// (not UTF-16 or scalars) to keep a Turkish diacritic or an emoji
-    /// cluster intact as the one letter it visually is.
     private func focusRuns(for chunk: ReaderChunk) -> (before: String, focus: String, after: String) {
-        guard !chunk.tokens.isEmpty else { return ("", "", "") }
-        let tokenIndex = min(max(chunk.orpToken, 0), chunk.tokens.count - 1)
-        let target = chunk.tokens[tokenIndex]
-        let leadingTokens = chunk.tokens[..<tokenIndex].map(\.text).joined(separator: " ")
-        let trailingTokens = chunk.tokens[(tokenIndex + 1)...].map(\.text).joined(separator: " ")
-
-        let characters = Array(target.text)
-        guard !characters.isEmpty else { return (leadingTokens, "", trailingTokens) }
-        let letterIndex = min(max(target.orpIndex, 0), characters.count - 1)
-        let beforeInToken = String(characters[..<letterIndex])
-        let focusLetter = String(characters[letterIndex])
-        let afterInToken = String(characters[(letterIndex + 1)...])
-
-        let before = leadingTokens.isEmpty ? beforeInToken : leadingTokens + " " + beforeInToken
-        let after = trailingTokens.isEmpty ? afterInToken : afterInToken + " " + trailingTokens
-        return (before, focusLetter, after)
+        FastReaderFocusRuns.split(chunk)
     }
 
     // MARK: - Controls

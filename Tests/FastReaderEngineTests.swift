@@ -9,6 +9,8 @@ enum FastReaderEngineTests {
         suite.run("fast reader focus point") { orp(suite) }
         suite.run("fast reader chunking") { chunking(suite) }
         suite.run("fast reader duration") { duration(suite) }
+        suite.run("fast reader focus runs") { runs(suite) }
+        suite.run("fast reader island wiring") { island(suite) }
     }
 
     private static func tokenize(_ suite: TestSuite) {
@@ -90,6 +92,58 @@ enum FastReaderEngineTests {
                      "no tokens give no chunks")
         suite.expect(chunked.allSatisfy { $0.orpToken == 0 },
                      "the focus sits on the first token of each chunk")
+    }
+
+    private static func runs(_ suite: TestSuite) {
+        // Both surfaces draw these three runs, so the split is pinned here
+        // rather than inside either view.
+        let single = FastReaderEngine.chunk(FastReaderEngine.tokenize("reader"), size: 1)[0]
+        let split = FastReaderFocusRuns.split(single)
+        suite.expect(split.before + split.focus + split.after == "reader",
+                     "the three runs put the word back together")
+        suite.expect(split.focus.count == 1, "exactly one character carries the focus")
+        // Six graphemes puts the focus on index two.
+        suite.expect(split.before == "re" && split.focus == "a" && split.after == "der",
+                     "the focus lands where the length table says")
+
+        let pair = FastReaderEngine.chunk(FastReaderEngine.tokenize("iki kelime"), size: 2)[0]
+        let across = FastReaderFocusRuns.split(pair)
+        suite.expect(across.before + across.focus + across.after == "iki kelime",
+                     "a two-word chunk also puts itself back together")
+        suite.expect(across.focus == "k",
+                     "the focus stays on the chunk's first token")
+
+        let turkish = FastReaderEngine.chunk(FastReaderEngine.tokenize("değişiklik"), size: 1)[0]
+        let diacritics = FastReaderFocusRuns.split(turkish)
+        suite.expect(diacritics.before + diacritics.focus + diacritics.after == "değişiklik",
+                     "a word with diacritics survives the split")
+        suite.expect(diacritics.focus == "i", "graphemes are counted, not bytes")
+
+        let empty = ReaderChunk(tokens: [], orpToken: 0)
+        let nothing = FastReaderFocusRuns.split(empty)
+        suite.expect(nothing.before.isEmpty && nothing.focus.isEmpty && nothing.after.isEmpty,
+                     "an empty chunk splits into nothing")
+    }
+
+    private static func island(_ suite: TestSuite) {
+        // The reader has a page and a button on the island. Both are keyed to
+        // the same feature, and the button ships hidden so an install that
+        // never asked for it does not gain a tile.
+        suite.expect(NotchModule.allCases.contains(.fastReader),
+                     "the island has a page for the reader")
+        suite.expect(NotchControlItem.allCases.contains(.fastReader),
+                     "the island's controls have a button for the reader")
+        suite.expect(NotchControlItem.defaultHidden.contains("fastReader"),
+                     "that button is hidden until it is asked for")
+        suite.expect(!NotchModule.fastReader.symbol.isEmpty
+                        && !NotchModule.fastReader.shortcutKey.isEmpty,
+                     "the page has a symbol and a direct key")
+
+        // Every destination key has to be its own, or one of them is
+        // unreachable and nothing says which.
+        let keys = NotchModule.allCases.map(\.shortcutKey)
+        suite.expect(Set(keys).count == keys.count,
+                     "no two island destinations share a key")
     }
 
     private static func duration(_ suite: TestSuite) {

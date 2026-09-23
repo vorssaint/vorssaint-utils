@@ -229,3 +229,28 @@ enum FastReaderEngine {
         return seconds
     }
 }
+
+/// Splits a chunk into the text before its focus character, that character,
+/// and the text after it. Pure, and shared: both the floating window and the
+/// island draw the same three runs, and a second copy of this would be a
+/// second chance for the two surfaces to disagree about where the axis is.
+enum FastReaderFocusRuns {
+    static func split(_ chunk: ReaderChunk) -> (before: String, focus: String, after: String) {
+        guard !chunk.tokens.isEmpty else { return ("", "", "") }
+        let tokenIndex = min(max(chunk.orpToken, 0), chunk.tokens.count - 1)
+        let target = chunk.tokens[tokenIndex]
+        let leadingTokens = chunk.tokens[..<tokenIndex].map(\.text).joined(separator: " ")
+        let trailingTokens = chunk.tokens[(tokenIndex + 1)...].map(\.text).joined(separator: " ")
+
+        let characters = Array(target.text)
+        guard !characters.isEmpty else { return (leadingTokens, "", trailingTokens) }
+        let letterIndex = min(max(target.orpIndex, 0), characters.count - 1)
+        let beforeInToken = String(characters[..<letterIndex])
+        let focusLetter = String(characters[letterIndex])
+        let afterInToken = String(characters[(letterIndex + 1)...])
+
+        let before = leadingTokens.isEmpty ? beforeInToken : leadingTokens + " " + beforeInToken
+        let after = trailingTokens.isEmpty ? afterInToken : afterInToken + " " + trailingTokens
+        return (before, focusLetter, after)
+    }
+}

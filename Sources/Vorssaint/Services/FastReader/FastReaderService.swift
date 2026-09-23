@@ -112,23 +112,31 @@ final class FastReaderService {
         // shortcut fired by accident, a slip in the Services menu — must
         // not start flashing text before the controls are even visible.
         FastReaderSession.shared.load(text, options: FastReaderPreferences.options())
-        showFloatingPanel()
+        present()
         if truncated {
             QuickToolHUD.show(icon: AppFeature.fastReader.symbolName,
                               message: String(format: strings.truncatedFormat, Self.selectionCap))
         }
     }
 
-    private func showFloatingPanel() {
-        switch FastReaderPreferences.surface {
-        case .floating, .notch:
-            // `.notch` is reserved for the Dynamic Island surface Phase 2
-            // adds. Until that surface exists both settings land here, on
-            // the same floating panel — there is no `NotchControlItem` case
-            // for Fast Reader yet, and this is deliberately not where one
-            // gets added.
-            break
+    /// Presents on whichever surface is asked for, falling back to the
+    /// floating window when the island cannot take it: the Dynamic Island is
+    /// a feature of its own, and it can be uninstalled or have the reader's
+    /// page switched off long after this preference was set. Refusing to open
+    /// at all in that case would look like the reader being broken.
+    private func present() {
+        guard FastReaderPreferences.surface == .notch,
+              AppFeature.notch.isAvailable,
+              NotchSupport.modules().contains(.fastReader)
+        else {
+            showFloatingPanel()
+            return
         }
+        close()
+        NotchService.shared.select(.fastReader)
+    }
+
+    private func showFloatingPanel() {
         let panel = ensurePanel()
         installMonitors(for: panel)
         if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(panel.frame) }) {

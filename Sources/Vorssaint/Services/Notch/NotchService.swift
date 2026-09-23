@@ -1302,6 +1302,7 @@ final class NotchService: ObservableObject {
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
             case .scratchpad: openScratchpad()
+            case .fastReader: openFastReader()
             case .volume, .brightness: select(.controls)
             }
         }
@@ -1325,6 +1326,15 @@ final class NotchService: ObservableObject {
            selectedMetric == nil, panel?.isKeyWindow == true { collapse() }
         else { open(.scratchpad) }
         return true
+    }
+
+    /// The reader lives in the island when its page is on, and falls back to
+    /// the floating window otherwise, the same way the pad does. Opening the
+    /// page does not begin a reading: the text comes from a selection, so the
+    /// page shows whatever the session is already holding.
+    func openFastReader() {
+        if modules.contains(.fastReader) { open(.fastReader) }
+        else { perform { FastReaderService.shared.openWithCurrentSelection() } }
     }
 
     func openAppPanel(toggle: Bool = false) {

@@ -22,6 +22,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var scratchpadBackgroundOpacity = 0.0
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
     @AppStorage(DefaultsKey.fastReaderShortcutEnabled) private var fastReaderShortcutEnabled = false
+    @AppStorage(DefaultsKey.fastReaderSurface) private var fastReaderSurface = FastReaderSurface.floating.rawValue
     @AppStorage(DefaultsKey.fastReaderWordsPerMinute) private var fastReaderWordsPerMinute = 400
     @AppStorage(DefaultsKey.fastReaderChunkSize) private var fastReaderChunkSize = 1
     @AppStorage(DefaultsKey.fastReaderFocusPoint) private var fastReaderFocusPoint = true
@@ -334,10 +335,18 @@ struct QuickToolsSettings: View {
                                           label: FeatureStrings.fastReader(l10n.language).shortcutTitle) {
                         FastReaderService.shared.syncShortcutRegistration()
                     }
-                    // No surface picker: `fastReaderSurface` has only one working
-                    // value (`.floating`) until Phase 2 adds the Dynamic Island
-                    // surface. Phase 2 will bind it with the already-translated
-                    // strings `surfaceTitle`, `surfaceFloating` and `surfaceNotch`.
+                    // Only offered when the island can actually take the
+                    // reader. A choice whose second option silently falls back
+                    // to the first is worse than no choice.
+                    if AppFeature.notch.isAvailable {
+                        Picker(FeatureStrings.fastReader(l10n.language).surfaceTitle,
+                               selection: $fastReaderSurface) {
+                            Text(FeatureStrings.fastReader(l10n.language).surfaceFloating)
+                                .tag(FastReaderSurface.floating.rawValue)
+                            Text(FeatureStrings.fastReader(l10n.language).surfaceNotch)
+                                .tag(FastReaderSurface.notch.rawValue)
+                        }
+                    }
                 } header: {
                     Text(FeatureStrings.fastReader(l10n.language).pageTitle)
                 }
