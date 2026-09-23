@@ -49,9 +49,10 @@ final class AudioInputDeviceManager: ObservableObject {
     /// for as long as the audio daemon holds the device, and that is exactly
     /// the moment the listeners fire.
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.audioinput.hal", qos: .userInitiated)
-    /// The system input before this app first changed it, and the device it
-    /// applied. The singular preferred-microphone behavior restores the
-    /// original on stop; an active priority selection survives a quit.
+    /// The system input before the singular preferred-microphone behavior
+    /// changed it, and the device that behavior applied. Priority selections
+    /// clear this pair and become the new system choice instead of a temporary
+    /// override that stop() would undo.
     private var inputDeviceBeforeOverride: String?
     private var appliedInputDeviceUID: String?
     /// True while Audio device priority is steering the input: the singular
@@ -146,25 +147,24 @@ final class AudioInputDeviceManager: ObservableObject {
     }
 
     /// Points the system input at a concrete device without changing the
-    /// dormant preferred-microphone setting. The HAL write runs off-main: a
-    /// device connecting or disappearing is exactly when CoreAudio may block.
+    /// dormant preferred-microphone setting. A successful selection becomes
+    /// the new persistent system choice, so it also supersedes any restoration
+    /// record left by the singular preferred-microphone behavior. The HAL write
+    /// runs off-main: a device connecting or disappearing is exactly when
+    /// CoreAudio may block.
     func setCurrentInputDeviceUID(_ uid: String) {
         volumeWriteLock.withLock { volumeWriteLifetime = UUID() }
         guard listenerInstalled,
               uid != currentInputDeviceUID,
               let device = inputDevices.first(where: { $0.uid == uid }) else { return }
-        let deviceBeforeOverride = inputDeviceBeforeOverride
-            ?? currentInputDeviceUID
         refresh.discardInFlight()
         halQueue.async { [weak self] in
             let status = Self.setDefaultInputDevice(device.audioObjectID)
             DispatchQueue.main.async {
                 guard let self, self.listenerInstalled else { return }
                 if status == noErr {
-                    if self.inputDeviceBeforeOverride == nil {
-                        self.inputDeviceBeforeOverride = deviceBeforeOverride
-                    }
-                    self.appliedInputDeviceUID = device.uid
+                    self.inputDeviceBeforeOverride = nil
+                    self.appliedInputDeviceUID = nil
                     if self.lastError != nil { self.lastError = nil }
                 } else {
                     let message = "OSStatus \(status)"
