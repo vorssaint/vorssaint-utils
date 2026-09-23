@@ -353,7 +353,7 @@ extension DiskImageInstallerStrings {
         applicationsFolder: "папці «Програми»",
         userApplicationsFolder: "папці «Програми» у вашій домашній папці",
         promptTitle: "Встановити цю програму?",
-        promptBodyFormat: "%@ буде скопійовано в %@, а образ диска вийнято.",
+        promptBodyFormat: "%@ буде встановлено в %@, а образ диска вийнято.",
         installButton: "Встановити",
         installedTitle: "Програму встановлено",
         installedBodyFormat: "%@ готова у %@. Образ диска вийнято, а завантаження переміщено в Кошик.",
