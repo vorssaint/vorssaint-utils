@@ -4,6 +4,11 @@
 import AppKit
 
 extension NSScreen {
+    /// The CoreGraphics display id behind this screen; 0 when missing.
+    var displayID: CGDirectDisplayID {
+        (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+    }
+
     /// The screen under the mouse pointer, where summoned panels (switcher,
     /// shelf, cut HUD) belong. Falls back to the main screen. Returns nil only
     /// in the rare window where the app has no active display at all, e.g. a

@@ -97,6 +97,86 @@ enum FeatureStrings {
     static func whatsAppDownloads(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         WhatsAppDownloadStrings.localized(language)
     }
+
+    static func annotation(_ language: AppLanguage) -> ScreenAnnotationStrings {
+        switch language {
+        case .enUS: return .enUS
+        case .ptBR: return .ptBR
+        case .tr: return .tr
+        case .ru: return .ru
+        case .es: return .es
+        case .de: return .de
+        case .fr: return .fr
+        case .it: return .it
+        case .ja: return .ja
+        case .ko: return .ko
+        case .zhHans: return .zhHans
+        case .zhTW: return .zhTW
+        case .zhHK: return .zhHK
+        }
+    }
+}
+
+struct ScreenAnnotationStrings {
+    let title: String
+    let pen: String
+    let highlighter: String
+    let undo: String
+    let clear: String
+    let exit: String
+    let openOverlay: String
+    let settingsDescription: String
+    let hubDescription: String
+    let arrow: String
+    let line: String
+    let rectangle: String
+    let ellipse: String
+    let text: String
+    let redact: String
+    let eraser: String
+
+    init(title: String, pen: String, highlighter: String, undo: String, clear: String,
+         exit: String, openOverlay: String,
+         settingsDescription: String,
+         hubDescription: String,
+         arrow: String,
+         line: String,
+         rectangle: String,
+         ellipse: String,
+         text: String,
+         redact: String,
+         eraser: String) {
+         self.title = title
+        self.pen = pen
+        self.highlighter = highlighter
+        self.undo = undo
+        self.clear = clear
+        self.exit = exit
+        self.openOverlay = openOverlay
+        self.settingsDescription = settingsDescription
+        self.hubDescription = hubDescription
+        self.arrow = arrow
+        self.line = line
+        self.rectangle = rectangle
+        self.ellipse = ellipse
+        self.text = text
+        self.redact = redact
+        self.eraser = eraser
+    }
+
+    static let enUS = ScreenAnnotationStrings(title: "Screen annotation", pen: "Pen", highlighter: "Highlighter", undo: "Undo", clear: "Clear", exit: "Exit", openOverlay: "Draw on screen", settingsDescription: "Draw on screen stays available while this feature is installed. Use the toolbar to choose the tool, color, and width.", hubDescription: "Draw on top of anything on screen with a pen, highlighter, arrows, and shapes.", arrow: "Arrow", line: "Line", rectangle: "Rectangle", ellipse: "Ellipse", text: "Text", redact: "Solid block", eraser: "Eraser")
+    static let ptBR = ScreenAnnotationStrings(title: "Anotação de tela", pen: "Caneta", highlighter: "Marca-texto", undo: "Desfazer", clear: "Limpar", exit: "Sair", openOverlay: "Desenhar na tela", settingsDescription: "Desenhar na tela permanece disponível enquanto o recurso estiver instalado. Use a barra para escolher ferramenta, cor e espessura.", hubDescription: "Desenhe sobre qualquer coisa na tela com caneta, marca-texto, setas e formas.", arrow: "Seta", line: "Linha", rectangle: "Retângulo", ellipse: "Elipse", text: "Texto", redact: "Bloco sólido", eraser: "Borracha")
+    static let tr = ScreenAnnotationStrings(title: "Ekran açıklaması", pen: "Kalem", highlighter: "Vurgulayıcı", undo: "Geri al", clear: "Temizle", exit: "Çık", openOverlay: "Ekrana çiz", settingsDescription: "Bu özellik yüklüyken ekrana çizme her zaman kullanılabilir. Araç, renk ve kalınlığı seçmek için araç çubuğunu kullanın.", hubDescription: "Kalem, vurgulayıcı, oklar ve şekillerle ekranınızdaki her şeyin üzerine çizin.", arrow: "Ok", line: "Çizgi", rectangle: "Dikdörtgen", ellipse: "Elips", text: "Metin", redact: "Düz blok", eraser: "Silgi")
+    static let ru = ScreenAnnotationStrings(title: "Аннотация экрана", pen: "Перо", highlighter: "Маркер", undo: "Отменить", clear: "Очистить", exit: "Выйти", openOverlay: "Рисовать на экране", settingsDescription: "Рисование на экране остаётся доступным, пока эта функция установлена. Используйте панель инструментов, чтобы выбрать инструмент, цвет и толщину.", hubDescription: "Рисуйте поверх всего на экране пером, маркером, стрелками и фигурами.", arrow: "Стрелка", line: "Линия", rectangle: "Прямоугольник", ellipse: "Эллипс", text: "Текст", redact: "Плашка", eraser: "Ластик")
+    static let es = ScreenAnnotationStrings(title: "Anotación de pantalla", pen: "Pluma", highlighter: "Resaltador", undo: "Deshacer", clear: "Limpiar", exit: "Salir", openOverlay: "Dibujar en la pantalla", settingsDescription: "Dibujar en la pantalla permanece disponible mientras esta función esté instalada. Usa la barra de herramientas para elegir la herramienta, el color y el grosor.", hubDescription: "Dibuja sobre cualquier cosa en la pantalla con pluma, resaltador, flechas y formas.", arrow: "Flecha", line: "Línea", rectangle: "Rectángulo", ellipse: "Elipse", text: "Texto", redact: "Bloque sólido", eraser: "Borrador")
+    static let de = ScreenAnnotationStrings(title: "Bildschirmanmerkung", pen: "Stift", highlighter: "Textmarker", undo: "Widerrufen", clear: "Löschen", exit: "Beenden", openOverlay: "Auf den Bildschirm zeichnen", settingsDescription: "Das Zeichnen auf dem Bildschirm bleibt verfügbar, solange diese Funktion installiert ist. Verwenden Sie die Werkzeugleiste, um Werkzeug, Farbe und Breite zu wählen.", hubDescription: "Zeichnen Sie mit Stift, Textmarker, Pfeilen und Formen über alles auf dem Bildschirm.", arrow: "Pfeil", line: "Linie", rectangle: "Rechteck", ellipse: "Ellipse", text: "Text", redact: "Farbblock", eraser: "Radierer")
+    static let fr = ScreenAnnotationStrings(title: "Annotation à l’écran", pen: "Stylet", highlighter: "Surligneur", undo: "Annuler", clear: "Effacer", exit: "Quitter", openOverlay: "Dessiner à l’écran", settingsDescription: "Le dessin à l’écran reste disponible tant que cette fonctionnalité est installée. Utilisez la barre d’outils pour choisir l’outil, la couleur et l’épaisseur.", hubDescription: "Dessinez par-dessus tout ce qui est à l’écran avec un stylet, un surligneur, des flèches et des formes.", arrow: "Flèche", line: "Ligne", rectangle: "Rectangle", ellipse: "Ellipse", text: "Texte", redact: "Bloc plein", eraser: "Gomme")
+    static let it = ScreenAnnotationStrings(title: "Annotazione dello schermo", pen: "Penna", highlighter: "Evidenziatore", undo: "Annulla", clear: "Cancella", exit: "Esci", openOverlay: "Disegna sullo schermo", settingsDescription: "Disegnare sullo schermo resta disponibile finché questa funzione è installata. Usa la barra degli strumenti per scegliere strumento, colore e spessore.", hubDescription: "Disegna sopra qualsiasi cosa sullo schermo con penna, evidenziatore, frecce e forme.", arrow: "Freccia", line: "Linea", rectangle: "Rettangolo", ellipse: "Ellisse", text: "Testo", redact: "Blocco pieno", eraser: "Gomma")
+    static let ja = ScreenAnnotationStrings(title: "画面注釈", pen: "ペン", highlighter: "蛍光ペン", undo: "取り消す", clear: "消去", exit: "終了", openOverlay: "画面に描画", settingsDescription: "この機能がインストールされている間、画面への描画はいつでも利用できます。ツールバーでツール、色、太さを選択してください。", hubDescription: "ペン、蛍光ペン、矢印、図形で画面上のあらゆるものに描画できます。", arrow: "矢印", line: "線", rectangle: "長方形", ellipse: "楕円", text: "テキスト", redact: "塗りつぶし", eraser: "消しゴム")
+    static let ko = ScreenAnnotationStrings(title: "화면 주석", pen: "펜", highlighter: "형광펜", undo: "실행 취소", clear: "지우기", exit: "나가기", openOverlay: "화면에 그리기", settingsDescription: "이 기능이 설치되어 있는 동안 화면에 그리기를 항상 사용할 수 있습니다. 도구 모음에서 도구, 색상, 두께를 선택하세요.", hubDescription: "펜, 형광펜, 화살표, 도형으로 화면의 모든 것 위에 그릴 수 있습니다.", arrow: "화살표", line: "선", rectangle: "사각형", ellipse: "타원", text: "텍스트", redact: "단색 블록", eraser: "지우개")
+    static let zhHans = ScreenAnnotationStrings(title: "屏幕标注", pen: "画笔", highlighter: "荧光笔", undo: "撤销", clear: "清除", exit: "退出", openOverlay: "在屏幕上绘图", settingsDescription: "只要安装了此功能，就可以随时在屏幕上绘图。使用工具栏选择工具、颜色和粗细。", hubDescription: "使用画笔、荧光笔、箭头和形状在屏幕上的任何内容上绘图。", arrow: "箭头", line: "直线", rectangle: "矩形", ellipse: "椭圆", text: "文本", redact: "色块", eraser: "橡皮擦")
+    static let zhTW = ScreenAnnotationStrings(title: "螢幕標註", pen: "畫筆", highlighter: "螢光筆", undo: "復原", clear: "清除", exit: "離開", openOverlay: "在螢幕上繪圖", settingsDescription: "只要安裝了此功能，就能隨時在螢幕上繪圖。使用工具列選擇工具、顏色和粗細。", hubDescription: "使用畫筆、螢光筆、箭頭和形狀在螢幕上的任何內容上繪圖。", arrow: "箭頭", line: "直線", rectangle: "矩形", ellipse: "橢圓", text: "文字", redact: "色塊", eraser: "橡皮擦")
+    static let zhHK = ScreenAnnotationStrings(title: "螢幕標註", pen: "畫筆", highlighter: "螢光筆", undo: "復原", clear: "清除", exit: "離開", openOverlay: "在螢幕上繪圖", settingsDescription: "只要安裝咗呢個功能，就可以隨時喺螢幕上繪圖。用工具列揀工具、顏色同粗幼。", hubDescription: "用畫筆、螢光筆、箭嘴同形狀喺螢幕上嘅任何嘢上面繪圖。", arrow: "箭嘴", line: "直線", rectangle: "矩形", ellipse: "橢圓", text: "文字", redact: "色塊", eraser: "擦膠")
 }
 
 struct MixerFeatureStrings {

@@ -302,4 +302,3 @@ private struct NotchAgentStripSample: View {
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, now: now)
     }
 }
-

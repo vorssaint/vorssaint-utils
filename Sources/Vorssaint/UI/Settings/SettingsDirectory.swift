@@ -252,6 +252,14 @@ enum SettingsDirectory {
                                        icon: "camera.viewfinder",
                                        featureKeywords: SettingsSearchSupport
                                         .screenCaptureFeatureKeywords(s, language: language)),
+                SettingsDirectoryItem(page: .screenAnnotation,
+                                      title: FeatureStrings.annotation(language).title,
+                                      icon: "pencil.and.outline",
+                                      featureKeywords: [
+                                        (.screenAnnotation, [FeatureStrings.annotation(language).title,
+                                                              FeatureStrings.annotation(language).pen,
+                                                              FeatureStrings.annotation(language).highlighter])
+                                      ]),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,
