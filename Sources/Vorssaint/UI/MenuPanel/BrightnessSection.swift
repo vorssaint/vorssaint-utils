@@ -68,7 +68,7 @@ struct BrightnessSection: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
-                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                        .disclosureRotation(open: optionsExpanded)
                     Text(l10n.s.keepAwakeOptions)
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(.secondary)

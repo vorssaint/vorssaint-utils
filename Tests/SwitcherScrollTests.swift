@@ -227,5 +227,16 @@ enum SwitcherScrollContract {
             }
             UserDefaults.standard.set("normal", forKey: DefaultsKey.switcherPreviewSize)
         }
+
+        // Arrows name a screen direction; the grid is drawn in reverse in a
+        // mirrored interface, so the index they step to is reversed with it.
+        // Shortcut cycling names next and previous and is deliberately not
+        // routed through this.
+        suite.expect(SwitcherSupport.horizontalArrowDelta(towardTrailingEdge: true, rightToLeft: false) == 1
+                     && SwitcherSupport.horizontalArrowDelta(towardTrailingEdge: false, rightToLeft: false) == -1,
+                     "left to right, the right arrow advances the selection")
+        suite.expect(SwitcherSupport.horizontalArrowDelta(towardTrailingEdge: true, rightToLeft: true) == -1
+                     && SwitcherSupport.horizontalArrowDelta(towardTrailingEdge: false, rightToLeft: true) == 1,
+                     "mirrored, each arrow picks the neighbour it points at")
     }
 }

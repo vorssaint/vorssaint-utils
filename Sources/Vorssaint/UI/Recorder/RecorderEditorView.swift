@@ -372,7 +372,13 @@ struct RecorderEditorView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .trailing)
                 .lineLimit(1)
+            // A time axis is not a reading order, and half of this row is
+            // AppKit drawing absolute positions that mirror for nobody. Pinning
+            // every lane to one direction is what keeps a moment at the same
+            // place across the filmstrip, the ruler and the native lanes; the
+            // labels and the controls around them still follow the language.
             content()
+                .environment(\.layoutDirection, .leftToRight)
         }
     }
 

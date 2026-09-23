@@ -805,9 +805,11 @@ final class AppSwitcher: ObservableObject {
                 advanceWindowInSelectedApp(by: delta)
             }
         case KeyCode.rightArrow:
-            advanceSelection(by: 1)
+            advanceSelection(by: SwitcherSupport.horizontalArrowDelta(
+                towardTrailingEdge: true, rightToLeft: L10n.shared.language.isRightToLeft))
         case KeyCode.leftArrow:
-            advanceSelection(by: -1)
+            advanceSelection(by: SwitcherSupport.horizontalArrowDelta(
+                towardTrailingEdge: false, rightToLeft: L10n.shared.language.isRightToLeft))
         case KeyCode.downArrow:
             moveSelection(by: grid.columns)
         case KeyCode.upArrow:

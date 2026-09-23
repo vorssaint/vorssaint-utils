@@ -80,8 +80,14 @@ struct NotchMixerView: View {
                 NotchAppFader(app: app, height: faderHeight, editingVolumeID: $editingVolumeID,
                               isPinned: arrangement.isPinned(app.persistenceID),
                               togglePin: { updateArrangement { $0.togglePin(app.persistenceID ?? "") } },
-                              moveBack: moveAction(for: app, offset: -1, ids: ids),
-                              moveForward: moveAction(for: app, offset: 1, ids: ids))
+                              // The rail is drawn in reverse in a right-to-left
+                              // interface, so "left" is a later index there.
+                              moveBack: moveAction(for: app, offset: MixerReorderDirection.offset(
+                                  towardTrailingEdge: false,
+                                  rightToLeft: l10n.language.isRightToLeft), ids: ids),
+                              moveForward: moveAction(for: app, offset: MixerReorderDirection.offset(
+                                  towardTrailingEdge: true,
+                                  rightToLeft: l10n.language.isRightToLeft), ids: ids))
                     .modifier(MixerAppReorderModifier(
                         id: app.persistenceID,
                         icon: ResponsibleProcess.icon(for: app.ownerPid, pointSize: 32),

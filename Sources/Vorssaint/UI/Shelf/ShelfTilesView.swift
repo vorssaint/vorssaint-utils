@@ -164,18 +164,27 @@ struct ShelfTilesView: NSViewRepresentable {
             ? ShelfTileLayout.rowCount(contentHeight: scroll.contentSize.height, tileHeight: tile.height,
                                        spacing: spacing, inset: inset)
             : max(1, Int(ceil(Double(items.count) / Double(columns))))
+        // A sideways shelf keeps flowing past the viewport, and its document is
+        // widened to match below. Mirroring around the viewport would put the
+        // columns past the fold at negative x, outside the document entirely,
+        // so the sideways grid is mirrored around the width it will actually
+        // have and the first column stays reachable at the right edge.
+        let tileColumns = max(1, Int(ceil(Double(items.count) / Double(rows))))
+        let flowWidth = inset * 2 + CGFloat(tileColumns) * tile.width
+            + CGFloat(max(0, tileColumns - 1)) * spacing
+        let documentWidth = max(flowWidth, scroll.contentSize.width)
         // The grid is AppKit, laid out in absolute frames, so the layout
         // direction has to be carried in by hand rather than inherited.
-        let mirroredWidth = L10n.shared.language.isRightToLeft ? contentWidth : nil
+        let rightToLeft = L10n.shared.language.isRightToLeft
         let frame: (Int) -> CGRect = { index in
             if sideways {
                 return ShelfTileLayout.sidewaysTileFrame(index: index, rows: rows, tileSize: tile,
                                                          spacing: spacing, inset: inset,
-                                                         mirroredIn: mirroredWidth)
+                                                         mirroredIn: rightToLeft ? documentWidth : nil)
             }
             return ShelfTileLayout.tileFrame(index: index, columns: columns, tileSize: tile,
                                              spacing: spacing, inset: inset,
-                                             mirroredIn: mirroredWidth)
+                                             mirroredIn: rightToLeft ? contentWidth : nil)
         }
 
         // Item.== is id-only (by design, for selection/lookup purposes
@@ -190,6 +199,10 @@ struct ShelfTilesView: NSViewRepresentable {
                 && selection == $0.lastRebuiltSelection
                 && expandedBatches == $0.lastRebuiltExpandedBatches
                 && scroll.contentSize == $0.lastRebuiltContentSize
+                // Nothing else here changes when the language does, and the
+                // frames are absolute, so without this an open shelf keeps the
+                // direction it was built in.
+                && rightToLeft == $0.lastRebuiltRightToLeft
         } ?? false
         if unchanged {
             // Revealing does not require rebuilding any tile, so keep the
@@ -204,6 +217,7 @@ struct ShelfTilesView: NSViewRepresentable {
         coordinator?.lastRebuiltSelection = selection
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
         coordinator?.lastRebuiltContentSize = scroll.contentSize
+        coordinator?.lastRebuiltRightToLeft = rightToLeft
 
         document.subviews.forEach { $0.removeFromSuperview() }
 
@@ -215,11 +229,9 @@ struct ShelfTilesView: NSViewRepresentable {
             document.addSubview(view)
         }
         if sideways {
-            let tileColumns = max(1, Int(ceil(Double(items.count) / Double(rows))))
-            let flowWidth = inset * 2 + CGFloat(tileColumns) * tile.width + CGFloat(max(0, tileColumns - 1)) * spacing
             scroll.hasHorizontalScroller = flowWidth > scroll.contentSize.width + 1
             document.frame = NSRect(x: 0, y: 0,
-                                    width: max(flowWidth, scroll.contentSize.width),
+                                    width: documentWidth,
                                     height: scroll.contentSize.height)
         } else {
             let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * spacing
@@ -248,6 +260,7 @@ struct ShelfTilesView: NSViewRepresentable {
         var lastRebuiltSelection: Set<UUID>?
         var lastRebuiltExpandedBatches: Set<UUID>?
         var lastRebuiltContentSize: NSSize?
+        var lastRebuiltRightToLeft: Bool?
     }
 
     /// Brings a newly added tile into view. scrollToVisible already does

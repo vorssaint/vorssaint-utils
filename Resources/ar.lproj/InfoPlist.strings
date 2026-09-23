@@ -2,7 +2,7 @@
 "NSAppleEventsUsageDescription" = "يستخدم Vorssaint الأتمتة لنقل الملفات، وإرسال العناصر إلى المهملات، وفتح الأوامر المطلوبة، والتحكم في التشغيل في تطبيقات الوسائط لديك.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "يستخدم Vorssaint صوت كل تطبيق لضبط مستوى صوته في الخالط ولتضمين صوت الـ Mac في تسجيلات الشاشة التي تبدأها. ولا يغادر أي شيء الـ Mac الخاص بك.";
+"NSAudioCaptureUsageDescription" = "يستخدم Vorssaint صوت كل تطبيق لضبط مستوى صوته في الخالط، ولتحريك أشرطة الموسيقى في الجزيرة الديناميكية، ولتضمين صوت الـ Mac في تسجيلات الشاشة التي تبدأها. ولا يغادر أي شيء الـ Mac الخاص بك.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "يستخدم Vorssaint بلوتوث لقراءة مستوى بطارية الملحقات الموصولة فقط. ولا يغادر أي شيء الـ Mac الخاص بك.";
