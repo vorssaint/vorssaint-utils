@@ -149,11 +149,9 @@ struct PanelClipboardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
             HStack(alignment: .center, spacing: 7) {
-                if let name = entry.imageFile,
-                   let thumbnail = ClipboardImageStore.thumbnail(named: name) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                if let name = entry.imageFile {
+                    ClipboardThumbnailImage(source: .stored(name: name),
+                                            aspectRatio: entry.imageAspectRatio)
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
@@ -164,12 +162,9 @@ struct PanelClipboardView: View {
         case .files:
             if entry.filePaths.count == 1,
                let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path),
-               let thumbnail = ClipboardImageStore.fileThumbnail(atPath: path) {
+               ClipboardImageStore.isImageFile(atPath: path) {
                 HStack(alignment: .center, spacing: 7) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                    ClipboardThumbnailImage(source: .file(path: path))
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                     Text(entry.fileNames.first ?? entry.preview)
