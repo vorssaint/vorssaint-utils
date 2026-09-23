@@ -499,7 +499,7 @@ extension WhatsAppOrganizerStrings {
         byType: "За типом файлу",
         byMonth: "За роком і місяцем",
         delay: "Зачекати перед переміщенням",
-        minutesFormat: "%d хвилин",
+        minutesFormat: "%d хв",
         duplicateAction: "Коли той самий файл завантажується знову",
         trashDuplicate: "Перемістити нову копію в Кошик",
         keepBoth: "Зберегти обидві копії",

@@ -655,7 +655,7 @@ extension AppUpdateStrings {
         includeStoreToggle: "Включити програми з App Store",
         includeStoreCaption: "Перевіряє версії в магазині для регіону цього Mac. Apple встановлює ці оновлення.",
         packageMissing: "Homebrew не встановлено, тому програми поки не можна оновити звідси.",
-        notificationBodyFormat: "%@ програм мають новішу версію.",
+        notificationBodyFormat: "Програм із новішою версією: %@.",
         notificationBodyOne: "Одна програма має новішу версію.",
         showInPanel: "Показати в панелі",
         homebrewBadge: "Homebrew",
