@@ -363,4 +363,12 @@ enum FeatureVisibilitySupport {
         let gate = features(for: page)
         return gate.isEmpty || gate.contains(where: isAvailable)
     }
+
+    /// Whether one of `page`'s features is among `activeFeatures`, the live
+    /// users of a permission from `AppFeature.activeFeatures(using:)`. A page
+    /// that several features share asks for the grant while any of them uses it.
+    static func isPermissionNeeded(on page: SettingsPage,
+                                   activeFeatures: [AppFeature]) -> Bool {
+        features(for: page).contains(where: activeFeatures.contains)
+    }
 }

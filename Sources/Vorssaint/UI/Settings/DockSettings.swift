@@ -48,16 +48,14 @@ struct DockSettings: View {
                 if AppFeature.dockPreview.isAvailable {
                     WindowPreviewsCard(sizeKey: DefaultsKey.previewSize)
                 }
-                if dockPreviewEngaged {
-                    if !permissions.accessibility {
-                        SettingsCard(title: l10n.s.permissionRequired) {
-                            PermissionRow(kind: .accessibility)
-                        }
+                if needsAccessibility, !permissions.accessibility {
+                    SettingsCard(title: l10n.s.permissionRequired) {
+                        PermissionRow(kind: .accessibility)
                     }
-                    if !permissions.screenRecording {
-                        SettingsCard {
-                            PermissionRow(kind: .screenRecording)
-                        }
+                }
+                if dockPreviewEngaged, !permissions.screenRecording {
+                    SettingsCard {
+                        PermissionRow(kind: .screenRecording)
                     }
                 }
             }
@@ -172,6 +170,13 @@ struct DockSettings: View {
     }
 
     // MARK: - State
+
+    /// Dock Preview and every Dock click action work through Accessibility;
+    /// the catalog knows which of them are on right now.
+    private var needsAccessibility: Bool {
+        FeatureVisibilitySupport.isPermissionNeeded(
+            on: .dock, activeFeatures: AppFeature.activeFeatures(using: .accessibility))
+    }
 
     private var dockPreviewCaption: String {
         guard dockPreviewEnabled else { return l10n.s.dockPreviewEnableCaption }

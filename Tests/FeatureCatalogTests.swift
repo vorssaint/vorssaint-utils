@@ -1709,6 +1709,16 @@ enum FeatureCatalogTests {
                 && pageVisible(.dock, available: [.dockClick])
                 && !pageVisible(.switcher, available: [.dockPreview, .dockClick]),
                "Dock Preview and Dock clicks have their own page, apart from the switcher")
+        func dockNeedsAccessibility(available: Set<AppFeature>, on: Set<String>) -> Bool {
+            FeatureVisibilitySupport.isPermissionNeeded(
+                on: .dock, activeFeatures: Array(activeSet(.accessibility, available: available, on: on)))
+        }
+        suite.expect([DefaultsKey.dockClickMinimize, DefaultsKey.dockClickHide, DefaultsKey.dockClickCycleWindows]
+                .allSatisfy { dockNeedsAccessibility(available: [.dockClick], on: [$0]) }
+                && dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockPreviewEnabled])
+                && !dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockClickMinimize])
+                && !dockNeedsAccessibility(available: allFeatures, on: [DefaultsKey.switcherEnabled]),
+               "the Dock page asks for Accessibility while Dock Preview or any Dock click action is on")
         suite.expect(AppFeature.windowMaximizer.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
                 && AppFeature.mixer.settingsDestination
