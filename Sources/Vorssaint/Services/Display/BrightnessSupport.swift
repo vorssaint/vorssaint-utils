@@ -422,6 +422,16 @@ enum BrightnessSupport {
         return overlayReplacesNative
     }
 
+    /// Whether this app shows a brightness change in place of the system:
+    /// with its overlay when that option is on, or in the island while the
+    /// island shows notices. An island hidden until hover or away in full
+    /// screen shows none, so the key keeps the system's own feedback rather
+    /// than bringing back the overlay its option turned off.
+    static func overlayReplacesNative(overlayEnabled: Bool, islandRoutes: Bool,
+                                      islandShowsNotices: Bool) -> Bool {
+        overlayEnabled || (islandRoutes && islandShowsNotices)
+    }
+
     /// Sixteen segments match the system brightness steps. A non-zero value
     /// keeps at least one segment visible while exact zero stays empty.
     static func filledBrightnessSegments(_ brightness: Double) -> Int {

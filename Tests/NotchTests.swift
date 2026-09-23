@@ -500,6 +500,13 @@ enum NotchTests {
         defaults.set(false, forKey: DefaultsKey.notchShowInCaptures)
         suite.expect(!NotchSupport.showsInCaptures(in: defaults), "capture visibility remains an explicit opt-out")
         defaults.set(true, forKey: DefaultsKey.notchShowInCaptures)
+        suite.expect(!NotchSupport.hidesUntilHover(in: defaults), "the closed island stays in sight by default")
+        defaults.set(true, forKey: DefaultsKey.notchHideUntilHover)
+        suite.expect(NotchSupport.hidesUntilHover(in: defaults), "hidden until hover waits out of sight for the pointer")
+        defaults.set(false, forKey: DefaultsKey.notchOpenOnHover)
+        suite.expect(!NotchSupport.hidesUntilHover(in: defaults), "an island that opens by click never waits for hover")
+        defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
+        defaults.set(false, forKey: DefaultsKey.notchHideUntilHover)
         suite.expect(NotchEvent.allCases.allSatisfy { !NotchSupport.routes($0, in: defaults) },
                "disabled notch cannot consume any existing presentation")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
