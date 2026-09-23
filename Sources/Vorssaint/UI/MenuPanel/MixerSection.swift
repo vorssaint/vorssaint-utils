@@ -350,11 +350,10 @@ struct MixerSection: View {
     private var inputSelectionBinding: Binding<String> {
         Binding(
             get: {
-                if audioPriority.inputPriorityEnabled {
-                    return inputManager.currentInputDeviceUID
-                        ?? MixerRoutingSupport.systemDefaultSelectionID
-                }
-                return inputManager.preferredInputDeviceUID
+                return MixerRoutingSupport.selectedInputDeviceUID(
+                    preferredUID: inputManager.preferredInputDeviceUID,
+                    currentUID: inputManager.currentInputDeviceUID,
+                    priorityIsActive: audioPriority.inputPriorityEnabled)
                     ?? MixerRoutingSupport.systemDefaultSelectionID
             },
             set: { selection in

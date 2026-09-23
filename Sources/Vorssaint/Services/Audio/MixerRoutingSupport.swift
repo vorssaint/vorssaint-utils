@@ -605,8 +605,9 @@ enum MixerRoutingSupport {
     static func resolveInputDevice(preferredUID: String?,
                                    availableUIDs: Set<String>,
                                    currentUID: String?,
-                                   priorityIsActive: Bool = false) -> MixerInputRouteResolution {
-        if priorityIsActive {
+                                   priorityIsActive: Bool = false,
+                                   preferredInputIsActive: Bool = true) -> MixerInputRouteResolution {
+        if priorityIsActive || !preferredInputIsActive {
             return MixerInputRouteResolution(effectiveUID: currentUID,
                                              selectedUnavailable: false,
                                              shouldApplyPreferred: false)
@@ -624,6 +625,12 @@ enum MixerRoutingSupport {
         return MixerInputRouteResolution(effectiveUID: preferredUID,
                                          selectedUnavailable: false,
                                          shouldApplyPreferred: preferredUID != currentUID)
+    }
+
+    static func selectedInputDeviceUID(preferredUID: String?,
+                                       currentUID: String?,
+                                       priorityIsActive: Bool) -> String? {
+        priorityIsActive ? currentUID : preferredUID
     }
 
     private static func sanitizedAppID(_ raw: String) -> String? {

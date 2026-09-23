@@ -78,7 +78,6 @@ final class AudioPriorityService: ObservableObject {
     }
 
     func stop() {
-        guard started else { return }
         started = false
         cancellables.removeAll()
         enforceDebounce?.cancel()
@@ -89,6 +88,8 @@ final class AudioPriorityService: ObservableObject {
         pendingInputUIDs = nil
         pendingOutputPreferenceChange = false
         pendingInputPreferenceChange = false
+        if outputPriorityEnabled { outputPriorityEnabled = false }
+        if inputPriorityEnabled { inputPriorityEnabled = false }
         AudioInputDeviceManager.shared.setInputPriorityActive(false)
     }
 

@@ -277,6 +277,7 @@ final class AudioInputDeviceManager: ObservableObject {
         let inputDeviceBeforeOverride: String?
         let mayApplyPreferred: Bool
         let priorityIsActive: Bool
+        let preferredInputIsActive: Bool
         let volumeGeneration: Int
     }
 
@@ -314,6 +315,7 @@ final class AudioInputDeviceManager: ObservableObject {
             inputDeviceBeforeOverride: inputDeviceBeforeOverride,
             mayApplyPreferred: !applyingPreferred && !inputPriorityIsActive,
             priorityIsActive: inputPriorityIsActive,
+            preferredInputIsActive: AppFeature.mixer.isAvailable,
             volumeGeneration: volumeRefreshGeneration)
 
         halQueue.async { [weak self] in
@@ -334,7 +336,8 @@ final class AudioInputDeviceManager: ObservableObject {
             preferredUID: savedUID,
             availableUIDs: availableUIDs,
             currentUID: currentUID,
-            priorityIsActive: request.priorityIsActive)
+            priorityIsActive: request.priorityIsActive,
+            preferredInputIsActive: request.preferredInputIsActive)
 
         guard resolution.shouldApplyPreferred,
               request.mayApplyPreferred,

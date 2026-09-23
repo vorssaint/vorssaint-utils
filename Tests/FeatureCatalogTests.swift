@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 70, "feature catalog has 70 features")
+        suite.expect(AppFeature.allCases.count == 71, "feature catalog has 71 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [

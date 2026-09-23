@@ -48,6 +48,22 @@ enum AudioPriorityTests {
             effectiveUID: "priority", selectedUnavailable: false,
             shouldApplyPreferred: false),
             "microphone priority leaves the dormant preferred microphone unapplied")
+        let prioritySelection = MixerRoutingSupport.selectedInputDeviceUID(
+            preferredUID: "preferred", currentUID: "priority", priorityIsActive: true)
+        suite.expect(prioritySelection == "priority"
+            && MixerRoutingSupport.selectedInputDeviceUID(
+                preferredUID: "preferred", currentUID: "priority", priorityIsActive: false) == "preferred",
+            "every microphone menu follows the current input while priority owns selection")
+
+        let priorityOnlyInput = MixerRoutingSupport.resolveInputDevice(
+            preferredUID: "preferred",
+            availableUIDs: ["preferred", "current"],
+            currentUID: "current",
+            preferredInputIsActive: false)
+        suite.expect(priorityOnlyInput == MixerInputRouteResolution(
+            effectiveUID: "current", selectedUnavailable: false,
+            shouldApplyPreferred: false),
+            "an uninstalled volume mixer cannot apply its saved preferred microphone")
 
         suite.expect(AppFeature.audioPriority.group == .sound
             && AppFeature.audioPriority.permissions.isEmpty
