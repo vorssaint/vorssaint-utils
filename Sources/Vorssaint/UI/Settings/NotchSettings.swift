@@ -365,7 +365,8 @@ struct NotchSettings: View {
                     idleChoice(.none, title: text.idleNone, symbol: "minus")
                     idleChoice(.battery, title: text.battery, symbol: "battery.75percent")
                     idleChoice(.music, title: text.music, symbol: "music.note")
-                    if AppFeature.notchAgents.isAvailable {
+                    // Offered once the section is on; the island would show nothing before.
+                    if agentsEnabled, NotchAgentSupport.isEnabled() {
                         idleChoice(.agents, title: FeatureStrings.notchAgents(l10n.language).restingTitle, symbol: "sparkles")
                     }
                 }
