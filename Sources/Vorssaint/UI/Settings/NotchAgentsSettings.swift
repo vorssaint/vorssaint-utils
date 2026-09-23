@@ -143,8 +143,10 @@ struct NotchAgentsSettingsControls: View {
             findRoots()
             findClaudeApp()
         }
-        // Cards and agents set the page's height, which the island follows.
-        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex)]) { _, _ in
+        // Cards and agents set the page's height, and the live reading the
+        // closed island's width, which the island follows.
+        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex),
+                       String(liveActivity), readout, limitDisplay]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }

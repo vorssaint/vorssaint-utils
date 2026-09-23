@@ -17,13 +17,16 @@ final class AgentUsageStore {
     private(set) var turns: [String: AgentLiveSession] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
+    /// A turn that ended longer ago than this is history found late, like a
+    /// session an agent moved to its archive, not news.
+    static let lateEnd: TimeInterval = 5 * 60
 
     var live: [AgentLiveSession] { Array(turns.values) }
 
     /// Applies one file's entries and returns the turns they finished.
     @discardableResult
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
-               tracksTurns: Bool, modified: Date) -> [AgentUsageEvent] {
+               tracksTurns: Bool, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
         for entry in entries {
             switch entry {
@@ -58,6 +61,7 @@ final class AgentUsageStore {
                 guard tracksTurns, let turn = turns.removeValue(forKey: file),
                       completed, reportsTransitions else { continue }
                 let end = date ?? modified
+                guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))

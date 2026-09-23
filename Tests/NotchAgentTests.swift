@@ -261,13 +261,13 @@ enum NotchAgentTests {
     }
 
     private static func claudeTurns(_ suite: TestSuite) {
-        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let now = AgentTimestamp.parse("2026-09-21T23:45:00.000Z")!
         var state = AgentLogState()
         let store = AgentUsageStore()
         store.reportsTransitions = true
         func feed(_ data: Data) -> [AgentUsageEvent] {
             store.apply(AgentLogParser.parseClaude(data, state: &state, now: now), file: "main", provider: .claude,
-                        tracksTurns: true, modified: now)
+                        tracksTurns: true, modified: now, now: now)
         }
         suite.expect(feed(claudeUser(meta: true)).isEmpty && store.live.isEmpty, "a meta line starts no turn")
         _ = feed(claudeUser(time: "2026-09-21T23:40:00.000Z"))
@@ -276,6 +276,9 @@ enum NotchAgentTests {
         _ = feed(claudeAssistant(stop: "tool_use"))
         suite.expect(AgentLogParser.parseClaude(claudeUser(toolResult: true), state: &state, now: now) == [.turnActive(nil)],
                      "a tool result inside a turn is not decoded")
+        let quoted = line(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"if contains(line, \"[Request interrupted by user\") || contains(line, \"<local-command-stdout>\")"}]}}"#)
+        suite.expect(AgentLogParser.parseClaude(quoted, state: &state, now: now) == [.turnActive(nil)] && store.live.count == 1,
+                     "a tool result quoting an interruption does not end the turn")
         _ = feed(claudeAssistant(id: "msg_2", request: "req_2", stop: "end_turn", sidechain: true))
         suite.expect(store.live.count == 1, "a subagent finishing does not finish the turn it serves")
         let finished = feed(claudeAssistant(id: "msg_3", request: "req_3", stop: "end_turn", time: "2026-09-21T23:44:30.000Z"))
@@ -288,7 +291,7 @@ enum NotchAgentTests {
         suite.expect(cost > 0 && tokens == 3 * AgentTokens(input: 2, cacheWrite: 17_218, cacheRead: 43_134, output: 225).total,
                      "a finished turn carries what its replies spent")
         _ = feed(claudeUser())
-        suite.expect(feed(line(#"{"type":"user","message":{"content":"[Request interrupted by user]"}}"#)).isEmpty
+        suite.expect(feed(line(#"{"type":"user","message":{"content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}"#)).isEmpty
                         && store.live.isEmpty, "an interrupted turn ends without a notice")
         _ = feed(claudeUser(#"<command-name>/model</command-name>"#))
         _ = feed(line(#"{"type":"user","message":{"content":"<local-command-stdout>Set model</local-command-stdout>"}}"#))
@@ -300,6 +303,15 @@ enum NotchAgentTests {
                         tracksTurns: true, modified: now)
         }
         suite.expect(replay.isEmpty, "history read at start is not replayed as news")
+        let late = AgentUsageStore()
+        late.reportsTransitions = true
+        var lateState = AgentLogState()
+        let found = [claudeUser(), claudeAssistant(stop: "end_turn", time: "2026-09-21T23:44:30.000Z")].flatMap {
+            late.apply(AgentLogParser.parseClaude($0, state: &lateState, now: now), file: "archived", provider: .claude,
+                       tracksTurns: true, modified: now, now: now.addingTimeInterval(AgentUsageStore.lateEnd + 60))
+        }
+        suite.expect(found.isEmpty && late.live.isEmpty,
+                     "a turn that ended long before its log was found, like an archived session, is not news")
         _ = feed(claudeUser(time: "2026-09-21T23:50:00.000Z"))
         store.closeIdleTurns(now: AgentTimestamp.parse("2026-09-22T00:05:00.000Z")!, after: NotchAgentSupport.idleTurn)
         suite.expect(store.live.isEmpty, "a turn that has written nothing for a while stops showing as working")
@@ -321,7 +333,8 @@ enum NotchAgentTests {
         var events: [AgentUsageEvent] = []
         for data in [meta, context, started, record, count, complete] {
             events += store.apply(AgentLogParser.parseCodex(data, state: &state, now: now), file: "main",
-                                  provider: .codex, tracksTurns: true, modified: now)
+                                  provider: .codex, tracksTurns: true, modified: now,
+                                  now: Date(timeIntervalSince1970: 1_790_088_730))
         }
         suite.expect(store.records.count == 1, "a response with its own record is not counted again from the totals")
         let usage = store.records.first

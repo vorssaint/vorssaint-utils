@@ -79,19 +79,15 @@ final class AgentUsageService: ObservableObject {
     func syncWithPreferences() {
         guard NotchAgentSupport.isEnabled() else { stop(); return }
         let wanted = NotchAgentSupport.providers()
+        // An agent turned off is no longer read at all, and one turned on is
+        // read from its start: both take a fresh reading.
+        if running, wanted != providers { stop() }
         if !running {
             running = true
             session += 1
             cancellation = Cancellation()
             providers = wanted
             start(session: session, providers: Set(wanted), cancellation: cancellation)
-        } else if wanted != providers {
-            providers = wanted
-            queue.async { [self] in
-                enabled = Set(wanted)
-                readClaudeApp(now: Date())
-                publish()
-            }
         }
         syncPrices()
     }
@@ -152,7 +148,7 @@ final class AgentUsageService: ObservableObject {
             cursors.removeAll()
             // Prices first, so the first read is already priced.
             loadPrices()
-            let roots = AgentLogRoot.all(home: home)
+            let roots = AgentLogRoot.all(home: home).filter { providers.contains($0.provider) }
             for file in AgentLogReader.discover(roots, since: Date().addingTimeInterval(-Self.horizon)) {
                 // A stop while reading leaves the rest for the next start.
                 guard !cancellation.isCancelled else { return }
@@ -227,7 +223,7 @@ final class AgentUsageService: ObservableObject {
         }
         guard !entries.isEmpty else { return }
         let finished = store.apply(entries, file: path, provider: provider,
-                                   tracksTurns: cursor.tracksTurns, modified: cursor.modified)
+                                   tracksTurns: cursor.tracksTurns, modified: cursor.modified, now: now)
         finished.forEach(report)
     }
 
@@ -283,7 +279,7 @@ final class AgentUsageService: ObservableObject {
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {
-                let roots = AgentLogRoot.all(home: home)
+                let roots = AgentLogRoot.all(home: home).filter { enabled.contains($0.provider) }
                 if roots.filter(\.exists) != watchedRoots {
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
                         read(file.path, provider: file.provider)
@@ -377,6 +373,7 @@ final class AgentUsageService: ObservableObject {
     /// The plan comes from the account profile Claude Code caches; nothing
     /// else in that file is kept.
     private func readClaudePlan() {
+        guard enabled.contains(.claude) else { return }
         let url = home.appending(path: ".claude.json")
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         guard modified != claudeProfileModified else { return }

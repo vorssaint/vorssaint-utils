@@ -54,8 +54,10 @@ enum AgentLogParser {
         if contains(line, #""type":"assistant""#) { return claudeAssistant(line, state: &state, now: now) }
         guard contains(line, #""type":"user""#) else { return [] }
         // A local command prints its output without asking the model anything,
-        // so the command line that opened a turn closes it again.
-        if contains(line, "[Request interrupted by user") || contains(line, "<local-command-std") {
+        // so the command line that opened a turn closes it again. Only the
+        // person's own text counts: a tool result can quote the same words.
+        if contains(line, "[Request interrupted by user") || contains(line, "<local-command-std"),
+           let json = object(line), json["type"] as? String == "user", endsTurn(json) {
             let open = state.turnOpen
             state.turnOpen = false
             return open ? [.turnEnded(nil, completed: false, duration: nil)] : []
@@ -111,6 +113,23 @@ enum AgentLogParser {
             state.turnOpen = true
         }
         return entries
+    }
+
+    /// The interruption or local command output the person's message holds,
+    /// never text inside a tool result.
+    private static func endsTurn(_ json: [String: Any]) -> Bool {
+        let content = (json["message"] as? [String: Any])?["content"]
+        let texts: [String]
+        if let text = content as? String {
+            texts = [text]
+        } else if let blocks = content as? [[String: Any]] {
+            texts = blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
+        } else {
+            texts = []
+        }
+        return texts.contains {
+            $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
+        }
     }
 
     private static func adopt(_ json: [String: Any], into state: inout AgentLogState) {
