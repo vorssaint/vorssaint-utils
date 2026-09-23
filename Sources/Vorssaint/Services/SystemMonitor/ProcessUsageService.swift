@@ -160,6 +160,46 @@ final class ProcessUsageService {
         return true
     }
 
+    /// The CPU/GPU delta path names unresolved rows "pid N", so protection has
+    /// to be judged on the real executable name too, not the display name alone.
+    /// A name that will not resolve belongs to root or another user, which we
+    /// could not kill anyway, so refuse instead of trusting the display name.
+    func canForceQuit(_ row: ProcessUsage) -> Bool {
+        guard let executable = Self.executableName(row.pid) else { return false }
+        return !KillProcessSupport.isProtected(pid: row.pid, name: executable)
+            && !KillProcessSupport.isProtected(pid: row.pid, name: row.name)
+    }
+
+    /// Confirms first, the way the Command Bar's force kill does, so a stray
+    /// Backspace in the panel cannot take an app down silently.
+    func confirmForceQuit(_ row: ProcessUsage) {
+        guard canForceQuit(row) else { return }
+        let strings = FeatureStrings.killProcess(L10n.shared.language)
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = String(format: strings.confirmForceKillFormat, row.name)
+        alert.addButton(withTitle: strings.forceKillButton)
+        alert.addButton(withTitle: L10n.shared.s.uninstallerCancel)
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        forceQuit(row)
+    }
+
+    private func forceQuit(_ row: ProcessUsage) {
+        guard canForceQuit(row) else { return }
+        if let app = NSRunningApplication(processIdentifier: row.pid), !app.isTerminated {
+            app.forceTerminate()
+        } else {
+            _ = Darwin.kill(row.pid, SIGKILL)
+        }
+    }
+
+    private static func executableName(_ pid: pid_t) -> String? {
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        guard proc_name(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        return String(cString: buffer)
+    }
+
     func activate(_ row: ProcessUsage) {
         guard canActivate(row),
               let app = NSRunningApplication(processIdentifier: row.pid)
