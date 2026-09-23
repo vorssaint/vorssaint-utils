@@ -37,6 +37,7 @@ enum NotchDownloadFolderChoiceContract {
         var message = ""
         var url: Location? = Location()
         var level = Window.Level(rawValue: 0)
+        var hidesOnDeactivate = true
         var focused = false
         weak var parent: Window?
         var standalone = false
@@ -154,8 +155,10 @@ enum NotchDownloadFolderChoiceTests {
                 service.chooseFolder()
                 guard let panel = service.chooser else { suite.expect(false, "the folder chooser was created"); continue }
                 suite.expect(panel.parent == nil && window.attachedSheet == nil && panel.standalone && panel.focused
-                       && panel.level.rawValue > window.level.rawValue && Context.NSApp.activatedWithChooser,
-                       "notch buttons and menus focus a standalone picker above the island, begun before activation")
+                       && panel.level.rawValue > window.level.rawValue && Context.NSApp.activatedWithChooser
+                       && !panel.hidesOnDeactivate,
+                       "notch buttons and menus focus a standalone picker above the island, begun before activation, "
+                       + "that stays up while another app is active")
                 suite.expect(notch.expanded && notch.pinned == pinned,
                        "opening the picker preserves the working surface and existing pin")
                 panel.finish(.OK)
@@ -183,7 +186,7 @@ enum NotchDownloadFolderChoiceTests {
         let backgroundNotch = Context.NotchService.shared.presentationWindow!
         settings.chooseFolder()
         suite.expect(settings.chooser?.standalone == true && settings.chooser?.parent == nil
-               && settings.chooser?.level.rawValue == 0,
+               && settings.chooser?.level.rawValue == 0 && settings.chooser?.hidesOnDeactivate == true,
                "a Settings action never borrows a pinned notch as its parent or rises to its level")
         settings.chooser?.finish(.OK)
         Context.DispatchQueue.main.drain()
@@ -246,5 +249,29 @@ enum NotchDownloadFolderChoiceTests {
         Context.DispatchQueue.main.drain()
         suite.expect(failed.folderUnavailable && failureOrigin.focusReturns == 1 && Context.UserDefaults.standard.values.isEmpty,
                "a failed folder grant returns to the existing error surface without saving or enabling anything")
+
+        Context.reset()
+        let leaving = Context.Service()
+        let leftIsland = Context.NotchService.shared.presentationWindow!
+        leaving.chooseFolder()
+        let islandChooser = leaving.chooser
+        leaving.cancelNotchFolderChoice()
+        Context.DispatchQueue.main.drain()
+        suite.expect(islandChooser != nil && Context.Panel.current == nil && leaving.chooser == nil,
+               "leaving the island's Downloads page closes the chooser begun there")
+        suite.expect(leftIsland.focusReturns == 0 && Context.UserDefaults.standard.values.isEmpty,
+               "the closed island chooser neither saves a folder nor refocuses the island")
+
+        Context.reset(fromNotch: false)
+        let staying = Context.Service()
+        staying.chooseFolder()
+        let settingsChooser = staying.chooser
+        staying.cancelNotchFolderChoice()
+        suite.expect(settingsChooser != nil && Context.Panel.current === settingsChooser && staying.chooser === settingsChooser,
+               "leaving the island's Downloads page leaves a chooser begun in Settings open")
+        settingsChooser?.finish(.OK)
+        Context.DispatchQueue.main.drain()
+        suite.expect(Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsEnabled] as? Bool == true,
+               "the Settings chooser still saves the folder picked after the island's page went away")
     }
 }

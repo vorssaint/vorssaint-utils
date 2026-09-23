@@ -11,7 +11,7 @@ enum AgentLogEntry: Equatable {
     /// `key` identifies the response across duplicate lines and files.
     case usage(key: String, record: AgentUsageRecord, billable: AgentBillable)
     case limits(AgentLimits)
-    case plan(String)
+    case plan(String, observedAt: Date)
     case turnBegan(Date)
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
@@ -65,6 +65,9 @@ enum AgentLogParser {
         // Tool results arrive inside a turn and can be large; while a turn is
         // open, the line only has to say that work goes on.
         if state.turnOpen { return [.turnActive(nil)] }
+        // A subagent's prompts and tool output never open a turn, and its
+        // tool output can be large: no need to decode it to know that.
+        if contains(line, #""isSidechain":true"#) { return [] }
         guard let json = object(line), json["type"] as? String == "user",
               json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true else { return [] }
         adopt(json, into: &state)
@@ -105,7 +108,10 @@ enum AgentLogParser {
         guard json["isSidechain"] as? Bool != true else { return entries }
         switch message["stop_reason"] as? String {
         case "end_turn", "stop_sequence", "max_tokens", "refusal":
-            if state.turnOpen { entries.append(.turnEnded(date, completed: true, duration: nil)) }
+            // An error written in place of a reply, like a spent limit, stops
+            // the turn without finishing it.
+            let failed = json["isApiErrorMessage"] as? Bool == true || model.hasPrefix("<")
+            if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil)) }
             state.turnOpen = false
         default:
             if !state.turnOpen { entries.append(.turnBegan(date)) }
@@ -183,11 +189,13 @@ enum AgentLogParser {
         case "token_count":
             var entries: [AgentLogEntry] = []
             if let limits = payload["rate_limits"] as? [String: Any] {
-                if let windows = codexWindows(limits, observed: date), !windows.isEmpty {
+                if isMainBucket(limits), let windows = codexWindows(limits, observed: date), !windows.isEmpty {
                     entries.append(.limits(AgentLimits(provider: .codex, windows: windows,
                                                        observedAt: date, source: .sessionLog)))
                 }
-                if let plan = limits["plan_type"] as? String, !plan.isEmpty { entries.append(.plan(plan)) }
+                if let plan = limits["plan_type"] as? String, !plan.isEmpty {
+                    entries.append(.plan(plan, observedAt: date))
+                }
             }
             // Running totals repeat when only the limits changed; a response
             // is whatever the total grew by since the previous reading.
@@ -255,6 +263,15 @@ enum AgentLogParser {
                            output: int(usage["output_tokens"]), reasoning: int(usage["reasoning_output_tokens"]))
     }
 
+    /// Codex logs a reading for each allowance: the main one under "codex",
+    /// which older logs leave unnamed, and one for each model that has its
+    /// own. Only the main one is kept, so a model's windows never replace it
+    /// or warn again.
+    static func isMainBucket(_ limits: [String: Any]) -> Bool {
+        let id = (limits["limit_id"] as? String ?? "").lowercased()
+        return id.isEmpty || id == "codex"
+    }
+
     /// Windows are told apart by their length, never by their slot: an
     /// account can report only its weekly window, and in either slot.
     static func codexWindows(_ limits: [String: Any], observed: Date) -> [AgentLimitWindow]? {
@@ -296,7 +313,8 @@ enum AgentLogParser {
         guard let number = value as? NSNumber else { return 0 }
         let double = number.doubleValue
         guard double.isFinite, double > 0 else { return 0 }
-        return double >= Double(Int.max) ? Int.max : Int(double)
+        // A damaged line must not overflow the sums it joins.
+        return Int(min(double, 1e12))
     }
 
     /// Unix seconds, or milliseconds from agents that write those.

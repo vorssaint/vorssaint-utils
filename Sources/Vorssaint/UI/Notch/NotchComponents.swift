@@ -477,3 +477,43 @@ private struct NotchMenuAnchorView: NSViewRepresentable {
         anchor.view = nsView
     }
 }
+
+extension NSAlert {
+    /// A SwiftUI alert or confirmation dialog hangs from the island as a
+    /// sheet, which moves and reskins the borderless surface. Inside the
+    /// island a tool asks the same question on its own, just above it, like
+    /// the Scratchpad page does, and the island gets the keyboard back after.
+    static func confirmAboveIsland(_ title: String, message: String, action: String,
+                                   destructive: Bool, cancel: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: action).hasDestructiveAction = destructive
+        // Escape cancels in every language, like the dialog's cancel role.
+        alert.addButton(withTitle: cancel).keyEquivalent = "\u{1b}"
+        return alert.runAboveIsland() == .alertFirstButtonReturn
+    }
+
+    private func runAboveIsland() -> NSApplication.ModalResponse {
+        let island = NotchService.shared.presentationWindow
+        var observers: [NSObjectProtocol] = []
+        if let island {
+            // The modal session puts the alert at the modal panel level, below
+            // the island, and puts it back there when it activates the app or
+            // makes the alert key. Raise it once running and after each of those.
+            let level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+            let alertWindow = window
+            let raise: (Notification) -> Void = { _ in alertWindow.level = level }
+            observers = [NSWindow.didBecomeKeyNotification, NSApplication.didBecomeActiveNotification].map {
+                NotificationCenter.default.addObserver(forName: $0, object: nil, queue: .main, using: raise)
+            }
+            DispatchQueue.main.async { alertWindow.level = level }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let response = runModal()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        // A closed island declines key status, so this only returns to an open one.
+        if let island, island.isVisible { island.makeKey() }
+        return response
+    }
+}

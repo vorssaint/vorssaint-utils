@@ -233,6 +233,16 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(entry.isPinned ? text.unpin : text.pin)
+                if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                    Button { history.editImage(entry) } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help(text.edit)
+                    .accessibilityLabel(text.edit)
+                }
                 Button {
                     // The tick means "it is on the clipboard", so it waits for
                     // the write instead of announcing one still queued behind

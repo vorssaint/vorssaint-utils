@@ -115,11 +115,21 @@ enum NotchFullscreenTests {
         service.updateFullscreenVisibility(displayID: 2)
         suite.expect(!service.hiddenInFullscreen, "unavailable Space queries leave the island reachable")
         service.fullscreenEnvironmentDidChange()
-        suite.expect(service.screenUpdates == 1 && service.consumerSyncs == 1 && service.refreshes == 1,
-                     "Space changes reevaluate the display, consumers and presentation together")
+        suite.expect(service.screenUpdates == 1 && service.consumerSyncs == 0 && service.refreshes == 0,
+                     "an unchanged fullscreen state leaves consumers and a transition on screen alone")
+        service.screenUpdate = { [weak service] in service?.hiddenInFullscreen = true }
+        service.fullscreenEnvironmentDidChange()
+        suite.expect(service.screenUpdates == 2 && service.consumerSyncs == 1 && service.refreshes == 1,
+                     "a fullscreen change reevaluates the display, consumers and presentation together")
+        service.screenUpdate = nil
         service.suspended = true
         service.fullscreenEnvironmentDidChange()
-        suite.expect(service.refreshes == 1, "Space changes cannot reveal a locked or sleeping session")
+        suite.expect(service.screenUpdates == 2, "Space changes cannot reveal a locked or sleeping session")
+        UserDefaults.standard.enabled = false
+        let idle = Service()
+        idle.fullscreenEnvironmentDidChange()
+        suite.expect(idle.screenUpdates == 0 && idle.consumerSyncs == 0 && idle.refreshes == 0,
+                     "with the option off, app and Space changes do no fullscreen work")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHideInFullscreen] as? Bool == false
                      && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchHideInFullscreen),
                      "fullscreen hiding is opt-in and included in settings backup")

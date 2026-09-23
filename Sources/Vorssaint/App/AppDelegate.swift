@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var popoverLocalDismissMonitor: Any?
     private var popoverKeyboardMonitor: Any?
     private var popoverIsClosing = false
+    private var popoverCloseIsAppRequested = false
     /// The last visible geometry and event destination survive AppKit's teardown.
     private var popoverLastFrame: CGRect?
     private var popoverLastWindowNumber: Int?
@@ -35,8 +36,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var supportIntroCanClose = false
     private var updateShowcaseWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
-    private let popoverOpenDuration: TimeInterval = 0.18
-    private let popoverCloseDuration: TimeInterval = 0.14
 
     // MARK: - Lifecycle
 
@@ -410,9 +409,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // user works in our own Settings window and sees changes live. Click
         // monitors below dismiss it when it would block that same Settings window.
         popover.behavior = .applicationDefined
-        // We animate the underlying popover window ourselves so applicationDefined
-        // dismissal, right-click menus and live Settings previews stay predictable.
-        popover.animates = false
+        popover.animates = true
         // The panel paints its own glass surface, or the arrow tip would show plain
         // system material where the surface stops, the seam users see. The visible
         // content stays inset either way, before through the content view's frame
@@ -494,7 +491,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // The panel measures itself against this while the popover lays out,
         // so it has to be right before the content is asked for its size.
         PanelInteractionState.shared.anchorScreen = statusScreen(for: button)
+        popover.animates = false
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.animates = true
         popover.contentViewController?.view.window?.makeKey()
         if let window = popover.contentViewController?.view.window {
             configurePopoverWindow(window)
@@ -817,9 +816,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let preservedAnchor = anchor
         popoverIsSwitchingAnchor = true
         MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
+        popover.animates = false
         popover.show(relativeTo: positioningView.bounds,
                      of: positioningView,
                      preferredEdge: .minY)
+        popover.animates = true
         guard popover.isShown,
               let popoverWindow = popover.contentViewController?.view.window else {
             endPopoverDriftCorrection()
@@ -877,8 +878,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popoverIsSwitchingAnchor = true
         MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
         removePopoverDismissMonitor()
+        popoverCloseIsAppRequested = true
         popoverIsClosing = true
-        popover.performClose(nil)
+        popover.animates = false
+        popover.close()
+        popover.animates = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self, weak button] in
             guard let self else {
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
@@ -907,7 +911,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                              animate: Bool = true,
                              activate: Bool = true,
                              restoring savedAnchor: PanelAnchor? = nil) {
-        guard !popover.isShown else { return }
+        guard !popover.isShown, !popoverIsClosing else { return }
         // The click that just transient-dismissed the popover also lands here;
         // reopening would make the panel look impossible to close.
         guard allowRecentClose || Date().timeIntervalSince(popoverClosedAt) > 0.35 else { return }
@@ -917,17 +921,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // it has to be known before the content is asked for its size.
         PanelInteractionState.shared.anchorScreen = statusScreen(for: button)
         statusController.setMicBadgeHeld(true)
+        if !animate {
+            popover.animates = false
+        }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        if !animate {
+            popover.animates = true
+        }
         if let window = popover.contentViewController?.view.window {
             configurePopoverWindow(window)
             window.contentView?.layoutSubtreeIfNeeded()
             window.makeKey()
-            if animate {
-                animatePopoverOpen(window)
-            } else {
-                popoverIsClosing = false
-                window.alphaValue = 1
-            }
+            popoverIsClosing = false
+            popoverCloseIsAppRequested = false
         } else {
             statusController.setMicBadgeHeld(false)
         }
@@ -998,12 +1004,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func shouldDismissPopover(forLocalEvent event: NSEvent) -> Bool {
         guard !PanelInteractionState.shared.preventsPopoverDismissal else { return false }
-        guard event.window === settingsWindow,
-              let settingsFrame = settingsWindow?.frame,
+        guard let settingsWindow,
+              event.windowNumber == settingsWindow.windowNumber && event.windowNumber > 0,
               let popoverFrame = popover.contentViewController?.view.window?.frame else {
             return false
         }
-        return settingsFrame.intersects(popoverFrame)
+        return settingsWindow.frame.intersects(popoverFrame)
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
@@ -1088,49 +1094,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             return
         }
         if let completion { popoverCloseCompletions.append(completion) }
+        popoverCloseIsAppRequested = true
         guard !popoverIsClosing else { return }
-        guard animated, let window = popover.contentViewController?.view.window else {
-            finishPopoverClose()
-            return
-        }
 
         popoverIsClosing = true
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = popoverCloseDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            window.animator().alphaValue = 0
-        } completionHandler: { [weak self, weak window] in
-            window?.alphaValue = 1
-            self?.finishPopoverClose()
+        if animated {
+            popover.performClose(nil)
+        } else {
+            popover.animates = false
+            popover.close()
+            popover.animates = true
         }
-    }
-
-    private func animatePopoverOpen(_ window: NSWindow) {
-        popoverIsClosing = false
-        window.alphaValue = 0
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = popoverOpenDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().alphaValue = 1
-        } completionHandler: { [weak self, weak window] in
-            guard let self,
-                  self.popover.isShown,
-                  window === self.popover.contentViewController?.view.window else { return }
-            window?.alphaValue = 1
-        }
-    }
-
-    private func finishPopoverClose() {
-        guard popover.isShown else {
-            popoverIsClosing = false
-            runPopoverCloseCompletions()
-            return
-        }
-        popoverIsClosing = true
-        popover.performClose(nil)
-        runPopoverCloseCompletions()
     }
 
     private func runPopoverCloseCompletions() {
@@ -1152,7 +1126,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func popoverShouldClose(_ popover: NSPopover) -> Bool {
-        popoverIsClosing || !PanelInteractionState.shared.preventsPopoverDismissal
+        popoverCloseIsAppRequested || !PanelInteractionState.shared.preventsPopoverDismissal
+    }
+
+    func popoverWillClose(_ notification: Notification) {
+        popoverIsClosing = true
+        if !popoverIsSwitchingAnchor {
+            popoverClosedAt = Date()
+        }
     }
 
     func popoverDidClose(_ notification: Notification) {
@@ -1176,6 +1157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         PanelInteractionState.shared.isPresentingPopoverModal = false
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
+        popoverCloseIsAppRequested = false
         runPopoverCloseCompletions()
         if let recoveryAnchor {
             reopenPanelAfterForeignClose(anchor: recoveryAnchor)
@@ -1202,7 +1184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
               let anchor = popoverAnchor, anchor.screen?.isStillAttached == true,
               let button = anchor.button, button.window != nil,
               StatusItemAnchorSupport.shouldReopenPanel(
-                  closedByApp: popoverIsClosing,
+                  closedByApp: popoverCloseIsAppRequested,
                   lastFrame: popoverLastFrame,
                   panelWindowNumber: popoverLastWindowNumber,
                   event: NSApp.currentEvent,

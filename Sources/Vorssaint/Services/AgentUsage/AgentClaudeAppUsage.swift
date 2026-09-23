@@ -65,7 +65,13 @@ enum AgentClaudeAppUsage {
     /// began, which the history brackets and Claude Code's own first request
     /// can narrow, and a week renews every seven days at the moment of the
     /// last drop the history saw.
-    static func limits(from samples: [Sample], now: Date, sessionStart: Date? = nil) -> AgentLimits? {
+    static func limits(from samples: [Sample], now: Date, sessionStart: Date? = nil,
+                       organization: String? = nil) -> AgentLimits? {
+        // The app may be signed in to another account than Claude Code; its
+        // limits say nothing about this one.
+        let samples = organization.map { account in
+            samples.filter { $0.organization == nil || $0.organization == account }
+        } ?? samples
         guard let latest = samples.last, latest.date <= now.addingTimeInterval(300),
               now.timeIntervalSince(latest.date) < 7 * 86_400 else { return nil }
         let history = samples.filter { $0.organization == latest.organization }
@@ -91,8 +97,10 @@ enum AgentClaudeAppUsage {
 
     private static func sessionEnd(_ history: [Sample], used: Double, start: Date?, length: TimeInterval) -> Date? {
         guard used > 0, var first = history.indices.last else { return nil }
-        // The run of readings above zero that ends with the latest one.
-        while first > 0, (history[first - 1].used["fh"] ?? 0) > 0,
+        // The run of readings above zero that ends with the latest one. A drop
+        // is a renewal too: work that goes on across one never reads zero.
+        while first > 0, let before = history[first - 1].used["fh"], before > 0,
+              before <= (history[first].used["fh"] ?? 0) + 1,
               history[first].date.timeIntervalSince(history[first - 1].date) < length {
             first -= 1
         }
@@ -116,7 +124,9 @@ enum AgentClaudeAppUsage {
         return nil
     }
 
-    private static func hour(of date: Date) -> Date {
+    /// Allowances renew on the hour in UTC, which a half-hour time zone
+    /// sees at half past.
+    static func hour(of date: Date) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
         return calendar.dateInterval(of: .hour, for: date)?.start ?? date

@@ -153,38 +153,7 @@ struct WindowLayoutSettings: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section(text.halves) {
-                actionRow(.leftHalf)
-                actionRow(.rightHalf)
-                actionRow(.topHalf)
-                actionRow(.bottomHalf)
-                actionRow(.centerHalf)
-            }
-
-            Section(text.thirds) {
-                actionRow(.leftThird)
-                actionRow(.centerThird)
-                actionRow(.rightThird)
-                actionRow(.leftTwoThirds)
-                actionRow(.rightTwoThirds)
-                actionRow(.centerTwoThirds)
-            }
-
-            Section(text.sixths) {
-                actionRow(.topLeftSixth)
-                actionRow(.topCenterSixth)
-                actionRow(.topRightSixth)
-                actionRow(.bottomLeftSixth)
-                actionRow(.bottomCenterSixth)
-                actionRow(.bottomRightSixth)
-            }
-
-            Section(text.corners) {
-                actionRow(.topLeft)
-                actionRow(.topRight)
-                actionRow(.bottomLeft)
-                actionRow(.bottomRight)
-            }
+            placementSections
 
             Section(text.other) {
                 actionRow(.maximize)
@@ -249,6 +218,50 @@ struct WindowLayoutSettings: View {
         WindowLayoutService.shared.syncWithPreferences()
     }
 
+    private static let halfActions: [WindowLayoutAction] = [
+        .leftHalf, .rightHalf, .topHalf, .bottomHalf, .centerHalf,
+    ]
+    private static let thirdActions: [WindowLayoutAction] = [
+        .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
+        .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
+    ]
+    private static let quarterRowActions: [WindowLayoutAction] = [
+        .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
+    ]
+    private static let quarterColumnActions: [WindowLayoutAction] = [
+        .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
+    ]
+    private static let sixthActions: [WindowLayoutAction] = [
+        .topLeftSixth, .topCenterSixth, .topRightSixth,
+        .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
+    ]
+    private static let cornerActions: [WindowLayoutAction] = [
+        .topLeft, .topRight, .bottomLeft, .bottomRight,
+    ]
+
+    /// The placement families, grouped so the form body stays within the
+    /// ten-view ViewBuilder limit.
+    @ViewBuilder
+    private var placementSections: some View {
+        actionSection(text.halves, Self.halfActions)
+        actionSection(text.thirds, Self.thirdActions)
+        actionSection(text.quarterRows, Self.quarterRowActions)
+        actionSection(text.quarterColumns, Self.quarterColumnActions)
+        actionSection(text.sixths, Self.sixthActions)
+        actionSection(text.corners, Self.cornerActions)
+    }
+
+    /// One section per placement family. Building the rows from an array keeps
+    /// each section clear of the ten-view ViewBuilder limit and keeps the form
+    /// body small enough for the type checker.
+    private func actionSection(_ title: String, _ actions: [WindowLayoutAction]) -> some View {
+        Section(title) {
+            ForEach(actions) { action in
+                actionRow(action)
+            }
+        }
+    }
+
     /// One row per action: try-it button on the left, the action's global
     /// shortcut recorder inline on the right — every action is adjustable
     /// right where it lives, no separate shortcut list to hunt for.
@@ -265,36 +278,7 @@ struct WindowLayoutSettings: View {
     }
 
     private func symbol(for action: WindowLayoutAction) -> String {
-        switch action {
-        case .leftHalf: return "rectangle.leftthird.inset.filled"
-        case .rightHalf: return "rectangle.rightthird.inset.filled"
-        case .topHalf: return "rectangle.topthird.inset.filled"
-        case .bottomHalf: return "rectangle.bottomthird.inset.filled"
-        case .centerHalf: return "rectangle.center.inset.filled"
-        case .leftThird: return "rectangle.leftthird.inset.filled"
-        case .centerThird: return "rectangle.center.inset.filled"
-        case .rightThird: return "rectangle.rightthird.inset.filled"
-        case .leftTwoThirds: return "rectangle.leadinghalf.filled"
-        case .rightTwoThirds: return "rectangle.trailinghalf.filled"
-        case .centerTwoThirds: return "rectangle.center.inset.filled"
-        case .topLeftSixth: return "arrow.up.left"
-        case .topCenterSixth: return "arrow.up"
-        case .topRightSixth: return "arrow.up.right"
-        case .bottomLeftSixth: return "arrow.down.left"
-        case .bottomCenterSixth: return "arrow.down"
-        case .bottomRightSixth: return "arrow.down.right"
-        case .topLeft: return "arrow.up.left"
-        case .topRight: return "arrow.up.right"
-        case .bottomLeft: return "arrow.down.left"
-        case .bottomRight: return "arrow.down.right"
-        case .maximize: return "arrow.up.left.and.arrow.down.right"
-        case .marginMaximize: return "rectangle.inset.filled"
-        case .fullScreen: return "rectangle.fill"
-        case .center: return "scope"
-        case .previousDisplay: return "arrow.left.to.line"
-        case .nextDisplay: return "arrow.right.to.line"
-        case .restore: return "arrow.uturn.backward"
-        }
+        action.symbolName
     }
 
     private var resultMessage: String? {

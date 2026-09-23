@@ -60,6 +60,8 @@ final class CleaningModeManager: ObservableObject {
     // Mouse events still pass through Cleaning Mode. We only remember the
     // down/up lifecycle so teardown never cuts a click in half.
     private var mouseReleaseGate = CleaningMouseReleaseGate()
+    /// Ends a user unlock's wait for a release this tap never sees.
+    private var releaseDeadline: DispatchWorkItem?
 
     /// The unlock-gesture state machine (pure, unit-tested separately).
     /// The 6s press window forgives hesitant, deliberate presses — at 2s a user
@@ -131,8 +133,23 @@ final class CleaningModeManager: ObservableObject {
         // If a click began while the overlay was up, keep the overlay and tap
         // alive until its real mouse-up passes through. Never manufacture a
         // release: the physical event is the only event that completes the click.
+        armReleaseDeadline()
         guard mouseReleaseGate.requestDeactivation() else { return }
         scheduleUserDeactivation()
+    }
+
+    /// Every unlock path waits on the gate, and the overlay can cover the menu
+    /// bar, so the wait is bounded. Nothing is posted; it only stops waiting.
+    private func armReleaseDeadline() {
+        guard releaseDeadline == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.releaseDeadline = nil
+            guard self.isActive, self.mouseReleaseGate.releaseWaitExpired() else { return }
+            self.scheduleUserDeactivation()
+        }
+        releaseDeadline = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + CleaningMouseReleaseGate.releaseWaitLimit, execute: work)
     }
 
     /// Permission teardown must remove the tap before Accessibility is reset.
@@ -160,6 +177,8 @@ final class CleaningModeManager: ObservableObject {
 
     private func finishDeactivation(restoreSuspendedFeatures: Bool) {
         guard isActive else { return }
+        releaseDeadline?.cancel()
+        releaseDeadline = nil
         mouseReleaseGate.reset()
         removeTap()
         removeScreenObserver()

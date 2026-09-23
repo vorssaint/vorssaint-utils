@@ -14,6 +14,7 @@ struct NotchIslandPreview: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var monitoring = false
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
     private static let captionHeight: CGFloat = 28
@@ -59,7 +60,7 @@ struct NotchIslandPreview: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
         }
-        .animation(.smooth(duration: 0.25), value: module)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: module)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(editor.preview)
         .accessibilityValue(module.title(l10n.language) + (hidden ? ", " + editor.hiddenInIsland : ""))
@@ -164,7 +165,13 @@ struct NotchPagePreview: View {
         case .system: NotchSystemView(size: size) { _ in }
         case .tools: QuickLauncherView(notchSize: size)
         case .scratchpad: NotchScratchpadStill()
-        case .agents: NotchAgentsView(size: size)
+        case .agents:
+            // Off, nothing reads the logs, so the page would wait forever.
+            if NotchAgentSupport.isEnabled() {
+                NotchAgentsView(size: size)
+            } else {
+                NotchEmptyView(symbol: "sparkles", message: FeatureStrings.notchEditor(l10n.language).agentsSummary)
+            }
         }
     }
 

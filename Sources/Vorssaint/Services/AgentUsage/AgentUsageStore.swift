@@ -13,44 +13,61 @@ final class AgentUsageStore {
     private var index: [String: Int] = [:]
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
+    private var codexPlanObserved = Date.distantPast
     /// Open turns by log file.
     private(set) var turns: [String: AgentLiveSession] = [:]
+    /// Turns gone quiet, by log file: not shown as working, but work that
+    /// resumes after an approval or a long command goes on with them.
+    private(set) var waiting: [String: AgentLiveSession] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
     /// session an agent moved to its archive, not news.
     static let lateEnd: TimeInterval = 5 * 60
+    /// How long a quiet turn waits for its work to resume before it is over.
+    /// A new Codex task always opens a turn of its own, but a Claude session
+    /// resumed after its process was killed reads like work going on, so a
+    /// Claude turn waits only an hour.
+    static func resumeWindow(for provider: AgentProvider) -> TimeInterval {
+        provider == .claude ? 3600 : 6 * 3600
+    }
 
     var live: [AgentLiveSession] { Array(turns.values) }
 
     /// Applies one file's entries and returns the turns they finished.
+    /// `parent` is the log whose turn a subagent's responses count toward.
     @discardableResult
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
-               tracksTurns: Bool, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
+               tracksTurns: Bool, parent: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
-                add(record, billable: billable, key: key, file: tracksTurns ? file : nil)
+                add(record, billable: billable, key: key, turn: tracksTurns ? file : parent, subagent: !tracksTurns)
             case .limits(let reading):
                 if (limits[reading.provider]?.observedAt ?? .distantPast) <= reading.observedAt {
                     limits[reading.provider] = reading
                 }
-            case .plan(let plan):
+            case .plan(let plan, let date):
+                // An archived session read again from its start holds an
+                // older plan than the one in use.
+                guard codexPlanObserved <= date else { continue }
                 codexPlan = plan
+                codexPlanObserved = date
             case .turnBegan(let date):
                 guard tracksTurns else { continue }
                 // A log rewritten in place is read again from its start; the
                 // turn it already holds keeps what its responses added, which
                 // the second reading skips as repeats.
-                if let turn = turns[file], abs(turn.started.timeIntervalSince(date)) < 1 { continue }
+                if let turn = turns[file] ?? waiting[file], abs(turn.started.timeIntervalSince(date)) < 1 { continue }
+                waiting[file] = nil
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
             case .turnActive(let date):
                 guard tracksTurns else { continue }
                 let moment = date ?? modified
-                if var turn = turns[file] {
+                if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
                     turns[file] = turn
                 } else {
@@ -58,8 +75,10 @@ final class AgentUsageStore {
                                                    model: "", project: "", tokens: AgentTokens(), cost: 0)
                 }
             case .turnEnded(let date, let completed, let duration):
-                guard tracksTurns, let turn = turns.removeValue(forKey: file),
-                      completed, reportsTransitions else { continue }
+                guard tracksTurns else { continue }
+                // A turn that went quiet on the way ends as the whole turn.
+                let quiet = waiting.removeValue(forKey: file)
+                guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
                 let end = date ?? modified
                 guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
                 events.append(.finished(provider: provider,
@@ -71,11 +90,17 @@ final class AgentUsageStore {
     }
 
     /// A log removed while its turn ran, like a deleted chat, ends that turn
-    /// without a notice: nothing finished. True when there was one.
+    /// without a notice: nothing finished. True when one was showing.
     @discardableResult
-    func forget(file: String) -> Bool { turns.removeValue(forKey: file) != nil }
+    func forget(file: String) -> Bool {
+        waiting[file] = nil
+        return turns.removeValue(forKey: file) != nil
+    }
 
-    private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, file: String?) {
+    /// `file` names the log whose turn the response counts toward. A
+    /// subagent's responses leave that turn's model and project alone.
+    private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, turn file: String?,
+                     subagent: Bool) {
         var delta = record.tokens
         var extra = record.cost ?? 0
         if let position = index[key] {
@@ -104,12 +129,16 @@ final class AgentUsageStore {
             records.append(record)
             billables.append(billable)
         }
-        guard let file, var turn = turns[file], record.date >= turn.started.addingTimeInterval(-1) else { return }
+        guard let file, var turn = turns[file] ?? waiting[file],
+              record.date >= turn.started.addingTimeInterval(-1) else { return }
+        waiting[file] = nil
         turn.tokens += delta
         turn.cost += extra
         turn.lastActivity = max(turn.lastActivity, record.date)
-        if !record.model.isEmpty { turn.model = record.model }
-        if !record.project.isEmpty { turn.project = record.project }
+        if !subagent {
+            if !record.model.isEmpty { turn.model = record.model }
+            if !record.project.isEmpty { turn.project = record.project }
+        }
         turns[file] = turn
     }
 
@@ -132,8 +161,14 @@ final class AgentUsageStore {
 
     /// A turn that has written nothing for this long is not being worked on:
     /// its process ended without a word, or it waits on something outside.
+    /// It waits aside for a while, since work can resume after an approval
+    /// or a long command.
     func closeIdleTurns(now: Date, after idle: TimeInterval) {
-        turns = turns.filter { now.timeIntervalSince($0.value.lastActivity) < idle }
+        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle {
+            turns[file] = nil
+            waiting[file] = turn
+        }
+        waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
     }
 
     /// Keeps memory bounded to the history the island can show.
@@ -187,6 +222,8 @@ final class AgentLogCursor {
     let provider: AgentProvider
     /// Subagents and side threads report to a turn another file tracks.
     let tracksTurns: Bool
+    /// The session log a Claude subagent works for.
+    let parent: String?
     var offset: UInt64 = 0
     var identity: UInt64 = 0
     var pending = Data()
@@ -198,7 +235,16 @@ final class AgentLogCursor {
         self.path = path
         self.provider = provider
         let name = (path as NSString).lastPathComponent
-        tracksTurns = provider == .claude ? !path.contains("/subagents/") : !name.contains("_")
+        let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
+        self.parent = parent
+        tracksTurns = provider == .claude ? parent == nil : !name.contains("_")
+    }
+
+    /// Claude Code keeps a session's subagents in `<session>/subagents/`,
+    /// beside the session's own `<session>.jsonl`.
+    static func parent(of path: String) -> String? {
+        guard let range = path.range(of: "/subagents/", options: .backwards) else { return nil }
+        return String(path[..<range.lowerBound]) + ".jsonl"
     }
 }
 
@@ -211,9 +257,10 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool { path.hasSuffix(".jsonl") }
 
     /// Log files changed since `horizon`, newest last so live turns settle
-    /// on the most recent state.
+    /// on the most recent state. Subagents come after every session, so the
+    /// turn each one works for already stands when its responses are read.
     static func discover(_ roots: [AgentLogRoot], since horizon: Date) -> [(path: String, provider: AgentProvider)] {
-        var found: [(path: String, provider: AgentProvider, modified: Date)] = []
+        var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
         for root in roots where root.exists {
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
@@ -221,10 +268,12 @@ enum AgentLogReader {
             for case let url as URL in enumerator where isLog(url.path) {
                 guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                       let modified = values.contentModificationDate, modified >= horizon else { continue }
-                found.append((url.path, root.provider, modified))
+                let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
+                found.append((url.path, root.provider, modified, subagent))
             }
         }
-        return found.sorted { $0.modified < $1.modified }.map { ($0.path, $0.provider) }
+        return found.sorted { $0.subagent != $1.subagent ? $1.subagent : $0.modified < $1.modified }
+            .map { ($0.path, $0.provider) }
     }
 
     /// Reads what was appended since the last call and hands over each
@@ -248,9 +297,15 @@ enum AgentLogReader {
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
         while cursor.offset < size {
             let wanted = Int(min(UInt64(chunkSize), size - cursor.offset))
-            guard let chunk = try? handle.read(upToCount: wanted), !chunk.isEmpty else { break }
-            cursor.offset += UInt64(chunk.count)
-            split(chunk, cursor: cursor, line: line)
+            // A first read can cover gigabytes; each chunk and what was parsed
+            // from it are released before the next one.
+            let read: Bool = autoreleasepool {
+                guard let chunk = try? handle.read(upToCount: wanted), !chunk.isEmpty else { return false }
+                cursor.offset += UInt64(chunk.count)
+                split(chunk, cursor: cursor, line: line)
+                return true
+            }
+            guard read else { break }
         }
     }
 

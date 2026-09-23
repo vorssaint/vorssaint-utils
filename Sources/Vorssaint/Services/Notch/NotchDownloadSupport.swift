@@ -143,6 +143,12 @@ enum NotchDownloadSupport {
                 modified: payloadValues.contentModificationDate ?? .distantPast,
                 contentURL: contentURL)
         }
+        // The main queue merges, sorts and compares this list on every
+        // progress tick, so a crowded folder hands it only its newest entries.
+        if files.count > maximumListedFiles {
+            files.sort { $0.date != $1.date ? $0.date > $1.date : $0.url.path < $1.url.path }
+            files.removeSubrange(maximumListedFiles...)
+        }
         return readFailed ? nil : FolderSnapshot(partials: result, files: files)
     }
 
@@ -162,6 +168,8 @@ enum NotchDownloadSupport {
     }
 
     static let maximumObservedFiles = 32
+    /// Folder entries the page lists, newest first.
+    static let maximumListedFiles = 200
     static let percentSize: CGFloat = 10
     /// Progress rounds up to a full hundred near the end, and four of the
     /// languages part the number from its sign, so the narrowest wing cannot

@@ -240,8 +240,11 @@ struct MixerSection: View {
     }
 
     private func setSystemOutputVolume(_ value: Double) {
-        if inNotch { mixer.requestOutputAdjustment(volume: value) }
-        else { mixer.setCurrentOutputVolume(value) }
+        if inNotch {
+            // The slider shows the level; the island's header need not repeat it.
+            NotchService.shared.noteOwnVolumeAdjustment()
+            mixer.requestOutputAdjustment(volume: value)
+        } else { mixer.setCurrentOutputVolume(value) }
     }
 
     private var systemOutputVolumeBinding: Binding<Double> {

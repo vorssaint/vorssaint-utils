@@ -9,6 +9,9 @@ final class NotchMusicService: ObservableObject {
     @Published private(set) var playback: NotchPlayback?
     @Published private(set) var sources: [NotchPlaybackSource] = []
     @Published private(set) var sourceIsAutomatic = true
+    /// The chosen source, which the automatic player can stand in for while
+    /// it waits for its next track.
+    @Published private(set) var selectedSourcePID: Int32?
     /// True from the first request until the adapter's first reply. Until then
     /// a missing playback is unknown, not "nothing playing".
     @Published private(set) var awaitingPlayback = false
@@ -32,6 +35,12 @@ final class NotchMusicService: ObservableObject {
     private var wantsPlayback = false
     private var restartCount = 0
     private var restartWork: DispatchWorkItem?
+    private var launchedAt: TimeInterval?
+    /// The adapter keeps an explicit choice only while it runs, and it stops
+    /// on lock, sleep or when the page closes. Tied to a process, so it is
+    /// never saved across launches of the app.
+    private var chosenSource: NotchPlaybackSource.Selection?
+    private var restoringSource = false
     private var artworkCache = NotchArtworkCache<(image: NSImage, tint: NotchArtworkTint?)>()
     private var artworkWork: DispatchWorkItem?
     private var automationTarget: NotchMusicAutomation.Target?
@@ -120,14 +129,17 @@ final class NotchMusicService: ObservableObject {
             }
             let image = cachedImage
             let tint = cachedTint
-            let sources = NotchPlaybackSource.decode(reply?["sources"])
-            let automatic = reply?["sourceIsAutomatic"] as? Bool ?? true
+            let automatic = reply?["sourceIsAutomatic"] as? Bool
+            let selectedPID = automatic == false ? NotchPlaybackSource.decodePID(reply?["selectedPID"]) : nil
+            let sources = NotchPlaybackSource.decode(reply?["sources"], selectedPID: selectedPID)
             DispatchQueue.main.async {
-                guard let self, self.generation == requested else { return }
+                guard let self, self.generation == requested,
+                      self.acceptsSourceReply(automatic: automatic, sources: sources) else { return }
                 self.updateArtwork(image, tint: tint, playback: next)
                 self.playback = next
                 self.sources = sources
-                self.sourceIsAutomatic = automatic
+                self.sourceIsAutomatic = automatic ?? true
+                self.selectedSourcePID = selectedPID
                 self.awaitingPlayback = false
                 self.updateAutomation(for: next)
                 NotchLyricsService.shared.playbackChanged(next)
@@ -151,13 +163,40 @@ final class NotchMusicService: ObservableObject {
             self.process = process
             self.output = output
             self.input = input
+            launchedAt = ProcessInfo.processInfo.systemUptime
+            restoreSource()
         } catch {
             output.fileHandleForReading.readabilityHandler = nil
             connectionEnded()
         }
     }
 
+    /// A new adapter starts in Automatic. It finishes its first discovery
+    /// before reading any command, so it checks the choice against fresh sources.
+    private func restoreSource() {
+        guard let chosenSource else { restoringSource = false; return }
+        restoringSource = send(.source(chosenSource))
+    }
+
+    /// A restarted adapter reads once in Automatic before the restored choice
+    /// reaches it. That reading is not shown, so the automatic player does not
+    /// flash. A choice the adapter reports gone is forgotten.
+    private func acceptsSourceReply(automatic: Bool?, sources: [NotchPlaybackSource]) -> Bool {
+        let restoring = restoringSource
+        restoringSource = false
+        guard automatic == true, let chosenSource else { return true }
+        guard sources.contains(where: { $0.selection == chosenSource }) else {
+            self.chosenSource = nil
+            return true
+        }
+        return !restoring
+    }
+
     private func connectionEnded() {
+        // An adapter that ran for over a minute is not crash looping, so its
+        // exit gets a fresh budget instead of leaving music off until a restart.
+        if let launchedAt, ProcessInfo.processInfo.systemUptime - launchedAt > 60 { restartCount = 0 }
+        launchedAt = nil
         disconnect()
         guard wantsPlayback, restartCount < 2 else { awaitingPlayback = false; return }
         restartCount += 1
@@ -254,6 +293,7 @@ final class NotchMusicService: ObservableObject {
         playback = nil
         sources = []
         sourceIsAutomatic = true
+        selectedSourcePID = nil
         artwork = nil
         artworkTint = nil
         commandFailed = false
@@ -262,8 +302,14 @@ final class NotchMusicService: ObservableObject {
     typealias Command = NotchPlaybackCommand
 
     func selectSource(_ selection: NotchPlaybackSource.Selection?) {
+        // Choosing what is already in effect changes nothing in the adapter,
+        // so the page, its lyrics and the island's size stay as they are. A
+        // choice stays in effect while the automatic player fills its gap.
+        if selection == nil ? sourceIsAutomatic
+            : !sourceIsAutomatic && selectedSourcePID == selection?.pid { return }
         guard selection == nil || sources.contains(where: { $0.selection == selection }),
               send(.source(selection)) else { return }
+        chosenSource = selection
         cancelAutomationAction()
         setQueueVisible(false)
         // Remove the old controls while the adapter validates and reads the

@@ -10,6 +10,11 @@ import Foundation
 /// real matching release, including presses seen before queued teardown runs.
 /// Forced lifecycle teardown (session switch, permission reset) bypasses this gate.
 struct CleaningMouseReleaseGate {
+    /// The longest a user unlock waits for a release. A release this tap never
+    /// sees, such as from a mouse that disconnects mid-press, must not keep the
+    /// keyboard locked with no way back.
+    static let releaseWaitLimit: TimeInterval = 5
+
     private(set) var pressedButtons: Set<Int64> = []
     private(set) var deactivationPending = false
 
@@ -33,6 +38,14 @@ struct CleaningMouseReleaseGate {
     /// A disabled tap may have missed releases, but the user's request survives.
     mutating func invalidateTrackedPresses() {
         pressedButtons.removeAll()
+    }
+
+    /// The wait for a pending unlock ran out: stop waiting for the tracked
+    /// presses without inventing their releases. False when nothing was asked.
+    mutating func releaseWaitExpired() -> Bool {
+        guard deactivationPending else { return false }
+        pressedButtons.removeAll()
+        return true
     }
 
     mutating func reset() {

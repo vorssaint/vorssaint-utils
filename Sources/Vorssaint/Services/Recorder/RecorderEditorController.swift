@@ -352,6 +352,15 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     private func documentDidChange(from previous: RecorderEditDocument) {
+        // Undo, a look or a preset can take the selected zoom away. A
+        // selection left pointing at nothing turns aiming into a click that
+        // does nothing; clearing it also ends aiming and restores the preview.
+        if let selectedZoomID, zoom(selectedZoomID) == nil { self.selectedZoomID = nil }
+        // The same goes for a blur whose area is being drawn.
+        if let selectedBlurID, !document.blurs.contains(where: { $0.id == selectedBlurID }) {
+            self.selectedBlurID = nil
+            endPickingBlurArea()
+        }
         guard !suppressUndo, previous != document else { return }
         undoStack.append(previous)
         redoStack.removeAll()

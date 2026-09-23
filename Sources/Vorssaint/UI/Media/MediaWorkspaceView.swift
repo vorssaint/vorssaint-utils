@@ -1346,6 +1346,8 @@ struct MediaWorkspaceView: View {
             // moves/reskins the borderless island. Open it on its own,
             // just above the island.
             panel.level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+            // Like the sheet it replaces, it stays up while another app is active.
+            panel.hidesOnDeactivate = false
             panel.begin { response in
                 panelModalActive = false
                 // Dismissal restores the previous key window after this callback.

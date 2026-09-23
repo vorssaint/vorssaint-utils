@@ -436,6 +436,17 @@ private struct QuickEntryRow: View, Equatable {
                                isHovered: Bool) -> some View {
         if isHovered {
             HStack(spacing: 4) {
+                if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                    Button { history.editImage(entry) } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .frame(width: 24, height: 24)
+                            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .help(text.edit)
+                    .accessibilityLabel(text.edit)
+                }
                 Button {
                     history.copyOnlyQuickEntry(entry)
                 } label: {

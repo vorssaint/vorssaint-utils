@@ -449,6 +449,11 @@ enum NotchPresentationProbe {
         if !reduceMotion && !downloadHost.backdropProbeUsesGlass {
             failures.append("closing dropped the previous glass before settling")
         }
+        // Preferences sync without animation, and can do so while the island closes.
+        downloadHost.present(size: crowded.compactActivitySize, geometry: crowded, animated: false)
+        if !reduceMotion && !downloadHost.backdropProbeUsesGlass {
+            failures.append("an unanimated refresh dropped the closing glass before settling")
+        }
         advance(0.6)
         if downloadHost.backdropProbeUsesGlass || downloadHost.backdropProbeScheduled {
             failures.append("tall compact download retained the expanded material or scheduler")

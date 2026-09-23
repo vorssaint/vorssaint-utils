@@ -107,6 +107,9 @@ struct AgentUsageSnapshot: Equatable {
 
 enum AgentUsageSummary {
     static let blockLength: TimeInterval = 5 * 3600
+    /// Each window starts where the one before it ended, so a chain cut
+    /// short lands on other hours; a day of history covers any real stretch.
+    static let blockHistory: TimeInterval = 24 * 3600
     static let burnWindow: TimeInterval = 30 * 60
 
     static func snapshot(records: [AgentUsageRecord], limits: [AgentProvider: AgentLimits],
@@ -138,7 +141,7 @@ enum AgentUsageSummary {
         for record in records where providers.contains(record.provider) {
             snapshot.seen.insert(record.provider)
             snapshot.lastActivity[record.provider] = max(snapshot.lastActivity[record.provider] ?? .distantPast, record.date)
-            if record.provider == .claude, record.date > now.addingTimeInterval(-2 * blockLength), record.date <= now {
+            if record.provider == .claude, record.date > now.addingTimeInterval(-blockHistory), record.date <= now {
                 claude.append(record)
             }
             if record.date >= recent, record.date <= now {
@@ -195,8 +198,16 @@ enum AgentUsageSummary {
         snapshot.periods = periods
         snapshot.days = days
         snapshot.hours = hours
-        snapshot.claudeBlock = currentBlock(claude, now: now, calendar: calendar)
+        snapshot.claudeBlock = currentBlock(claude, now: now)
         return snapshot
+    }
+
+    /// Whether a snapshot reads differently at `now` with nothing new read:
+    /// the last half hour slides, a Claude window can end and a new day
+    /// moves every total. The rest changes only with what the logs say.
+    static func movesWithClock(_ snapshot: AgentUsageSnapshot, now: Date,
+                               calendar: Calendar = .autoupdatingCurrent) -> Bool {
+        !snapshot.burnRate.isEmpty || snapshot.claudeBlock != nil || !calendar.isDate(snapshot.now, inSameDayAs: now)
     }
 
     private static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {
@@ -218,16 +229,16 @@ enum AgentUsageSummary {
     }
 
     /// Windows start on the hour of the first request after the previous
-    /// one ended, the way the service counts them.
-    static func currentBlock(_ records: [AgentUsageRecord], now: Date,
-                             calendar: Calendar = .autoupdatingCurrent) -> AgentBlock? {
+    /// one ended, the way the service counts them: the hour in UTC, as the
+    /// Claude app's readings are placed.
+    static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
         var block: AgentBlock?
         for record in records.sorted(by: { $0.date < $1.date }) {
             if let current = block, record.date < current.end {
                 block?.totals.add(record)
                 continue
             }
-            let hour = calendar.dateInterval(of: .hour, for: record.date)?.start ?? record.date
+            let hour = AgentClaudeAppUsage.hour(of: record.date)
             var next = AgentBlock(start: hour, end: hour.addingTimeInterval(blockLength), totals: AgentTotals())
             next.totals.add(record)
             block = next

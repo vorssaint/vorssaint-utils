@@ -270,6 +270,10 @@ enum NotchAgentTests {
                         tracksTurns: true, modified: now, now: now)
         }
         suite.expect(feed(claudeUser(meta: true)).isEmpty && store.live.isEmpty, "a meta line starts no turn")
+        var side = AgentLogState()
+        let sidePrompt = line(#"{"type":"user","isSidechain":true,"timestamp":"2026-09-21T23:41:00.000Z","sessionId":"s1","message":{"role":"user","content":"Explore the repo"}}"#)
+        suite.expect(AgentLogParser.parseClaude(sidePrompt, state: &side, now: now).isEmpty && !side.turnOpen,
+                     "a subagent's own prompt never opens a turn")
         _ = feed(claudeUser(time: "2026-09-21T23:40:00.000Z"))
         suite.expect(store.live.count == 1 && store.live.first?.started == AgentTimestamp.parse("2026-09-21T23:40:00.000Z"),
                      "a prompt starts a turn at its own time")
@@ -296,6 +300,10 @@ enum NotchAgentTests {
         _ = feed(claudeUser(#"<command-name>/model</command-name>"#))
         _ = feed(line(#"{"type":"user","message":{"content":"<local-command-stdout>Set model</local-command-stdout>"}}"#))
         suite.expect(store.live.isEmpty, "a local command never leaves a turn working")
+        _ = feed(claudeUser())
+        suite.expect(feed(claudeAssistant(id: "msg_4", request: "req_4", model: "<synthetic>", stop: "stop_sequence",
+                                          time: "2026-09-21T23:44:40.000Z")).isEmpty && store.live.isEmpty,
+                     "an error written in place of a reply ends the turn without a finish notice")
         let quiet = AgentUsageStore()
         var quietState = AgentLogState()
         let replay = [claudeUser(), claudeAssistant(stop: "end_turn")].flatMap {
@@ -341,7 +349,12 @@ enum NotchAgentTests {
         suite.expect(usage?.tokens == AgentTokens(input: 11_943, cacheWrite: 0, cacheRead: 20_224, output: 156, reasoning: 7)
                         && usage?.model == "gpt-6-astra" && usage?.project == "web" && usage?.session == "s9",
                      "cached input is taken out of the input count and the turn's model is kept")
-        suite.expectClose(usage?.cost ?? -1, (11_943 * 10 + 20_224 * 1 + 156 * 50) / 1_000_000,
+        // One typed term per line: Swift 6.0.3 cannot infer this literal arithmetic in time.
+        let inputCost: Double = 11_943 * 10
+        let cacheReadCost: Double = 20_224 * 1
+        let outputCost: Double = 156 * 50
+        let listPriceCost: Double = (inputCost + cacheReadCost + outputCost) / 1_000_000
+        suite.expectClose(usage?.cost ?? -1, listPriceCost,
                           "a response is priced at its model's list price")
         let window = store.limits[.codex]?.windows.first
         suite.expect(window?.kind == .weekly && window?.usedPercent == 72 && window?.minutes == 10_080
@@ -351,6 +364,32 @@ enum NotchAgentTests {
         suite.expect(events == [.finished(provider: .codex, duration: 458.431, cost: usage?.cost ?? 0,
                                           tokens: usage?.tokens.total ?? 0, project: "web")],
                      "a completed task reports the duration Codex measured")
+
+        // A model with an allowance of its own logs it under another id.
+        var sparkState = AgentLogState()
+        let spark = line(#"{"timestamp":"2026-09-22T14:53:00.000Z","type":"event_msg","payload":{"type":"token_count","info":null,"rate_limits":{"limit_id":"codex_spark","limit_name":"GPT-5.3-Codex-Spark","primary":{"used_percent":3.0,"window_minutes":300,"resets_at":1790100000},"secondary":{"used_percent":1.0,"window_minutes":10080,"resets_at":1790390402},"plan_type":"pro"}}}"#)
+        let sparkEntries = AgentLogParser.parseCodex(spark, state: &sparkState, now: now)
+        store.apply(sparkEntries, file: "main", provider: .codex, tracksTurns: true, modified: now)
+        suite.expect(!sparkEntries.contains { if case .limits = $0 { return true }; return false }
+                        && store.limits[.codex]?.windows.map(\.usedPercent) == [72],
+                     "a model's own allowance never takes the place of the main one")
+        suite.expect(AgentLogParser.isMainBucket([:]) && AgentLogParser.isMainBucket(["limit_id": "codex"])
+                        && !AgentLogParser.isMainBucket(["limit_id": "codex_spark"]),
+                     "a reading without an id, as older logs write, is the main allowance")
+
+        // An archived session read later holds an older plan than the one in use.
+        var archivedState = AgentLogState()
+        let archived = line(#"{"timestamp":"2026-08-01T10:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":null,"rate_limits":{"limit_id":"codex","primary":{"used_percent":5.0,"window_minutes":10080,"resets_at":1786000000},"secondary":null,"plan_type":"plus"}}}"#)
+        let archivedEntries = AgentLogParser.parseCodex(archived, state: &archivedState, now: now)
+        let archivedDate = AgentTimestamp.parse("2026-08-01T10:00:00.000Z")!
+        store.apply(archivedEntries, file: "archived", provider: .codex, tracksTurns: true, modified: now)
+        suite.expect(archivedEntries.contains(.plan("plus", observedAt: archivedDate)) && store.codexPlan == "pro"
+                        && store.limits[.codex]?.windows.map(\.usedPercent) == [72],
+                     "an older session read later changes neither the plan nor the limits in use")
+        let upgraded = AgentTimestamp.parse("2026-09-22T15:00:00.000Z")!
+        store.apply([.plan("business", observedAt: upgraded)], file: "main", provider: .codex, tracksTurns: true,
+                    modified: now)
+        suite.expect(store.codexPlan == "business", "a newer reading changes the plan")
 
         // A thread on the fast tier bills every response at its premium.
         var fastState = AgentLogState()
@@ -457,9 +496,47 @@ enum NotchAgentTests {
                                                     providers: [.claude], now: now, calendar: calendar)
         suite.expect(claudeOnly.usage(.today).total.cost == 8 && !claudeOnly.seen.contains(.codex),
                      "an agent turned off leaves every total")
-        let late = AgentUsageSummary.currentBlock(Array(records.prefix(3)), now: AgentTimestamp.parse("2026-09-22T20:00:00Z")!,
-                                                  calendar: calendar)
+        let late = AgentUsageSummary.currentBlock(Array(records.prefix(3)), now: AgentTimestamp.parse("2026-09-22T20:00:00Z")!)
         suite.expect(late == nil, "a window that has ended is no longer current")
+
+        // Steady work from morning to evening: the chain of windows starts
+        // with the day's first request, on the hour in UTC even where the
+        // clock sits half an hour off.
+        let morning = AgentTimestamp.parse("2026-09-22T06:10:00Z")!
+        let steps: [Int] = Array(0...34)
+        let steady: [AgentUsageRecord] = steps.map { step in
+            record(.claude, morning.addingTimeInterval(TimeInterval(step) * 1200), cost: 1)
+        }
+        var kolkata = Calendar(identifier: .gregorian)
+        kolkata.timeZone = TimeZone(identifier: "Asia/Kolkata")!
+        let evening = AgentTimestamp.parse("2026-09-22T17:30:00Z")!
+        let steadyDay = AgentUsageSummary.snapshot(records: steady, limits: [:], live: [], plans: [:], providers: [.claude],
+                                                   now: evening, calendar: kolkata)
+        suite.expect(steadyDay.claudeBlock?.start == AgentTimestamp.parse("2026-09-22T16:00:00Z")
+                        && steadyDay.claudeBlock?.end == AgentTimestamp.parse("2026-09-22T21:00:00Z"),
+                     "a day of steady work keeps the window its first request placed, on the UTC hour")
+
+        // A snapshot is made again only when time alone would change it.
+        let noon = AgentTimestamp.parse("2026-09-22T12:00:00Z")!
+        let hourOn = noon.addingTimeInterval(3600)
+        let nextDay = AgentTimestamp.parse("2026-09-23T00:00:30Z")!
+        let resting = AgentUsageSummary.snapshot(records: [record(.codex, noon.addingTimeInterval(-7200), cost: 1)],
+                                                 limits: [:], live: [], plans: [:], providers: [.claude, .codex],
+                                                 now: noon, calendar: calendar)
+        suite.expect(!AgentUsageSummary.movesWithClock(resting, now: hourOn, calendar: calendar)
+                        && AgentUsageSummary.movesWithClock(resting, now: nextDay, calendar: calendar),
+                     "a snapshot with nothing recent holds until a new day moves every total")
+        let burning = AgentUsageSummary.snapshot(records: [record(.codex, noon.addingTimeInterval(-600), cost: 1)],
+                                                 limits: [:], live: [], plans: [:], providers: [.claude, .codex],
+                                                 now: noon, calendar: calendar)
+        let windowOpen = AgentUsageSummary.snapshot(records: [record(.claude, noon.addingTimeInterval(-5400), cost: 1)],
+                                                    limits: [:], live: [], plans: [:], providers: [.claude, .codex],
+                                                    now: noon, calendar: calendar)
+        suite.expect(AgentUsageSummary.movesWithClock(burning, now: hourOn, calendar: calendar)
+                        && windowOpen.burnRate.isEmpty && windowOpen.claudeBlock != nil
+                        && AgentUsageSummary.movesWithClock(windowOpen, now: hourOn, calendar: calendar),
+                     "the last half hour and an open Claude window move with the clock")
+        suite.expect(AgentUsageSummary.movesWithClock(AgentUsageSnapshot(), now: noon), "the first snapshot is always made")
         suite.expect(AgentUsageSummary.index(of: now, in: [now.addingTimeInterval(-10), now, now.addingTimeInterval(10)]) == 1
                         && AgentUsageSummary.index(of: now.addingTimeInterval(-20), in: [now]) == nil,
                      "a time falls in the last bucket that starts at or before it")
@@ -515,6 +592,64 @@ enum NotchAgentTests {
         suite.expect(store.live.first?.tokens.total == 0, "a new turn in the same log starts from nothing")
         suite.expect(store.forget(file: "/logs/a.jsonl") && store.live.isEmpty && !store.forget(file: "/logs/a.jsonl"),
                      "a removed log, like a deleted chat, stops showing as working")
+
+        // A turn that goes quiet, as while it waits for an approval, comes
+        // back when its work resumes and finishes as the whole turn.
+        let quiet = AgentUsageStore()
+        quiet.reportsTransitions = true
+        let waitingLog = "/logs/b.jsonl"
+        quiet.apply([.turnBegan(start)], file: waitingLog, provider: .codex, tracksTurns: true, modified: start, now: start)
+        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
+        suite.expect(quiet.live.isEmpty && quiet.waiting[waitingLog]?.started == start,
+                     "a quiet turn stops showing as working and waits aside")
+        let resumedAt = start.addingTimeInterval(1210)
+        let resumed = AgentUsageRecord(provider: .codex, date: resumedAt, model: "gpt-6-sol", project: "app",
+                                       session: "s", tokens: tokens, cost: 0.5, savings: 0)
+        quiet.apply([.usage(key: "codex:r2", record: resumed, billable: AgentBillable(tokens: tokens))], file: waitingLog,
+                    provider: .codex, tracksTurns: true, modified: resumedAt, now: resumedAt)
+        suite.expect(quiet.live.first?.started == start && quiet.waiting.isEmpty, "work that resumes brings the turn back")
+        let endedAt = start.addingTimeInterval(1300)
+        let ended = quiet.apply([.turnEnded(endedAt, completed: true, duration: nil)], file: waitingLog, provider: .codex,
+                                tracksTurns: true, modified: endedAt, now: endedAt)
+        let whole = AgentUsageEvent.finished(provider: .codex, duration: 1300, cost: 0.5, tokens: tokens.total, project: "app")
+        suite.expect(ended == [whole] && quiet.live.isEmpty, "a turn that waited finishes as the whole turn, with what it spent")
+        quiet.apply([.turnBegan(endedAt)], file: waitingLog, provider: .codex, tracksTurns: true, modified: endedAt)
+        quiet.closeIdleTurns(now: endedAt.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
+        let nextStart = endedAt.addingTimeInterval(1500)
+        quiet.apply([.turnBegan(nextStart)], file: waitingLog, provider: .codex, tracksTurns: true, modified: nextStart)
+        suite.expect(quiet.waiting.isEmpty && quiet.live.first?.started == nextStart, "a new turn replaces one that went quiet")
+        quiet.closeIdleTurns(now: nextStart.addingTimeInterval(AgentUsageStore.resumeWindow(for: .codex)),
+                             after: NotchAgentSupport.idleTurn)
+        suite.expect(quiet.live.isEmpty && quiet.waiting.isEmpty, "a turn quiet for hours is over")
+        let claudeLog = "/logs/c.jsonl"
+        quiet.apply([.turnBegan(start)], file: claudeLog, provider: .claude, tracksTurns: true, modified: start, now: start)
+        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
+        let claudeWait = AgentUsageStore.resumeWindow(for: .claude)
+        quiet.closeIdleTurns(now: start.addingTimeInterval(claudeWait + 1), after: NotchAgentSupport.idleTurn)
+        suite.expect(quiet.waiting.isEmpty && claudeWait < AgentUsageStore.resumeWindow(for: .codex),
+                     "a Claude turn that a killed session left open stops waiting sooner")
+
+        // A Claude subagent's responses count toward the turn it works for.
+        let sessionLog = "/x/p/s1.jsonl"
+        let helper = AgentLogCursor(path: "/x/p/s1/subagents/agent-a1.jsonl", provider: .claude)
+        let team = AgentUsageStore()
+        team.apply([.turnBegan(start)], file: sessionLog, provider: .claude, tracksTurns: true, modified: start)
+        let own = AgentUsageRecord(provider: .claude, date: start.addingTimeInterval(5), model: "claude-opus-5-5",
+                                   project: "app", session: "s1", tokens: tokens, cost: 1, savings: 0)
+        team.apply([.usage(key: "claude:m1:r1", record: own, billable: AgentBillable(tokens: tokens))], file: sessionLog,
+                   provider: .claude, tracksTurns: true, modified: start)
+        let delegatedAt = start.addingTimeInterval(30)
+        let delegated = AgentUsageRecord(provider: .claude, date: delegatedAt, model: "claude-haiku-4-5",
+                                         project: "tools", session: "s1", tokens: tokens, cost: 0.25, savings: 0)
+        team.apply([.usage(key: "claude:m2:r2", record: delegated, billable: AgentBillable(tokens: tokens))],
+                   file: helper.path, provider: .claude, tracksTurns: helper.tracksTurns, parent: helper.parent,
+                   modified: start)
+        let served = team.live.first
+        suite.expect(helper.parent == sessionLog && team.live.count == 1 && served?.cost == 1.25
+                        && served?.lastActivity == delegatedAt,
+                     "a subagent's spend and activity count toward the turn it works for")
+        suite.expect(served?.model == "claude-opus-5-5" && served?.project == "app",
+                     "the turn keeps the model and project the session chose")
     }
 
     private static func strip(_ suite: TestSuite) {
@@ -597,6 +732,17 @@ enum NotchAgentTests {
         suite.expect(root.path.hasPrefix("/private/") && AgentLogRoot.canonical(folder.appending(path: "missing")).path
                         == folder.appending(path: "missing").path,
                      "roots are watched by the real path file events report, and a missing one keeps its name")
+        let subagents = folder.appending(path: "session/subagents")
+        try? FileManager.default.createDirectory(at: subagents, withIntermediateDirectories: true)
+        let helperLog = subagents.appending(path: "agent-1.jsonl")
+        FileManager.default.createFile(atPath: helperLog.path, contents: Data("{}\n".utf8))
+        try? FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-60)],
+                                               ofItemAtPath: helperLog.path)
+        let sessionPath = root.appending(path: "session.jsonl").path
+        let ordered = AgentLogReader.discover([AgentLogRoot(provider: .claude, url: root)], since: .distantPast)
+        suite.expect(ordered.map(\.path) == [sessionPath, root.appending(path: "session/subagents/agent-1.jsonl").path]
+                        && AgentLogCursor(path: ordered.last?.path ?? "", provider: .claude).parent == sessionPath,
+                     "a subagent is read after the session it works for, even when it finished first")
     }
 
     private static func history(_ samples: [(String, String?, [String: Any])], version: Int = 2) -> Data {
@@ -649,6 +795,19 @@ enum NotchAgentTests {
                      "a day-old week is kept only when its next renewal is known")
         suite.expect(AgentClaudeAppUsage.limits(from: renewed, now: at("2026-09-24T15:00:00Z")) == nil,
                      "a week that renewed after the reading is not shown with its old use")
+        let accounts = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-23T14:10:00Z", "o", ["fh": 30, "sd": 50]), ("2026-09-23T14:20:00Z", "x", ["fh": 90, "sd": 95])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: accounts, now: now, organization: "o")?.windows.map(\.usedPercent) == [30, 50]
+                        && AgentClaudeAppUsage.limits(from: accounts, now: now, organization: "z") == nil
+                        && AgentClaudeAppUsage.limits(from: accounts, now: now)?.windows.map(\.usedPercent) == [90, 95],
+                     "limits follow the account Claude Code signs in to, not whichever one the app shows")
+        let continuous = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-23T10:05:00Z", "o", ["fh": 3, "sd": 10]), ("2026-09-23T14:55:00Z", "o", ["fh": 85, "sd": 20]),
+            ("2026-09-23T15:05:00Z", "o", ["fh": 4, "sd": 21]), ("2026-09-23T15:20:00Z", "o", ["fh": 12, "sd": 22])])) ?? []
+        let working = AgentClaudeAppUsage.limits(from: continuous, now: at("2026-09-23T15:25:00Z"))
+        suite.expect(working?.windows.first?.kind == .session
+                        && working?.windows.first?.resetsAt == at("2026-09-23T20:00:00Z"),
+                     "a session that renews during continuous use starts again at the drop")
         let first = AgentClaudeAppUsage.samples(from: history([("2026-09-23T14:20:00Z", nil, ["fh": 5, "sd": 20])], version: 1))
         suite.expect(first?.first?.used == ["fh": 5, "sd": 20] && AgentClaudeAppUsage.samples(from: history([], version: 3)) == nil
                         && AgentClaudeAppUsage.samples(from: Data("[]".utf8)) == nil,

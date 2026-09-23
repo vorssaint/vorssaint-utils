@@ -234,7 +234,9 @@ private struct NotchAgentLimitsCard: View {
     private func help(_ window: AgentLimitWindow) -> String {
         var parts = [label(window), text.usedShare(AgentFormat.percent(window.usedFraction)),
                      text.left(AgentFormat.percent(window.remainingFraction))]
-        if let resets = window.resetsAt { parts.append(resets.formatted(date: .abbreviated, time: .shortened)) }
+        if let resets = window.resetsAt {
+            parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)))
+        }
         if let observed = snapshot.limits[provider]?.observedAt, now.timeIntervalSince(observed) > 600 {
             parts.append(text.updated(observed.formatted(.relative(presentation: .named).locale(locale))))
         }

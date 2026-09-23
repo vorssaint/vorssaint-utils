@@ -164,6 +164,34 @@ enum MetricsFeatureTests {
             totalReadBytes: nil,
             totalWrittenBytes: nil
         )
+        suite.expect(Defaults.registeredDefaults[DiskMenuBarStyle.defaultsKey] as? String == "percent",
+                     "disk menu bar style registers the existing percentage default")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DiskMenuBarStyle.defaultsKey),
+                     "disk menu bar style travels in settings backups")
+        for style in DiskMenuBarStyle.allCases {
+            let restored = SettingsBackupSupport.sanitizedSettings(from: [
+                SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+                SettingsBackupSupport.settingsKey: [DiskMenuBarStyle.defaultsKey: style.rawValue],
+            ])
+            suite.expect(restored?[DiskMenuBarStyle.defaultsKey] as? String == style.rawValue,
+                         "settings backup restores disk menu bar style \(style.rawValue)")
+        }
+        expectEqual(DiskMenuBarStyle.percent.value(for: diskDevice), "67%", "disk menu bar used percentage")
+        expectEqual(DiskMenuBarStyle.percent.minimumValue, "100%", "percentage reserves percentage width")
+        expectEqual(DiskMenuBarStyle.free.minimumValue, "1000 GB", "available space reserves numeric width")
+        suite.expect(DiskMenuBarStyle.percent.showsPercentage,
+                     "used percentage supports bars")
+        suite.expect(!DiskMenuBarStyle.free.showsPercentage && !DiskMenuBarStyle.used.showsPercentage,
+                     "raw capacity options remain numeric")
+        expectEqual(DiskMenuBarStyle.free.value(for: diskDevice), "110 GB", "disk menu bar reports available bytes directly")
+        expectEqual(DiskMenuBarStyle.used.value(for: diskDevice), "163 GB", "disk menu bar reports used bytes directly")
+        var emptyDisk = diskDevice
+        emptyDisk.totalBytes = 0
+        emptyDisk.freeBytes = 0
+        emptyDisk.usedBytes = 0
+        expectEqual(DiskMenuBarStyle.percent.value(for: emptyDisk), "0%", "disk menu bar zero capacity")
+        expectEqual(DiskMenuBarStyle.free.value(for: emptyDisk), "0 B", "disk menu bar zero available space")
+        expectEqual(DiskMenuBarStyle.used.value(for: emptyDisk), "0 B", "disk menu bar zero used space")
         suite.expect(diskDevice.purgeableBytes == 28_000_000_000, "disk reading preserves purgeable bytes")
         suite.expectClose(diskDevice.usedFraction, 163.0 / 245.0, "disk used fraction reflects physical used bytes")
 

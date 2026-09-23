@@ -53,15 +53,61 @@ enum WindowLayoutFeatureTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterTwoThirds] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "center two thirds starts with no combination of its own")
+        let verticalLayouts: [(WindowLayoutAction, UInt32, String)] = [
+            (.topQuarter, 66, DefaultsKey.windowLayoutShortcutTopQuarter),
+            (.upperMiddleQuarter, 58, DefaultsKey.windowLayoutShortcutUpperMiddleQuarter),
+            (.lowerMiddleQuarter, 59, DefaultsKey.windowLayoutShortcutLowerMiddleQuarter),
+            (.bottomQuarter, 60, DefaultsKey.windowLayoutShortcutBottomQuarter),
+            (.leftQuarter, 67, DefaultsKey.windowLayoutShortcutLeftQuarter),
+            (.leftMiddleQuarter, 68, DefaultsKey.windowLayoutShortcutLeftMiddleQuarter),
+            (.rightMiddleQuarter, 69, DefaultsKey.windowLayoutShortcutRightMiddleQuarter),
+            (.rightQuarter, 70, DefaultsKey.windowLayoutShortcutRightQuarter),
+            (.topThird, 61, DefaultsKey.windowLayoutShortcutTopThird),
+            (.middleThird, 62, DefaultsKey.windowLayoutShortcutMiddleThird),
+            (.bottomThird, 63, DefaultsKey.windowLayoutShortcutBottomThird),
+            (.topTwoThirds, 64, DefaultsKey.windowLayoutShortcutTopTwoThirds),
+            (.bottomTwoThirds, 65, DefaultsKey.windowLayoutShortcutBottomTwoThirds),
+        ]
+        for (action, shortcutID, defaultsKey) in verticalLayouts {
+            suite.expect(WindowLayoutAction.allCases.contains(action)
+                    && action.shortcutID == shortcutID
+                    && WindowLayoutAction(shortcutID: shortcutID) == action,
+                   "\(action.rawValue) exists and answers to its own shortcut id")
+            suite.expect(action.defaultShortcut == nil
+                    && Defaults.registeredDefaults[defaultsKey] as? String
+                        == WindowLayoutAction.clearedShortcutStorageValue,
+                   "\(action.rawValue) starts with no combination of its own")
+        }
         suite.expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
+        // A strip that borrowed another placement's glyph would show two
+        // different places as the same picture wherever the actions are listed.
+        for (action, _, _) in verticalLayouts {
+            suite.expect(WindowLayoutAction.allCases.allSatisfy { $0 == action || $0.symbolName != action.symbolName },
+                   "\(action.rawValue) draws a glyph no other placement uses")
+        }
         for language in AppLanguage.allCases {
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
-                    && !layoutStrings.centerTwoThirds.isEmpty,
+                    && !layoutStrings.centerTwoThirds.isEmpty
+                    && !layoutStrings.quarterRows.isEmpty
+                    && !layoutStrings.quarterColumns.isEmpty
+                    && !layoutStrings.leftQuarter.isEmpty
+                    && !layoutStrings.leftMiddleQuarter.isEmpty
+                    && !layoutStrings.rightMiddleQuarter.isEmpty
+                    && !layoutStrings.rightQuarter.isEmpty
+                    && !layoutStrings.topQuarter.isEmpty
+                    && !layoutStrings.upperMiddleQuarter.isEmpty
+                    && !layoutStrings.lowerMiddleQuarter.isEmpty
+                    && !layoutStrings.bottomQuarter.isEmpty
+                    && !layoutStrings.topThird.isEmpty
+                    && !layoutStrings.middleThird.isEmpty
+                    && !layoutStrings.bottomThird.isEmpty
+                    && !layoutStrings.topTwoThirds.isEmpty
+                    && !layoutStrings.bottomTwoThirds.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
         suite.expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
@@ -354,6 +400,51 @@ enum WindowLayoutFeatureTests {
                                                visibleFrame: visibleFrame)
                == CGRect(x: 240, y: 40, width: 960, height: 860),
                "window layout center two thirds sits two thirds wide in the middle of the screen")
+        let verticalStripLayouts: [(WindowLayoutAction, CGRect)] = [
+            (.topQuarter, CGRect(x: 0, y: 685, width: 1440, height: 215)),
+            (.upperMiddleQuarter, CGRect(x: 0, y: 470, width: 1440, height: 215)),
+            (.lowerMiddleQuarter, CGRect(x: 0, y: 255, width: 1440, height: 215)),
+            (.bottomQuarter, CGRect(x: 0, y: 40, width: 1440, height: 215)),
+            (.leftQuarter, CGRect(x: 0, y: 40, width: 360, height: 860)),
+            (.leftMiddleQuarter, CGRect(x: 360, y: 40, width: 360, height: 860)),
+            (.rightMiddleQuarter, CGRect(x: 720, y: 40, width: 360, height: 860)),
+            (.rightQuarter, CGRect(x: 1080, y: 40, width: 360, height: 860)),
+            (.topThird, CGRect(x: 0, y: 613, width: 1440, height: 287)),
+            (.middleThird, CGRect(x: 0, y: 326, width: 1440, height: 288)),
+            (.bottomThird, CGRect(x: 0, y: 40, width: 1440, height: 287)),
+            (.topTwoThirds, CGRect(x: 0, y: 326, width: 1440, height: 574)),
+            (.bottomTwoThirds, CGRect(x: 0, y: 40, width: 1440, height: 574)),
+        ]
+        for (action, target) in verticalStripLayouts {
+            suite.expect(WindowLayoutGeometry.rect(for: action,
+                                                   current: currentWindow,
+                                                   visibleFrame: visibleFrame) == target,
+                   "\(action.rawValue) targets its strip")
+        }
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .leftQuarter,
+                                                       targetRect: CGRect(x: 0, y: 40, width: 360, height: 860),
+                                                       actualSize: CGSize(width: 600, height: 860),
+                                                       visibleFrame: visibleFrame)
+               == CGRect(x: 0, y: 40, width: 600, height: 860),
+               "left quarter grows from the left edge of its column")
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .rightMiddleQuarter,
+                                                       targetRect: CGRect(x: 720, y: 40, width: 360, height: 860),
+                                                       actualSize: CGSize(width: 600, height: 860),
+                                                       visibleFrame: visibleFrame)
+               == CGRect(x: 480, y: 40, width: 600, height: 860),
+               "right middle quarter grows from the right edge of its column")
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .topQuarter,
+                                                       targetRect: CGRect(x: 0, y: 685, width: 1440, height: 215),
+                                                       actualSize: CGSize(width: 1440, height: 400),
+                                                       visibleFrame: visibleFrame)
+               == CGRect(x: 0, y: 500, width: 1440, height: 400),
+               "top quarter keeps a larger window flush with the top of its strip")
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .middleThird,
+                                                       targetRect: CGRect(x: 0, y: 326, width: 1440, height: 288),
+                                                       actualSize: CGSize(width: 1440, height: 400),
+                                                       visibleFrame: visibleFrame)
+               == CGRect(x: 0, y: 270, width: 1440, height: 400),
+               "middle third centers a larger window on its strip")
         suite.expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
                                          windowGap: 16)
                == CGRect(x: 0, y: 40, width: 712, height: 860),
@@ -527,43 +618,144 @@ enum WindowLayoutFeatureTests {
                                                              frames: horizontalDisplays,
                                                              movingForward: true) == nil,
                "window layout leaves one display and invalid selections unchanged")
-        suite.expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
-                                                             frames: horizontalDisplays,
-                                                             movingRight: true) == 2
-                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
-                                                                 frames: horizontalDisplays,
-                                                                 movingRight: false) == 1
-                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 2,
-                                                                 frames: horizontalDisplays,
-                                                                 movingRight: false) == 0,
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: horizontalDisplays,
+                                                          direction: .right) == 2
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: horizontalDisplays,
+                                                        direction: .left) == 1
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 2,
+                                                        frames: horizontalDisplays,
+                                                        direction: .left) == 0,
                "window layout finds the display starting on the asked side")
-        suite.expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 2,
-                                                             frames: horizontalDisplays,
-                                                             movingRight: true) == nil
-                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 1,
-                                                                 frames: horizontalDisplays,
-                                                                 movingRight: false) == nil,
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 2,
+                                                          frames: horizontalDisplays,
+                                                          direction: .right) == nil
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 1,
+                                                        frames: horizontalDisplays,
+                                                        direction: .left) == nil,
                "window layout stops at the outermost display instead of wrapping sideways")
         let stackedDisplays = [
             CGRect(x: 0, y: 0, width: 1440, height: 900),
             CGRect(x: 0, y: 900, width: 1440, height: 900),
         ]
-        suite.expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
-                                                             frames: stackedDisplays,
-                                                             movingRight: true) == nil
-                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 1,
-                                                                 frames: stackedDisplays,
-                                                                 movingRight: false) == nil,
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: stackedDisplays,
+                                                          direction: .right) == nil
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 1,
+                                                        frames: stackedDisplays,
+                                                        direction: .left) == nil,
                "window layout never answers a sideways push with a stacked display")
         let towerDisplays = [
             CGRect(x: 0, y: 0, width: 1440, height: 900),
             CGRect(x: 1440, y: 800, width: 1000, height: 1000),
             CGRect(x: 1440, y: -100, width: 1000, height: 1000),
         ]
-        suite.expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
-                                                             frames: towerDisplays,
-                                                             movingRight: true) == 2,
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: towerDisplays,
+                                                          direction: .right) == 2,
                "window layout picks the closest display when several share the same edge")
+        let verticalNeighbours = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 240, y: 900, width: 1200, height: 900),
+            CGRect(x: -180, y: -1000, width: 1440, height: 1000),
+            CGRect(x: 0, y: 1800, width: 1440, height: 900),
+        ]
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: verticalNeighbours,
+                                                          direction: .up) == 1
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: verticalNeighbours,
+                                                        direction: .down) == 2,
+               "window layout finds offset displays above and below, choosing the nearest")
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 3,
+                                                          frames: verticalNeighbours,
+                                                          direction: .up) == nil
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 2,
+                                                        frames: verticalNeighbours,
+                                                        direction: .down) == nil,
+               "window layout stops at the topmost and bottommost displays")
+        let unequalDownwardDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: -1200, width: 1440, height: 1200),
+            CGRect(x: 1700, y: -950, width: 800, height: 800),
+        ]
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: unequalDownwardDisplays,
+                                                          direction: .down) == 1,
+               "window layout ranks downward displays by their top edge, not their far edge")
+        let unequalUpwardDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: 900, width: 1440, height: 1200),
+            CGRect(x: 1700, y: 950, width: 800, height: 800),
+        ]
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: unequalUpwardDisplays,
+                                                          direction: .up) == 1,
+               "window layout ranks upward displays by their bottom edge, not their far edge")
+        let tiedDownwardDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 600, y: -900, width: 800, height: 900),
+            CGRect(x: -1000, y: -900, width: 800, height: 900),
+        ]
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: tiedDownwardDisplays,
+                                                          direction: .down) == 1,
+               "window layout uses horizontal center distance to break equal downward-edge ties")
+        let equallyCenteredDownwardDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 1440, y: -900, width: 720, height: 900),
+            CGRect(x: -720, y: -900, width: 720, height: 900),
+        ]
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: equallyCenteredDownwardDisplays,
+                                                          direction: .down) == 1,
+               "window layout keeps input order for exact downward center ties")
+        let partiallyAlignedDownwardDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 1200, y: -900, width: 800, height: 900),
+            CGRect(x: -2000, y: -900, width: 800, height: 900),
+        ]
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: partiallyAlignedDownwardDisplays,
+                                                          direction: .down) == 1,
+               "window layout allows partially aligned downward displays and prefers their nearer center")
+        let touchingDownwardDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: -900, width: 1440, height: 900),
+        ]
+        let fractionallySeparatedDownwardDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: -900.25, width: 1440, height: 900),
+        ]
+        let fractionallyOverlappingDownwardDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: -899.999, width: 1440, height: 900),
+        ]
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: touchingDownwardDisplays,
+                                                          direction: .down) == 1
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: fractionallySeparatedDownwardDisplays,
+                                                        direction: .down) == 1
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: fractionallyOverlappingDownwardDisplays,
+                                                        direction: .down) == nil,
+               "window layout accepts touching or fractionally separated displays but rejects any overlap")
+        let overlappingVerticalDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: 800, width: 1440, height: 900),
+            CGRect(x: 0, y: 900, width: 1440, height: 900),
+            CGRect(x: 0, y: -900, width: 1440, height: 900),
+            CGRect(x: 0, y: -800, width: 1440, height: 900),
+        ]
+        suite.expect(WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                          frames: overlappingVerticalDisplays,
+                                                          direction: .up) == 2
+                && WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                        frames: overlappingVerticalDisplays,
+                                                        direction: .down) == 3,
+               "window layout ignores vertically overlapping displays when crossing")
         let portraitFrame = CGRect(x: -1200, y: -200, width: 1200, height: 1800)
         let scaledFrame = CGRect(x: 1440, y: 100, width: 2000, height: 1000)
         let portraitWindow = CGRect(x: -900, y: 1000, width: 600, height: 400)
@@ -682,20 +874,53 @@ enum WindowLayoutFeatureTests {
         suite.expect(WindowLayoutGeometry.displayCrossing(for: .rightHalf,
                                                     previousAction: .rightHalf)?.action == .leftHalf
                 && WindowLayoutGeometry.displayCrossing(for: .rightHalf,
-                                                        previousAction: .rightHalf)?.movingRight == true,
+                                                        previousAction: .rightHalf)?.direction == .right,
                "window layout right twice enters the display on the right from its left half")
         suite.expect(WindowLayoutGeometry.displayCrossing(for: .leftHalf,
                                                     previousAction: .leftHalf)?.action == .rightHalf
                 && WindowLayoutGeometry.displayCrossing(for: .leftHalf,
-                                                        previousAction: .leftHalf)?.movingRight == false,
+                                                        previousAction: .leftHalf)?.direction == .left,
                "window layout left twice enters the display on the left from its right half")
         suite.expect(WindowLayoutGeometry.displayCrossing(for: .leftHalf, previousAction: nil) == nil
                 && WindowLayoutGeometry.displayCrossing(for: .leftHalf, previousAction: .rightHalf) == nil,
                "window layout only crosses displays when the same side is used twice in a row")
-        suite.expect(WindowLayoutGeometry.displayCrossing(for: .topHalf, previousAction: .topHalf) == nil
-                && WindowLayoutGeometry.displayCrossing(for: .bottomHalf, previousAction: .bottomHalf) == nil
-                && WindowLayoutGeometry.displayCrossing(for: .leftThird, previousAction: .leftThird) == nil,
-               "window layout keeps top, bottom and thirds on their own display")
+        suite.expect(WindowLayoutGeometry.displayCrossing(for: .topHalf,
+                                                          previousAction: .topHalf)?.action == .bottomHalf
+                && WindowLayoutGeometry.displayCrossing(for: .topHalf,
+                                                        previousAction: .topHalf)?.direction == .up
+                && WindowLayoutGeometry.displayCrossing(for: .bottomHalf,
+                                                        previousAction: .bottomHalf)?.action == .topHalf
+                && WindowLayoutGeometry.displayCrossing(for: .bottomHalf,
+                                                        previousAction: .bottomHalf)?.direction == .down,
+               "window layout top and bottom twice cross to the opposite half vertically")
+        suite.expect(WindowLayoutGeometry.displayCrossing(for: .leftThird,
+                                                          previousAction: .leftThird) == nil,
+               "window layout keeps thirds on their own display")
+        let repeatedBottomHalfDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: -1200, width: 1440, height: 1200),
+            CGRect(x: 1700, y: -950, width: 800, height: 800),
+        ]
+        let firstBottomHalf = WindowLayoutGeometry.rect(for: .bottomHalf,
+                                                         current: currentWindow,
+                                                         visibleFrame: repeatedBottomHalfDisplays[0])
+        let repeatedBottomHalf = WindowLayoutGeometry.displayCrossing(for: .bottomHalf,
+                                                                        previousAction: .bottomHalf)
+        let repeatedBottomHalfDestination = repeatedBottomHalf.flatMap {
+            WindowLayoutGeometry.neighbourIndex(currentIndex: 0,
+                                                frames: repeatedBottomHalfDisplays,
+                                                direction: $0.direction)
+        }
+        let secondBottomHalf = repeatedBottomHalfDestination.flatMap { destination in
+            repeatedBottomHalf.map {
+                WindowLayoutGeometry.rect(for: $0.action,
+                                          current: firstBottomHalf,
+                                          visibleFrame: repeatedBottomHalfDisplays[destination])
+            }
+        }
+        suite.expect(repeatedBottomHalfDestination == 1
+                && secondBottomHalf == CGRect(x: 0, y: -600, width: 1440, height: 600),
+               "window layout moves a repeated bottom half to the top half of the nearest display below")
         let leftTarget = WindowLayoutGeometry.rect(for: .leftHalf,
                                                    current: currentWindow,
                                                    visibleFrame: visibleFrame)

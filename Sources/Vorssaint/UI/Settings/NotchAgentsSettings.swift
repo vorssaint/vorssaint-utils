@@ -56,6 +56,8 @@ struct NotchAgentsSettingsControls: View {
                         NotchEditorItem(symbol: card.symbol, title: text.card(card), included: cardBinding(card)) {
                             cardBinding(card).wrappedValue.toggle()
                         }
+                        .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveUp) { moveCard(card, by: -1) }
+                        .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveDown) { moveCard(card, by: 1) }
                     }
                 }
             }
@@ -141,8 +143,10 @@ struct NotchAgentsSettingsControls: View {
         .toggleStyle(.switch)
         .onAppear {
             findRoots()
-            findClaudeApp()
+            // An agent turned off is not read at all, not even for its status.
+            if claude { findClaudeApp() }
         }
+        .onChange(of: claude) { _, on in if on { findClaudeApp() } }
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex),
@@ -216,7 +220,9 @@ struct NotchAgentsSettingsControls: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
+            // One agent stays on; turning the section off stops both.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
+                .disabled(isOn.wrappedValue && !(claude && codex))
         }
     }
 
@@ -240,6 +246,14 @@ struct NotchAgentsSettingsControls: View {
             if shown { hidden.remove(card.rawValue) } else { hidden.insert(card.rawValue) }
             hiddenCards = hidden.sorted().joined(separator: ",")
         }
+    }
+
+    /// VoiceOver's way to reorder the cards, which otherwise only drag.
+    private func moveCard(_ card: NotchAgentCard, by offset: Int) {
+        var order = orderedCards
+        guard let index = order.firstIndex(of: card), order.indices.contains(index + offset) else { return }
+        order.swapAt(index, index + offset)
+        cardOrder = order.map(\.rawValue).joined(separator: ",")
     }
 }
 
