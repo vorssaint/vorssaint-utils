@@ -45,7 +45,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                                         defaults: .standard)
     private var hasLoaded = false
     private var isReplacingText = false
-    private var modalInteractionActive = false
+    private(set) var modalInteractionActive = false
 
     private override init() {
         super.init()
@@ -92,9 +92,11 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         }
     }
 
-    func show() {
+    /// The island's own open action passes false: it moves the document out
+    /// to the floating pad instead of routing it back into the island.
+    func show(allowsIsland: Bool = true) {
         guard AppFeature.scratchpad.isAvailable, !modalInteractionActive else { return }
-        if NotchService.shared.showScratchpad() {
+        if allowsIsland, NotchService.shared.showScratchpad() {
             if isVisible { hide() }
             return
         }
@@ -298,7 +300,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     /// Activate for dialog input and return focus to the originating host.
-    /// The island needs a sheet to keep the dialog above its floating surface.
+    /// The island's dialog floats just above it: a sheet would move and
+    /// reskin the borderless surface.
     func exportText(suggestedName: String, from window: NSWindow? = nil) {
         guard !text.isEmpty, !modalInteractionActive,
               let sourceWindow = window ?? panel, sourceWindow.isVisible else { return }
@@ -323,14 +326,19 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                         message: FeatureStrings.scratchpad(L10n.shared.language).exportFailed)
                 }
             }
-            // Sheet dismissal restores the previous key window after completion.
+            // Dismissal restores the previous key window after completion.
             DispatchQueue.main.async {
                 if sourceWindow.isVisible { sourceWindow.makeKey() }
             }
         }
         if sourceWindow === NotchService.shared.presentationWindow {
-            savePanel.beginSheetModal(for: sourceWindow, completionHandler: complete)
+            // modalInteractionActive keeps the island's working surface
+            // while its independent dialog is up.
+            savePanel.level = NSWindow.Level(rawValue: sourceWindow.level.rawValue + 1)
+            savePanel.begin(completionHandler: complete)
             NSApp.activate(ignoringOtherApps: true)
+            // Activation alone can leave the nonactivating island holding focus.
+            savePanel.makeKeyAndOrderFront(nil)
         } else {
             NSApp.activate(ignoringOtherApps: true)
             DispatchQueue.main.async { complete(savePanel.runModal()) }

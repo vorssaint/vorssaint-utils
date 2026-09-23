@@ -6,6 +6,7 @@ import EventKit
 
 struct NotchCalendarView: View {
     let size: CGSize
+    @Environment(\.notchSettingsPreview) private var preview
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -61,15 +62,22 @@ struct NotchCalendarView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        // App translations must not override the user's region or 12/24-hour clock.
-        .environment(\.locale, .autoupdatingCurrent)
-        .onAppear { calendar.showMonth(focus) }
+        // Day and month names follow the app's language; the order of the
+        // date and the 12/24-hour clock follow the user's region.
+        .environment(\.locale, l10n.language.formattingLocale())
+        .onAppear { if ownsMonth { calendar.showMonth(focus) } }
         .onChange(of: focus) { previous, date in
             // A month read already covers every week of that month, so
             // moving the strip within it keeps the loaded events.
             if !Calendar.current.isDate(previous, equalTo: date, toGranularity: .month) { calendar.showMonth(date) }
         }
-        .onDisappear { calendar.showMonth(nil) }
+        .onDisappear { if ownsMonth { calendar.showMonth(nil) } }
+    }
+
+    /// The month the service reads belongs to the island's own page; a preview
+    /// in Settings borrows it only while the island shows another page.
+    private var ownsMonth: Bool {
+        !preview || !(NotchService.shared.expanded && NotchService.shared.selected == .calendar)
     }
 
     private func monthView(now: Date) -> some View {

@@ -5,7 +5,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents
     var id: String { rawValue }
 
     var symbol: String {
@@ -26,6 +26,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .system: return "gauge.with.dots.needle.50percent"
         case .tools: return "square.grid.2x2"
         case .scratchpad: return "note.text"
+        case .agents: return "sparkles"
         }
     }
 
@@ -46,6 +47,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .camera: return "w"
         case .downloads: return "d"
         case .scratchpad: return "p"
+        case .agents: return "g"
         }
     }
 
@@ -67,6 +69,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
                 || AppFeature.colorPicker.isAvailable(in: defaults)
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
+        case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
                     .monitorDisk, .monitorPower, .fanControl].contains { (feature: AppFeature) in
@@ -305,7 +308,7 @@ struct NotchControlsLayout: Equatable {
 }
 
 enum NotchIdleContent: String, CaseIterable {
-    case none, battery, music
+    case none, battery, music, agents
 }
 
 /// Resizing can send hover exits and entries without any pointer movement.
@@ -320,12 +323,13 @@ struct NotchHoverState {
 }
 
 enum NotchCompactActivity: Equatable {
-    case timer, downloads, music
+    case timer, downloads, agents, music
 
     var module: NotchModule {
         switch self {
         case .timer: return .timer
         case .downloads: return .downloads
+        case .agents: return .agents
         case .music: return .music
         }
     }
@@ -345,7 +349,8 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .screenshot: return "camera.viewfinder"
         case .recording: return "record.circle"
         case .speedTest: return "speedometer"
-        case .panel: return "rectangle.topthird.inset.filled"
+        // The app panel opens as a bubble under the menu bar icon.
+        case .panel: return "bubble.middle.top"
         case .mixer: return NotchModule.mixer.symbol
         case .commandBar: return "command"
         case .scratchpad: return "note.text"
@@ -588,13 +593,14 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents
 
     var preferenceKey: String {
         switch self {
         case .timer: return DefaultsKey.notchTimerEnabled
         case .accessory: return DefaultsKey.notchAccessoriesEnabled
         case .download: return DefaultsKey.notchDownloadsEnabled
+        case .agents: return DefaultsKey.notchAgentsEnabled
         case .systemNotification: return DefaultsKey.notchNotificationsEnabled
         case .keyboardLight: return DefaultsKey.notchKeyboardLight
         case .volume: return DefaultsKey.notchVolume
@@ -609,7 +615,7 @@ enum NotchEvent: String, CaseIterable {
         switch self {
         case .volume, .brightness, .keyboardLight: return 3
         case .capture, .timer: return 2
-        case .battery, .systemNotification, .accessory: return 1
+        case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download: return 0
         }
     }
@@ -619,6 +625,7 @@ enum NotchEvent: String, CaseIterable {
         case .volume, .brightness, .keyboardLight: return 1.6
         case .systemNotification: return 3
         case .timer, .download: return 6
+        case .agents: return 5
         case .battery, .accessory: return 4
         case .clipboard: return 2.5
         case .capture: return 12
@@ -655,9 +662,12 @@ enum NotchSupport {
         return modules[(index + (backwards ? modules.count - 1 : 1)) % modules.count]
     }
 
-    static func compactActivity(timer: Bool, downloads: Bool, music: Bool) -> NotchCompactActivity? {
+    /// A working agent outranks the music it plays over: its turn ends on its
+    /// own, while music is there all day.
+    static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false, music: Bool) -> NotchCompactActivity? {
         if timer { return .timer }
         if downloads { return .downloads }
+        if agents { return .agents }
         return music ? .music : nil
     }
 
@@ -693,6 +703,7 @@ enum NotchSupport {
                 && ($0 != .camera || defaults.bool(forKey: DefaultsKey.notchCameraEnabled))
                 && ($0 != .calendar || defaults.bool(forKey: DefaultsKey.notchCalendarEnabled))
                 && ($0 != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
+                && ($0 != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
         }
     }
 
@@ -712,13 +723,14 @@ enum NotchSupport {
 
     /// The closed island may cover the menus instead of giving way to them.
     static func coversMenus(in defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: DefaultsKey.notchCoversMenus)
+        defaults.object(forKey: DefaultsKey.notchCoversMenus) as? Bool ?? true
     }
 
     static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {
         let choice = NotchIdleContent(rawValue: defaults.string(forKey: DefaultsKey.notchIdleContent) ?? "") ?? .none
         if choice == .battery, !AppFeature.monitorPower.isAvailable(in: defaults) { return .none }
         if choice == .music, !modules(in: defaults).contains(.music) { return .none }
+        if choice == .agents, !NotchAgentSupport.isEnabled(in: defaults) { return .none }
         return choice
     }
 
@@ -762,6 +774,8 @@ enum NotchSupport {
         case .accessory: return NotchAccessorySupport.isEnabled(in: defaults)
         case .download: return AppFeature.notchDownloads.isAvailable(in: defaults)
             && modules(in: defaults).contains(.downloads)
+        case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
+            && modules(in: defaults).contains(.agents)
         case .systemNotification: return NotchNotificationSupport.isEnabled(in: defaults)
         case .keyboardLight: return AppFeature.brightness.isAvailable(in: defaults)
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)
@@ -908,12 +922,17 @@ struct NotchGeometry: Equatable {
     }
 
     var safeContentTop: CGFloat { cameraHeight + 10 }
-    /// Use the space beside a real camera for navigation. Narrow layouts keep
-    /// a full row below it; simulated cutouts need no empty camera row.
-    var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 260 ? cameraWidth : 0 }
+    /// A title and the compact actions each fit in a 100-point wing, including
+    /// the compact preset. Narrower layouts keep a full row below the camera.
+    var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 200 ? cameraWidth : 0 }
     var headerTopInset: CGFloat { !isNotched || headerCameraGap > 0 ? 0 : safeContentTop }
     var headerRowHeight: CGFloat { headerCameraGap > 0 ? max(cameraHeight, NotchLayout.headerHeight) : NotchLayout.headerHeight }
     var headerChromeHeight: CGFloat { headerRowHeight + NotchLayout.spacing + NotchLayout.bottomInset }
+    /// Floating circles sit below the menu bar even when the title fits beside the camera.
+    var quickAccessCenterY: CGFloat {
+        max(headerTopInset + headerRowHeight / 2,
+            menuBarHeight + 6 + NotchQuickAccessLayout.diameter / 2)
+    }
     /// One row beside the camera. It extends the cutout, whose height a
     /// physical camera sets and a simulated one shares with the bar: a bar
     /// even a point taller would leave a dark line under the notch.
@@ -969,6 +988,19 @@ struct NotchGeometry: Equatable {
         compact.allowsActivityFooter = false
         return compact
     }
+    /// A working agent keeps its mark and one reading beside the camera,
+    /// never below it, like the timer. Both wings take the width the reading
+    /// needs, so a short one leaves no band of empty black at the ends.
+    func compactAgentGeometry(wing: CGFloat) -> NotchGeometry {
+        var compact = self
+        let room = compactSideRoom ?? 0
+        let fitted = min(NotchAgentSupport.stripWingRange.upperBound,
+                         max(NotchAgentSupport.stripWingRange.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
+        compact.compactSideRoom = room.isFinite && room >= NotchAgentSupport.stripWingRange.lowerBound ? min(fitted, room) : 0
+        compact.minimumCompactWidth = cameraWidth + fitted * 2
+        compact.allowsActivityFooter = false
+        return compact
+    }
     var musicStrip: CGSize {
         let preferred = min(max(layout == .spacious ? 520 : 440, cameraWidth + 88, minimumCompactWidth), screen.width - 24)
         let measuredRoom = compactSideRoom ?? 0
@@ -1018,7 +1050,7 @@ struct NotchGeometry: Equatable {
         return max(0, flat, shoulder + corner - radius - span - compactActivityHorizontalPadding)
     }
     var notice: CGSize {
-        noticeSize(wingWidth: 112)
+        noticeSize(wingWidth: 80)
     }
     var noticeCameraGap: CGFloat { cameraWidth }
 
@@ -1090,7 +1122,8 @@ struct NotchGeometry: Equatable {
                       musicHasControlsRow: Bool = true, musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
-                      timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer) -> CGSize {
+                      timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer,
+                      agentsHeight: CGFloat? = nil) -> CGSize {
         let budget = contentBudget
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
@@ -1125,6 +1158,9 @@ struct NotchGeometry: Equatable {
                     : NotchLayout.railHeight(rows: toolRows(count: toolCount), rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing))
             case .timer:
                 contentHeight = min(budget, NotchLayout.timer(mode: timerMode, hasSession: timerHasSession, width: contentWidth, height: budget))
+            case .agents:
+                // Only the cards a person chose; a short set leaves a short island.
+                contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad:
                 contentHeight = budget

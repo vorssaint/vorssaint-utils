@@ -128,6 +128,9 @@ final class SettingsRouter: ObservableObject {
     /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
     /// can land directly on a specific tool. Consumed and cleared on arrival.
     @Published var cleanerTool: String?
+    /// One-shot hint for the Dynamic Island page, so a section of the island
+    /// can open its own options. Consumed and cleared on arrival.
+    @Published var notchModule: NotchModule?
 
     private var history = [FeatureSettingsDestination(.general)]
     private var historyIndex = 0
@@ -170,6 +173,7 @@ final class SettingsRouter: ObservableObject {
         historyIndex = index
         isTraversingHistory = true
         cleanerTool = nil
+        notchModule = nil
         request(history[index])
         isTraversingHistory = false
     }
@@ -293,7 +297,7 @@ extension AppFeature {
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshot)
         case .cameraPreview:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
-        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads: return FeatureSettingsDestination(.notch)
+        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents: return FeatureSettingsDestination(.notch)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
@@ -346,7 +350,7 @@ enum FeatureVisibilitySupport {
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads]
+        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:

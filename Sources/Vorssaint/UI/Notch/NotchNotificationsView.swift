@@ -42,7 +42,7 @@ struct NotchNotificationsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .environment(\.locale, Locale(identifier: l10n.language.rawValue))
+        .environment(\.locale, l10n.language.formattingLocale())
     }
 }
 
@@ -180,7 +180,7 @@ struct NotchNotificationPreviewView: View {
         .clipped()
         .accessibilityElement(children: .contain)
         .accessibilityLabel(notice.accessibilityText)
-        .environment(\.locale, Locale(identifier: l10n.language.rawValue))
+        .environment(\.locale, l10n.language.formattingLocale())
     }
 }
 

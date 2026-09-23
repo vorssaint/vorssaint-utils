@@ -102,7 +102,9 @@ enum NotchVolumeFeedbackTests {
             service.presented.removeAll()
             mixer.systemOutputVolume = 0.6
             drain()
-            suite.expect(service.presented.isEmpty, "the open controls do not retain a hidden volume notice")
+            suite.expect(service.notice?.level == 0.6 && service.presented.count == 1,
+                   "volume changes supply header feedback while the island is open on any page")
+            service.presented.removeAll()
             service.subscriptions.removeAll()
             mixer.publish(device: "stopped-output", volume: 0.1, muted: false)
             drain()

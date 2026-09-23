@@ -308,9 +308,9 @@ enum NotchPresentationProbe {
         host.panel.ignoresMouseEvents = true
         host.panel.orderFrontRegardless()
         var failures = checkHiddenReveal(screen: screen)
-        if host.panel.collectionBehavior.intersection([.managed, .transient, .stationary]) != .transient
+        if host.panel.collectionBehavior.intersection([.managed, .transient, .stationary]) != .stationary
             || !host.panel.collectionBehavior.contains(.canJoinAllSpaces) {
-            failures.append("the island must float across Spaces without following the desktop's window motion")
+            failures.append("the island must stay stationary when revealing the desktop, without a conflicting window motion policy")
         }
         if host.panel.level.rawValue <= NSWindow.Level.statusBar.rawValue
             || host.panel.level.rawValue >= NSWindow.Level.popUpMenu.rawValue {
@@ -642,6 +642,46 @@ enum NotchPresentationProbe {
             if !bubbles.quickAccessProbeInteractive || bubbles.quickAccessProbeTrackingAreas != 1
                 || !bubbles.quickAccessProbeCenters.allSatisfy(bubbles.contains) {
                 failures.append("reversing the floating animation lost its final hit targets")
+            }
+        }
+        for layout: NotchSize in [.compact, .spacious] {
+            let shortGeometry = NotchGeometry(screen: screen.frame, safeAreaTop: 32,
+                                              cameraWidth: 210, layout: layout)
+            let shortSize = shortGeometry.expandedSize(module: .system, systemCards: 3)
+            for side: NotchQuickAccessSide in [.left, .right] {
+                let access = NotchQuickAccessConfiguration(side: side, actions: [.explore, .settings, .pin])
+                bubbles.present(size: shortSize, geometry: shortGeometry, animated: true, quickAccess: access)
+                advance(0.8)
+                if bubbles.visibleFrame.size != shortSize || bubbles.contentCanvasSize != shortSize {
+                    failures.append("reserving space for side buttons enlarged a short page")
+                }
+                if !bubbles.quickAccessProbeInteractive || bubbles.quickAccessProbeCenters.count != 3 {
+                    failures.append("a short page lost its side buttons")
+                }
+                for point in bubbles.quickAccessProbeCenters {
+                    let radius = NotchQuickAccessLayout.diameter / 2
+                    let circle = CGRect(x: point.x - radius, y: point.y - radius,
+                                        width: radius * 2, height: radius * 2)
+                    let lowerEdge = CGPoint(x: point.x, y: point.y - radius + 1)
+                    let hoverEdge = CGPoint(x: point.x, y: point.y - radius - NotchQuickAccessLayout.hoverMargin + 1)
+                    if !bubbles.panel.frame.contains(circle)
+                        || !bubbles.contains(lowerEdge)
+                        || bubbles.panel.contentView?.hitTest(bubbles.panel.convertPoint(fromScreen: lowerEdge)) == nil
+                        || !bubbles.containsHover(hoverEdge) {
+                        failures.append("a side button or its hover margin escaped a short page's backing window")
+                    }
+                }
+                let resizes = bubbles.resizeCount
+                bubbles.present(size: shortSize, geometry: shortGeometry, animated: false, quickAccess: access)
+                if bubbles.resizeCount != resizes {
+                    failures.append("unchanged side-button padding restarted a window resize")
+                }
+                bubbles.present(size: shortGeometry.collapsed, geometry: shortGeometry, animated: true)
+                advance(0.95)
+                if !matchesNativeFrame(bubbles.panel.frame, shortGeometry.frame(for: shortGeometry.collapsed))
+                    || bubbles.quickAccessProbeInteractive || bubbles.quickAccessProbeTrackingAreas != 0 {
+                    failures.append("closing a short page retained side-button space or hover tracking")
+                }
             }
         }
         let mixed = NotchQuickAccessConfiguration(buttons: NotchQuickAccessSide.allCases.flatMap { side in

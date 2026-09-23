@@ -59,7 +59,7 @@ enum NotchCompactTests {
         func selectPad(_ id: UUID) {}
         func copyAll() {}
         func togglePreview() { isPreviewing.toggle() }
-        func show() {}
+        func show(allowsIsland: Bool = true) {}
         func exportText(suggestedName: String, from window: NSWindow? = nil) {}
     }
     struct NotchEmptyView: View {
@@ -231,6 +231,18 @@ enum NotchCompactTests {
         settle(host)
         suite.expect(state.realized.count > 0 && state.realized.count < 40,
                      "a thousand history entries create only the visible rail neighborhood")
+        let firstTiles = (0..<3).compactMap { id in
+            descendants(host).first { $0.identifier?.rawValue == "rail-\(id)" }.map { $0.convert($0.bounds, to: host) }
+        }
+        if firstTiles.count == 3 {
+            let gap = CGPoint(x: (firstTiles[0].maxX + firstTiles[2].minX) / 2, y: firstTiles[0].midY)
+            var target = host.hitTest(gap)
+            while let view = target, !(view is NSScrollView) { target = view.superview }
+            suite.expect(target is NSScrollView,
+                         "empty space between rail columns routes wheel events through the scroll view")
+        } else {
+            suite.expect(false, "the visible rail has enough columns to exercise its empty gap")
+        }
         for (target, rows) in [(12, 2), (900, 2), (901, 2), (901, 1), (0, 1)] {
             state.rows = rows
             state.selected = target

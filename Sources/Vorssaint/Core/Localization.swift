@@ -47,6 +47,17 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Dates and times in this language, arranged the way System Settings
+    /// asks: region, 12- or 24-hour clock and first day of the week. A locale
+    /// made from the language alone would bring that language's own clock.
+    func formattingLocale(system: Locale = .autoupdatingCurrent) -> Locale {
+        var components = Locale.Components(identifier: rawValue)
+        components.region = system.region
+        components.hourCycle = system.hourCycle
+        components.firstDayOfWeek = system.firstDayOfWeek
+        return Locale(components: components)
+    }
+
     static var systemDefault: AppLanguage {
         let preferred = Locale.preferredLanguages.first ?? "en"
         let p = preferred.lowercased()

@@ -17,6 +17,7 @@ struct NotchClipboardView: View {
     @State private var copiedID: UUID?
     @State private var pinnedOnly = false
     @FocusState private var searching: Bool
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: ClipboardFeatureStrings { FeatureStrings.clipboard(l10n.language) }
 
     private var entries: [ClipboardHistoryEntry] {
@@ -55,6 +56,8 @@ struct NotchClipboardView: View {
                     .allowsHitTesting(false)
             }
             .animation(.easeOut(duration: 0.15), value: searching)
+            // Typing filters the history as soon as the page opens, as in Explore.
+            .onAppear { if !preview { searching = true } }
             if !enabled, history.entries.isEmpty {
                 // The panel offers the switch beside its caption; the page
                 // says why it is empty and turns the history on from here.

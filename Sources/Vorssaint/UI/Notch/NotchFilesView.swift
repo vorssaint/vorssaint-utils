@@ -17,6 +17,7 @@ struct NotchFilesView: View {
     @State private var supportedTools: [MediaTool] = []
     @State private var showingActions = false
     @State private var outputPanel: NSSavePanel?
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
@@ -100,7 +101,8 @@ struct NotchFilesView: View {
         .onDisappear {
             outputPanel?.cancel(nil)
             outputPanel = nil
-            service.keepFileInteractionOpen(false)
+            // Only the island's own page holds the island open.
+            if !preview { service.keepFileInteractionOpen(false) }
         }
         .onChange(of: features.revision) {
             if !AppFeature.mediaTools.isAvailable {

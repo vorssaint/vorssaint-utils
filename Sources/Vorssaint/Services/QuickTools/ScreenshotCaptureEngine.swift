@@ -343,7 +343,8 @@ enum ScreenshotCaptureEngine {
                 id,
                 isOwnWindow: pid == ownPID,
                 hideVorssaintWindows: hideVorssaintWindows,
-                protectedWindowIDs: protectedWindowIDs)
+                protectedWindowIDs: protectedWindowIDs,
+                ownerName: entry[kCGWindowOwnerName as String] as? String)
             else { return nil }
             let bounds = CGRect(x: boundsDict["X"] ?? 0,
                                 y: boundsDict["Y"] ?? 0,

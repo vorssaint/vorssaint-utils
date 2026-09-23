@@ -42,6 +42,7 @@ struct MetricsTests {
             }),
             ("recorder", {
                 RecorderFeatureTests.run(suite)
+                RecorderZoomAimingTests.run(suite)
                 RecorderExportSpeedTests.run(suite)
                 RecorderExportRenderingTests.run(suite)
             }),
@@ -52,6 +53,7 @@ struct MetricsTests {
                 NotchVolumeKeyTests.run(suite)
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
+            ("agents", { NotchAgentTests.run(suite) }),
             ("features", { FeatureCatalogTests.run(suite) }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)

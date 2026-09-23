@@ -112,6 +112,74 @@ enum FeatureCatalogTests {
         suite.expect(!smearedUnlock && smeared.progress == 1,
                "four Escapes with a modifier in between never unlock; the next Escape starts at 1")
 
+        // User-requested teardown waits only for real releases corresponding
+        // to mouse-down events observed while Cleaning Mode was active.
+        var cleaningMouseGate = CleaningMouseReleaseGate()
+        cleaningMouseGate.buttonDown(0)
+        suite.expect(!cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown waits when the primary button went down while the overlay was active")
+        suite.expect(!cleaningMouseGate.buttonUp(1),
+               "an unrelated release cannot complete a pending cleaning teardown")
+        suite.expect(cleaningMouseGate.buttonUp(0),
+               "the matching physical release completes the pending cleaning teardown")
+        suite.expect(cleaningMouseGate.deactivationPending,
+               "the cleaning unlock request remains pending until teardown runs")
+        suite.expect(cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown is immediate when no tracked button is held")
+
+        cleaningMouseGate.reset()
+        cleaningMouseGate.buttonDown(0)
+        cleaningMouseGate.buttonDown(2)
+        suite.expect(!cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown waits for every tracked mouse button")
+        suite.expect(!cleaningMouseGate.buttonUp(0),
+               "releasing one of several held buttons keeps cleaning teardown pending")
+        suite.expect(cleaningMouseGate.buttonUp(2),
+               "the last matching release completes a multi-button cleaning teardown")
+
+        cleaningMouseGate.reset()
+        cleaningMouseGate.buttonDown(0)
+        suite.expect(!cleaningMouseGate.buttonUp(0),
+               "a normal click completed before deactivation never schedules teardown by itself")
+        suite.expect(cleaningMouseGate.requestDeactivation(),
+               "a completed click leaves no stale held-button state")
+        cleaningMouseGate.buttonDown(0)
+        _ = cleaningMouseGate.requestDeactivation()
+        cleaningMouseGate.reset()
+        suite.expect(cleaningMouseGate.pressedButtons.isEmpty && !cleaningMouseGate.deactivationPending,
+               "forced cleaning teardown clears tracked mouse lifecycle state")
+
+        var queuedCleaningMouseGate = CleaningMouseReleaseGate()
+        suite.expect(queuedCleaningMouseGate.requestDeactivation(),
+               "cleaning teardown can be queued when no button is held")
+        queuedCleaningMouseGate.buttonDown(0)
+        suite.expect(queuedCleaningMouseGate.deactivationPending
+                && !queuedCleaningMouseGate.pressedButtons.isEmpty,
+               "a new press before queued teardown is still tracked")
+        suite.expect(!queuedCleaningMouseGate.buttonUp(1),
+               "an unrelated release cannot finish a newly tracked press")
+        suite.expect(queuedCleaningMouseGate.buttonUp(0),
+               "the new press must receive its matching release")
+        queuedCleaningMouseGate.buttonDown(2)
+        suite.expect(queuedCleaningMouseGate.deactivationPending
+                && !queuedCleaningMouseGate.pressedButtons.isEmpty,
+               "a press after the last release still postpones queued teardown")
+        suite.expect(queuedCleaningMouseGate.buttonUp(2),
+               "the final new press also needs its matching release")
+
+        var disabledTapMouseGate = CleaningMouseReleaseGate()
+        disabledTapMouseGate.buttonDown(0)
+        _ = disabledTapMouseGate.requestDeactivation()
+        disabledTapMouseGate.invalidateTrackedPresses()
+        suite.expect(disabledTapMouseGate.pressedButtons.isEmpty
+                && disabledTapMouseGate.deactivationPending,
+               "a tap gap forgets stale presses without losing the unlock request")
+        disabledTapMouseGate.buttonDown(1)
+        suite.expect(!disabledTapMouseGate.buttonUp(0),
+               "a release from before the tap gap cannot finish a new press")
+        suite.expect(disabledTapMouseGate.buttonUp(1),
+               "a fresh press after the tap gap still needs its own release")
+
         // The counters above build their own windows, so nothing else here
         // fails if the shipped constant regresses. Pin it at the source: the
         // 2s window made the gesture impossible for anyone pressing Escape
@@ -125,6 +193,19 @@ enum FeatureCatalogTests {
             .joined(separator: "\n")
         suite.expect(!cleaningCode.isEmpty && cleaningCode.contains("pressWindow: 6.0"),
                "the shipped unlock counter keeps the forgiving 6s press window")
+
+        suite.expect(!cleaningCode.contains("CGEvent(mouseEventSource:"),
+               "Cleaning Mode never synthesizes a global mouse release")
+        suite.expect(!cleaningCode.contains("pressedMouseButtons")
+                && !cleaningCode.contains("CGEventSource.buttonState"),
+               "Cleaning Mode does not infer ownership from a global button-state snapshot")
+        suite.expect(cleaningCode.contains("let shouldFinishUserDeactivation = mouseReleaseGate.deactivationPending")
+                && cleaningCode.contains("mouseReleaseGate.invalidateTrackedPresses()")
+                && cleaningCode.contains("if shouldFinishUserDeactivation {"),
+               "disabled-tap recovery invalidates stale mouse state and preserves a pending user unlock")
+        suite.expect(cleaningCode.contains("self.mouseReleaseGate.deactivationPending,")
+                && cleaningCode.contains("self.mouseReleaseGate.pressedButtons.isEmpty else { return }"),
+               "queued cleaning teardown rechecks the current press state")
 
         // The counter above cannot see how events reach it, and the real HID
         // gesture is not reproducible headlessly. Pin the two properties of the
@@ -140,7 +221,7 @@ enum FeatureCatalogTests {
         } ?? cleaningLines.count
         var modifiersReachCounter = false
         var leakedEvents: [String] = []
-        var failOpenReturns = 0
+        var passThroughReturns = 0
         for (index, line) in cleaningLines[(handlerStart ?? handlerEnd)..<handlerEnd].enumerated()
         where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
             let number = (handlerStart ?? 0) + index + 1
@@ -153,15 +234,18 @@ enum FeatureCatalogTests {
                 }
             }
             if line.contains("return Unmanaged.passUnretained(event)") {
-                failOpenReturns += 1
+                passThroughReturns += 1
             } else if line.contains("return"), !line.contains("return nil") {
                 leakedEvents.append("CleaningModeManager.swift:\(number)")
             }
         }
         suite.expect(modifiersReachCounter,
                "flags-changed events feed the unlock counter, so modifiers reset the Escape count")
-        suite.expect(handlerStart != nil && leakedEvents.isEmpty && failOpenReturns == 1,
-               "the cleaning tap swallows normal input and keeps one disabled-session fail-open path: \(leakedEvents)")
+        suite.expect(handlerStart != nil
+               && leakedEvents.isEmpty
+               && passThroughReturns == 2
+               && cleaningCode.contains("if handleMouseButton(type: type, event: event)"),
+               "the cleaning tap swallows locked input while mouse events and disabled-session recovery pass through: \(leakedEvents)")
         suite.expect(cleaningCode.contains("self.deactivate(restoreSuspendedFeatures: false)")
                 && cleaningCode.contains("shouldRestoreSuspendedFeaturesOnSessionReturn = true")
                 && cleaningCode.contains("self.resumeSuspendedFeatures()")
@@ -300,7 +384,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -442,7 +526,7 @@ enum FeatureCatalogTests {
                "no hub group is empty")
         suite.expect(AppFeature.features(in: .dynamicIsland) == [
             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
-            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads,
+            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents,
         ], "the Dynamic Island heads its own hub section, followed by its extensions")
         suite.expect(AppFeature.dynamicIslandExtensions
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),

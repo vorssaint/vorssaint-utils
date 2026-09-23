@@ -7,6 +7,8 @@ import Combine
 final class NotchMusicService: ObservableObject {
     static let shared = NotchMusicService()
     @Published private(set) var playback: NotchPlayback?
+    @Published private(set) var sources: [NotchPlaybackSource] = []
+    @Published private(set) var sourceIsAutomatic = true
     /// True from the first request until the adapter's first reply. Until then
     /// a missing playback is unknown, not "nothing playing".
     @Published private(set) var awaitingPlayback = false
@@ -30,6 +32,8 @@ final class NotchMusicService: ObservableObject {
     private var wantsPlayback = false
     private var restartCount = 0
     private var restartWork: DispatchWorkItem?
+    private var artworkCache = NotchArtworkCache<(image: NSImage, tint: NotchArtworkTint?)>()
+    private var artworkWork: DispatchWorkItem?
     private var automationTarget: NotchMusicAutomation.Target?
     private var automationDiscovery = DispatchWorkItem {}
     private var automationCancellation = DispatchWorkItem {}
@@ -116,11 +120,14 @@ final class NotchMusicService: ObservableObject {
             }
             let image = cachedImage
             let tint = cachedTint
+            let sources = NotchPlaybackSource.decode(reply?["sources"])
+            let automatic = reply?["sourceIsAutomatic"] as? Bool ?? true
             DispatchQueue.main.async {
                 guard let self, self.generation == requested else { return }
-                self.artwork = image
-                self.artworkTint = tint
+                self.updateArtwork(image, tint: tint, playback: next)
                 self.playback = next
+                self.sources = sources
+                self.sourceIsAutomatic = automatic
                 self.awaitingPlayback = false
                 self.updateAutomation(for: next)
                 NotchLyricsService.shared.playbackChanged(next)
@@ -164,6 +171,25 @@ final class NotchMusicService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + Double(restartCount), execute: work)
     }
 
+    private func updateArtwork(_ image: NSImage?, tint: NotchArtworkTint?, playback: NotchPlayback?) {
+        artworkWork?.cancel()
+        artworkWork = nil
+        artworkCache.update(image.map { (image: $0, tint: tint) }, for: playback)
+        artwork = artworkCache.artwork?.image
+        artworkTint = artworkCache.artwork?.tint
+        guard let deadline = artworkCache.expiresAt else { return }
+        let requested = generation
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.generation == requested, self.artworkCache.expiresAt == deadline else { return }
+            self.artworkCache.expire(at: deadline)
+            self.artwork = self.artworkCache.artwork?.image
+            self.artworkTint = self.artworkCache.artwork?.tint
+            self.artworkWork = nil
+        }
+        artworkWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, deadline.timeIntervalSinceNow), execute: work)
+    }
+
     /// One averaged pixel is all a halo needs, and it costs nothing next to
     /// decoding the cover itself. Runs on the reader's queue, once per cover.
     private static func artworkTint(of image: NSImage) -> NotchArtworkTint? {
@@ -196,6 +222,9 @@ final class NotchMusicService: ObservableObject {
     }
 
     private func disconnect() {
+        artworkWork?.cancel()
+        artworkWork = nil
+        artworkCache = .init()
         automationDiscovery.cancel()
         automationConsentCancellation.cancel()
         automationTarget = nil
@@ -223,12 +252,29 @@ final class NotchMusicService: ObservableObject {
         input = nil
         output = nil
         playback = nil
+        sources = []
+        sourceIsAutomatic = true
         artwork = nil
         artworkTint = nil
         commandFailed = false
     }
 
     typealias Command = NotchPlaybackCommand
+
+    func selectSource(_ selection: NotchPlaybackSource.Selection?) {
+        guard selection == nil || sources.contains(where: { $0.selection == selection }),
+              send(.source(selection)) else { return }
+        cancelAutomationAction()
+        setQueueVisible(false)
+        // Remove the old controls while the adapter validates and reads the
+        // new source. No gesture can borrow the previous player's context.
+        playback = nil
+        artwork = nil
+        artworkTint = nil
+        awaitingPlayback = true
+        updateAutomation(for: nil)
+        NotchLyricsService.shared.playbackChanged(nil)
+    }
 
     func setQueueVisible(_ visible: Bool) {
         queueVisible = visible && NotchQueueSupport.isEnabled() && playback != nil
@@ -314,7 +360,11 @@ final class NotchMusicService: ObservableObject {
         case .queue, .queuePlay: guard queueVisible, NotchQueueSupport.isEnabled() else { return false }
         default: break
         }
-        guard (playback != nil || command == .queueStop), process?.isRunning == true, let input else { return false }
+        switch command {
+        case .source, .queueStop: break
+        default: guard playback != nil else { return false }
+        }
+        guard process?.isRunning == true, let input else { return false }
         if command.requiresPlaybackContext {
             guard let context, context == playback?.commandContext else { return false }
             guard !commandPending, let playback else { return false }

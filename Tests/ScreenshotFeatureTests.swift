@@ -119,6 +119,19 @@ enum ScreenshotFeatureTests {
             protectedWindowIDs: protectedScreenshotWindows
         ), "screenshot cannot pick its own protected capture UI")
 
+        let stackedOwners: [(CGWindowID, String)] = [(80, "borders"), (81, "Editor")]
+        let pickableIDs = stackedOwners.filter { id, owner in
+            ScreenshotCapturePolicy.canPickWindow(id, isOwnWindow: false,
+                hideVorssaintWindows: true, protectedWindowIDs: [], ownerName: owner)
+        }.map(\.0)
+        suite.expect(pickableIDs == [81],
+               "border overlays are skipped so clicking a decorated window captures its content")
+        for owner in ScreenshotCapturePolicy.borderOverlayOwners.map({ $0.uppercased() }) {
+            suite.expect(!ScreenshotCapturePolicy.canPickWindow(80, isOwnWindow: false,
+                hideVorssaintWindows: false, protectedWindowIDs: [], ownerName: owner),
+                "border overlays stay unpickable regardless of the own-window visibility preference")
+        }
+
         // A sheet or dialog the app stacked on the clicked window is a window
         // of its own, so a single-window capture leaves it out of a shot it is
         // plainly part of (issue #1098). Same app, in front, and lying wholly

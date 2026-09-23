@@ -734,6 +734,22 @@ enum DefaultsKey {
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
     static let notchCalendarEnabled = "notchCalendarEnabled"
+    // AI agents: what the island reads from Claude Code and Codex, and shows.
+    static let notchAgentsEnabled = "notchAgentsEnabled"
+    static let notchAgentsClaude = "notchAgentsClaude"
+    static let notchAgentsCodex = "notchAgentsCodex"
+    static let notchAgentsCardOrder = "notchAgentsCardOrder"
+    static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
+    static let notchAgentsPeriod = "notchAgentsPeriod"
+    static let notchAgentsLimitDisplay = "notchAgentsLimitDisplay"
+    static let notchAgentsLiveActivity = "notchAgentsLiveActivity"
+    static let notchAgentsReadout = "notchAgentsReadout"
+    static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
+    static let notchAgentsFinishMinimum = "notchAgentsFinishMinimum"
+    static let notchAgentsLimitAlert = "notchAgentsLimitAlert"
+    static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
+    static let notchAgentsDailyBudget = "notchAgentsDailyBudget"
+    static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     static let notchOpenOnHover = "notchOpenOnHover"
@@ -1207,6 +1223,21 @@ enum Defaults {
         DefaultsKey.notchCameraEnabled: false,
         DefaultsKey.notchAccessoriesEnabled: false,
         DefaultsKey.notchCalendarEnabled: true,
+        DefaultsKey.notchAgentsEnabled: false,
+        DefaultsKey.notchAgentsClaude: true,
+        DefaultsKey.notchAgentsCodex: true,
+        DefaultsKey.notchAgentsCardOrder: "",
+        DefaultsKey.notchAgentsHiddenCards: "",
+        DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,
+        DefaultsKey.notchAgentsLimitDisplay: NotchAgentLimitDisplay.remaining.rawValue,
+        DefaultsKey.notchAgentsLiveActivity: true,
+        DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
+        DefaultsKey.notchAgentsFinishAlert: true,
+        DefaultsKey.notchAgentsFinishMinimum: NotchAgentSupport.defaultFinishMinimum,
+        DefaultsKey.notchAgentsLimitAlert: true,
+        DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
+        DefaultsKey.notchAgentsDailyBudget: 0.0,
+        DefaultsKey.notchAgentsPriceUpdates: true,
         DefaultsKey.notchLyricsEnabled: false,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchLiveEqualizer: false,
@@ -1217,7 +1248,7 @@ enum Defaults {
         DefaultsKey.notchOpenOnHover: true,
         DefaultsKey.notchHideInFullscreen: false,
         DefaultsKey.notchHideUntilHover: false,
-        DefaultsKey.notchCoversMenus: false,
+        DefaultsKey.notchCoversMenus: true,
         DefaultsKey.notchHoverDelay: NotchSupport.defaultHoverDelay,
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,

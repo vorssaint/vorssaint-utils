@@ -132,7 +132,7 @@ enum NotchTests {
                 suite.expect(top >= cameraHeight, "the page always begins below the physical camera")
                 let area = geometry.activationArea(in: geometry.expanded, hasHeader: true,
                                                    compactActivity: false, expandedHeader: true)
-                if width >= 560 {
+                if width >= 480 {
                     suite.expect(geometry.headerCameraGap == 210 && geometry.headerTopInset == 0,
                                  "wide headers use the space beside the camera without reserving a blank top row")
                     suite.expect(area.width == 210 && area.height == cameraHeight
@@ -148,6 +148,13 @@ enum NotchTests {
                              && NotchLayout.systemCardHeight * 1.028 <= NotchLayout.systemCardHeight + inset * 2,
                              "even a full-width system card can grow on hover inside its viewport")
             }
+        }
+        for layout: NotchSize in [.compact, .spacious] {
+            let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 210, layout: layout)
+            suite.expect(geometry.headerTopInset == 0 && geometry.headerCameraGap == 210,
+                         "both presets place the title beside the camera without a blank top row")
+            suite.expect(geometry.quickAccessCenterY - NotchQuickAccessLayout.diameter / 2 == 38,
+                         "floating buttons keep six points of clearance below the menu bar in both presets")
         }
         let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious)
         suite.expect(simulated.headerTopInset == 0 && simulated.headerCameraGap == 0,
@@ -177,7 +184,7 @@ enum NotchTests {
                                                  cameraWidth: physical ? 180 : 0, menuBarHeight: height)
                     for notice in notices {
                         let wing = geometry.noticeWingWidth(preferred: notice.preferredWingWidth)
-                        let content = wing - 16
+                        let content = wing - (notice.event == .battery ? 32 : 16)
                         suite.expect((notice.event == .accessory && notice.level == nil && wing == 160)
                                || width(notice.level == nil ? notice.title : notice.detail) + 18 + 8 <= content,
                                "power labels fit and long accessory names use bounded truncation in \(language)")
@@ -195,7 +202,10 @@ enum NotchTests {
             for percent in 0...100 {
                 let notice = NotchNotice(event: event, title: "Level", detail: "\(percent)%",
                                          symbol: "speaker.wave.2", level: Double(percent) / 100)
-                suite.expect(notice.preferredWingWidth == 112, "level changes keep a stable compact width")
+                let wing = notice.preferredWingWidth
+                suite.expect(wing == 80, "level changes keep a stable compact width without an empty outer margin")
+                suite.expect(width(notice.detail) + 18 + 8 + 16 <= wing && wing - 16 >= 64,
+                             "every percentage fits beside its icon while the opposite meter remains readable")
             }
         }
         let long = NotchNotice(event: .accessory, title: String(repeating: "Device ", count: 100),
@@ -1323,6 +1333,36 @@ enum NotchTests {
                "metadata-only updates retain the existing artwork without retransmitting it")
         suite.expect(NotchPlayback.decode(playingReply, previousArtwork: cachedArtwork)?.track.artworkData == nil,
                "a new track without artwork clears the old cover")
+
+        var coverCache = NotchArtworkCache<String>()
+        coverCache.update("cover A", for: playing, now: now)
+        coverCache.update(nil, for: playback, now: now.addingTimeInterval(10))
+        suite.expect(coverCache.artwork == "cover A" && coverCache.expiresAt == nil,
+               "pausing with a metadata-only reply retains the decoded cover of the same song")
+        let nextReply = Data(String(decoding: playingReply, as: UTF8.self)
+            .replacingOccurrences(of: "A track", with: "Next track").utf8)
+        let next = NotchPlayback.decode(nextReply, now: now)
+        coverCache.update(nil, for: next, now: now)
+        let deadline = coverCache.expiresAt
+        coverCache.update(nil, for: next, now: now.addingTimeInterval(0.5))
+        suite.expect(coverCache.artwork == "cover A" && coverCache.expiresAt == deadline,
+               "track changes bridge delayed artwork without extending the grace period on every update")
+        coverCache.update("cover B", for: next, now: now.addingTimeInterval(1))
+        coverCache.expire(at: now.addingTimeInterval(2))
+        suite.expect(coverCache.artwork == "cover B" && coverCache.expiresAt == nil,
+               "the new cover replaces the old cover and cancels its expiry")
+        coverCache.update(nil, for: playing, now: now.addingTimeInterval(3))
+        coverCache.expire(at: now.addingTimeInterval(5))
+        suite.expect(coverCache.artwork == nil, "a song without artwork cannot retain another song's cover indefinitely")
+        coverCache.update("cover A", for: playing, now: now)
+        let otherPlayer = NotchPlayback.decode(Data(String(decoding: playingReply, as: UTF8.self)
+            .replacingOccurrences(of: "\"pid\":12", with: "\"pid\":13").utf8))
+        coverCache.update(nil, for: otherPlayer, now: now)
+        suite.expect(coverCache.artwork == nil, "switching players never inherits the previous player's cover")
+        coverCache.update("cover A", for: playing, now: now)
+        coverCache.update(nil, for: nil, now: now)
+        suite.expect(coverCache.artwork == nil && coverCache.expiresAt == nil,
+               "ending playback releases the cached cover and its deadline")
 
         let seekableReply = Data(String(decoding: playingReply, as: UTF8.self)
             .replacingOccurrences(of: "\"pid\":12", with: "\"pid\":12,\"canSeek\":true").utf8)

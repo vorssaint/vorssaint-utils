@@ -10,6 +10,8 @@ struct NotchEditorItem: View {
     var selected = false
     var available = true
     var unavailableReason: String? = nil
+    /// Keeps a card as tall as a neighbour that explains why it is off.
+    var reservesReason = false
     let select: () -> Void
 
     var body: some View {
@@ -20,9 +22,12 @@ struct NotchEditorItem: View {
                         .foregroundStyle(included && available ? Color.accentColor : .secondary)
                     Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2)
                         .multilineTextAlignment(.center).frame(height: 28)
-                    if let unavailableReason {
-                        Text(unavailableReason).font(.caption2).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    if unavailableReason != nil || reservesReason {
+                        // A fixed area leaves every card in a row the same height;
+                        // the full reason is also in the tooltip.
+                        Text(unavailableReason ?? " ").font(.caption2).foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center).lineLimit(3, reservesSpace: true)
+                            .accessibilityHidden(unavailableReason == nil)
                     }
                 }.frame(maxWidth: .infinity, minHeight: 76).padding(10)
                     .background(selected ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))

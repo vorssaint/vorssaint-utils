@@ -34,9 +34,12 @@ enum NotchActivityTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerSoundEnabled] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerSoundEnabled),
                "the sound preference is registered and included in settings backup")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchCoversMenus] as? Bool == false
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchCoversMenus] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCoversMenus),
-               "covering the menus stays off by default and travels with settings backups")
+               "compact activity stays visible by default and the preference travels with settings backups")
+        suite.expect(NotchSupport.coversMenus(in: defaults), "missing menu-cover preferences use the visible default")
+        defaults.set(false, forKey: DefaultsKey.notchCoversMenus)
+        suite.expect(!NotchSupport.coversMenus(in: defaults), "an explicit choice to leave menus uncovered is preserved")
         suite.expect(NotchTimerAlert.maximumDuration == .seconds(300), "an alarm is limited to five minutes")
         var sounds = 0, stops = 0
         var elapsed: Duration = .zero
