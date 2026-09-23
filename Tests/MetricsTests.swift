@@ -109,6 +109,7 @@ struct MetricsTests {
                 KeepAwakeTimerHandoffTests.run { suite.expect($0, $1) }
             }),
             ("emoji", { CommandBarEmojiContract.run(suite) }),
+            ("deep-links", { DeepLinkTests.run(suite) }),
         ]
         var selected = Set<String>()
         var listOnly = false
