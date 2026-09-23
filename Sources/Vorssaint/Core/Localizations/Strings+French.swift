@@ -1105,6 +1105,6 @@ extension Strings {
         recoveryRevert: "Rétablir",
         recoveryCountdownTitle: "Conserver ces réglages d’affichage\u{00A0}?",
         recoveryCountdownRemaining: { "Rétablissement automatique dans \($0) s" },
-        toggleHiDPICaption: "Basculer la mise à l’échelle Retina HiDPI",
+        toggleHiDPICaption: "Basculer la mise à l’échelle Retina HiDPI"
     )
 }

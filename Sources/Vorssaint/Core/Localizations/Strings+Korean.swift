@@ -1106,6 +1106,6 @@ extension Strings {
         recoveryRevert: "복원",
         recoveryCountdownTitle: "이 디스플레이 설정을 유지하겠습니까?",
         recoveryCountdownRemaining: { "\($0)초 후 자동으로 복원됩니다" },
-        toggleHiDPICaption: "Retina HiDPI 크기 조절 전환",
+        toggleHiDPICaption: "Retina HiDPI 크기 조절 전환"
     )
 }

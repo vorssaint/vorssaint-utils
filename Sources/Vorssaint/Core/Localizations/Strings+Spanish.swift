@@ -1105,6 +1105,6 @@ extension Strings {
         recoveryRevert: "Restablecer",
         recoveryCountdownTitle: "¿Mantener esta configuración de pantalla?",
         recoveryCountdownRemaining: { "Restableciendo automáticamente en \($0) s" },
-        toggleHiDPICaption: "Alternar ajuste de escala Retina HiDPI",
+        toggleHiDPICaption: "Alternar ajuste de escala Retina HiDPI"
     )
 }

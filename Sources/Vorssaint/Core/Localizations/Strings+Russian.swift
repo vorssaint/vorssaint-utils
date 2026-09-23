@@ -1106,6 +1106,6 @@ extension Strings {
         recoveryRevert: "Вернуть",
         recoveryCountdownTitle: "Сохранить эти настройки дисплея?",
         recoveryCountdownRemaining: { "Автоматический возврат через \($0) сек." },
-        toggleHiDPICaption: "Переключить масштабирование Retina HiDPI",
+        toggleHiDPICaption: "Переключить масштабирование Retina HiDPI"
     )
 }

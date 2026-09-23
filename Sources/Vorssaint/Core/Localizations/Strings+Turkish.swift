@@ -1105,6 +1105,6 @@ extension Strings {
         recoveryRevert: "Geri Dön",
         recoveryCountdownTitle: "Bu ekran ayarlarını koru?",
         recoveryCountdownRemaining: { "\($0) sn içinde otomatik geri dönülecek" },
-        toggleHiDPICaption: "Retina HiDPI ölçeklemeyi aç/kapat",
+        toggleHiDPICaption: "Retina HiDPI ölçeklemeyi aç/kapat"
     )
 }
