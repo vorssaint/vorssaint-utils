@@ -96,6 +96,7 @@ struct NotchSystemView: View {
                 if height > size.height {
                     ScrollView {
                         grid(cards: cards, rows: rows).padding(inset)
+                            .contentShape(Rectangle())
                     }
                 } else {
                     grid(cards: cards, rows: rows).padding(inset)

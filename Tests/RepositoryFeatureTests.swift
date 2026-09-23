@@ -1216,6 +1216,8 @@ enum RepositoryFeatureTests {
                                                 encoding: .utf8)) ?? ""
         suite.expect(!selfUninstallSource.isEmpty && !uninstallScriptSource.isEmpty,
                "uninstall sources read back for uninstallation alignment check")
+        suite.expect(selfUninstallSource.contains("CleaningModeManager.shared.deactivateForSystemTeardown()"),
+               "permission reset removes the cleaning input tap synchronously")
         let queryHabitSupportSource = repository.source(
             at: "Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift")
         let queryHabitServiceSource = repository.source(

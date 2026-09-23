@@ -39,10 +39,52 @@ struct NotchEditorStrings {
     let showPageFormat: String
     let keyboardLightUnavailable: String
     let appPanelHint: String
+    let sections: String
+    let preview: String
+    let hiddenInIsland: String
+    let openFeatures: String
+    let cameraPreview: String
+    let noOptions: String
+    let controlsSummary: String
+    let mixerSummary: String
+    let musicSummary: String
+    let clipboardSummary: String
+    let capturesSummary: String
+    let filesSummary: String
+    let systemSummary: String
+    let toolsSummary: String
+    let calendarSummary: String
+    let notificationsSummary: String
+    let timerSummary: String
+    let cameraSummary: String
+    let downloadsSummary: String
+    let scratchpadSummary: String
+    let agentsSummary: String
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
     func showPage(_ title: String) -> String { String(format: showPageFormat, title) }
+
+    /// One line on what a section of the island shows.
+    func summary(_ module: NotchModule) -> String {
+        switch module {
+        case .controls: return controlsSummary
+        case .mixer: return mixerSummary
+        case .music: return musicSummary
+        case .clipboard: return clipboardSummary
+        case .captures: return capturesSummary
+        case .files: return filesSummary
+        case .system: return systemSummary
+        case .tools: return toolsSummary
+        case .calendar: return calendarSummary
+        case .notifications: return notificationsSummary
+        case .timer: return timerSummary
+        case .camera: return cameraSummary
+        case .downloads: return downloadsSummary
+        case .scratchpad: return scratchpadSummary
+        case .agents: return agentsSummary
+        }
+    }
 }
 
 extension FeatureStrings {
@@ -63,7 +105,7 @@ extension FeatureStrings {
             sectionActions: "Open a section",
             quickActions: "Quick actions",
             findAction: "Find an action",
-            reorderHint: "Drag to reorder. Click the checkmark to show or hide.",
+            reorderHint: "Drag to reorder. Uncheck a section to hide it from the island.",
             opening: "Opening",
             clickOpen: "Click to open",
             hoverPreview: "Preview on hover",
@@ -83,7 +125,28 @@ extension FeatureStrings {
             enableSettingFormat: "Enable “%@” in its settings.",
             showPageFormat: "Show “%@” on the Content tab.",
             keyboardLightUnavailable: "Keyboard backlight control is unavailable on this Mac.",
-            appPanelHint: "Choose where clicking the Vorssaint menu bar icon opens the app panel, on any display."
+            appPanelHint: "Choose where clicking the Vorssaint menu bar icon opens the app panel, on any display.",
+            sections: "Sections",
+            preview: "Preview",
+            hiddenInIsland: "Hidden from the island",
+            openFeatures: "Open Features",
+            cameraPreview: "The camera turns on only in the island.",
+            noOptions: "This section has no options.",
+            controlsSummary: "Playback, volume, brightness and your shortcuts.",
+            mixerSummary: "The volume of each app, and where sound plays.",
+            musicSummary: "The song playing now, with its controls.",
+            clipboardSummary: "What you copied recently, ready to paste again.",
+            capturesSummary: "Your latest screenshots and recordings.",
+            filesSummary: "A shelf for the files you drop on the island.",
+            systemSummary: "CPU, memory, disk, network and battery at a glance.",
+            toolsSummary: "Tools and utilities, one click away.",
+            calendarSummary: "Today’s events and the month ahead.",
+            notificationsSummary: "Your Mac’s notifications, kept in the island.",
+            timerSummary: "Timer, Pomodoro and stopwatch.",
+            cameraSummary: "A mirror to check yourself before a call.",
+            downloadsSummary: "Downloads in progress and just finished.",
+            scratchpadSummary: "Quick notes that save by themselves.",
+            agentsSummary: "Claude Code and Codex usage, limits and costs."
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -100,7 +163,7 @@ extension FeatureStrings {
             sectionActions: "Abrir uma seção",
             quickActions: "Ações rápidas",
             findAction: "Encontrar uma ação",
-            reorderHint: "Arraste para reordenar. Clique na marca para mostrar ou ocultar.",
+            reorderHint: "Arraste para reordenar. Desmarque uma seção para ocultá-la da ilha.",
             opening: "Abertura",
             clickOpen: "Abrir por clique",
             hoverPreview: "Prévia ao aproximar",
@@ -120,7 +183,28 @@ extension FeatureStrings {
             enableSettingFormat: "Ative “%@” nas configurações do recurso.",
             showPageFormat: "Mostre “%@” na aba Conteúdo.",
             keyboardLightUnavailable: "O controle da luz do teclado não está disponível neste Mac.",
-            appPanelHint: "Escolha onde o painel abre ao clicar no ícone do Vorssaint na barra de menus, em qualquer tela."
+            appPanelHint: "Escolha onde o painel abre ao clicar no ícone do Vorssaint na barra de menus, em qualquer tela.",
+            sections: "Seções",
+            preview: "Prévia",
+            hiddenInIsland: "Oculta na ilha",
+            openFeatures: "Abrir Recursos",
+            cameraPreview: "A câmera só liga na própria ilha.",
+            noOptions: "Esta seção não tem opções.",
+            controlsSummary: "Reprodução, volume, brilho e seus atalhos.",
+            mixerSummary: "O volume de cada app e onde o som toca.",
+            musicSummary: "A música tocando agora, com os controles.",
+            clipboardSummary: "O que você copiou há pouco, pronto para colar de novo.",
+            capturesSummary: "Suas capturas de tela e gravações mais recentes.",
+            filesSummary: "Uma prateleira para os arquivos que você solta na ilha.",
+            systemSummary: "CPU, memória, disco, rede e bateria num relance.",
+            toolsSummary: "Ferramentas e utilitários a um clique.",
+            calendarSummary: "Os eventos de hoje e o mês inteiro.",
+            notificationsSummary: "As notificações do Mac, guardadas na ilha.",
+            timerSummary: "Temporizador, Pomodoro e cronômetro.",
+            cameraSummary: "Um espelho para se ver antes de uma chamada.",
+            downloadsSummary: "Downloads em andamento e os que acabaram de terminar.",
+            scratchpadSummary: "Anotações rápidas que se salvam sozinhas.",
+            agentsSummary: "Uso, limites e custos do Claude Code e do Codex."
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -137,7 +221,7 @@ extension FeatureStrings {
             sectionActions: "Abrir una sección",
             quickActions: "Acciones rápidas",
             findAction: "Buscar una acción",
-            reorderHint: "Arrastra para ordenar. Pulsa la marca para mostrar u ocultar.",
+            reorderHint: "Arrastra para ordenar. Desmarca una sección para ocultarla de la isla.",
             opening: "Apertura",
             clickOpen: "Abrir con un clic",
             hoverPreview: "Vista previa al acercarse",
@@ -157,7 +241,28 @@ extension FeatureStrings {
             enableSettingFormat: "Activa “%@” en sus ajustes.",
             showPageFormat: "Muestra “%@” en la pestaña Contenido.",
             keyboardLightUnavailable: "El control de la luz del teclado no está disponible en este Mac.",
-            appPanelHint: "Elige dónde se abre el panel al pulsar el icono de Vorssaint en la barra de menús, en cualquier pantalla."
+            appPanelHint: "Elige dónde se abre el panel al pulsar el icono de Vorssaint en la barra de menús, en cualquier pantalla.",
+            sections: "Secciones",
+            preview: "Vista previa",
+            hiddenInIsland: "Oculta en la isla",
+            openFeatures: "Abrir Funciones",
+            cameraPreview: "La cámara solo se enciende en la isla.",
+            noOptions: "Esta sección no tiene opciones.",
+            controlsSummary: "Reproducción, volumen, brillo y tus atajos.",
+            mixerSummary: "El volumen de cada app y dónde suena el audio.",
+            musicSummary: "La canción que suena ahora, con sus controles.",
+            clipboardSummary: "Lo que copiaste hace poco, listo para pegar otra vez.",
+            capturesSummary: "Tus capturas y grabaciones más recientes.",
+            filesSummary: "Un estante para los archivos que sueltas en la isla.",
+            systemSummary: "CPU, memoria, disco, red y batería de un vistazo.",
+            toolsSummary: "Herramientas y utilidades a un clic.",
+            calendarSummary: "Los eventos de hoy y el mes completo.",
+            notificationsSummary: "Las notificaciones de tu Mac, reunidas en la isla.",
+            timerSummary: "Temporizador, Pomodoro y cronómetro.",
+            cameraSummary: "Un espejo para verte antes de una llamada.",
+            downloadsSummary: "Descargas en curso y las recién terminadas.",
+            scratchpadSummary: "Notas rápidas que se guardan solas.",
+            agentsSummary: "Uso, límites y costes de Claude Code y Codex."
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -174,7 +279,7 @@ extension FeatureStrings {
             sectionActions: "Bereich öffnen",
             quickActions: "Schnellaktionen",
             findAction: "Aktion finden",
-            reorderHint: "Zum Sortieren ziehen. Mit dem Häkchen ein- oder ausblenden.",
+            reorderHint: "Zum Sortieren ziehen. Entferne das Häkchen, um einen Bereich auf der Insel auszublenden.",
             opening: "Öffnen",
             clickOpen: "Per Klick öffnen",
             hoverPreview: "Vorschau bei Annäherung",
@@ -194,7 +299,28 @@ extension FeatureStrings {
             enableSettingFormat: "Aktiviere „%@“ in den zugehörigen Einstellungen.",
             showPageFormat: "Blende „%@“ im Tab Inhalt ein.",
             keyboardLightUnavailable: "Die Tastaturbeleuchtung lässt sich auf diesem Mac nicht steuern.",
-            appPanelHint: "Wähle, wo ein Klick auf das Vorssaint-Menüleistensymbol das App-Panel öffnet, auf jedem Bildschirm."
+            appPanelHint: "Wähle, wo ein Klick auf das Vorssaint-Menüleistensymbol das App-Panel öffnet, auf jedem Bildschirm.",
+            sections: "Bereiche",
+            preview: "Vorschau",
+            hiddenInIsland: "Auf der Insel ausgeblendet",
+            openFeatures: "Funktionen öffnen",
+            cameraPreview: "Die Kamera schaltet sich nur auf der Insel ein.",
+            noOptions: "Dieser Bereich hat keine Optionen.",
+            controlsSummary: "Wiedergabe, Lautstärke, Helligkeit und deine Kurzbefehle.",
+            mixerSummary: "Die Lautstärke jeder App und wo der Ton spielt.",
+            musicSummary: "Der aktuelle Titel mit seinen Steuerelementen.",
+            clipboardSummary: "Was du zuletzt kopiert hast, bereit zum erneuten Einsetzen.",
+            capturesSummary: "Deine neuesten Bildschirmfotos und Aufnahmen.",
+            filesSummary: "Eine Ablage für Dateien, die du auf der Insel ablegst.",
+            systemSummary: "CPU, Speicher, Festplatte, Netzwerk und Batterie auf einen Blick.",
+            toolsSummary: "Werkzeuge und Dienstprogramme, einen Klick entfernt.",
+            calendarSummary: "Die Termine von heute und der ganze Monat.",
+            notificationsSummary: "Die Mitteilungen deines Mac, gesammelt auf der Insel.",
+            timerSummary: "Timer, Pomodoro und Stoppuhr.",
+            cameraSummary: "Ein Spiegel, um dich vor einem Anruf zu sehen.",
+            downloadsSummary: "Laufende und gerade fertige Downloads.",
+            scratchpadSummary: "Schnelle Notizen, die sich selbst sichern.",
+            agentsSummary: "Nutzung, Limits und Kosten von Claude Code und Codex."
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -211,7 +337,7 @@ extension FeatureStrings {
             sectionActions: "Ouvrir une section",
             quickActions: "Actions rapides",
             findAction: "Rechercher une action",
-            reorderHint: "Glissez pour réordonner. Cliquez sur la coche pour afficher ou masquer.",
+            reorderHint: "Glissez pour réordonner. Décochez une section pour la masquer de l’îlot.",
             opening: "Ouverture",
             clickOpen: "Ouvrir au clic",
             hoverPreview: "Aperçu au survol",
@@ -231,7 +357,28 @@ extension FeatureStrings {
             enableSettingFormat: "Activez « %@ » dans ses réglages.",
             showPageFormat: "Affichez « %@ » dans l’onglet Contenu.",
             keyboardLightUnavailable: "Le contrôle du rétroéclairage du clavier est indisponible sur ce Mac.",
-            appPanelHint: "Choisissez où un clic sur l’icône Vorssaint de la barre des menus ouvre le panneau, sur tout écran."
+            appPanelHint: "Choisissez où un clic sur l’icône Vorssaint de la barre des menus ouvre le panneau, sur tout écran.",
+            sections: "Sections",
+            preview: "Aperçu",
+            hiddenInIsland: "Masquée dans l’îlot",
+            openFeatures: "Ouvrir Fonctionnalités",
+            cameraPreview: "La caméra ne s’allume que dans l’îlot.",
+            noOptions: "Cette section n’a pas d’options.",
+            controlsSummary: "Lecture, volume, luminosité et vos raccourcis.",
+            mixerSummary: "Le volume de chaque app et la sortie du son.",
+            musicSummary: "Le morceau en cours, avec ses commandes.",
+            clipboardSummary: "Ce que vous avez copié récemment, prêt à être recollé.",
+            capturesSummary: "Vos dernières captures d’écran et vidéos.",
+            filesSummary: "Une étagère pour les fichiers déposés sur l’îlot.",
+            systemSummary: "Processeur, mémoire, disque, réseau et batterie en un coup d’œil.",
+            toolsSummary: "Outils et utilitaires à portée de clic.",
+            calendarSummary: "Les événements du jour et le mois entier.",
+            notificationsSummary: "Les notifications de votre Mac, réunies dans l’îlot.",
+            timerSummary: "Minuteur, Pomodoro et chronomètre.",
+            cameraSummary: "Un miroir pour vous voir avant un appel.",
+            downloadsSummary: "Les téléchargements en cours et ceux qui viennent de finir.",
+            scratchpadSummary: "Des notes rapides qui s’enregistrent seules.",
+            agentsSummary: "Utilisation, limites et coûts de Claude Code et Codex."
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -248,7 +395,7 @@ extension FeatureStrings {
             sectionActions: "Apri una sezione",
             quickActions: "Azioni rapide",
             findAction: "Trova un’azione",
-            reorderHint: "Trascina per riordinare. Fai clic sulla spunta per mostrare o nascondere.",
+            reorderHint: "Trascina per riordinare. Deseleziona una sezione per nasconderla dall’isola.",
             opening: "Apertura",
             clickOpen: "Apri con un clic",
             hoverPreview: "Anteprima al passaggio",
@@ -268,7 +415,28 @@ extension FeatureStrings {
             enableSettingFormat: "Attiva “%@” nelle relative impostazioni.",
             showPageFormat: "Mostra “%@” nella scheda Contenuto.",
             keyboardLightUnavailable: "Il controllo della retroilluminazione della tastiera non è disponibile su questo Mac.",
-            appPanelHint: "Scegli dove si apre il pannello facendo clic sull’icona di Vorssaint nella barra dei menu, su qualsiasi schermo."
+            appPanelHint: "Scegli dove si apre il pannello facendo clic sull’icona di Vorssaint nella barra dei menu, su qualsiasi schermo.",
+            sections: "Sezioni",
+            preview: "Anteprima",
+            hiddenInIsland: "Nascosta nell’isola",
+            openFeatures: "Apri Funzioni",
+            cameraPreview: "La fotocamera si accende solo nell’isola.",
+            noOptions: "Questa sezione non ha opzioni.",
+            controlsSummary: "Riproduzione, volume, luminosità e le tue scorciatoie.",
+            mixerSummary: "Il volume di ogni app e dove suona l’audio.",
+            musicSummary: "Il brano in riproduzione, con i suoi controlli.",
+            clipboardSummary: "Ciò che hai copiato di recente, pronto da incollare di nuovo.",
+            capturesSummary: "Le tue ultime istantanee e registrazioni.",
+            filesSummary: "Uno scaffale per i file che trascini sull’isola.",
+            systemSummary: "CPU, memoria, disco, rete e batteria a colpo d’occhio.",
+            toolsSummary: "Strumenti e utility a portata di clic.",
+            calendarSummary: "Gli eventi di oggi e il mese intero.",
+            notificationsSummary: "Le notifiche del Mac, raccolte nell’isola.",
+            timerSummary: "Timer, Pomodoro e cronometro.",
+            cameraSummary: "Uno specchio per guardarti prima di una chiamata.",
+            downloadsSummary: "Download in corso e appena completati.",
+            scratchpadSummary: "Note veloci che si salvano da sole.",
+            agentsSummary: "Uso, limiti e costi di Claude Code e Codex."
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -285,7 +453,7 @@ extension FeatureStrings {
             sectionActions: "Открыть раздел",
             quickActions: "Быстрые действия",
             findAction: "Найти действие",
-            reorderHint: "Перетащите для сортировки. Нажмите галочку, чтобы показать или скрыть.",
+            reorderHint: "Перетащите для сортировки. Снимите флажок, чтобы скрыть раздел с острова.",
             opening: "Открытие",
             clickOpen: "По щелчку",
             hoverPreview: "Просмотр при наведении",
@@ -305,7 +473,28 @@ extension FeatureStrings {
             enableSettingFormat: "Включите «%@» в соответствующих настройках.",
             showPageFormat: "Покажите «%@» на вкладке содержимого.",
             keyboardLightUnavailable: "Управление подсветкой клавиатуры недоступно на этом Mac.",
-            appPanelHint: "Выберите, где открывать панель при нажатии значка Vorssaint в строке меню на любом экране."
+            appPanelHint: "Выберите, где открывать панель при нажатии значка Vorssaint в строке меню на любом экране.",
+            sections: "Разделы",
+            preview: "Предпросмотр",
+            hiddenInIsland: "Скрыт на острове",
+            openFeatures: "Открыть функции",
+            cameraPreview: "Камера включается только на самом острове.",
+            noOptions: "У этого раздела нет настроек.",
+            controlsSummary: "Воспроизведение, громкость, яркость и ваши быстрые действия.",
+            mixerSummary: "Громкость каждого приложения и вывод звука.",
+            musicSummary: "Текущий трек и управление им.",
+            clipboardSummary: "Недавно скопированное, готовое к повторной вставке.",
+            capturesSummary: "Ваши последние снимки экрана и записи.",
+            filesSummary: "Полка для файлов, которые вы бросаете на остров.",
+            systemSummary: "Процессор, память, диск, сеть и батарея одним взглядом.",
+            toolsSummary: "Инструменты и утилиты в один клик.",
+            calendarSummary: "События на сегодня и весь месяц.",
+            notificationsSummary: "Уведомления Mac, собранные на острове.",
+            timerSummary: "Таймер, помидоро и секундомер.",
+            cameraSummary: "Зеркало, чтобы посмотреть на себя перед звонком.",
+            downloadsSummary: "Текущие и только что завершённые загрузки.",
+            scratchpadSummary: "Быстрые заметки, которые сохраняются сами.",
+            agentsSummary: "Использование, лимиты и стоимость Claude Code и Codex."
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -322,7 +511,7 @@ extension FeatureStrings {
             sectionActions: "Bölüm aç",
             quickActions: "Hızlı eylemler",
             findAction: "Eylem bul",
-            reorderHint: "Sıralamak için sürükleyin. Göstermek veya gizlemek için onay işaretine tıklayın.",
+            reorderHint: "Sıralamak için sürükleyin. Bir bölümü adada gizlemek için işaretini kaldırın.",
             opening: "Açılış",
             clickOpen: "Tıklayarak aç",
             hoverPreview: "Üzerine gelince önizle",
@@ -342,7 +531,28 @@ extension FeatureStrings {
             enableSettingFormat: "İlgili ayarlarda “%@” seçeneğini etkinleştirin.",
             showPageFormat: "İçerik sekmesinde “%@” sayfasını gösterin.",
             keyboardLightUnavailable: "Bu Mac’te klavye aydınlatması denetimi kullanılamıyor.",
-            appPanelHint: "Herhangi bir ekranda menü çubuğundaki Vorssaint simgesine tıklanınca panelin nerede açılacağını seçin."
+            appPanelHint: "Herhangi bir ekranda menü çubuğundaki Vorssaint simgesine tıklanınca panelin nerede açılacağını seçin.",
+            sections: "Bölümler",
+            preview: "Önizleme",
+            hiddenInIsland: "Adada gizli",
+            openFeatures: "Özellikler’i aç",
+            cameraPreview: "Kamera yalnızca adanın içinde açılır.",
+            noOptions: "Bu bölümün seçeneği yok.",
+            controlsSummary: "Oynatma, ses, parlaklık ve kısayollarınız.",
+            mixerSummary: "Her uygulamanın ses düzeyi ve sesin çaldığı yer.",
+            musicSummary: "Şu an çalan şarkı ve denetimleri.",
+            clipboardSummary: "Son kopyaladıklarınız, yeniden yapıştırmaya hazır.",
+            capturesSummary: "En son ekran görüntüleriniz ve kayıtlarınız.",
+            filesSummary: "Adaya bıraktığınız dosyalar için bir raf.",
+            systemSummary: "İşlemci, bellek, disk, ağ ve pil tek bakışta.",
+            toolsSummary: "Araçlar ve yardımcılar bir tık uzakta.",
+            calendarSummary: "Bugünün etkinlikleri ve ayın tamamı.",
+            notificationsSummary: "Mac’inizin bildirimleri, adada bir arada.",
+            timerSummary: "Zamanlayıcı, Pomodoro ve kronometre.",
+            cameraSummary: "Aramadan önce kendinize bakmak için bir ayna.",
+            downloadsSummary: "Süren ve yeni biten indirmeler.",
+            scratchpadSummary: "Kendi kendine kaydedilen hızlı notlar.",
+            agentsSummary: "Claude Code ve Codex kullanımı, sınırları ve maliyetleri."
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -359,7 +569,7 @@ extension FeatureStrings {
             sectionActions: "セクションを開く",
             quickActions: "クイックアクション",
             findAction: "アクションを検索",
-            reorderHint: "ドラッグして並べ替え、チェックマークで表示を切り替えます。",
+            reorderHint: "ドラッグして並べ替えます。チェックを外したセクションは島に表示されません。",
             opening: "開き方",
             clickOpen: "クリックで開く",
             hoverPreview: "ポイントでプレビュー",
@@ -379,7 +589,28 @@ extension FeatureStrings {
             enableSettingFormat: "該当する設定で「%@」を有効にしてください。",
             showPageFormat: "コンテンツタブで「%@」を表示してください。",
             keyboardLightUnavailable: "このMacではキーボードのバックライトを制御できません。",
-            appPanelHint: "どの画面でも、メニューバーのVorssaintアイコンをクリックしたときにパネルを開く場所を選択します。"
+            appPanelHint: "どの画面でも、メニューバーのVorssaintアイコンをクリックしたときにパネルを開く場所を選択します。",
+            sections: "セクション",
+            preview: "プレビュー",
+            hiddenInIsland: "島に非表示",
+            openFeatures: "機能を開く",
+            cameraPreview: "カメラは島の中でのみオンになります。",
+            noOptions: "このセクションには設定項目がありません。",
+            controlsSummary: "再生、音量、明るさ、ショートカット。",
+            mixerSummary: "アプリごとの音量と出力先。",
+            musicSummary: "再生中の曲とそのコントロール。",
+            clipboardSummary: "最近コピーした内容をもう一度ペースト。",
+            capturesSummary: "最新のスクリーンショットと収録。",
+            filesSummary: "島にドロップしたファイルを置いておく棚。",
+            systemSummary: "CPU、メモリ、ディスク、ネットワーク、バッテリーをひと目で。",
+            toolsSummary: "ツールとユーティリティをワンクリックで。",
+            calendarSummary: "今日の予定と1か月の予定。",
+            notificationsSummary: "Macの通知を島にまとめて表示。",
+            timerSummary: "タイマー、ポモドーロ、ストップウォッチ。",
+            cameraSummary: "通話前に身だしなみを確認できるミラー。",
+            downloadsSummary: "進行中と完了したばかりのダウンロード。",
+            scratchpadSummary: "自動で保存されるクイックメモ。",
+            agentsSummary: "Claude CodeとCodexの使用量、上限、コスト。"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -396,7 +627,7 @@ extension FeatureStrings {
             sectionActions: "섹션 열기",
             quickActions: "빠른 동작",
             findAction: "동작 찾기",
-            reorderHint: "드래그하여 순서를 바꾸고 체크 표시로 표시 여부를 바꾸세요.",
+            reorderHint: "드래그하여 순서를 바꾸세요. 체크를 해제하면 섬에서 숨겨집니다.",
             opening: "열기",
             clickOpen: "클릭하여 열기",
             hoverPreview: "포인터로 미리보기",
@@ -416,7 +647,28 @@ extension FeatureStrings {
             enableSettingFormat: "해당 설정에서 “%@”을(를) 활성화하세요.",
             showPageFormat: "콘텐츠 탭에서 “%@”을(를) 표시하세요.",
             keyboardLightUnavailable: "이 Mac에서는 키보드 백라이트를 제어할 수 없습니다.",
-            appPanelHint: "어느 화면에서든 메뉴 막대의 Vorssaint 아이콘을 클릭할 때 패널이 열릴 위치를 선택하세요."
+            appPanelHint: "어느 화면에서든 메뉴 막대의 Vorssaint 아이콘을 클릭할 때 패널이 열릴 위치를 선택하세요.",
+            sections: "섹션",
+            preview: "미리보기",
+            hiddenInIsland: "섬에서 숨김",
+            openFeatures: "기능 열기",
+            cameraPreview: "카메라는 섬 안에서만 켜집니다.",
+            noOptions: "이 섹션에는 옵션이 없습니다.",
+            controlsSummary: "재생, 음량, 밝기와 단축키.",
+            mixerSummary: "앱별 음량과 소리가 나오는 곳.",
+            musicSummary: "지금 재생 중인 곡과 컨트롤.",
+            clipboardSummary: "최근에 복사한 항목을 다시 붙여넣기.",
+            capturesSummary: "최근 스크린샷과 녹화.",
+            filesSummary: "섬에 놓은 파일을 두는 선반.",
+            systemSummary: "CPU, 메모리, 디스크, 네트워크, 배터리를 한눈에.",
+            toolsSummary: "도구와 유틸리티를 클릭 한 번으로.",
+            calendarSummary: "오늘의 일정과 한 달 전체.",
+            notificationsSummary: "Mac의 알림을 섬에 모아 보기.",
+            timerSummary: "타이머, 뽀모도로, 스톱워치.",
+            cameraSummary: "통화 전에 모습을 확인하는 거울.",
+            downloadsSummary: "진행 중이거나 방금 끝난 다운로드.",
+            scratchpadSummary: "저절로 저장되는 빠른 메모.",
+            agentsSummary: "Claude Code와 Codex의 사용량, 한도, 비용."
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -433,7 +685,7 @@ extension FeatureStrings {
             sectionActions: "打开分区",
             quickActions: "快捷操作",
             findAction: "查找操作",
-            reorderHint: "拖动以排序。点击勾选标记来显示或隐藏。",
+            reorderHint: "拖动以排序。取消勾选某个分区即可在岛上隐藏它。",
             opening: "打开方式",
             clickOpen: "点击打开",
             hoverPreview: "悬停时预览",
@@ -453,7 +705,28 @@ extension FeatureStrings {
             enableSettingFormat: "在相应设置中启用“%@”。",
             showPageFormat: "在内容标签页中显示“%@”。",
             keyboardLightUnavailable: "此 Mac 无法控制键盘背光。",
-            appPanelHint: "选择在任意显示器上点击菜单栏的 Vorssaint 图标时打开面板的位置。"
+            appPanelHint: "选择在任意显示器上点击菜单栏的 Vorssaint 图标时打开面板的位置。",
+            sections: "分区",
+            preview: "预览",
+            hiddenInIsland: "已在岛上隐藏",
+            openFeatures: "打开功能",
+            cameraPreview: "摄像头只会在岛内开启。",
+            noOptions: "此分区没有可设置的选项。",
+            controlsSummary: "播放、音量、亮度和你的快捷操作。",
+            mixerSummary: "每个应用的音量，以及声音从哪里播放。",
+            musicSummary: "正在播放的歌曲及其控制。",
+            clipboardSummary: "最近复制的内容，随时再次粘贴。",
+            capturesSummary: "最近的截图和录屏。",
+            filesSummary: "存放拖到岛上的文件的架子。",
+            systemSummary: "CPU、内存、磁盘、网络和电池一目了然。",
+            toolsSummary: "工具和实用程序，一键即达。",
+            calendarSummary: "今天的日程和整个月。",
+            notificationsSummary: "Mac 的通知，汇集在岛上。",
+            timerSummary: "计时器、番茄钟和秒表。",
+            cameraSummary: "通话前照一照的镜子。",
+            downloadsSummary: "进行中和刚完成的下载。",
+            scratchpadSummary: "自动保存的快速笔记。",
+            agentsSummary: "Claude Code 和 Codex 的用量、限额和费用。"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -470,7 +743,7 @@ extension FeatureStrings {
             sectionActions: "開啟區域",
             quickActions: "快速操作",
             findAction: "尋找操作",
-            reorderHint: "拖移以排序。按一下勾選標記來顯示或隱藏。",
+            reorderHint: "拖移以排序。取消勾選某個區域即可在島上隱藏它。",
             opening: "開啟方式",
             clickOpen: "按一下開啟",
             hoverPreview: "停留時預覽",
@@ -490,7 +763,28 @@ extension FeatureStrings {
             enableSettingFormat: "在對應設定中啟用「%@」。",
             showPageFormat: "在內容標籤頁中顯示「%@」。",
             keyboardLightUnavailable: "此 Mac 無法控制鍵盤背光。",
-            appPanelHint: "選擇在任何螢幕上按一下選單列的 Vorssaint 圖像時開啟面板的位置。"
+            appPanelHint: "選擇在任何螢幕上按一下選單列的 Vorssaint 圖像時開啟面板的位置。",
+            sections: "區域",
+            preview: "預覽",
+            hiddenInIsland: "已在島上隱藏",
+            openFeatures: "開啟功能",
+            cameraPreview: "相機只會在島內開啟。",
+            noOptions: "此區域沒有可設定的選項。",
+            controlsSummary: "播放、音量、亮度和你的快捷操作。",
+            mixerSummary: "每個 App 的音量，以及聲音從哪裡播放。",
+            musicSummary: "正在播放的歌曲及其控制項。",
+            clipboardSummary: "最近拷貝的內容，隨時再次貼上。",
+            capturesSummary: "最近的截圖和錄影。",
+            filesSummary: "存放拖到島上檔案的架子。",
+            systemSummary: "CPU、記憶體、磁碟、網路和電池一目了然。",
+            toolsSummary: "工具和工具程式，一按即達。",
+            calendarSummary: "今天的行程和整個月份。",
+            notificationsSummary: "Mac 的通知，集中在島上。",
+            timerSummary: "計時器、番茄鐘和碼錶。",
+            cameraSummary: "通話前照一照的鏡子。",
+            downloadsSummary: "進行中和剛完成的下載。",
+            scratchpadSummary: "自動儲存的快速筆記。",
+            agentsSummary: "Claude Code 和 Codex 的用量、限額和費用。"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -507,7 +801,7 @@ extension FeatureStrings {
             sectionActions: "開啟區域",
             quickActions: "快速操作",
             findAction: "尋找操作",
-            reorderHint: "拖移以排序。按一下勾選標記來顯示或隱藏。",
+            reorderHint: "拖移以排序。取消勾選某個區域即可在島上隱藏它。",
             opening: "開啟方式",
             clickOpen: "按一下開啟",
             hoverPreview: "停留時預覽",
@@ -527,7 +821,28 @@ extension FeatureStrings {
             enableSettingFormat: "在相應設定中啟用「%@」。",
             showPageFormat: "在內容標籤頁中顯示「%@」。",
             keyboardLightUnavailable: "此 Mac 無法控制鍵盤背光。",
-            appPanelHint: "選擇在任何螢幕上按一下選單列的 Vorssaint 圖像時開啟面板的位置。"
+            appPanelHint: "選擇在任何螢幕上按一下選單列的 Vorssaint 圖像時開啟面板的位置。",
+            sections: "區域",
+            preview: "預覽",
+            hiddenInIsland: "已在島上隱藏",
+            openFeatures: "開啟功能",
+            cameraPreview: "相機只會在島內開啟。",
+            noOptions: "此區域沒有可設定的選項。",
+            controlsSummary: "播放、音量、亮度和你的快捷操作。",
+            mixerSummary: "每個 App 的音量，以及聲音從哪裡播放。",
+            musicSummary: "正在播放的歌曲及其控制項。",
+            clipboardSummary: "最近拷貝的內容，隨時再次貼上。",
+            capturesSummary: "最近的截圖和錄影。",
+            filesSummary: "存放拖到島上檔案的架子。",
+            systemSummary: "CPU、記憶體、磁碟、網路和電池一目了然。",
+            toolsSummary: "工具和工具程式，一按即達。",
+            calendarSummary: "今天的行程和整個月份。",
+            notificationsSummary: "Mac 的通知，集中在島上。",
+            timerSummary: "計時器、番茄鐘和碼錶。",
+            cameraSummary: "通話前照一照的鏡子。",
+            downloadsSummary: "進行中和剛完成的下載。",
+            scratchpadSummary: "自動儲存的快速筆記。",
+            agentsSummary: "Claude Code 和 Codex 的用量、限額和費用。"
         )
         case .uk: return NotchEditorStrings(
             layout: "Розкладка",

@@ -81,7 +81,7 @@ enum SelfUninstall {
         // Deactivating Cleaning Mode re-syncs the services it paused back to
         // their preferences, so it has to happen before the suspends below,
         // or it would re-arm the very taps this teardown just stopped.
-        CleaningModeManager.shared.deactivate()
+        CleaningModeManager.shared.deactivateForSystemTeardown()
         ScrollInverter.shared.suspend()
         FocusFollowsMouseService.shared.stop()
         SmoothScrollService.shared.suspend()

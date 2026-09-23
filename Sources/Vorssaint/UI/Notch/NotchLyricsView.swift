@@ -82,7 +82,8 @@ struct NotchLyricsView: View {
     }
 
     private var importButton: some View {
-        Button { service.importLyrics() } label: { Image(systemName: "square.and.arrow.down") }
+        // A file being added, not the usual download arrow, which reads as saving.
+        Button { service.importLyrics() } label: { Image(systemName: "doc.badge.plus") }
             .buttonStyle(.borderless)
             .help(text.importLyrics)
             .accessibilityLabel(text.importLyrics)

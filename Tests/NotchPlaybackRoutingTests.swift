@@ -14,11 +14,25 @@ enum NotchPlaybackRoutingContract {
         var isRunning = true
         var itemIdentifier: String? = "fixture"
         var allowsDirectCommands = true
+        var applicationBundleIdentifier: String?
     }
     struct NSRunningApplication {
         let bundleIdentifier: String?
         let processIdentifier: Int32
         var isTerminated = false
+        var localizedName: String? { bundleIdentifier }
+        init(bundleIdentifier: String?, processIdentifier: Int32) {
+            self.bundleIdentifier = bundleIdentifier
+            self.processIdentifier = processIdentifier
+        }
+        init?(processIdentifier: Int32) {
+            guard let app = NotchPlaybackRoutingContract.applications.first(where: { $0.processIdentifier == processIdentifier }) else { return nil }
+            self = app
+        }
+    }
+    struct NSWorkspace {
+        static let shared = Self()
+        var runningApplications: [NSRunningApplication] { NotchPlaybackRoutingContract.applications }
     }
     static let handle: UnsafeMutableRawPointer? = nil
     static let callbacks = DispatchQueue(label: "notch-routing-test")
@@ -36,6 +50,18 @@ enum NotchPlaybackRoutingContract {
     static var metadata: [ObjectIdentifier: [String: Any]] = [:]
     static var beforeRead: (() -> Void)?
     static var reply: [String: Any] = [:]
+    static var sources: [NotchPlaybackSource] = []
+    static var selection: NotchPlaybackSource.Selection?
+    static var refreshes = 0
+    static var discovering = false
+    static var applications: [NSRunningApplication] = []
+    static var registeredPIDs: [Int32] = []
+    static var systemPID: Int32 = 10
+    static var sourceMetadata: [Int32: [String: Any]] = [:]
+    static var silentPIDs: Set<Int32> = []
+    static var lateReads: [() -> Void] = []
+    static func isMusicApp(_ app: NSRunningApplication) -> Bool { app.processIdentifier == 10 }
+    static func vorssaintNowPlayingGet() { refreshes += 1 }
     typealias NotchNativePlayback = NotchPlaybackRoutingContract
     enum NotchNativeQueue {
         static var request: UUID?
@@ -55,8 +81,30 @@ enum NotchPlaybackRoutingContract {
     static func function<T>(_ handle: UnsafeMutableRawPointer?, _ name: String, as type: T.Type) -> T? {
         guard available else { return nil }
         switch name {
+        case "MRMediaRemoteGetNowPlayingClient":
+            let read: @convention(c) (DispatchQueue, @escaping @convention(block) (AnyObject?) -> Void) -> Void = { _, completion in
+                completion(NSNumber(value: NotchPlaybackRoutingContract.systemPID))
+            }
+            return unsafeBitCast(read, to: T.self)
+        case "MRMediaRemoteGetNowPlayingClients":
+            let read: @convention(c) (DispatchQueue, @escaping @convention(block) (NSArray?) -> Void) -> Void = { _, completion in
+                completion(NotchPlaybackRoutingContract.registeredPIDs.map { NSNumber(value: $0) } as NSArray)
+            }
+            return unsafeBitCast(read, to: T.self)
+        case "MRNowPlayingClientGetProcessIdentifier":
+            let pid: @convention(c) (AnyObject) -> Int32 = { ($0 as! NSNumber).int32Value }
+            return unsafeBitCast(pid, to: T.self)
         case "MRMediaRemoteGetNowPlayingInfoForPlayer":
             let read: Read = { path, artwork, _, completion in
+                if NotchPlaybackRoutingContract.discovering {
+                    let client = path.perform(NSSelectorFromString("client"))?.takeUnretainedValue() as? NSObject
+                    let pid = (client?.value(forKey: "processIdentifier") as? NSNumber)?.int32Value ?? 0
+                    let info = (NotchPlaybackRoutingContract.sourceMetadata[pid] ?? [:]) as NSDictionary
+                    if NotchPlaybackRoutingContract.silentPIDs.contains(pid) {
+                        NotchPlaybackRoutingContract.lateReads.append { completion(info, nil) }
+                    } else { completion(info, nil) }
+                    return
+                }
                 NotchPlaybackRoutingContract.destination = path
                 NotchPlaybackRoutingContract.requestedArtwork = artwork
                 NotchPlaybackRoutingContract.beforeRead?()
@@ -229,5 +277,118 @@ enum NotchPlaybackRoutingTests {
                "queue queries and their immutable selections retain their existing native route")
         Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .queueStop))
         suite.expect(Adapter.NotchNativeQueue.request == nil, "queue-stop still cancels without requiring a playing track")
+
+        let browser = NotchPlaybackSource(pid: 202, bundleIdentifier: "test.browser", isMusicApp: false,
+                                          isPlaying: true, hasTrack: true)
+        Adapter.sources = [browser]
+        Adapter.NotchNativeQueue.request = UUID()
+        Adapter.command = nil
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .source(browser.selection)))
+        suite.expect(Adapter.selection == browser.selection && Adapter.refreshes == 1
+                     && Adapter.NotchNativeQueue.request == nil && Adapter.command == nil,
+                     "choosing a source refreshes metadata and retires its old queue without changing playback")
+        Adapter.choose(.init(pid: 202, bundleIdentifier: "unrelated.app"))
+        suite.expect(Adapter.selection == browser.selection, "a reused PID cannot select an undiscovered application")
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .source(nil)))
+        suite.expect(Adapter.selection == nil && Adapter.refreshes == 2,
+                     "automatic source selection can be restored without sending a transport command")
+        Adapter.sources = []
+        sourceDiscovery(suite)
+    }
+
+    private static func sourceDiscovery(_ suite: TestSuite) {
+        typealias Adapter = NotchPlaybackRoutingContract
+        Adapter.discovering = true
+        Adapter.selected = nil
+        Adapter.selection = nil
+        Adapter.available = true
+        Adapter.applications = [10, 20, 30].map {
+            Adapter.NSRunningApplication(bundleIdentifier: "test.player.\($0)", processIdentifier: $0)
+        }
+        Adapter.registeredPIDs = [10, 20, 30]
+        Adapter.systemPID = 10
+        Adapter.sourceMetadata = Dictionary(uniqueKeysWithValues: [Int32(10), 20, 30].map {
+            ($0, ["kMRMediaRemoteNowPlayingInfoTitle": "Track \($0)", "kMRMediaRemoteNowPlayingInfoPlaybackRate": 1] as [String: Any])
+        })
+        defer {
+            Adapter.lateReads.forEach { $0() }
+            Adapter.lateReads = []
+            Adapter.silentPIDs = []
+            Adapter.discovering = false
+            Adapter.sources = []
+            Adapter.selection = nil
+            Adapter.selected = nil
+        }
+        _ = Adapter.select()
+        let browser = NotchPlaybackSource.Selection(pid: 20, bundleIdentifier: "test.player.20")
+        Adapter.choose(browser)
+        Adapter.selected = Adapter.select()
+        Adapter.silentPIDs = [30]
+        suite.expect(Adapter.select()?.pid == 20 && Adapter.selection == browser && Adapter.sources.count == 2,
+                     "an unrelated client timeout preserves the chosen source and other completed reads")
+        Adapter.silentPIDs = [20]
+        suite.expect(Adapter.select() == nil && Adapter.selection == browser
+                     && Adapter.sourceReply["sourceIsAutomatic"] as? Bool == false,
+                     "a chosen source timeout exposes no stale controls and keeps the manual choice")
+        Adapter.publish(nil)
+        Adapter.silentPIDs = []
+        Adapter.registeredPIDs = [10, 30]
+        suite.expect(Adapter.select()?.pid == 20,
+                     "a manual source is queried again after a timeout even if enumeration omits it")
+        Adapter.lateReads.forEach { $0() }
+        Adapter.lateReads = []
+        suite.expect(Adapter.selection == browser && Adapter.sources.contains(where: { $0.selection == browser }),
+                     "late callbacks cannot replace a completed discovery or its choice")
+        Adapter.available = false
+        suite.expect(Adapter.select() == nil && Adapter.selection == browser && Adapter.sources.isEmpty,
+                     "a failed discovery clears unavailable rows without resetting the manual choice")
+        Adapter.available = true
+        suite.expect(Adapter.select()?.pid == 20, "discovery recovery restores the chosen source")
+        Adapter.sourceMetadata[20] = [:]
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection == nil,
+                     "a confirmed loss of track releases manual selection")
+        Adapter.sourceMetadata[20] = ["kMRMediaRemoteNowPlayingInfoTitle": "Browser track"]
+        Adapter.registeredPIDs = [10, 20, 30]
+        _ = Adapter.select()
+        Adapter.choose(browser)
+        Adapter.applications[1] = .init(bundleIdentifier: "test.reused.pid", processIdentifier: 20)
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection == nil,
+                     "a reused process identifier cannot retain another application's manual selection")
+        Adapter.applications[1] = .init(bundleIdentifier: browser.bundleIdentifier, processIdentifier: browser.pid)
+        _ = Adapter.select()
+        Adapter.choose(browser)
+        Adapter.applications.removeAll { $0.processIdentifier == 20 }
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.selection == nil,
+                     "closing the selected application restores automatic selection")
+        Adapter.applications.removeAll { $0.processIdentifier == 10 }
+        Adapter.systemPID = 99
+        Adapter.applications.append(.init(bundleIdentifier: "test.private.browser", processIdentifier: 99))
+        suite.expect(Adapter.select() == nil && Adapter.sources.map(\.pid) == [30],
+                     "discovered sources remain available when the global player has no metadata")
+        Adapter.choose(.init(pid: 30, bundleIdentifier: "test.player.30"))
+        suite.expect(Adapter.select()?.pid == 30, "an empty automatic result can be recovered by choosing a discovered source")
+
+        // Sixteen registered clients plus one music app exceed the bound.
+        let crowd = (Int32(100)...115).map { $0 }
+        Adapter.selection = nil
+        Adapter.applications = ([10] + crowd).map {
+            Adapter.NSRunningApplication(bundleIdentifier: "test.player.\($0)", processIdentifier: $0)
+        }
+        Adapter.registeredPIDs = crowd
+        Adapter.systemPID = 10
+        Adapter.sourceMetadata = Dictionary(uniqueKeysWithValues: ([10] + crowd).map {
+            ($0, ["kMRMediaRemoteNowPlayingInfoTitle": "Track \($0)"] as [String: Any])
+        })
+        Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
+        suite.expect(Adapter.select()?.pid == 10 && Adapter.sources.count == 16,
+                     "more candidates than the bound still yield the playing music app")
+        Adapter.selection = .init(pid: 115, bundleIdentifier: "test.player.115")
+        suite.expect(Adapter.select()?.pid == 115, "a chosen source enumerated last keeps its place in the bound")
+        Adapter.selection = nil
+        Adapter.systemPID = 115
+        Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
+        Adapter.sourceMetadata[115]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
+        suite.expect(Adapter.select()?.pid == 115,
+                     "the system's current player enumerated last keeps its place in the bound")
     }
 }

@@ -26,6 +26,22 @@ final class CleaningModeManager: ObservableObject {
     private static let systemDefinedEventType = CGEventType(rawValue: CleaningSystemKeyEvent.systemDefinedEventTypeRawValue)!
     private static let gestureEventType = CGEventType(rawValue: UInt32(NSEvent.EventType.gesture.rawValue))!
     private static let escapeKeyCode: Int64 = 53
+    private static let eventMask: CGEventMask = [
+        CGEventType.keyDown,
+        .keyUp,
+        .flagsChanged,
+        .scrollWheel,
+        .leftMouseDown,
+        .leftMouseUp,
+        .rightMouseDown,
+        .rightMouseUp,
+        .otherMouseDown,
+        .otherMouseUp,
+        systemDefinedEventType,
+        gestureEventType,
+    ].reduce(CGEventMask(0)) { mask, type in
+        mask | (CGEventMask(1) << type.rawValue)
+    }
 
     @Published private(set) var isActive = false
     /// Consecutive Escape presses so far (0...unlockThreshold). The
@@ -41,6 +57,9 @@ final class CleaningModeManager: ObservableObject {
     private var overlays: [NSPanel] = []
     private var screenObserver: NSObjectProtocol?
     private var shouldRestoreSuspendedFeaturesOnSessionReturn = false
+    // Mouse events still pass through Cleaning Mode. We only remember the
+    // down/up lifecycle so teardown never cuts a click in half.
+    private var mouseReleaseGate = CleaningMouseReleaseGate()
 
     /// The unlock-gesture state machine (pure, unit-tested separately).
     /// The 6s press window forgives hesitant, deliberate presses — at 2s a user
@@ -83,6 +102,7 @@ final class CleaningModeManager: ObservableObject {
             promptForAccessibility()
             return
         }
+        mouseReleaseGate.reset()
         guard installTap() else { return }
         // Debounce must not filter while the lock is up: its tap can run ahead
         // of ours (head-insert order depends on creation order) and would eat
@@ -107,11 +127,40 @@ final class CleaningModeManager: ObservableObject {
     }
 
     func deactivate() {
+        guard isActive else { return }
+        // If a click began while the overlay was up, keep the overlay and tap
+        // alive until its real mouse-up passes through. Never manufacture a
+        // release: the physical event is the only event that completes the click.
+        guard mouseReleaseGate.requestDeactivation() else { return }
+        scheduleUserDeactivation()
+    }
+
+    /// Permission teardown must remove the tap before Accessibility is reset.
+    func deactivateForSystemTeardown() {
         deactivate(restoreSuspendedFeatures: true)
     }
 
     private func deactivate(restoreSuspendedFeatures: Bool) {
         guard isActive else { return }
+        // Session/tap failure paths cannot wait for another input event. They
+        // retain the existing fail-open behaviour and tear down immediately.
+        finishDeactivation(restoreSuspendedFeatures: restoreSuspendedFeatures)
+    }
+
+    private func scheduleUserDeactivation() {
+        // Even when no button is currently held, leave the AppKit control action
+        // before unmapping its non-activating panel. A new press may arrive before
+        // this block runs, so keep the request pending until teardown completes.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isActive, self.mouseReleaseGate.deactivationPending,
+                  self.mouseReleaseGate.pressedButtons.isEmpty else { return }
+            self.finishDeactivation(restoreSuspendedFeatures: true)
+        }
+    }
+
+    private func finishDeactivation(restoreSuspendedFeatures: Bool) {
+        guard isActive else { return }
+        mouseReleaseGate.reset()
         removeTap()
         removeScreenObserver()
         hideOverlays()
@@ -140,12 +189,7 @@ final class CleaningModeManager: ObservableObject {
     // MARK: - Event tap
 
     private func installTap() -> Bool {
-        let mask = (1 << CGEventType.keyDown.rawValue)
-            | (1 << CGEventType.keyUp.rawValue)
-            | (1 << CGEventType.flagsChanged.rawValue)
-            | (1 << CGEventType.scrollWheel.rawValue)
-            | (1 << Self.systemDefinedEventType.rawValue)
-            | (1 << Self.gestureEventType.rawValue)
+        let mask = Self.eventMask
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
@@ -183,13 +227,29 @@ final class CleaningModeManager: ObservableObject {
         // the keyboard stays locked instead of silently coming back.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
+                // A disabled tap creates an observation gap: any tracked mouseDown
+                // may already have received its real mouseUp while we were blind.
+                // Invalidate that incomplete sequence so no later unlock can wait
+                // forever for a release that already happened. If the user had
+                // already requested deactivation, fail open after the callback.
+                let shouldFinishUserDeactivation = mouseReleaseGate.deactivationPending
+                mouseReleaseGate.invalidateTrackedPresses()
                 CGEvent.tapEnable(tap: tap, enable: true)
+                if shouldFinishUserDeactivation {
+                    scheduleUserDeactivation()
+                }
                 return nil
             }
             let restoreSuspendedFeatures = SessionActivity.shared.isActive
             DispatchQueue.main.async { [weak self] in
                 self?.deactivate(restoreSuspendedFeatures: restoreSuspendedFeatures)
             }
+            return Unmanaged.passUnretained(event)
+        }
+
+        // Mouse clicks are never locked. Observe only their boundaries so a
+        // user-requested teardown can wait for a matching real release.
+        if handleMouseButton(type: type, event: event) {
             return Unmanaged.passUnretained(event)
         }
 
@@ -219,6 +279,43 @@ final class CleaningModeManager: ObservableObject {
         return nil
     }
 
+    private func handleMouseButton(type: CGEventType, event: CGEvent) -> Bool {
+        let button: Int64
+        let isDown: Bool
+        switch type {
+        case .leftMouseDown:
+            button = 0
+            isDown = true
+        case .leftMouseUp:
+            button = 0
+            isDown = false
+        case .rightMouseDown:
+            button = 1
+            isDown = true
+        case .rightMouseUp:
+            button = 1
+            isDown = false
+        case .otherMouseDown:
+            button = event.getIntegerValueField(.mouseEventButtonNumber)
+            isDown = true
+        case .otherMouseUp:
+            button = event.getIntegerValueField(.mouseEventButtonNumber)
+            isDown = false
+        default:
+            return false
+        }
+
+        if isDown {
+            mouseReleaseGate.buttonDown(button)
+        } else if mouseReleaseGate.buttonUp(button) {
+            // The callback is running on this tap's run loop. Removing the tap
+            // here would invalidate it from its own callback stack, so finish on
+            // the next main-loop turn after the real release has propagated.
+            scheduleUserDeactivation()
+        }
+        return true
+    }
+
     private func systemKeyEvent(from event: CGEvent) -> CleaningSystemKeyEvent? {
         guard let nsEvent = NSEvent(cgEvent: event) else { return nil }
         return CleaningSystemKeyEvent.decode(subtype: Int(nsEvent.subtype.rawValue),
@@ -231,8 +328,9 @@ final class CleaningModeManager: ObservableObject {
                                               isRepeat: isRepeat)
         unlockProgress = unlock.progress
         if unlocked {
-            // Defer so we don't tear down the tap from inside its own callback.
-            DispatchQueue.main.async { [weak self] in self?.deactivate() }
+            // deactivate() only records the request here; actual teardown is
+            // scheduled after this tap callback has returned.
+            deactivate()
         }
     }
 

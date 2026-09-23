@@ -272,6 +272,14 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchCalendarStrings.swift
         Sources/Vorssaint/Core/NotchNotificationStrings.swift
         Sources/Vorssaint/Core/NotchGestureStrings.swift
+        Sources/Vorssaint/Core/NotchAgentStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentPricing.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentLogParser.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift
@@ -478,6 +486,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift
+        Sources/Vorssaint/Services/CleaningMode/CleaningMouseReleaseGate.swift
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift
@@ -588,6 +597,7 @@ cp "build/$FAN_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID
 mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
+cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
