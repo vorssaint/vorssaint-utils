@@ -1161,6 +1161,27 @@ enum NotchTests {
         suite.expect(NotchMotion.duration(from: roomy.notice, to: idle)
                < NotchMotion.duration(from: idle, to: roomy.notice),
                "horizontal dismissal remains quicker than opening")
+        func near(_ value: CGFloat, _ expected: CGFloat) -> Bool { abs(value - expected) < 0.000_1 }
+        let closing = NotchGlassFade.plan(from: 200, to: 32, endsInGlass: false, current: 1)
+        suite.expect(near(closing.openness(atHeight: 200), 1) && near(closing.openness(atHeight: 80), 1)
+                && near(closing.openness(atHeight: 56), 0.5) && near(closing.openness(atHeight: 32), 0),
+               "settled glass closing into a black strip darkens only over the last stretch and arrives black")
+        let opening = NotchGlassFade.plan(from: 32, to: 200, endsInGlass: true, current: 0)
+        suite.expect(near(opening.openness(atHeight: 32), 0) && near(opening.openness(atHeight: 56), 0.5)
+                && near(opening.openness(atHeight: 80), 1) && near(opening.openness(atHeight: 200), 1),
+               "glass leaving a black strip opens up over the first stretch")
+        let reopened = NotchGlassFade.plan(from: 56, to: 200, endsInGlass: true,
+                                           current: closing.openness(atHeight: 56))
+        suite.expect(near(reopened.openness(atHeight: 56), 0.5) && near(reopened.openness(atHeight: 200), 1),
+               "a close reversed halfway reopens from the openness on screen and ends fully open")
+        let reclosed = NotchGlassFade.plan(from: 44, to: 32, endsInGlass: false,
+                                           current: opening.openness(atHeight: 44))
+        suite.expect(near(reclosed.openness(atHeight: 44), 0.25) && near(reclosed.openness(atHeight: 32), 0),
+               "an opening reversed early closes from the openness on screen and ends black")
+        suite.expect(NotchGlassFade.plan(from: 100, to: 300, endsInGlass: true, current: 1) == .open
+                && NotchGlassFade.plan(from: 300, to: 100, endsInGlass: true, current: 1) == .open
+                && NotchGlassFade.plan(from: .nan, to: 100, endsInGlass: false, current: 1) == .open,
+               "glass resizing into glass, or an unreadable height, stays fully open")
         let compactMusic = roomy.compactMusicGeometry
         suite.expect(compactMusic.compactActivityWingWidth == 34
                && compactMusic.compactActivityCameraGap == roomy.cameraWidth
