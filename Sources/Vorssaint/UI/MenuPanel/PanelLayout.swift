@@ -275,10 +275,10 @@ struct PanelSection<Content: View>: View {
     }
 
     private var collapseIcon: some View {
-        Image(systemName: "chevron.right")
+        Image(systemName: "chevron.forward")
             .font(.system(size: 9, weight: .semibold))
             .foregroundStyle(.tertiary)
-            .rotationEffect(.degrees(collapsed ? 0 : 90))
+            .disclosureRotation(open: !collapsed)
     }
 
     private var editButton: some View {

@@ -65,6 +65,10 @@ extension FeatureStrings {
             return RecorderExportStrings(
                 speed: "匯出速度", custom: "自訂速度", duration: "匯出長度",
                 previewNote: "適用於影片、GIF 和分享連結。編輯預覽維持 1×，原始錄影不會改變。")
+        case .ar:
+            return RecorderExportStrings(
+                speed: "سرعة التصدير", custom: "سرعة مخصصة", duration: "مدة التصدير",
+                previewNote: "ينطبق على الفيديو وGIF والروابط المشتركة. وتبقى معاينة التحرير بسرعة ×1، ولا يتغير التسجيل الأصلي.")
         }
     }
 }

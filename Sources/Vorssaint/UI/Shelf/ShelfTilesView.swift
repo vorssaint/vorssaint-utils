@@ -164,10 +164,27 @@ struct ShelfTilesView: NSViewRepresentable {
             ? ShelfTileLayout.rowCount(contentHeight: scroll.contentSize.height, tileHeight: tile.height,
                                        spacing: spacing, inset: inset)
             : max(1, Int(ceil(Double(items.count) / Double(columns))))
+        // A sideways shelf keeps flowing past the viewport, and its document is
+        // widened to match below. Mirroring around the viewport would put the
+        // columns past the fold at negative x, outside the document entirely,
+        // so the sideways grid is mirrored around the width it will actually
+        // have and the first column stays reachable at the right edge.
+        let tileColumns = max(1, Int(ceil(Double(items.count) / Double(rows))))
+        let flowWidth = inset * 2 + CGFloat(tileColumns) * tile.width
+            + CGFloat(max(0, tileColumns - 1)) * spacing
+        let documentWidth = max(flowWidth, scroll.contentSize.width)
+        // The grid is AppKit, laid out in absolute frames, so the layout
+        // direction has to be carried in by hand rather than inherited.
+        let rightToLeft = L10n.shared.language.isRightToLeft
         let frame: (Int) -> CGRect = { index in
-            sideways
-                ? ShelfTileLayout.sidewaysTileFrame(index: index, rows: rows, tileSize: tile, spacing: spacing, inset: inset)
-                : ShelfTileLayout.tileFrame(index: index, columns: columns, tileSize: tile, spacing: spacing, inset: inset)
+            if sideways {
+                return ShelfTileLayout.sidewaysTileFrame(index: index, rows: rows, tileSize: tile,
+                                                         spacing: spacing, inset: inset,
+                                                         mirroredIn: rightToLeft ? documentWidth : nil)
+            }
+            return ShelfTileLayout.tileFrame(index: index, columns: columns, tileSize: tile,
+                                             spacing: spacing, inset: inset,
+                                             mirroredIn: rightToLeft ? contentWidth : nil)
         }
 
         // Item.== is id-only (by design, for selection/lookup purposes
@@ -182,6 +199,10 @@ struct ShelfTilesView: NSViewRepresentable {
                 && selection == $0.lastRebuiltSelection
                 && expandedBatches == $0.lastRebuiltExpandedBatches
                 && scroll.contentSize == $0.lastRebuiltContentSize
+                // Nothing else here changes when the language does, and the
+                // frames are absolute, so without this an open shelf keeps the
+                // direction it was built in.
+                && rightToLeft == $0.lastRebuiltRightToLeft
         } ?? false
         if unchanged {
             // Revealing does not require rebuilding any tile, so keep the
@@ -192,10 +213,15 @@ struct ShelfTilesView: NSViewRepresentable {
             }
             return
         }
+        // Where the flow ends moves when the direction flips or the viewport
+        // resizes, and nothing else here moves it.
+        let endMoved = coordinator.map { $0.lastRebuiltRightToLeft != rightToLeft
+                                          || $0.lastRebuiltContentSize != scroll.contentSize } ?? true
         coordinator?.lastRebuiltItems = items
         coordinator?.lastRebuiltSelection = selection
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
         coordinator?.lastRebuiltContentSize = scroll.contentSize
+        coordinator?.lastRebuiltRightToLeft = rightToLeft
 
         document.subviews.forEach { $0.removeFromSuperview() }
 
@@ -207,12 +233,21 @@ struct ShelfTilesView: NSViewRepresentable {
             document.addSubview(view)
         }
         if sideways {
-            let tileColumns = max(1, Int(ceil(Double(items.count) / Double(rows))))
-            let flowWidth = inset * 2 + CGFloat(tileColumns) * tile.width + CGFloat(max(0, tileColumns - 1)) * spacing
             scroll.hasHorizontalScroller = flowWidth > scroll.contentSize.width + 1
             document.frame = NSRect(x: 0, y: 0,
-                                    width: max(flowWidth, scroll.contentSize.width),
+                                    width: documentWidth,
                                     height: scroll.contentSize.height)
+            // A clip view opens at x = 0 whatever the layout direction, and
+            // the mirrored grid puts the first column at the document's right
+            // edge. With more columns than fit, a right-to-left shelf would
+            // otherwise open on its last ones, with the first waiting past the
+            // right edge until someone scrolled. Only when the end itself
+            // moved: an ordinary rebuild leaves the shelf where it was left.
+            if endMoved {
+                let origin = rightToLeft ? max(0, documentWidth - scroll.contentSize.width) : 0
+                scroll.contentView.scroll(to: NSPoint(x: origin, y: 0))
+                scroll.reflectScrolledClipView(scroll.contentView)
+            }
         } else {
             let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * spacing
             scroll.hasVerticalScroller = contentHeight > scroll.contentSize.height + 1
@@ -240,6 +275,7 @@ struct ShelfTilesView: NSViewRepresentable {
         var lastRebuiltSelection: Set<UUID>?
         var lastRebuiltExpandedBatches: Set<UUID>?
         var lastRebuiltContentSize: NSSize?
+        var lastRebuiltRightToLeft: Bool?
     }
 
     /// Brings a newly added tile into view. scrollToVisible already does
@@ -361,7 +397,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
             addSubview(badge)
 
             let expand = NSButton(frame: NSRect(x: 4, y: 4, width: 17, height: 17))
-            expand.image = NSImage(systemSymbolName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle.fill",
+            expand.image = NSImage(systemSymbolName: isExpanded ? "chevron.down.circle.fill" : "chevron.forward.circle.fill",
                                    accessibilityDescription: nil)
             expand.isBordered = false
             expand.bezelStyle = .regularSquare
@@ -427,7 +463,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
                                               linkSingular: s.shelfTooltipLinkSingular,
                                               linkFew: s.shelfTooltipLinkFew,
                                               linkPlural: s.shelfTooltipLinkPlural,
-                                              usesFewForm: L10n.shared.language.usesFewCountForm)
+                                              countRule: L10n.shared.language.countRule)
             return ShelfTooltipSupport.text(forPile: breakdown, strings: strings)
         }
     }

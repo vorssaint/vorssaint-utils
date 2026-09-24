@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -204,5 +205,18 @@ extension MenuBarAppearanceStrings {
         highColor: "高負載顏色",
         mediumFrom: "中等起點",
         highFrom: "高負載起點"
+    )
+
+    static let ar = MenuBarAppearanceStrings(
+        label: "عرض الاستخدام",
+        values: "قيم",
+        bars: "أشرطة",
+        caption: "تنطبق الأشرطة على استخدام المعالج وبطاقة الرسوم والذاكرة والقرص. أما بقية القراءات فتبقى أرقامًا.",
+        customize: "ألوان الأشرطة وحدودها",
+        normalColor: "اللون العادي",
+        mediumColor: "اللون المتوسط",
+        highColor: "اللون المرتفع",
+        mediumFrom: "متوسط ابتداءً من",
+        highFrom: "مرتفع ابتداءً من"
     )
 }

@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -134,5 +135,13 @@ extension AppearanceStrings {
         light: "淺色",
         dark: "深色",
         liquidGlass: "Liquid Glass"
+    )
+
+    static let ar = AppearanceStrings(
+        label: "المظهر",
+        system: "النظام",
+        light: "فاتح",
+        dark: "داكن",
+        liquidGlass: "الزجاج السائل"
     )
 }

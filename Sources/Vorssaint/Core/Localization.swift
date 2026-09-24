@@ -4,6 +4,21 @@
 import Combine
 import Foundation
 
+/// How a language picks a plural form for a count. Most languages here have
+/// one form for one and one for the rest; Russian and Arabic each put a third
+/// between them, on boundaries of their own.
+enum CountRule {
+    case oneAndMany
+    /// One for 1, 21, 31 but not 11; the middle form for 2 through 4, 22
+    /// through 24 but not 12 through 14; the last for everything else.
+    case russian
+    /// The middle form is the ordinary plural, which Arabic uses for three
+    /// through ten of every hundred. Eleven up returns to the singular noun
+    /// after the numeral, and so does two, whose own dual form is not written
+    /// with a numeral in front of it.
+    case arabic
+}
+
 /// Languages the interface can use. The first launch defaults to the system
 /// language; the onboarding and Settings let the user override it at any time.
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -20,13 +35,20 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
+    case ar = "ar"
 
     var id: String { rawValue }
 
-    /// Whether this language puts a distinct form between one and many. Only
-    /// Russian, of the thirteen: two through four take a form of their own,
-    /// so "2 файла" and not "2 файлов".
-    var usesFewCountForm: Bool { self == .ru }
+    /// Which plural forms a count asks this language for. Two of the
+    /// fourteen put a third form between one and many, and they put it in
+    /// different places.
+    var countRule: CountRule {
+        switch self {
+        case .ru: return .russian
+        case .ar: return .arabic
+        default: return .oneAndMany
+        }
+    }
 
     /// The language's own name, shown in its own script, the way macOS lists them.
     var displayName: String {
@@ -44,6 +66,17 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhHans: return "简体中文"
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
+        case .ar: return "العربية"
+        }
+    }
+
+    /// Languages written right to left. The app picks its own language instead
+    /// of following the system one, so nothing mirrors the interface on its own:
+    /// every window root reads this and sets the layout direction itself.
+    var isRightToLeft: Bool {
+        switch self {
+        case .ar: return true
+        default: return false
         }
     }
 
@@ -72,7 +105,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("de", .de), ("fr", .fr),
-            ("it", .it), ("ja", .ja), ("ko", .ko), ("zh", .zhHans),
+            ("it", .it), ("ja", .ja), ("ko", .ko), ("zh", .zhHans), ("ar", .ar),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -103,6 +136,7 @@ final class L10n: ObservableObject {
         case .zhHans: return .zhHans
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
+        case .ar: return .ar
         }
     }
 
@@ -690,23 +724,26 @@ struct Strings {
     let shelfHint: String
     let shelfItemImage: String
     // Three forms, not two: Russian agrees a noun with the number in front of
-    // it as one, as two through four, and as five or more. Every other
+    // it as one, as two through four, and as five or more. Arabic asks for a
+    // middle form too, but on its own boundaries — the ordinary plural from
+    // three through ten of every hundred — so the slot holds what that
+    // language's own rule asks for rather than a fixed range. Every other
     // language here needs only the first and the last, and repeats the last
     // in the middle slot. A pile always holds two or more, so the items count
-    // has no singular of its own.
-    let shelfTooltipItemsFormat: String      // + count, five or more
-    let shelfTooltipItemsFew: String         // + count, two through four
+    // has no singular of its own. `CountRule` is what picks between them.
+    let shelfTooltipItemsFormat: String      // + count, the last form
+    let shelfTooltipItemsFew: String         // + count, the middle form
     let shelfTooltipImageSingular: String    // + count == 1
-    let shelfTooltipImageFew: String         // + count, two through four
+    let shelfTooltipImageFew: String         // + count, the middle form
     let shelfTooltipImagePlural: String      // + count
     let shelfTooltipFileSingular: String     // + count == 1
-    let shelfTooltipFileFew: String          // + count, two through four
+    let shelfTooltipFileFew: String          // + count, the middle form
     let shelfTooltipFilePlural: String       // + count
     let shelfTooltipNoteSingular: String     // + count == 1
-    let shelfTooltipNoteFew: String          // + count, two through four
+    let shelfTooltipNoteFew: String          // + count, the middle form
     let shelfTooltipNotePlural: String       // + count
     let shelfTooltipLinkSingular: String     // + count == 1
-    let shelfTooltipLinkFew: String          // + count, two through four
+    let shelfTooltipLinkFew: String          // + count, the middle form
     let shelfTooltipLinkPlural: String       // + count
     let shelfActionOpen: String
     let shelfActionOpenWith: String

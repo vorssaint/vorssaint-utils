@@ -240,6 +240,11 @@ struct RecorderEditorView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The picture has its own coordinates, and aiming a zoom or a blur
+        // compares a click against them. A mirrored root flips what is drawn
+        // while the click keeps the x it was given, so the mark would land on
+        // the far side of the frame from the pointer.
+        .unmirroredLayout()
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .onTapGesture {
@@ -372,7 +377,13 @@ struct RecorderEditorView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .trailing)
                 .lineLimit(1)
+            // A time axis is not a reading order, and half of this row is
+            // AppKit drawing absolute positions that mirror for nobody. Pinning
+            // every lane to one direction is what keeps a moment at the same
+            // place across the filmstrip, the ruler and the native lanes; the
+            // labels and the controls around them still follow the language.
             content()
+                .unmirroredLayout()
         }
     }
 

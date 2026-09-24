@@ -80,8 +80,14 @@ struct NotchMixerView: View {
                 NotchAppFader(app: app, height: faderHeight, editingVolumeID: $editingVolumeID,
                               isPinned: arrangement.isPinned(app.persistenceID),
                               togglePin: { updateArrangement { $0.togglePin(app.persistenceID ?? "") } },
-                              moveBack: moveAction(for: app, offset: -1, ids: ids),
-                              moveForward: moveAction(for: app, offset: 1, ids: ids))
+                              // The rail is drawn in reverse in a right-to-left
+                              // interface, so "left" is a later index there.
+                              moveBack: moveAction(for: app, offset: MixerReorderDirection.offset(
+                                  towardTrailingEdge: false,
+                                  rightToLeft: l10n.language.isRightToLeft), ids: ids),
+                              moveForward: moveAction(for: app, offset: MixerReorderDirection.offset(
+                                  towardTrailingEdge: true,
+                                  rightToLeft: l10n.language.isRightToLeft), ids: ids))
                     .modifier(MixerAppReorderModifier(
                         id: app.persistenceID,
                         icon: ResponsibleProcess.icon(for: app.ownerPid, pointSize: 32),
@@ -544,6 +550,9 @@ private struct NotchAppFader: View {
             Button(action: togglePin) {
                 Label(isPinned ? strings.unpin : strings.pinFirst, systemImage: isPinned ? "pin.slash" : "pin")
             }
+            // Left and right here are the screen, not the reading order: the
+            // label says which way the tile moves, so the glyph matches the word
+            // in every language.
             Button { moveBack?() } label: { Label(strings.moveLeft, systemImage: "arrow.left") }
                 .disabled(moveBack == nil)
             Button { moveForward?() } label: { Label(strings.moveRight, systemImage: "arrow.right") }

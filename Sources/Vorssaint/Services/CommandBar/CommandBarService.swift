@@ -2956,7 +2956,7 @@ final class CommandBarService: ObservableObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: CommandBarView())
+        let host = NSHostingController(rootView: CommandBarView().appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel
@@ -3149,10 +3149,17 @@ final class CommandBarService: ObservableObject {
                 }
                 return nil
             case kVK_LeftArrow:
-                // Handed back untouched when the field has text in it.
-                return self.moveCategory(-1) ? nil : event
+                // Handed back untouched when the field has text in it. The
+                // row of chips is drawn in reverse in a right-to-left
+                // interface, so the arrow steps the walk the other way and
+                // the highlight still moves where the key points.
+                return self.moveCategory(SwitcherSupport.horizontalArrowDelta(
+                    towardTrailingEdge: false,
+                    rightToLeft: L10n.shared.language.isRightToLeft)) ? nil : event
             case kVK_RightArrow:
-                return self.moveCategory(1) ? nil : event
+                return self.moveCategory(SwitcherSupport.horizontalArrowDelta(
+                    towardTrailingEdge: true,
+                    rightToLeft: L10n.shared.language.isRightToLeft)) ? nil : event
             case kVK_Tab:
                 self.completeSelection()
                 return nil

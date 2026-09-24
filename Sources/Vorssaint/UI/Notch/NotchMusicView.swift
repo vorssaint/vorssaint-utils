@@ -269,6 +269,11 @@ private struct NotchMusicTransport: View {
             playbackButton("forward.end.fill", title: text.mediaNext, command: .next)
         }
         .frame(height: height)
+        // The media glyphs are among the few SF Symbols that never mirror,
+        // because transport controls point at the tape, not at the reader.
+        // Mirroring the row around them would put next on the left behind a
+        // glyph still pointing right.
+        .unmirroredLayout()
     }
 
     private var toggleButton: some View {
@@ -360,6 +365,12 @@ private struct NotchMusicTimeline: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                 }
+                // A playback position is a time axis: elapsed at the left
+                // edge growing right, remaining at the right, and the scrub
+                // thumb where the ear expects it. Unlike the volume and
+                // brightness bars, which are magnitudes along the reading
+                // order and do mirror.
+                .unmirroredLayout()
             }
             .frame(height: 30)
             .onChange(of: playback.track) { clearScrub() }

@@ -566,7 +566,7 @@ private final class NotchQuickAccessContainer: NSView {
         self.canvas = canvas
         let motion = NotchQuickAccessMotion()
         self.motion = motion
-        quickView = NSHostingView(rootView: content(motion))
+        quickView = NSHostingView(rootView: AnyView(content(motion).appLayoutDirection()))
         quickView.sizingOptions = []
         quickView.wantsLayer = true
         quickView.isHidden = true
@@ -656,11 +656,11 @@ private final class NotchCanvas: NSView {
 
     init(content: AnyView, background: (NotchBackdropPresentation) -> AnyView, size: CGSize) {
         contentSize = size
-        backdrop = NotchHostingView(rootView: background(backdropPresentation))
+        backdrop = NotchHostingView(rootView: AnyView(background(backdropPresentation).appLayoutDirection()))
         backdrop.sizingOptions = []
         backdrop.wantsLayer = true
         backdrop.autoresizingMask = []
-        host = NotchHostingView(rootView: content)
+        host = NotchHostingView(rootView: AnyView(content.appLayoutDirection()))
         host.sizingOptions = []
         host.wantsLayer = true
         host.autoresizingMask = []

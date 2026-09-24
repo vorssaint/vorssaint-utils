@@ -124,6 +124,7 @@ struct KeepAwakeEndTimePicker: View {
         case .ko: return ("시 (0–23)", "분")
         case .zhHans: return ("小时 (0–23)", "分钟")
         case .zhTW, .zhHK: return ("小時 (0–23)", "分鐘")
+        case .ar: return ("الساعة (0–23)", "الدقيقة")
         }
     }
 }

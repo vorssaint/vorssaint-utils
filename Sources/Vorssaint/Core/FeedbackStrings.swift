@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -470,5 +471,37 @@ extension FeedbackStrings {
         commandFeature: "建議功能",
         commandSubtitle: "傳送意見",
         diagnosticsChannelLabel: "更新頻道"
+    )
+
+    static let ar = FeedbackStrings(
+        sectionTitle: "الملاحظات",
+        sectionCaption: "أرسِل بلاغًا عن خلل أو فكرة لميزة مباشرةً إلى القائم على تطوير Vorssaint.",
+        openButton: "إرسال ملاحظة",
+        windowTitle: "إرسال ملاحظة",
+        bugTitle: "خلل",
+        featureTitle: "فكرة ميزة",
+        messageLabel: "ما الذي تودّ مشاركته؟",
+        bugPlaceholder: "أخبرني بما حدث وما الذي كنت تتوقعه.",
+        featurePlaceholder: "صِف الفكرة وكيف يمكن أن تفيد.",
+        charactersFormat: "%d من 2000 حرف",
+        includeDiagnostics: "تضمين التفاصيل التقنية",
+        includeDiagnosticsCaption: "يضيف التفاصيل التقنية الموضحة أدناه فقط. ولا يتضمن السجلات.",
+        whatSentTitle: "ما الذي سيُرسل",
+        whatSentBasic: "الفئة التي اخترتها والنص أعلاه.",
+        whatSentDiagnostics: "التفاصيل التقنية المدرجة أدناه.",
+        privacyNote: "لا يُرسل أي اسم أو حساب أو بريد إلكتروني أو معرّف جهاز أو سجلات أو لقطات شاشة أو ملفات أو محتوى الحافظة. ويُعالَج عنوان IP العام مؤقتًا للحماية من إساءة الاستخدام ولا يُرفق بالملاحظة.",
+        retentionNote: "بعد التسليم، يبقى النص في قنوات الدعم الخاصة إلى أن يحذفه مالك الخدمة. أما النسخة غير المُسلَّمة فتُحذف نهائيًا بعد 7 أيام.",
+        sendButton: "إرسال الملاحظة",
+        sending: "جارٍ الإرسال…",
+        sentTitle: "تم إرسال الملاحظة",
+        sentCaption: "شكرًا لك. لم تُرسل أي معلومات اتصال، لذا لن تصلك ردود مباشرة.",
+        unavailableError: "تعذّر الاتصال. تحقق من اتصالك بالإنترنت وحاول مجددًا.",
+        rateLimitError: "عدد كبير من الإرسالات من هذه الشبكة. يُرجى المحاولة لاحقًا.",
+        genericError: "تعذّر إرسال الملاحظة في الوقت الحالي.",
+        done: "تم",
+        commandBug: "الإبلاغ عن خلل",
+        commandFeature: "اقتراح ميزة",
+        commandSubtitle: "إرسال ملاحظة",
+        diagnosticsChannelLabel: "قناة التحديث"
     )
 }

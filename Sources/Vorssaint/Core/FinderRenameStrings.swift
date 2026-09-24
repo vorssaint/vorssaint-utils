@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -148,5 +149,14 @@ extension FinderRenameFeatureStrings {
         enableLabel: "使用快捷鍵重新命名",
         caption: "快捷鍵只會在 Finder 生效，不會影響文字欄位。F2 會當作一般按鍵使用；如果它用來調校亮度，請按 Fn-F2 或選擇其他快捷鍵。",
         shortcutLabel: "重新命名"
+    )
+
+    static let ar = FinderRenameFeatureStrings(
+        pageTitle: "اختصارات Finder",
+        hubTitle: "اختصار إعادة التسمية",
+        hubDescription: "أعِد تسمية الملف أو المجلد المحدد باختصار من اختيارك.",
+        enableLabel: "استخدام اختصار لإعادة التسمية",
+        caption: "يعمل الاختصار داخل Finder فقط ولا يؤثر في حقول النص. يعمل F2 كمفتاح عادي؛ وعلى لوحات المفاتيح التي يتحكم فيها بالسطوع، استخدم Fn-F2 أو اختر اختصارًا آخر.",
+        shortcutLabel: "إعادة التسمية"
     )
 }

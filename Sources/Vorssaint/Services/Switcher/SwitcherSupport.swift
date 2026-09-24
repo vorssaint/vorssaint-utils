@@ -416,6 +416,16 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// Which way the selection index moves for a horizontal arrow key. The
+    /// arrows name a direction on screen and the grid and icon row are drawn
+    /// in reverse in a right-to-left interface, so the index follows what the
+    /// reader sees. Shortcut cycling is deliberately left out of this: it
+    /// names next and previous, not left and right, and keeps its order in
+    /// every language.
+    static func horizontalArrowDelta(towardTrailingEdge: Bool, rightToLeft: Bool) -> Int {
+        (towardTrailingEdge == rightToLeft) ? -1 : 1
+    }
+
     /// How long the shortcut must be held before the panel appears. A quick
     /// press can still switch directly without flashing the panel, while zero
     /// gives users who prefer immediate visual feedback an instant surface.

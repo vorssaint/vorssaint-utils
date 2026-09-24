@@ -96,6 +96,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "暫存架已滿",
                 fullBody: "附件已儲存，但暫存架已沒有空間。",
                 okButton: "好")
+        case .ar:
+            return .init(
+                failedTitle: "تعذّرت إضافة المرفق",
+                failedBody: "لم يُكمل الملف حفظه على الرف.",
+                fullTitle: "الرف ممتلئ",
+                fullBody: "أكمل المرفق حفظه لكن لم تبقَ مساحة على الرف.",
+                okButton: "موافق")
         }
     }
 }

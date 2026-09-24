@@ -7,7 +7,7 @@ enum LocalizationTests {
     static let languages: [(AppLanguage, Strings)] = [
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
         (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko),
-        (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
+        (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK), (.ar, .ar),
     ]
 
     static func fields(_ value: Any) -> [String: String] {
@@ -67,6 +67,8 @@ enum LocalizationTests {
         let diskEnglish = diskPickerText(.enUS)
         suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
                      "disk picker uses a dedicated label and complete option names")
+        suite.expect(AppLanguage.allCases.filter(\.isRightToLeft) == [.ar],
+                     "Arabic is the only right-to-left interface language")
         for (language, strings) in languages {
             suite.expect(strings.diskMenuBarStyleLabel != FeatureStrings.menuBarAppearance(language).label,
                          "disk picker label is distinct from usage display in \(language.rawValue)")

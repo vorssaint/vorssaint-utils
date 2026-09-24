@@ -755,14 +755,18 @@ final class NotchService: ObservableObject {
             if let target = highlightedSection, filteredSections.contains(target) { select(target) }
             return true
         }
-        let direction: QuickToolsSupport.GridDirection
+        // The side arrows name a place on screen, and the gallery is drawn
+        // in reverse in a right-to-left interface; the vertical pair is not.
+        let arrow: QuickToolsSupport.GridDirection
         switch event.keyCode {
-        case 123 where sectionQuery.isEmpty: direction = .left
-        case 124 where sectionQuery.isEmpty: direction = .right
-        case 125: direction = .down
-        case 126: direction = .up
+        case 123 where sectionQuery.isEmpty: arrow = .left
+        case 124 where sectionQuery.isEmpty: arrow = .right
+        case 125: arrow = .down
+        case 126: arrow = .up
         default: return false
         }
+        let direction = QuickToolsSupport.gridDirection(forArrow: arrow,
+                                                        rightToLeft: L10n.shared.language.isRightToLeft)
         let sections = filteredSections
         guard !sections.isEmpty else { return true }
         // While typing, the side arrows keep editing the query and the

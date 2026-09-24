@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -176,5 +177,16 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "僅有視窗時顯示",
         hidden: "一律不顯示",
         caption: "選擇每個 App 的顯示方式。沒有規則的 App 使用上方選項。"
+    )
+
+    static let ar = SwitcherAppRulesStrings(
+        listTitle: "القواعد حسب التطبيق",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        behaviorLabel: "سلوك مبدّل النوافذ",
+        showWithoutWindows: "العرض بدون نوافذ",
+        windowsOnly: "النوافذ فقط",
+        hidden: "عدم العرض أبدًا",
+        caption: "اختر كيف يظهر كل تطبيق. التطبيقات بلا قاعدة تتبع الخيار أعلاه."
     )
 }

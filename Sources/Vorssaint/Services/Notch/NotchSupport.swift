@@ -1348,3 +1348,23 @@ enum NotchMenuBarLayout {
         return max(0, min(camera.minX - left, right - camera.maxX))
     }
 }
+
+/// Where the filled part of a level bar sits. Split out because the cell draws
+/// it by hand: AppKit mirrors the slider's tracking once it knows the
+/// direction, but a custom bar stays anchored wherever it was written.
+enum NotchLevelBar {
+    static func fillRect(track: CGRect, fraction: Double, mirrored: Bool) -> CGRect {
+        let clamped = fraction.isFinite ? min(1, max(0, fraction)) : 0
+        let width = track.width * clamped
+        return CGRect(x: mirrored ? track.maxX - width : track.minX,
+                      y: track.minY, width: width, height: track.height)
+    }
+
+    /// Where the marker line sits on a horizontal bar. Measured from the same
+    /// edge the fill grows from, so the two agree.
+    static func markerX(track: CGRect, position: Double, mirrored: Bool) -> CGFloat {
+        let clamped = position.isFinite ? min(1, max(0, position)) : 0
+        let offset = track.width * clamped
+        return mirrored ? track.maxX - offset : track.minX + offset
+    }
+}

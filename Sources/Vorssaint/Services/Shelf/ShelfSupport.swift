@@ -94,26 +94,41 @@ enum ShelfTileLayout {
                                   rows: Int,
                                   tileSize: CGSize,
                                   spacing: CGFloat,
-                                  inset: CGFloat) -> CGRect {
+                                  inset: CGFloat,
+                                  mirroredIn contentWidth: CGFloat? = nil) -> CGRect {
         let safeRows = max(1, rows)
         let column = index / safeRows
         let row = index % safeRows
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let stride = tileSize.width + spacing
+        let x = contentWidth.map { $0 - inset - tileSize.width - CGFloat(column) * stride }
+            ?? (inset + CGFloat(column) * stride)
+        return CGRect(x: x,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)
     }
 
     /// Where the tile at `index` sits in the flipped document view.
+    ///
+    /// These are absolute frames in an AppKit document view, so nothing mirrors
+    /// them on its own. `mirroredIn` measures each column in from the trailing
+    /// edge of that width, which leaves the width a short row cannot fill on
+    /// the side a right-to-left reader ends on. Reversing the column index
+    /// instead would keep that leftover on the right, the mirror of what the
+    /// grid should do, so the content width is required to mirror at all.
     static func tileFrame(index: Int,
                           columns: Int,
                           tileSize: CGSize,
                           spacing: CGFloat,
-                          inset: CGFloat) -> CGRect {
+                          inset: CGFloat,
+                          mirroredIn contentWidth: CGFloat? = nil) -> CGRect {
         let safeColumns = max(1, columns)
         let column = index % safeColumns
         let row = index / safeColumns
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let stride = tileSize.width + spacing
+        let x = contentWidth.map { $0 - inset - tileSize.width - CGFloat(column) * stride }
+            ?? (inset + CGFloat(column) * stride)
+        return CGRect(x: x,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)
@@ -243,22 +258,34 @@ struct ShelfTooltipStrings {
     let linkSingular: String
     let linkFew: String
     let linkPlural: String
-    /// Set for a language whose two through four take a form of their own.
-    let usesFewForm: Bool
+    /// How this language's counts pick among the three.
+    let countRule: CountRule
 
     /// The form a count asks for. Russian agrees by the number's last digits:
     /// one for 1, 21, 31 but not 11; the middle form for 2 through 4, 22
     /// through 24 but not 12 through 14; the last for everything else.
+    ///
+    /// Arabic uses the middle form for the ordinary plural, which it asks for
+    /// from three through ten of every hundred: 3, 7, 103, 110. Two takes the
+    /// last form along with eleven and up, since the dual is a word of its own
+    /// and is not what follows a numeral.
     enum Form { case one, few, many }
 
     func form(for count: Int) -> Form {
-        guard usesFewForm else { return count == 1 ? .one : .many }
         let magnitude = abs(count)
-        if (11...14).contains(magnitude % 100) { return .many }
-        switch magnitude % 10 {
-        case 1: return .one
-        case 2, 3, 4: return .few
-        default: return .many
+        switch countRule {
+        case .oneAndMany:
+            return magnitude == 1 ? .one : .many
+        case .russian:
+            if (11...14).contains(magnitude % 100) { return .many }
+            switch magnitude % 10 {
+            case 1: return .one
+            case 2, 3, 4: return .few
+            default: return .many
+            }
+        case .arabic:
+            if magnitude == 1 { return .one }
+            return (3...10).contains(magnitude % 100) ? .few : .many
         }
     }
 }
