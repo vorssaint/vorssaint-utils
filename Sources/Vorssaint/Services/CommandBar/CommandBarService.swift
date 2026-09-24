@@ -185,6 +185,7 @@ final class CommandBarService: ObservableObject {
     private var uninstallSelectionEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallSelection] = nil } }
     private var uninstallSelectionLoading = false
     private var uninstallFinderRequestID: UUID?
+    private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
     /// True while the bar is closing, so nothing is rebuilt on the way out.
     private var isTearingDown = false
     private var menusLoading = false
@@ -665,6 +666,15 @@ final class CommandBarService: ObservableObject {
                 return
             }
             NSSound.beep()
+            return
+        }
+        // A script marked to run directly does its work at once, with no
+        // argument and nothing on screen. Direct execution bypasses result
+        // filtering. Do nothing when the row is hidden or Links is disabled.
+        if let link = CommandBarLinks.directRunScript(forStableKey: key, in: CommandBarLinks.decode(
+            UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks))) {
+            guard !hiddenCache.contains(key), isEnabled(.links) else { return }
+            CommandBarCatalog.runScriptDirectly(link)
             return
         }
         // A row that would confirm, ask for input, or keep the field visible
@@ -2088,7 +2098,8 @@ final class CommandBarService: ObservableObject {
     private func confirmUninstallReview(entryID: String) {
         let uninstaller = AppUninstaller.shared
         guard uninstaller.phase == .results, !uninstaller.isRemoving else { return }
-        if uninstaller.selectedHomebrewPackage != nil {
+        if let confirmation = uninstaller.homebrewRemovalConfirmation {
+            pendingHomebrewRemoval = confirmation
             mode = .uninstallHomebrewConfirm(entryID: entryID)
             refreshPanelLayout()
             return
@@ -2100,7 +2111,10 @@ final class CommandBarService: ObservableObject {
     /// checklist, which shows its live progress the same way the menu panel
     /// already does while `AppUninstaller` waits on it.
     private func confirmUninstallHomebrewRemoval(entryID: String) {
-        AppUninstaller.shared.removeSelectedWithHomebrew()
+        if let confirmation = pendingHomebrewRemoval {
+            AppUninstaller.shared.removeSelectedWithHomebrew(confirmation: confirmation)
+        }
+        pendingHomebrewRemoval = nil
         mode = .uninstallReview(entryID: entryID)
         refreshPanelLayout()
     }

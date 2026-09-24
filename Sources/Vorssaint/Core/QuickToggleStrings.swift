@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -194,6 +195,34 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Iniciar el salvapantallas",
         screenSaverCaption: "Empieza al momento, en todas las pantallas.",
         actionFailed: "No se pudo completar."
+    )
+
+    static let sk = QuickToggleFeatureStrings(
+        pageTitle: "Rýchle prepínače",
+        hubDescription: "Akcie na jeden klik, ako tmavý režim a Kôš",
+        panelCaption: "Systémové akcie na jeden klik v paneli v lište a v rýchlom paneli.",
+        darkModeToDark: "Prepnúť na tmavý režim",
+        darkModeToLight: "Prepnúť na svetlý režim",
+        darkModeCaption: "Zmení vzhľad celého systému.",
+        emptyTrashTitle: "Vyprázdniť Kôš",
+        emptyTrashCaption: "Odstráni všetko z Koša.",
+        emptyTrashConfirmTitle: "Vyprázdniť Kôš?",
+        emptyTrashConfirmMessage: "Všetky položky v Koši budú odstránené. Túto akciu nemožno vrátiť späť.",
+        emptyTrashConfirmButton: "Vyprázdniť Kôš",
+        ejectTitle: "Vysunúť všetky disky",
+        ejectCaption: "Bezpečne vysunie každý externý disk.",
+        hiddenFilesShow: "Zobraziť skryté súbory",
+        hiddenFilesHide: "Skryť skryté súbory",
+        desktopIconsHide: "Skryť ikony na ploche",
+        desktopIconsShow: "Zobraziť ikony na ploche",
+        finderRestartCaption: "Finder sa reštartuje, aby zmenu použil.",
+        lockScreenTitle: "Uzamknúť obrazovku",
+        lockScreenCaption: "Pri návrate požiada o heslo.",
+        displayOffTitle: "Vypnúť displej",
+        displayOffCaption: "Mac beží ďalej aj s vypnutou obrazovkou.",
+        screenSaverTitle: "Spustiť šetrič obrazovky",
+        screenSaverCaption: "Spustí sa hneď, na všetkých displejoch.",
+        actionFailed: "Nepodarilo sa dokončiť."
     )
 
     static let de = QuickToggleFeatureStrings(

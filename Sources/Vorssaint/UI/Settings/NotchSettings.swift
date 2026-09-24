@@ -60,6 +60,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCaptureControls) private var captureControls = true
     @AppStorage(DefaultsKey.notchQuickPanel) private var quickPanel = true
     @AppStorage(DefaultsKey.notchAppPanel) private var appPanel = true
+    @AppStorage(DefaultsKey.notchHidesMenuBarIcon) private var hidesMenuBarIcon = false
     @AppStorage(DefaultsKey.notchScratchpad) private var scratchpad = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessControlEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
@@ -456,6 +457,8 @@ struct NotchSettings: View {
             SettingsCard(title: editor.destinations) {
                 destination(text.panel, symbol: "bubble.middle.top", value: $appPanel)
                 Text(editor.appPanelHint).font(.caption).foregroundStyle(.secondary)
+                switchRow("menubar.rectangle", editor.hideMenuBarIcon, caption: editor.hideMenuBarIconHint,
+                          isOn: $hidesMenuBarIcon)
                 destination(text.tools, symbol: "square.grid.2x2", value: $quickPanel, available: AppFeature.quickLauncher.isAvailable)
                 destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
                 destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)

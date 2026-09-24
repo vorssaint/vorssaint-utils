@@ -37,6 +37,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -119,6 +120,20 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "En estas apps pasar el puntero no cambia el foco ni trae la ventana al frente.",
         captionSuperKey: "Mientras alguna de estas apps esté abierta, incluso en segundo plano, Super Key se pausa y la tecla elegida funciona normalmente.",
         pausedSuperKey: "En pausa mientras una app seleccionada esté abierta"
+    )
+
+    static let sk = MouseExceptionStrings(
+        listTitle: "Apky, do ktorých nezasahovať",
+        addButton: "Pridať aplikáciu…",
+        removeButton: "Odstrániť",
+        captionSmoothScroll: "V týchto aplikáciách si koliesko zachová svoje bežné kroky, pre aplikácie, ktoré ho spracúvajú po svojom, napríklad nástroje na 3D a dizajn.",
+        captionScrollDirection: "V týchto aplikáciách si koliesko zachová smer, ktorý mu dáva macOS.",
+        captionNavigation: "Bočné tlačidlá v týchto aplikáciách naďalej robia to, čo s nimi aplikácia už robí.",
+        captionButtonShortcuts: "Vaše ďalšie tlačidlá myši v týchto aplikáciách mlčia a stlačenie namiesto toho dostane aplikácia.",
+        captionMiddleClick: "Kliknutie tromi prstami zostáva v týchto aplikáciách bežným kliknutím.",
+        captionFocusFollowsMouse: "Prejdenie kurzorom nad oknom v týchto aplikáciách nemení fokus ani ho nezobrazí navrchu.",
+        captionSuperKey: "Kým je otvorená ktorákoľvek z týchto aplikácií, aj na pozadí, Super kláves sa pozastaví a vybraný kláves funguje normálne.",
+        pausedSuperKey: "Pozastavené, kým je otvorená vybraná aplikácia"
     )
 
     static let de = MouseExceptionStrings(

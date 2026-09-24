@@ -52,6 +52,17 @@ extension FeatureStrings {
             unavailable: "Esta notificación ya no admite esta acción.",
             dismissSystemBanner: "Cerrar el aviso del sistema",
             dismissSystemBannerHint: "Cierra el aviso original poco después de aparecer en el Dynamic Island. Los sonidos más largos aún pueden cortarse.")
+        case .sk: return NotchNotificationStrings(
+            title: "Hlásenia",
+            description: "Nové systémové hlásenia v Dynamic Island.",
+            privacy: "Zobrazuje iba nové viditeľné hlásenia. Správy zostávajú v pamäti a vymažú sa pri uzamknutí tohto Macu alebo pri vypnutí tejto funkcie.",
+            empty: "Nové hlásenia sa zobrazia tu",
+            waiting: "Čaká sa na systémovú službu hlásení",
+            open: "Otvoriť",
+            dismiss: "Zavrieť",
+            unavailable: "Toto hlásenie už túto akciu neumožňuje.",
+            dismissSystemBanner: "Zavrieť systémové hlásenie",
+            dismissSystemBannerHint: "Zavrie pôvodné hlásenie krátko po tom, čo sa objaví v Dynamic Island. Dlhšie zvuky sa môžu aj tak orezať.")
         case .de: return NotchNotificationStrings(
             title: "Mitteilungen",
             description: "Neue Systemmitteilungen im Dynamic Island.",

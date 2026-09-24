@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -178,6 +179,41 @@ extension QuitProtectionStrings {
         releaseHint: "Suelta para confirmar",
         shiftKey: "Mayúsculas",
         optionKey: "Opción",
+        controlKey: "Control"
+    )
+
+    static let sk = QuitProtectionStrings(
+        name: "Ochrana pred ukončením a zatvorením",
+        description: "Chráni ⌘Q a ⌘W pred náhodným stlačením",
+        intro: "Nastavte každú skratku samostatne. Pôvodná akcia sa vykoná až po zvolenom potvrdení.",
+        enabled: "Chrániť túto skratku",
+        enabledCaption: "Ostatné skratky s Command fungujú bez zmeny.",
+        mode: "Režim potvrdenia",
+        hold: "Podržať na potvrdenie",
+        doublePress: "Dvojité stlačenie",
+        extraModifier: "Vyžadovať ďalší modifikátor",
+        holdDuration: "Doba podržania",
+        doublePressInterval: "Interval medzi stlačeniami",
+        modifier: "Ďalší modifikátor",
+        appScope: "Aplikácie",
+        allApps: "Všetky aplikácie",
+        selectedOnly: "Iba vybrané aplikácie",
+        allExceptSelected: "Všetky okrem vybraných aplikácií",
+        exceptions: "Výnimky",
+        noExceptions: "Nie sú vybrané žiadne aplikácie",
+        addApp: "Pridať aplikáciu…",
+        feedback: "Zobraziť vizuálnu spätnú väzbu",
+        accessibilityCaption: "Ochrana používa Prístupnosť na sledovanie iba ⌘Q a ⌘W globálne.",
+        holdQuitHUDFormat: "Podržte %@ na ukončenie",
+        holdCloseHUDFormat: "Podržte %@ na zatvorenie",
+        doubleQuitHUDFormat: "Stlačte %@ znova na ukončenie",
+        doubleCloseHUDFormat: "Stlačte %@ znova na zatvorenie",
+        extraQuitHUDFormat: "Použite %@ na ukončenie",
+        extraCloseHUDFormat: "Použite %@ na zatvorenie",
+        cancelHint: "Esc zruší",
+        releaseHint: "Uvoľnením potvrdíte",
+        shiftKey: "Shift",
+        optionKey: "Option",
         controlKey: "Control"
     )
 

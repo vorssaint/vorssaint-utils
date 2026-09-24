@@ -29,6 +29,15 @@ enum LocalizationFeatureContractTests {
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
             suite.expect(values.allSatisfy { !$0.contains("\u{2014}") },
                    "no em-dash in visible strings (\(language.rawValue))")
+            // The placement this picker sets sends apps hidden with Cmd+H to
+            // the end or out of the list along with minimized windows, so a
+            // label naming only windows describes half of what it does. The
+            // language's own word for apps is taken from the switcher's own
+            // hint rather than written out again here.
+            suite.expect(strings.switcherMinimizedPlacementLabel
+                .localizedCaseInsensitiveContains(strings.switcherShortcutHintApps),
+                   "the minimized placement label says it covers hidden apps too "
+                   + "(\(language.rawValue): \(strings.switcherMinimizedPlacementLabel))")
         }
         // Quotation marks are part of looking native and each language has its
         // own. Checked against what the system itself ships on this Mac: French,
@@ -53,8 +62,8 @@ enum LocalizationFeatureContractTests {
             suite.expect(anglesUsed == (language == .fr || language == .ru || language == .uk),
                    "only French, Russian and Ukrainian quote with angled marks (\(language.rawValue))")
             let lowOpenUsed = values.contains { $0.contains("„") }
-            suite.expect(lowOpenUsed == (language == .de),
-                   "only German opens a quote with the low mark (\(language.rawValue))")
+            suite.expect(lowOpenUsed == (language == .de || language == .sk),
+                   "only German and Slovak open a quote with the low mark (\(language.rawValue))")
         }
         for (language, strings) in localizedStrings {
             let prefix = "localization \(language.rawValue)"
@@ -414,6 +423,7 @@ enum LocalizationFeatureContractTests {
             ("keepAwakeDefault", GlobalShortcut.keepAwakeDefault),
             ("micMuteDefault", GlobalShortcut.micMuteDefault),
             ("pastePlainDefault", GlobalShortcut.pastePlainDefault),
+            ("pointerNextDisplayDefault", GlobalShortcut.pointerNextDisplayDefault),
             ("quickLauncherDefault", GlobalShortcut.quickLauncherDefault),
             ("radialMenuDefault", GlobalShortcut.radialMenuDefault),
             ("scratchpadDefault", GlobalShortcut.scratchpadDefault),
@@ -447,7 +457,7 @@ enum LocalizationFeatureContractTests {
             ("windowLayoutTopLeftDefault", GlobalShortcut.windowLayoutTopLeftDefault),
             ("windowLayoutTopRightDefault", GlobalShortcut.windowLayoutTopRightDefault),
         ]
-        suite.expect(defaultShortcuts.count == 40, "every default shortcut is in the round trip")
+        suite.expect(defaultShortcuts.count == 41, "every default shortcut is in the round trip")
         var brokenShortcuts: [String] = []
         for (name, shortcut) in defaultShortcuts {
             guard let restored = GlobalShortcut(storageValue: shortcut.storageValue),

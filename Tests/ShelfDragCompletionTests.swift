@@ -94,6 +94,15 @@ enum ShelfDragCompletionTests {
                    "separate shelf completion retains its own close, pin and removal behavior")
         }
 
+        Context.reset()
+        let pinnedService = Context.Service()
+        let pinnedID = UUID(), looseID = UUID()
+        pinnedService.protectedIDs = [pinnedID]
+        pinnedService.beginInternalDrag(ids: [pinnedID, looseID], from: Context.Window())
+        pinnedService.completeInternalDrag(dropAccepted: true)
+        suite.expect(pinnedService.removed == [looseID],
+               "a pinned shelf item survives a drag-out that removes the rest")
+
         for changedSurface in 0..<5 {
             Context.reset()
             let service = Context.Service()

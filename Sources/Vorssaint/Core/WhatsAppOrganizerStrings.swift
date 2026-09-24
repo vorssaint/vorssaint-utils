@@ -40,6 +40,7 @@ struct WhatsAppOrganizerStrings {
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
+        case .sk: return .sk
         case .tr: return .tr
         case .ru: return .ru
         case .de: return .de
@@ -120,6 +121,39 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "Organización de WhatsApp",
         notificationFormat: "%1$d archivos organizados. %2$d descargas duplicadas gestionadas. %3$d fallidos.",
         privacyNote: "Para reconocer duplicados exactos, los bytes del archivo solo se leen localmente mientras se calcula una huella criptográfica. El contenido y los chats nunca se guardan ni se envían."
+    )
+
+    static let sk = WhatsAppOrganizerStrings(
+        title: "Automatická organizácia",
+        experimental: "Experimentálne",
+        description: "Presúva stabilné stiahnuté súbory z WhatsAppu do vyhradeného priečinka a rozpoznáva presne opakované sťahovania.",
+        enabled: "Organizovať automaticky",
+        enabledCaption: "WhatsApp môže presunutý súbor stiahnuť znova. Vorssaint nedokáže zabrániť sieťovému sťahovaniu, ale dokáže rozpoznať a odstrániť identickú ďalšiu kópiu.",
+        destination: "Cieľový priečinok",
+        chooseFolder: "Vybrať…",
+        useDefault: "Použiť Stiahnuté/WhatsApp",
+        invalidDestination: "Vyberte iný priečinok než samotné Stiahnuté.",
+        organization: "Štruktúra priečinkov",
+        flat: "Bez podpriečinkov",
+        byType: "Podľa typu súboru",
+        byMonth: "Podľa roka a mesiaca",
+        delay: "Počkať pred presunutím",
+        minutesFormat: "%d min",
+        duplicateAction: "Keď sa ten istý súbor stiahne znova",
+        trashDuplicate: "Presunúť novú kópiu do Koša",
+        keepBoth: "Ponechať obe kópie",
+        replaceExisting: "Nahradiť usporiadanú kópiu",
+        duplicateCaption: "Duplikáty sa overujú súkromným odtlačkom SHA-256. Usporiadaná kópia sa pred odstránením ďalšej kópie znova skontroluje.",
+        organizeNow: "Usporiadať vhodné súbory teraz",
+        undo: "Vrátiť poslednú organizáciu",
+        waiting: "Sledovanie Stiahnutých",
+        working: "Organizovanie súborov WhatsApp…",
+        resultFormat: "Presunuté: %1$d · Duplikáty: %2$d · Zlyhalo: %3$d",
+        lastRunFormat: "Posledná organizácia %@ · presunuté: %d · duplikáty: %d · zlyhalo: %d",
+        neverRun: "Zatiaľ neprebehla žiadna organizácia.",
+        notificationTitle: "Organizácia WhatsAppu",
+        notificationFormat: "Usporiadané súbory: %1$d. Vybavené duplicitné stiahnutia: %2$d. Zlyhalo: %3$d.",
+        privacyNote: "Na rozpoznanie presných duplikátov sa bajty súboru čítajú iba lokálne počas výpočtu kryptografického odtlačku. Obsah a konverzácie sa nikdy neukladajú ani neodosielajú."
     )
 
     static let ptBR = WhatsAppOrganizerStrings(

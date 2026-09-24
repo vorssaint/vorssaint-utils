@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -71,6 +72,14 @@ extension WindowPreviewExclusionStrings {
         addButton: "Añadir app…",
         removeButton: "Quitar",
         caption: "Las miniaturas de las ventanas se detienen mientras una de estas apps está en primer plano."
+    )
+
+    static let sk = WindowPreviewExclusionStrings(
+        sectionTitle: "Miniatúry okien",
+        listTitle: "Pozastaviť v týchto aplikáciách",
+        addButton: "Pridať aplikáciu…",
+        removeButton: "Odstrániť",
+        caption: "Miniatúry okien sa zastavia, kým je jedna z týchto aplikácií v popredí."
     )
 
     static let de = WindowPreviewExclusionStrings(

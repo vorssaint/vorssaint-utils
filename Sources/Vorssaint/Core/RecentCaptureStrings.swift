@@ -22,6 +22,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -89,6 +90,17 @@ extension RecentCaptureStrings {
         open: "Abrir",
         remove: "Quitar del historial",
         clear: "Borrar historial"
+    )
+
+    static let sk = RecentCaptureStrings(
+        title: "Nedávne zábery",
+        empty: "Vytvorte snímku obrazovky alebo uložte nahrávku a nájdete ju tu.",
+        screenshot: "Snímka obrazovky",
+        recording: "Nahrávka",
+        restore: "Obnoviť",
+        open: "Otvoriť",
+        remove: "Odstrániť z histórie",
+        clear: "Vymazať históriu"
     )
 
     static let de = RecentCaptureStrings(

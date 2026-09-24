@@ -12,6 +12,7 @@ struct BackupFeatureStrings {
     let exportButton: String
     let importButton: String
     let exported: String
+    let exportFailed: String
     let importConfirmTitle: String
     let importConfirmBody: String
     let importAction: String
@@ -26,6 +27,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -46,6 +48,7 @@ extension BackupFeatureStrings {
         exportButton: "설정 내보내기…",
         importButton: "설정 가져오기…",
         exported: "백업을 저장했습니다",
+        exportFailed: "백업을 저장하지 못했습니다.",
         importConfirmTitle: "이 설정을 가져올까요?",
         importConfirmBody: "현재 설정이 파일의 설정으로 바뀌고 앱이 다시 시작됩니다. 이 Mac의 다른 항목은 변경되지 않습니다.",
         importAction: "가져오고 다시 시작",
@@ -71,6 +74,7 @@ extension BackupFeatureStrings {
         exportButton: "Export settings…",
         importButton: "Import settings…",
         exported: "Backup saved",
+        exportFailed: "Could not save the backup.",
         importConfirmTitle: "Import these settings?",
         importConfirmBody: "Your current settings are replaced by the file’s and the app restarts. Nothing else on this Mac is touched.",
         importAction: "Import and restart",
@@ -83,6 +87,7 @@ extension BackupFeatureStrings {
         exportButton: "Exportar configurações…",
         importButton: "Importar configurações…",
         exported: "Backup salvo",
+        exportFailed: "Não foi possível salvar o backup.",
         importConfirmTitle: "Importar estas configurações?",
         importConfirmBody: "As configurações atuais são substituídas pelas do arquivo e o app reinicia. Nada mais neste Mac é alterado.",
         importAction: "Importar e reiniciar",
@@ -95,6 +100,7 @@ extension BackupFeatureStrings {
         exportButton: "Ayarları dışa aktar…",
         importButton: "Ayarları içe aktar…",
         exported: "Yedek kaydedildi",
+        exportFailed: "Yedek kaydedilemedi.",
         importConfirmTitle: "Bu ayarlar içe aktarılsın mı?",
         importConfirmBody: "Mevcut ayarlar dosyadakilerle değiştirilir ve uygulama yeniden başlar. Bu Mac’te başka hiçbir şeye dokunulmaz.",
         importAction: "İçe aktar ve yeniden başlat",
@@ -107,6 +113,7 @@ extension BackupFeatureStrings {
         exportButton: "Экспортировать настройки…",
         importButton: "Импортировать настройки…",
         exported: "Копия сохранена",
+        exportFailed: "Не удалось сохранить копию.",
         importConfirmTitle: "Импортировать эти настройки?",
         importConfirmBody: "Текущие настройки заменяются настройками из файла, и приложение перезапускается. Больше ничего на этом Mac не меняется.",
         importAction: "Импортировать и перезапустить",
@@ -119,10 +126,24 @@ extension BackupFeatureStrings {
         exportButton: "Exportar ajustes…",
         importButton: "Importar ajustes…",
         exported: "Copia guardada",
+        exportFailed: "No se pudo guardar la copia.",
         importConfirmTitle: "¿Importar estos ajustes?",
         importConfirmBody: "Los ajustes actuales se sustituyen por los del archivo y la app se reinicia. Nada más cambia en este Mac.",
         importAction: "Importar y reiniciar",
         invalidFile: "Este archivo no es una copia de seguridad válida de Vorssaint."
+    )
+
+    static let sk = BackupFeatureStrings(
+        title: "Záloha",
+        description: "Preneste svoje nastavenia na iný Mac: exportujte všetky predvoľby do súboru a tam ich importujte. Poznámkový blok, história schránky, položky police a systémové povolenia nikdy neopustia tento Mac.",
+        exportButton: "Exportovať nastavenia…",
+        importButton: "Importovať nastavenia…",
+        exported: "Záloha uložená",
+        exportFailed: "Zálohu sa nepodarilo uložiť.",
+        importConfirmTitle: "Importovať tieto nastavenia?",
+        importConfirmBody: "Vaše aktuálne nastavenia sa nahradia nastaveniami zo súboru a aplikácia sa reštartuje. Nič iné na tomto Macu sa nezmení.",
+        importAction: "Importovať a reštartovať",
+        invalidFile: "Tento súbor nie je platná záloha Vorssaint."
     )
 
     static let de = BackupFeatureStrings(
@@ -131,6 +152,7 @@ extension BackupFeatureStrings {
         exportButton: "Einstellungen exportieren…",
         importButton: "Einstellungen importieren…",
         exported: "Backup gesichert",
+        exportFailed: "Backup konnte nicht gesichert werden.",
         importConfirmTitle: "Diese Einstellungen importieren?",
         importConfirmBody: "Die aktuellen Einstellungen werden durch die der Datei ersetzt und die App startet neu. Sonst ändert sich auf diesem Mac nichts.",
         importAction: "Importieren und neu starten",
@@ -143,6 +165,7 @@ extension BackupFeatureStrings {
         exportButton: "Exporter les réglages…",
         importButton: "Importer les réglages…",
         exported: "Sauvegarde enregistrée",
+        exportFailed: "Impossible d’enregistrer la sauvegarde.",
         importConfirmTitle: "Importer ces réglages\u{00A0}?",
         importConfirmBody: "Les réglages actuels sont remplacés par ceux du fichier et l’app redémarre. Rien d’autre ne change sur ce Mac.",
         importAction: "Importer et redémarrer",
@@ -155,6 +178,7 @@ extension BackupFeatureStrings {
         exportButton: "Esporta impostazioni…",
         importButton: "Importa impostazioni…",
         exported: "Backup salvato",
+        exportFailed: "Impossibile salvare il backup.",
         importConfirmTitle: "Importare queste impostazioni?",
         importConfirmBody: "Le impostazioni attuali vengono sostituite da quelle del file e l’app si riavvia. Nient’altro cambia su questo Mac.",
         importAction: "Importa e riavvia",
@@ -167,6 +191,7 @@ extension BackupFeatureStrings {
         exportButton: "設定を書き出す…",
         importButton: "設定を読み込む…",
         exported: "バックアップを保存しました",
+        exportFailed: "バックアップを保存できませんでした。",
         importConfirmTitle: "この設定を読み込みますか?",
         importConfirmBody: "現在の設定はファイルの内容に置き換えられ、アプリが再起動します。このMacのほかの部分は変わりません。",
         importAction: "読み込んで再起動",
@@ -179,6 +204,7 @@ extension BackupFeatureStrings {
         exportButton: "导出设置…",
         importButton: "导入设置…",
         exported: "备份已存储",
+        exportFailed: "无法存储备份。",
         importConfirmTitle: "导入这些设置？",
         importConfirmBody: "当前设置将被文件中的设置替换，App 会重启。这台 Mac 上的其他内容不受影响。",
         importAction: "导入并重启",
@@ -191,6 +217,7 @@ extension BackupFeatureStrings {
         exportButton: "匯出設定…",
         importButton: "匯入設定…",
         exported: "備份已儲存",
+        exportFailed: "無法儲存備份。",
         importConfirmTitle: "匯入這些設定?",
         importConfirmBody: "目前設定將被檔案中的設定取代,App 會重新啟動。這台 Mac 上的其他內容不受影響。",
         importAction: "匯入並重新啟動",
@@ -203,6 +230,7 @@ extension BackupFeatureStrings {
         exportButton: "匯出設定…",
         importButton: "匯入設定…",
         exported: "備份已儲存",
+        exportFailed: "儲存唔到備份。",
         importConfirmTitle: "匯入這些設定?",
         importConfirmBody: "目前設定將被檔案中的設定取代,App 會重新啟動。這台 Mac 上的其他內容不受影響。",
         importAction: "匯入並重新啟動",

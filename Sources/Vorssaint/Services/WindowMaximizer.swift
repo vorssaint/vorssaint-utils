@@ -138,6 +138,7 @@ final class WindowMaximizer: ObservableObject {
 
     private func target(at point: CGPoint) -> ClickTarget? {
         guard let candidate = WindowServerTrafficLightHitTest.candidate(at: point, button: .zoom),
+              !isExcluded(pid: candidate.pid),
               let element = elementAt(point: point),
               let window = topLevelWindow(from: element),
               role(of: window) == (kAXWindowRole as String),
@@ -154,6 +155,16 @@ final class WindowMaximizer: ObservableObject {
                            frame: frame,
                            buttonFrame: buttonFrame.frame,
                            allowsNativeFallback: buttonFrame.allowsNativeFallback)
+    }
+
+    /// The list is read here rather than cached: this only runs for a press on
+    /// a green button, and a restored backup needs no reload to take effect.
+    private func isExcluded(pid: pid_t) -> Bool {
+        let excluded = UserDefaults.standard.stringArray(forKey: DefaultsKey.windowMaximizeExcludedApps) ?? []
+        guard !excluded.isEmpty else { return false }
+        return WindowMaximizerSupport.excludes(
+            bundleIdentifier: NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
+            excludedBundleIdentifiers: excluded)
     }
 
     @discardableResult

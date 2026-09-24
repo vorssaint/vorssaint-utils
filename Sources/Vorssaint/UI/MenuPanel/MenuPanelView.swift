@@ -78,6 +78,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.panelShowUtilities) private var showUtilities = true
     @AppStorage(DefaultsKey.panelShowControls) private var showControls = true
     @AppStorage(DefaultsKey.panelShowToggles) private var showToggles = true
+    @AppStorage(DefaultsKey.panelShowWallpaper) private var showWallpaper = true
     @AppStorage(DefaultsKey.panelSectionOrder) private var sectionOrderRaw = ""
     @State private var navigableContentHeight: CGFloat = 0
     @State private var metricContentHeight: CGFloat = 0
@@ -292,6 +293,7 @@ struct MenuPanelView: View {
         case .utilities: return 500
         case .controls: return 360
         case .toggles: return 420
+        case .wallpaper: return 480
         }
     }
 
@@ -302,7 +304,7 @@ struct MenuPanelView: View {
         case .network: return 330
         case .disk: return 360
         case .battery, .power: return 360
-        case .fan: return 240
+        case .fan, .connectedDevices: return 240
         }
     }
 
@@ -314,7 +316,7 @@ struct MenuPanelView: View {
         switch id {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
-        case .mixer: if showMixer { MixerSection(collapsible: collapsible) }
+        case .mixer: if showMixer { mixerOrPrioritySection(collapsible: collapsible) }
         case .system: if showSystem { SystemSection(collapsible: collapsible) }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
@@ -323,6 +325,17 @@ struct MenuPanelView: View {
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)
+        case .wallpaper: if showWallpaper { WallpaperSection(collapsible: collapsible) }
+        }
+    }
+
+    /// Shows the full mixer when installed, or the priority lists on their own.
+    @ViewBuilder
+    private func mixerOrPrioritySection(collapsible: Bool) -> some View {
+        if AppFeature.mixer.isAvailable {
+            MixerSection(collapsible: collapsible)
+        } else {
+            AudioPrioritySection(collapsible: collapsible)
         }
     }
 
@@ -330,7 +343,7 @@ struct MenuPanelView: View {
     /// what keeps the tabs refreshing when Settings flips one of them.
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
         _ = (showKeepAwake, showBrightness, brightnessEnabled, showMixer, showSystem, showNetwork,
-             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles)
+             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles, showWallpaper)
         return PanelLayout.isVisibleInPanel(id)
     }
 
@@ -1900,12 +1913,13 @@ struct QuickControlsSection: View {
     private var switcherIconRowOption: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Text(String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString))
+                let title = String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString)
+                Text(title)
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Toggle("", isOn: $switcherIconRowMode)
+                Toggle(title, isOn: $switcherIconRowMode)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
@@ -2197,7 +2211,7 @@ struct PanelToggleRow: View {
             }
             PanelInlineHideButton(isVisible: visibility)
         } else {
-            Toggle("", isOn: $isOn)
+            Toggle(title, isOn: $isOn)
                 .labelsHidden()
                 .controlSize(.small)
                 .toggleStyle(.switch)
@@ -2486,7 +2500,7 @@ struct KeepAwakeCard: View {
                 HStack {
                     statusLine
                     Spacer()
-                    Toggle("", isOn: activeBinding)
+                    Toggle(l10n.s.keepAwakeTitle, isOn: activeBinding)
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
@@ -2692,7 +2706,7 @@ struct KeepAwakeCard: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Toggle("", isOn: isOn)
+                Toggle(title, isOn: isOn)
                     .toggleStyle(.switch)
                     .controlSize(.mini)
                     .labelsHidden()
@@ -2815,7 +2829,7 @@ struct KeepAwakeCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn)
+            Toggle(title, isOn: isOn)
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .labelsHidden()

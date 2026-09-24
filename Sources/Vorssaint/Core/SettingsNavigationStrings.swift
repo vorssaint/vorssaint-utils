@@ -13,6 +13,7 @@ struct SettingsNavigationStrings {
         case .tr: return Self(go: "Git", back: "Geri", forward: "İleri")
         case .ru: return Self(go: "Переход", back: "Назад", forward: "Вперёд")
         case .es: return Self(go: "Ir", back: "Atrás", forward: "Adelante")
+        case .sk: return Self(go: "Prejsť", back: "Späť", forward: "Vpred")
         case .de: return Self(go: "Gehe zu", back: "Zurück", forward: "Vorwärts")
         case .fr: return Self(go: "Aller", back: "Précédent", forward: "Suivant")
         case .it: return Self(go: "Vai", back: "Indietro", forward: "Avanti")

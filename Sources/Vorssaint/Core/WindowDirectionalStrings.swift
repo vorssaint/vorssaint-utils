@@ -12,6 +12,7 @@ struct WindowDirectionalStrings {
         case .tr: return .init(title: "Kestirme + işaretçi düzeni", caption: "Kestirmeyi basılı tutun, işaretçiyi bir kenara veya köşeye götürün ve etkin pencereyi yerleştirmek için bırakın.")
         case .ru: return .init(title: "Сочетание + указатель", caption: "Удерживайте сочетание, переместите указатель к краю или углу и отпустите, чтобы разместить активное окно.")
         case .es: return .init(title: "Atajo + puntero", caption: "Mantén el atajo, mueve el puntero hacia un borde o esquina y suéltalo para colocar la ventana activa.")
+        case .sk: return .init(title: "Skratka + kurzor", caption: "Podržte skratku, presuňte kurzor k okraju alebo rohu a uvoľnením umiestnite aktívne okno.")
         case .de: return .init(title: "Kürzel + Zeiger", caption: "Kürzel halten, Zeiger zu einem Rand oder einer Ecke bewegen und loslassen, um das aktive Fenster anzuordnen.")
         case .fr: return .init(title: "Raccourci + pointeur", caption: "Maintenez le raccourci, déplacez le pointeur vers un bord ou un coin, puis relâchez pour placer la fenêtre active.")
         case .it: return .init(title: "Scorciatoia + puntatore", caption: "Tieni premuta la scorciatoia, sposta il puntatore verso un bordo o angolo e rilascia per posizionare la finestra attiva.")

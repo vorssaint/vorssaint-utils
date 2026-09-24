@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 70, "feature catalog has 70 features")
+        suite.expect(AppFeature.allCases.count == 73, "feature catalog has 73 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -395,13 +395,13 @@ enum FeatureCatalogTests {
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
+            "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
-            "fanControl",
+            "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
         suite.expect(MouseAccelerationSupport.validatedRegistryID(nil) == nil
                 && MouseAccelerationSupport.validatedRegistryID(0) == nil
@@ -525,9 +525,12 @@ enum FeatureCatalogTests {
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.portManager.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.wallpaper.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.audioPriority.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager
+                        && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager && $0 != .wallpaper
+                        && $0 != .audioPriority
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -633,6 +636,11 @@ enum FeatureCatalogTests {
                "a wake owing nothing leaves Bluetooth off")
         suite.expect(!BluetoothSleepSupport.restores(owesRestore: true, isPoweredOn: true),
                "Bluetooth the user switched on first is left alone")
+        var readControllerPower = false
+        func controllerPower() -> Bool { readControllerPower = true; return false }
+        _ = BluetoothSleepSupport.restores(owesRestore: false, isPoweredOn: controllerPower())
+        suite.expect(!readControllerPower,
+               "a launch owing no restore never reads the Bluetooth controller")
 
         suite.expect((Defaults.registeredDefaults[DefaultsKey.panelShowFanControl] as? Bool) == true,
                "installing fan control reveals its panel section by default")
@@ -853,6 +861,25 @@ enum FeatureCatalogTests {
                     FanControlConfiguration.encodeCurves([defaultCurve]) ?? "") == [defaultCurve]
                 && FanControlConfiguration.decodeCurves("not json") == nil,
                "stored curves reject duplicate sensors, unsafe slopes and malformed data")
+        let resumedManual = FanControlConfiguration.manual(level: 100)
+        let resumedCurves = FanControlConfiguration.curve([defaultCurve, cpuCurve])
+        suite.expect(FanControlConfiguration.decodeResume(
+                    FanControlConfiguration.encodeResume(resumedManual) ?? "") == resumedManual
+                && FanControlConfiguration.decodeResume(
+                    FanControlConfiguration.encodeResume(resumedCurves) ?? "") == resumedCurves,
+               "a resumed manual speed or curve comes back exactly as the user applied it")
+        suite.expect(FanControlConfiguration.encodeResume(
+                    FanControlConfiguration(mode: .system, manualLevel: 100, curves: [])) == nil
+                && FanControlConfiguration.encodeResume(.manual(level: 37)) == nil
+                && FanControlConfiguration.encodeResume(.curve([descendingCurve])) == nil
+                && FanControlConfiguration.decodeResume(
+                    #"{"curves":[],"manualLevel":100,"mode":"system"}"#) == nil
+                && FanControlConfiguration.decodeResume(
+                    #"{"curves":[],"manualLevel":37,"mode":"manual"}"#) == nil
+                && FanControlConfiguration.decodeResume("") == nil
+                && FanControlConfiguration.decodeResume("not json") == nil,
+               "only a valid manual speed or curve is ever kept or brought back after a restart")
+        FanControlResumeContract.run(suite)
         let addedPoints = FanControlPolicy.addingCurvePoint(to: defaultCurve.points)
         suite.expect(FanControlPolicy.nextCurvePoint(for: defaultCurve.points) == FanControlCurvePoint(temperature: 60, coolingLevel: 50)
                 && addedPoints == [
@@ -1108,6 +1135,23 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.accessibility)
                 == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
                "with nothing enabled only on-demand features use accessibility")
+        func radialMenuUsesAccessibility(_ profile: RadialMenuProfile, legacyItems: [RadialMenuItem]) -> Bool {
+            let stored = [DefaultsKey.radialMenuProfiles: RadialMenuSupport.encodeProfiles([profile]),
+                          DefaultsKey.radialMenuItems: RadialMenuSupport.encode(legacyItems)]
+            return AppFeature.activeFeatures(using: .accessibility,
+                                             isAvailable: { _ in true },
+                                             boolFor: { $0 == DefaultsKey.radialMenuEnabled },
+                                             stringFor: { _ in nil },
+                                             dataFor: { stored[$0] ?? nil })
+                .contains(.radialMenu)
+        }
+        let appItem = RadialMenuItem(kind: .app, payload: "/Applications/Safari.app")
+        let shortcutItem = RadialMenuItem(kind: .shortcut, payload: "control+option+command:49")
+        suite.expect(radialMenuUsesAccessibility(
+                    RadialMenuProfile(mouseButton: RadialMenuMouseTrigger.back.rawValue, items: [appItem]),
+                    legacyItems: [appItem])
+                && !radialMenuUsesAccessibility(RadialMenuProfile(items: [appItem]), legacyItems: [shortcutItem]),
+               "radial menu accessibility follows the saved profiles, not the pre-profile wheel")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
@@ -1308,6 +1352,16 @@ enum FeatureCatalogTests {
                 && GlobalShortcutRole.keyboardBrightnessDecrease.group == .mouseKeyboard
                 && GlobalShortcutRole.keyboardBrightnessIncrease.group == .mouseKeyboard,
                "keyboard brightness stays owned by the brightness service but appears with keyboard controls")
+        let shortcutsPage = ShortcutsPage(state: Expansion())
+        let displayBrightness = shortcutsPage.expansionBinding(for: .brightness, in: .energyDisplay)
+        let keyboardLight = shortcutsPage.expansionBinding(for: .brightness, in: .mouseKeyboard)
+        displayBrightness.wrappedValue = true
+        suite.expect(displayBrightness.wrappedValue && !keyboardLight.wrappedValue,
+               "opening brightness in one shortcut group leaves its row in the other group closed")
+        keyboardLight.wrappedValue = true
+        displayBrightness.wrappedValue = false
+        suite.expect(!displayBrightness.wrappedValue && keyboardLight.wrappedValue,
+               "closing brightness in one shortcut group leaves an open row in the other group open")
         suite.expect(GlobalShortcutRole.keyboardBrightnessDecrease.requiredEnableKeys
                 == [DefaultsKey.keyboardBrightnessShortcutsEnabled]
                 && GlobalShortcutRole.keyboardBrightnessIncrease.requiredEnableKeys
@@ -1482,6 +1536,7 @@ enum FeatureCatalogTests {
                 case .tr: return .tr
                 case .ru: return .ru
                 case .es: return .es
+                case .sk: return .sk
                 case .de: return .de
                 case .fr: return .fr
                 case .it: return .it
@@ -1670,11 +1725,33 @@ enum FeatureCatalogTests {
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases),
                "every declared Settings section anchor is used by a feature destination")
-        suite.expect(AppFeature.windowMaximizer.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
-                && AppFeature.mixer.settingsDestination
+        suite.expect(AppFeature.dockPreview.settingsDestination
+                == FeatureSettingsDestination(.dock, sectionAnchor: .dock)
+                && AppFeature.dockClick.settingsDestination
+                == FeatureSettingsDestination(.dock, sectionAnchor: .dockClick)
+                && FeatureVisibilitySupport.features(for: .switcher) == [.switcher]
+                && pageVisible(.dock, available: [.dockClick])
+                && !pageVisible(.switcher, available: [.dockPreview, .dockClick]),
+               "Dock Preview and Dock clicks have their own page, apart from the switcher")
+        func dockNeedsAccessibility(available: Set<AppFeature>, on: Set<String>) -> Bool {
+            FeatureVisibilitySupport.isPermissionNeeded(
+                on: .dock, activeFeatures: Array(activeSet(.accessibility, available: available, on: on)))
+        }
+        suite.expect([DefaultsKey.dockClickMinimize, DefaultsKey.dockClickHide, DefaultsKey.dockClickCycleWindows]
+                .allSatisfy { dockNeedsAccessibility(available: [.dockClick], on: [$0]) }
+                && dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockPreviewEnabled])
+                && !dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockClickMinimize])
+                && !dockNeedsAccessibility(available: allFeatures, on: [DefaultsKey.switcherEnabled]),
+               "the Dock page asks for Accessibility while Dock Preview or any Dock click action is on")
+        suite.expect(AppFeature.mixer.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration),
                "panel-oriented features land on General panel configuration")
+        suite.expect(AppFeature.windowMaximizer.settingsDestination
+                == FeatureSettingsDestination(.windowLayout, sectionAnchor: .windowMaximizer)
+                && pageVisible(.windowLayout, available: [.windowMaximizer])
+                && !pageVisible(.windowLayout,
+                                available: allFeatures.subtracting([.windowLayout, .windowMaximizer])),
+               "the green button override and its exception list keep the window layout page on their own")
         suite.expect(AppFeature.cleaningMode.settingsDestination
                 == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode),
                "cleaning mode lands on Quick Tools cleaning mode section")
@@ -1905,6 +1982,13 @@ enum FeatureCatalogTests {
                "keyboard brightness shortcut steps clamp to the supported range")
         suite.expect(BrightnessSupport.steppedKeyboardLightLevel(current: .nan, direction: 1) == 0,
                "an invalid keyboard brightness reading never reaches the private setter")
+        suite.expect(BrightnessSupport.sliderKeyboardLightLevel(0.37) == 0.37
+                && BrightnessSupport.sliderKeyboardLightLevel(-0.2) == 0
+                && BrightnessSupport.sliderKeyboardLightLevel(1.4) == 1,
+               "the keyboard light slider passes levels through and clamps the ends")
+        suite.expect(BrightnessSupport.sliderKeyboardLightLevel(.nan) == nil
+                && BrightnessSupport.sliderKeyboardLightLevel(.infinity) == nil,
+               "a slider value that is not a number never reaches the private setter")
 
         // EDID UUID chunks at fixed positions: vendor, product (little endian),
         // manufacture date, image size.
@@ -2275,6 +2359,17 @@ enum FeatureCatalogTests {
                                                           displayIsBuiltIn: false,
                                                           overlayReplacesNative: true),
                "with the overlay on, the system target is stepped here so only one OSD draws")
+        // An external keyboard's plain brightness keys must reach the island
+        // or the overlay too, not only the pointer routing (beta feedback).
+        suite.expect(BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: true)
+                && BrightnessSupport.answersPlainBrightnessKeys(followsPointer: true, overlayReplacesNative: false)
+                && !BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: false),
+               "plain brightness keys are answered here whenever the app replaces the system's handling")
+        suite.expect(BrightnessSupport.plainKeyTarget(followsPointer: false, pointerDisplay: 2, systemTarget: 1) == 1
+                && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: 2, systemTarget: 1) == 2
+                && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: nil, systemTarget: 1) == nil
+                && BrightnessSupport.plainKeyTarget(followsPointer: false, pointerDisplay: 2, systemTarget: nil) == nil,
+               "without pointer routing a plain key moves the system's own target, never the pointer's display")
         suite.expect(BrightnessSupport.filledBrightnessSegments(0) == 0
                 && BrightnessSupport.filledBrightnessSegments(0.01) == 1
                 && BrightnessSupport.filledBrightnessSegments(0.5) == 8
@@ -2286,6 +2381,25 @@ enum FeatureCatalogTests {
                 && BrightnessSupport.wholePercent(1.2) == 100
                 && BrightnessSupport.wholePercent(.infinity) == 0,
                "brightness overlay percentage rounds and clamps safely")
+        // Show brightness when adjusting governs the app's overlay. The island
+        // stands in for the system only while it shows notices.
+        suite.expect(BrightnessSupport.overlayReplacesNative(overlayEnabled: true, islandRoutes: false,
+                                                             islandShowsNotices: false),
+               "the opt-in overlay replaces the system's brightness feedback")
+        suite.expect(BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: true,
+                                                             islandShowsNotices: true),
+               "an island that shows notices stands in for the system's brightness feedback")
+        let hiddenIsland = BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: true,
+                                                                   islandShowsNotices: false)
+        suite.expect(!hiddenIsland && !BrightnessSupport.stepsSystemRoutedDisplay(followsPointer: false,
+                                                                                  displayIsBuiltIn: true,
+                                                                                  overlayReplacesNative: hiddenIsland),
+               "with the overlay off, an island hidden until hover leaves the built-in panel's key to the system")
+        suite.expect(!BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: false,
+                                                              islandShowsNotices: true),
+               "an island without brightness leaves the key to the system")
+        suite.expect(!brightnessWorkQueueCode.contains("NotchSupport.routes(.brightness)"),
+               "the app's overlay appears only with its own option, never in place of an island that shows nothing")
 
     }
 }
@@ -2376,13 +2490,18 @@ enum MusicLaunchBlockerContract {
         var observers: [NSObjectProtocol] = []
         var mediaKeyTap: Tap?
         var lastMediaKeyAt: TimeInterval?
+        var lastMediaKeyCode: UInt16?
         var judgedLaunchPID: pid_t?
         var replacementCalls = 0
+        var replacementPlays: [Bool] = []
         func installMediaKeyTap() {
             if mediaKeyTap == nil, Environment.createsTap { mediaKeyTap = Tap() }
         }
         func removeMediaKeyTap() { mediaKeyTap?.enabled = false; mediaKeyTap = nil }
-        func openReplacementIfConfigured() { replacementCalls += 1 }
+        func openReplacementIfConfigured(startingPlayback: Bool) {
+            replacementCalls += 1
+            replacementPlays.append(startingPlayback)
+        }
     }
 
     static func run(_ suite: TestSuite) {
@@ -2391,6 +2510,7 @@ enum MusicLaunchBlockerContract {
         func reset() {
             service.stop()
             service.replacementCalls = 0
+            service.replacementPlays = []
             Environment.enabled = true
             Environment.available = true
             Environment.trusted = true
@@ -2435,6 +2555,10 @@ enum MusicLaunchBlockerContract {
         launch(automatic, did: true)
         suite.expect(automatic.forceCalls == 1 && automatic.terminateCalls == 0 && service.replacementCalls == 1,
                      "a detected key blocks one launch and its did-launch cannot repeat termination or replacement")
+        key(code: MusicLaunchSupport.nextTrackKeyCode)
+        launch(NSRunningApplication(50))
+        suite.expect(service.replacementPlays == [true, false],
+                     "only Play/Pause asks the replacement to play; the other media keys only open it")
         let second = NSRunningApplication(3)
         launch(second)
         suite.expect(second.forceCalls == 0 && service.lastMediaKeyAt == nil,

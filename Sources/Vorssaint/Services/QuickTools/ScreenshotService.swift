@@ -708,7 +708,7 @@ final class ScreenshotService: ObservableObject {
         ScreenshotRenderer.renderExport(
             baseImage: capture.image,
             annotations: [],
-            pixelated: nil,
+            pixelated: [:],
             scale: capture.scale,
             annotationShadowsEnabled: false,
             watermark: ScreenshotSupport.WatermarkStyle(),

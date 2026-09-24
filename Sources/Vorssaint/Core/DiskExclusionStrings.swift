@@ -20,6 +20,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -77,6 +78,15 @@ extension DiskExclusionStrings {
         removeButton: "Quitar",
         customPlaceholder: "Nombre del disco o volumen",
         caption: "Los discos de esta lista nunca se expulsan al expulsar todos los discos."
+    )
+
+    static let sk = DiskExclusionStrings(
+        listTitle: "Vylúčené disky",
+        addButton: "Pridať disk…",
+        otherDrive: "Iný názov disku…",
+        removeButton: "Odstrániť",
+        customPlaceholder: "Názov disku alebo zväzku",
+        caption: "Disky v tomto zozname sa nikdy neodpoja pri použití Vysunúť všetky disky."
     )
 
     static let de = DiskExclusionStrings(

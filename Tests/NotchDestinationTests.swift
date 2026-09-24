@@ -36,6 +36,11 @@ enum NotchDestinationContract {
         static let shared = Service()
         struct Service { func syncWithPreferences() {} }
     }
+    final class Brightness {
+        var syncs = 0
+        func syncWithPreferences() { syncs += 1 }
+    }
+    enum BrightnessService { static var shared = Brightness() }
 
     class State {
         var acceptsSystemFeedback = true
@@ -319,10 +324,25 @@ enum NotchDestinationContract {
         let service = Service()
         NotchTimerService.shared = Timer()
         let timer = NotchTimerService.shared
+        // The production branch reads the brightness feature from the app's
+        // own defaults; keep it installed for these checks only.
+        let brightnessKey = AppFeature.brightness.availabilityKey
+        let previousBrightness = UserDefaults.standard.object(forKey: brightnessKey)
+        UserDefaults.standard.set(true, forKey: brightnessKey)
+        defer {
+            if let previousBrightness {
+                UserDefaults.standard.set(previousBrightness, forKey: brightnessKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: brightnessKey)
+            }
+        }
+        BrightnessService.shared = Brightness()
         service.updateSession { $0.displaysSleeping = true }
         suite.expect(timer.running && timer.suspensions == 0 && timer.syncs == 0
                && service.presentationTearDowns == 1 && !service.session.canPresent,
                "display sleep removes presentation while leaving the timer and alarm uninterrupted")
+        suite.expect(BrightnessService.shared.syncs == 1,
+               "the brightness keys go back to the system while the island is torn down")
         service.updateSession { $0.sleeping = true }
         suite.expect(!timer.running && timer.suspensions == 1 && service.presentationTearDowns == 1,
                "system sleep suspends the timer even after the display already hid the island")

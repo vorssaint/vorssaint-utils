@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -86,6 +87,16 @@ extension BluetoothSleepStrings {
         restoreToggle: "Volver a encender el Bluetooth cuando el Mac despierte",
         restoreCaption: "Solo cuando fue Vorssaint quien lo apagó.",
         unsupported: "Este Mac no tiene controlador Bluetooth."
+    )
+
+    static let sk = BluetoothSleepStrings(
+        pageTitle: "Bluetooth v spánku",
+        hubDescription: "Vypne Bluetooth, kým Mac spí, aby sa slúchadlá v taške prestali k nemu pripájať.",
+        enable: "Vypnúť Bluetooth, keď Mac zaspí",
+        enableCaption: "Bluetooth, ktorý bol vypnutý už pred spánkom, sa nemení a po prebudení ostane vypnutý.",
+        restoreToggle: "Znova zapnúť Bluetooth pri prebudení Macu",
+        restoreCaption: "Iba ak ho vypol Vorssaint.",
+        unsupported: "Tento Mac nemá Bluetooth radič."
     )
 
     static let de = BluetoothSleepStrings(

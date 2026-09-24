@@ -69,6 +69,7 @@ struct MediaImageConverterStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -380,6 +381,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "%d imágenes guardadas",
         batchPartialFormat: "%d guardadas, %d fallidas",
         batchSummaryHeaderFormat: "%d guardadas, %d fallidas",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let sk = MediaImageConverterStrings(
+        filesSelectedFormat: "Vybrané súbory: %d",
+        profile: "Profil",
+        noProfile: "Žiadny profil",
+        profileName: "Názov profilu",
+        saveAsNew: "Uložiť nový",
+        updateProfile: "Aktualizovať",
+        deleteProfile: "Vymazať profil",
+        profileModified: "Upravené",
+        profileDefaultNameFormat: "Profil %d",
+        presetWeb: "Web",
+        presetSocial: "Sociálne siete",
+        presetDocs: "Dokumenty",
+        resize: "Zmeniť veľkosť",
+        resizeNone: "Bez zmeny",
+        resizeMax: "Najdlhšia strana",
+        resizeWidth: "Šírka",
+        resizeHeight: "Výška",
+        resizeExact: "Vlastné",
+        exactStretch: "Roztiahnuť",
+        exactFit: "Prispôsobiť",
+        exactFill: "Vyplniť",
+        height: "Výška",
+        watermark: "Vodoznak",
+        watermarkOff: "Vypnutý",
+        watermarkText: "Text",
+        watermarkLogo: "Logo",
+        watermarkBoth: "Text + logo",
+        watermarkTextPlaceholder: "Text vodoznaku",
+        noLogo: "Žiadne logo",
+        chooseLogo: "Vybrať logo",
+        position: "Poloha",
+        topLeft: "Vľavo hore",
+        topRight: "Vpravo hore",
+        center: "V strede",
+        bottomLeft: "Vľavo dole",
+        bottomRight: "Vpravo dole",
+        opacity: "Krytie",
+        margin: "Okraj",
+        scale: "Mierka",
+        rename: "Premenovať",
+        preview: "Náhľad",
+        outputName: "Výstup",
+        background: "Pozadie",
+        backgroundTransparent: "Priehľadné",
+        backgroundWhite: "Biele",
+        backgroundBlack: "Čierne",
+        preserveDate: "Zachovať pôvodný dátum úpravy",
+        saveInSubfolder: "Uložiť do podpriečinka „Converted“",
+        moreOptions: "Ďalšie možnosti",
+        tooLarge: "Tieto rozmery sú príliš veľké na bezpečné spracovanie. Zvoľte menšiu veľkosť.",
+        copySummary: "Kopírovať súhrn",
+        savedBytesFormat: "Ušetrené %@",
+        grewBytesFormat: "O %@ väčšie",
+        batchSavedFormat: "Uložené obrázky: %d",
+        batchPartialFormat: "Uložené: %d, neúspešné: %d",
+        batchSummaryHeaderFormat: "Uložené: %d, neúspešné: %d",
         batchSummaryItemFormat: "%@ -> %@"
     )
 

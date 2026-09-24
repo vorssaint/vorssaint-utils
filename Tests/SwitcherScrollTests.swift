@@ -78,11 +78,11 @@ enum SwitcherScrollContract {
         _ = NSApplication.shared
         let previousPolicy = NSApp.activationPolicy()
         NSApp.setActivationPolicy(.prohibited)
-        let previousSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
-        UserDefaults.standard.set("normal", forKey: DefaultsKey.previewSize)
+        let previousSize = UserDefaults.standard.object(forKey: DefaultsKey.switcherPreviewSize)
+        UserDefaults.standard.set("normal", forKey: DefaultsKey.switcherPreviewSize)
         defer {
-            if let previousSize { UserDefaults.standard.set(previousSize, forKey: DefaultsKey.previewSize) }
-            else { UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize) }
+            if let previousSize { UserDefaults.standard.set(previousSize, forKey: DefaultsKey.switcherPreviewSize) }
+            else { UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherPreviewSize) }
             NSApp.setActivationPolicy(previousPolicy)
         }
         func run(_ name: String, _ body: (Model, (String) -> Void, () -> Void) -> Void) {
@@ -204,7 +204,7 @@ enum SwitcherScrollContract {
                 model.seed([8], selected: 7, simple: simple); check("new session wins")
             }
             for size in Defaults.allowedPreviewSizes {
-                UserDefaults.standard.set(size, forKey: DefaultsKey.previewSize)
+                UserDefaults.standard.set(size, forKey: DefaultsKey.switcherPreviewSize)
                 if !simple {
                     run("focused app \(size)") { model, check, _ in
                         model.sessionScope = .frontmostApp
@@ -225,7 +225,7 @@ enum SwitcherScrollContract {
                     model.recompute(); check("smaller display")
                 }
             }
-            UserDefaults.standard.set("normal", forKey: DefaultsKey.previewSize)
+            UserDefaults.standard.set("normal", forKey: DefaultsKey.switcherPreviewSize)
         }
     }
 }

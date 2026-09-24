@@ -28,7 +28,7 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.bytes(512), "512 B", "bytes < 1K")
         expectEqual(MetricFormat.bytes(1024), "1.0 KB", "bytes 1K")
         expectEqual(MetricFormat.bytes(1536), "1.5 KB", "bytes 1.5K")
-        // Seven of the thirteen languages here are spoken where a decimal is
+        // Eight of the fourteen languages here are spoken where a decimal is
         // written with a comma, and the panel wrote a point at everyone.
         MetricFormat.locale = Locale(identifier: "pt_BR")
         expectEqual(MetricFormat.bytes(1536), "1,5 KB", "a comma region reads its own decimal")
@@ -756,6 +756,55 @@ enum MetricsFeatureTests {
                "cached files clamp to total physical memory")
         suite.expect(MetricFormat.cachedFiles(totalBytes: 16 * 1024, pageSize: 0, fileBackedPages: 3) == 0,
                "cached files are zero when page size is zero")
+
+        // MARK: Connected USB Devices
+
+        let validUSBProps: [String: Any] = [
+            "USB Product Name": "SanDisk Extreme",
+            "USB Vendor Name": "SanDisk",
+            "idVendor": 0x0781,
+            "idProduct": 0x5583,
+            "locationID": 0x01100000,
+        ]
+        let parsedUSB = USBDeviceSampler.parseDevice(properties: validUSBProps)
+        suite.expect(parsedUSB?.name == "SanDisk Extreme" && parsedUSB?.vendorName == "SanDisk",
+                     "external USB product and vendor names are retained")
+        suite.expect(parsedUSB?.id == "\(0x0781)-\(0x5583)-loc\(0x01100000)",
+                     "USB devices fall back to their physical location for a stable identity")
+
+        let rootHubProps: [String: Any] = ["idVendor": 0, "idProduct": 0]
+        suite.expect(USBDeviceSampler.parseDevice(properties: rootHubProps) == nil,
+                     "root controller hubs are excluded")
+        let externalHubProps: [String: Any] = ["bDeviceClass": 9, "idVendor": 1, "idProduct": 1]
+        suite.expect(USBDeviceSampler.parseDevice(properties: externalHubProps) == nil,
+                     "external USB hubs are excluded so their bus entries do not inflate the count")
+        let billboardProps: [String: Any] = ["bDeviceClass": 17, "idVendor": 1, "idProduct": 1]
+        suite.expect(USBDeviceSampler.parseDevice(properties: billboardProps) == nil,
+                     "USB-C billboard devices are excluded because they only report the display mode")
+        let unnamedProps: [String: Any] = ["idVendor": 2, "idProduct": 3, "locationID": 5]
+        suite.expect(USBDeviceSampler.parseDevice(properties: unnamedProps)?.name == "",
+                     "a device without a product name stays unnamed so the list shows its translated fallback")
+        let builtInProps: [String: Any] = ["Built-In": true, "idVendor": 1, "idProduct": 1]
+        suite.expect(USBDeviceSampler.parseDevice(properties: builtInProps) == nil,
+                     "built-in USB hardware is excluded")
+        let nonRemovableProps: [String: Any] = ["non-removable": "yes", "idVendor": 1, "idProduct": 1]
+        suite.expect(USBDeviceSampler.parseDevice(properties: nonRemovableProps) == nil,
+                     "non-removable USB hardware is excluded")
+
+        let duplicateUSB = ConnectedUSBDevice(id: "same", name: "First", vendorName: nil,
+                                              vendorId: 1, productId: 1, locationId: 1)
+        let uniqueUSB = ConnectedUSBDevice(id: "other", name: "Second", vendorName: nil,
+                                           vendorId: 1, productId: 2, locationId: 2)
+        suite.expect(USBDeviceSampler.deduplicated([duplicateUSB, duplicateUSB, uniqueUSB]).map(\.id)
+                         == ["same", "other"],
+                     "USB devices are deduplicated by their stable registry identifier")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.connectedDevices(language)
+            suite.expect(!strings.title.isEmpty && !strings.hubDescription.isEmpty
+                    && !strings.noDevices.isEmpty && !strings.unnamedDevice.isEmpty
+                    && !strings.menuBarLabel.isEmpty && !strings.oneConnected.isEmpty,
+                         "connected device strings are complete for \(language.rawValue)")
+        }
 
         MetricFormat.locale = originalLocale
     }

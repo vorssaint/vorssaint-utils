@@ -46,6 +46,7 @@ struct FanControlFeatureStrings {
     let hottestCPU: String
     let hottestGPU: String
     let helperUnavailable: String
+    let resumeAfterRestart: String
 }
 
 extension FeatureStrings {
@@ -56,6 +57,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -112,7 +114,8 @@ extension FanControlFeatureStrings {
         averageCPU: "Average CPU",
         hottestCPU: "Hottest CPU",
         hottestGPU: "Hottest GPU",
-        helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again."
+        helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
+        resumeAfterRestart: "Resume after restart or sleep"
     )
 
     static let ptBR = FanControlFeatureStrings(
@@ -157,7 +160,8 @@ extension FanControlFeatureStrings {
         averageCPU: "Média da CPU",
         hottestCPU: "CPU mais quente",
         hottestGPU: "GPU mais quente",
-        helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente."
+        helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente.",
+        resumeAfterRestart: "Retomar depois de reiniciar ou repousar"
     )
 
     static let tr = FanControlFeatureStrings(
@@ -202,7 +206,8 @@ extension FanControlFeatureStrings {
         averageCPU: "Ortalama CPU",
         hottestCPU: "En sıcak CPU",
         hottestGPU: "En sıcak GPU",
-        helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin."
+        helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin.",
+        resumeAfterRestart: "Yeniden başlatma veya uykudan sonra sürdür"
     )
 
     static let ru = FanControlFeatureStrings(
@@ -247,7 +252,8 @@ extension FanControlFeatureStrings {
         averageCPU: "Средняя CPU",
         hottestCPU: "Самая горячая CPU",
         hottestGPU: "Самая горячая GPU",
-        helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку."
+        helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку.",
+        resumeAfterRestart: "Возобновлять после перезагрузки или сна"
     )
 
     static let es = FanControlFeatureStrings(
@@ -292,7 +298,54 @@ extension FanControlFeatureStrings {
         averageCPU: "Promedio de CPU",
         hottestCPU: "CPU más caliente",
         hottestGPU: "GPU más caliente",
-        helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo."
+        helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo.",
+        resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo"
+    )
+
+    static let sk = FanControlFeatureStrings(
+        title: "Ovládanie ventilátorov",
+        hubDescription: "Ovládajte ventilátory ručne alebo pomocou teplotných kriviek a sledujte aktuálne a cieľové otáčky",
+        showInPanel: "Zobraziť ovládanie ventilátorov v paneli",
+        settingsCaption: "Pridá do panela v lište ručné otáčky ventilátorov a teplotné krivky.",
+        fanNameFormat: "Ventilátor %d",
+        rpmFormat: "%d ot./min",
+        allowControl: "Povoliť ovládanie ventilátorov",
+        approvalCaption: "Povoľte Vorssaint v časti Položky a rozšírenia spúšťané pri prihlásení, aby mohol používať chránené ovládanie ventilátorov.",
+        openSettings: "Otvoriť Systémové nastavenia",
+        noFans: "Tento Mac nemá ovládateľný ventilátor.",
+        unsupported: "Ovládanie ventilátorov nie je na tomto Macu dostupné.",
+        alreadyControlled: "Ventilátory ovláda iný proces. Najprv ho vráťte na systémové ovládanie.",
+        failed: "Ventilátory sa vrátili na systémové ovládanie, pretože požadované ovládanie sa nepodarilo overiť.",
+        safetyCaption: "Ovládanie zostáva aktívne, kým sa nevrátite na Systém. Automaticky sa vráti, ak sa aplikácia odpojí, Mac uspí, zlyhajú snímače alebo stúpne tepelný tlak.",
+        safetyStopped: "Ovládanie sa vrátilo systému, pretože bolo ovládanie ventilátorov prerušené.",
+        menuBarTitle: "Otáčky ventilátora",
+        systemControl: "Systém",
+        manualControl: "Ručne",
+        customCurve: "Krivka",
+        mode: "Režim ovládania",
+        coolingIntensity: "Otáčky ventilátora",
+        currentRPMFormat: "Aktuálne %d ot./min",
+        targetRPMFormat: "Cieľ %d ot./min",
+        applyManual: "Použiť ručné ovládanie",
+        applyCurve: "Použiť krivku ventilátora",
+        returnToSystem: "Použiť systémové ovládanie",
+        temperatureUnavailable: "Vybraný teplotný snímač prestal reagovať. Ovládanie sa vrátilo na Systém.",
+        curveUnavailable: "Vybraný teplotný snímač nie je na tomto Macu dostupný.",
+        sensor: "Teplotný snímač",
+        temperature: "Teplota",
+        fanSpeed: "Otáčky ventilátora",
+        addPoint: "Pridať bod",
+        addSensor: "Pridať snímač",
+        removePoint: "Odstrániť bod",
+        removeSensor: "Odstrániť snímač",
+        curveGraph: "Krivka teploty a otáčok ventilátora",
+        averageSoC: "Priemer SoC",
+        hottestSoC: "Najteplejší SoC",
+        averageCPU: "Priemer CPU",
+        hottestCPU: "Najteplejší CPU",
+        hottestGPU: "Najteplejší GPU",
+        helperUnavailable: "Chránený ovládač ventilátorov nie je dostupný. Povoľte Vorssaint v časti Položky a rozšírenia spúšťané pri prihlásení a skúste to znova.",
+        resumeAfterRestart: "Pokračovať po reštarte alebo spánku"
     )
 
     static let de = FanControlFeatureStrings(
@@ -337,7 +390,8 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU-Durchschnitt",
         hottestCPU: "Heißeste CPU",
         hottestGPU: "Heißeste GPU",
-        helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut."
+        helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut.",
+        resumeAfterRestart: "Nach Neustart oder Ruhezustand fortsetzen"
     )
 
     static let fr = FanControlFeatureStrings(
@@ -382,7 +436,8 @@ extension FanControlFeatureStrings {
         averageCPU: "Moyenne du CPU",
         hottestCPU: "CPU le plus chaud",
         hottestGPU: "GPU le plus chaud",
-        helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez."
+        helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez.",
+        resumeAfterRestart: "Reprendre après un redémarrage ou la veille"
     )
 
     static let it = FanControlFeatureStrings(
@@ -427,7 +482,8 @@ extension FanControlFeatureStrings {
         averageCPU: "Media CPU",
         hottestCPU: "CPU più calda",
         hottestGPU: "GPU più calda",
-        helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova."
+        helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova.",
+        resumeAfterRestart: "Riprendi dopo il riavvio o lo stop"
     )
 
     static let ja = FanControlFeatureStrings(
@@ -472,7 +528,8 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均",
         hottestCPU: "最高CPU",
         hottestGPU: "最高GPU",
-        helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。"
+        helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。",
+        resumeAfterRestart: "再起動やスリープのあとに再開"
     )
 
     static let ko = FanControlFeatureStrings(
@@ -517,7 +574,8 @@ extension FanControlFeatureStrings {
         averageCPU: "평균 CPU",
         hottestCPU: "가장 뜨거운 CPU",
         hottestGPU: "가장 뜨거운 GPU",
-        helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요."
+        helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요.",
+        resumeAfterRestart: "재시작 또는 잠자기 후 다시 적용"
     )
 
     static let zhHans = FanControlFeatureStrings(
@@ -562,7 +620,8 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均温度",
         hottestCPU: "CPU最高温度",
         hottestGPU: "GPU最高温度",
-        helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。"
+        helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。",
+        resumeAfterRestart: "重新启动或睡眠后恢复"
     )
 
     static let zhTW = FanControlFeatureStrings(
@@ -607,7 +666,8 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均溫度",
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
-        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。"
+        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。",
+        resumeAfterRestart: "重新開機或睡眠後恢復"
     )
 
     static let zhHK = FanControlFeatureStrings(
@@ -652,7 +712,8 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均溫度",
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
-        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。"
+        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。",
+        resumeAfterRestart: "重新啟動或睡眠後恢復"
     )
     static let uk = FanControlFeatureStrings(
         title: "Керування вентиляторами",

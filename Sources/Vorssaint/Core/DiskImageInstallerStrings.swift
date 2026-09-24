@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -161,6 +162,29 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Mostrar la app instalada en Finder",
         installedKeptDownloadBodyFormat: "%@ está lista en %@. La imagen de disco se expulsó y la descarga se conservó.",
         installingFormat: "Instalando %@…"
+    )
+
+    static let sk = DiskImageInstallerStrings(
+        title: "Inštalátor obrazu disku",
+        hubDescription: "Nainštaluje jedinú aplikáciu z obrazu disku a upratá stiahnutý súbor",
+        useUserApplications: "Nainštalovať do priečinka Aplikácie vo vašom domovskom priečinku",
+        applicationsFolder: "priečinka Aplikácie",
+        userApplicationsFolder: "priečinka Aplikácie vo vašom domovskom priečinku",
+        promptTitle: "Nainštalovať túto aplikáciu?",
+        promptBodyFormat: "Aplikácia %@ sa skopíruje do %@ a obraz disku sa vysunie.",
+        installButton: "Nainštalovať",
+        installedTitle: "Aplikácia nainštalovaná",
+        installedBodyFormat: "Aplikácia %@ bola nainštalovaná do %@. Obraz disku bol vysunutý a stiahnutý súbor presunutý do Koša.",
+        installedKeepingMountBodyFormat: "Aplikácia %@ bola nainštalovaná do %@, ale obraz disku sa nepodarilo vysunúť. Stiahnutý súbor zostal zachovaný.",
+        installedKeepingDownloadBodyFormat: "Aplikácia %@ bola nainštalovaná do %@ a obraz disku bol vysunutý, ale stiahnutý súbor sa nepodarilo presunúť do Koša.",
+        failedTitle: "Nepodarilo sa nainštalovať",
+        failedBody: "Nič sa nezmenilo. Aplikáciu môžete stále presunúť do priečinka Aplikácie.",
+        verificationFailedBody: "Tento Mac nemohol overiť aplikáciu, preto sa nič nenainštalovalo.",
+        alreadyInstalledBodyFormat: "Aplikácia %@ je už v priečinku Aplikácie.",
+        trashDownloadOption: "Presunúť stiahnutý súbor do Koša",
+        revealAppOption: "Zobraziť nainštalovanú aplikáciu vo Finderi",
+        installedKeptDownloadBodyFormat: "Aplikácia %@ bola nainštalovaná do %@. Obraz disku bol vysunutý a stiahnutý súbor zostal zachovaný.",
+        installingFormat: "Inštaluje sa aplikácia %@…"
     )
 
     static let de = DiskImageInstallerStrings(

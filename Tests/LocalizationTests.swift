@@ -6,7 +6,7 @@ import Foundation
 enum LocalizationTests {
     static let languages: [(AppLanguage, Strings)] = [
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
-        (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
+        (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
         (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
     ]
 
@@ -80,6 +80,7 @@ enum LocalizationTests {
             let additional: [(String, (AppLanguage) -> Any)] = [
                 ("imageConverter", { MediaImageConverterStrings.localized($0) }),
                 ("directionalLayout", { WindowDirectionalStrings.localized($0) }),
+                ("pointerDisplay", { PointerDisplayStrings.localized($0) }),
                 ("downloadOrganizer", { WhatsAppOrganizerStrings.localized($0) }),
                 ("shelfDelivery", { ShelfPromiseDeliveryStrings.localized($0) }),
             ]

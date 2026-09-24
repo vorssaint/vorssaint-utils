@@ -72,6 +72,14 @@ enum ShelfFeatureTests {
         suite.expect(!ShelfInteractionSupport.shouldRemoveAfterDrag(
             dropAccepted: true, draggedItemCount: 1, removeAfterDrop: false),
                "shelf retains an accepted item when automatic removal is off")
+        let pinnedDragID = UUID(), looseDragID = UUID()
+        suite.expect(ShelfInteractionSupport.removableAfterDrag([pinnedDragID, looseDragID],
+                                                                protectedIDs: [pinnedDragID]) == [looseDragID],
+               "a pinned shelf item stays after a drag-out while the rest of the drag leaves")
+        suite.expect(ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: true, dragIncludesPinned: false)
+                && !ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: true, dragIncludesPinned: true)
+                && !ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: false, dragIncludesPinned: false),
+               "a drag holding a pinned shelf item only offers a copy outside the app")
 
         suite.expect(!ShelfInteractionSupport.isContentDrag(
             baselineChangeCount: 5, changeCount: 5, beganInDock: false,
@@ -110,6 +118,12 @@ enum ShelfFeatureTests {
             suite.expect(ShelfPasteboardSupport.isFilePromiseType(type),
                    "NSFilePromiseReceiver type \(type) is recognized as a file promise")
         }
+        // Pasteboard: text (0), promise with two files (1), link (2), and a
+        // receiver with no promised item behind it.
+        let mixedDropOrder = ShelfPasteboardSupport.mergedItemIndices(
+            companionPositions: [0, 2], receiverIndices: [0, 0, 1], promisePositions: [1])
+        suite.expect(mixedDropOrder == [0, 2, 3, 1, 4],
+               "a mixed drop keeps promised files where they were dropped (got \(mixedDropOrder))")
         suite.expect(!ShelfPasteboardSupport.isFilePromiseType("public.file-url"),
                "ordinary file URLs are not classified as file promises")
         suite.expect(ShelfPasteboardSupport.isDroppablePasteboardType(
@@ -234,6 +248,13 @@ enum ShelfFeatureTests {
                && ShelfTileLayout.sidewaysTileFrame(index: 3, rows: 1, tileSize: revealTile, spacing: 10, inset: 4)
                == CGRect(x: 268, y: 4, width: 78, height: 88),
                "a sideways shelf fills each column top to bottom before starting the next")
+        suite.expect(ShelfTileLayout.sidewaysDocumentSize(itemCount: 3, rows: 1, visibleSize: .zero,
+                                                          tileSize: revealTile, spacing: 10, inset: 4)
+               == CGSize(width: 262, height: 96)
+               && ShelfTileLayout.sidewaysDocumentSize(itemCount: 3, rows: 2, visibleSize: CGSize(width: 424, height: 240),
+                                                       tileSize: revealTile, spacing: 10, inset: 4)
+               == CGSize(width: 424, height: 240),
+               "a sideways strip laid out before it has a size still covers its tiles, and fills the visible area once it has one")
 
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
@@ -341,6 +362,51 @@ enum ShelfFeatureTests {
         suite.expect(ShelfDockDragSupport.triggerFrame(pillFrame: nil, anchorFrame: nil, screenFrame: testScreen) == nil,
                "trigger frame returns nil when neither pill nor anchor is available")
 
+        // MARK: Shelf dock placement
+
+        let placementDomain = "com.vorssaint.tests.shelf-dock-placement"
+        let placementDefaults = UserDefaults(suiteName: placementDomain)!
+        placementDefaults.removePersistentDomain(forName: placementDomain)
+        defer { placementDefaults.removePersistentDomain(forName: placementDomain) }
+        for (key, value) in AppFeature.availabilityDefaults { placementDefaults.set(value, forKey: key) }
+        placementDefaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(ShelfDockPlacement.current(in: placementDefaults) == .menuBar,
+                     "an unset placement keeps the shelf under the menu bar icon")
+        placementDefaults.set("elsewhere", forKey: DefaultsKey.shelfDockPlacement)
+        suite.expect(ShelfDockPlacement.current(in: placementDefaults) == .menuBar,
+                     "an unknown placement falls back to the menu bar icon")
+        placementDefaults.set(ShelfDockPlacement.topCenter.rawValue, forKey: DefaultsKey.shelfDockPlacement)
+        suite.expect(ShelfDockPlacement.current(in: placementDefaults) == .topCenter,
+                     "the top center placement applies while the Dynamic Island is off")
+        placementDefaults.set(true, forKey: DefaultsKey.notchEnabled)
+        suite.expect(NotchSupport.isEnabled(in: placementDefaults)
+                     && ShelfDockPlacement.current(in: placementDefaults) == .menuBar,
+                     "the Dynamic Island keeps the top center, so the shelf stays under the icon")
+
+        let dockVisible = CGRect(x: 0, y: 0, width: 1512, height: 950)
+        let badgeSize = CGSize(width: 180, height: 40)
+        let dockAnchor = CGRect(x: 1200, y: 954, width: 28, height: 28)
+        let underIcon = ShelfDockPlacement.menuBar.frame(size: badgeSize, visible: dockVisible, safeTop: 950, anchor: dockAnchor)
+        suite.expect(underIcon == CGRect(x: 1124, y: 906, width: 180, height: 40),
+                     "menu bar placement centers under the icon, got \(underIcon)")
+        let topCenter = ShelfDockPlacement.topCenter.frame(size: badgeSize, visible: dockVisible, safeTop: 950, anchor: dockAnchor)
+        suite.expect(topCenter == CGRect(x: 666, y: 906, width: 180, height: 40),
+                     "top center placement ignores the icon and centers on the screen, got \(topCenter)")
+        let noIcon = ShelfDockPlacement.menuBar.frame(size: badgeSize, visible: dockVisible, safeTop: 950, anchor: nil)
+        suite.expect(noIcon.minX == 1320, "without an icon the menu bar placement keeps the right corner, got \(noIcon)")
+        let edgeIcon = ShelfDockPlacement.menuBar.frame(size: badgeSize, visible: dockVisible, safeTop: 950,
+                                                        anchor: CGRect(x: 1500, y: 954, width: 28, height: 28))
+        suite.expect(edgeIcon.maxX == 1504, "an icon at the edge is clamped on screen, got \(edgeIcon)")
+        // Full screen or a hidden menu bar: the visible frame reaches the top of
+        // a notched 982-point screen whose safe area starts 32 points down.
+        let fullVisible = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let notchedBadge = ShelfDockPlacement.topCenter.frame(size: badgeSize, visible: fullVisible, safeTop: 950,
+                                                              anchor: dockAnchor)
+        suite.expect(notchedBadge.maxY == 950, "the top center badge stays below the notch, got \(notchedBadge)")
+        let fullPill = ShelfDockPlacement.menuBar.frame(size: badgeSize, visible: fullVisible, safeTop: 950,
+                                                        anchor: dockAnchor)
+        suite.expect(fullPill.maxY == 978, "the pill under the icon keeps its place, got \(fullPill)")
+
         suite.expect(ShelfDockDragSupport.isPointNearDock(point: CGPoint(x: 1200, y: 930),
                                                    isProximate: false,
                                                    panelFrame: testPill,
@@ -436,12 +502,25 @@ enum ShelfFeatureTests {
         // and read with nothing else complaining.
         let shelfFullItem = ShelfPersistedItem(id: UUID(), kind: .file, title: "t", text: "x",
                                                url: "https://example.com/u", path: "/tmp/p",
-                                               bookmark: Data([1]), children: [])
+                                               bookmark: Data([1]), children: [], pinned: true)
         let shelfFullRound = (try? JSONEncoder().encode(shelfFullItem))
             .flatMap { try? JSONDecoder().decode(ShelfPersistedItem.self, from: $0) }
         suite.expect(shelfFullRound == shelfFullItem,
                "every persisted shelf field survives an encode and decode round trip")
 
+        suite.expect(ShelfPersistedItem(id: UUID(), kind: .text, title: "t", text: "t", pinned: false).pinned == nil
+                && (try? JSONDecoder().decode(ShelfPersistedItem.self,
+                                              from: Data(#"{"kind":"text","text":"t"}"#.utf8)))?.pinned == nil,
+               "an unpinned shelf item and a store written before pins both read as unpinned")
+        let pinnedShelfText = ShelfPersistedItem(id: UUID(), kind: .text, title: "Hello",
+                                                 text: "Hello world", pinned: true)
+        suite.expect(ShelfPersistenceSupport.sanitized([pinnedShelfText]) { _ in true } == [pinnedShelfText],
+               "a pinned shelf item keeps its pin through restore")
+        let pinnedShelfBatch = ShelfPersistedItem(id: UUID(), kind: .batch, title: "batch",
+                                                  children: [shelfFile, shelfText], pinned: true)
+        suite.expect(ShelfPersistenceSupport.sanitized([pinnedShelfBatch]) { _ in true } == [pinnedShelfBatch]
+                && ShelfPersistenceSupport.sanitized([pinnedShelfBatch]) { _ in false }.first?.pinned == true,
+               "a pinned shelf pile keeps its pin, and passes it to the item it collapses to")
         suite.expect(ShelfPersistenceSupport.sanitized([shelfFile, shelfText, shelfLink]) { _ in true }
                    == [shelfFile, shelfText, shelfLink],
                "healthy shelf items pass sanitizing untouched")
@@ -576,7 +655,7 @@ enum ShelfFeatureTests {
                                                  notePlural: "%d notes",
                                                  linkSingular: "%d link", linkFew: "%d links",
                                                  linkPlural: "%d links",
-                                                 usesFewForm: false)
+                                                 agreement: .oneAndMany)
         // Russian agrees a noun with the number in front of it three ways, and
         // the rule is the number's last digits, not its size: 1 and 21 take the
         // first, 2 and 22 the middle, 11 and 25 the last. A two-way choice put
@@ -590,7 +669,7 @@ enum ShelfFeatureTests {
                                                 notePlural: "many",
                                                 linkSingular: "one", linkFew: "few",
                                                 linkPlural: "many",
-                                                usesFewForm: true)
+                                                agreement: .byLastDigits)
         for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
                                 (11, .many), (12, .many), (14, .many), (15, .many),
                                 (21, .one), (22, .few), (25, .many), (101, .one), (111, .many)] {
@@ -602,8 +681,31 @@ enum ShelfFeatureTests {
             suite.expect(tooltipStrings.form(for: count) == wanted,
                    "a language without a middle form still only chooses between one and many at \(count)")
         }
-        suite.expect(AppLanguage.allCases.filter(\.usesFewCountForm) == [.ru, .uk],
-               "Russian and Ukrainian use the middle count form")
+        // Slovak has the same three forms but reads the whole number, not its
+        // last digits: 21 and 22 stay with the last form, where Russian moves
+        // them back to the first and the middle. Borrowing the Russian rule
+        // put "21 súbor" and "22 súbory" on screen.
+        let slovakStrings = ShelfTooltipStrings(itemsFormat: "many", itemsFew: "few",
+                                                imageSingular: "one", imageFew: "few",
+                                                imagePlural: "many",
+                                                fileSingular: "one", fileFew: "few",
+                                                filePlural: "many",
+                                                noteSingular: "one", noteFew: "few",
+                                                notePlural: "many",
+                                                linkSingular: "one", linkFew: "few",
+                                                linkPlural: "many",
+                                                agreement: .byWholeNumber)
+        for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
+                                (11, .many), (14, .many), (21, .many), (22, .many),
+                                (25, .many), (101, .many), (111, .many)] {
+            suite.expect(slovakStrings.form(for: count) == wanted,
+                   "a language that reads the whole number asks for the right form at \(count)")
+        }
+        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .uk]
+               && AppLanguage.ru.countAgreement == .byLastDigits
+               && AppLanguage.uk.countAgreement == .byLastDigits
+               && AppLanguage.sk.countAgreement == .byWholeNumber,
+               "Russian, Slovak and Ukrainian are the three languages of the fifteen that ask for the middle form, each by its own rule")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",

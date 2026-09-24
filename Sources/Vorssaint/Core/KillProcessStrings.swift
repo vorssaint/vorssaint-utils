@@ -47,6 +47,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -224,6 +225,39 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "No se pudo finalizar el proceso",
         killFailedMessage: "El proceso puede haber terminado ya o requerir privilegios adicionales.",
         adminPromptFormat: "Vorssaint necesita acceso de administrador para finalizar “%@”."
+    )
+
+    static let sk = KillProcessFeatureStrings(
+        pageTitle: "Ukončiť proces",
+        browseSubtitle: "Prehľadávať a ukončiť",
+        hubDescription: "Hľadajte bežiace procesy a vynútene ich ukončite, reštartujte alebo ukončite celé stromy procesov",
+        searchPlaceholder: "Filtrovať podľa názvu",
+        columnProcess: "Proces",
+        columnCPU: "CPU",
+        columnMemory: "Pamäť",
+        columnPID: "PID",
+        groupToggle: "Zoskupiť súvisiace procesy",
+        groupCaption: "Zoskupí pomocné procesy pod aplikáciu, ktorá je za ne zodpovedná.",
+        commandBarToggle: "Zobraziť v príkazovej lište",
+        commandBarCaption: "Pridá bežiace procesy do príkazovej lišty, aby ste ich mohli nájsť a ukončiť bez otvárania Nastavení.",
+        refreshTooltip: "Obnoviť",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Procesy: %d",
+        killButton: "Ukončiť",
+        forceKillButton: "Vynútene ukončiť",
+        killAllFormat: "Ukončiť všetky „%@“",
+        killTreeButton: "Ukončiť strom procesu",
+        restartButton: "Reštartovať",
+        copyPID: "Kopírovať PID",
+        copyPath: "Kopírovať cestu",
+        emptyStateTitle: "Nenašli sa žiadne procesy",
+        confirmKillFormat: "Ukončiť %@?",
+        confirmForceKillFormat: "Vynútene ukončiť %@?",
+        confirmKillAllFormat: "Ukončiť všetky procesy „%@“?",
+        confirmKillTreeFormat: "Ukončiť %@ a všetky jeho podradené procesy?",
+        killFailedTitle: "Proces sa nepodarilo ukončiť",
+        killFailedMessage: "Proces už možno skončil alebo vyžaduje ďalšie oprávnenia.",
+        adminPromptFormat: "Vorssaint potrebuje prístup správcu na ukončenie „%@“."
     )
 
     static let de = KillProcessFeatureStrings(

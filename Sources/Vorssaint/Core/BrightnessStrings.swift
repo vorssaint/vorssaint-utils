@@ -44,6 +44,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -206,6 +207,36 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessDecrease: "Reducir el brillo del teclado",
         keyboardBrightnessIncrease: "Aumentar el brillo del teclado",
         softwareDimming: "Oscurecer la imagen"
+    )
+
+    static let sk = BrightnessFeatureStrings(
+        pageTitle: "Displeje",
+        hubDescription: "Jas a zapínanie pre všetky displeje",
+        enable: "Ovládať displeje",
+        enableCaption: "Ovládanie jasu a zapínania pre vstavaný displej a externé monitory, tu aj v paneli v lište.",
+        externalCaption: "Externé monitory sa upravujú rovnakým protokolom ako ich vlastné tlačidlá. Keď ho pripojenie nedokáže preniesť, napríklad pri HDMI adaptéroch, posuvník namiesto toho stmaví obraz, takže ovládanie jasu funguje vždy.",
+        noDisplays: "Nenašiel sa žiadny displej.",
+        displayOff: "Vypnutý",
+        turnOffDisplay: "Vypnúť displej",
+        turnOnDisplay: "Zapnúť displej",
+        lastDisplayCaption: "Aspoň jeden displej musí zostať zapnutý.",
+        switchUnavailable: "Prepínanie displejov nie je na tomto Macu dostupné.",
+        switchFailed: "Tento displej sa nepodarilo zmeniť.",
+        openLidToEnable: "Otvorte veko, aby ste zapli vstavaný displej.",
+        keysToggle: "Klávesy jasu sledujú kurzor",
+        keysCaption: "Klávesy jasu na klávesnici menia displej pod kurzorom.",
+        osdToggle: "Zobraziť jas pri úprave",
+        osdCaption: "Zobrazuje percento jasu pri použití klávesov alebo posuvníkov jasu.",
+        displayBrightnessShortcuts: "Používať klávesové skratky pre jas displeja",
+        displayBrightnessShortcutCaption: "Skratky upravujú hlavný displej, alebo displej pod kurzorom, ak je zapnuté sledovanie kurzora.",
+        displayBrightnessDecrease: "Znížiť jas displeja",
+        displayBrightnessIncrease: "Zvýšiť jas displeja",
+        keyboardLight: "Podsvietenie klávesnice",
+        keyboardLightCaption: "Zapína alebo vypína podsvietenie klávesnice.",
+        keyboardBrightnessShortcuts: "Používať klávesové skratky pre jas klávesnice",
+        keyboardBrightnessDecrease: "Znížiť jas klávesnice",
+        keyboardBrightnessIncrease: "Zvýšiť jas klávesnice",
+        softwareDimming: "Stmaviť obraz"
     )
 
     static let de = BrightnessFeatureStrings(

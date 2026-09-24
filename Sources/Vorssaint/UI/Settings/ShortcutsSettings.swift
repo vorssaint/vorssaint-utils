@@ -11,7 +11,8 @@ struct ShortcutsSettings: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var superKey = SuperKeyService.shared
     @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
-    @State private var expandedFeatures: Set<AppFeature> = [.screenshot]
+    /// Keyed by group too: brightness has a row in two groups, and each opens on its own.
+    @State private var expandedFeatures: [FeatureGroup: Set<AppFeature>] = [.tools: [.screenshot]]
     @State private var showsAppShortcuts = false
 
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
@@ -100,8 +101,8 @@ struct ShortcutsSettings: View {
             symbolName: AppFeature.screenshot.symbolName,
             isActive: featureHasActiveShortcut(.screenshot, roles: roles),
             count: roles.count,
-            isExpanded: expansionBinding(for: .screenshot))
-        if expandedFeatures.contains(.screenshot) {
+            isExpanded: expansionBinding(for: .screenshot, in: .tools))
+        if expandedFeatures[.tools, default: []].contains(.screenshot) {
             ForEach(roles) { role in
                 roleRow(role, showsFeatureContext: false)
                     .disclosureIndent()
@@ -112,15 +113,17 @@ struct ShortcutsSettings: View {
     @ViewBuilder
     private func featureRows(_ feature: AppFeature, in group: FeatureGroup) -> some View {
         let roles = availableRoles.filter { $0.feature == feature && $0.group == group }
-        let count = feature == .windowLayout ? WindowLayoutAction.shortcutActions.count : roles.count
+        let count = feature == .windowLayout
+            ? WindowLayoutAction.shortcutActions.count + roles.count
+            : roles.count
         if count > 1 {
             disclosureHeader(
                 title: featureTitle(feature, roles: roles),
                 symbolName: featureSymbol(feature, roles: roles),
                 isActive: featureHasActiveShortcut(feature, roles: roles),
                 count: count,
-                isExpanded: expansionBinding(for: feature))
-            if expandedFeatures.contains(feature) {
+                isExpanded: expansionBinding(for: feature, in: group))
+            if expandedFeatures[group, default: []].contains(feature) {
                 if feature == .windowLayout {
                     ForEach(WindowLayoutAction.shortcutActions) { action in
                         CentralWindowLayoutShortcutRow(
@@ -132,6 +135,10 @@ struct ShortcutsSettings: View {
                             text: text
                         )
                         .disclosureIndent()
+                    }
+                    ForEach(roles) { role in
+                        roleRow(role, showsFeatureContext: false, reservesClearButtonSpace: true)
+                            .disclosureIndent()
                     }
                 } else {
                     if feature == .brightness, roles.allSatisfy(\.isKeyboardBrightness) {
@@ -189,7 +196,8 @@ struct ShortcutsSettings: View {
     }
 
     private func roleRow(_ role: GlobalShortcutRole,
-                         showsFeatureContext: Bool = true) -> some View {
+                         showsFeatureContext: Bool = true,
+                         reservesClearButtonSpace: Bool = false) -> some View {
         let title = role.title(l10n.s)
         let featureTitle = role.feature.hubTitle(l10n.s, hub: hub)
         let active = role.requiredEnableKeys.allSatisfy {
@@ -206,6 +214,7 @@ struct ShortcutsSettings: View {
             showsSuperKeyAlternative: superKey.isRunning,
             superKeyModifiers: superKey.modifiers,
             includeInactiveConflicts: true,
+            reservesClearButtonSpace: reservesClearButtonSpace,
             additionalConflict: { shortcut in
                 guard AppFeature.windowLayout.isAvailable else { return nil }
                 return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
@@ -216,23 +225,24 @@ struct ShortcutsSettings: View {
         )
     }
 
-    private func expansionBinding(for feature: AppFeature) -> Binding<Bool> {
+    private func expansionBinding(for feature: AppFeature, in group: FeatureGroup) -> Binding<Bool> {
         Binding {
-            expandedFeatures.contains(feature)
+            expandedFeatures[group, default: []].contains(feature)
         } set: { expanded in
             if expanded {
-                expandedFeatures.insert(feature)
+                expandedFeatures[group, default: []].insert(feature)
             } else {
-                expandedFeatures.remove(feature)
+                expandedFeatures[group, default: []].remove(feature)
             }
         }
     }
 
     private func featureHasActiveShortcut(_ feature: AppFeature,
                                           roles: [GlobalShortcutRole]) -> Bool {
-        if feature == .windowLayout {
-            return UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
-                && WindowLayoutAction.shortcutActions.contains { $0.savedShortcut != nil }
+        if feature == .windowLayout,
+           UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled),
+           WindowLayoutAction.shortcutActions.contains(where: { $0.savedShortcut != nil }) {
+            return true
         }
         return roles.contains { role in
             role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }

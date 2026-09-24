@@ -4,6 +4,19 @@
 import Combine
 import Foundation
 
+/// The way a language agrees a noun with the number in front of it.
+enum CountAgreement {
+    /// One form for exactly one, another for every other count.
+    case oneAndMany
+    /// Russian and Ukrainian: the number's last digits decide. 21 takes the
+    /// first form and 22 the middle one, while 11 through 14 fall back to the last.
+    case byLastDigits
+    /// Slovak: the whole number decides. Only one itself takes the first form
+    /// and only two through four the middle one, so 21 and 22 read
+    /// "21 súborov" and "22 súborov" the same way 25 does.
+    case byWholeNumber
+}
+
 /// Languages the interface can use. The first launch defaults to the system
 /// language; the onboarding and Settings let the user override it at any time.
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -12,6 +25,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case tr = "tr"
     case ru = "ru"
     case es = "es"
+    case sk = "sk"
     case de = "de"
     case fr = "fr"
     case it = "it"
@@ -24,10 +38,17 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Whether this language puts a distinct form between one and many.
-    /// Russian and Ukrainian use a separate form for counts ending in two
-    /// through four.
-    var usesFewCountForm: Bool { self == .ru || self == .uk }
+    /// How this language agrees a counted noun with the number in front of
+    /// it. Three of the fifteen put a distinct form between one and many, and
+    /// they disagree on which numbers take it, so the count itself is not
+    /// enough to pick a form without knowing the language's rule.
+    var countAgreement: CountAgreement {
+        switch self {
+        case .ru, .uk: return .byLastDigits
+        case .sk: return .byWholeNumber
+        default: return .oneAndMany
+        }
+    }
 
     /// The language's own name, shown in its own script, the way macOS lists them.
     var displayName: String {
@@ -37,6 +58,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .tr: return "Türkçe"
         case .ru: return "Русский"
         case .es: return "Español"
+        case .sk: return "Slovenčina"
         case .de: return "Deutsch"
         case .fr: return "Français"
         case .it: return "Italiano"
@@ -73,8 +95,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
 
         let matches: [(String, AppLanguage)] = [
-            ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("de", .de), ("fr", .fr),
-            ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
+            ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
+            ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -97,6 +119,7 @@ final class L10n: ObservableObject {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -262,6 +285,7 @@ struct Strings {
     let advancedResetDescription: String
     let advancedClearButton: String
     let advancedCleared: String
+    let advancedClearFailed: String
     let advancedClearConfirmTitle: String
     let advancedClearConfirmBody: String
     let advancedUninstallSection: String
@@ -294,6 +318,8 @@ struct Strings {
     let configuring: String
     let sudoersFailed: String
     let clamshellExplanation: String
+    let dimScreenOnLidCloseTitle: String
+    let dimScreenOnLidCloseCaption: String
 
     // MARK: Settings — mouse
     let scrollSection: String
@@ -333,6 +359,8 @@ struct Strings {
     let micMuteCaption: String
     let micMutedHUD: String
     let micUnmutedHUD: String
+    let micMutePartialHUD: String
+    let micUnmutePartialHUD: String
     let micMuteMenuBarToggle: String
     let micMuteMenuBarCaption: String
     let pastePlainName: String
@@ -462,6 +490,7 @@ struct Strings {
     let uninstallerSelectedFormat: String   // + selected, total
     let uninstallerRemove: String
     let uninstallerCancel: String
+    let uninstallerConfirmationExpired: String
     let uninstallerDoneTitle: String
     let uninstallerFreedFormat: String      // + size string
     let uninstallerSomeFailed: String
@@ -526,6 +555,7 @@ struct Strings {
     let homebrewFormulas: String
     let homebrewCasks: String
     let homebrewNoPackages: String
+    let homebrewDependencies: String
     let homebrewNoSelection: String
     let homebrewDetailsTitle: String
     let homebrewInstall: String
@@ -661,7 +691,12 @@ struct Strings {
     let shelfShakeCaption: String
     let shelfDropZoneToggle: String
     let shelfDropZoneCaption: String
+    let shelfDropZoneCaptionTopCenter: String
     let shelfDropZoneLabel: String
+    let shelfDockPlacement: String
+    let shelfDockMenuBar: String
+    let shelfDockTopCenter: String
+    let shelfDockIslandNote: String
     let shelfCollapse: String
     let shelfBehaviorTitle: String
     let shelfCloseAfterDrop: String
@@ -710,6 +745,8 @@ struct Strings {
     let shelfActionOpen: String
     let shelfActionOpenWith: String
     let shelfActionShare: String
+    let shelfActionPin: String
+    let shelfActionUnpin: String
 
     // MARK: Panel — per-app breakdown
     let breakdownMeasuring: String
@@ -751,6 +788,18 @@ struct Strings {
     let mixerAllShown: String
     let mixerHiddenCountLabel: String
     let mixerHideFromList: String
+
+    // MARK: Panel — audio device priority
+    let audioPrioritySection: String
+    let audioPriorityOutputEnable: String
+    let audioPriorityInputEnable: String
+    let audioPriorityOutputList: String
+    let audioPriorityInputList: String
+    let audioPriorityMoveUp: String
+    let audioPriorityMoveDown: String
+    let audioPriorityUnavailable: String
+    let audioPriorityCurrent: String
+    let audioPriorityCaption: String
 
     // MARK: Settings — updates
     let updatesSection: String
@@ -1081,6 +1130,7 @@ struct Strings {
     let musicBlockUnavailable: String
     let musicBlockReplacementLabel: String
     let musicBlockReplacementNone: String
+    let musicBlockReplacementBlocked: String
     let musicBlockChooseApp: String
 
     // MARK: Cleaner
@@ -1346,6 +1396,7 @@ extension Strings {
         advancedResetDescription: "Remove todas as permissões que você concedeu ao Vorssaint (Acessibilidade, Gravação de Tela, Acesso Total ao Disco e outras), o item de início e a regra de tampa fechada. Útil para começar do zero ou antes de desinstalar. O app continua instalado.",
         advancedClearButton: "Limpar todas as permissões",
         advancedCleared: "Permissões limpas.",
+        advancedClearFailed: "Não foi possível remover algumas permissões ou a regra de tampa fechada. Tente de novo e permita o pedido de senha, se ele aparecer.",
         advancedClearConfirmTitle: "Limpar todas as permissões?",
         advancedClearConfirmBody: "Os recursos que dependem de permissão vão parar de funcionar até você conceder de novo. As suas configurações são mantidas.",
         advancedUninstallSection: "Desinstalar",
@@ -1376,6 +1427,8 @@ extension Strings {
         configuring: "Configurando…",
         sudoersFailed: "Não foi possível ativar a tampa fechada. Tente de novo.",
         clamshellExplanation: "“Continuar com a tampa fechada” desativa completamente a suspensão enquanto “Manter acordado” estiver ativo e é revertido automaticamente quando a sessão termina ou o app é encerrado. Prefira usá-lo conectado à energia.",
+        dimScreenOnLidCloseTitle: "Escurecer a tela completamente",
+        dimScreenOnLidCloseCaption: "Escurece a tela quando a tampa fecha e restaura o brilho quando ela abre.",
 
         scrollSection: "Rolagem",
         invertMouseScroll: "Inverter rolagem do mouse",
@@ -1414,6 +1467,8 @@ extension Strings {
         micMuteCaption: "Corta o microfone do Mac com um clique ou atalho, valendo para qualquer app.",
         micMutedHUD: "Microfone silenciado",
         micUnmutedHUD: "Microfone reativado",
+        micMutePartialHUD: "Alguns microfones não puderam ser silenciados",
+        micUnmutePartialHUD: "Alguns microfones continuam silenciados",
         micMuteMenuBarToggle: "Mostrar na barra de menus enquanto silenciado",
         micMuteMenuBarCaption: "Um microfone cortado em vermelho aparece ao lado do ícone do app na barra de menus.",
         pastePlainName: "Colar como texto puro",
@@ -1539,6 +1594,7 @@ extension Strings {
         uninstallerSelectedFormat: "%d de %d selecionados",
         uninstallerRemove: "Mover para a Lixeira",
         uninstallerCancel: "Cancelar",
+        uninstallerConfirmationExpired: "Esta confirmação não é mais válida. Revise os itens atuais e confirme de novo.",
         uninstallerDoneTitle: "Pronto!",
         uninstallerFreedFormat: "%@ recuperados",
         uninstallerSomeFailed: "Alguns itens não puderam ser movidos para a Lixeira.",
@@ -1601,6 +1657,7 @@ extension Strings {
         homebrewFormulas: "Fórmulas",
         homebrewCasks: "Casks",
         homebrewNoPackages: "Nenhum pacote encontrado",
+        homebrewDependencies: "Dependências",
         homebrewNoSelection: "Selecione um pacote instalado ou pesquise um novo.",
         homebrewDetailsTitle: "Detalhes do pacote",
         homebrewInstall: "Instalar",
@@ -1734,13 +1791,18 @@ extension Strings {
         shelfShakeCaption: "Sacuda o ponteiro rapidamente segurando um item para chamar a área perto do cursor.",
         shelfDropZoneToggle: "Guardar arquivos na barra de menus ao arrastar",
         shelfDropZoneCaption: "Ao arrastar um arquivo, a área aparece embaixo do ícone na barra de menus. O que você soltar fica guardado ali, num botão que você encolhe e abre com um clique e que some quando a área fica vazia.",
+        shelfDropZoneCaptionTopCenter: "Ao arrastar um arquivo, a área aparece como um selo no topo, no centro da tela. O que você soltar fica guardado ali, num selo que você abre com um clique e que some quando a área fica vazia.",
         shelfDropZoneLabel: "Solte aqui",
+        shelfDockPlacement: "Posição",
+        shelfDockMenuBar: "Embaixo do ícone da barra de menus",
+        shelfDockTopCenter: "No topo, no centro da tela",
+        shelfDockIslandNote: "Enquanto a Dynamic Island está ligada, o centro do topo é dela.",
         shelfCollapse: "Encolher",
         shelfBehaviorTitle: "Depois de usar",
         shelfCloseAfterDrop: "Fechar depois de soltar em outro app",
         shelfCloseAfterDropCaption: "Fecha a área quando o destino aceita os itens. O alfinete no painel a mantém aberta.",
         shelfRemoveAfterDrop: "Remover itens depois de soltar",
-        shelfRemoveAfterDropCaption: "Itens aceitos por outro app saem da área. Desative para manter uma cópia nela.",
+        shelfRemoveAfterDropCaption: "Itens aceitos por outro app saem da área. Desative para manter uma cópia nela. Itens fixados sempre ficam.",
         shelfExclusionsTitle: "Exceções automáticas",
         shelfExclusionsEmpty: "Nenhum app adicionado.",
         shelfExclusionsCaption: "Sacudir e a área da barra de menus não abrem durante arrastes iniciados nesses apps. O atalho e Abrir agora continuam funcionando.",
@@ -1778,6 +1840,8 @@ extension Strings {
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir com",
         shelfActionShare: "Compartilhar",
+        shelfActionPin: "Fixar",
+        shelfActionUnpin: "Desafixar",
 
         breakdownMeasuring: "Medindo…",
 
@@ -1817,6 +1881,16 @@ extension Strings {
         mixerAllShown: "Todos",
         mixerHiddenCountLabel: "Escondidos",
         mixerHideFromList: "Esconder da lista",
+        audioPrioritySection: "Prioridade dos dispositivos de áudio",
+        audioPriorityOutputEnable: "Trocar automaticamente para a saída de áudio com maior prioridade",
+        audioPriorityInputEnable: "Trocar automaticamente para o microfone de maior prioridade",
+        audioPriorityOutputList: "Prioridade das saídas de áudio",
+        audioPriorityInputList: "Prioridade dos microfones",
+        audioPriorityMoveUp: "Mover para cima",
+        audioPriorityMoveDown: "Mover para baixo",
+        audioPriorityUnavailable: "Indisponível",
+        audioPriorityCurrent: "Em uso",
+        audioPriorityCaption: "Os dispositivos são selecionados por ordem de prioridade. Quando um dispositivo de maior prioridade é conectado, ele passa a ser usado. Quando o dispositivo ativo é desconectado, o próximo disponível é selecionado.",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -2128,6 +2202,7 @@ extension Strings {
         musicBlockUnavailable: "Esta proteção está indisponível agora. Desligue e ligue a opção para tentar novamente.",
         musicBlockReplacementLabel: "Abrir no lugar",
         musicBlockReplacementNone: "Nenhum",
+        musicBlockReplacementBlocked: "O Música e o iTunes são os apps bloqueados, então não podem abrir no lugar. Escolha outro app.",
         musicBlockChooseApp: "Escolher app…",
         cleanerName: "Limpeza",
         cleanerIntroTitle: "Limpe o lixo do Mac",
@@ -2243,7 +2318,7 @@ extension Strings {
         focusFollowsMouseName: "Foco ao passar o mouse",
         focusFollowsMouseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
         focusFollowsMouseDelay: "Atraso ao passar o mouse",
-        switcherMinimizedPlacementLabel: "Janelas minimizadas",
+        switcherMinimizedPlacementLabel: "Janelas minimizadas e apps ocultos",
         switcherMinimizedPlacementNormal: "Ordem normal",
         switcherMinimizedPlacementEnd: "Colocar no final",
         switcherMinimizedPlacementHidden: "Ocultar",
@@ -2392,6 +2467,7 @@ extension Strings {
         advancedResetDescription: "Removes every permission you granted Vorssaint (Accessibility, Screen Recording, Full Disk Access and others), the login item and the closed-lid rule. Useful to start fresh or before uninstalling. The app stays installed.",
         advancedClearButton: "Clear all permissions",
         advancedCleared: "Permissions cleared.",
+        advancedClearFailed: "Some permissions or the closed-lid rule could not be removed. Try again and allow the password request if it appears.",
         advancedClearConfirmTitle: "Clear all permissions?",
         advancedClearConfirmBody: "Features that need permissions will stop working until you grant them again. Your settings are kept.",
         advancedUninstallSection: "Uninstall",
@@ -2422,6 +2498,8 @@ extension Strings {
         configuring: "Configuring…",
         sudoersFailed: "Couldn’t turn on closed-lid mode. Try again.",
         clamshellExplanation: "“Keep going with the lid closed” fully disables sleep while “Keep awake” is active and is reverted automatically when the session ends or the app quits. Prefer using it plugged in.",
+        dimScreenOnLidCloseTitle: "Dim the screen to zero",
+        dimScreenOnLidCloseCaption: "Dims the screen when the lid closes and brings the brightness back when it opens.",
 
         scrollSection: "Scrolling",
         invertMouseScroll: "Invert mouse scrolling",
@@ -2460,6 +2538,8 @@ extension Strings {
         micMuteCaption: "Cuts the Mac’s microphone with a click or shortcut, across every app.",
         micMutedHUD: "Microphone muted",
         micUnmutedHUD: "Microphone back on",
+        micMutePartialHUD: "Some microphones could not be muted",
+        micUnmutePartialHUD: "Some microphones are still muted",
         micMuteMenuBarToggle: "Show in the menu bar while muted",
         micMuteMenuBarCaption: "A red crossed-out mic appears beside the app’s icon in the menu bar.",
         pastePlainName: "Paste as plain text",
@@ -2585,6 +2665,7 @@ extension Strings {
         uninstallerSelectedFormat: "%d of %d selected",
         uninstallerRemove: "Move to Trash",
         uninstallerCancel: "Cancel",
+        uninstallerConfirmationExpired: "This confirmation is no longer valid. Review the current items and confirm again.",
         uninstallerDoneTitle: "Done!",
         uninstallerFreedFormat: "%@ recovered",
         uninstallerSomeFailed: "Some items couldn’t be moved to the Trash.",
@@ -2647,6 +2728,7 @@ extension Strings {
         homebrewFormulas: "Formulae",
         homebrewCasks: "Casks",
         homebrewNoPackages: "No packages found",
+        homebrewDependencies: "Dependencies",
         homebrewNoSelection: "Select an installed package or search for a new one.",
         homebrewDetailsTitle: "Package details",
         homebrewInstall: "Install",
@@ -2780,13 +2862,18 @@ extension Strings {
         shelfShakeCaption: "Shake the pointer quickly while holding an item to summon it near the cursor.",
         shelfDropZoneToggle: "Keep dragged files in the menu bar",
         shelfDropZoneCaption: "While you drag a file, the shelf appears below the menu bar icon. Whatever you drop is kept right there, in a button you shrink and open with a click that goes away once the shelf is empty.",
+        shelfDropZoneCaptionTopCenter: "While you drag a file, the shelf appears as a badge at the top center of the screen. Whatever you drop is kept right there, in a badge you open with a click that goes away once the shelf is empty.",
         shelfDropZoneLabel: "Drop here",
+        shelfDockPlacement: "Position",
+        shelfDockMenuBar: "Below the menu bar icon",
+        shelfDockTopCenter: "Top center of the screen",
+        shelfDockIslandNote: "The Dynamic Island keeps the top center while it is on.",
         shelfCollapse: "Collapse",
         shelfBehaviorTitle: "After use",
         shelfCloseAfterDrop: "Close after dropping into another app",
         shelfCloseAfterDropCaption: "Closes the shelf when the destination accepts the items. The pin in the panel keeps it open.",
         shelfRemoveAfterDrop: "Remove items after dropping",
-        shelfRemoveAfterDropCaption: "Items accepted by another app leave the shelf. Turn this off to keep a copy there.",
+        shelfRemoveAfterDropCaption: "Items accepted by another app leave the shelf. Turn this off to keep a copy there. Pinned items always stay.",
         shelfExclusionsTitle: "Automatic exceptions",
         shelfExclusionsEmpty: "No apps added.",
         shelfExclusionsCaption: "Shake and the menu bar drop zone stay off for drags started in these apps. The shortcut and Open now still work.",
@@ -2824,6 +2911,8 @@ extension Strings {
         shelfActionOpen: "Open",
         shelfActionOpenWith: "Open With",
         shelfActionShare: "Share",
+        shelfActionPin: "Pin",
+        shelfActionUnpin: "Unpin",
 
         breakdownMeasuring: "Measuring…",
 
@@ -2863,6 +2952,16 @@ extension Strings {
         mixerAllShown: "All",
         mixerHiddenCountLabel: "Hidden",
         mixerHideFromList: "Hide from the list",
+        audioPrioritySection: "Audio priority",
+        audioPriorityOutputEnable: "Automatically switch to the highest-priority output",
+        audioPriorityInputEnable: "Automatically switch to the highest-priority microphone",
+        audioPriorityOutputList: "Output priority",
+        audioPriorityInputList: "Microphone priority",
+        audioPriorityMoveUp: "Move up",
+        audioPriorityMoveDown: "Move down",
+        audioPriorityUnavailable: "Unavailable",
+        audioPriorityCurrent: "Current",
+        audioPriorityCaption: "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
@@ -3174,6 +3273,7 @@ extension Strings {
         musicBlockUnavailable: "This protection is unavailable right now. Turn it off and on to try again.",
         musicBlockReplacementLabel: "Open instead",
         musicBlockReplacementNone: "None",
+        musicBlockReplacementBlocked: "Music and iTunes are the apps being blocked, so they can’t open instead. Choose another app.",
         musicBlockChooseApp: "Choose app…",
         cleanerName: "Cleaner",
         cleanerIntroTitle: "Clean up your Mac",
@@ -3289,7 +3389,7 @@ extension Strings {
         focusFollowsMouseName: "Focus follows mouse",
         focusFollowsMouseCaption: "Focuses and raises the window under the pointer after a short pause.",
         focusFollowsMouseDelay: "Hover delay",
-        switcherMinimizedPlacementLabel: "Minimized windows",
+        switcherMinimizedPlacementLabel: "Minimized windows and hidden apps",
         switcherMinimizedPlacementNormal: "Normal ordering",
         switcherMinimizedPlacementEnd: "Place at end",
         switcherMinimizedPlacementHidden: "Hide",

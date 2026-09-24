@@ -82,6 +82,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -571,6 +572,74 @@ extension SnippetFeatureStrings {
         soundCaption: "Se reproduce un sonido corto del sistema cada vez que un disparador escrito se expande.",
         soundPickerLabel: "Sonido",
         soundUnavailable: "Sonido no disponible"
+    )
+
+    static let sk = SnippetFeatureStrings(
+        pageTitle: "Textové fragmenty",
+        hubDescription: "Krátke spúšťače sa rozbalia na celý text",
+        enable: "Rozbaľovať fragmenty počas písania",
+        enableCaption: "Napíšte spúšťač kdekoľvek a zmení sa na svoj text. Všetko zostáva v tomto Macu.",
+        addButton: "Pridať fragment",
+        newTitle: "Nový fragment",
+        editTitle: "Upraviť fragment",
+        nameLabel: "Názov",
+        namePlaceholder: "Osobný e-mail",
+        triggerLabel: "Spúšťač",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Text",
+        replacementPlaceholder: "mojemail@priklad.sk",
+        expansionLabel: "Rozbaliť",
+        expansionImmediate: "Ihneď",
+        expansionDelimiter: "Po medzere, Tab alebo Return",
+        variablesHint: "Premenné: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "V okamihu rozbalenia sa zmenia na dátum, čas a skopírovaný text.",
+        emptyList: "Zatiaľ žiadne fragmenty. Pridajte prvý.",
+        duplicateTrigger: "Tento spúšťač už používa iný fragment.",
+        triggerTooShort: "Spúšťač potrebuje aspoň 2 znaky.",
+        deleteButton: "Vymazať",
+        saveButton: "Uložiť",
+        manageButton: "Spravovať fragmenty",
+        ignoreCaseLabel: "Nerozlišovať veľké a malé písmená",
+        libraryTitle: "Rýchla ponuka fragmentov",
+        libraryToggle: "Otvárať fragmenty z ponuky",
+        libraryCaption: "Skratka otvorí ponuku s vyhľadávaním. Výberom fragmentu ho vložíte presne tam, kde je kurzor.",
+        librarySearchPlaceholder: "Hľadať fragmenty",
+        libraryNoResults: "Vyhľadávaniu nezodpovedá žiadny fragment.",
+        libraryEmpty: "Zatiaľ nie je čo zobraziť. Pridajte fragmenty alebo pri tých, ktoré používate najčastejšie, zapnite „Zobraziť v rýchlej ponuke“.",
+        libraryFooterHint: "↩ vloží · esc zavrie",
+        folderLabel: "Priečinok",
+        folderPlaceholder: "Práca",
+        showInLibraryLabel: "Zobraziť v rýchlej ponuke",
+        variablesFormatCaption: "Formát za dvojbodkou určí, ako budú vyzerať, napríklad {{date:yyyy-MM-dd}}. Časové pásmo nastavíte časťou -tz(...), napríklad {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Formát za dvojbodkou určí, ako budú vyzerať, napríklad {{date:yyyy-MM-dd}}, alebo použite tlačidlo dátumu a času vyššie. Časové pásmo nastavíte časťou -tz(...), napríklad {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Vložiť dátum/čas",
+        dateTimeEditButton: "Upraviť dátum/čas",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Dátum",
+        dateTimeKindTime: "Čas",
+        dateTimeKindDateTime: "Dátum a čas",
+        dateTimeStyleLabel: "Štýl",
+        dateTimeStyleShort: "Krátky",
+        dateTimeStyleMedium: "Stredný",
+        dateTimeStyleLong: "Dlhý",
+        dateTimeStyleFull: "Úplný",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Vlastný",
+        dateTimeStyleLocaleNote: "Pomenovaný štýl uloží formát, ktorý región vášho Macu používa práve teraz.",
+        dateTimeTimezoneLabel: "Časové pásmo",
+        dateTimeTimezoneDeviceDefault: "Predvolené zariadenia",
+        dateTimeTimezoneValid: "Platné časové pásmo",
+        dateTimeTimezoneInvalid: "Nerozpoznané časové pásmo",
+        dateTimeTimezoneClear: "Vymazať časové pásmo",
+        dateTimeTimezoneSearchPlaceholder: "Hľadať časové pásma",
+        dateTimePatternLabel: "Vzor",
+        dateTimePreviewLabel: "Ukážka",
+        dateTimeConfirmInsert: "Vložiť",
+        dateTimeConfirmUpdate: "Aktualizovať",
+        soundToggle: "Prehrať zvuk pri rozbalení napísaného spúšťača",
+        soundCaption: "Krátky systémový zvuk zaznie vždy, keď sa napísaný spúšťač rozbalí.",
+        soundPickerLabel: "Zvuk",
+        soundUnavailable: "Zvuk nie je k dispozícii"
     )
 
     static let de = SnippetFeatureStrings(

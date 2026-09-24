@@ -13,6 +13,7 @@ struct HomebrewSettings: View {
     @State private var installedFilter = HomebrewInstalledFilter.all
     @State private var pendingAction: HomebrewPendingAction?
     @State private var showOperationDetails = false
+    @State private var expandedPackageIDs: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -278,15 +279,46 @@ struct HomebrewSettings: View {
     }
 
     private var installedPackagesSection: some View {
-        packageSection(l10n.s.homebrewInstalled, count: filteredInstalled.count) {
+        let folded = HomebrewDependencyGraph.fold(filteredInstalled, installed: homebrew.installed)
+        return packageSection(l10n.s.homebrewInstalled, count: filteredInstalled.count) {
             if homebrew.isLoadingInstalled {
                 loadingRow(l10n.s.homebrewLoading)
-            } else if filteredInstalled.isEmpty {
+            } else if folded.rows.isEmpty {
                 packageMessage(l10n.s.homebrewNoPackages)
             } else {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(filteredInstalled) { package in
-                        packageRow(package)
+                    ForEach(folded.rows) { package in
+                        let dependencies = folded.dependencies[package.id] ?? []
+                        let isExpanded = expandedPackageIDs.contains(package.id)
+                        HStack(spacing: 2) {
+                            Button {
+                                if isExpanded {
+                                    expandedPackageIDs.remove(package.id)
+                                } else {
+                                    expandedPackageIDs.insert(package.id)
+                                }
+                            } label: {
+                                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 12, height: 20)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .opacity(dependencies.isEmpty ? 0 : 1)
+                            .disabled(dependencies.isEmpty)
+                            .help("\(l10n.s.homebrewDependencies): \(dependencies.count)")
+                            .accessibilityLabel("\(l10n.s.homebrewDependencies): \(package.displayName)")
+                            .accessibilityValue(isExpanded ? l10n.s.disclosureExpanded : l10n.s.disclosureCollapsed)
+                            .accessibilityHidden(dependencies.isEmpty)
+                            packageRow(package)
+                        }
+                        if isExpanded {
+                            ForEach(dependencies) { dependency in
+                                packageRow(dependency)
+                                    .padding(.leading, 28)
+                            }
+                        }
                     }
                 }
             }

@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -282,6 +283,49 @@ extension AppUpdateStrings {
         includeOnlineCaption: "Consulta directamente a los desarrolladores cuando es posible y complementa la búsqueda con un catálogo público. La propia app instala la actualización.",
         incompleteCheck: "Revisión incompleta",
         onlineUnavailable: "No se pudo completar la revisión en línea. Los demás resultados siguen visibles."
+    )
+
+    static let sk = AppUpdateStrings(
+        pageTitle: "Aktualizácie aplikácií",
+        hubDescription: "Vyhľadajte a nainštalujte aktualizácie svojich aplikácií",
+        caption: "Hľadá novšie verzie aplikácií na tomto Macu a pomôže vám dokončiť každú aktualizáciu z jej pôvodného zdroja.",
+        panelCaption: "Zistite, ktoré aplikácie majú novšiu verziu",
+        checkNow: "Skontrolovať teraz",
+        checking: "Kontroluje sa",
+        lastCheckFormat: "Posledná kontrola %@",
+        neverChecked: "Zatiaľ neskontrolované",
+        upToDate: "Nenašli sa žiadne aktualizácie",
+        partialUpToDate: "Pri tejto čiastočnej kontrole sa nenašli žiadne aktualizácie",
+        coverageNote: "Kontroluje pôvodné zdroje nainštalovaných aplikácií a verejný katalóg. Aktualizácie sa inštalujú cez pôvodný zdroj.",
+        selectAll: "Vybrať všetko",
+        clearSelection: "Zrušiť výber",
+        updateSelectedFormat: "Aktualizovať %d",
+        updateOne: "Aktualizovať",
+        openAppStore: "Otvoriť App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Otvorí App Store, kde sa táto aktualizácia nainštaluje",
+        frequencyLabel: "Kontrolovať na pozadí",
+        frequencyOff: "Vypnuté",
+        frequencyDaily: "Každý deň",
+        frequencyWeekly: "Každý týždeň",
+        nextCheckFormat: "Ďalšia kontrola %@",
+        notifyToggle: "Upozorniť ma, keď má aplikácia aktualizáciu",
+        includeStoreToggle: "Zahrnúť aplikácie z App Store",
+        includeStoreCaption: "Kontroluje verzie v obchode podľa regiónu tohto Macu. Tieto aktualizácie inštaluje Apple.",
+        packageMissing: "Homebrew nie je nainštalovaný, takže aplikácie sa odtiaľto zatiaľ nedajú aktualizovať.",
+        notificationBodyFormat: "Počet aplikácií s novšou verziou: %@.",
+        notificationBodyOne: "Jedna aplikácia má novšiu verziu.",
+        showInPanel: "Zobraziť v paneli",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Zdroje",
+        includeHomebrewToggle: "Zahrnúť aplikácie Homebrew",
+        onlineBadge: "Online",
+        openApp: "Otvoriť",
+        openAppHint: "Otvorí aplikáciu, aby jej vlastný aktualizátor mohol dokončiť aktualizáciu",
+        includeOnlineToggle: "Zahrnúť ostatné nainštalované aplikácie",
+        includeOnlineCaption: "Pri podpore kontroluje priamo u vývojárov a dopĺňa to verejným katalógom. Aktualizáciu inštaluje samotná aplikácia.",
+        incompleteCheck: "Kontrola nedokončená",
+        onlineUnavailable: "Online kontrolu sa nepodarilo dokončiť. Ostatné výsledky sa aj tak zobrazujú."
     )
 
     static let de = AppUpdateStrings(

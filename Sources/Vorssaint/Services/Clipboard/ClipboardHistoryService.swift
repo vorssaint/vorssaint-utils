@@ -84,6 +84,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var hotKeyHandler: EventHandlerRef?
     private var registeredShortcut: GlobalShortcut?
     private var pasteTargetApp: NSRunningApplication?
+    private var promptedForAccessibility = false
     /// Writes coalesce per mutation cycle; the JSON encode and the disk write
     /// stay off the main thread (a full history of long texts is real work),
     /// serialized so blobs land in mutation order.
@@ -279,6 +280,7 @@ final class ClipboardHistoryService: ObservableObject {
         // Restored by looking it up again once the move actually lands.
         let previousPasteboardEntry = latestPasteboardEntry
         var updated = entries.remove(at: index)
+        let pinning = !updated.isPinned
         if updated.isPinned {
             updated.pinnedAt = nil
             entries.insert(updated, at: firstRecentIndex)
@@ -290,7 +292,8 @@ final class ClipboardHistoryService: ObservableObject {
         trimToLimit()
         let reverted: Bool
         if entries.contains(where: { $0.id == entry.id }),
-           ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries) {
+           ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries),
+           !pinning || ClipboardHistoryEditing.pinnedEntriesFit(entries, byteLimit: encodedHistoryByteLimit) {
             reverted = false
         } else {
             entries = previousEntries
@@ -323,8 +326,10 @@ final class ClipboardHistoryService: ObservableObject {
         let previousEntries = entries
         entries[index].text = text
         trimToLimit()
-        guard entries.contains(where: { $0.id == entry.id }),
-              ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries)
+        guard let edited = entries.first(where: { $0.id == entry.id }),
+              ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries),
+              !edited.isPinned
+                || ClipboardHistoryEditing.pinnedEntriesFit(entries, byteLimit: encodedHistoryByteLimit)
         else {
             entries = previousEntries
             return false
@@ -874,6 +879,10 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
+    /// The saved file drops whatever it cannot hold, pinned items included, so
+    /// a pin or an edit that would push them past it is refused instead.
+    private var encodedHistoryByteLimit: Int { ClipboardHistoryEditing.maxEncodedHistoryBytes }
+
     private var firstRecentIndex: Int {
         entries.firstIndex { !$0.isPinned } ?? entries.endIndex
     }
@@ -1166,9 +1175,26 @@ final class ClipboardHistoryService: ObservableObject {
         pasteTargetApp = app
     }
 
+    /// The entry is already on the clipboard, so a paste that cannot follow
+    /// says so the way Paste as Plain Text does (#186) instead of doing nothing.
+    /// No target means the window opened over Vorssaint itself or an app
+    /// without a Dock icon, where a pick is only a copy and stays silent.
     private func pasteIntoPreviousApp(_ app: NSRunningApplication?) {
-        guard let app, !app.isTerminated else { return }
+        guard let app else { return }
+        guard !app.isTerminated else {
+            NSSound.beep()
+            return
+        }
         app.activate(options: [])
+        guard AXIsProcessTrusted() else {
+            if promptedForAccessibility {
+                NSSound.beep()
+            } else {
+                promptedForAccessibility = true
+                Permissions.shared.requestAccessibility()
+            }
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
             Self.postPasteShortcut()
         }
@@ -1500,6 +1526,73 @@ enum ClipboardImageStore {
         return image
     }
 
+    /// Where a list thumbnail comes from; also its identity for a row that
+    /// loads it asynchronously.
+    enum ThumbnailSource: Hashable {
+        case stored(name: String)
+        case file(path: String, maxPixelSize: CGFloat = 480)
+    }
+
+    static func cachedThumbnail(_ source: ThumbnailSource) -> NSImage? {
+        switch source {
+        case .stored(let name):
+            return thumbnails.object(forKey: name as NSString)
+        case .file(let path, let maxPixelSize):
+            return thumbnails.object(forKey: fileThumbnailKey(path: path, maxPixelSize: maxPixelSize))
+        }
+    }
+
+    /// The same downsample as the synchronous lookups, off the main thread.
+    /// A screenshot PNG takes tens of milliseconds to decode, and once the
+    /// history held more screenshots than the cache fits, rows that decoded
+    /// while drawing redid it on every search keystroke and froze the field.
+    /// A row that is filtered out or scrolled away before its turn cancels
+    /// its decode instead of queueing work nobody will see.
+    static func loadThumbnail(_ source: ThumbnailSource) async -> NSImage? {
+        if let cached = cachedThumbnail(source) { return cached }
+        let request = ThumbnailRequest()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                thumbnailQueue.addOperation {
+                    guard !request.isCancelled else {
+                        continuation.resume(returning: nil)
+                        return
+                    }
+                    switch source {
+                    case .stored(let name):
+                        continuation.resume(returning: thumbnail(named: name))
+                    case .file(let path, let maxPixelSize):
+                        continuation.resume(returning: fileThumbnail(atPath: path, maxPixelSize: maxPixelSize))
+                    }
+                }
+            }
+        } onCancel: {
+            request.cancel()
+        }
+    }
+
+    /// Two decodes at a time: a burst of new rows should not hold dozens of
+    /// full size screenshots in memory at once.
+    private static let thumbnailQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.vorssaint.utils.clipboard-thumbnails"
+        queue.maxConcurrentOperationCount = 2
+        queue.qualityOfService = .userInitiated
+        return queue
+    }()
+
+    private final class ThumbnailRequest: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cancelled = false
+
+        var isCancelled: Bool { lock.withLock { cancelled } }
+        func cancel() { lock.withLock { cancelled = true } }
+    }
+
+    private static func fileThumbnailKey(path: String, maxPixelSize: CGFloat) -> NSString {
+        "file:\(path):\(Int(maxPixelSize))" as NSString
+    }
+
     /// The Finder icon for a path, cached: the workspace lookup is a round
     /// trip, and a list row asks for it every time it is drawn.
     static func fileIcon(atPath path: String) -> NSImage {
@@ -1524,7 +1617,7 @@ enum ClipboardImageStore {
 
     /// Downsampled preview for a copied image file on disk, cached.
     static func fileThumbnail(atPath path: String, maxPixelSize: CGFloat = 480) -> NSImage? {
-        let key = "file:\(path):\(Int(maxPixelSize))" as NSString
+        let key = fileThumbnailKey(path: path, maxPixelSize: maxPixelSize)
         if let cached = thumbnails.object(forKey: key) {
             return cached
         }

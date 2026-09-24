@@ -142,10 +142,15 @@ final class ExtraBrightnessService: ObservableObject {
         // Four presents a second: the headroom grant follows recent extended
         // range presents and macOS revokes it about a second after they stop,
         // so this heartbeat keeps a comfortable margin while costing nothing.
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        // The common modes keep it beating while one of the app's menus,
+        // sliders or alerts tracks the mouse; the default mode alone pauses
+        // there, long enough for the grant to lapse.
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
             self?.renderIfNeeded()
         }
-        pollTimer?.tolerance = 0.05
+        timer.tolerance = 0.05
+        RunLoop.main.add(timer, forMode: .common)
+        pollTimer = timer
         renderIfNeeded()
     }
 

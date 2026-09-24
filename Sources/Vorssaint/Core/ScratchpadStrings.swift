@@ -47,6 +47,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -234,6 +235,41 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "Puedes guardar hasta %d borradores",
         previewFormatting: "Ver formato",
         editText: "Editar texto"
+    )
+
+    static let sk = ScratchpadFeatureStrings(
+        pageTitle: "Poznámkový blok",
+        hubDescription: "Plávajúce bloky pre krátkodobé poznámky",
+        panelCaption: "Rýchle poznámky v samostatných kartách",
+        openButton: "Otvoriť poznámkový blok",
+        placeholder: "Napíšte čokoľvek. Ukladá sa samo.",
+        copyAll: "Kopírovať všetko",
+        copied: "Skopírované",
+        exportAction: "Uložiť ako súbor",
+        exportFailed: "Súbor sa nepodarilo uložiť",
+        loadFailed: "Poznámky sa nepodarilo otvoriť. Zostali bez zmeny.",
+        clearAction: "Vymazať",
+        retentionTitle: "Vymazať automaticky",
+        retentionNever: "Nikdy",
+        retentionDay: "Po dni bez použitia",
+        retentionWeek: "Po týždni bez použitia",
+        retentionMonth: "Po mesiaci bez použitia",
+        retentionCaption: "Blok sa sám vyprázdni, keď text zostane taký dlho bez úprav.",
+        closeOnClickOutside: "Zavrieť pri kliknutí mimo",
+        keepOpen: "Nechať otvorené",
+        backgroundOpacity: "Pozadie bloku",
+        backgroundTranslucent: "Priesvitné",
+        backgroundOpaque: "Nepriehľadné",
+        newPad: "Nový poznámkový blok",
+        padActions: "Akcie poznámkového bloku",
+        renamePad: "Premenovať poznámkový blok",
+        closePad: "Zavrieť poznámkový blok",
+        saveName: "Uložiť",
+        cancel: "Zrušiť",
+        deletePadMessageFormat: "Vymazať „%@“ a celý jeho obsah?",
+        padLimitFormat: "Maximálny počet poznámkových blokov: %d",
+        previewFormatting: "Zobraziť formátovanie",
+        editText: "Upraviť text"
     )
 
     static let de = ScratchpadFeatureStrings(

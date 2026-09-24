@@ -50,6 +50,7 @@ struct WhatsAppDownloadStrings {
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
+        case .sk: return .sk
         case .tr: return .tr
         case .ru: return .ru
         case .de: return .de
@@ -150,6 +151,49 @@ extension WhatsAppDownloadStrings {
         notificationFormat: "%1$d archivos (%2$@) movidos a la Papelera. %3$d fallidos.",
         scanFailed: "No se pudo analizar Descargas. Comprueba Archivos y carpetas en Ajustes del Sistema.",
         manageButton: "Gestionar…"
+    )
+
+    static let sk = WhatsAppDownloadStrings(
+        title: "Sťahovania z WhatsAppu",
+        hubDescription: "Udržiava súbory z WhatsAppu v Stiahnutých pod kontrolou",
+        intro: "Nájde súbory, ktoré macOS potvrdí, že pochádzajú z WhatsAppu. Obsah súborov ani konverzácie sa nikdy nečítajú.",
+        automatic: "Čistiť automaticky",
+        automaticCaption: "Raz denne skontroluje a súbory staršie než váš limit presunie do Koša.",
+        folder: "Sledovaný priečinok",
+        accessReady: "Stiahnuté sú dostupné",
+        accessDenied: "Vorssaint nemá prístup k priečinku Stiahnuté. Povoľte ho v Súboroch a priečinkoch.",
+        fileTypes: "Typy súborov",
+        allTypes: "Všetky",
+        image: "Obrázky",
+        video: "Videá",
+        audio: "Zvuk a hlasové správy",
+        document: "Dokumenty",
+        archive: "Archívy",
+        other: "Ostatné",
+        retention: "Uchovávať",
+        retentionCaption: "Nedávno upravené súbory čakajú celú lehotu odznova.",
+        daysFormat: "Počet dní: %d",
+        manualIntro: "Skenujte kedykoľvek. Počiatočný výber vychádza z vašich typov a vekového limitu, no môžete skontrolovať každý potvrdený súbor.",
+        noFiles: "V Stiahnutých sa nenašli žiadne potvrdené súbory z WhatsAppu.",
+        resultsFormat: "Potvrdené súbory: %1$d · %2$@",
+        selectRules: "Vybrať podľa mojich pravidiel",
+        cleanSelectedFormat: "Presunúť %1$d do Koša · %2$@",
+        keep: "Ponechať",
+        manageAgain: "Spravovať znova",
+        activity: "Aktivita",
+        neverRun: "Zatiaľ neprebehlo žiadne čistenie.",
+        lastRunFormat: "Posledné čistenie %@ · súbory: %d · %@ · zlyhalo: %d",
+        nextRunFormat: "Ďalšia automatická kontrola %@.",
+        firstTitle: "Čo s existujúcimi súbormi?",
+        firstMessageFormat: "Vašim pravidlám už zodpovedá existujúcich súborov: %d. Vyberte, či ich môže automatizácia spravovať, alebo len budúce sťahovania.",
+        futureOnly: "Iba budúce sťahovania",
+        includeExisting: "Zahrnúť existujúce súbory",
+        trashNote: "Súbory sa presunú do Koša a zostanú obnoviteľné, kým ho nevyprázdnite.",
+        localNote: "Kontrolujú sa iba lokálne metadáta súborov. Vorssaint nikdy nečíta konverzácie ani obsah súborov.",
+        notificationTitle: "Čistenie WhatsAppu",
+        notificationFormat: "Do Koša presunuté súbory: %1$d (%2$@). Zlyhalo: %3$d.",
+        scanFailed: "Stiahnuté sa nepodarilo skenovať. Skontrolujte Súbory a priečinky v Systémových nastaveniach.",
+        manageButton: "Spravovať…"
     )
 
     static let ptBR = WhatsAppDownloadStrings(
@@ -479,6 +523,13 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: es.lastRunFormat, nextRunFormat: es.nextRunFormat,
             firstMessageFormat: es.firstMessageFormat, localNote: es.localNote,
             notificationFormat: es.notificationFormat, scanFailed: es.scanFailed, manageButton: es.manageButton)
+        case .sk: return OperationalStrings(
+            automaticCaption: sk.automaticCaption, retentionCaption: sk.retentionCaption,
+            manualIntro: sk.manualIntro, resultsFormat: sk.resultsFormat,
+            selectRules: sk.selectRules, cleanSelectedFormat: sk.cleanSelectedFormat,
+            lastRunFormat: sk.lastRunFormat, nextRunFormat: sk.nextRunFormat,
+            firstMessageFormat: sk.firstMessageFormat, localNote: sk.localNote,
+            notificationFormat: sk.notificationFormat, scanFailed: sk.scanFailed, manageButton: sk.manageButton)
         }
     }
 
