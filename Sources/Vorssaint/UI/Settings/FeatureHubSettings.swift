@@ -875,6 +875,7 @@ extension AppFeature {
             return FeatureStrings.diskImageInstaller(L10n.shared.language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
+        case .audioPriority: return hub.titleAudioPriority
         case .micMute: return s.micMuteName
         case .musicBlock: return hub.titleMusicBlock
         case .keepAwake: return s.keepAwakeTitle
@@ -917,6 +918,7 @@ extension AppFeature {
         case .monitorNetwork: return s.monitorShowNetwork
         case .monitorDisk: return s.diskSection
         case .monitorPower: return s.powerSection
+        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
         }
     }
@@ -953,6 +955,7 @@ extension AppFeature {
             return FeatureStrings.diskImageInstaller(L10n.shared.language).hubDescription
         case .mixer: return hub.descMixer
         case .soundOutputSwitcher: return hub.descSoundOutputSwitcher
+        case .audioPriority: return hub.descAudioPriority
         case .micMute: return hub.descMicMute
         case .musicBlock: return hub.descMusicBlock
         case .keepAwake: return hub.descKeepAwake
@@ -1001,6 +1004,7 @@ extension AppFeature {
         case .monitorNetwork: return hub.descMonitorNetwork
         case .monitorDisk: return hub.descMonitorDisk
         case .monitorPower: return hub.descMonitorPower
+        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).hubDescription
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).hubDescription
         }
     }

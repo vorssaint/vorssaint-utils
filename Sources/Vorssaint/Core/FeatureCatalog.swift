@@ -22,7 +22,7 @@ enum AppFeature: String, CaseIterable {
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
          diskImageInstaller
     // Sound
-    case mixer, soundOutputSwitcher, micMute, musicBlock
+    case mixer, soundOutputSwitcher, audioPriority, micMute, musicBlock
     // Energy and display
     case keepAwake, brightness, extraBrightness, bluetoothSleep
     // Tools
@@ -34,7 +34,7 @@ enum AppFeature: String, CaseIterable {
          notchQueue, notchLiveEqualizer, notchDownloads, notchAgents
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
-    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
+    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
 }
 
 /// Hub sections, in display order.
@@ -106,7 +106,7 @@ extension AppFeature {
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
              .diskImageInstaller:
             return .clipboardFiles
-        case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
+        case .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock:
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
@@ -118,7 +118,7 @@ extension AppFeature {
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .fanControl:
+             .connectedDevices, .fanControl:
             return .monitor
         }
     }
@@ -156,6 +156,7 @@ extension AppFeature {
         case .diskImageInstaller: return "externaldrive.badge.plus"
         case .mixer: return "slider.horizontal.3"
         case .soundOutputSwitcher: return "hifispeaker"
+        case .audioPriority: return "list.number"
         case .micMute: return "mic.slash"
         case .musicBlock: return "music.note"
         case .keepAwake: return "moon.zzz.fill"
@@ -198,6 +199,7 @@ extension AppFeature {
         case .monitorNetwork: return "network"
         case .monitorDisk: return "internaldrive"
         case .monitorPower: return "bolt.fill"
+        case .connectedDevices: return "cable.connector"
         case .fanControl: return "fanblades.fill"
         }
     }
@@ -265,6 +267,8 @@ extension AppFeature {
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
+        case .audioPriority: return [DefaultsKey.audioPriorityOutputEnabled,
+                                     DefaultsKey.audioPriorityInputEnabled]
         case .musicBlock: return [DefaultsKey.musicBlockEnabled]
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
@@ -274,7 +278,7 @@ extension AppFeature {
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .fanControl:
+             .connectedDevices, .fanControl:
             return []
         }
     }
@@ -333,9 +337,10 @@ extension AppFeature {
         case .musicBlock: return [.accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
-             .soundOutputSwitcher,
+             .soundOutputSwitcher, .audioPriority,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .fanControl, .killProcess, .portManager:
+             .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
+             .portManager:
             return []
         }
     }
@@ -371,7 +376,8 @@ extension AppFeature {
         Dictionary(uniqueKeysWithValues: allCases.map {
             ($0.availabilityKey,
              $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager && $0 != .wallpaper)
+                && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager && $0 != .wallpaper
+                && $0 != .audioPriority)
         })
     }
 

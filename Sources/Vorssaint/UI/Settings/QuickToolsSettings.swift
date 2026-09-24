@@ -75,6 +75,18 @@ struct QuickToolsSettings: View {
                             Label(FeatureStrings.brightness(l10n.language).keyboardLight,
                                   systemImage: "keyboard")
                         }
+                        HStack(spacing: 8) {
+                            Slider(value: Binding(
+                                get: { Double(brightness.keyboardLightLevel ?? 0) },
+                                set: { brightness.setKeyboardLightLevel(Float($0)) }
+                            ), in: 0...1, onEditingChanged: brightness.keyboardLightDragChanged)
+                            .accessibilityLabel(
+                                FeatureStrings.brightness(l10n.language).keyboardLight)
+                            Text("\(Int(((brightness.keyboardLightLevel ?? 0) * 100).rounded()))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 34, alignment: .trailing)
+                        }
                     }
                     DiskExclusionsList()
                     Text(FeatureStrings.quickToggles(l10n.language).panelCaption)

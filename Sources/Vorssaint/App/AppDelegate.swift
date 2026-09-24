@@ -297,8 +297,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         PreciseVolumeRollerService.shared.stop()
         AppVolumeMixer.shared.stopAll()
         FanControlService.restoreBeforeTerminationIfNeeded()
-        // Puts the system input back if a microphone was chosen here: the
-        // app's audio settings must not outlive the app.
+        // Restore a singular preferred-microphone override. An active
+        // microphone priority selection remains the system input on quit.
         AudioInputDeviceManager.shared.stop()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()

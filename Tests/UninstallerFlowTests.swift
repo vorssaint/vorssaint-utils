@@ -76,6 +76,7 @@ enum UninstallerFlowTests {
         var targetInfoIdentity: UninstallerSupport.FileIdentity?
         var allowedRemovalPaths = Set<String>()
         var items: [Leftover] = []
+        var scanCancellation: UninstallerSupport.ScanCancellation?
         var isRemovingWithHomebrew = false
         var selectedHomebrewPackage: Package? { homebrewPackage }
         static func allBundleIDs(in url: URL, fm: FileManager) -> Set<String> { [] }
@@ -84,8 +85,10 @@ enum UninstallerFlowTests {
         static func exclusiveOwnedBundleIDs(in url: URL, candidates: Set<String>, knownApplicationIDs: [String]) -> Set<String> { [] }
         static func signingIdentity(in url: URL, requireValidSignature: Bool) -> (teamIDs: Set<String>, groupIDs: Set<String>) { ([], []) }
         static func exclusiveGroupIDs(_ ids: Set<String>, selectedURL: URL, knownApplications: [URL]) -> Set<String> { [] }
-        static func collect(appURL: URL, primaryBundleID: String, exclusiveBundleIDs: Set<String>, teamIDs: Set<String>, exclusiveGroupIDs: Set<String>) -> [Leftover] {
-            [Leftover(url: appURL)]
+        static var collects = 0
+        static func collect(appURL: URL, primaryBundleID: String, exclusiveBundleIDs: Set<String>, teamIDs: Set<String>, exclusiveGroupIDs: Set<String>, cancellation: UninstallerSupport.ScanCancellation) -> [Leftover] {
+            collects += 1
+            return [Leftover(url: appURL)]
         }
         static func applicationIdentityMatches(_ url: URL, appIdentity: UninstallerSupport.FileIdentity?, infoIdentity: UninstallerSupport.FileIdentity?) -> Bool {
             UninstallerSupport.fileIdentity(at: url) == appIdentity
@@ -214,6 +217,22 @@ enum UninstallerFlowTests {
             lateScan?(nil)
             suite.expect(uninstaller.phase == .empty && uninstaller.target == nil,
                          "canceling while scanning prevents its late result from returning")
+            UninstallerState.collects = 0
+            _ = uninstaller.select(appURL: a)
+            uninstaller.reset()
+            Queue.drain()
+            suite.expect(UninstallerState.collects == 0 && uninstaller.phase == .empty,
+                         "canceling a scan stops its background work instead of letting it run to the end")
+            _ = uninstaller.select(appURL: a)
+            Queue.drain()
+            let canceledScan = Brew.shared.callback
+            uninstaller.reset()
+            _ = uninstaller.select(appURL: a)
+            canceledScan?(nil)
+            suite.expect(uninstaller.phase == .scanning && uninstaller.items.isEmpty,
+                         "a canceled scan cannot deliver into a new scan of the same app")
+            uninstaller.reset()
+            Queue.pending = []
             service.beginUninstallReview(appURL: a, entryID: "a")
             Queue.drain()
             Brew.shared.callback?(nil)

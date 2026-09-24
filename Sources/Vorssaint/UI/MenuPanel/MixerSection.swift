@@ -13,6 +13,7 @@ struct MixerSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
+    @ObservedObject private var audioPriority = AudioPriorityService.shared
     @ObservedObject private var micMute = MicMuteService.shared
     @AppStorage(DefaultsKey.mixerAppArrangement)
     private var arrangementValue = ""
@@ -288,7 +289,8 @@ struct MixerSection: View {
                         Text(inputDeviceTitle(device))
                             .tag(device.uid)
                     }
-                    if let selected = inputManager.preferredInputDeviceUID,
+                    if !audioPriority.inputPriorityEnabled,
+                       let selected = inputManager.preferredInputDeviceUID,
                        inputManager.preferredUnavailable {
                         Text(l10n.s.mixerInputUnavailable)
                             .tag(selected)
@@ -336,7 +338,7 @@ struct MixerSection: View {
 
             if inputManager.inputDevices.isEmpty {
                 inputMessage(l10n.s.mixerInputNoDevices, systemImage: "mic.slash")
-            } else if inputManager.preferredUnavailable {
+            } else if !audioPriority.inputPriorityEnabled, inputManager.preferredUnavailable {
                 inputMessage(l10n.s.mixerInputFallback, systemImage: "mic.badge.xmark")
             } else if let lastError = inputManager.lastError {
                 inputMessage(String(format: l10n.s.mixerInputErrorFormat, lastError),
@@ -347,10 +349,21 @@ struct MixerSection: View {
 
     private var inputSelectionBinding: Binding<String> {
         Binding(
-            get: { inputManager.preferredInputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
+            get: {
+                return MixerRoutingSupport.selectedInputDeviceUID(
+                    preferredUID: inputManager.preferredInputDeviceUID,
+                    currentUID: inputManager.currentInputDeviceUID,
+                    priorityIsActive: audioPriority.inputPriorityEnabled)
+                    ?? MixerRoutingSupport.systemDefaultSelectionID
+            },
             set: { selection in
-                inputManager.setPreferredInputDeviceUID(
-                    selection == MixerRoutingSupport.systemDefaultSelectionID ? nil : selection)
+                if audioPriority.inputPriorityEnabled {
+                    guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
+                    inputManager.setCurrentInputDeviceUID(selection)
+                } else {
+                    inputManager.setPreferredInputDeviceUID(
+                        selection == MixerRoutingSupport.systemDefaultSelectionID ? nil : selection)
+                }
             }
         )
     }
@@ -531,6 +544,9 @@ struct MixerOptionsControls: View {
             preciseVolumeRollerToggle
             if AppFeature.soundOutputSwitcher.isAvailable {
                 soundOutputSwitcherControls
+            }
+            if AppFeature.audioPriority.isAvailable {
+                AudioPriorityDisclosure()
             }
             if AppVolumeMixer.isSupported, !listChoices.isEmpty {
                 listVisibilityFooter

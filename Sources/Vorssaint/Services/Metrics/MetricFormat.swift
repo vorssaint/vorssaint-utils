@@ -67,7 +67,7 @@ struct DiskIOCounters: Equatable {
 /// it compiles and runs standalone in the unit-test target (`./build.sh --test`).
 enum MetricFormat {
     /// Numbers follow the reader's region, not the app's language: macOS keeps
-    /// those two settings apart, and seven of the thirteen languages here are
+    /// those two settings apart, and nine of the fifteen languages here are
     /// spoken where a decimal is written with a comma. Held in one place so a
     /// test can pin it and stay honest on a machine set to any region.
     static var locale: Locale = .current
