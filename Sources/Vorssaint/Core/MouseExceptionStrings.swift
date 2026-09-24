@@ -37,6 +37,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -45,6 +46,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -118,6 +120,20 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "En estas apps pasar el puntero no cambia el foco ni trae la ventana al frente.",
         captionSuperKey: "Mientras alguna de estas apps esté abierta, incluso en segundo plano, Super Key se pausa y la tecla elegida funciona normalmente.",
         pausedSuperKey: "En pausa mientras una app seleccionada esté abierta"
+    )
+
+    static let sk = MouseExceptionStrings(
+        listTitle: "Apky, do ktorých nezasahovať",
+        addButton: "Pridať aplikáciu…",
+        removeButton: "Odstrániť",
+        captionSmoothScroll: "V týchto aplikáciách si koliesko zachová svoje bežné kroky, pre aplikácie, ktoré ho spracúvajú po svojom, napríklad nástroje na 3D a dizajn.",
+        captionScrollDirection: "V týchto aplikáciách si koliesko zachová smer, ktorý mu dáva macOS.",
+        captionNavigation: "Bočné tlačidlá v týchto aplikáciách naďalej robia to, čo s nimi aplikácia už robí.",
+        captionButtonShortcuts: "Vaše ďalšie tlačidlá myši v týchto aplikáciách mlčia a stlačenie namiesto toho dostane aplikácia.",
+        captionMiddleClick: "Kliknutie tromi prstami zostáva v týchto aplikáciách bežným kliknutím.",
+        captionFocusFollowsMouse: "Prejdenie kurzorom nad oknom v týchto aplikáciách nemení fokus ani ho nezobrazí navrchu.",
+        captionSuperKey: "Kým je otvorená ktorákoľvek z týchto aplikácií, aj na pozadí, Super kláves sa pozastaví a vybraný kláves funguje normálne.",
+        pausedSuperKey: "Pozastavené, kým je otvorená vybraná aplikácia"
     )
 
     static let de = MouseExceptionStrings(
@@ -230,5 +246,18 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。",
         captionSuperKey: "這些 App 中任何一個開啟時，即使在背景執行，Super Key 也會暫停，所選按鍵恢復正常功能。",
         pausedSuperKey: "所選 App 開啟期間已暫停"
+    )
+    static let uk = MouseExceptionStrings(
+        listTitle: "Програми, яких не чіпати",
+        addButton: "Додати програму…",
+        removeButton: "Видалити",
+        captionSmoothScroll: "Колесо зберігає свої звичайні кроки в цих програмах, для програм, які читають його по-своєму, як 3D-інструменти та дизайнерські програми.",
+        captionScrollDirection: "Колесо зберігає напрямок, який дає macOS, у цих програмах.",
+        captionNavigation: "Бокові кнопки продовжують робити те, що ці програми вже з ними роблять.",
+        captionButtonShortcuts: "Ваші додаткові кнопки миші мовчать у цих програмах, а натискання доходить до них.",
+        captionMiddleClick: "Клац трьома пальцями залишається звичайним клацом у цих програмах.",
+        captionFocusFollowsMouse: "Наведення не змінює фокус та не піднімає вікно в цих програмах.",
+        captionSuperKey: "Коли будь-яка з цих програм відкрита, навіть у фоновому режимі, Super Key призупиняється, і вибрана клавіша відновлює свою звичайну функцію.",
+        pausedSuperKey: "Призупинено, поки відкрита вибрана програма"
     )
 }

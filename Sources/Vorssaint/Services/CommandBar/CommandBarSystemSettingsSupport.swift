@@ -101,6 +101,7 @@ enum CommandBarSystemSettingsSupport {
         case .tr: return "tr"
         case .ru: return "ru"
         case .es: return "es"
+        case .sk: return "sk"
         case .de: return "de"
         case .fr: return "fr"
         case .it: return "it"
@@ -109,6 +110,7 @@ enum CommandBarSystemSettingsSupport {
         case .zhHans: return "zh_CN"
         case .zhTW: return "zh_TW"
         case .zhHK: return "zh_HK"
+        case .uk: return "uk"
         }
     }
 }

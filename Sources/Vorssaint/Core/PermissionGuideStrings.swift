@@ -31,6 +31,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -39,6 +40,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -55,6 +57,18 @@ extension PermissionGuideStrings {
         staleHint: "목록에서 이미 켜져 있나요? 그 항목은 이전 앱 사본의 것입니다. 다시 시작하여 교체하세요.",
         startOver: "다시 시작",
         relaunch: "적용하려면 다시 실행"
+    )
+    static let uk = PermissionGuideStrings(
+        title: "Залишився один крок",
+        stepOpen: "macOS відкрила Системні параметри на потрібному списку.",
+        stepToggle: "Увімкніть Vorssaint у тому списку.",
+        stepReturn: "Поверніться. Ця картка помітить сама.",
+        waiting: "Очікування дозволу…",
+        granted: "Дозвіл надано!",
+        closeHelp: "Закрити",
+        staleHint: "Вже є в тому списку? Той запис належить попередній копії програми. Почніть заново, щоб замінити її.",
+        startOver: "Почати заново",
+        relaunch: "Перезапустити для застосування"
     )
 }
 
@@ -122,6 +136,19 @@ extension PermissionGuideStrings {
         staleHint: "¿Ya está activado en esa lista? Esa entrada pertenece a una copia anterior de la app. Empieza de nuevo para reemplazarla.",
         startOver: "Empezar de nuevo",
         relaunch: "Reabrir para aplicar"
+    )
+
+    static let sk = PermissionGuideStrings(
+        title: "Ostáva jeden krok",
+        stepOpen: "macOS otvoril Systémové nastavenia na správnom zozname.",
+        stepToggle: "V tomto zozname zapnite Vorssaint.",
+        stepReturn: "Vráťte sa sem. Táto karta si to všimne sama.",
+        waiting: "Čaká sa na povolenie…",
+        granted: "Povolenie udelené!",
+        closeHelp: "Zavrieť",
+        staleHint: "Je to v zozname už zapnuté? Táto položka patrí staršej kópii aplikácie. Začnite znova, aby ste ju nahradili.",
+        startOver: "Začať znova",
+        relaunch: "Reštartovať na použitie"
     )
 
     static let de = PermissionGuideStrings(

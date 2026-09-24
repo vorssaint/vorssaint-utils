@@ -382,6 +382,16 @@ final class ScreenshotQuickPreviewController {
                   !ShortcutCapture.isCapturing else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             let key = Int(event.keyCode)
+            if flags.intersection([.command, .option, .shift, .control]) == .command {
+                let text = event.charactersIgnoringModifiers?.folding(
+                    options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+                let letter = text?.count == 1 ? text?.first : nil
+                let isLatinLetter = letter.map { $0.isASCII && $0.isLetter } ?? false
+                if isLatinLetter ? letter == "w" : key == kVK_ANSI_W {
+                    self.close()
+                    return nil
+                }
+            }
             if flags.contains(.command) {
                 switch key {
                 case kVK_ANSI_C:

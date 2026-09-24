@@ -213,7 +213,12 @@ final class DockPreviewService: ObservableObject {
         }
         endSession()
         guard WindowEnumerator.dockPreviewMayActivate(item) else { return }
-        WindowActivator.activate(item)
+        // The app in front keeps the delayed focus handoff settling; it is
+        // not a session source, so minimizing the window later leaves it be.
+        WindowActivator.activate(
+            item,
+            handoffSourcePID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+        )
         restoreFrame?()
     }
 
@@ -327,7 +332,10 @@ final class DockPreviewService: ObservableObject {
         let moved = WindowActivator.place(item, origin: origin, pointer: pointer)
         endSession()
         if moved {
-            WindowActivator.activate(item)
+            WindowActivator.activate(
+                item,
+                handoffSourcePID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+            )
             WindowActivator.focusPlacedWindow(item)
         }
     }
@@ -580,7 +588,7 @@ final class DockPreviewService: ObservableObject {
     /// Dock geometry is unknown so detection never silently stops working.
     private func isNearDock(_ point: CGPoint) -> Bool {
         guard let preferences = cachedPreferences else { return true }
-        let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
+        let screen = NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) } ?? NSScreen.main
         guard let frame = screen?.frame else { return true }
         let band = DockPreviewSupport.dockProximityBand(tileSize: preferences.hoverTileSize)
         switch preferences.orientation {
@@ -1616,7 +1624,10 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
             return
         }
         selectedWindowID = item.windowID
-        WindowActivator.activate(item)
+        WindowActivator.activate(
+            item,
+            handoffSourcePID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+        )
     }
 
     func closeWindow(_ item: SwitcherItem) {

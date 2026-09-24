@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -27,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -70,6 +72,14 @@ extension WindowPreviewExclusionStrings {
         addButton: "Añadir app…",
         removeButton: "Quitar",
         caption: "Las miniaturas de las ventanas se detienen mientras una de estas apps está en primer plano."
+    )
+
+    static let sk = WindowPreviewExclusionStrings(
+        sectionTitle: "Miniatúry okien",
+        listTitle: "Pozastaviť v týchto aplikáciách",
+        addButton: "Pridať aplikáciu…",
+        removeButton: "Odstrániť",
+        caption: "Miniatúry okien sa zastavia, kým je jedna z týchto aplikácií v popredí."
     )
 
     static let de = WindowPreviewExclusionStrings(
@@ -134,5 +144,12 @@ extension WindowPreviewExclusionStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         caption: "當其中一個 App 位於前景時，視窗縮圖會暫停更新。"
+    )
+    static let uk = WindowPreviewExclusionStrings(
+        sectionTitle: "Мініатюри вікон",
+        listTitle: "Пауза в цих програмах",
+        addButton: "Додати програму…",
+        removeButton: "Видалити",
+        caption: "Мініатюри вікон зупиняються, поки одна з цих програм на передньому плані."
     )
 }
