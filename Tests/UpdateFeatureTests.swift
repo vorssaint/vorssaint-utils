@@ -478,6 +478,40 @@ enum UpdateFeatureTests {
                 && hiddenPageRoute.targetFeature == nil,
                "a page result with no merged feature identity still falls back to Features generically")
 
+        // Window Layout stays in the sidebar for the green button override alone;
+        // its page row keeps Window Layout's identity from the merge.
+        let windowLayoutPage = SettingsSearchItem(
+            id: .page(.windowLayout), destination: FeatureSettingsDestination(.windowLayout),
+            title: "Window Layout", icon: "rectangle.3.group",
+            keywords: ["Snap to edges", "Keep full screen in these apps"],
+            keywordFeatures: [.windowLayout, .windowMaximizer])
+        let windowLayoutItems = SettingsSearchSupport.combinedItems(
+            pageItems: [windowLayoutPage],
+            featureItems: SettingsSearchSupport.featureItems(language: .enUS) { $0.rawValue })
+        let mergedWindowLayout = windowLayoutItems.first { $0.id == .page(.windowLayout) }!
+        let maximizerOnly: (AppFeature) -> Bool = { $0 == .windowMaximizer }
+        let maximizerOnlyRoute = SettingsSearchSupport.route(for: mergedWindowLayout, isAvailable: maximizerOnly)
+        let noneRoute = SettingsSearchSupport.route(for: mergedWindowLayout) { _ in false }
+        suite.expect(mergedWindowLayout.feature == .windowLayout
+                && maximizerOnlyRoute.destination == FeatureSettingsDestination(.windowLayout)
+                && maximizerOnlyRoute.targetFeature == nil
+                && noneRoute.destination == FeatureSettingsDestination(.features)
+                && noneRoute.targetFeature == .windowLayout,
+               "a page kept visible by another feature opens itself, and falls back to its hub row once hidden")
+        let exceptionGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "keep full screen", items: windowLayoutItems, isAvailable: maximizerOnly)
+        let snapGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "snap", items: windowLayoutItems, isAvailable: maximizerOnly)
+        let pageGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "window layout", items: windowLayoutItems, isAvailable: maximizerOnly)
+        suite.expect(exceptionGroups.map(\.id) == [.windowLayout]
+                && exceptionGroups.first?.suggestions.map(\.title) == ["Keep full screen in these apps"]
+                && snapGroups.isEmpty
+                && pageGroups.first?.id == .windowLayout && pageGroups.first?.parentMatches == true
+                && pageGroups.first.map { SettingsSearchSupport.route(for: $0.pageItem, isAvailable: maximizerOnly) }?
+                    .destination == FeatureSettingsDestination(.windowLayout),
+               "the maximizer alone keeps its settings and the page findable, without Window Layout's own settings")
+
         let homebrewMatches = SettingsSearchSupport.matchingItems(
             query: "  HOMEBREW ", items: combinedSettingsItems)
         suite.expect(homebrewMatches.first?.destination == FeatureSettingsDestination(.homebrew)
