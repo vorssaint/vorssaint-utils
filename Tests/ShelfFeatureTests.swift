@@ -838,5 +838,19 @@ enum ShelfFeatureTests {
                 && pastRestoreGuard[1].contains("sweepOwnedFiles("),
                "restore sweeps the shelf's payload files only for a store it read whole")
 
+        // Dragging selected text brings the Shelf's pill in. A window a tiling
+        // window manager tracks would list this app on the current space.
+        let overlay = OverlayPanel(contentRect: CGRect(x: 0, y: 0, width: 200, height: 40),
+                                   styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        suite.expect(overlay.accessibilitySubrole() == .unknown,
+               "a floating overlay describes itself as an undescribed window, so window managers skip it")
+        suite.expect(overlay.accessibilityRole() == .window && overlay.isAccessibilityElement(),
+               "a floating overlay stays an accessible window for assistive technology")
+        let tooltipSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Shelf/ShelfTooltipPopover.swift", encoding: .utf8)) ?? ""
+        suite.expect(shelfServiceSource.contains("class KeyableShelfPanel: OverlayPanel")
+                && !shelfServiceSource.contains("NSPanel(contentRect")
+                && tooltipSource.contains("OverlayPanel(contentRect") && !tooltipSource.contains("NSPanel(contentRect"),
+               "every Shelf window, the pill, card, edge peek and item tooltip, is a floating overlay")
     }
 }

@@ -100,6 +100,7 @@ final class NotchService: ObservableObject {
     private var hiddenHoverMonitors: [Any] = []
     private var hoverWork: DispatchWorkItem?
     private var noticeWork: DispatchWorkItem?
+    private var trackWork: DispatchWorkItem?
     private var powerSource: CFRunLoopSource?
     private var powerSampler: PowerSampler?
     private var captureID: UUID?
@@ -144,6 +145,9 @@ final class NotchService: ObservableObject {
     private var menuSpaceReading = false
     private var menuSpaceGeneration = 0
     private var menuBarMeasurements = NotchMenuBarMeasurements()
+    /// The island's display keeps no menu bar on screen: it hides until the
+    /// pointer reveals it, or it belongs to another display.
+    private var menuBarHidden = false
     private var screenRefreshWork: DispatchWorkItem?
     private let menuSpaceQueue = DispatchQueue(label: "com.vorssaint.notch-menu-space", qos: .utility)
 
@@ -181,6 +185,12 @@ final class NotchService: ObservableObject {
                                      agents: hasAgentActivity, music: hasMusicActivity)
     }
 
+    /// What shares the closed island with the timer, left of the camera.
+    var compactCompanion: NotchCompactActivity? {
+        NotchSupport.compactCompanion(timer: hasTimerActivity, running: NotchTimerService.shared.session.isRunning,
+                                      downloads: hasDownloadActivity, agents: hasAgentActivity, music: hasMusicActivity)
+    }
+
     private var compactActivityIsVisible: Bool {
         !expanded && !peeking && !dragPlaceholder && notice == nil && captureControls == nil
             && compactActivity != nil
@@ -192,6 +202,7 @@ final class NotchService: ObservableObject {
         switch compactActivity {
         case .music: return geometry.compactMusicGeometry
         case .timer: return geometry.compactTimerGeometry(showsDownloads: hasDownloadActivity)
+        case .downloads: return geometry.compactDownloadGeometry
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing)
         default: return geometry
         }
@@ -442,6 +453,7 @@ final class NotchService: ObservableObject {
         geometry.compactSideRoom = nil
         hoverWork?.cancel(); hoverWork = nil
         noticeWork?.cancel(); noticeWork = nil
+        trackWork?.cancel(); trackWork = nil
         subscriptions.removeAll()
         stopPower()
         NotchMusicService.shared.stop()
@@ -1179,7 +1191,27 @@ final class NotchService: ObservableObject {
         }
         open(selectedNotice.event == .download ? .downloads : selectedNotice.event == .timer ? .timer
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
-             : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents : .controls)
+             : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
+             : selectedNotice.event == .track ? .music : .controls)
+    }
+
+    /// Skipping through songs, or a title that lands before its artist, shows
+    /// one notice for where playback settles.
+    private func scheduleTrackNotice() {
+        trackWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.trackWork = nil
+            // The open island already shows the song, or holds something else
+            // the person is doing.
+            guard !self.expanded, !self.peeking, !self.dragPlaceholder, self.captureControls == nil,
+                  let playback = NotchMusicService.shared.playback, playback.isPlaying,
+                  let title = playback.track.title, !title.isEmpty else { return }
+            self.show(NotchNotice(event: .track, title: title, detail: playback.track.artist ?? "",
+                                  symbol: "music.note"))
+        }
+        trackWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
     func showBrightness(_ level: Double) -> Bool {
@@ -1434,9 +1466,10 @@ final class NotchService: ObservableObject {
     private func syncMenuSpaceMonitoring() {
         guard !hiddenInFullscreen else { stopMenuSpaceMonitoring(); return }
         // Covering keeps activity on screen; a simulated cutout with nothing
-        // to show still gives way to the menus beneath it.
+        // to show still gives way to the menus beneath it. A hidden bar has
+        // none on screen, and its menus may not even report a frame.
         if running, !suspended, NotchSupport.coversMenus(),
-           geometry.isNotched || compactActivity != nil || idleContent != .none {
+           geometry.isNotched || compactActivity != nil || idleContent != .none || menuBarHidden {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
             stopMenuSpaceMonitoring()
@@ -1548,6 +1581,7 @@ final class NotchService: ObservableObject {
                                     statusBarThickness: NSStatusBar.system.thickness),
                                  customWidth: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomWidth),
                                  customHeight: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomHeight))
+        menuBarHidden = !NotchMenuBarMeasurements.showsBar(frame: screen.frame, visibleTop: screen.visibleFrame.maxY)
         if next.hasSameMenuBar(as: geometry) { next.compactSideRoom = geometry.compactSideRoom }
         next.quickAccessBottomInset = NotchQuickAccessConfiguration.current().hasBottom ? NotchQuickAccessLayout.gutter : 0
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
@@ -1877,6 +1911,11 @@ final class NotchService: ObservableObject {
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
         }
+        if NotchSupport.routes(.track) {
+            NotchMusicService.shared.trackChanges.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.scheduleTrackNotice() }
+                .store(in: &subscriptions)
+        }
         if modules.contains(.tools) {
             // The tools page is a rail sized by its tiles; editing or a
             // hosted utility turns it into a page.
@@ -2096,7 +2135,7 @@ final class NotchService: ObservableObject {
         }
         let musicWanted = modules.contains(.music) && ((expanded && (selected == .music || (selected == .controls && NotchSupport.controls().contains(.music)))
             && !showingAppPanel && !showingSections)
-            || (!hiddenUntilHover && NotchSupport.watchesMusicActivity()))
+            || (!hiddenUntilHover && (NotchSupport.watchesMusicActivity() || NotchSupport.routes(.track))))
         if musicWanted { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
         let needs = expanded && selected == .system && selectedMetric == nil && modules.contains(.system) && !showingAppPanel && !showingSections
         var detailNeeds = expanded && !showingSections ? selectedMetric?.monitorNeeds ?? .none : .none

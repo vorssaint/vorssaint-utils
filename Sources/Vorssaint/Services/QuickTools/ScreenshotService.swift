@@ -298,7 +298,7 @@ final class ScreenshotService: ObservableObject {
         preview?.close()
         preview = nil
         let pointer = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) })
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) })
                 ?? NSScreen.main,
               screen.displayID != 0 else {
             QuickToolHUD.show(icon: "camera.viewfinder", message: strings.captureFailed)
@@ -468,6 +468,11 @@ final class ScreenshotService: ObservableObject {
                     return
                 }
                 self.shareDirect(capture, duration: duration, completion: completion)
+            },
+            shareFile: { [weak self] in
+                guard let self, let export = self.flatten(capture) else { return nil }
+                return Self.temporaryExportFile(image: export.image, scale: export.scale,
+                                                strings: self.strings)
             },
             onClose: { [weak self] in self?.preview = nil })
         preview = controller
@@ -723,6 +728,22 @@ final class ScreenshotService: ObservableObject {
     static func dragItemProvider(image: CGImage,
                                  scale: CGFloat,
                                  strings: ScreenshotFeatureStrings) -> NSItemProvider? {
+        guard let url = temporaryExportFile(image: image, scale: scale, strings: strings) else {
+            return nil
+        }
+        guard let provider = NSItemProvider(contentsOf: url) else {
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+            return nil
+        }
+        return provider
+    }
+
+    /// A dated PNG in its own temporary folder, for a drag or the system
+    /// share sheet. The receiving side reads the file after the gesture ends,
+    /// so the folder stays for an hour before it is removed.
+    static func temporaryExportFile(image: CGImage,
+                                    scale: CGFloat,
+                                    strings: ScreenshotFeatureStrings) -> URL? {
         guard let data = ScreenshotRenderer.pngData(from: image, scale: scale) else {
             return nil
         }
@@ -730,15 +751,11 @@ final class ScreenshotService: ObservableObject {
         guard let url = try? ScreenshotSupport.temporaryDragFile(data: data, name: name) else {
             return nil
         }
-        guard let provider = NSItemProvider(contentsOf: url) else {
-            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
-            return nil
-        }
         let folder = url.deletingLastPathComponent()
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 60 * 60) {
             try? FileManager.default.removeItem(at: folder)
         }
-        return provider
+        return url
     }
 
     // MARK: - Save location

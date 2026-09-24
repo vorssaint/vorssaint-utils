@@ -45,19 +45,7 @@ struct NotchMusicStrip: View {
                 HStack(spacing: 8) {
                     if geometry.compactActivityWingWidth > 0 {
                         // Circular corners, like the strip's, so the two stay parallel.
-                        Group {
-                            if let image = music.artwork {
-                                Image(nsImage: image).resizable().scaledToFill()
-                            } else {
-                                Color.black.overlay { Image(systemName: "music.note").foregroundStyle(.secondary) }
-                            }
-                        }
-                        .frame(width: artworkSide, height: artworkSide)
-                        .clipShape(RoundedRectangle(cornerRadius: artworkRadius, style: .circular))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: artworkRadius, style: .circular)
-                                .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
-                        }
+                        NotchMusicCover(artwork: music.artwork, side: artworkSide, radius: artworkRadius)
                     }
                 }
                 .padding(.leading, artworkInset)
@@ -108,5 +96,29 @@ struct NotchMusicStrip: View {
         .padding(.horizontal, geometry.compactMusicLabelInset)
         .frame(maxWidth: .infinity)
         .accessibilityHidden(true)
+    }
+}
+
+/// The playing track's cover beside the camera, with a hairline edge that
+/// keeps a dark one apart from the island.
+struct NotchMusicCover: View {
+    let artwork: NSImage?
+    let side: CGFloat
+    let radius: CGFloat
+
+    var body: some View {
+        Group {
+            if let artwork {
+                Image(nsImage: artwork).resizable().scaledToFill()
+            } else {
+                Color.black.overlay { Image(systemName: "music.note").foregroundStyle(.secondary) }
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .circular))
+        .overlay {
+            RoundedRectangle(cornerRadius: radius, style: .circular)
+                .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
+        }
     }
 }

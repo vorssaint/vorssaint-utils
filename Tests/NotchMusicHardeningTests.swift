@@ -147,6 +147,7 @@ enum NotchMusicHardeningTests {
         sourceSwitching(suite)
         sourceRestore(suite)
         artworkInheritance(suite)
+        trackChanges(suite)
         NotchPlaybackRoutingTests.run(suite)
         lyricExpansion(suite)
         lyricLifecycle(suite)
@@ -261,6 +262,43 @@ enum NotchMusicHardeningTests {
         service.selectSource(nil)
         suite.expect(service.chosenSource == nil, "choosing Automatic forgets the choice")
         service.stop()
+    }
+
+    /// The island announces a new song, never what a playing song keeps
+    /// reporting or what a reader finds when it starts.
+    private static func trackChanges(_ suite: TestSuite) {
+        func reading(_ title: String?, artist: String? = "Artist", player: String = "com.example.player",
+                     playing: Bool = true, elapsed: TimeInterval = 0) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: artist, album: nil, artworkData: nil,
+                                                          appBundleIdentifier: player, appPID: 42),
+                          isPlaying: playing, elapsed: elapsed, duration: 200, rate: 1, sampledAt: Date(), canSeek: true)
+        }
+        var tracker = NotchTrackChange()
+        suite.expect(!tracker.isNewSong(reading("One"), first: true), "the reader's first song only sets where the player is")
+        suite.expect(!tracker.isNewSong(reading("One", elapsed: 30), first: false)
+                     && !tracker.isNewSong(reading("One", playing: false), first: false)
+                     && !tracker.isNewSong(reading("One"), first: false),
+                     "seeking, pausing and resuming the same song is not a new song")
+        suite.expect(tracker.isNewSong(reading("Two"), first: false), "a player moving on to another song is a new song")
+        suite.expect(!tracker.isNewSong(reading("Two", artist: nil), first: false)
+                     && !tracker.isNewSong(reading("Two", artist: "Artist"), first: false),
+                     "a reading that lacks the artist still names the same song")
+        suite.expect(!tracker.isNewSong(reading("Three", playing: false), first: false)
+                     && tracker.isNewSong(reading("Three"), first: false),
+                     "the next song counts once it plays, even when first reported paused")
+        suite.expect(!tracker.isNewSong(reading("Elsewhere", player: "com.example.other"), first: false)
+                     && !tracker.isNewSong(reading("Three"), first: false),
+                     "another player standing in between tracks is a new song for neither")
+        suite.expect(!tracker.isNewSong(reading(nil), first: false) && !tracker.isNewSong(reading("  "), first: false)
+                     && !tracker.isNewSong(nil, first: false),
+                     "a reading without a title is never announced")
+        suite.expect(!tracker.isNewSong(reading("Four"), first: true) && !tracker.isNewSong(reading("Four"), first: false),
+                     "a reader that starts again or changes source reports its song without announcing it")
+        tracker.reset()
+        suite.expect(!tracker.isNewSong(reading("Five"), first: false),
+                     "after the reader stops, a player's first song is not a change")
+        suite.expect(NotchEvent.track.priority == 0 && NotchEvent.track.duration == 3,
+                     "a new song gives way to any other notice and leaves after three seconds")
     }
 
     /// The adapter flags bytes equal to its previous reading as unchanged,

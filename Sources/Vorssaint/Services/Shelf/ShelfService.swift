@@ -1003,7 +1003,7 @@ final class ShelfService: ObservableObject {
 
     /// Borderless Shelf panels need key status after a tile click so standard
     /// keyboard selection commands can reach them without activating the app.
-    private final class KeyableShelfPanel: NSPanel, NSDraggingDestination {
+    private final class KeyableShelfPanel: OverlayPanel, NSDraggingDestination {
         func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
             let shelf = ShelfService.shared
             let accepts = !shelf.isInternalDragActive && shelf.canAcceptPasteboard(sender.draggingPasteboard)

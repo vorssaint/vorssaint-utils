@@ -812,6 +812,7 @@ enum DefaultsKey {
     static let notchClipboard = "notchClipboard"
     static let notchClipboardWindow = "notchClipboardWindow"
     static let notchCapture = "notchCapture"
+    static let notchTrackChange = "notchTrackChange"
     // Legacy backup key. Resting content is now selected explicitly by notchIdleContent.
     static let notchMusicActivity = "notchMusicActivity"
     static let notchShowInCaptures = "notchShowInCaptures"
@@ -1311,6 +1312,7 @@ enum Defaults {
         DefaultsKey.notchClipboard: false,
         DefaultsKey.notchClipboardWindow: true,
         DefaultsKey.notchCapture: false,
+        DefaultsKey.notchTrackChange: false,
         DefaultsKey.notchMusicActivity: false,
         DefaultsKey.notchShowInCaptures: true,
         DefaultsKey.notchHideInCaptures: false,
@@ -1765,13 +1767,14 @@ enum Defaults {
         defaults.removeObject(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
     }
 
-    /// The app switcher used to share Dock Preview's thumbnail size. Copy a
-    /// chosen size once, before defaults are registered, so neither changes
-    /// on upgrade.
+    /// The app switcher used to share Dock Preview's thumbnail size. Copy it
+    /// once, before defaults are registered, so neither changes on upgrade.
+    /// With no size chosen yet, store the default all the same: a Dock size
+    /// picked later would otherwise be copied at the next launch.
     static func migrateSwitcherPreviewSize(in defaults: UserDefaults) {
-        guard defaults.object(forKey: DefaultsKey.switcherPreviewSize) == nil,
-              let size = defaults.string(forKey: DefaultsKey.previewSize) else { return }
-        defaults.set(size, forKey: DefaultsKey.switcherPreviewSize)
+        guard defaults.object(forKey: DefaultsKey.switcherPreviewSize) == nil else { return }
+        defaults.set(defaults.string(forKey: DefaultsKey.previewSize) ?? "normal",
+                     forKey: DefaultsKey.switcherPreviewSize)
     }
 
     static func migrateBatteryTemperatureVisibility(in defaults: UserDefaults) {

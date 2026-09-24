@@ -74,6 +74,7 @@ enum NotchScreenRefreshContract {
         var compactActivity: Bool?
         var accessibilityGranted = true
         var coversMenus = false
+        var menuBarHidden = false
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
         var screenRefreshWork: DispatchWorkItem?
@@ -305,6 +306,25 @@ enum NotchScreenRefreshContract {
         idleSimulated.syncMenuSpaceMonitoring()
         suite.expect(idleSimulated.geometry.compactSideRoom.map { $0 > 0 } == true,
                "compact activity on a simulated cutout covers the menus")
+
+        let hiddenBar = Service()
+        hiddenBar.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                                           safeAreaTop: 0, cameraWidth: 0)
+        hiddenBar.idleContent = .none
+        hiddenBar.coversMenus = true
+        hiddenBar.menuBarHidden = true
+        hiddenBar.syncMenuSpaceMonitoring()
+        let hiddenEmptyBar = NotchMenuBarLayout.sideRoom(screen: hiddenBar.geometry.screen,
+                                                         cameraWidth: hiddenBar.geometry.cameraWidth,
+                                                         barHeight: hiddenBar.geometry.menuBarHeight, occupied: [])
+        suite.expect(hiddenBar.menuSpaceTimer == nil && hiddenBar.reads == 0
+               && hiddenBar.geometry.compactSideRoom == hiddenEmptyBar && (hiddenEmptyBar ?? 0) > 0,
+               "a simulated cutout under a hidden menu bar has no menus to give way to, "
+               + "so an app whose menus report no frame cannot take it away")
+        hiddenBar.coversMenus = false
+        hiddenBar.syncMenuSpaceMonitoring()
+        suite.expect(hiddenBar.menuSpaceTimer != nil && hiddenBar.reads == 1,
+               "choosing to leave the menus uncovered still gives way to a hidden bar's menus")
 
         let physical = Service()
         physical.idleContent = .none
