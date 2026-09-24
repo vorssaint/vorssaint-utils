@@ -352,8 +352,9 @@ struct EnergySettings: View {
                         .frame(width: 52, alignment: .trailing)
                 }
             }
-            SoftwareDimmingButton(display: display)
-            DisplayPowerButton(display: display)
+            if !display.isVirtual {
+                DisplayPowerButton(display: display)
+            }
         }
     }
 

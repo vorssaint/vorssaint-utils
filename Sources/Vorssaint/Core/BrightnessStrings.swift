@@ -33,7 +33,6 @@ struct BrightnessFeatureStrings {
     let keyboardBrightnessShortcuts: String
     let keyboardBrightnessDecrease: String
     let keyboardBrightnessIncrease: String
-    let softwareDimming: String
 }
 
 extension FeatureStrings {
@@ -62,7 +61,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "Brightness and power controls for every display",
         enable: "Control displays",
         enableCaption: "Brightness and on or off controls for the built-in screen and external monitors, here and in the menu bar panel.",
-        externalCaption: "External monitors are adjusted through the same protocol as their own buttons. When the connection cannot carry it, as with HDMI adapters, the slider dims the picture instead, so brightness control works either way.",
+        externalCaption: "External monitors use their native brightness protocol when available. Displays without a supported brightness route cannot be adjusted here.",
         noDisplays: "No display found.",
         displayOff: "Off",
         turnOffDisplay: "Turn off display",
@@ -84,7 +83,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Use keyboard brightness shortcuts",
         keyboardBrightnessDecrease: "Decrease keyboard brightness",
         keyboardBrightnessIncrease: "Increase keyboard brightness",
-        softwareDimming: "Dim the picture"
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -92,7 +90,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "Brilho e controles para ligar ou desligar cada tela",
         enable: "Controlar telas",
         enableCaption: "Controles de brilho e de ligar ou desligar para a tela do Mac e monitores externos, aqui e no painel da barra de menus.",
-        externalCaption: "Monitores externos são ajustados pelo mesmo protocolo dos botões do próprio monitor. Quando a conexão não transmite esse protocolo, como em adaptadores HDMI, o controle escurece a imagem, então o ajuste funciona de qualquer forma.",
+        externalCaption: "Monitores externos usam o protocolo de brilho nativo quando disponível. Monitores sem uma rota de brilho compatível não podem ser ajustados aqui.",
         noDisplays: "Nenhuma tela encontrada.",
         displayOff: "Desligada",
         turnOffDisplay: "Desligar tela",
@@ -114,7 +112,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Usar atalhos para o brilho do teclado",
         keyboardBrightnessDecrease: "Diminuir brilho do teclado",
         keyboardBrightnessIncrease: "Aumentar brilho do teclado",
-        softwareDimming: "Escurecer a imagem"
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -122,7 +119,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "Tüm ekranlar için parlaklık ve güç denetimleri",
         enable: "Ekranları denetle",
         enableCaption: "Yerleşik ekran ve harici monitörler için parlaklık ve açma kapatma denetimleri, burada ve menü çubuğu panelinde.",
-        externalCaption: "Harici monitörler, kendi düğmelerinin kullandığı protokolle ayarlanır. Bağlantı bu protokolü taşıyamadığında, örneğin HDMI adaptörlerinde, kaydırıcı bunun yerine görüntüyü karartır; parlaklık denetimi her durumda çalışır.",
+        externalCaption: "Harici monitörler, desteklendiğinde yerel parlaklık protokolünü kullanır. Uyumlu bir parlaklık yolu olmayan ekranlar burada ayarlanamaz.",
         noDisplays: "Ekran bulunamadı.",
         displayOff: "Kapalı",
         turnOffDisplay: "Ekranı kapat",
@@ -144,7 +141,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Klavye parlaklığı kısayollarını kullan",
         keyboardBrightnessDecrease: "Klavye parlaklığını azalt",
         keyboardBrightnessIncrease: "Klavye parlaklığını artır",
-        softwareDimming: "Görüntüyü karart"
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -152,7 +148,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "Яркость и включение всех экранов",
         enable: "Управлять экранами",
         enableCaption: "Настройки яркости и включения встроенного экрана и внешних мониторов здесь и в панели строки меню.",
-        externalCaption: "Внешние мониторы настраиваются тем же протоколом, что и их собственные кнопки. Если соединение не передаёт этот протокол, например через адаптеры HDMI, ползунок затемняет изображение, так что регулировка работает в любом случае.",
+        externalCaption: "Внешние мониторы используют собственный протокол яркости, если он доступен. Экраны без поддерживаемого маршрута яркости нельзя настроить здесь.",
         noDisplays: "Экраны не найдены.",
         displayOff: "Выключен",
         turnOffDisplay: "Выключить экран",
@@ -174,7 +170,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Использовать сочетания клавиш для подсветки клавиатуры",
         keyboardBrightnessDecrease: "Уменьшить яркость клавиатуры",
         keyboardBrightnessIncrease: "Увеличить яркость клавиатуры",
-        softwareDimming: "Затемнять изображение"
     )
 
     static let es = BrightnessFeatureStrings(
@@ -182,7 +177,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "Brillo y encendido para todas las pantallas",
         enable: "Controlar las pantallas",
         enableCaption: "Controles de brillo y encendido para la pantalla integrada y los monitores externos, aquí y en el panel de la barra de menús.",
-        externalCaption: "Los monitores externos se ajustan con el mismo protocolo que sus propios botones. Cuando la conexión no transmite ese protocolo, como con adaptadores HDMI, el control oscurece la imagen, así que el ajuste funciona igualmente.",
+        externalCaption: "Los monitores externos usan su protocolo de brillo nativo cuando está disponible. Los que no tienen una ruta de brillo compatible no se pueden ajustar aquí.",
         noDisplays: "No se encontró ninguna pantalla.",
         displayOff: "Apagada",
         turnOffDisplay: "Apagar pantalla",
@@ -204,7 +199,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Usar atajos para el brillo del teclado",
         keyboardBrightnessDecrease: "Reducir el brillo del teclado",
         keyboardBrightnessIncrease: "Aumentar el brillo del teclado",
-        softwareDimming: "Oscurecer la imagen"
     )
 
     static let de = BrightnessFeatureStrings(
@@ -212,7 +206,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "Helligkeit und Ein oder Aus für alle Displays",
         enable: "Displays steuern",
         enableCaption: "Regler für Helligkeit und Ein oder Aus für das eingebaute Display und externe Monitore, hier und im Menüleistenpanel.",
-        externalCaption: "Externe Monitore werden über dasselbe Protokoll wie ihre eigenen Tasten eingestellt. Trägt die Verbindung es nicht, etwa bei HDMI-Adaptern, dunkelt der Regler stattdessen das Bild ab, sodass die Helligkeit in jedem Fall steuerbar bleibt.",
+        externalCaption: "Externe Monitore verwenden ihren nativen Helligkeitsprotokoll, sofern verfügbar. Displays ohne unterstützten Helligkeitspfad können hier nicht angepasst werden.",
         noDisplays: "Kein Display gefunden.",
         displayOff: "Aus",
         turnOffDisplay: "Display ausschalten",
@@ -234,7 +228,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Kurzbefehle für die Tastaturhelligkeit verwenden",
         keyboardBrightnessDecrease: "Tastaturhelligkeit verringern",
         keyboardBrightnessIncrease: "Tastaturhelligkeit erhöhen",
-        softwareDimming: "Bild abdunkeln"
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -242,7 +235,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "Luminosité et alimentation de tous les écrans",
         enable: "Contrôler les écrans",
         enableCaption: "Contrôles de luminosité et d’alimentation pour l’écran intégré et les moniteurs externes, ici et dans le panneau de la barre des menus.",
-        externalCaption: "Les moniteurs externes sont réglés par le même protocole que leurs propres boutons. Quand la connexion ne le transmet pas, comme avec les adaptateurs HDMI, le curseur assombrit l’image, le réglage fonctionne donc dans tous les cas.",
+        externalCaption: "Les moniteurs externes utilisent leur protocole natif de luminosité lorsqu’il est disponible. Les écrans sans prise en charge ne peuvent pas être réglés ici.",
         noDisplays: "Aucun écran détecté.",
         displayOff: "Éteint",
         turnOffDisplay: "Éteindre l’écran",
@@ -264,7 +257,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Utiliser les raccourcis de luminosité du clavier",
         keyboardBrightnessDecrease: "Réduire la luminosité du clavier",
         keyboardBrightnessIncrease: "Augmenter la luminosité du clavier",
-        softwareDimming: "Assombrir l’image"
     )
 
     static let it = BrightnessFeatureStrings(
@@ -272,7 +264,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "Luminosità e accensione per tutti gli schermi",
         enable: "Controlla gli schermi",
         enableCaption: "Controlli di luminosità e accensione per lo schermo integrato e i monitor esterni, qui e nel pannello della barra dei menu.",
-        externalCaption: "I monitor esterni vengono regolati con lo stesso protocollo dei loro pulsanti. Quando il collegamento non lo trasmette, come con gli adattatori HDMI, il cursore scurisce l’immagine, quindi la regolazione funziona comunque.",
+        externalCaption: "I monitor esterni usano il loro protocollo nativo di luminosità quando disponibile. Gli schermi senza un percorso di luminosità supportato non possono essere regolati qui.",
         noDisplays: "Nessuno schermo trovato.",
         displayOff: "Spento",
         turnOffDisplay: "Spegni schermo",
@@ -294,7 +286,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Usa le scorciatoie per la luminosità della tastiera",
         keyboardBrightnessDecrease: "Riduci luminosità tastiera",
         keyboardBrightnessIncrease: "Aumenta luminosità tastiera",
-        softwareDimming: "Scurisci l’immagine"
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -302,7 +293,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "すべてのディスプレイの明るさと電源を操作",
         enable: "ディスプレイを操作",
         enableCaption: "内蔵ディスプレイと外部モニタの明るさと電源を、こことメニューバーパネルで操作します。",
-        externalCaption: "外部モニタは本体のボタンと同じプロトコルで調整します。HDMI変換アダプタなどでこのプロトコルが通らない場合は、スライダが代わりに画面を暗くするため、どの接続でも輝度を調整できます。",
+        externalCaption: "外部ディスプレイでは、利用できる場合はネイティブの輝度プロトコルを使用します。対応する輝度経路がないディスプレイはここでは調整できません。",
         noDisplays: "ディスプレイが見つかりません。",
         displayOff: "オフ",
         turnOffDisplay: "ディスプレイの電源を切る",
@@ -324,7 +315,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "キーボードの明るさのショートカットを使用",
         keyboardBrightnessDecrease: "キーボードの明るさを下げる",
         keyboardBrightnessIncrease: "キーボードの明るさを上げる",
-        softwareDimming: "画面を暗くする"
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -332,7 +322,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "모든 디스플레이의 밝기와 전원 제어",
         enable: "디스플레이 제어",
         enableCaption: "내장 화면과 외부 모니터의 밝기와 전원을 여기와 메뉴 막대 패널에서 제어합니다.",
-        externalCaption: "외부 모니터는 자체 버튼과 동일한 프로토콜로 조절됩니다. HDMI 어댑터처럼 연결이 이 프로토콜을 지원하지 않으면 슬라이더가 대신 화면을 어둡게 하므로 어느 경우든 밝기를 조절할 수 있습니다.",
+        externalCaption: "외부 디스플레이는 지원되는 경우 기본 밝기 프로토콜을 사용합니다. 지원되는 밝기 경로가 없는 디스플레이는 여기에서 조절할 수 없습니다.",
         noDisplays: "디스플레이를 찾을 수 없습니다.",
         displayOff: "꺼짐",
         turnOffDisplay: "디스플레이 끄기",
@@ -354,7 +344,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "키보드 밝기 단축키 사용",
         keyboardBrightnessDecrease: "키보드 밝기 낮추기",
         keyboardBrightnessIncrease: "키보드 밝기 높이기",
-        softwareDimming: "화면을 어둡게"
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -362,7 +351,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "控制所有显示器的亮度和开关",
         enable: "控制显示器",
         enableCaption: "内置屏幕和外接显示器的亮度与开关控制，显示在这里和菜单栏面板中。",
-        externalCaption: "外接显示器通过与其自身按键相同的协议调节。当连接无法传输该协议时（例如 HDMI 转接器），滑块会改为调暗画面，因此亮度调节始终可用。",
+        externalCaption: "外接显示器在可用时使用其原生亮度协议。没有受支持亮度路径的显示器无法在此调整。",
         noDisplays: "未找到显示器。",
         displayOff: "已关闭",
         turnOffDisplay: "关闭显示器",
@@ -384,7 +373,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "使用键盘亮度快捷键",
         keyboardBrightnessDecrease: "降低键盘亮度",
         keyboardBrightnessIncrease: "提高键盘亮度",
-        softwareDimming: "调暗画面"
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -392,7 +380,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "控制所有顯示器的亮度和開關",
         enable: "控制顯示器",
         enableCaption: "內建螢幕和外接顯示器的亮度與開關控制，顯示在這裡和選單列面板中。",
-        externalCaption: "外接顯示器透過與其本身按鍵相同的協定調整。當連接無法傳輸該協定時（例如 HDMI 轉接器），滑桿會改為調暗畫面，因此亮度調整始終可用。",
+        externalCaption: "外接顯示器在可用時使用其原生亮度協定。沒有受支援亮度路徑的顯示器無法在此調整。",
         noDisplays: "找不到顯示器。",
         displayOff: "已關閉",
         turnOffDisplay: "關閉顯示器",
@@ -414,7 +402,6 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
         keyboardBrightnessIncrease: "提高鍵盤亮度",
-        softwareDimming: "調暗畫面"
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -422,7 +409,7 @@ extension BrightnessFeatureStrings {
         hubDescription: "控制所有顯示器的亮度和開關",
         enable: "控制顯示器",
         enableCaption: "內置螢幕和外接顯示器的亮度與開關控制，顯示在這裏和選單列面板中。",
-        externalCaption: "外接顯示器透過與其本身按鍵相同的協定調整。當連接無法傳輸該協定時（例如 HDMI 轉接器），滑桿會改為調暗畫面，因此亮度調整始終可用。",
+        externalCaption: "外接顯示器在可用時使用其原生亮度協定。沒有受支援亮度路徑的顯示器無法在此調整。",
         noDisplays: "找不到顯示器。",
         displayOff: "已關閉",
         turnOffDisplay: "關閉顯示器",
@@ -444,6 +431,5 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
         keyboardBrightnessIncrease: "提高鍵盤亮度",
-        softwareDimming: "調暗畫面"
     )
 }

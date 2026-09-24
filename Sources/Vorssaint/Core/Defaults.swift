@@ -193,10 +193,6 @@ enum DefaultsKey {
     // Set once the paths cached before paired discovery requests have been
     // dropped, so a monitor written off then is classified again exactly once.
     static let brightnessDDCWriteOnlyPathsRechecked = "brightnessDDCWriteOnlyPathsRechecked"
-    // Per-monitor connection paths a person has told this app to dim in
-    // software: the only way to know a write-only channel swallows its writes
-    // is to watch the panel, which no probe can do. Issue #1589.
-    static let brightnessForcedSoftwarePaths = "brightnessForcedSoftwarePaths"
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"

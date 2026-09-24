@@ -1345,6 +1345,97 @@ enum FeatureCatalogTests {
                    primaryDisplay: 1, eligible: [2]) == nil,
                "an unavailable primary display never redirects the shortcut")
 
+        suite.expect(BrightnessSupport.discoveryDisposition(
+                   isActive: true, isVirtual: true, isAirPlay: false,
+                   hasDisplayLinkControl: true)
+                   == .displayLink,
+               "an active DisplayLink output with native control uses the native brightness route")
+        suite.expect(BrightnessSupport.discoveryDisposition(
+                   isActive: true, isVirtual: true, isAirPlay: false,
+                   hasDisplayLinkControl: false)
+                   == .unsupported,
+               "a DisplayLink output without native control stays unsupported")
+        suite.expect(BrightnessSupport.discoveryDisposition(
+                   isActive: true, isVirtual: true, isAirPlay: false,
+                   hasDisplayLinkControl: false)
+                   == .unsupported,
+               "a synthetic virtual desktop stays out of brightness controls")
+        suite.expect(BrightnessSupport.discoveryDisposition(
+                   isActive: false, isVirtual: true, isAirPlay: false,
+                   hasDisplayLinkControl: true)
+                   == .unsupported,
+               "an inactive virtual output is not offered for brightness or power control")
+        suite.expect(BrightnessSupport.discoveryDisposition(
+                   isActive: true, isVirtual: false, isAirPlay: true,
+                   hasDisplayLinkControl: true)
+                   == .unsupported,
+               "AirPlay remains excluded from local display brightness controls")
+        suite.expect(BrightnessSupport.discoveryDisposition(
+                   isActive: true, isVirtual: false, isAirPlay: false,
+                   hasDisplayLinkControl: true)
+                   == .displayLink,
+               "an exact native DisplayLink CGID takes precedence over physical discovery")
+        suite.expect(BrightnessSupport.discoveryDisposition(
+                   isActive: true, isVirtual: false, isAirPlay: false,
+                   hasDisplayLinkControl: false)
+                   == .hardwareOrDDC,
+               "an active physical display keeps the system and DDC discovery path")
+        suite.expect(BrightnessSupport.discoveryDisposition(
+                   isActive: false, isVirtual: false, isAirPlay: false,
+                   hasDisplayLinkControl: false)
+                   == .powerOnly,
+               "an inactive physical display stays available for display power restoration")
+
+        let displayLinkPayload = """
+        [{"persistentDisplayId":"LG FULL HD (16843009#)","CGID":21,\
+        "name":"LG FULL HD","brightness":0.42,"contrast":0.70,"isEnabled":true},\
+        {"persistentDisplayId":"LG ULTRAGEAR (118864#309NTAB3G864)","CGID":20,\
+        "name":"LG ULTRAGEAR","brightness":0.17,"isEnabled":true}]
+        """
+        let displayLinks = BrightnessSupport.decodeDisplayLinkDisplays(displayLinkPayload)
+        suite.expect(displayLinks.count == 2
+                && displayLinks[0].cgID == 21
+                && displayLinks[0].brightness == 0.42
+                && displayLinks[1].persistentDisplayID.hasPrefix("LG ULTRAGEAR"),
+               "DisplayLink's native display payload maps CGIDs and hardware brightness")
+        suite.expect(BrightnessSupport.decodeDisplayLinkDisplays(
+                   "[{\"persistentDisplayId\":\"same\",\"CGID\":20},{\"persistentDisplayId\":\"same\",\"CGID\":20}]").isEmpty,
+               "duplicate DisplayLink identities are rejected instead of trapping a dictionary")
+        suite.expect(BrightnessSupport.decodeDisplayLinkDisplays(
+                   "[{\"persistentDisplayId\":\"\",\"CGID\":20}]").isEmpty,
+               "an empty persistent DisplayLink identity is rejected")
+        suite.expect(BrightnessSupport.decodeDisplayLinkDisplaysResult(
+                   "[{\"persistentDisplayId\":\"\",\"CGID\":20}]") == nil
+                && BrightnessSupport.decodeDisplayLinkDisplaysResult("[]")?.isEmpty == true,
+               "a malformed DisplayListUpdated payload is distinct from a valid empty list")
+        suite.expect(BrightnessSupport.shouldApplyDisplayLinkBrightnessUpdate(
+                   isNativeRoute: true, hasPendingWrite: false)
+               && !BrightnessSupport.shouldApplyDisplayLinkBrightnessUpdate(
+                   isNativeRoute: true, hasPendingWrite: true)
+               && !BrightnessSupport.shouldApplyDisplayLinkBrightnessUpdate(
+                   isNativeRoute: false, hasPendingWrite: false),
+               "an older native acknowledgement cannot move a pending or non-native route")
+        suite.expect(BrightnessSupport.decodeDisplayLinkBrightnessUpdate(
+                   "{\"persistentDisplayId\":\"LG FULL HD (16843009#)\",\"brightness\":0.5}")
+                == BrightnessSupport.DisplayLinkBrightnessUpdate(
+                    persistentDisplayID: "LG FULL HD (16843009#)", statusCode: nil, brightness: 0.5),
+               "unsolicited native brightness updates remain distinguishable from write acknowledgements")
+        let setPayload = BrightnessSupport.displayLinkSetPayload(
+            persistentDisplayID: "LG FULL HD (16843009#)", brightness: 0.5)
+        let setObject = setPayload.flatMap { payload in
+            try? JSONSerialization.jsonObject(with: Data(payload.utf8))
+        } as? [String: Any]
+        suite.expect(setObject?["persistentDisplayId"] as? String == "LG FULL HD (16843009#)"
+                && setObject?["brightness"] as? Double == 0.5,
+               "native DisplayLink writes use the persistent display ID and normalized brightness")
+        suite.expect(BrightnessSupport.acknowledgedDisplayLinkBrightness(
+                   "{\"persistentDisplayId\":\"LG FULL HD (16843009#)\",\"statusCode\":0,\"brightness\":0.5}",
+                   persistentDisplayID: "LG FULL HD (16843009#)", requested: 0.5) == 0.5
+                && BrightnessSupport.acknowledgedDisplayLinkBrightness(
+                   "{\"persistentDisplayId\":\"LG FULL HD (16843009#)\",\"statusCode\":1,\"brightness\":0.5}",
+                   persistentDisplayID: "LG FULL HD (16843009#)", requested: 0.5) == nil,
+               "only a matching successful native update acknowledges a DisplayLink write")
+
         suite.expect(GlobalShortcutRole.keyboardBrightnessDecrease.feature == .brightness
                 && GlobalShortcutRole.keyboardBrightnessIncrease.feature == .brightness
                 && GlobalShortcutRole.keyboardBrightnessDecrease.group == .mouseKeyboard
@@ -1929,11 +2020,6 @@ enum FeatureCatalogTests {
             .joined(separator: "\n")
         suite.expect(!brightnessWorkQueueHalf.isEmpty && !brightnessWorkQueueCode.contains("NSScreen"),
                "the brightness work queue resolves display names without touching NSScreen")
-        // Display numbers are reissued after a reconnection, so the gamma
-        // restore before a switch-off must check the monitor like the others.
-        suite.expect(brightnessSource.contains("baseline.fingerprint == Self.displayFingerprint(display.id)"),
-               "the pre-switch-off gamma restore checks the display fingerprint")
-
         let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
         let expectedDDCWrite: [UInt8] = [0x84, 0x03, 0x10, 0x12, 0x34, 0x8E]
         suite.expect(ddcWrite == expectedDDCWrite,
@@ -2065,17 +2151,6 @@ enum FeatureCatalogTests {
         suite.expect(!SettingsBackupSupport.exportKeys().contains(
             DefaultsKey.brightnessDDCWriteOnlyPaths),
                "per-monitor DDC capability never travels in a settings backup")
-        suite.expect(SettingsBackupSupport.machineStateKeys.contains(
-            DefaultsKey.brightnessForcedSoftwarePaths)
-                && !SettingsBackupSupport.exportKeys().contains(
-                    DefaultsKey.brightnessForcedSoftwarePaths),
-               "a hand-picked software dimming route never travels in a settings backup")
-        for surface in ["Sources/Vorssaint/UI/Settings/EnergySettings.swift",
-                        "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift"] {
-            let source = (try? String(contentsOfFile: surface, encoding: .utf8)) ?? ""
-            suite.expect(source.contains("SoftwareDimmingButton(display: display"),
-                   "\(surface) offers the software dimming choice on its display rows")
-        }
         let oneDisplay = BrightnessSupport.DisplayTopology(online: [1], active: [1])
         let twoDisplays = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
         suite.expect(!BrightnessSupport.shouldQueueRebuild(topology: oneDisplay, pending: oneDisplay),
@@ -2210,33 +2285,6 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
                                                  lastCommandEndMicroseconds: 2_000_000) == 0,
                "a clock that moved backwards never blocks the bus")
-
-        suite.expect(BrightnessSupport.reconnectedDimLevel(0.0) == BrightnessSupport.reconnectionDimFloor
-                && BrightnessSupport.reconnectedDimLevel(0.1) == BrightnessSupport.reconnectionDimFloor,
-               "a near-black dim returns from a connection gap at the visible floor")
-        suite.expect(BrightnessSupport.reconnectedDimLevel(0.7) == 0.7
-                && BrightnessSupport.reconnectedDimLevel(1.0) == 1.0
-                && BrightnessSupport.reconnectedDimLevel(1.4) == 1.0,
-               "visible dim levels return from a gap untouched, clamped to the range")
-
-        suite.expect(BrightnessSupport.softwareDimToRestore(remembered: 0.7, appliedByApp: false) == 1.0
-                && BrightnessSupport.softwareDimToRestore(remembered: nil, appliedByApp: true) == 1.0,
-               "a level read from the monitor is never replayed as a gamma dim")
-        suite.expect(BrightnessSupport.softwareDimToRestore(remembered: 0.4, appliedByApp: true) == 0.4,
-               "a dim this app applied is restored when the routes are rebuilt")
-
-        suite.expect(BrightnessSupport.softwareDimFactor(for: 1.0) == 1.0
-                && BrightnessSupport.softwareDimFactor(for: 0.0) == 0.0,
-               "software dimming spans the whole range and zero really is black")
-        suite.expect(BrightnessSupport.softwareDimFactor(for: 0.5) == 0.5
-                && BrightnessSupport.softwareDimFactor(for: -0.3) == 0.0
-                && BrightnessSupport.softwareDimFactor(for: 1.4) == 1.0,
-               "software dimming is linear with clamping")
-        suite.expect(BrightnessSupport.scaledGammaTable([0.0, 0.5, 1.0], factor: 0.5) == [0.0, 0.25, 0.5],
-               "gamma tables scale toward black by the dim factor")
-        let untouched: [Float] = [0.0, 0.3, 1.0]
-        suite.expect(BrightnessSupport.scaledGammaTable(untouched, factor: 1.0) == untouched,
-               "factor one returns the exact original table for bit-exact restores")
 
         // Brightness keys arrive as system-defined auxiliary control events;
         // data1 packs key code, press state and the repeat bit.

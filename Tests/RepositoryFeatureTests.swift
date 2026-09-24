@@ -1338,8 +1338,7 @@ enum RepositoryFeatureTests {
                 && brightnessTapCode.contains("inputTapsSuspended = true")
                 && brightnessTapCode.contains("removeKeyTap()")
                 && brightnessTapCode.contains("removeFunctionKeyTap()")
-                && !brightnessTapCode.contains("restoreManagedDisplays")
-                && !brightnessTapCode.contains("restoreAllGamma"),
+                && !brightnessTapCode.contains("restoreManagedDisplays"),
                "the permission teardown stops every persistent keyboard tap")
         let quitProtectionSource = repository.source(
             at: "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift")

@@ -3,13 +3,144 @@
 
 import Foundation
 
-/// Pure DDC/CI helpers for the display brightness feature: packet building,
-/// reply parsing, value scaling and the display-to-service match score. No
-/// IOKit here so the unit tests cover every byte.
+/// Pure helpers for display brightness: DDC/CI packet building and parsing,
+/// value scaling, display matching, and the DisplayLink notification payload.
+/// No IOKit here so the unit tests cover every byte and JSON field.
 enum BrightnessSupport {
     struct DisplayTopology: Equatable {
         let online: Set<UInt32>
         let active: Set<UInt32>
+    }
+
+    /// What discovery should do with one online display. Virtual desktop and
+    /// streaming devices have no picture a person can use, but a virtual output
+    /// exposed by a display transport can still be an active physical monitor.
+    enum DiscoveryDisposition: Equatable {
+        /// Try the system brightness pipeline, then DDC/CI for a physical
+        /// external display.
+        case hardwareOrDDC
+        /// Use DisplayLink Manager's native brightness integration for an active
+        /// virtual output.
+        case displayLink
+        /// Keep an inactive physical display in the panel so it can be switched
+        /// back on, without looking for a brightness route.
+        case powerOnly
+        /// Do not expose this display to brightness controls.
+        case unsupported
+    }
+
+    static func discoveryDisposition(isActive: Bool,
+                                    isVirtual: Bool,
+                                    isAirPlay: Bool,
+                                    hasDisplayLinkControl: Bool) -> DiscoveryDisposition {
+        if isAirPlay { return .unsupported }
+        if hasDisplayLinkControl { return isActive ? .displayLink : .unsupported }
+        if isVirtual { return .unsupported }
+        return isActive ? .hardwareOrDDC : .powerOnly
+    }
+
+    struct DisplayLinkDisplay: Equatable {
+        let cgID: UInt32
+        let persistentDisplayID: String
+        let name: String?
+        let isEnabled: Bool
+        let brightness: Double?
+    }
+
+    struct DisplayLinkBrightnessUpdate: Equatable {
+        let persistentDisplayID: String
+        let statusCode: Int?
+        let brightness: Double?
+    }
+
+    private struct DisplayLinkPayload: Decodable {
+        let persistentDisplayId: String
+        let CGID: UInt32?
+        let name: String?
+        let brightness: Double?
+        let isEnabled: Bool?
+    }
+
+    private struct DisplayLinkUpdatePayload: Decodable {
+        let persistentDisplayId: String?
+        let statusCode: Int?
+        let brightness: Double?
+    }
+
+    static func normalizedDisplayLinkValue(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (0...1).contains(value) else { return nil }
+        return value
+    }
+
+    static func shouldApplyDisplayLinkBrightnessUpdate(isNativeRoute: Bool,
+                                                        hasPendingWrite: Bool) -> Bool {
+        isNativeRoute && !hasPendingWrite
+    }
+
+    static func decodeDisplayLinkDisplays(_ raw: String) -> [DisplayLinkDisplay] {
+        decodeDisplayLinkDisplaysResult(raw) ?? []
+    }
+
+    /// Distinguishes a valid empty Manager list from a malformed or timed-out
+    /// response. Callers that own a cache must keep the last valid list for
+    /// the latter; replacing it with an empty list would erase good routes just
+    /// because one distributed notification arrived late.
+    static func decodeDisplayLinkDisplaysResult(_ raw: String) -> [DisplayLinkDisplay]? {
+        guard let data = raw.data(using: .utf8),
+              let payloads = try? JSONDecoder().decode([DisplayLinkPayload].self, from: data)
+        else { return nil }
+        var seenCGIDs = Set<UInt32>()
+        var seenPersistentIDs = Set<String>()
+        for payload in payloads {
+            guard let cgID = payload.CGID, cgID != 0,
+                  !payload.persistentDisplayId.isEmpty,
+                  seenCGIDs.insert(cgID).inserted,
+                  seenPersistentIDs.insert(payload.persistentDisplayId).inserted
+            else { return nil }
+        }
+        return payloads.compactMap { payload in
+            guard let cgID = payload.CGID else { return nil }
+            return DisplayLinkDisplay(
+                cgID: cgID,
+                persistentDisplayID: payload.persistentDisplayId,
+                name: payload.name,
+                isEnabled: payload.isEnabled ?? true,
+                brightness: normalizedDisplayLinkValue(payload.brightness))
+        }
+    }
+
+    static func decodeDisplayLinkBrightnessUpdate(_ raw: String) -> DisplayLinkBrightnessUpdate? {
+        guard let data = raw.data(using: .utf8),
+              let payload = try? JSONDecoder().decode(DisplayLinkUpdatePayload.self, from: data),
+              let persistentDisplayID = payload.persistentDisplayId,
+              !persistentDisplayID.isEmpty else { return nil }
+        return DisplayLinkBrightnessUpdate(
+            persistentDisplayID: persistentDisplayID,
+            statusCode: payload.statusCode,
+            brightness: normalizedDisplayLinkValue(payload.brightness))
+    }
+
+    static func displayLinkSetPayload(persistentDisplayID: String,
+                                     brightness: Double) -> String? {
+        guard let value = normalizedDisplayLinkValue(brightness),
+              !persistentDisplayID.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: [
+                  "persistentDisplayId": persistentDisplayID,
+                  "brightness": value
+              ]) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func acknowledgedDisplayLinkBrightness(_ raw: String,
+                                                  persistentDisplayID: String,
+                                                  requested: Double) -> Double? {
+        guard let payload = decodeDisplayLinkBrightnessUpdate(raw),
+              payload.statusCode == 0,
+              payload.persistentDisplayID == persistentDisplayID,
+              let value = payload.brightness,
+              let requested = normalizedDisplayLinkValue(requested),
+              abs(value - requested) <= 0.011 else { return nil }
+        return value
     }
 
     /// Opening the panel while a display scan is already running should use
@@ -261,48 +392,6 @@ enum BrightnessSupport {
         guard drawableDisplayIDs.isEmpty else { return [] }
         let builtIn = managedDisabledIDs.intersection(builtInDisabledIDs)
         return builtIn.sorted() + managedDisabledIDs.subtracting(builtIn).sorted()
-    }
-
-    // MARK: - Software dimming (gamma curve)
-
-    /// Displays with no DDC channel are dimmed in the video pipeline instead:
-    /// the display's gamma curve is scaled down, which darkens the picture
-    /// exactly like lowering the backlight would, per display and fully
-    /// reversible. The scale is linear all the way down and zero really is
-    /// black (owner's call): the slider and the brightness keys can always
-    /// bring it back.
-    static func softwareDimFactor(for value: Double) -> Float {
-        Float(min(max(value, 0), 1))
-    }
-
-    /// A gamma table scaled toward black. Factor one returns the input
-    /// untouched so restoring is bit-exact.
-    static func scaledGammaTable(_ table: [Float], factor: Float) -> [Float] {
-        guard factor < 1 else { return table }
-        return table.map { $0 * factor }
-    }
-
-    /// The gamma scale to put back on a software-dimmed display when the
-    /// routes are rebuilt. Only a dim this app applied itself is ours to
-    /// restore: the session's remembered level is also filled in from a
-    /// monitor's own DDC or system reading, and that is its backlight, not a
-    /// gamma scale. Replaying such a level here darkened a screen that was
-    /// already at exactly that brightness, every time the routes were rebuilt
-    /// (issue #697).
-    static func softwareDimToRestore(remembered: Double?, appliedByApp: Bool) -> Double {
-        appliedByApp ? (remembered ?? 1.0) : 1.0
-    }
-
-    /// The dim level put back on a display that just returned from a
-    /// connection gap. The saved level is honoured, but never so dark that
-    /// the screen reads as dead: replugging the cable is the one gesture
-    /// left to someone facing a black picture, and it has to land on
-    /// something visible (issue #301). Live control is untouched and still
-    /// reaches true black.
-    static let reconnectionDimFloor = 0.25
-
-    static func reconnectedDimLevel(_ saved: Double) -> Double {
-        max(min(saved, 1), reconnectionDimFloor)
     }
 
     // MARK: - Brightness keys

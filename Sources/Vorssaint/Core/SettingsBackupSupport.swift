@@ -147,7 +147,6 @@ enum SettingsBackupSupport {
         // Restoring it would skip the one-time recheck of the cache above on
         // a Mac that still holds its own stale verdicts.
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
-        DefaultsKey.brightnessForcedSoftwarePaths,
     ]
 
     /// The file's content: an envelope with the format version, the app

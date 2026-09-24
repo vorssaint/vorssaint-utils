@@ -74,7 +74,6 @@ struct MetricsTests {
                 DisplayRestorationTests.run(suite)
                 BrightnessStepTests.run(suite)
             }),
-            ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
                 KeyboardFeatureTests.run(suite)

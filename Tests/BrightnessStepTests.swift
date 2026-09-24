@@ -14,7 +14,7 @@ enum BrightnessStepTests {
     }
     enum DispatchQueue { static let main = Queue() }
     struct BrightnessDisplay {
-        enum Method: Equatable { case system, ddc, gamma }
+        enum Method: Equatable { case system, ddc, displayLink }
         let id: UInt32
         var brightness: Double
     }
