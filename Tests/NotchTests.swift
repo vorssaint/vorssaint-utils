@@ -1520,8 +1520,15 @@ enum NotchTests {
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "calendar can still be explicitly disabled")
         defaults.set(true, forKey: DefaultsKey.notchCalendarEnabled)
         suite.expect(NotchCalendarSupport.isEnabled(in: defaults), "calendar can be enabled independently")
+        suite.expect(!NotchCalendarSupport.showsCountdown(in: defaults),
+                     "calendar titles stay out of the closed island until explicitly enabled")
+        defaults.set(true, forKey: DefaultsKey.notchCalendarCountdown)
+        suite.expect(NotchCalendarSupport.showsCountdown(in: defaults),
+                     "the compact countdown follows its own opt-in")
         defaults.set("calendar", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "hiding the calendar releases its resources")
+        suite.expect(!NotchCalendarSupport.showsCountdown(in: defaults),
+                     "a hidden calendar cannot leave event titles in the island")
         defaults.set("", forKey: DefaultsKey.notchHiddenModules)
         defaults.set(false, forKey: AppFeature.notchCalendar.availabilityKey)
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "removing the calendar from the hub stops its reader")
@@ -1529,6 +1536,7 @@ enum NotchTests {
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "the master switch also stops calendar reads")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchCalendarEnabled,
+                                                                 DefaultsKey.notchCalendarCountdown,
                                                                  AppFeature.notchCalendar.availabilityKey]),
                "calendar preferences travel in backup")
         let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -1553,6 +1561,29 @@ enum NotchTests {
                "an all-day-only calendar has no timed appointment")
         suite.expect(NotchCalendarSupport.nextRefresh(entries, now: now) == now.addingTimeInterval(300),
                "the next refresh chooses the nearest future event boundary")
+        let hour = NotchCalendarSupport.countdownLeadTime
+        suite.expect(NotchCalendarSupport.countdownEvent(entries, now: now) == later
+                     && NotchCalendarSupport.countdownEvent([allDay, current], now: now) == nil,
+                     "the countdown chooses the next timed start, ignoring all-day and ongoing events")
+        suite.expect(NotchCalendarSupport.countdownEvent([event("edge", hour, hour + 60)], now: now)?.id == "edge"
+                     && NotchCalendarSupport.countdownEvent([event("outside", hour + 1, hour + 61)], now: now) == nil,
+                     "the countdown appears only in the hour before a start")
+        suite.expect(NotchCalendarSupport.countdownTransition([event("future", hour + 600, hour + 900)], now: now)
+                     == now.addingTimeInterval(600)
+                     && NotchCalendarSupport.countdownTransition([later], now: now) == later.start,
+                     "a refresh is scheduled when the hour window opens and when an event starts")
+        suite.expect(NotchCalendarSupport.countdownText(until: now.addingTimeInterval(hour), now: now) == "60:00"
+                     && NotchCalendarSupport.countdownText(until: now.addingTimeInterval(61), now: now) == "1:01"
+                     && NotchCalendarSupport.countdownText(until: now, now: now) == "0:00",
+                     "the compact clock includes seconds and never shows negative time")
+        let physical = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                                     safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 120)
+        let calendarWings = physical.compactCalendarGeometry
+        let calendarFooter = NotchGeometry(screen: physical.screen, safeAreaTop: 32,
+                                           cameraWidth: 180, compactSideRoom: 30).compactCalendarGeometry
+        suite.expect(calendarWings.compactActivityWingWidth == 120 && !calendarWings.compactActivityUsesFooter
+                     && calendarFooter.compactActivityUsesFooter && calendarFooter.compactActivityCameraGap == 0,
+                     "the event title uses the available wings or a full row below a crowded physical notch")
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         let midnight = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8))!
@@ -1608,6 +1639,14 @@ enum NotchTests {
         let distant = NotchCalendarSupport.readInterval(month: date(2030, 12, 1), now: now, calendar: calendar)
         suite.expect(distant.duration <= 43 * 86400 && distant.start > now,
                "browsing a distant month reads only its grid, never every intervening event")
+        let current = NotchCalendarSupport.readInterval(month: nil, now: now, calendar: calendar)
+        suite.expect(!NotchCalendarSupport.needsCurrentRead(visible: interval, current: current,
+                                                           countdownEnabled: true)
+                     && NotchCalendarSupport.needsCurrentRead(visible: distant, current: current,
+                                                              countdownEnabled: true)
+                     && !NotchCalendarSupport.needsCurrentRead(visible: distant, current: current,
+                                                               countdownEnabled: false),
+                     "the countdown keeps today's events while browsing another month without extra reads when off")
         let resting = NotchCalendarSupport.readInterval(month: nil, now: now, calendar: calendar)
         suite.expect(resting.start == date(2026, 3, 31) && resting.end == date(2026, 4, 7),
                "closing the month returns the reader to today's seven-day interval")
