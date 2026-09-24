@@ -49,6 +49,7 @@ enum NotchPlaybackCommand: Equatable {
     case seek(Double)
     case queue(UUID), queueStop, queuePlay(NotchQueueSelection)
     case validate(UUID, NotchPlaybackContext)
+    case source(NotchPlaybackSource.Selection?)
     static let maximumMessageBytes = 2048
 
     init?(message: String) {
@@ -58,8 +59,15 @@ enum NotchPlaybackCommand: Equatable {
         case "next": self = .next
         case "previous": self = .previous
         case "queue-stop": self = .queueStop
+        case "source-auto": self = .source(nil)
         default:
             let parts = message.split(separator: " ", omittingEmptySubsequences: false)
+            if parts.count == 3, parts[0] == "source", let pid = Int32(parts[1]),
+               let data = Data(base64Encoded: String(parts[2])), let bundle = String(data: data, encoding: .utf8) {
+                let selection = NotchPlaybackSource.Selection(pid: pid, bundleIdentifier: bundle)
+                guard selection.isValid else { return nil }
+                self = .source(selection); return
+            }
             if parts.count == 4, parts[0] == "validate", let id = UUID(uuidString: String(parts[1])),
                let pid = Int32(parts[2]), pid > 0, let revision = UUID(uuidString: String(parts[3])) {
                 self = .validate(id, NotchPlaybackContext(pid: pid, revision: revision)); return
@@ -93,7 +101,7 @@ enum NotchPlaybackCommand: Equatable {
     var requiresPlaybackContext: Bool {
         switch self {
         case .toggle, .next, .previous, .seek: return true
-        case .queue, .queueStop, .queuePlay, .validate: return false
+        case .queue, .queueStop, .queuePlay, .validate, .source: return false
         }
     }
 
@@ -104,6 +112,10 @@ enum NotchPlaybackCommand: Equatable {
         case .previous: return "previous"
         case .queue(let id): return "queue \(id.uuidString)"
         case .queueStop: return "queue-stop"
+        case .source(nil): return "source-auto"
+        case .source(let selection?):
+            guard selection.isValid else { return nil }
+            return "source \(selection.pid) \(Data(selection.bundleIdentifier.utf8).base64EncodedString())"
         case .validate(let id, let context):
             guard context.pid > 0 else { return nil }
             return "validate \(id.uuidString) \(context.pid) \(context.revision.uuidString)"

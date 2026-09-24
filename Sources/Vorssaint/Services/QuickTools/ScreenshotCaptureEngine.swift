@@ -173,6 +173,11 @@ enum ScreenshotCaptureEngine {
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, Int((window.frame.width * scale).rounded()))
         configuration.height = max(1, Int((window.frame.height * scale).rounded()))
+        // The resolution choice only exists for an independent window, and
+        // its automatic setting may render below the window's own scale and
+        // stretch the result to the size asked for. The recorder already asks
+        // for the best one; this is the screenshot tool's only window stream.
+        configuration.captureResolution = .best
         configuration.showsCursor = false
         configuration.colorSpaceName = CGColorSpace.sRGB
         let filter = SCContentFilter(desktopIndependentWindow: window)
@@ -188,7 +193,11 @@ enum ScreenshotCaptureEngine {
         guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                                     kCGNullWindowID) as? [[String: Any]]
         else { return [] }
-        return info.compactMap { entry in
+        return captureWindows(in: info)
+    }
+
+    private static func captureWindows(in info: [[String: Any]]) -> [ScreenshotCapturePolicy.CaptureWindow] {
+        info.compactMap { entry in
             guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
                   let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
                   let id = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
@@ -201,7 +210,8 @@ enum ScreenshotCaptureEngine {
                 frame: CGRect(x: boundsDict["X"] ?? 0,
                               y: boundsDict["Y"] ?? 0,
                               width: boundsDict["Width"] ?? 0,
-                              height: boundsDict["Height"] ?? 0))
+                              height: boundsDict["Height"] ?? 0),
+                isUntitled: (entry[kCGWindowName as String] as? String)?.isEmpty ?? true)
         }
     }
 
@@ -328,13 +338,15 @@ enum ScreenshotCaptureEngine {
                                                     kCGNullWindowID) as? [[String: Any]]
         else { return [] }
         let ownPID = Int32(ProcessInfo.processInfo.processIdentifier)
+        let decorations = ScreenshotCapturePolicy.decorationWindowIDs(frontToBack: captureWindows(in: info))
         return info.compactMap { entry in
             guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
                   let pid = entry[kCGWindowOwnerPID as String] as? Int32,
                   let id = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat]
             else { return nil }
-            guard ScreenshotCapturePolicy.canPickWindow(
+            guard !decorations.contains(id),
+                  ScreenshotCapturePolicy.canPickWindow(
                 id,
                 isOwnWindow: pid == ownPID,
                 hideVorssaintWindows: hideVorssaintWindows,

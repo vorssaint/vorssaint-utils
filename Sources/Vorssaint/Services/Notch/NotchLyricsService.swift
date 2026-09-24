@@ -18,6 +18,7 @@ final class NotchLyricsService: ObservableObject {
     private var visible = false
     private var online = false
     private var importPanel: NSOpenPanel?
+    var isImporting: Bool { importPanel != nil }
 
     private init() {}
 
@@ -109,9 +110,14 @@ final class NotchLyricsService: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.message = FeatureStrings.notchMusicExtras(L10n.shared.language).importHint
+        // An attached sheet moves/reskins a borderless island. Keep the chooser
+        // independent and above its parent instead, without changing the pin.
+        panel.level = NSWindow.Level(rawValue: parent.level.rawValue + 1)
+        // Like the sheet it replaces, it stays up while another app is active.
+        panel.hidesOnDeactivate = false
         importPanel = panel
         let requested = generation
-        panel.beginSheetModal(for: parent) { [weak self, weak panel, weak parent] response in
+        panel.begin { [weak self, weak panel, weak parent] response in
             guard let self, let panel, self.importPanel === panel else { return }
             let selectedURL = panel.url
             self.importPanel = nil
@@ -151,9 +157,11 @@ final class NotchLyricsService: ObservableObject {
                 }
             }
         }
-        // The attached sheet keeps the existing music surface alive; its pin
-        // belongs to the user and never needs a temporary override.
+        // isImporting keeps the music surface alive through activation and
+        // pointer exit. Completion restores focus after native dismissal.
         NSApp.activate(ignoringOtherApps: true)
+        // Activation alone can leave the nonactivating island holding focus.
+        panel.makeKeyAndOrderFront(nil)
     }
 
     private func canReturnToLyrics(_ window: NSWindow, track expected: NotchMusicIdentity) -> Bool {

@@ -8,7 +8,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 |---|---|---|
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen and screen recordings |
-| System Audio Recording | Yes | Per app volume and output routing in the mixer |
+| System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
@@ -16,8 +16,8 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
-| Automation | Yes | Finder cut and paste, moving leftovers to the Trash, emptying the Trash and Homebrew Terminal handoff |
-| App Management | Yes | Replacing or removing apps installed through the package manager |
+| Automation | Yes | Finder actions, Homebrew Terminal handoff and supported music playback controls |
+| App Management | Yes | App installs, updates and removal |
 
 ## Accessibility
 
@@ -57,11 +57,11 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **Why it comes up.** macOS gates app audio taps behind the System Audio Recording permission.
 
-**What uses it.** The Volume Mixer, when you lower, boost or route an app to a specific output device.
+**What uses it.** The Volume Mixer, the optional live equalizer in Dynamic Island, and the screen recorder's system audio tap.
 
-**If you say no.** Apps keep using normal system audio. The mixer cannot apply per app volume or output routing until the permission is granted.
+**If you say no.** Apps keep using normal system audio. The mixer cannot adjust or route individual apps, and the island uses animated music bars. The recorder can fall back to the screen capture stream's audio when available.
 
-**Optional.** Yes. Audio is processed in memory for the mixer and is never recorded to disk or sent anywhere.
+**Optional.** Yes. The mixer and equalizer process audio in memory without saving or uploading it. The recorder saves audio only as part of a recording you start; sharing that recording is a separate action.
 
 ## Microphone
 
@@ -147,7 +147,7 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 
 **Why it comes up.** macOS protects installed app bundles from changes by apps signed by another developer.
 
-**What uses it.** The package manager and App updates, when they replace or remove an installed app.
+**What uses it.** The package manager, App updates and disk image installer, when they install, replace or remove apps.
 
 **If you say no.** Package updates keep working, but operations that change installed apps can be blocked. You can grant access later in System Settings, under Privacy and Security, App Management.
 

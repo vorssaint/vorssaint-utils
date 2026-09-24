@@ -6,6 +6,21 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum NotchFileToolsSupport {
+    static let dropSpacing: CGFloat = 12
+
+    static func mediaDropArea(in geometry: NotchGeometry, size: CGSize) -> CGRect {
+        let content = geometry.contentSize(for: size)
+        return CGRect(x: size.width / 2 + dropSpacing / 2,
+                      y: geometry.headerTopInset + geometry.headerRowHeight + NotchLayout.spacing,
+                      width: max(0, (content.width - dropSpacing) / 2), height: content.height)
+    }
+
+    static func optimizationTool(for urls: [URL]) -> MediaTool? {
+        if accepts(urls, for: .imageCompressor) { return .imageCompressor }
+        if accepts(urls, for: .videoCompressor) { return .videoCompressor }
+        return nil
+    }
+
     static func accepts(_ urls: [URL], for tool: MediaTool) -> Bool {
         guard !urls.isEmpty, urls.allSatisfy(\.isFileURL),
               tool == .imageCompressor || urls.count == 1 else { return false }

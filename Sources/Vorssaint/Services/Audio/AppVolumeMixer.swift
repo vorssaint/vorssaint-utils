@@ -661,7 +661,12 @@ final class AppVolumeMixer: ObservableObject {
         guard let nextUID = MixerRoutingSupport.nextSelectedOutputDeviceUID(
             currentUID: currentOutputDeviceUID,
             selectedUIDs: selectedUIDs,
-            availableUIDs: availableUIDs) else { return false }
+            availableUIDs: availableUIDs) else {
+            // With an available selection, no next output means the only one is already playing.
+            return selectedUIDs.contains { rawUID in
+                MixerRoutingSupport.sanitizedDeviceUID(rawUID).map { availableUIDs.contains($0) } ?? false
+            }
+        }
         return setUniversalOutputDeviceUID(nextUID)
     }
 
@@ -1539,7 +1544,9 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - CoreAudio plumbing
 
-    private static func audioProcessObjects() -> [AudioObjectID] {
+    /// Every process object the audio HAL knows about. The island's level
+    /// reader groups them by responsible app the same way this mixer does.
+    static func audioProcessObjects() -> [AudioObjectID] {
         var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList,
                                                  mScope: kAudioObjectPropertyScopeGlobal,
                                                  mElement: kAudioObjectPropertyElementMain)
@@ -1635,7 +1642,7 @@ final class AppVolumeMixer: ObservableObject {
             let name = read(deviceID, kAudioObjectPropertyName, &nameRef)
                 ? nameRef as String
                 : uid
-            guard name != "Vorssaint Mixer" else { continue }
+            guard !MicMuteSupport.isOwnDevice(name: name) else { continue }
             let dataSourceName = outputDataSourceName(for: deviceID)
 
             devices.append(MixerOutputDevice(id: uid,

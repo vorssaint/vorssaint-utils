@@ -5,6 +5,8 @@ import SwiftUI
 
 struct NotchQueueView: View {
     let playback: NotchPlayback
+    /// The list takes the room the island gives the card.
+    let height: CGFloat
     @ObservedObject private var service = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     private var text: NotchMusicExtrasStrings { FeatureStrings.notchMusicExtras(l10n.language) }
@@ -45,7 +47,7 @@ struct NotchQueueView: View {
                             }.padding(.vertical, 8)
                         }
                     }
-                }.frame(maxHeight: 170)
+                }.frame(height: max(40, height - 24 - 10 - 18))
             } else if !service.queueLoading {
                 Text(service.upcoming == nil ? text.queueUnavailable : text.queueEmpty)
                     .font(.callout).foregroundStyle(.secondary)
@@ -55,6 +57,7 @@ struct NotchQueueView: View {
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
     }
 }

@@ -15,6 +15,9 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistorySkipSensitive) private var skipSensitive = true
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
+    @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
+    @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreviewLength)
+    private var menuBarPreviewLength = Defaults.defaultClipboardMenuBarPreviewLength
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showInPanel = true
     @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDelay) private var autoClearOnDelay = false
@@ -51,6 +54,7 @@ struct ClipboardSettings: View {
                 .settingsSectionAnchor(.clipboardHistory)
 
                 clipboardShortcutSection
+                clipboardMenuBarPreviewSection
 
                 Section {
                     Toggle(text.includeImagesFiles, isOn: $includeImagesFiles)
@@ -134,6 +138,7 @@ struct ClipboardSettings: View {
         .onAppear {
             limit = Defaults.sanitizedClipboardHistoryLimit(limit)
             autoClearDelay = Defaults.sanitizedClipboardAutoClearDelay(autoClearDelay)
+            menuBarPreviewLength = Defaults.sanitizedClipboardMenuBarPreviewLength(menuBarPreviewLength)
         }
         .onChange(of: limit) { _, value in
             let sanitized = Defaults.sanitizedClipboardHistoryLimit(value)
@@ -147,6 +152,10 @@ struct ClipboardSettings: View {
         .onChange(of: autoClearDelay) { _, value in
             let sanitized = Defaults.sanitizedClipboardAutoClearDelay(value)
             if sanitized != value { autoClearDelay = sanitized }
+        }
+        .onChange(of: menuBarPreviewLength) { _, value in
+            let sanitized = Defaults.sanitizedClipboardMenuBarPreviewLength(value)
+            if sanitized != value { menuBarPreviewLength = sanitized }
         }
     }
 
@@ -179,6 +188,37 @@ struct ClipboardSettings: View {
             .disabled(history.entries.isEmpty)
         }
     }
+
+    @ViewBuilder
+    private var clipboardMenuBarPreviewSection: some View {
+        Section {
+            Toggle(text.menuBarPreview, isOn: $menuBarPreview)
+                .disabled(!enabled)
+            HStack {
+                Text(text.menuBarPreviewLength)
+                Spacer()
+                TextField("", value: $menuBarPreviewLength, formatter: Self.menuBarPreviewLengthFormatter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 50)
+                    .multilineTextAlignment(.trailing)
+                Text(text.menuBarPreviewLengthSuffix)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!enabled || !menuBarPreview)
+            Text(text.menuBarPreviewCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private static let menuBarPreviewLengthFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = NSNumber(value: Defaults.allowedClipboardMenuBarPreviewLengthRange.lowerBound)
+        formatter.maximum = NSNumber(value: Defaults.allowedClipboardMenuBarPreviewLengthRange.upperBound)
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
 
     // Never disabled by the capture toggle, unlike the sections above it:
     // emptying the pasteboard is a security setting in its own right, and

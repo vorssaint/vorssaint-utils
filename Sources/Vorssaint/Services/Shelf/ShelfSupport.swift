@@ -79,6 +79,31 @@ enum ShelfTileLayout {
         return max(1, Int(usable / (tileWidth + spacing)))
     }
 
+    /// How many tile rows fit a given height, for a strip that flows sideways.
+    static func rowCount(contentHeight: CGFloat,
+                         tileHeight: CGFloat,
+                         spacing: CGFloat,
+                         inset: CGFloat) -> Int {
+        let usable = contentHeight - inset * 2 + spacing
+        return max(1, Int(usable / (tileHeight + spacing)))
+    }
+
+    /// Where the tile at `index` sits when tiles fill each column top to
+    /// bottom and continue to the right.
+    static func sidewaysTileFrame(index: Int,
+                                  rows: Int,
+                                  tileSize: CGSize,
+                                  spacing: CGFloat,
+                                  inset: CGFloat) -> CGRect {
+        let safeRows = max(1, rows)
+        let column = index / safeRows
+        let row = index % safeRows
+        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+                      y: inset + CGFloat(row) * (tileSize.height + spacing),
+                      width: tileSize.width,
+                      height: tileSize.height)
+    }
+
     /// Where the tile at `index` sits in the flipped document view.
     static func tileFrame(index: Int,
                           columns: Int,

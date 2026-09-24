@@ -172,15 +172,26 @@ enum WindowEnumerator {
                            isCancelled: isCancelled)
     }
 
-    static func listWindows(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
-        // The current-desktop choice belongs to the switcher alone (issue
-        // #337): its caption promises it trims the switcher list, nothing
-        // else. Dock previews keep showing windows from every desktop, the
-        // behavior issue #339 made first-class; honoring the toggle here
-        // would leave an empty preview with no setting anywhere near the
-        // Dock to explain it.
-        // An entry for the app itself belongs to the switcher alone for the
-        // same reason: a Dock preview is opened by pointing at one app's icon,
+    /// Dock Preview has its own scope; Dock click actions keep the default
+    /// all-desktop list and never inherit either preview or switcher settings.
+    static func listWindowsForDockPreview(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
+        listWindows(for: pid, maximumCount: maximumCount,
+                    currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+                    marksHiddenSpaces: true)
+    }
+
+    /// A desktop can change after enumeration, including between pinned refreshes.
+    static func dockPreviewMayActivate(_ item: SwitcherItem) -> Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+              let windowID = item.windowID else { return true }
+        return !SpaceWindowBridge.isParkedOnHiddenSpace(windowID)
+    }
+
+    static func listWindows(for pid: pid_t, maximumCount: Int = 12,
+                            currentSpaceOnly: Bool = false,
+                            marksHiddenSpaces: Bool = false) -> [SwitcherItem] {
+        // An entry for the app itself belongs to the switcher alone. A
+        // Dock preview is opened by pointing at one app's icon,
         // so a card naming that app says nothing the pointer did not, and
         // picking it would only repeat the Dock click.
         listWindows(filterPID: pid,
@@ -191,8 +202,8 @@ enum WindowEnumerator {
                     minimizedPlacement: .normal,
                     showFullscreenWindows: true,
                     preservingGroupedWindows: false,
-                    currentSpaceOnly: false,
-                    marksHiddenSpaces: false,
+                    currentSpaceOnly: currentSpaceOnly,
+                    marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
                     snapshot: snapshot()).items
     }
 
@@ -212,6 +223,7 @@ enum WindowEnumerator {
                                     resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        let historyRevision = WindowUseTracker.shared.historyRevision
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
@@ -242,7 +254,7 @@ enum WindowEnumerator {
         WindowUseTracker.shared.reconcile(
             existingWindows: Set(raw.compactMap { $0[kCGWindowNumber as String] as? CGWindowID }),
             frontToBack: frontToBack,
-            running: Set(runningApps.map(\.pid)))
+            running: Set(runningApps.map(\.pid)), revision: historyRevision)
         var regularApps: [pid_t: String] = [:]
         var regularBundlePaths: [pid_t: String] = [:]
         for app in runningApps where app.isRegular {
@@ -302,8 +314,9 @@ enum WindowEnumerator {
 
         // Accessibility cannot describe windows parked on a Space that is not
         // visible, so the ghost veto below needs the window server as a second
-        // witness. A stale surface can retain an old Space assignment, so
-        // membership alone is not proof that it is still a real window.
+        // witness. A partial Accessibility list cannot veto a sibling, but a
+        // dismissed surface can retain its desktop assignment. Check whether
+        // an unmatched window is still ordered in as well as cycle-eligible.
         // Resolved lazily and cached, so fully Accessibility-confirmed lists
         // pay nothing.
         var topologyResolved = false
@@ -386,22 +399,19 @@ enum WindowEnumerator {
                     windowSpaces: spaces(of: CGWindowID(windowID)))
             let axSnapshot = accessibilityWindows[windowOwnerPID]
             let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
-            // A stale dialog can keep an old ordinary-Space tag indefinitely.
-            // Trust an unmatched hidden surface only when Accessibility could
-            // not describe any window for that owner, or when the window
-            // server puts this exact surface on a native fullscreen Space.
+            // Accessibility may list only the owner's visible-Space windows.
+            // A sibling in that list says nothing about this window's existence.
             let hiddenSpaceSurfaceIsWitnessed = isOnHiddenSpace(CGWindowID(windowID))
-                && ((axSnapshot?.ordered.isEmpty ?? true)
-                    || isOnFullscreenSpace(CGWindowID(windowID)))
             if axSnapshot != nil, axWindow == nil {
-                // WindowServer kept a surface Accessibility does not vouch for:
-                // a stale leftover from a closed tab or window. Windows parked
-                // on a hidden Space and confirmed hidden-app windows are real,
-                // so they survive this veto.
-                if (!hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow)
-                    || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)) {
-                    continue
-                }
+                guard SwitcherSupport.keepsUnmatchedWindow(
+                    isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed,
+                    isConfirmedHiddenAppWindow: isConfirmedHiddenAppWindow,
+                    isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)),
+                    isOrderedIn: hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow
+                        ? SpaceWindowBridge.isWindowOrderedIn(CGWindowID(windowID)) : nil,
+                    allowsUnverifiedHiddenSpace: axSnapshot?.ordered.isEmpty == true
+                        || isOnFullscreenSpace(CGWindowID(windowID))
+                ) else { continue }
             } else if axSnapshot == nil,
                       SwitcherSupport.unwitnessedSurfaceIsLeftover(
                         isOnScreen: isOnScreen,
@@ -491,7 +501,7 @@ enum WindowEnumerator {
                              appRules: appRules)
         let filtered = windows.filter { item in
             if !showFullscreenWindows, item.isFullscreen { return false }
-            if minimizedPlacement == .hidden, item.isMinimized { return false }
+            if minimizedPlacement == .hidden, item.isMinimizedOrAppHidden { return false }
             return true
         }
         let sourceItems = displayScope.map { _ in orderByUse(filtered, frontToBack: frontToBack) }
@@ -501,8 +511,8 @@ enum WindowEnumerator {
         let groupedBackingWindows = groupByApp && preservingGroupedWindows ? scoped : []
         var ordered: [SwitcherItem]
         if minimizedPlacement == .end {
-            let primary = scoped.filter { !$0.isMinimized }
-            let deferred = scoped.filter { $0.isMinimized }
+            let primary = scoped.filter { !$0.isMinimizedOrAppHidden }
+            let deferred = scoped.filter { $0.isMinimizedOrAppHidden }
             let orderedPrimary = orderByUse(primary, frontToBack: frontToBack)
             let orderedDeferred = orderByUse(deferred, frontToBack: frontToBack)
             let groupedPrimary = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedPrimary) : orderedPrimary
@@ -515,8 +525,8 @@ enum WindowEnumerator {
         let backingOrdered: [SwitcherItem]
         if groupByApp, preservingGroupedWindows {
             if minimizedPlacement == .end {
-                let primary = groupedBackingWindows.filter { !$0.isMinimized }
-                let deferred = groupedBackingWindows.filter { $0.isMinimized }
+                let primary = groupedBackingWindows.filter { !$0.isMinimizedOrAppHidden }
+                let deferred = groupedBackingWindows.filter { $0.isMinimizedOrAppHidden }
                 backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
             } else {
                 backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
@@ -993,10 +1003,7 @@ enum WindowEnumerator {
                                    frontToBack: WindowUseTracker.FrontToBack) -> [SwitcherItem] {
         let tracker = WindowUseTracker.shared
         let entries = windows.map { WindowUseOrder.Entry(windowID: $0.windowID, pid: $0.pid) }
-        return WindowUseOrder.order(entries,
-                                    windowHistory: tracker.windows,
-                                    appHistory: tracker.apps,
-                                    frontToBack: frontToBack.windows)
+        return tracker.order(entries, frontToBack: frontToBack.windows)
             .map { windows[$0] }
     }
 

@@ -2,20 +2,19 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import CoreServices
 
-/// Keeps the system music app from opening on its own, which macOS does
-/// whenever a media key is pressed with no other player around to take it.
-///
-/// While the option is on, a launch of the music app that follows a media
-/// key is terminated before its window appears, and an optional replacement
-/// app opens instead. Opening the music app from the Dock, Spotlight or a
-/// double-click is left alone. Nothing runs while the feature is off: no
-/// observers, no taps, no cost.
+/// Blocks a new system music-app process only when a trusted media-key
+/// observation explains it. Other launches are preserved, including voice,
+/// automation, login and headphone commands that deliver no observable key.
+/// Nothing runs while the option, feature or required permission is off.
 final class MusicLaunchBlocker: ObservableObject {
     static let shared = MusicLaunchBlocker()
 
     /// The current and the legacy identifier of the system music app.
     static let blockedBundleIDs: Set<String> = ["com.apple.Music", "com.apple.iTunes"]
+
+    @Published private(set) var isMonitoring = false
 
     private var observers: [NSObjectProtocol] = []
     private var mediaKeyTap: CFMachPort?
@@ -24,23 +23,36 @@ final class MusicLaunchBlocker: ObservableObject {
     /// notification; the replacement should open once, not twice.
     private var lastReplacementLaunch: TimeInterval = 0
     private var lastMediaKeyAt: TimeInterval?
+    /// Only Play/Pause asks the replacement to play; the other keys open it.
+    private var lastMediaKeyCode: UInt16?
+    /// The launch already judged at will-launch. Did-launch for the same
+    /// process arrives seconds later, once the app is up, by which time the
+    /// click that started it is old enough to look like no gesture at all;
+    /// judging it again would terminate a launch the user asked for.
+    private var judgedLaunchPID: pid_t?
 
     private init() {}
 
     func syncWithPreferences() {
-        if AppFeature.musicBlock.isAvailable, UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockEnabled) {
+        if isEnabled, AXIsProcessTrusted() {
             start()
         } else {
             stop()
         }
     }
 
+    private var isEnabled: Bool {
+        AppFeature.musicBlock.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockEnabled)
+    }
+
     private func start() {
-        guard observers.isEmpty, mediaKeyTap == nil else { return }
         installMediaKeyTap()
-        // Without the tap there is no evidence that a launch followed a media
-        // key. Fail open so an ordinary launch is never terminated on a guess.
-        guard mediaKeyTap != nil else { return }
+        guard let mediaKeyTap, CGEvent.tapIsEnabled(tap: mediaKeyTap) else {
+            stop()
+            return
+        }
+        isMonitoring = true
+        guard observers.isEmpty else { return }
         let center = NSWorkspace.shared.notificationCenter
         // Will-launch usually wins the race before any window shows;
         // did-launch catches the rare launch that slips past it.
@@ -53,8 +65,10 @@ final class MusicLaunchBlocker: ObservableObject {
     }
 
     func stop() {
+        isMonitoring = false
         removeMediaKeyTap()
         lastMediaKeyAt = nil
+        judgedLaunchPID = nil
         guard !observers.isEmpty else { return }
         let center = NSWorkspace.shared.notificationCenter
         for observer in observers { center.removeObserver(observer) }
@@ -62,20 +76,49 @@ final class MusicLaunchBlocker: ObservableObject {
     }
 
     private func handleLaunch(_ note: Notification) {
+        guard isEnabled, AXIsProcessTrusted(), !observers.isEmpty else {
+            stop()
+            return
+        }
+        guard let mediaKeyTap, CGEvent.tapIsEnabled(tap: mediaKeyTap) else {
+            lastMediaKeyAt = nil
+            isMonitoring = false
+            return
+        }
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
               let bundleID = app.bundleIdentifier,
-              Self.blockedBundleIDs.contains(bundleID) else { return }
+              Self.blockedBundleIDs.contains(bundleID),
+              app.processIdentifier != judgedLaunchPID else { return }
+        judgedLaunchPID = app.processIdentifier
+        // One observed key may explain one launch, never a second app process
+        // or a relaunch requested while that key is still recent.
+        let trigger = lastMediaKeyAt
+        lastMediaKeyAt = nil
         guard MusicLaunchSupport.shouldBlockLaunch(
             now: ProcessInfo.processInfo.systemUptime,
-            lastTriggerAt: lastMediaKeyAt
+            lastTriggerAt: trigger,
+            secondsSinceUserGesture: Self.secondsSinceUserGesture
         ) else { return }
-        if !app.forceTerminate() {
-            app.terminate()
-        }
-        openReplacementIfConfigured()
+        guard app.forceTerminate() || app.terminate() else { return }
+        openReplacementIfConfigured(startingPlayback: lastMediaKeyCode == MusicLaunchSupport.playPauseKeyCode)
     }
 
-    private func openReplacementIfConfigured() {
+    /// Pointer buttons and ordinary keys can ask to open an app. Modifier
+    /// keys are excluded because holding fn may be how a media key is sent.
+    private static let userGestureEventTypes: [CGEventType] = [
+        .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
+        .otherMouseDown, .otherMouseUp, .keyDown,
+    ]
+
+    /// Read from the session's event state, which needs no tap and no
+    /// permission.
+    private static var secondsSinceUserGesture: TimeInterval {
+        userGestureEventTypes.map {
+            CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0)
+        }.min() ?? .infinity
+    }
+
+    private func openReplacementIfConfigured(startingPlayback: Bool) {
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastReplacementLaunch > 1.0 else { return }
         lastReplacementLaunch = now
@@ -88,7 +131,11 @@ final class MusicLaunchBlocker: ObservableObject {
         guard let replacementID = Bundle(url: url)?.bundleIdentifier,
               !Self.blockedBundleIDs.contains(replacementID),
               FileManager.default.fileExists(atPath: url.path) else { return }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { app, _ in
+            // Play/Pause asked for music, not just a window.
+            guard startingPlayback, let app else { return }
+            MusicReplacementPlayback.start(app)
+        }
     }
 
     private func installMediaKeyTap() {
@@ -107,8 +154,11 @@ final class MusicLaunchBlocker: ObservableObject {
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else { return }
+        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+            CFMachPortInvalidate(tap)
+            return
+        }
         mediaKeyTap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         mediaKeyTapSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
@@ -126,8 +176,20 @@ final class MusicLaunchBlocker: ObservableObject {
     }
 
     private func handleMediaKeyEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard isEnabled, AXIsProcessTrusted(), let mediaKeyTap else {
+            stop()
+            return Unmanaged.passUnretained(event)
+        }
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let mediaKeyTap { CGEvent.tapEnable(tap: mediaKeyTap, enable: true) }
+            // A gap in observation invalidates the pending launch decision.
+            lastMediaKeyAt = nil
+            CGEvent.tapEnable(tap: mediaKeyTap, enable: true)
+            isMonitoring = CGEvent.tapIsEnabled(tap: mediaKeyTap)
+            return Unmanaged.passUnretained(event)
+        }
+        guard CGEvent.tapIsEnabled(tap: mediaKeyTap) else {
+            lastMediaKeyAt = nil
+            isMonitoring = false
             return Unmanaged.passUnretained(event)
         }
         guard type.rawValue == MusicLaunchSupport.systemDefinedEventTypeRawValue,
@@ -135,7 +197,76 @@ final class MusicLaunchBlocker: ObservableObject {
               MusicLaunchSupport.isMusicLaunchTrigger(subtype: Int(nsEvent.subtype.rawValue),
                                                       data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
-        lastMediaKeyAt = ProcessInfo.processInfo.systemUptime
+        // A key sent to an existing player cannot explain a later new launch.
+        // A race with startup errs on the side of leaving the app alone.
+        guard !Self.blockedBundleIDs.contains(where: {
+            !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty
+        }) else {
+            lastMediaKeyAt = nil
+            return Unmanaged.passUnretained(event)
+        }
+        // Use the event's time, not delivery time: a delayed callback must
+        // not turn an old key press into fresh launch evidence.
+        lastMediaKeyAt = nsEvent.timestamp
+        lastMediaKeyCode = MusicLaunchSupport.keyCode(data1: nsEvent.data1)
         return Unmanaged.passUnretained(event)
+    }
+}
+
+/// Starts playback in the app opened in place of the music app. The command
+/// comes from that app's own scripting dictionary, so an app that declares
+/// none is only opened, as before, and the media key is never replayed.
+private enum MusicReplacementPlayback {
+    private static let queue = DispatchQueue(label: "com.vorssaint.music-block.playback",
+                                             qos: .userInitiated)
+
+    static func start(_ app: NSRunningApplication) {
+        guard let url = app.bundleURL,
+              let command = NotchMusicAutomationCapabilities.load(bundleURL: url)?.playCommand else { return }
+        let launching = !app.isFinishedLaunching
+        let deadline = ProcessInfo.processInfo.systemUptime + MusicLaunchSupport.replacementLaunchTimeout
+        queue.async { waitForLaunch(app, command: command, launching: launching, deadline: deadline) }
+    }
+
+    private static func waitForLaunch(_ app: NSRunningApplication,
+                                      command: NotchMusicAutomationCapabilities.Event,
+                                      launching: Bool, deadline: TimeInterval) {
+        guard !app.isTerminated, ProcessInfo.processInfo.systemUptime < deadline else { return }
+        guard app.isFinishedLaunching else {
+            queue.asyncAfter(deadline: .now() + 0.1) {
+                waitForLaunch(app, command: command, launching: launching, deadline: deadline)
+            }
+            return
+        }
+        // A player that just started may not take commands the moment it is up.
+        let settle = launching ? MusicLaunchSupport.replacementSettleDelay : 0
+        queue.asyncAfter(deadline: .now() + settle) {
+            send(command, to: app, attemptsLeft: MusicLaunchSupport.playbackAttempts)
+        }
+    }
+
+    private static func send(_ command: NotchMusicAutomationCapabilities.Event,
+                             to app: NSRunningApplication, attemptsLeft: Int) {
+        guard !app.isTerminated else { return }
+        let target = NSAppleEventDescriptor(processIdentifier: app.processIdentifier)
+        // Consent is asked once per app, right after the key that needs it;
+        // a refusal leaves the app opened, as before.
+        var status = Int(AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, true))
+        if status == Int(noErr) {
+            let event = NSAppleEventDescriptor(eventClass: command.eventClass, eventID: command.eventID,
+                                               targetDescriptor: target,
+                                               returnID: AEReturnID(kAutoGenerateReturnID),
+                                               transactionID: AETransactionID(kAnyTransactionID))
+            do {
+                _ = try event.sendEvent(options: [.waitForReply, .neverInteract, .dontRecord], timeout: 2)
+                return
+            } catch {
+                status = (error as NSError).code
+            }
+        }
+        guard attemptsLeft > 1, MusicLaunchSupport.playbackNeverArrived(status) else { return }
+        queue.asyncAfter(deadline: .now() + 0.5) {
+            send(command, to: app, attemptsLeft: attemptsLeft - 1)
+        }
     }
 }

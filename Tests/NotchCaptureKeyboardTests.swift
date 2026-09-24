@@ -35,6 +35,7 @@ enum NotchCaptureKeyboardContract {
         let keyCode: UInt16
         var modifierFlags: ModifierFlags = []
         var type: EventType = .keyDown
+        var charactersIgnoringModifiers: String?
         static var handler: ((Self) -> Self?)?
         static func addLocalMonitorForEvents(matching: EventTypeMask, handler: @escaping (Self) -> Self?) -> Any? {
             self.handler = handler
@@ -48,17 +49,17 @@ enum NotchCaptureKeyboardTests {
     private typealias Contract = NotchCaptureKeyboardContract
     private typealias Event = Contract.NSEvent
 
-    static func run(expect: (Bool, String) -> Void) {
+    static func run(_ suite: TestSuite) {
         defer {
             Event.handler = nil
             Contract.ShortcutCapture.isCapturing = false
             Contract.NotchService.shared = Contract.NotchService()
         }
-        preview(expect: expect)
-        chooser(expect: expect)
+        preview(suite)
+        chooser(suite)
     }
 
-    private static func preview(expect: (Bool, String) -> Void) {
+    private static func preview(_ suite: TestSuite) {
         let notch = Contract.NotchService()
         Contract.NotchService.shared = notch
         let preview = Contract.Preview()
@@ -75,7 +76,7 @@ enum NotchCaptureKeyboardTests {
                 preview.actions = []
                 let event = Event(window: panel, keyCode: UInt16(key), modifierFlags: flags)
                 let forwarded = Event.handler?(event) != nil
-                expect(forwarded == !accepts && preview.actions == (accepts ? [action] : []), label)
+                suite.expect(forwarded == !accepts && preview.actions == (accepts ? [action] : []), label)
             }
         }
         check("visible capture retains its existing keyboard actions", accepts: true)
@@ -113,11 +114,11 @@ enum NotchCaptureKeyboardTests {
         check("floating previews retain shortcuts independently of notch state", accepts: true)
         preview.actions = []
         _ = Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Escape)))
-        expect(preview.closed && preview.actions.isEmpty, "Escape closes without dispatching a destructive action")
+        suite.expect(preview.closed && preview.actions.isEmpty, "Escape closes without dispatching a destructive action")
         check("a closed preview ignores late keyboard callbacks", accepts: false)
     }
 
-    private static func chooser(expect: (Bool, String) -> Void) {
+    private static func chooser(_ suite: TestSuite) {
         let selection = Contract.Selection()
         let notch = Contract.NotchService()
         Contract.NotchService.shared = notch
@@ -128,15 +129,15 @@ enum NotchCaptureKeyboardTests {
             for key in [kVK_Tab, kVK_Space, kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow] {
                 for phase in [Event.EventType.keyDown, .keyUp] {
                     let event = Event(window: panel, keyCode: UInt16(key), type: phase)
-                    expect(Event.handler?(event) != nil, "unhandled navigation and activation keys reach native controls")
+                    suite.expect(Event.handler?(event) != nil, "unhandled navigation and activation keys reach native controls")
                 }
             }
         }
         let enter = Event(window: panel, keyCode: UInt16(kVK_Return))
-        expect(Event.handler?(enter) != nil && selection.actions.isEmpty,
+        suite.expect(Event.handler?(enter) != nil && selection.actions.isEmpty,
                "Return activates the focused control instead of taking an unexpected full-screen capture")
         selection.screenCaptureOptions?.hasFocusedControl = false
-        expect(Event.handler?(enter) == nil && selection.actions == ["fullDisplay"],
+        suite.expect(Event.handler?(enter) == nil && selection.actions == ["fullDisplay"],
                "Return still captures the display when no control owns it")
         selection.actions = []
         for focused in [false, true] {
@@ -144,25 +145,43 @@ enum NotchCaptureKeyboardTests {
             let dragging = Contract.ScreenshotOverlayPanel()
             dragging.overlayView.isDragging = true
             selection.draggingPanel = dragging
-            expect(Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Space))) == nil && selection.spaceIsDown,
+            suite.expect(Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Space))) == nil && selection.spaceIsDown,
                    "Space still moves a selection even while a chooser control has focus")
             dragging.overlayView.isDragging = false
-            expect(Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Space), type: .keyUp)) == nil && !selection.spaceIsDown,
+            suite.expect(Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Space), type: .keyUp)) == nil && !selection.spaceIsDown,
                    "releasing Space clears movement after the drag has ended")
         }
-        expect(Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Escape))) == nil && selection.actions == ["cancel"],
+        suite.expect(Event.handler?(Event(window: panel, keyCode: UInt16(kVK_Escape))) == nil && selection.actions == ["cancel"],
                "Escape retains chooser cancellation while controls are focused")
         selection.actions = []
         selection.screenCaptureOptions?.hasFocusedControl = false
         panel.firstResponder = Contract.NSText()
-        expect(Event.handler?(enter) != nil && selection.actions.isEmpty, "a chooser text editor retains Return")
+        suite.expect(Event.handler?(enter) != nil && selection.actions.isEmpty, "a chooser text editor retains Return")
         panel.firstResponder = nil
         let unrelated = Contract.NSPanel()
-        expect(Event.handler?(Event(window: unrelated, keyCode: UInt16(kVK_Return))) != nil,
+        suite.expect(Event.handler?(Event(window: unrelated, keyCode: UInt16(kVK_Return))) != nil,
                "capture selection leaves unrelated windows alone")
         let overlay = Contract.ScreenshotOverlayPanel()
+        for destination in [panel, overlay] {
+            for flags in 0..<16 {
+                for (character, key, matches) in [("r", kVK_ANSI_X, true),
+                                                   ("R", kVK_ANSI_X, true),
+                                                   ("x", kVK_ANSI_R, true),
+                                                   ("x", kVK_ANSI_X, false)] {
+                    selection.actions = []
+                    let accepts = matches && flags & 7 == 0
+                    let event = Event(window: destination, keyCode: UInt16(key),
+                                      modifierFlags: .init(rawValue: flags),
+                                      charactersIgnoringModifiers: character)
+                    suite.expect((Event.handler?(event) == nil) == accepts
+                           && selection.actions == (accepts ? ["repeat"] : []),
+                           "repeat follows the typed letter or physical key, but never command, control or option")
+                }
+            }
+        }
+        selection.actions = []
         selection.screenCaptureOptions?.controlsInNotch = false
-        expect(Event.handler?(Event(window: overlay, keyCode: UInt16(kVK_Return))) == nil && selection.actions == ["fullDisplay"],
+        suite.expect(Event.handler?(Event(window: overlay, keyCode: UInt16(kVK_Return))) == nil && selection.actions == ["fullDisplay"],
                "the original floating chooser keeps full-display capture")
     }
 }

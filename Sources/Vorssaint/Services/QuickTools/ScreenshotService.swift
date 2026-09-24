@@ -116,7 +116,8 @@ final class ScreenshotService: ObservableObject {
             fallback: .screenshotFullScreenDefault)
         fullScreenShortcutRegistrationFailed = !fullScreenHotkey.sync(
             enabled: fullScreenEnabled,
-            shortcut: fullScreenShortcut)
+            shortcut: fullScreenShortcut,
+            storageKey: DefaultsKey.screenshotFullScreenShortcut)
         let lastCaptureEnabled = defaults.bool(
             forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
         let lastCaptureShortcut = GlobalShortcut.saved(
@@ -124,7 +125,8 @@ final class ScreenshotService: ObservableObject {
             fallback: .screenshotLastCaptureDefault)
         lastCaptureShortcutRegistrationFailed = !lastCaptureHotkey.sync(
             enabled: lastCaptureEnabled,
-            shortcut: lastCaptureShortcut)
+            shortcut: lastCaptureShortcut,
+            storageKey: DefaultsKey.screenshotLastCaptureShortcut)
         let clipboardEnabled = defaults.bool(
             forKey: DefaultsKey.screenshotClipboardShortcutEnabled)
         let clipboardShortcut = GlobalShortcut.saved(
@@ -132,7 +134,8 @@ final class ScreenshotService: ObservableObject {
             fallback: .screenshotClipboardDefault)
         clipboardShortcutRegistrationFailed = !clipboardHotkey.sync(
             enabled: clipboardEnabled,
-            shortcut: clipboardShortcut)
+            shortcut: clipboardShortcut,
+            storageKey: DefaultsKey.screenshotClipboardShortcut)
         if !lastCaptureEnabled {
             ScreenshotLastCaptureStore.clear()
         }
@@ -430,6 +433,9 @@ final class ScreenshotService: ObservableObject {
                 case .edit:
                     self.openEditor(with: capture)
                     return [.edit]
+                case .pin:
+                    ScreenshotPinController.shared.pin(image: capture.image, scale: capture.scale)
+                    return [.pin]
                 case .copy:
                     return self.copyDirect(capture) ? [.copy] : []
                 case .save:
@@ -504,8 +510,12 @@ final class ScreenshotService: ObservableObject {
     private static func clipboardCapture(
         from pasteboard: NSPasteboard
     ) -> ScreenshotSelectionController.Capture? {
-        guard let image = clipboardImage(from: pasteboard),
-              image.size.width > 0, image.size.height > 0
+        guard let image = clipboardImage(from: pasteboard) else { return nil }
+        return imageCapture(from: image)
+    }
+
+    static func imageCapture(from image: NSImage) -> ScreenshotSelectionController.Capture? {
+        guard image.size.width > 0, image.size.height > 0
         else { return nil }
         var rect = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil),
@@ -559,10 +569,10 @@ final class ScreenshotService: ObservableObject {
         let pasteboardChangeCount = NSPasteboard.general.changeCount
         autoCopyTask = Task { @MainActor [weak self] in
             let output = await Task.detached(priority: .userInitiated) {
-                guard let image = Self.flatten(capture, downscaleTo1x: downscale) else {
+                guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
                     return nil as (URL, ScreenshotEditorController.ClipboardPayload)?
                 }
-                let payload = ScreenshotEditorController.clipboardPayload(from: image)
+                let payload = ScreenshotEditorController.clipboardPayload(from: export)
                 guard let png = payload.png,
                       let url = try? ScreenshotSupport.copiedFile(
                         data: png, name: name, directory: folder) else { return nil }
@@ -601,10 +611,10 @@ final class ScreenshotService: ObservableObject {
                 return
             }
             let data = await Task.detached(priority: .userInitiated) {
-                guard let image = Self.flatten(capture, downscaleTo1x: downscale) else {
+                guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
                     return nil as Data?
                 }
-                return ScreenshotRenderer.pngData(from: image)
+                return ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
             }.value
             guard let data else {
                 QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
@@ -625,9 +635,9 @@ final class ScreenshotService: ObservableObject {
 
     @discardableResult
     private func copyDirect(_ capture: ScreenshotSelectionController.Capture) -> Bool {
-        guard let image = flatten(capture) else { return false }
+        guard let export = flatten(capture) else { return false }
         guard ScreenshotEditorController.copyImage(
-            image, fileNamePrefix: strings.fileNamePrefix) else {
+            export, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return false
         }
@@ -636,8 +646,8 @@ final class ScreenshotService: ObservableObject {
     }
 
     private func saveDirect(_ capture: ScreenshotSelectionController.Capture) -> SaveOutcome? {
-        guard let image = flatten(capture),
-              let data = ScreenshotRenderer.pngData(from: image)
+        guard let export = flatten(capture),
+              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return nil }
         let (url, consumedNumber) = Self.saveDestination(strings: strings)
         do {
@@ -660,8 +670,8 @@ final class ScreenshotService: ObservableObject {
     /// button available instead of claiming work that never happened.
     private func saveAndCopyDirect(_ capture: ScreenshotSelectionController.Capture)
         -> (outcome: SaveOutcome, copied: Bool)? {
-        guard let image = flatten(capture),
-              let data = ScreenshotRenderer.pngData(from: image)
+        guard let export = flatten(capture),
+              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return nil }
         let (url, consumedNumber) = Self.saveDestination(strings: strings)
         do {
@@ -675,7 +685,7 @@ final class ScreenshotService: ObservableObject {
         }
 
         let copied = ScreenshotEditorController.copyFile(
-            url, payload: ScreenshotEditorController.clipboardPayload(from: image, png: data))
+            url, payload: ScreenshotEditorController.clipboardPayload(from: export, png: data))
         let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
         QuickToolHUD.show(icon: "camera.viewfinder",
                           message: String(format: format,
@@ -684,22 +694,25 @@ final class ScreenshotService: ObservableObject {
     }
 
     /// Direct outputs go through the same pipeline as the editor so the 1x
-    /// downscale preference applies everywhere; no backdrop and no rounding,
-    /// a direct capture is the raw pixels.
-    private func flatten(_ capture: ScreenshotSelectionController.Capture) -> CGImage? {
+    /// downscale preference applies everywhere; no backdrop, no rounding and
+    /// no watermark, a direct capture is the raw pixels.
+    private func flatten(_ capture: ScreenshotSelectionController.Capture)
+        -> ScreenshotRenderer.Export? {
         Self.flatten(
             capture,
             downscaleTo1x: UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale))
     }
 
     private static func flatten(_ capture: ScreenshotSelectionController.Capture,
-                                downscaleTo1x: Bool) -> CGImage? {
+                                downscaleTo1x: Bool) -> ScreenshotRenderer.Export? {
         ScreenshotRenderer.renderExport(
             baseImage: capture.image,
             annotations: [],
-            pixelated: nil,
+            pixelated: [:],
             scale: capture.scale,
             annotationShadowsEnabled: false,
+            watermark: ScreenshotSupport.WatermarkStyle(),
+            watermarkImage: nil,
             style: ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0),
             fill: .none,
             downscaleTo1x: downscaleTo1x)
@@ -708,8 +721,9 @@ final class ScreenshotService: ObservableObject {
     /// Vends a full-resolution PNG for dragging into a folder or another app.
     /// The temporary write begins only when the person starts the drag.
     static func dragItemProvider(image: CGImage,
+                                 scale: CGFloat,
                                  strings: ScreenshotFeatureStrings) -> NSItemProvider? {
-        guard let data = ScreenshotRenderer.pngData(from: image) else {
+        guard let data = ScreenshotRenderer.pngData(from: image, scale: scale) else {
             return nil
         }
         let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())

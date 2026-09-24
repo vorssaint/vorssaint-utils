@@ -332,25 +332,30 @@ enum RecorderSupport {
     // MARK: - Quality
 
     /// Three named outcomes instead of a codec form. Screen content is
-    /// low-entropy, so the encoder undershoots these ceilings hard; what the
-    /// preset really decides is the output scale, and the ceiling only caps
-    /// the busy moments.
+    /// low-entropy, so the encoder undershoots these ceilings hard, and the
+    /// ceiling only caps the busy moments. Only Small trades pixels for size:
+    /// a recording is mostly text, and a picture written at two thirds and
+    /// stretched back over the same display reads as blurry next to the
+    /// system recorder, which keeps every pixel. Balanced keeps them too and
+    /// saves on bits instead, which flat screen content barely misses.
     enum Quality: String, CaseIterable {
         case small, balanced, high
 
         var outputScale: CGFloat {
             switch self {
             case .small: return 0.5
-            case .balanced: return 2.0 / 3.0
-            case .high: return 1
+            case .balanced, .high: return 1
             }
         }
 
-        /// Bits per pixel per frame, from measurements on real screen content.
+        /// Bits per pixel per frame. Small and High come from measurements on
+        /// real screen content; Balanced sits between them now that it writes
+        /// the full picture, where each pixel carries less detail than in a
+        /// scaled-down one.
         var bitsPerPixel: Double {
             switch self {
             case .small: return 0.05
-            case .balanced: return 0.082
+            case .balanced: return 0.06
             case .high: return 0.09
             }
         }
@@ -531,10 +536,13 @@ enum RecorderSupport {
     /// Sized from the area rather than the picture: a strip drawn around one
     /// line of text gets blocks taller than its letters, which is what makes
     /// it unreadable, while a big area is not turned into four squares.
-    static func blurBlockSize(for area: CGSize) -> CGFloat {
+    /// Strengths below the default shrink the blocks under that size and can
+    /// leave the text readable; a new blur starts at the default.
+    static func blurBlockSize(for area: CGSize,
+                              strength: Int = ScreenshotSupport.BlurStrength.defaultLevel) -> CGFloat {
         let side = min(area.width, area.height)
-        guard side.isFinite, side > 0 else { return 8 }
-        return min(48, max(8, (side / 3).rounded()))
+        let base: CGFloat = side.isFinite && side > 0 ? min(48, max(8, (side / 3).rounded())) : 8
+        return max(2, (base * ScreenshotSupport.BlurStrength.blockFactor(for: strength)).rounded())
     }
 
     /// A point on the stage, turned into the recorded picture's own 0...1

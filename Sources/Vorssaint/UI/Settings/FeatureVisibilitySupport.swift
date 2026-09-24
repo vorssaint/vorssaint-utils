@@ -8,13 +8,13 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, notch
+    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch
     case shortcuts, advanced, about, releaseNotes, support
 }
 
 /// Stable, non-localized identities for destinations inside shared Settings
 /// pages. Raw values may be persisted or used by UI identifiers, so cases can
-/// be added but should not be renamed.
+/// be added but never renamed.
 enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case panelConfiguration
     case musicBlocking
@@ -49,6 +49,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case cleaningMode
     case soundOutputSwitcher
     case fanControl
+    case windowMaximizer
 
     var page: SettingsPage {
         switch self {
@@ -57,7 +58,8 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .scrollDirection, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
              .middleClick, .mouseClickDebounce:
             return .mouse
-        case .switcher, .dock, .dockClick: return .switcher
+        case .switcher: return .switcher
+        case .dock, .dockClick: return .dock
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad, .cleaningMode:
@@ -66,6 +68,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
             return .screenshot
         case .soundOutputSwitcher: return .shortcuts
         case .fanControl: return .monitor
+        case .windowMaximizer: return .windowLayout
         }
     }
 }
@@ -104,7 +107,19 @@ struct SettingsFeatureTargetRequest: Equatable {
 final class SettingsRouter: ObservableObject {
     static let shared = SettingsRouter()
 
-    @Published var page: SettingsPage = .general
+    @Published var page: SettingsPage = .general {
+        didSet {
+            guard page != oldValue else { return }
+            destination = FeatureSettingsDestination(page)
+            pendingDestinationRequest = nil
+            pendingFeatureTarget = nil
+            if !isTraversingHistory {
+                history.removeSubrange((historyIndex + 1)..<history.count)
+                history.append(destination)
+                historyIndex += 1
+            }
+        }
+    }
     @Published private(set) var destination = FeatureSettingsDestination(.general)
     @Published private(set) var requestID = UUID()
     @Published private(set) var pendingDestinationRequest: SettingsDestinationRequest?
@@ -116,19 +131,63 @@ final class SettingsRouter: ObservableObject {
     /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
     /// can land directly on a specific tool. Consumed and cleared on arrival.
     @Published var cleanerTool: String?
+    /// One-shot hint for the Dynamic Island page, so a section of the island
+    /// can open its own options. Consumed and cleared on arrival.
+    @Published var notchModule: NotchModule?
 
-    private init() {}
+    private var history = [FeatureSettingsDestination(.general)]
+    private var historyIndex = 0
+    private var isTraversingHistory = false
+
+    init() {}
 
     func request(_ destination: FeatureSettingsDestination, targetFeature: AppFeature? = nil) {
         let requestID = UUID()
-        self.destination = destination
         page = destination.page
+        self.destination = destination
+        // Section requests refine the current page visit, not a new history entry.
+        history[historyIndex] = destination
         pendingDestinationRequest = SettingsDestinationRequest(id: requestID,
                                                                destination: destination)
         pendingFeatureTarget = targetFeature.map {
             SettingsFeatureTargetRequest(id: requestID, feature: $0)
         }
         self.requestID = requestID
+    }
+
+    func goBack(isPageVisible: (SettingsPage) -> Bool = { _ in true }) {
+        navigateHistory(step: -1, isPageVisible: isPageVisible)
+    }
+
+    func goForward(isPageVisible: (SettingsPage) -> Bool = { _ in true }) {
+        navigateHistory(step: 1, isPageVisible: isPageVisible)
+    }
+
+    func canGoBack(isPageVisible: (SettingsPage) -> Bool = { _ in true }) -> Bool {
+        historyTarget(step: -1, isPageVisible: isPageVisible) != nil
+    }
+
+    func canGoForward(isPageVisible: (SettingsPage) -> Bool = { _ in true }) -> Bool {
+        historyTarget(step: 1, isPageVisible: isPageVisible) != nil
+    }
+
+    private func navigateHistory(step: Int, isPageVisible: (SettingsPage) -> Bool) {
+        guard let index = historyTarget(step: step, isPageVisible: isPageVisible) else { return }
+        historyIndex = index
+        isTraversingHistory = true
+        cleanerTool = nil
+        notchModule = nil
+        request(history[index])
+        isTraversingHistory = false
+    }
+
+    private func historyTarget(step: Int, isPageVisible: (SettingsPage) -> Bool) -> Int? {
+        var index = historyIndex + step
+        while history.indices.contains(index) {
+            if isPageVisible(history[index].page) { return index }
+            index += step
+        }
+        return nil
     }
 
     /// Clears only the request a view actually handled. A newer request that
@@ -160,15 +219,15 @@ extension AppFeature {
     var settingsDestination: FeatureSettingsDestination {
         switch self {
         case .switcher: return FeatureSettingsDestination(.switcher, sectionAnchor: .switcher)
-        case .dockPreview: return FeatureSettingsDestination(.switcher, sectionAnchor: .dock)
-        case .dockClick: return FeatureSettingsDestination(.switcher, sectionAnchor: .dockClick)
+        case .dockPreview: return FeatureSettingsDestination(.dock, sectionAnchor: .dock)
+        case .dockClick: return FeatureSettingsDestination(.dock, sectionAnchor: .dockClick)
         case .windowMaximizer:
-            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
+            return FeatureSettingsDestination(.windowLayout, sectionAnchor: .windowMaximizer)
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
         case .autoQuit: return FeatureSettingsDestination(.autoQuit)
         case .quitWindowProtection: return FeatureSettingsDestination(.quitProtection)
 
-        case .scrollInverter:
+        case .scrollInverter, .scrollHorizontal:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollDirection)
         case .focusFollowsMouse:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .focusFollowsMouse)
@@ -232,13 +291,14 @@ extension AppFeature {
         case .cleaner: return FeatureSettingsDestination(.cleaner)
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
         case .killProcess: return FeatureSettingsDestination(.killProcess)
+        case .portManager: return FeatureSettingsDestination(.portManager)
         case .homebrew: return FeatureSettingsDestination(.homebrew)
         case .appUpdates: return FeatureSettingsDestination(.appUpdates)
         case .screenshot:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshot)
         case .cameraPreview:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
-        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads: return FeatureSettingsDestination(.notch)
+        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents: return FeatureSettingsDestination(.notch)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
@@ -268,10 +328,11 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
         case .monitor: return monitorFeatures
-        case .mouse: return [.scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
+        case .mouse: return [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
-        case .switcher: return [.switcher, .dockPreview, .dockClick]
-        case .windowLayout: return [.windowLayout]
+        case .switcher: return [.switcher]
+        case .dock: return [.dockPreview, .dockClick]
+        case .windowLayout: return [.windowLayout, .windowMaximizer]
         case .autoQuit: return [.autoQuit]
         case .quitProtection: return [.quitWindowProtection]
         case .clipboard: return [.clipboardHistory, .pastePlain, .finderCutPaste]
@@ -286,11 +347,12 @@ enum FeatureVisibilitySupport {
         case .appUpdates: return [.appUpdates]
         case .uninstaller: return [.uninstaller]
         case .killProcess: return [.killProcess]
+        case .portManager: return [.portManager]
         case .keyDebounce: return [.keyboardDebounce]
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads]
+        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:
@@ -302,5 +364,13 @@ enum FeatureVisibilitySupport {
                               isAvailable: (AppFeature) -> Bool) -> Bool {
         let gate = features(for: page)
         return gate.isEmpty || gate.contains(where: isAvailable)
+    }
+
+    /// Whether one of `page`'s features is among `activeFeatures`, the live
+    /// users of a permission from `AppFeature.activeFeatures(using:)`. A page
+    /// that several features share asks for the grant while any of them uses it.
+    static func isPermissionNeeded(on page: SettingsPage,
+                                   activeFeatures: [AppFeature]) -> Bool {
+        features(for: page).contains(where: activeFeatures.contains)
     }
 }

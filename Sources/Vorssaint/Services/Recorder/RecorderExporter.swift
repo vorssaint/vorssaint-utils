@@ -198,7 +198,8 @@ final class RecorderExporter {
         let keepsAnyAudio = document.keepsSystemAudio || document.keepsMicrophone
         guard let result = await RecorderComposition.build(from: asset,
                                                            ranges: ranges,
-                                                           includesAudio: keepsAnyAudio),
+                                                           includesAudio: keepsAnyAudio,
+                                                           playbackSpeed: document.exportTiming.speed),
               let timelineVideo = try? await result.asset.loadTracks(withMediaType: .video).first
         else { return .readFailed }
         let timeline = result.asset
@@ -253,7 +254,8 @@ final class RecorderExporter {
             frameRate: outputFrameRate,
             composer: composer,
             sourceSize: sourceSize,
-            outputSize: outputSize)
+            outputSize: outputSize,
+            playbackSpeed: document.exportTiming.speed)
         else { return .readFailed }
 
         guard let reader = try? AVAssetReader(asset: timeline),
@@ -282,6 +284,11 @@ final class RecorderExporter {
                 ])
             output.audioMix = RecorderComposition.audioMix(trackIDs: result.audioTrackIDs,
                                                            document: document)
+            if document.exportTiming.speed != 1 {
+                // Decode scaled audio edits at their new duration while
+                // preserving speech pitch, rather than relabeling PCM times.
+                output.audioTimePitchAlgorithm = .spectral
+            }
             output.alwaysCopiesSampleData = false
             if reader.canAdd(output) {
                 reader.add(output)
@@ -558,7 +565,8 @@ final class RecorderExporter {
         let ranges = document.keptRanges(duration: duration)
         guard let result = await RecorderComposition.build(from: asset,
                                                            ranges: ranges,
-                                                           includesAudio: false),
+                                                           includesAudio: false,
+                                                           playbackSpeed: document.exportTiming.speed),
               let timelineVideo = try? await result.asset.loadTracks(withMediaType: .video).first
         else { return .readFailed }
         let timeline = result.asset
@@ -595,7 +603,8 @@ final class RecorderExporter {
                 frameRate: RecorderSupport.sanitizedFrameRate(frameRate),
                 composer: composer,
                 sourceSize: sourceSize,
-                outputSize: canvas)
+                outputSize: canvas,
+                playbackSpeed: document.exportTiming.speed)
             else { return .readFailed }
             generator.videoComposition = composition
         }

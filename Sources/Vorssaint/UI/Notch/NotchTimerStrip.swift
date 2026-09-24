@@ -10,10 +10,18 @@ struct NotchTimerStrip: View {
     @ObservedObject private var l10n = L10n.shared
 
     private var geometry: NotchGeometry { service.compactActivityGeometry }
-    private var outerInset: CGFloat {
+    /// Height the strip can give away once both edges keep their gap.
+    private var budget: CGFloat { geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2 }
+    private var iconSize: CGFloat { min(service.hasDownloadActivity ? 13 : 20, budget) }
+    private var textSize: CGFloat { min(16, geometry.compactActivityContentHeight - 6) }
+    private var iconInset: CGFloat {
         guard !geometry.compactActivityUsesFooter else { return 0 }
-        let shoulder = min(NotchLayout.shoulder, geometry.compactActivityContentHeight * 0.28)
-        return shoulder + 6
+        return geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
+    }
+    private var textInset: CGFloat {
+        guard !geometry.compactActivityUsesFooter else { return 0 }
+        // Digits carry no descenders, so their ink is about the cap height.
+        return geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0)
     }
 
     var body: some View {
@@ -24,42 +32,28 @@ struct NotchTimerStrip: View {
                         if service.hasDownloadActivity {
                             downloadIndicator
                         } else {
-                            Image(systemName: timer.session.completed ? "checkmark.circle" : timer.session.isPaused ? "pause.circle" : "timer")
-                                .font(.system(size: min(20, geometry.compactActivityContentHeight - 6), weight: .medium))
+                            Image(systemName: timer.session.completed ? "checkmark.circle"
+                                  : timer.session.isPaused ? "pause.circle" : timer.session.countsUp ? "stopwatch" : "timer")
+                                .font(.system(size: iconSize, weight: .medium))
                                 .foregroundStyle(.orange)
                         }
                     }
                 }
-                .padding(.leading, outerInset)
-                .padding(.trailing, geometry.compactActivityUsesFooter ? 0 : 8)
-                .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight)
+                .padding(.leading, iconInset)
+                // The camera already separates the wings; only the outside
+                // edge needs clearance from the silhouette.
+                .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
+                       alignment: .trailing)
                 .contentShape(Rectangle())
             }
             .accessibilityLabel(service.hasDownloadActivity ? FeatureStrings.notchFiles(l10n.language).downloadsTitle
                                  : FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            TimelineView(.animation(minimumInterval: 1, paused: !timer.session.isRunning)) { _ in
-                let seconds = timer.session.remaining(at: timer.now)
-                let locale = Locale(identifier: l10n.language.rawValue)
-                let remaining = seconds >= 3600
-                    ? Duration.seconds(seconds).formatted(.time(pattern: .hourMinute(padHourToLength: 1, roundSeconds: .down)).locale(locale))
-                    : NotchTimerSupport.compactText(seconds, locale: locale)
-                Button { service.open(.timer) } label: {
-                    Group {
-                        if geometry.compactActivityWingWidth >= 42 {
-                            Text(remaining)
-                                .font(.system(size: min(16, geometry.compactActivityContentHeight - 6), weight: .medium)).monospacedDigit()
-                                .foregroundStyle(.orange)
-                                .lineLimit(1).minimumScaleFactor(0.65)
-                        }
-                    }
-                    .padding(.leading, geometry.compactActivityUsesFooter ? 0 : 8)
-                    .padding(.trailing, outerInset)
-                    .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight)
-                    .contentShape(Rectangle())
-                }
-                .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))
-                .accessibilityValue(NotchTimerSupport.clockText(seconds))
+            if timer.session.isRunning {
+                TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.tickScheduleOffset(
+                    for: timer.session, at: timer.now)), by: 1)) { _ in reading }
+            } else {
+                reading
             }
         }
         .frame(height: geometry.compactActivityContentHeight)
@@ -67,6 +61,28 @@ struct NotchTimerStrip: View {
         .padding(.top, geometry.compactActivityTopPadding)
         .buttonStyle(.plain)
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+
+    private var reading: some View {
+        let now = timer.now
+        let text = NotchTimerSupport.compactText(for: timer.session, at: now,
+                                                 locale: Locale(identifier: l10n.language.rawValue))
+        return Button { service.open(.timer) } label: {
+            Group {
+                if geometry.compactActivityWingWidth >= 42 {
+                    Text(text)
+                        .font(.system(size: textSize, weight: .medium)).monospacedDigit()
+                        .foregroundStyle(.orange)
+                        .lineLimit(1).minimumScaleFactor(0.65)
+                }
+            }
+            .padding(.trailing, textInset)
+            .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
+                   alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))
+        .accessibilityValue(NotchTimerSupport.clockText(for: timer.session, at: now))
     }
 
     private var downloadIndicator: some View {

@@ -4,7 +4,7 @@
 import SwiftUI
 
 private enum NotchCaptureControl: Hashable {
-    case close, tool(ScreenCaptureTool), systemAudio, microphone
+    case collapse, close, tool(ScreenCaptureTool), systemAudio, microphone
 }
 
 /// The same selection model drives keyboard shortcuts and the screen overlay.
@@ -21,6 +21,17 @@ struct NotchCaptureControlsView: View {
                 Text(FeatureStrings.screenshot(l10n.language).screenCaptureTitle)
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
+                if options.offersRepeatLastRegion {
+                    Label("R", systemImage: "rectangle.dashed")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .frame(height: 26)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 7))
+                }
+                NotchIconButton(symbol: "chevron.up", title: FeatureStrings.notch(l10n.language).collapse,
+                                action: service.collapseCaptureControls)
+                    .focused($focusedControl, equals: .collapse)
                 NotchIconButton(symbol: "xmark", title: l10n.s.menuClose, action: service.cancelCaptureControls)
                     .focused($focusedControl, equals: .close)
             }
@@ -28,7 +39,7 @@ struct NotchCaptureControlsView: View {
                 ForEach(options.showsCaptureMenu ? options.availableTools : [options.selectedTool], id: \.self) { tool in
                     NotchActionTile(symbol: tool.systemImageName,
                                     title: tool.settingsTitle(l10n.s, language: l10n.language),
-                                    active: options.selectedTool == tool, stacked: true) { options.select(tool) }
+                                    active: options.selectedTool == tool) { options.select(tool) }
                         .focused($focusedControl, equals: .tool(tool))
                 }
             }
@@ -37,7 +48,10 @@ struct NotchCaptureControlsView: View {
             }
         }
         .foregroundStyle(.white)
-        .onChange(of: focusedControl) { options.hasFocusedControl = focusedControl != nil }
+        .onChange(of: focusedControl) {
+            options.hasFocusedControl = focusedControl != nil
+            service.scheduleCaptureControlsCollapse()
+        }
         .onDisappear { options.hasFocusedControl = false }
     }
 }
@@ -47,11 +61,15 @@ private struct NotchRecordingAudioOptions: View {
     @ObservedObject private var l10n = L10n.shared
     var focusedControl: FocusState<NotchCaptureControl?>.Binding
     var body: some View {
-        HStack {
+        HStack(spacing: 16) {
             Toggle(FeatureStrings.recorder(l10n.language).systemAudioTrackLabel, isOn: $options.systemAudio)
                 .focused(focusedControl, equals: .systemAudio)
             Toggle(FeatureStrings.recorder(l10n.language).microphoneTrackLabel, isOn: $options.microphone)
                 .focused(focusedControl, equals: .microphone)
-        }.toggleStyle(.button).controlSize(.small)
+        }
+        .toggleStyle(.switch)
+        .tint(.green)
+        .controlSize(.small)
+        .fixedSize()
     }
 }

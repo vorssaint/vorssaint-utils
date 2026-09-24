@@ -41,6 +41,7 @@ final class NotchDownloadService: ObservableObject {
     private var subscriber: Any?
     private var progressObserver: NotchDownloadProgressObserver?
     private var progressItems: [NotchDownloadItem] = []
+    private var folderItems: [NotchDownloadItem] = []
     private var partials: [URL: NotchPartialDownload] = [:]
     private var finished: [NotchDownloadItem] = []
     private var expiry: DispatchWorkItem?
@@ -50,12 +51,11 @@ final class NotchDownloadService: ObservableObject {
     private var scanning = false
     private var rescan = false
     private var chooser: NSOpenPanel?
+    var isChoosingFolder: Bool { chooser != nil }
     private var chooserID = UUID()
+    /// The pending chooser was begun from the island's Downloads page.
+    private var chooserInNotch = false
     private let queue = DispatchQueue(label: "com.vorssaint.notch.downloads", qos: .utility)
-    private static let keys: Set<URLResourceKey> = [
-        .isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey,
-        .contentModificationDateKey,
-    ]
 
     private init() {}
 
@@ -92,9 +92,11 @@ final class NotchDownloadService: ObservableObject {
         let requested = UUID()
         chooserID = requested
         chooser = panel
+        chooserInNotch = beganInNotch
         let completed: (NSApplication.ModalResponse) -> Void = { [weak self, weak panel, weak parent] response in
             guard let self, let panel, self.chooser === panel, self.chooserID == requested else { return }
             self.chooser = nil
+            self.chooserInNotch = false
             guard !beganInNotch || parent.map(self.canReturnToDownloads) == true else { return }
             if response == .OK, let url = panel.url, AppFeature.notchDownloads.isAvailable {
                 do {
@@ -118,10 +120,16 @@ final class NotchDownloadService: ObservableObject {
             }
         }
         if let parent {
-            // Attach before activation so the notch's existing sheet handling
-            // protects the working surface when another app gives up focus.
-            panel.beginSheetModal(for: parent, completionHandler: completed)
+            // An attached sheet moves/reskins a borderless island. Keep the
+            // chooser independent and above its parent instead, without
+            // changing the pin; isChoosingFolder keeps the surface alive.
+            panel.level = NSWindow.Level(rawValue: parent.level.rawValue + 1)
+            // Like the sheet it replaces, it stays up while another app is active.
+            panel.hidesOnDeactivate = false
+            panel.begin(completionHandler: completed)
             NSApp.activate(ignoringOtherApps: true)
+            // Activation alone can leave the nonactivating island holding focus.
+            panel.makeKeyAndOrderFront(nil)
         } else {
             NSApp.activate(ignoringOtherApps: true)
             panel.begin(completionHandler: completed)
@@ -153,8 +161,17 @@ final class NotchDownloadService: ObservableObject {
 
     private func cancelFolderChoice() {
         chooserID = UUID()
+        chooserInNotch = false
         chooser?.cancel(nil)
         chooser = nil
+    }
+
+    /// The island's Downloads page went away: a folder chosen now could no
+    /// longer return to it and would be dropped in silence, so its chooser
+    /// ends with it. One begun in Settings stays up.
+    func cancelNotchFolderChoice() {
+        guard chooserInNotch, chooser != nil else { return }
+        cancelFolderChoice()
     }
 
     func stop() {
@@ -176,6 +193,7 @@ final class NotchDownloadService: ObservableObject {
         }
         folder = nil
         securityScope = false
+        folderItems.removeAll()
         partials.removeAll()
         finished.removeAll()
         items = []
@@ -255,17 +273,17 @@ final class NotchDownloadService: ObservableObject {
         let id = generation
         let previous = partials
         queue.async { [weak self] in
-            let current = Self.scanFolder(folder)
+            let current = NotchDownloadSupport.scanFolder(folder)
             let completed = previous.values.compactMap { old -> NotchDownloadItem? in
-                guard current?[old.url] == nil,
+                guard current?.partials[old.url] == nil,
                       !FileManager.default.fileExists(atPath: old.url.path),
-                      let values = try? old.expectedURL.resourceValues(forKeys: Self.keys),
+                      let values = try? old.expectedURL.resourceValues(forKeys: NotchDownloadSupport.keys),
                       values.isRegularFile == true,
                       NotchDownloadSupport.didFinish(old, at: old.expectedURL,
                           resourceID: NotchDownloadSupport.fileIdentity(at: old.expectedURL)) else { return nil }
                 return NotchDownloadItem(id: old.expectedURL.path, url: old.expectedURL,
                     name: old.expectedURL.lastPathComponent, receivedBytes: Int64(values.fileSize ?? 0),
-                    fraction: 1, completed: true)
+                    fraction: 1, completed: true, active: false, date: Date())
             }
             DispatchQueue.main.async {
                 guard let self, self.generation == id else { return }
@@ -273,8 +291,9 @@ final class NotchDownloadService: ObservableObject {
                 guard let current else {
                     self.stop(); self.folderUnavailable = true; return
                 }
-                self.partials = current
-                let watched = Set(current.values.flatMap { [$0.url] + [$0.contentURL].compactMap { $0 } })
+                self.partials = current.partials
+                self.folderItems = current.files
+                let watched = Set(current.partials.values.flatMap { [$0.url] + [$0.contentURL].compactMap { $0 } })
                 let removed = Set(self.fileSources.keys).subtracting(watched)
                 for url in removed { self.fileSources.removeValue(forKey: url)?.cancel() }
                 for url in watched where self.fileSources[url] == nil {
@@ -286,42 +305,6 @@ final class NotchDownloadService: ObservableObject {
                 if self.rescan { self.rescan = false; self.scheduleScan() }
             }
         }
-    }
-
-    private static func scanFolder(_ folder: URL) -> [URL: NotchPartialDownload]? {
-        var readFailed = false
-        guard let entries = FileManager.default.enumerator(at: folder,
-            includingPropertiesForKeys: Array(keys), options: [.skipsSubdirectoryDescendants],
-            errorHandler: { _, _ in readFailed = true; return false }) else { return nil }
-        var result: [URL: NotchPartialDownload] = [:]
-        var count = 0
-        for case let url as URL in entries {
-            count += 1
-            guard count <= NotchDownloadSupport.maximumDirectoryEntries else { break }
-            guard let expected = NotchDownloadSupport.expectedURL(for: url),
-                  let values = try? url.resourceValues(forKeys: keys),
-                  values.isSymbolicLink != true,
-                  values.isRegularFile == true || values.isDirectory == true else { continue }
-            var payloadValues = values
-            var contentURL: URL?
-            if values.isDirectory == true {
-                // A partial package can hold the real file. Inspect only its
-                // expected payload, never traverse other folders or resume data.
-                let payload = url.appendingPathComponent(expected.lastPathComponent)
-                if let found = try? payload.resourceValues(forKeys: keys),
-                   found.isRegularFile == true, found.isSymbolicLink != true {
-                    payloadValues = found
-                    contentURL = payload
-                }
-            }
-            result[url] = NotchPartialDownload(url: url, expectedURL: expected,
-                bytes: payloadValues.isRegularFile == true ? Int64(payloadValues.fileSize ?? 0) : 0,
-                resourceID: NotchDownloadSupport.fileIdentity(at: contentURL ?? url),
-                modified: payloadValues.contentModificationDate ?? .distantPast,
-                contentURL: contentURL)
-            if result.count >= NotchDownloadSupport.maximumObservedFiles { break }
-        }
-        return readFailed ? nil : result
     }
 
     private func recordCompletion(_ item: NotchDownloadItem) {
@@ -354,11 +337,10 @@ final class NotchDownloadService: ObservableObject {
             && !represented.contains(partial.expectedURL.standardizedFileURL) {
             active.append(NotchDownloadItem(id: partial.url.path, url: partial.url,
                 name: partial.expectedURL.lastPathComponent, receivedBytes: partial.bytes,
-                fraction: nil, completed: false, active: Date().timeIntervalSince(partial.modified) < 120))
+                fraction: nil, completed: false, active: Date().timeIntervalSince(partial.modified) < 120,
+                date: partial.modified))
         }
-        active.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        let activeIDs = Set(active.map(\.id))
-        let updated = active + finished.filter { !activeIDs.contains($0.id) }
+        let updated = NotchDownloadSupport.mergedItems(active: active, files: folderItems, finished: finished)
         if items != updated { items = updated }
     }
 }

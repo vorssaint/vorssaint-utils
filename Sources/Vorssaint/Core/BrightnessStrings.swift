@@ -19,6 +19,7 @@ struct BrightnessFeatureStrings {
     let lastDisplayCaption: String
     let switchUnavailable: String
     let switchFailed: String
+    let openLidToEnable: String
     let keysToggle: String
     let keysCaption: String
     let osdToggle: String
@@ -32,6 +33,7 @@ struct BrightnessFeatureStrings {
     let keyboardBrightnessShortcuts: String
     let keyboardBrightnessDecrease: String
     let keyboardBrightnessIncrease: String
+    let softwareDimming: String
 }
 
 extension FeatureStrings {
@@ -68,6 +70,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "At least one display must stay on.",
         switchUnavailable: "Display switching is unavailable on this Mac.",
         switchFailed: "Could not change this display.",
+        openLidToEnable: "Open the lid to turn on the built-in display.",
         keysToggle: "Brightness keys follow the pointer",
         keysCaption: "The keyboard brightness keys change the display under the pointer.",
         osdToggle: "Show brightness when adjusting",
@@ -80,7 +83,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Turns the keyboard backlight on or off.",
         keyboardBrightnessShortcuts: "Use keyboard brightness shortcuts",
         keyboardBrightnessDecrease: "Decrease keyboard brightness",
-        keyboardBrightnessIncrease: "Increase keyboard brightness"
+        keyboardBrightnessIncrease: "Increase keyboard brightness",
+        softwareDimming: "Dim the picture"
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -96,6 +100,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "Pelo menos uma tela deve continuar ligada.",
         switchUnavailable: "Não é possível ligar ou desligar telas neste Mac.",
         switchFailed: "Não foi possível alterar esta tela.",
+        openLidToEnable: "Abra a tampa para ligar a tela integrada.",
         keysToggle: "Teclas de brilho seguem o ponteiro",
         keysCaption: "As teclas de brilho do teclado mudam a tela onde o ponteiro está.",
         osdToggle: "Mostrar brilho ao ajustar",
@@ -108,7 +113,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Liga ou desliga a luz do teclado.",
         keyboardBrightnessShortcuts: "Usar atalhos para o brilho do teclado",
         keyboardBrightnessDecrease: "Diminuir brilho do teclado",
-        keyboardBrightnessIncrease: "Aumentar brilho do teclado"
+        keyboardBrightnessIncrease: "Aumentar brilho do teclado",
+        softwareDimming: "Escurecer a imagem"
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -124,6 +130,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "En az bir ekran açık kalmalıdır.",
         switchUnavailable: "Bu Mac’te ekran açma ve kapatma kullanılamıyor.",
         switchFailed: "Bu ekran değiştirilemedi.",
+        openLidToEnable: "Yerleşik ekranı açmak için kapağı açın.",
         keysToggle: "Parlaklık tuşları imleci izler",
         keysCaption: "Klavyedeki parlaklık tuşları imlecin bulunduğu ekranı değiştirir.",
         osdToggle: "Parlaklık ayarlanırken göster",
@@ -136,7 +143,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Klavye ışığını açar veya kapatır.",
         keyboardBrightnessShortcuts: "Klavye parlaklığı kısayollarını kullan",
         keyboardBrightnessDecrease: "Klavye parlaklığını azalt",
-        keyboardBrightnessIncrease: "Klavye parlaklığını artır"
+        keyboardBrightnessIncrease: "Klavye parlaklığını artır",
+        softwareDimming: "Görüntüyü karart"
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -152,6 +160,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "Хотя бы один экран должен оставаться включённым.",
         switchUnavailable: "Управление включением экранов недоступно на этом Mac.",
         switchFailed: "Не удалось изменить состояние экрана.",
+        openLidToEnable: "Откройте крышку, чтобы включить встроенный экран.",
         keysToggle: "Клавиши яркости следуют за указателем",
         keysCaption: "Клавиши яркости на клавиатуре меняют экран, на котором находится указатель.",
         osdToggle: "Показывать яркость при регулировке",
@@ -164,7 +173,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Включает или выключает подсветку клавиатуры.",
         keyboardBrightnessShortcuts: "Использовать сочетания клавиш для подсветки клавиатуры",
         keyboardBrightnessDecrease: "Уменьшить яркость клавиатуры",
-        keyboardBrightnessIncrease: "Увеличить яркость клавиатуры"
+        keyboardBrightnessIncrease: "Увеличить яркость клавиатуры",
+        softwareDimming: "Затемнять изображение"
     )
 
     static let es = BrightnessFeatureStrings(
@@ -180,6 +190,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "Al menos una pantalla debe permanecer encendida.",
         switchUnavailable: "El encendido de pantallas no está disponible en este Mac.",
         switchFailed: "No se pudo cambiar esta pantalla.",
+        openLidToEnable: "Abre la tapa para encender la pantalla integrada.",
         keysToggle: "Las teclas de brillo siguen al puntero",
         keysCaption: "Las teclas de brillo del teclado cambian la pantalla donde está el puntero.",
         osdToggle: "Mostrar el brillo al ajustarlo",
@@ -192,7 +203,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Enciende o apaga la luz del teclado.",
         keyboardBrightnessShortcuts: "Usar atajos para el brillo del teclado",
         keyboardBrightnessDecrease: "Reducir el brillo del teclado",
-        keyboardBrightnessIncrease: "Aumentar el brillo del teclado"
+        keyboardBrightnessIncrease: "Aumentar el brillo del teclado",
+        softwareDimming: "Oscurecer la imagen"
     )
 
     static let de = BrightnessFeatureStrings(
@@ -208,6 +220,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "Mindestens ein Display muss eingeschaltet bleiben.",
         switchUnavailable: "Die Displaysteuerung ist auf diesem Mac nicht verfügbar.",
         switchFailed: "Dieses Display konnte nicht geändert werden.",
+        openLidToEnable: "Öffne den Deckel, um das integrierte Display einzuschalten.",
         keysToggle: "Helligkeitstasten folgen dem Zeiger",
         keysCaption: "Die Helligkeitstasten der Tastatur ändern das Display, auf dem der Zeiger steht.",
         osdToggle: "Helligkeit beim Anpassen anzeigen",
@@ -220,7 +233,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Schaltet die Tastaturbeleuchtung ein oder aus.",
         keyboardBrightnessShortcuts: "Kurzbefehle für die Tastaturhelligkeit verwenden",
         keyboardBrightnessDecrease: "Tastaturhelligkeit verringern",
-        keyboardBrightnessIncrease: "Tastaturhelligkeit erhöhen"
+        keyboardBrightnessIncrease: "Tastaturhelligkeit erhöhen",
+        softwareDimming: "Bild abdunkeln"
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -236,6 +250,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "Au moins un écran doit rester allumé.",
         switchUnavailable: "Le contrôle d’alimentation des écrans n’est pas disponible sur ce Mac.",
         switchFailed: "Impossible de modifier cet écran.",
+        openLidToEnable: "Ouvrez le couvercle pour allumer l’écran intégré.",
         keysToggle: "Les touches de luminosité suivent le pointeur",
         keysCaption: "Les touches de luminosité du clavier règlent l’écran où se trouve le pointeur.",
         osdToggle: "Afficher la luminosité pendant le réglage",
@@ -248,7 +263,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Allume ou éteint l’éclairage du clavier.",
         keyboardBrightnessShortcuts: "Utiliser les raccourcis de luminosité du clavier",
         keyboardBrightnessDecrease: "Réduire la luminosité du clavier",
-        keyboardBrightnessIncrease: "Augmenter la luminosité du clavier"
+        keyboardBrightnessIncrease: "Augmenter la luminosité du clavier",
+        softwareDimming: "Assombrir l’image"
     )
 
     static let it = BrightnessFeatureStrings(
@@ -264,6 +280,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "Almeno uno schermo deve rimanere acceso.",
         switchUnavailable: "Il controllo di accensione degli schermi non è disponibile su questo Mac.",
         switchFailed: "Non è stato possibile modificare questo schermo.",
+        openLidToEnable: "Apri il coperchio per accendere lo schermo integrato.",
         keysToggle: "I tasti di luminosità seguono il puntatore",
         keysCaption: "I tasti di luminosità della tastiera regolano lo schermo dove si trova il puntatore.",
         osdToggle: "Mostra la luminosità durante la regolazione",
@@ -276,7 +293,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Accende o spegne l’illuminazione della tastiera.",
         keyboardBrightnessShortcuts: "Usa le scorciatoie per la luminosità della tastiera",
         keyboardBrightnessDecrease: "Riduci luminosità tastiera",
-        keyboardBrightnessIncrease: "Aumenta luminosità tastiera"
+        keyboardBrightnessIncrease: "Aumenta luminosità tastiera",
+        softwareDimming: "Scurisci l’immagine"
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -292,6 +310,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "少なくとも1台のディスプレイをオンのままにしてください。",
         switchUnavailable: "このMacではディスプレイの切り替えを利用できません。",
         switchFailed: "このディスプレイを切り替えられませんでした。",
+        openLidToEnable: "内蔵ディスプレイをオンにするには、蓋を開いてください。",
         keysToggle: "輝度キーはポインタに従う",
         keysCaption: "キーボードの輝度キーが、ポインタのあるディスプレイを調整します。",
         osdToggle: "明るさの調整時に表示",
@@ -304,7 +323,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "キーボードのバックライトをオンまたはオフにします。",
         keyboardBrightnessShortcuts: "キーボードの明るさのショートカットを使用",
         keyboardBrightnessDecrease: "キーボードの明るさを下げる",
-        keyboardBrightnessIncrease: "キーボードの明るさを上げる"
+        keyboardBrightnessIncrease: "キーボードの明るさを上げる",
+        softwareDimming: "画面を暗くする"
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -320,6 +340,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "최소 한 대의 디스플레이는 켜져 있어야 합니다.",
         switchUnavailable: "이 Mac에서는 디스플레이 전원 제어를 사용할 수 없습니다.",
         switchFailed: "이 디스플레이를 변경할 수 없습니다.",
+        openLidToEnable: "내장 디스플레이를 켜려면 덮개를 여세요.",
         keysToggle: "밝기 키가 포인터를 따라감",
         keysCaption: "키보드의 밝기 키로 포인터가 있는 디스플레이를 조절합니다.",
         osdToggle: "밝기 조절 시 표시",
@@ -332,7 +353,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "키보드 백라이트를 켜거나 끕니다.",
         keyboardBrightnessShortcuts: "키보드 밝기 단축키 사용",
         keyboardBrightnessDecrease: "키보드 밝기 낮추기",
-        keyboardBrightnessIncrease: "키보드 밝기 높이기"
+        keyboardBrightnessIncrease: "키보드 밝기 높이기",
+        softwareDimming: "화면을 어둡게"
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -348,6 +370,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "至少要保留一台显示器开启。",
         switchUnavailable: "此 Mac 不支持显示器开关。",
         switchFailed: "无法更改这台显示器。",
+        openLidToEnable: "请打开 Mac 盖子后再启用内置屏幕。",
         keysToggle: "亮度键跟随指针",
         keysCaption: "键盘上的亮度键调节指针所在的显示器。",
         osdToggle: "调节亮度时显示",
@@ -360,7 +383,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "打开或关闭键盘背光。",
         keyboardBrightnessShortcuts: "使用键盘亮度快捷键",
         keyboardBrightnessDecrease: "降低键盘亮度",
-        keyboardBrightnessIncrease: "提高键盘亮度"
+        keyboardBrightnessIncrease: "提高键盘亮度",
+        softwareDimming: "调暗画面"
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -376,6 +400,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "至少要保留一台顯示器開啟。",
         switchUnavailable: "此 Mac 不支援顯示器開關。",
         switchFailed: "無法更改這台顯示器。",
+        openLidToEnable: "請打開 Mac 上蓋後再啟用內建螢幕。",
         keysToggle: "亮度鍵跟隨指標",
         keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。",
         osdToggle: "調整亮度時顯示",
@@ -388,7 +413,8 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "開啟或關閉鍵盤背光。",
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
-        keyboardBrightnessIncrease: "提高鍵盤亮度"
+        keyboardBrightnessIncrease: "提高鍵盤亮度",
+        softwareDimming: "調暗畫面"
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -404,6 +430,7 @@ extension BrightnessFeatureStrings {
         lastDisplayCaption: "至少要保留一台顯示器開啟。",
         switchUnavailable: "此 Mac 不支援顯示器開關。",
         switchFailed: "無法更改這部顯示器。",
+        openLidToEnable: "請打開 Mac 上蓋後再啟用內置顯示器。",
         keysToggle: "亮度鍵跟隨指標",
         keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。",
         osdToggle: "調整亮度時顯示",
@@ -416,6 +443,7 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "開啟或關閉鍵盤背光。",
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
-        keyboardBrightnessIncrease: "提高鍵盤亮度"
+        keyboardBrightnessIncrease: "提高鍵盤亮度",
+        softwareDimming: "調暗畫面"
     )
 }

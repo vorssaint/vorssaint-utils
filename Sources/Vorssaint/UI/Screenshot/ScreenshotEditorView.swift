@@ -18,6 +18,7 @@ struct ScreenshotEditorView: View {
     @State private var dragStartView: CGPoint = .zero
     @State private var appeared = false
     @State private var backdropPopoverShown = false
+    @State private var watermarkPopoverShown = false
     @State private var hoveredTool: ScreenshotSupport.Tool?
     @State private var toolOptionsShown = false
     @State private var sharing = false
@@ -297,6 +298,13 @@ struct ScreenshotEditorView: View {
                                            scale: model.scale,
                                            annotationShadowsEnabled: model.annotationShadowsEnabled,
                                            skippingText: model.editingTextID)
+        ScreenshotRenderer.drawWatermark(model.watermarkStyle,
+                                         image: model.watermarkImage,
+                                         in: cg,
+                                         imageSize: model.imageSize,
+                                         scale: model.scale,
+                                         shadowsEnabled: model.annotationShadowsEnabled,
+                                         cornerRadius: model.cardCornerPixels)
         drawTextSelection(cg)
         drawSelectionChrome(cg)
         drawCropChrome(cg, canvasSize: size, zoom: zoom)
@@ -526,7 +534,7 @@ struct ScreenshotEditorView: View {
     private func textEditorOverlay(zoom: CGFloat) -> some View {
         if let editingID = model.editingTextID,
            let annotation = model.annotations.first(where: { $0.id == editingID }) {
-            let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.stroke,
+            let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.textSize,
                                                                scale: model.scale) * zoom)
             let pad = model.backdropPaddingPixels
             TextField(strings.textPlaceholder, text: $editingText)
@@ -632,7 +640,7 @@ struct ScreenshotEditorView: View {
                         .fixedSize()
                         .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
                         .padding(2)
-                        .opacity(isHovered || isActive ? 0.9 : 0)
+                        .opacity(isHovered || isActive ? 0.9 : 0.55)
                 }
             }
             .background(
@@ -829,6 +837,34 @@ struct ScreenshotEditorView: View {
         }
     }
 
+    private var showsBlurControls: Bool {
+        if model.tool == .pixelate { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .pixelate
+    }
+
+    /// Text takes a point size where shapes take a thickness.
+    private var showsTextSizeControls: Bool {
+        if model.tool == .text { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .text
+    }
+
+    private var showsArrowStyleControls: Bool {
+        if model.tool == .arrow { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .arrow
+    }
+
     /// Depth only means something once a shape is picked, and only when there
     /// is something else for it to pass.
     private var showsLayerControls: Bool {
@@ -885,8 +921,16 @@ struct ScreenshotEditorView: View {
 
     private var styleBar: some View {
         HStack(spacing: 10) {
+            if showsArrowStyleControls {
+                arrowStyleMenu
+                Divider().frame(height: 16)
+            }
             if showsStickerControls {
                 stickerMenu
+                Divider().frame(height: 16)
+            }
+            if showsBlurControls {
+                blurLevelControl
                 Divider().frame(height: 16)
             }
             if showsColorControls {
@@ -896,9 +940,13 @@ struct ScreenshotEditorView: View {
                     }
                 }
                 Divider().frame(height: 16)
-                HStack(spacing: 3) {
-                    ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
-                        strokeGlyph(stroke)
+                if showsTextSizeControls {
+                    textSizeControl
+                } else {
+                    HStack(spacing: 3) {
+                        ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
+                            strokeGlyph(stroke)
+                        }
                     }
                 }
                 Divider().frame(height: 16)
@@ -913,6 +961,8 @@ struct ScreenshotEditorView: View {
             annotationShadowButton
             Divider().frame(height: 16)
             backdropButton
+            Divider().frame(height: 16)
+            watermarkButton
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -922,6 +972,40 @@ struct ScreenshotEditorView: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.16), radius: 12, y: 3)
+    }
+
+    /// The same kind of menu as the sticker picker: an inline picker gives
+    /// each style a native row with a checkmark, and the sample images come
+    /// from the editor's own renderer, so the menu shows exactly what draws.
+    private var arrowStyleMenu: some View {
+        Menu {
+            Picker(strings.arrowStyleLabel, selection: $model.arrowStyle) {
+                ForEach(ScreenshotSupport.ArrowStyleID.allCases, id: \.self) { style in
+                    Label {
+                        Text(strings.arrowStyleTitle(style))
+                    } icon: {
+                        Image(nsImage: ScreenshotArrowStyleSamples.image(for: style))
+                    }
+                    .tag(style)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 5) {
+                Image(nsImage: ScreenshotArrowStyleSamples.image(for: model.arrowStyle))
+                    .renderingMode(.template)
+                Text(strings.arrowStyleTitle(model.arrowStyle))
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 7)
+            .frame(height: 24)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .screenshotSafeHelp(strings.arrowStyleLabel)
+        .accessibilityLabel(strings.arrowStyleLabel)
     }
 
     private var stickerMenu: some View {
@@ -1024,6 +1108,82 @@ struct ScreenshotEditorView: View {
         .accessibilityLabel(strings.strokeLabel)
     }
 
+    /// Smaller and larger buttons step through the presets; the menu jumps
+    /// straight to any of them.
+    private var textSizeControl: some View {
+        HStack(spacing: 1) {
+            textSizeStepButton(up: false)
+            Menu {
+                Picker(strings.fontSizeLabel, selection: $model.textSize) {
+                    ForEach(ScreenshotSupport.textSizes, id: \.self) { size in
+                        Text("\(size) pt").tag(size)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                Text("\(model.textSize) pt")
+                    .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .frame(height: 24)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            textSizeStepButton(up: true)
+        }
+        .screenshotSafeHelp(strings.fontSizeLabel)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(strings.fontSizeLabel)
+    }
+
+    /// Five steps from a light blur to a heavy one; the middle is the
+    /// strength the tool always had.
+    private var blurLevelControl: some View {
+        let levels = ScreenshotSupport.BlurStrength.levels
+        return HStack(spacing: 5) {
+            Image(systemName: "aqi.low")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Slider(value: Binding(get: { Double(model.blurLevel) },
+                                  set: { model.blurLevel = Int($0.rounded()) }),
+                   in: Double(levels.lowerBound)...Double(levels.upperBound),
+                   step: 1)
+                .controlSize(.mini)
+                .frame(width: 84)
+            Image(systemName: "aqi.high")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(height: 24)
+        .screenshotSafeHelp(strings.blurStrengthLabel)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(strings.blurStrengthLabel)
+        .accessibilityValue("\(model.blurLevel)")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: model.blurLevel = min(levels.upperBound, model.blurLevel + 1)
+            case .decrement: model.blurLevel = max(levels.lowerBound, model.blurLevel - 1)
+            @unknown default: break
+            }
+        }
+    }
+
+    private func textSizeStepButton(up: Bool) -> some View {
+        let next = ScreenshotSupport.steppedTextSize(from: model.textSize, up: up)
+        return Button {
+            if let next { model.textSize = next }
+        } label: {
+            Image(systemName: up ? "textformat.size.larger" : "textformat.size.smaller")
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.borderless)
+        .disabled(next == nil)
+        .accessibilityLabel(strings.fontSizeLabel + (up ? " +" : " −"))
+    }
+
     private var annotationShadowButton: some View {
         Button {
             model.annotationShadowsEnabled.toggle()
@@ -1094,6 +1254,38 @@ struct ScreenshotEditorView: View {
     }
 
     @State private var backdropButtonHovered = false
+
+    private var watermarkButton: some View {
+        // Built like the backdrop button: one tappable surface with a hover
+        // wash, tinted while a mark is actually on the capture.
+        let active = model.showsWatermark
+        return HStack(spacing: 6) {
+            Image(systemName: "signature")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(active ? Color.accentColor : Color.primary.opacity(0.85))
+            Text(strings.watermarkLabel)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(active ? Color.accentColor : Color.secondary)
+        }
+        .padding(.horizontal, 7)
+        .frame(height: 24)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(watermarkButtonHovered ? Color.primary.opacity(0.10) : .clear)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .onHover { inside in watermarkButtonHovered = inside }
+        .onTapGesture { watermarkPopoverShown.toggle() }
+        .screenshotSafeHelp(strings.watermarkLabel)
+        .accessibilityLabel(strings.watermarkLabel)
+        .accessibilityAddTraits(active ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { watermarkPopoverShown.toggle() }
+        .popover(isPresented: $watermarkPopoverShown, arrowEdge: .top) {
+            ScreenshotWatermarkPopover(model: model)
+        }
+    }
+
+    @State private var watermarkButtonHovered = false
 
     private func fillPreview(for style: ScreenshotSupport.BackdropStyle) -> LinearGradient {
         let colors = BackdropPickerAssets.previewColors(for: style)
@@ -1191,9 +1383,10 @@ struct ScreenshotEditorView: View {
             .contentShape(Rectangle())
             .onDrag {
                 commitEditingTextIfNeeded()
-                guard let image = model.exportImage(),
+                guard let export = model.exportImage(),
                       let provider = ScreenshotService.dragItemProvider(
-                          image: image,
+                          image: export.image,
+                          scale: export.scale,
                           strings: strings
                       )
                 else { return NSItemProvider() }
@@ -1326,6 +1519,60 @@ extension ScreenshotSupport.Tool {
         case .redact: return strings.toolRedact
         case .crop: return strings.toolCrop
         }
+    }
+}
+
+/// Small samples of each arrow style, drawn by the editor's own renderer so
+/// the menu and the toolbar show exactly what a stroke will look like. They
+/// are templates, so menus tint them like their text.
+private enum ScreenshotArrowStyleSamples {
+    private static let images: [ScreenshotSupport.ArrowStyleID: NSImage] = Dictionary(
+        uniqueKeysWithValues: ScreenshotSupport.ArrowStyleID.allCases.map { ($0, render($0)) })
+
+    static func image(for style: ScreenshotSupport.ArrowStyleID) -> NSImage {
+        images[style] ?? render(style)
+    }
+
+    private static func render(_ style: ScreenshotSupport.ArrowStyleID) -> NSImage {
+        let size = NSSize(width: 36, height: 16)
+        let image = NSImage(size: size)
+        image.isTemplate = true
+        // Rasterized at 2x so the sample stays crisp on Retina displays.
+        let scale: CGFloat = 2
+        let pixels = CGSize(width: size.width * scale, height: size.height * scale)
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                            pixelsWide: Int(pixels.width),
+                                            pixelsHigh: Int(pixels.height),
+                                            bitsPerSample: 8,
+                                            samplesPerPixel: 4,
+                                            hasAlpha: true,
+                                            isPlanar: false,
+                                            colorSpaceName: .deviceRGB,
+                                            bytesPerRow: 0,
+                                            bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: bitmap)?.cgContext
+        else { return image }
+        bitmap.size = size
+        // The renderer works in top-down image pixels.
+        context.translateBy(x: 0, y: pixels.height)
+        context.scaleBy(x: 1, y: -1)
+        // A thin sample; the fixed seed keeps the scribbly one stable.
+        let sample = ScreenshotSupport.Annotation(
+            tool: .arrow,
+            points: [CGPoint(x: 3 * scale, y: pixels.height / 2),
+                     CGPoint(x: pixels.width - 3 * scale, y: pixels.height / 2)],
+            color: .black,
+            stroke: .small,
+            arrowStyle: style,
+            scribbleSeed: 0x5343524942424C59)
+        ScreenshotRenderer.drawAnnotations([sample],
+                                           in: context,
+                                           pixelated: [:],
+                                           imageSize: pixels,
+                                           scale: scale,
+                                           annotationShadowsEnabled: false)
+        image.addRepresentation(bitmap)
+        return image
     }
 }
 

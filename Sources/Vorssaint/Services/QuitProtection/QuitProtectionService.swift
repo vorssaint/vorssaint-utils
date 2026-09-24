@@ -125,6 +125,10 @@ final class QuitProtectionService: ObservableObject {
         isRunning = false
     }
 
+    /// Releases the tap, its observer and any press in flight, for callers
+    /// outside this type.
+    func suspend() { stop() }
+
     private func installTap() -> Bool {
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
             | CGEventMask(1 << CGEventType.keyUp.rawValue)
@@ -507,14 +511,15 @@ final class QuitProtectionService: ObservableObject {
         let strings = FeatureStrings.quitProtection(L10n.shared.language)
         let title: String
         if extraModifierOnly {
-            title = String(format: strings.extraHUDFormat,
+            title = String(format: strings.extraHUDFormat(for: shortcut),
                            "\(modifierSymbol(configuration.extraModifier))\(shortcut.symbol)")
         } else if configuration.mode == .hold {
-            title = String(format: strings.holdHUDFormat, shortcut.symbol)
+            title = String(format: strings.holdHUDFormat(for: shortcut), shortcut.symbol)
         } else {
-            title = String(format: strings.doubleHUDFormat, shortcut.symbol)
+            title = String(format: strings.doubleHUDFormat(for: shortcut), shortcut.symbol)
         }
-        hud.show(title: title, detail: strings.cancelHint)
+        hud.show(title: title, detail: strings.cancelHint,
+                 holdDeadline: configuration.mode == .hold ? holdTimer?.fireDate : nil)
     }
 
     private func hideHUD() { hud.hide() }
@@ -550,7 +555,7 @@ final class QuitProtectionService: ObservableObject {
     /// in the same words and the same place.
     func showSelectionHUD(for shortcut: QuitProtectionShortcut, on screen: NSScreen?) {
         let strings = FeatureStrings.quitProtection(L10n.shared.language)
-        hud.show(title: String(format: strings.doubleHUDFormat, shortcut.character.uppercased()),
+        hud.show(title: String(format: strings.doubleHUDFormat(for: shortcut), shortcut.character.uppercased()),
                  detail: strings.cancelHint,
                  on: screen)
     }

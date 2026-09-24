@@ -35,12 +35,47 @@ enum LocalizationTests {
         }
     }
 
+    static func formattingChecks(_ suite: TestSuite) {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let late = utc.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 23, minute: 5))!
+        func clock(_ language: AppLanguage, _ system: String) -> String {
+            var style = Date.FormatStyle.dateTime.hour().minute().locale(language.formattingLocale(system: Locale(identifier: system)))
+            style.timeZone = utc.timeZone
+            return late.formatted(style)
+        }
+        suite.expect(clock(.enUS, "en_BR") == "23:05" && clock(.enUS, "en_US@hours=h23") == "23:05",
+                     "English follows a 24-hour region or clock setting instead of its own 12-hour default")
+        suite.expect(clock(.ptBR, "en_US").hasPrefix("11:05"), "a 12-hour system clock is kept in any app language")
+        let month = late.formatted(Date.FormatStyle.dateTime.month(.wide)
+            .locale(AppLanguage.ptBR.formattingLocale(system: Locale(identifier: "en_US"))))
+        suite.expect(month == "setembro", "month and weekday names stay in the app's language")
+        suite.expect(AppLanguage.enUS.formattingLocale(system: Locale(identifier: "de_DE")).firstDayOfWeek == .monday,
+                     "the first day of the week follows the region")
+    }
+
     static func run(_ suite: TestSuite) {
+        formattingChecks(suite)
         suite.expect(Set(languages.map { $0.0 }) == Set(AppLanguage.allCases)
                      && languages.count == AppLanguage.allCases.count,
                      "the base strings cover each app language exactly once")
         suite.expect(!factories.isEmpty, "feature localization factories were discovered")
+        func diskPickerText(_ strings: Strings) -> [String] {
+            [strings.diskMenuBarStyleLabel, strings.diskMenuBarUsedPercentage,
+             strings.diskMenuBarAvailableSpace, strings.diskMenuBarUsedSpace]
+        }
+        let diskEnglish = diskPickerText(.enUS)
+        suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
+                     "disk picker uses a dedicated label and complete option names")
         for (language, strings) in languages {
+            suite.expect(strings.diskMenuBarStyleLabel != FeatureStrings.menuBarAppearance(language).label,
+                         "disk picker label is distinct from usage display in \(language.rawValue)")
+            suite.expect(Set(diskPickerText(strings).dropFirst()).count == 3,
+                         "disk picker options are distinct in \(language.rawValue)")
+            if language != .enUS {
+                suite.expect(zip(diskPickerText(strings), diskEnglish).allSatisfy { $0 != $1 },
+                             "disk picker translates every field in \(language.rawValue)")
+            }
             check(strings, against: Strings.enUS, name: "strings/\(language.rawValue)", suite: suite)
             let additional: [(String, (AppLanguage) -> Any)] = [
                 ("imageConverter", { MediaImageConverterStrings.localized($0) }),

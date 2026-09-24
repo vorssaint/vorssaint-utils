@@ -15,11 +15,19 @@ import CoreMedia
 /// and awaited, so no buffer can still be in flight.
 final class RecorderWriter {
 
+    enum AppendOutcome {
+        case appended
+        case notReady
+        case dropped
+    }
+
     private let writer: AVAssetWriter
     private let videoInput: AVAssetWriterInput
     private let systemAudioInput: AVAssetWriterInput?
     private let microphoneInput: AVAssetWriterInput?
     private let pauseClock: RecorderPauseClock
+    private var systemAudioConverter: AVAudioConverter?
+    private var microphoneConverter: AVAudioConverter?
 
     private var lastVideoSample: CMSampleBuffer?
     private var lastVideoTime: CMTime = .zero
@@ -147,16 +155,18 @@ final class RecorderWriter {
         started = true
     }
 
-    func append(_ sampleBuffer: CMSampleBuffer, kind: RecorderCaptureEngine.Kind) {
-        guard !failed else { return }
+    @discardableResult
+    func append(_ sampleBuffer: CMSampleBuffer,
+                kind: RecorderCaptureEngine.Kind) -> AppendOutcome {
+        guard !failed else { return .dropped }
         let presentation = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        guard presentation.isValid else { return }
+        guard presentation.isValid else { return .dropped }
 
-        guard started else { return }
+        guard started else { return .dropped }
         let duration = CMSampleBufferGetDuration(sampleBuffer)
         let seconds = duration.isValid && !duration.isIndefinite ? max(0, duration.seconds) : 0
         guard let mapped = pauseClock.sampleTime(start: presentation.seconds,
-                                                 duration: seconds) else { return }
+                                                 duration: seconds) else { return .dropped }
         let shifted = CMTime(seconds: mapped, preferredTimescale: 600_000_000)
 
         switch kind {
@@ -164,31 +174,105 @@ final class RecorderWriter {
             // Hold the first captured image over startup latency. Keep the
             // shared origin and every later timestamp so audio stays aligned.
             let videoTime: CMTime = videoFrameCount == 0 ? .zero : shifted
-            guard videoInput.isReadyForMoreMediaData,
-                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: videoTime)
-            else { return }
+            guard videoInput.isReadyForMoreMediaData else { return .notReady }
+            guard let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: videoTime)
+            else { return .dropped }
             if videoInput.append(retimed) {
                 videoFrameCount += 1
                 lastVideoSample = sampleBuffer
                 lastVideoTime = videoTime
+                return .appended
             } else {
                 failed = true
+                return .dropped
             }
         case .systemAudio:
-            guard let systemAudioInput, systemAudioInput.isReadyForMoreMediaData,
-                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: shifted)
-            else { return }
-            if !systemAudioInput.append(retimed) {
+            guard let systemAudioInput else { return .dropped }
+            guard systemAudioInput.isReadyForMoreMediaData else { return .notReady }
+            guard
+                  let interleaved = Self.interleavedAudioSample(sampleBuffer, converter: &systemAudioConverter),
+                  let retimed = RecorderSampleTiming.retimed(interleaved, to: shifted)
+            else { return .dropped }
+            guard systemAudioInput.append(retimed) else {
                 failed = true
+                return .dropped
             }
+            return .appended
         case .microphone:
-            guard let microphoneInput, microphoneInput.isReadyForMoreMediaData,
-                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: shifted)
-            else { return }
-            if !microphoneInput.append(retimed) {
+            guard let microphoneInput else { return .dropped }
+            guard microphoneInput.isReadyForMoreMediaData else { return .notReady }
+            guard
+                  let interleaved = Self.interleavedAudioSample(sampleBuffer, converter: &microphoneConverter),
+                  let retimed = RecorderSampleTiming.retimed(interleaved, to: shifted)
+            else { return .dropped }
+            guard microphoneInput.append(retimed) else {
                 failed = true
+                return .dropped
             }
+            return .appended
         }
+    }
+
+    /// The encoder cannot switch between one PCM buffer and a buffer per
+    /// channel mid-recording. Interleave captured audio without resampling
+    /// or remixing it, keeping the device's timing and channel layout intact.
+    private static func interleavedAudioSample(_ sample: CMSampleBuffer,
+                                               converter: inout AVAudioConverter?) -> CMSampleBuffer? {
+        guard let description = CMSampleBufferGetFormatDescription(sample),
+              var asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee,
+              asbd.mFormatID == kAudioFormatLinearPCM,
+              asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0,
+              asbd.mChannelsPerFrame > 1 else { return sample }
+        // Some devices omit speaker labels for their discrete input channels.
+        // AVAudioFormat requires a layout above stereo; preserve their order.
+        let sourceLayout = CMAudioFormatDescriptionGetChannelLayout(description, sizeOut: nil)
+            .map { AVAudioChannelLayout(layout: $0) }
+            ?? AVAudioChannelLayout(layoutTag: asbd.mChannelsPerFrame == 2
+                ? kAudioChannelLayoutTag_Stereo
+                : kAudioChannelLayoutTag_DiscreteInOrder | asbd.mChannelsPerFrame)
+        guard let sourceFormat = AVAudioFormat(streamDescription: &asbd, channelLayout: sourceLayout)
+        else { return nil }
+        if converter?.inputFormat != sourceFormat {
+            let (bytesPerFrame, frameOverflow) = asbd.mBytesPerFrame.multipliedReportingOverflow(by: asbd.mChannelsPerFrame)
+            let (bytesPerPacket, packetOverflow) = asbd.mBytesPerPacket.multipliedReportingOverflow(by: asbd.mChannelsPerFrame)
+            guard !frameOverflow, !packetOverflow else { return nil }
+            asbd.mFormatFlags &= ~kAudioFormatFlagIsNonInterleaved
+            asbd.mBytesPerFrame = bytesPerFrame
+            asbd.mBytesPerPacket = bytesPerPacket
+            guard let outputFormat = AVAudioFormat(streamDescription: &asbd, channelLayout: sourceFormat.channelLayout)
+            else { return nil }
+            converter = AVAudioConverter(from: sourceFormat, to: outputFormat)
+        }
+        let sampleCount = CMSampleBufferGetNumSamples(sample)
+        guard let converter,
+              let count = AVAudioFrameCount(exactly: sampleCount), count > 0,
+              let frameCount = Int32(exactly: sampleCount),
+              let input = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: count),
+              let output = AVAudioPCMBuffer(pcmFormat: converter.outputFormat, frameCapacity: count)
+        else { return nil }
+        input.frameLength = count
+        guard CMSampleBufferCopyPCMDataIntoAudioBufferList(sample, at: 0, frameCount: frameCount,
+            into: input.mutableAudioBufferList) == noErr else { return nil }
+        do { try converter.convert(to: output, from: input) }
+        catch { return nil }
+        guard output.frameLength == count else { return nil }
+
+        var timingCount = 0
+        guard CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: 0,
+            arrayToFill: nil, entriesNeededOut: &timingCount) == noErr, timingCount > 0 else { return nil }
+        var timing = Array(repeating: CMSampleTimingInfo(), count: timingCount)
+        guard CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: timingCount,
+            arrayToFill: &timing, entriesNeededOut: nil) == noErr else { return nil }
+        var result: CMSampleBuffer?
+        guard CMSampleBufferCreate(allocator: kCFAllocatorDefault, dataBuffer: nil, dataReady: false,
+            makeDataReadyCallback: nil, refcon: nil, formatDescription: output.format.formatDescription,
+            sampleCount: Int(output.frameLength), sampleTimingEntryCount: timingCount, sampleTimingArray: &timing,
+            sampleSizeEntryCount: 0, sampleSizeArray: nil, sampleBufferOut: &result) == noErr,
+            let result,
+            CMSampleBufferSetDataBufferFromAudioBufferList(result, blockBufferAllocator: kCFAllocatorDefault,
+                blockBufferMemoryAllocator: kCFAllocatorDefault, flags: 0, bufferList: output.audioBufferList) == noErr,
+            CMSampleBufferSetDataReady(result) == noErr else { return nil }
+        return result
     }
 
     /// Closes the file. The last frame is written once more at the moment the

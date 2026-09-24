@@ -187,7 +187,7 @@ struct MenuPanelView: View {
                 .environment(\.notchPresentation, true)
                 .environment(\.colorScheme, .dark)
             }
-            .frame(width: size.width, height: max(80, size.height - 96))
+            .frame(width: size.width, height: max(0, size.height - 96))
             footer
         }
         .frame(width: size.width, height: size.height, alignment: .top)
@@ -326,23 +326,12 @@ struct MenuPanelView: View {
         }
     }
 
+    /// The rule lives in PanelLayout; reading the @AppStorage values here is
+    /// what keeps the tabs refreshing when Settings flips one of them.
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
-        guard id.isAvailable else { return false }
-        switch id {
-        case .keepAwake: return showKeepAwake
-        // The section only earns its navigation tab while the feature is on;
-        // it is switched on in Settings, not from an empty panel screen.
-        case .brightness: return showBrightness && brightnessEnabled
-        case .mixer: return showMixer
-        case .system: return showSystem
-        case .network: return showNetwork
-        case .disk: return showDisk
-        case .power: return showPower
-        case .fanControl: return showFanControl
-        case .utilities: return showUtilities
-        case .controls: return showControls
-        case .toggles: return showToggles
-        }
+        _ = (showKeepAwake, showBrightness, brightnessEnabled, showMixer, showSystem, showNetwork,
+             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles)
+        return PanelLayout.isVisibleInPanel(id)
     }
 
     private var sectionNavigation: some View {
@@ -529,7 +518,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder
+         commandBar, screenRecorder, portManager
 
     var id: String { rawValue }
 
@@ -554,6 +543,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
+        case .portManager: return .portManager
         }
     }
 }
@@ -571,6 +561,7 @@ struct UtilitiesSection: View {
     @State private var showClipboardPanel = false
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
+    @State private var showPortManagerPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -588,6 +579,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
+    @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -641,6 +633,11 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showAppUpdatesPanel = false
                 }
+            } else if showPortManagerPanel {
+                PanelPortManagerView {
+                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
+                    showPortManagerPanel = false
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(items(editing: editing)) { item in
@@ -682,6 +679,7 @@ struct UtilitiesSection: View {
         if showRecentCapturesPanel { return .screenshot }
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
+        if showPortManagerPanel { return .portManager }
         return nil
     }
 
@@ -691,7 +689,7 @@ struct UtilitiesSection: View {
     private var isHostingUtility: Bool {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
-            || showWindowLayoutPanel || showAppUpdatesPanel
+            || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -746,6 +744,7 @@ struct UtilitiesSection: View {
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
+        case .portManager: return showPortManager
         }
     }
 
@@ -980,6 +979,14 @@ struct UtilitiesSection: View {
                                         CommandBarService.shared.show()
                                     }
                                 })
+        case .portManager:
+            UtilityActionButton(title: FeatureStrings.portManager(l10n.language).title,
+                                caption: FeatureStrings.portManager(l10n.language).listeningCaption,
+                                systemImage: "network",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showPortManager,
+                                action: { showPortManagerPanel = true })
         }
     }
 
@@ -1056,6 +1063,7 @@ struct UtilitiesSection: View {
         showScratchpad = true
         showQuickLauncher = true
         showCommandBar = true
+        showPortManager = true
     }
 
     private func grantAccessibility() {
@@ -1840,7 +1848,9 @@ struct QuickControlsSection: View {
     }
 
     private var keyDebounceWindowControl: some View {
-        Stepper(value: keyDebounceWindowBinding, in: Defaults.allowedKeyboardDebounceWindowRange, step: 5) {
+        Stepper(value: keyDebounceWindowBinding,
+                in: Defaults.allowedKeyboardDebounceWindowRange,
+                step: Defaults.keyboardDebounceWindowStep) {
             HStack(spacing: 6) {
                 Text(l10n.s.keyDebounceGlobalWindow)
                     .font(.system(size: 10.5, weight: .medium))
@@ -1890,12 +1900,13 @@ struct QuickControlsSection: View {
     private var switcherIconRowOption: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Text(String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString))
+                let title = String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString)
+                Text(title)
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Toggle("", isOn: $switcherIconRowMode)
+                Toggle(title, isOn: $switcherIconRowMode)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
@@ -1977,11 +1988,16 @@ struct UtilityActionButton: View {
                 VStack(alignment: .leading, spacing: 7) {
                     if permissionAction != nil {
                         rowContent(showChevron: false)
-                        permissionButton
                     } else {
                         mainButton
                     }
-                    accessoryButton
+                    VStack(alignment: .leading, spacing: 7) {
+                        if permissionAction != nil {
+                            permissionButton
+                        }
+                        accessoryButton
+                    }
+                    .padding(.leading, 31)
                 }
                 .panelCard()
             } else {
@@ -2011,7 +2027,6 @@ struct UtilityActionButton: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.mini)
-            .padding(.leading, 31)
         }
     }
 
@@ -2183,7 +2198,7 @@ struct PanelToggleRow: View {
             }
             PanelInlineHideButton(isVisible: visibility)
         } else {
-            Toggle("", isOn: $isOn)
+            Toggle(title, isOn: $isOn)
                 .labelsHidden()
                 .controlSize(.small)
                 .toggleStyle(.switch)
@@ -2460,6 +2475,8 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
     @State private var optionsExpanded = false
     @State private var automationExpanded = false
+    @State private var untilTime = Date().addingTimeInterval(3600)
+    @State private var useEndTime = false
     var collapsible = true
 
     var body: some View {
@@ -2470,7 +2487,7 @@ struct KeepAwakeCard: View {
                 HStack {
                     statusLine
                     Spacer()
-                    Toggle("", isOn: activeBinding)
+                    Toggle(l10n.s.keepAwakeTitle, isOn: activeBinding)
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
@@ -2485,13 +2502,30 @@ struct KeepAwakeCard: View {
                 }
 
                 if !awake.isActive {
-                    HStack {
-                        Text(l10n.s.durationLabel)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        DurationPicker(selection: $defaultDuration)
+                    Picker(l10n.s.durationLabel, selection: $useEndTime) {
+                        Text(l10n.s.durationLabel).tag(false)
+                        Text(l10n.s.keepAwakeUntilLabel).tag(true)
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    if useEndTime {
+                        KeepAwakeEndTimePicker(selection: $untilTime)
+                    } else {
+                        HStack {
+                            Image(systemName: "timer")
+                                .foregroundStyle(.secondary)
+                            DurationPicker(selection: $defaultDuration)
+                            Spacer(minLength: 0)
+                        }
+                    }
+
+                    Button(action: startSession) {
+                        Text(l10n.s.keepAwakeUntilStart)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                 }
 
                 optionsDisclosure
@@ -2659,7 +2693,7 @@ struct KeepAwakeCard: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Toggle("", isOn: isOn)
+                Toggle(title, isOn: isOn)
                     .toggleStyle(.switch)
                     .controlSize(.mini)
                     .labelsHidden()
@@ -2743,12 +2777,20 @@ struct KeepAwakeCard: View {
             get: { awake.isActive },
             set: { on in
                 if on {
-                    awake.activate(minutes: defaultDuration)
+                    startSession()
                 } else if awake.isActive {
                     awake.toggle()
                 }
             }
         )
+    }
+
+    private func startSession() {
+        if useEndTime {
+            awake.activate(until: KeepAwakeAutomationSupport.resolvedUntilDate(picked: untilTime, now: Date()))
+        } else {
+            awake.activate(minutes: defaultDuration)
+        }
     }
 
     private func grantAccessibility() {
@@ -2774,7 +2816,7 @@ struct KeepAwakeCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn)
+            Toggle(title, isOn: isOn)
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .labelsHidden()
@@ -2791,7 +2833,8 @@ struct KeepAwakeCard: View {
         .font(.system(size: 10))
     }
 
-    private static func remainingText(until end: Date) -> String {
+    /// "1 h 05 min" style countdown, shared with the Energy page's status line.
+    static func remainingText(until end: Date) -> String {
         let total = max(0, Int(end.timeIntervalSinceNow))
         let hours = total / 3600
         let minutes = (total % 3600) / 60
@@ -2807,15 +2850,27 @@ struct DurationPicker: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var selection: Int
 
+    /// The offered durations in minutes; 0 keeps the session open until it
+    /// is switched off.
+    static let choices = [15, 30, 60, 120, 240, 480, 0]
+
+    static func title(for minutes: Int, _ s: Strings) -> String {
+        switch minutes {
+        case 15: return s.minutes15
+        case 30: return s.minutes30
+        case 60: return s.hour1
+        case 120: return s.hours2
+        case 240: return s.hours4
+        case 480: return s.hours8
+        default: return s.indefinite
+        }
+    }
+
     var body: some View {
         Picker("", selection: $selection) {
-            Text(l10n.s.minutes15).tag(15)
-            Text(l10n.s.minutes30).tag(30)
-            Text(l10n.s.hour1).tag(60)
-            Text(l10n.s.hours2).tag(120)
-            Text(l10n.s.hours4).tag(240)
-            Text(l10n.s.hours8).tag(480)
-            Text(l10n.s.indefinite).tag(0)
+            ForEach(Self.choices, id: \.self) { minutes in
+                Text(Self.title(for: minutes, l10n.s)).tag(minutes)
+            }
         }
         .labelsHidden()
         .pickerStyle(.menu)

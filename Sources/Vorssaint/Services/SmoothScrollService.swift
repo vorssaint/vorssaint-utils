@@ -37,6 +37,7 @@ final class SmoothScrollService: ObservableObject {
     private var engine = SmoothScrollSupport.Engine()
     private var lastFrameTimestamp: TimeInterval?
     private var currentResponse = SmoothScrollSupport.defaultResponse
+    private var currentCoast = SmoothScrollSupport.defaultCoast
     /// Sub-pixel leftovers kept between frames, so a wheel that moves in
     /// fractions of a pixel still travels its full distance.
     private var carryVertical: Double = 0
@@ -44,6 +45,7 @@ final class SmoothScrollService: ObservableObject {
     /// Modifiers of the wheel event that started or fed the glide, replayed on
     /// the synthetic events so apps can still react to them.
     private var currentFlags: CGEventFlags = []
+    private var currentScrollRedirected = false
     /// Whether the glide is being fed by continuous wheel events. The two
     /// kinds measure their distance differently, so switching devices
     /// mid-glide drops the tail rather than mixing the two budgets.
@@ -245,10 +247,6 @@ final class SmoothScrollService: ObservableObject {
            ) {
             return Unmanaged.passUnretained(event)
         }
-        // Control-scroll drives screen zoom; keep its stepping predictable.
-        guard !event.flags.contains(.maskControl) else {
-            return Unmanaged.passUnretained(event)
-        }
         // Apps on this feature's exception list get their wheel raw: the
         // glide would arrive as a much longer move inside apps that read the
         // wheel themselves (issue #358).
@@ -266,16 +264,27 @@ final class SmoothScrollService: ObservableObject {
         // The flip is the inverter's, so it follows the inverter's own
         // exception list: an app excepted there must keep the system's
         // direction even while its wheel glides.
-        let invertHere = ScrollInverter.shared.isRunning
+        let adjustDirectionHere = ScrollInverter.shared.isRunning
             && !exceptions.excludesPointerTarget(
                 .scrollDirection,
                 at: event.location,
                 sourceProcessID: sourceProcessID)
         let defaults = UserDefaults.standard
-        let invertVertical = invertHere
-            && defaults.bool(forKey: DefaultsKey.scrollInverterEnabled) ? -1.0 : 1.0
-        let invertHorizontal = invertHere
-            && defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled) ? -1.0 : 1.0
+        let direction = ScrollDirectionPreferences(defaults: defaults)
+        let redirected: Bool
+        if adjustDirectionHere, let modifier = direction.horizontalModifier {
+            redirected = ScrollWheelSupport.redirectVerticalScroll(event, modifier: modifier,
+                targetsOwnWindow: ScrollWheelTarget.shared.contains(event.location))
+        } else {
+            redirected = false
+        }
+        // Control-scroll keeps its native zoom unless explicitly used by the
+        // horizontal-scroll setting, which consumes Control above.
+        guard !event.flags.contains(.maskControl) else {
+            return Unmanaged.passUnretained(event)
+        }
+        let invertVertical = adjustDirectionHere && direction.invertVertical ? -1.0 : 1.0
+        let invertHorizontal = adjustDirectionHere && direction.invertHorizontal ? -1.0 : 1.0
         let shiftPressed = event.flags.contains(.maskShift)
         let vertical: Double
         let horizontal: Double
@@ -324,6 +333,7 @@ final class SmoothScrollService: ObservableObject {
         // and switching between a discrete and a continuous wheel changes the
         // sign handling. Drop the old tail instead of fighting it.
         if currentFlags.contains(.maskShift) != shiftPressed
+            || currentScrollRedirected != redirected
             || glideFromContinuous != traits.isContinuous {
             engine.reset()
             carryVertical = 0
@@ -335,8 +345,12 @@ final class SmoothScrollService: ObservableObject {
         carryHorizontal = SmoothScrollSupport.carry(carryHorizontal, continuing: horizontalDistance)
         engine.add(vertical: verticalDistance, horizontal: horizontalDistance)
         currentFlags = event.flags
+        currentScrollRedirected = redirected
         currentResponse = SmoothScrollSupport.sanitizedResponse(
             defaults.integer(forKey: DefaultsKey.smoothScrollResponse)
+        )
+        currentCoast = SmoothScrollSupport.sanitizedCoast(
+            defaults.integer(forKey: DefaultsKey.smoothScrollCoast)
         )
         glideFromContinuous = traits.isContinuous
         startGlideIfNeeded()
@@ -414,7 +428,7 @@ final class SmoothScrollService: ObservableObject {
             elapsed = firstElapsed
         }
         lastFrameTimestamp = timestamp
-        let frame = engine.advance(elapsed: elapsed, response: currentResponse)
+        let frame = engine.advance(elapsed: elapsed, response: currentResponse, coast: currentCoast)
 
         // The frame that empties the budget is the glide's last, so it spends
         // the leftovers rather than saving them for a frame that never comes.

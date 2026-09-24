@@ -11,13 +11,15 @@ enum NotchMusicAutomation {
         let pid: Int32
         let bundleIdentifier: String
         let bundleURL: URL
-        let launched: Date
+        /// Nil when Launch Services did not start the player, as for a process
+        /// launchd spawned; the bundle checks still bind the process identity.
+        let launched: Date?
 
         init?(_ playback: NotchPlayback) {
             guard let pid = playback.track.appPID, let bundle = playback.track.appBundleIdentifier,
                   let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated,
-                  app.bundleIdentifier == bundle, let url = app.bundleURL, let launched = app.launchDate else { return nil }
-            self.pid = pid; bundleIdentifier = bundle; bundleURL = url; self.launched = launched
+                  app.bundleIdentifier == bundle, let url = app.bundleURL else { return nil }
+            self.pid = pid; bundleIdentifier = bundle; bundleURL = url; launched = app.launchDate
         }
 
         var isCurrent: Bool {

@@ -24,20 +24,16 @@ enum ScreenshotRenderer {
         return NSColor(srgbRed: c.red, green: c.green, blue: c.blue, alpha: 1)
     }
 
-    static func fontSize(for stroke: ScreenshotSupport.StrokeID, scale: CGFloat) -> CGFloat {
-        switch stroke {
-        case .small: return 13 * scale
-        case .medium: return 19 * scale
-        case .large: return 27 * scale
-        }
+    static func fontSize(for textSize: Int, scale: CGFloat) -> CGFloat {
+        CGFloat(textSize) * scale
     }
 
     /// Measures a text annotation's box for hit-testing and the inline editor.
     static func textBounds(_ text: String,
                            at origin: CGPoint,
-                           stroke: ScreenshotSupport.StrokeID,
+                           textSize: Int,
                            scale: CGFloat) -> CGRect {
-        let font = NSFont.systemFont(ofSize: fontSize(for: stroke, scale: scale), weight: .semibold)
+        let font = NSFont.systemFont(ofSize: fontSize(for: textSize, scale: scale), weight: .semibold)
         let measured = (text.isEmpty ? " " : text).size(withAttributes: [.font: font])
         return CGRect(origin: origin,
                       size: CGSize(width: ceil(measured.width) + 4, height: ceil(measured.height)))
@@ -45,12 +41,12 @@ enum ScreenshotRenderer {
 
     // MARK: - Annotation pass
 
-    /// Draws every annotation over the base content. `pixelated` is the
-    /// redaction source for pixelate rectangles; text being edited inline is
+    /// Draws every annotation over the base content. `pixelated` holds the
+    /// redaction source for pixelate rectangles, one per blur level; text being edited inline is
     /// skipped so the live field is the only visible copy.
     static func drawAnnotations(_ annotations: [ScreenshotSupport.Annotation],
                                 in context: CGContext,
-                                pixelated: CGImage?,
+                                pixelated: [Int: CGImage],
                                 imageSize: CGSize,
                                 scale: CGFloat,
                                 annotationShadowsEnabled: Bool,
@@ -79,11 +75,11 @@ enum ScreenshotRenderer {
                     context.strokeEllipse(in: annotation.rect)
                 }
             case .line:
-                drawLine(annotation, in: context, scale: scale, arrow: false,
+                drawLine(annotation, in: context, scale: scale,
                          shadowsEnabled: annotationShadowsEnabled)
             case .arrow:
-                drawLine(annotation, in: context, scale: scale, arrow: true,
-                         shadowsEnabled: annotationShadowsEnabled)
+                drawArrow(annotation, in: context, scale: scale,
+                          shadowsEnabled: annotationShadowsEnabled)
             case .freehand:
                 drawFreehand(annotation, in: context, scale: scale,
                              shadowsEnabled: annotationShadowsEnabled)
@@ -122,7 +118,6 @@ enum ScreenshotRenderer {
     private static func drawLine(_ annotation: ScreenshotSupport.Annotation,
                                  in context: CGContext,
                                  scale: CGFloat,
-                                 arrow: Bool,
                                  shadowsEnabled: Bool) {
         guard annotation.points.count >= 2 else { return }
         let start = annotation.points[0]
@@ -130,24 +125,48 @@ enum ScreenshotRenderer {
         let width = annotation.stroke.width * scale
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
+        context.setStrokeColor(color(annotation.color))
+        context.setLineWidth(width)
+        context.setLineCap(.round)
+        context.beginPath()
+        context.move(to: start)
+        context.addLine(to: end)
+        context.strokePath()
+        context.restoreGState()
+    }
 
-        guard arrow else {
-            context.setStrokeColor(color(annotation.color))
-            context.setLineWidth(width)
-            context.setLineCap(.round)
-            context.beginPath()
-            context.move(to: start)
-            context.addLine(to: end)
-            context.strokePath()
-            context.restoreGState()
-            return
-        }
+    private static func drawArrow(_ annotation: ScreenshotSupport.Annotation,
+                                  in context: CGContext,
+                                  scale: CGFloat,
+                                  shadowsEnabled: Bool) {
+        guard annotation.points.count >= 2 else { return }
+        let start = annotation.points[0]
+        let end = annotation.points[1]
+        let width = annotation.stroke.width * scale
 
+        context.saveGState()
+        applyShadow(context, scale: scale, enabled: shadowsEnabled)
+        context.setStrokeColor(color(annotation.color))
         context.setFillColor(color(annotation.color))
-        context.addPath(ScreenshotSupport.arrowSilhouette(from: start,
-                                                          to: end,
-                                                          strokeWidth: width))
-        context.fillPath()
+        context.setLineWidth(width)
+        context.setLineJoin(.round)
+        context.setLineCap(.round)
+
+        if let outline = ScreenshotSupport.arrowStrokePath(from: start,
+                                                           to: end,
+                                                           strokeWidth: width,
+                                                           style: annotation.arrowStyle,
+                                                           seed: annotation.scribbleSeed) {
+            // Shaft and head in one stroke: the shadow falls on the whole arrow
+            // once, instead of the head shading the shaft where they meet.
+            context.addPath(outline)
+            context.strokePath()
+        } else {
+            context.addPath(ScreenshotSupport.arrowSilhouette(from: start,
+                                                              to: end,
+                                                              strokeWidth: width))
+            context.fillPath()
+        }
         context.restoreGState()
     }
 
@@ -184,7 +203,7 @@ enum ScreenshotRenderer {
                                  scale: CGFloat,
                                  shadowsEnabled: Bool) {
         guard !annotation.text.isEmpty else { return }
-        let font = NSFont.systemFont(ofSize: fontSize(for: annotation.stroke, scale: scale),
+        let font = NSFont.systemFont(ofSize: fontSize(for: annotation.textSize, scale: scale),
                                      weight: .semibold)
         var attributes: [NSAttributedString.Key: Any] = [
             .font: font,
@@ -267,9 +286,9 @@ enum ScreenshotRenderer {
 
     private static func drawPixelate(_ annotation: ScreenshotSupport.Annotation,
                                      in context: CGContext,
-                                     pixelated: CGImage?,
+                                     pixelated: [Int: CGImage],
                                      imageSize: CGSize) {
-        guard let pixelated else { return }
+        guard let pixelated = pixelated[annotation.blurLevel] else { return }
         context.saveGState()
         context.clip(to: annotation.rect)
         // The pixelated twin is drawn full-size under the clip; flip locally
@@ -289,12 +308,88 @@ enum ScreenshotRenderer {
                           color: CGColor(gray: 0, alpha: 0.38))
     }
 
+    // MARK: - Watermark
+
+    /// Draws the mark over the finished annotations, so a redaction or an
+    /// arrow can never erase it, and inside the capture, so a backdrop's
+    /// margin stays clean. The picture of an image mark is loaded by the
+    /// editor; nil draws nothing, the way a vanished backdrop file does.
+    static func drawWatermark(_ style: ScreenshotSupport.WatermarkStyle,
+                              image: CGImage?,
+                              in context: CGContext,
+                              imageSize: CGSize,
+                              scale: CGFloat,
+                              shadowsEnabled: Bool,
+                              cornerRadius: CGFloat = 0) {
+        let style = style.sanitized()
+        let contentSize: CGSize
+        let draw: (CGRect) -> Void
+        switch style.kind {
+        case .none:
+            return
+        case .text:
+            let font = NSFont.systemFont(
+                ofSize: ScreenshotSupport.watermarkFontSize(for: imageSize,
+                                                            factor: CGFloat(style.size)),
+                weight: .semibold)
+            let color = ScreenshotSupport.ColorID(rawValue: style.color) ?? .white
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: nsColor(color),
+            ]
+            let measured = style.text.size(withAttributes: attributes)
+            contentSize = CGSize(width: ceil(measured.width), height: ceil(measured.height))
+            draw = { rect in
+                // NSAttributedString draws in an unflipped space; flip locally.
+                let previous = NSGraphicsContext.current
+                NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+                style.text.draw(at: rect.origin, withAttributes: attributes)
+                NSGraphicsContext.current = previous
+            }
+        case .image:
+            guard let image, image.width > 0, image.height > 0 else { return }
+            let width = ScreenshotSupport.watermarkImageWidth(for: imageSize,
+                                                              factor: CGFloat(style.size))
+            contentSize = CGSize(width: width,
+                                 height: width * CGFloat(image.height) / CGFloat(image.width))
+            draw = { rect in
+                // CGContext.draw expects an unflipped space; flip around the
+                // mark's center, which is the origin by now.
+                context.scaleBy(x: 1, y: -1)
+                context.interpolationQuality = .high
+                context.draw(image, in: rect)
+            }
+        }
+        guard let placement = ScreenshotSupport.watermarkPlacement(contentSize: contentSize,
+                                                                   rotation: style.rotation,
+                                                                   anchor: style.anchor,
+                                                                   in: imageSize,
+                                                                   cornerRadius: cornerRadius)
+        else { return }
+
+        context.saveGState()
+        // One layer for the whole mark: its opacity and shadow then apply to
+        // the composite rather than to every glyph on its own.
+        applyShadow(context, scale: scale, enabled: shadowsEnabled)
+        context.setAlpha(CGFloat(style.opacity))
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.translateBy(x: placement.center.x, y: placement.center.y)
+        // The context is flipped, where a positive angle turns clockwise.
+        context.rotate(by: -CGFloat(style.rotation) * .pi / 180)
+        context.scaleBy(x: placement.fit, y: placement.fit)
+        draw(CGRect(x: -contentSize.width / 2, y: -contentSize.height / 2,
+                    width: contentSize.width, height: contentSize.height))
+        context.endTransparencyLayer()
+        context.restoreGState()
+    }
+
     // MARK: - Pixelation source
 
     /// A low-resolution mosaic with per-block color variation.
-    static func pixelatedImage(from image: CGImage) -> CGImage? {
+    static func pixelatedImage(from image: CGImage,
+                               level: Int = ScreenshotSupport.BlurStrength.defaultLevel) -> CGImage? {
         let block = ScreenshotSupport.pixelBlockSize(
-            for: CGSize(width: image.width, height: image.height))
+            for: CGSize(width: image.width, height: image.height), level: level)
         let smallWidth = max(1, image.width / block)
         let smallHeight = max(1, image.height / block)
         guard let small = CGContext(data: nil,
@@ -349,26 +444,41 @@ enum ScreenshotRenderer {
         case image(CGImage)
     }
 
-    /// Flattens the base image and annotations, rounds the card's corners,
-    /// optionally composes the padded backdrop fill behind it, optionally
-    /// downscaled to 1x.
+    /// A finished picture together with the pixels per point it was rendered
+    /// at, so every file and pasteboard item it becomes can say how big it is
+    /// on screen: a Retina capture then opens at its own size in Preview,
+    /// Quick Look and documents, the way a system screenshot does, instead of
+    /// twice as large and softened by the upscale.
+    struct Export {
+        let image: CGImage
+        let scale: CGFloat
+    }
+
+    /// Flattens the base image, annotations and watermark, rounds the card's
+    /// corners, optionally composes the padded backdrop fill behind it,
+    /// optionally downscaled to 1x.
     static func renderExport(baseImage: CGImage,
                              annotations: [ScreenshotSupport.Annotation],
-                             pixelated: CGImage?,
+                             pixelated: [Int: CGImage],
                              scale: CGFloat,
                              annotationShadowsEnabled: Bool,
+                             watermark: ScreenshotSupport.WatermarkStyle,
+                             watermarkImage: CGImage?,
                              style: ScreenshotSupport.BackdropStyle,
                              fill: BackdropFill,
-                             downscaleTo1x: Bool) -> CGImage? {
+                             downscaleTo1x: Bool) -> Export? {
         let imageSize = CGSize(width: baseImage.width, height: baseImage.height)
+        let corner = ScreenshotSupport.cardCornerRadius(for: imageSize,
+                                                        factor: style.cornerRadius)
         guard let flattened = renderFlattened(baseImage: baseImage,
                                               annotations: annotations,
                                               pixelated: pixelated,
                                               scale: scale,
-                                              annotationShadowsEnabled: annotationShadowsEnabled)
+                                              annotationShadowsEnabled: annotationShadowsEnabled,
+                                              watermark: watermark,
+                                              watermarkImage: watermarkImage,
+                                              cornerRadius: corner)
         else { return nil }
-        let corner = ScreenshotSupport.cardCornerRadius(for: imageSize,
-                                                        factor: style.cornerRadius)
 
         var result = flattened
         if case .none = fill {
@@ -389,10 +499,10 @@ enum ScreenshotRenderer {
             let target = ScreenshotSupport.downscaledSize(
                 pixelSize: CGSize(width: result.width, height: result.height), scale: scale)
             if let smaller = resized(result, to: target) {
-                result = smaller
+                return Export(image: smaller, scale: 1)
             }
         }
-        return result
+        return Export(image: result, scale: scale)
     }
 
     private static func roundedAlpha(_ image: CGImage, corner: CGFloat) -> CGImage? {
@@ -414,9 +524,12 @@ enum ScreenshotRenderer {
 
     private static func renderFlattened(baseImage: CGImage,
                                         annotations: [ScreenshotSupport.Annotation],
-                                        pixelated: CGImage?,
+                                        pixelated: [Int: CGImage],
                                         scale: CGFloat,
-                                        annotationShadowsEnabled: Bool) -> CGImage? {
+                                        annotationShadowsEnabled: Bool,
+                                        watermark: ScreenshotSupport.WatermarkStyle,
+                                        watermarkImage: CGImage?,
+                                        cornerRadius: CGFloat) -> CGImage? {
         let width = baseImage.width
         let height = baseImage.height
         guard let context = CGContext(data: nil,
@@ -437,6 +550,13 @@ enum ScreenshotRenderer {
                         imageSize: CGSize(width: width, height: height),
                         scale: scale,
                         annotationShadowsEnabled: annotationShadowsEnabled)
+        drawWatermark(watermark,
+                      image: watermarkImage,
+                      in: context,
+                      imageSize: CGSize(width: width, height: height),
+                      scale: scale,
+                      shadowsEnabled: annotationShadowsEnabled,
+                      cornerRadius: cornerRadius)
         return context.makeImage()
     }
 
@@ -560,22 +680,29 @@ enum ScreenshotRenderer {
 
     // MARK: - Encoding
 
-    static func pngData(from image: CGImage, scale: CGFloat? = nil) -> Data? {
+    /// PNG carrying the picture's pixels per point as standard DPI, the same
+    /// convention the system screenshot tool writes and the store reads back.
+    static func pngData(from image: CGImage, scale: CGFloat) -> Data? {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             data, UTType.png.identifier as CFString, 1, nil)
         else { return nil }
-        let properties: CFDictionary?
-        if let scale {
-            properties = [
-                kCGImagePropertyDPIWidth: Double(scale) * 72,
-                kCGImagePropertyDPIHeight: Double(scale) * 72,
-            ] as CFDictionary
-        } else {
-            properties = nil
-        }
+        let properties = [
+            kCGImagePropertyDPIWidth: Double(scale) * 72,
+            kCGImagePropertyDPIHeight: Double(scale) * 72,
+        ] as CFDictionary
         CGImageDestinationAddImage(destination, image, properties)
         guard CGImageDestinationFinalize(destination) else { return nil }
         return data as Data
+    }
+
+    /// TIFF for the pasteboard with the same density as the PNG: the point
+    /// size is what the TIFF stores as its resolution, so a paste lands at
+    /// the capture's on-screen size.
+    static func tiffData(from image: CGImage, scale: CGFloat) -> Data? {
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        bitmap.size = NSSize(width: CGFloat(image.width) / scale,
+                             height: CGFloat(image.height) / scale)
+        return bitmap.tiffRepresentation
     }
 }

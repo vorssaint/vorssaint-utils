@@ -6,7 +6,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct NotchFilesView: View {
-    let service: NotchService
+    @ObservedObject var service: NotchService
     @ObservedObject private var shelf = ShelfService.shared
     @ObservedObject private var l10n = L10n.shared
     @State private var shareAnchor = ShelfSharePickerAnchor.Anchor()
@@ -17,15 +17,26 @@ struct NotchFilesView: View {
     @State private var supportedTools: [MediaTool] = []
     @State private var showingActions = false
     @State private var outputPanel: NSSavePanel?
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
-        VStack(spacing: 12) {
-            if let session = archives.mediaSession, AppFeature.mediaTools.isAvailable {
+        VStack(spacing: NotchLayout.rowSpacing) {
+            if service.choosingFileDropDestination, AppFeature.mediaTools.isAvailable {
+                HStack(spacing: NotchFileToolsSupport.dropSpacing) {
+                    dropDestination(FeatureStrings.notch(l10n.language).files, symbol: "tray.and.arrow.down",
+                                    selected: !service.targetsMediaDrop)
+                    dropDestination(text.optimizeMedia, symbol: "wand.and.stars", selected: service.targetsMediaDrop,
+                                    available: archives.canAcceptMediaDrop)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let session = archives.mediaSession, archives.mediaPresented, AppFeature.mediaTools.isAvailable {
                 MediaWorkspaceView(compact: true, onClose: archives.closeMedia,
                                    media: media, initialInputs: session.inputs,
                                    initialTool: session.tool, preservesServiceState: true,
-                                   workspace: archives.mediaSelection)
+                                   workspace: archives.mediaSelection,
+                                   onContentHeightChange: { mediaHeightChanged($0, id: session.id) },
+                                   onToolChange: { service.refreshPresentation(transitionContent: .replace) })
                     .id(session.id)
             } else if shelf.items.isEmpty {
                 NotchEmptyView(symbol: "tray.and.arrow.down", message: FeatureStrings.notch(l10n.language).dropHint)
@@ -38,40 +49,60 @@ struct NotchFilesView: View {
                                selection: shelf.selection,
                                expandedBatches: shelf.expandedBatches,
                                revealID: shelf.revealTargetID,
-                               revealSerial: shelf.addSerial)
+                               revealSerial: shelf.addSerial,
+                               sideways: true)
                     .frame(maxHeight: .infinity)
                 HStack {
-                    Text(l10n.s.shelfHint).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+                    Text(shelf.selection.isEmpty ? l10n.s.shelfHint
+                         : String(format: l10n.s.shelfSelectedFormat, shelf.selection.count))
+                        .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
                     Spacer()
                     if AppFeature.mediaTools.isAvailable {
                         NotchIconButton(symbol: "wand.and.stars", title: l10n.s.mediaName) {
-                            service.pinned = true
                             actionInputs = shelf.fileURLsForActions()
                             supportedTools = MediaTool.allCases.filter { NotchFileToolsSupport.accepts(actionInputs, for: $0) }
                             showingActions = !actionInputs.isEmpty
                         }
-                        .disabled(!shelf.hasFilesForActions || archives.isRunning)
+                        .disabled(!shelf.hasFilesForActions || !archives.canAcceptMediaDrop)
                         .popover(isPresented: $showingActions) { fileActions.padding(14).frame(width: 270) }
                     }
                     NotchIconButton(symbol: "square.and.arrow.up", title: l10n.s.shelfActionShare) {
-                        service.pinned = true
                         shareAnchor.present(shelf.fileURLsForActions())
                     }
                     .background(ShelfSharePickerAnchor(anchor: shareAnchor))
                     .disabled(!shelf.hasFilesForActions)
-                    clearMenu
+                    // The shelf's trash takes the selection first, the whole
+                    // shelf only when nothing is selected.
+                    if shelf.selection.isEmpty {
+                        clearMenu
+                    } else {
+                        NotchIconButton(symbol: "trash.fill", title: l10n.s.shelfRemoveSelected) {
+                            shelf.removeItems(Array(shelf.selection))
+                        }
+                        .disabled(archives.isRunning)
+                    }
                 }
             }
-            if archives.mediaSession == nil, AppFeature.mediaTools.isAvailable { archiveStatus }
+            if !service.choosingFileDropDestination, !archives.mediaPresented, AppFeature.mediaTools.isAvailable {
+                archiveStatus
+                if archives.mediaSession != nil {
+                    Button(action: archives.showMedia) {
+                        Label(text.resumeMedia, systemImage: "wand.and.stars")
+                    }.controlSize(.small)
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: archives.mediaSession?.id) {
-            service.objectWillChange.send()
             service.refreshPresentation()
         }
+        .onChange(of: archives.mediaPresented) { service.refreshPresentation() }
+        .onChange(of: showingActions || outputPanel != nil) { _, active in service.keepFileInteractionOpen(active) }
         .onDisappear {
             outputPanel?.cancel(nil)
             outputPanel = nil
+            // Only the island's own page holds the island open.
+            if !preview { service.keepFileInteractionOpen(false) }
         }
         .onChange(of: features.revision) {
             if !AppFeature.mediaTools.isAvailable {
@@ -80,6 +111,33 @@ struct NotchFilesView: View {
                 outputPanel?.cancel(nil)
             }
         }
+    }
+
+    private func mediaHeightChanged(_ height: CGFloat, id: UUID) {
+        let previous = archives.mediaContentHeight
+        archives.updateMediaHeight(id: id, height: height)
+        // Start the native resize in the same layout callback. Waiting for a
+        // second SwiftUI update leaves the new controls inside the old frame,
+        // and an unrelated preference refresh can settle it without animation.
+        if archives.mediaContentHeight != previous { service.refreshPresentation() }
+    }
+
+    private func dropDestination(_ title: String, symbol: String, selected: Bool, available: Bool = true) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: symbol).font(.system(size: 28, weight: .light))
+            Text(title).font(.callout.weight(.medium)).multilineTextAlignment(.center)
+            if !available { Text(l10n.s.mediaRunning).font(.caption).foregroundStyle(.secondary) }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.white.opacity(selected ? 0.14 : 0.04), in: RoundedRectangle(cornerRadius: 20))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(.white.opacity(selected ? 0.7 : 0.2), lineWidth: selected ? 1.5 : 0.75)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .opacity(available ? 1 : 0.5)
     }
 
     // A sheet dims the window's transparent margins. A native menu keeps the
@@ -116,7 +174,6 @@ struct NotchFilesView: View {
                     Button {
                         showingActions = false
                         archives.openMedia(tool, inputs: actionInputs)
-                        service.pinned = true
                     } label: { Text(toolTitle(tool)) }
                 }
             }
@@ -180,16 +237,33 @@ struct NotchFilesView: View {
         panel.directoryURL = inputs[0].deletingLastPathComponent()
         panel.message = text.archiveHint
         outputPanel = panel
-        service.pinned = true
-        NSApp.activate(ignoringOtherApps: true)
-        panel.begin { response in
+        let completed: (NSApplication.ModalResponse) -> Void = { response in
             outputPanel = nil
             guard response == .OK, let destination = panel.url,
                   AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable,
                   NotchSupport.isEnabled() else { return }
             archives.archive(inputs, destination: destination, directory: multiple)
-            service.open(.files, pinned: true)
+            service.open(.files)
         }
+        guard let island = service.presentationWindow, island.isVisible else {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.begin(completionHandler: completed)
+            return
+        }
+        // The island floats above ordinary windows, and a sheet would move and
+        // reskin it. The panel opens on its own just above it instead, and the
+        // pending outputPanel keeps the island open meanwhile.
+        panel.level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+        // Like the island's other dialogs, it stays up while another app is active.
+        panel.hidesOnDeactivate = false
+        panel.begin { response in
+            completed(response)
+            // Dismissal restores the previous key window after this callback.
+            DispatchQueue.main.async { if service.expanded { island.makeKey() } }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        // Activation alone can leave the nonactivating island holding focus.
+        panel.makeKeyAndOrderFront(nil)
     }
 
 }

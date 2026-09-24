@@ -72,6 +72,27 @@ enum StatusItemAnchorSupport {
         return frame.width > 0 && frame.height <= 0
     }
 
+    /// Bound recovery even if the system immediately closes the panel again.
+    static let panelReopenCooldown: TimeInterval = 1
+
+    /// currentEvent can outlive its dispatch. Only a fresh click delivered to
+    /// this panel permits recovery; keys, other windows and old events do not.
+    static func shouldReopenPanel(closedByApp: Bool,
+                                  lastFrame: CGRect?,
+                                  panelWindowNumber: Int?,
+                                  event: NSEvent?,
+                                  secondsSinceLastReopen: TimeInterval,
+                                  uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
+        guard !closedByApp,
+              secondsSinceLastReopen > panelReopenCooldown,
+              let lastFrame, let panelWindowNumber, panelWindowNumber > 0,
+              let event, event.windowNumber == panelWindowNumber,
+              event.type == .leftMouseDown || event.type == .leftMouseUp
+                || event.type == .rightMouseDown || event.type == .rightMouseUp,
+              (0...0.25).contains(uptime - event.timestamp) else { return false }
+        return CGRect(origin: .zero, size: lastFrame.size).contains(event.locationInWindow)
+    }
+
     /// Where an open panel belongs for a cached anchor: centered on the
     /// anchor's horizontal middle with its top edge held, so content that
     /// grows or shrinks (switching panel tabs) extends downward instead of

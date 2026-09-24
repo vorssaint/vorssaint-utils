@@ -20,10 +20,13 @@ struct PanelRecentCapturesView: View {
 struct RecentCapturesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = RecentCaptureService.shared
+    @Environment(\.notchPresentation) private var inNotch
     @State private var confirmingClear = false
 
     var onClose: (() -> Void)?
-    var notchHeight: CGFloat? = nil
+    /// Inside the island the list becomes a rail of cards that fill this
+    /// area and continue sideways.
+    var notchSize: CGSize? = nil
 
     private var text: RecentCaptureStrings {
         FeatureStrings.recentCaptures(l10n.language)
@@ -39,7 +42,7 @@ struct RecentCapturesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if notchHeight == nil { header }
+            if notchSize == nil { header }
             content
         }
         .onAppear { history.reload() }
@@ -59,7 +62,7 @@ struct RecentCapturesView: View {
                 .font(.system(size: 12, weight: .semibold))
             Spacer()
             Button {
-                confirmingClear = true
+                if inNotch { confirmClearAboveIsland() } else { confirmingClear = true }
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 11, weight: .semibold))
@@ -83,6 +86,15 @@ struct RecentCapturesView: View {
         }
     }
 
+    /// The dialog would hang from the island as a sheet; there it asks on its own.
+    private func confirmClearAboveIsland() {
+        DispatchQueue.main.async {
+            guard NSAlert.confirmAboveIsland(text.clear, message: "", action: text.clear, destructive: true,
+                                             cancel: l10n.s.uninstallerCancel) else { return }
+            history.clear()
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         if visibleEntries.isEmpty {
@@ -91,8 +103,17 @@ struct RecentCapturesView: View {
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
-                .frame(height: 92)
+                .frame(height: notchSize == nil ? 92 : nil)
+                .frame(maxHeight: notchSize == nil ? nil : .infinity)
                 .panelCard()
+        } else if let notchSize {
+            let rows = NotchLayout.railRows(count: visibleEntries.count,
+                                            perRow: NotchLayout.railCapacity(width: notchSize.width, itemWidth: 236, spacing: 8),
+                                            rowHeight: 88, spacing: 8, height: notchSize.height)
+            let cardHeight = (notchSize.height - CGFloat(rows - 1) * 8) / CGFloat(rows)
+            NotchRail(items: visibleEntries, rows: rows, itemWidth: 236, width: notchSize.width) { entry in
+                row(entry).frame(height: cardHeight)
+            }
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 7) {
@@ -101,7 +122,7 @@ struct RecentCapturesView: View {
                     }
                 }
             }
-            .frame(maxHeight: notchHeight ?? 300)
+            .frame(maxHeight: 300)
         }
     }
 

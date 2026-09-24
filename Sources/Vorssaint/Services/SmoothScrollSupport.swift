@@ -24,6 +24,10 @@ enum SmoothScrollSupport {
     struct Engine {
         private(set) var remainingVertical: Double = 0
         private(set) var remainingHorizontal: Double = 0
+        /// Each axis's budget right after its latest tick. Coast measures how
+        /// far the glide has come against it, so a fresh tick starts sharp.
+        private(set) var glideVertical: Double = 0
+        private(set) var glideHorizontal: Double = 0
 
         var isActive: Bool {
             remainingVertical != 0 || remainingHorizontal != 0
@@ -32,20 +36,24 @@ enum SmoothScrollSupport {
         /// Adds already-normalized pixel distances. A reversal replaces the
         /// old tail on that axis so the first opposite tick answers at once.
         mutating func add(vertical: Double, horizontal: Double) {
-            Self.add(vertical, to: &remainingVertical)
-            Self.add(horizontal, to: &remainingHorizontal)
+            Self.add(vertical, to: &remainingVertical, glide: &glideVertical)
+            Self.add(horizontal, to: &remainingHorizontal, glide: &glideHorizontal)
         }
 
-        mutating func advance(elapsed: TimeInterval, response: Int) -> Frame {
+        mutating func advance(elapsed: TimeInterval, response: Int, coast: Int = 0) -> Frame {
             let vertical = SmoothScrollSupport.frameDelta(
                 remaining: remainingVertical,
                 elapsed: elapsed,
-                response: response
+                response: response,
+                coast: coast,
+                glide: glideVertical
             )
             let horizontal = SmoothScrollSupport.frameDelta(
                 remaining: remainingHorizontal,
                 elapsed: elapsed,
-                response: response
+                response: response,
+                coast: coast,
+                glide: glideHorizontal
             )
             remainingVertical -= vertical
             remainingHorizontal -= horizontal
@@ -55,12 +63,15 @@ enum SmoothScrollSupport {
         mutating func reset() {
             remainingVertical = 0
             remainingHorizontal = 0
+            glideVertical = 0
+            glideHorizontal = 0
         }
 
-        private static func add(_ distance: Double, to remaining: inout Double) {
+        private static func add(_ distance: Double, to remaining: inout Double, glide: inout Double) {
             guard distance.isFinite, distance != 0 else { return }
             remaining = SmoothScrollSupport.directionsOppose(distance, remaining)
                 ? distance : remaining + distance
+            glide = abs(remaining)
         }
     }
 
@@ -84,8 +95,18 @@ enum SmoothScrollSupport {
     /// the rest independent from the timer cadence.
     static let responseRange = 0...100
     static let defaultResponse = 65
+    /// Extra glide length on top of the response curve. Zero reproduces the
+    /// shipped curve exactly. Higher values leave the start of each tick as
+    /// it is and slow only the landing, so the same distance coasts out
+    /// longer without the wheel feeling any less direct.
+    static let coastRange = 0...100
+    static let defaultCoast = 0
     private static let slowResponseTime: TimeInterval = 0.16
     private static let fastResponseTime: TimeInterval = 0.04
+    /// How much slower the very end of the glide runs at full coast, as a
+    /// multiple of the response time. The landing slows gradually toward it,
+    /// and even the slowest response settles a single tick in under a second.
+    private static let fullCoastStretch = 3.0
     /// Time-based equivalent of the former one-point minimum at 60 Hz.
     private static let minimumGlideSpeed = 60.0
 
@@ -167,18 +188,25 @@ enum SmoothScrollSupport {
     /// with their combined duration.
     static func frameDelta(remaining: Double,
                            elapsed: TimeInterval,
-                           response: Int) -> Double {
+                           response: Int,
+                           coast: Int = 0,
+                           glide: Double = 0) -> Double {
         guard remaining.isFinite, remaining != 0,
               elapsed.isFinite, elapsed > 0 else { return 0 }
         let magnitude = abs(remaining)
-        if magnitude <= finishThreshold { return remaining }
+        let stretch = coastStretch(coast: coast, remaining: magnitude, glide: glide)
+        // A coasting landing flushes a smaller leftover, so its last frame
+        // does not jump ahead of the slowed pace.
+        if magnitude <= finishThreshold / stretch { return remaining }
         let clampedElapsed = min(elapsed, maximumFrameInterval)
         let normalizedResponse = Double(sanitizedResponse(response) - responseRange.lowerBound)
             / Double(responseRange.upperBound - responseRange.lowerBound)
-        let responseTime = slowResponseTime
-            - normalizedResponse * (slowResponseTime - fastResponseTime)
+        let responseTime = (slowResponseTime
+            - normalizedResponse * (slowResponseTime - fastResponseTime)) * stretch
         let eased = magnitude * (1 - exp(-clampedElapsed / responseTime))
-        let emitted = min(magnitude, max(eased, minimumGlideSpeed * clampedElapsed))
+        // The minimum speed slows by the same factor, so the landing keeps the
+        // shipped proportions instead of running flat at the old pace.
+        let emitted = min(magnitude, max(eased, minimumGlideSpeed / stretch * clampedElapsed))
         return remaining < 0 ? -emitted : emitted
     }
 
@@ -191,5 +219,19 @@ enum SmoothScrollSupport {
 
     static func sanitizedResponse(_ value: Int) -> Int {
         min(max(value, responseRange.lowerBound), responseRange.upperBound)
+    }
+
+    /// One at the start of a tick, growing toward the full stretch as the
+    /// glide nears its end. Without a known glide the shipped curve applies.
+    static func coastStretch(coast: Int, remaining: Double, glide: Double) -> Double {
+        guard glide.isFinite, glide > remaining, remaining >= 0 else { return 1 }
+        let normalizedCoast = Double(sanitizedCoast(coast) - coastRange.lowerBound)
+            / Double(coastRange.upperBound - coastRange.lowerBound)
+        let travelled = 1 - remaining / glide
+        return 1 + normalizedCoast * (fullCoastStretch - 1) * travelled * travelled
+    }
+
+    static func sanitizedCoast(_ value: Int) -> Int {
+        min(max(value, coastRange.lowerBound), coastRange.upperBound)
     }
 }

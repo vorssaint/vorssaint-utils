@@ -5,6 +5,9 @@ import SwiftUI
 
 struct NotchLyricsView: View {
     let playback: NotchPlayback
+    /// The card fills what the island gives it, so the verses take every
+    /// line of that room instead of leaving a band below the timing row.
+    let height: CGFloat
     @ObservedObject private var service = NotchLyricsService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchLyricsOnline) private var online = false
@@ -18,7 +21,10 @@ struct NotchLyricsView: View {
                     message(text.instrumental)
                 } else if !lyrics.lines.isEmpty, playback.hasPosition {
                     synced(lyrics)
+                    // Importing is a one-off; it shares the timing row as an
+                    // icon instead of a row of its own under the verses.
                     HStack(spacing: 10) {
+                        importButton
                         Text(text.offset).foregroundStyle(.secondary)
                         Spacer(minLength: 0)
                         Button { service.adjustOffset(by: -0.25) } label: { Image(systemName: "minus") }
@@ -37,7 +43,7 @@ struct NotchLyricsView: View {
                         Text(lyrics.plain.isEmpty ? lyrics.lines.map(\.text).joined(separator: "\n") : lyrics.plain)
                             .font(.system(size: 15, weight: .medium)).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                    }.frame(maxHeight: 150)
+                    }.frame(height: max(40, readingHeight - (playback.hasPosition ? 0 : 24)))
                 }
             } else if service.state == .loading {
                 HStack { ProgressView().controlSize(.small); Text(text.loading) }.font(.callout)
@@ -52,17 +58,36 @@ struct NotchLyricsView: View {
                     Button(text.retry) { service.retry() }.buttonStyle(.borderless)
                 }
             }
-            HStack {
-                Button(text.importLyrics) { service.importLyrics() }.buttonStyle(.borderless)
-                Spacer(minLength: 0)
-            }.font(.caption)
+            if !showsTiming {
+                HStack {
+                    importButton
+                    Spacer(minLength: 0)
+                }.font(.caption)
+            }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
         .onChange(of: online) { update() }
     }
 
+    /// Room left for the verses under the card's padding and its one row of
+    /// controls.
+    private var readingHeight: CGFloat { height - 24 - 10 - 18 }
+
     private func update() { service.update(playback: playback, visible: true) }
+
+    private var showsTiming: Bool {
+        service.lyrics.map { !$0.instrumental && !$0.lines.isEmpty && playback.hasPosition } ?? false
+    }
+
+    private var importButton: some View {
+        // A file being added, not the usual download arrow, which reads as saving.
+        Button { service.importLyrics() } label: { Image(systemName: "doc.badge.plus") }
+            .buttonStyle(.borderless)
+            .help(text.importLyrics)
+            .accessibilityLabel(text.importLyrics)
+    }
 
     private func message(_ value: String) -> some View {
         Text(value).font(.callout).foregroundStyle(.secondary)
@@ -70,7 +95,7 @@ struct NotchLyricsView: View {
     }
 
     private func synced(_ lyrics: NotchLyrics) -> some View {
-        TimelineView(.animation(minimumInterval: 0.1, paused: !playback.isPlaying)) { context in
+        TimelineView(.explicit(lyrics.changeDates(for: playback, offset: service.offset, from: .now))) { context in
             let active = lyrics.activeIndex(at: playback.position(at: context.date), offset: service.offset)
             ScrollViewReader { proxy in
                 ScrollView {
@@ -88,7 +113,7 @@ struct NotchLyricsView: View {
                         }
                     }.padding(.vertical, 6)
                 }
-                .frame(height: 132)
+                .frame(height: max(40, readingHeight))
                 .onChange(of: active, initial: true) { _, index in
                     withAnimation(reduceMotion ? nil : .smooth(duration: 0.28)) {
                         if let index { proxy.scrollTo(index, anchor: .center) }
