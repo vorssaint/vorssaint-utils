@@ -764,15 +764,15 @@ enum ScreenshotSupport {
             let area = overlap.isNull ? 0 : max(0, overlap.width) * max(0, overlap.height)
             let winsTie = area == selectedArea
                 && area > 0
-                && screen.frame.contains(pointer)
-                && !(selected?.frame.contains(pointer) ?? false)
+                && NSMouseInRect(pointer, screen.frame, false)
+                && !(selected.map { NSMouseInRect(pointer, $0.frame, false) } ?? false)
             if area > selectedArea || winsTie {
                 selected = screen
                 selectedArea = area
             }
         }
         if let selected { return selected.visibleFrame }
-        return screens.first { $0.frame.contains(pointer) }?.visibleFrame ?? fallback
+        return screens.first { NSMouseInRect(pointer, $0.frame, false) }?.visibleFrame ?? fallback
     }
 
     /// Places the capture preview beside the selection in automatic mode, or

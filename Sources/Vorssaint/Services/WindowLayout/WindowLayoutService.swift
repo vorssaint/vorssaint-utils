@@ -977,7 +977,7 @@ final class WindowLayoutService: ObservableObject {
 
     private func showDirectionalIndicator(at pointer: CGPoint, action: WindowDirectionalAction?) {
         let size = CGSize(width: 180, height: 180)
-        let screenFrame = NSScreen.screens.first(where: { $0.frame.contains(pointer) })?.visibleFrame
+        let screenFrame = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) })?.visibleFrame
             ?? NSScreen.main?.visibleFrame ?? .zero
         var origin = CGPoint(x: pointer.x - size.width / 2, y: pointer.y - size.height / 2)
         origin.x = min(max(origin.x, screenFrame.minX + 8), screenFrame.maxX - size.width - 8)

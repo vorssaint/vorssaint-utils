@@ -21,6 +21,7 @@ struct MetricsTests {
             ("clipboard", { ClipboardFeatureTests.run(suite) }),
             ("pointer-input", {
                 PointerInputFeatureTests.run(suite)
+                PointerDisplayLookupContract.run(suite)
                 SuperKeyTapContract.run(suite)
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),

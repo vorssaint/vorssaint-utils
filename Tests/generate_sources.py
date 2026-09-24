@@ -903,6 +903,31 @@ def main():
           + "".join(f'("{name}", {{ FeatureStrings.{name}($0) }}),\n' for name in factories)
           + "]\n}\n")
 
+    screens = "Sources/Vorssaint/Core/AppKitExtensions.swift"
+    bridge = "Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift"
+    write("PointerDisplayLookups.swift", "import AppKit\nimport Carbon.HIToolbox\nimport QuartzCore\n"
+          + "extension PointerDisplayLookupContract.Screen {\n"
+          + declaration(screens, "    static var withMouse:")
+          + declaration(screens, "    static var withMenuBar:")
+          + "}\nextension PointerDisplayLookupContract.Capturer {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+                        "    private func beginFullScreenCapture()").replace("private func", "func", 1)
+          + "}\nextension PointerDisplayLookupContract.Bridge {\n"
+          + declaration(bridge, "    struct Topology {")
+          + declaration(bridge, "    static func visibleSpace(near")
+          + "}\nextension PointerDisplayLookupContract.Layout {\n"
+          + declaration("Sources/Vorssaint/Services/WindowLayout/WindowLayoutService.swift",
+                        "    private func showDirectionalIndicator(").replace("private func", "func", 1)
+          + "}\nextension PointerDisplayLookupContract.HUD {\n"
+          + declaration("Sources/Vorssaint/UI/QuitProtection/QuitProtectionHUD.swift",
+                        "    private func positionPanel(").replace("private func", "func", 1)
+          + "}\nextension PointerDisplayLookupContract.Chooser {\n"
+          + "".join(declaration(selection, prefix).replace("private func", "func", 1)
+                    for prefix in ["    private func nudgePointer(", "    private func panelUnderMouse()"])
+          + "}\nextension PointerDisplayLookupContract.Dock {\n"
+          + declaration(dock, "    func endWindowDrag(")
+          + "}\n")
+
     # Same-file extensions can exercise the private AppKit content view without
     # widening the production interface or presenting an application window.
     hud = "Sources/Vorssaint/UI/QuitProtection/QuitProtectionHUD.swift"
