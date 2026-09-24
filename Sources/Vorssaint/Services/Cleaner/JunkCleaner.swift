@@ -75,6 +75,9 @@ final class JunkCleaner: ObservableObject {
 
     /// Serializes scans so a re-scan started while one runs is ignored.
     private var scanToken = UUID()
+    /// Lets the running scan's background loop see a cancel; the token only
+    /// guards what reaches the main thread.
+    private var scanCancellation: CleanerSupport.ScanCancellation?
 
     var selectedSize: Int64 { items.filter(\.include).reduce(0) { $0 + $1.size } }
     var totalSize: Int64 { items.reduce(0) { $0 + $1.size } }
@@ -97,6 +100,8 @@ final class JunkCleaner: ObservableObject {
 
     func reset() {
         scanToken = UUID()
+        scanCancellation?.cancel()
+        scanCancellation = nil
         items = []
         scanningCategory = nil
         phase = .idle
@@ -108,10 +113,14 @@ final class JunkCleaner: ObservableObject {
         guard phase != .scanning else { return }
         let token = UUID()
         scanToken = token
+        scanCancellation?.cancel()
+        let cancellation = CleanerSupport.ScanCancellation()
+        scanCancellation = cancellation
         items = []
         phase = .scanning
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard !cancellation.isCancelled else { return }
             let installed = Self.installedBundleIDs()
             // A path claimed by the leftover scan must not reappear under
             // caches or logs: one path, one row, one decision.
@@ -130,6 +139,7 @@ final class JunkCleaner: ObservableObject {
                 (.deviceBackups, { Self.scanDeviceBackups() }),
             ]
             for (category, run) in categories {
+                guard !cancellation.isCancelled else { return }
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.scanToken == token else { return }
                     self.scanningCategory = category
@@ -142,6 +152,7 @@ final class JunkCleaner: ObservableObject {
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.scanToken == token else { return }
+                self.scanCancellation = nil
                 self.scanningCategory = nil
                 self.phase = .results
             }

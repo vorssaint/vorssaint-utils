@@ -113,7 +113,9 @@ struct ShortcutsSettings: View {
     @ViewBuilder
     private func featureRows(_ feature: AppFeature, in group: FeatureGroup) -> some View {
         let roles = availableRoles.filter { $0.feature == feature && $0.group == group }
-        let count = feature == .windowLayout ? WindowLayoutAction.shortcutActions.count : roles.count
+        let count = feature == .windowLayout
+            ? WindowLayoutAction.shortcutActions.count + roles.count
+            : roles.count
         if count > 1 {
             disclosureHeader(
                 title: featureTitle(feature, roles: roles),
@@ -133,6 +135,10 @@ struct ShortcutsSettings: View {
                             text: text
                         )
                         .disclosureIndent()
+                    }
+                    ForEach(roles) { role in
+                        roleRow(role, showsFeatureContext: false, reservesClearButtonSpace: true)
+                            .disclosureIndent()
                     }
                 } else {
                     if feature == .brightness, roles.allSatisfy(\.isKeyboardBrightness) {
@@ -190,7 +196,8 @@ struct ShortcutsSettings: View {
     }
 
     private func roleRow(_ role: GlobalShortcutRole,
-                         showsFeatureContext: Bool = true) -> some View {
+                         showsFeatureContext: Bool = true,
+                         reservesClearButtonSpace: Bool = false) -> some View {
         let title = role.title(l10n.s)
         let featureTitle = role.feature.hubTitle(l10n.s, hub: hub)
         let active = role.requiredEnableKeys.allSatisfy {
@@ -207,6 +214,7 @@ struct ShortcutsSettings: View {
             showsSuperKeyAlternative: superKey.isRunning,
             superKeyModifiers: superKey.modifiers,
             includeInactiveConflicts: true,
+            reservesClearButtonSpace: reservesClearButtonSpace,
             additionalConflict: { shortcut in
                 guard AppFeature.windowLayout.isAvailable else { return nil }
                 return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
@@ -231,9 +239,10 @@ struct ShortcutsSettings: View {
 
     private func featureHasActiveShortcut(_ feature: AppFeature,
                                           roles: [GlobalShortcutRole]) -> Bool {
-        if feature == .windowLayout {
-            return UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
-                && WindowLayoutAction.shortcutActions.contains { $0.savedShortcut != nil }
+        if feature == .windowLayout,
+           UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled),
+           WindowLayoutAction.shortcutActions.contains(where: { $0.savedShortcut != nil }) {
+            return true
         }
         return roles.contains { role in
             role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }

@@ -35,11 +35,13 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
         case .ja: return .ja
         case .ko: return .ko
+        case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -48,6 +50,28 @@ extension FeatureStrings {
 }
 
 extension GeneralSettingsStrings {
+    static let uk = GeneralSettingsStrings(
+        pageDescription: "Як запускається Vorssaint, який має вигляд і що показує панель на смузі меню.",
+        appearanceCaption: "Стосується лише вікон і панелей Vorssaint, а не всього Mac.",
+        launchAtLoginCaption: "Автоматично відкривається щоразу після запуску Mac.",
+        liquidGlassCaption: "Прозорі панелі з ефектом скла.",
+        panelIntro: "Натисніть значок Vorssaint на смузі меню, щоб відкрити панель. Вкладки розташовані в такому порядку.",
+        panelReorderHint: "Перетягуйте, щоб змінити порядок. Вимкніть те, що вам не потрібно.",
+        iconMissingTitle: "Не можете знайти значок?",
+        iconMissingCaption: "Переповнена смуга меню може його приховати, особливо на Mac із вирізом.",
+        sectionKeepAwake: "Не дає Mac заснути стільки, скільки потрібно.",
+        sectionDisplays: "Яскравість екранів.",
+        sectionMixer: "Гучність кожної програми на окремому повзунку.",
+        sectionSystem: "Процесор, графіка й пам’ять з першого погляду.",
+        sectionNetwork: "Швидкість інтернету та програми, що ним користуються.",
+        sectionDisks: "Вільне місце й активність дисків.",
+        sectionPower: "Акумулятор, заряджання та споживання енергії.",
+        sectionFanControl: "Швидкість вентиляторів і власна крива їхньої роботи.",
+        sectionUtilities: "Знімки екрана, очищення, оновлення та інші інструменти.",
+        sectionControls: "Перемикачі функцій миші, клавіатури й вікон.",
+        sectionToggles: "Дії одним натисканням, як-от темний режим і вимкнення мікрофона."
+    )
+
     static let enUS = GeneralSettingsStrings(
         pageDescription: "How Vorssaint starts, how it looks and what its menu bar panel shows.",
         appearanceCaption: "Applies to Vorssaint’s own windows and panels, not to the whole Mac.",
@@ -156,6 +180,28 @@ extension GeneralSettingsStrings {
         sectionUtilities: "Capturas de pantalla, limpieza, actualizaciones y otras herramientas.",
         sectionControls: "Interruptores para funciones de ratón, teclado y ventanas.",
         sectionToggles: "Acciones de un clic, como el modo oscuro y silenciar el micrófono."
+    )
+
+    static let sk = GeneralSettingsStrings(
+        pageDescription: "Ako sa Vorssaint spúšťa, ako vyzerá a čo zobrazuje jeho panel v lište.",
+        appearanceCaption: "Platí len pre vlastné okná a panely Vorssaint, nie pre celý Mac.",
+        launchAtLoginCaption: "Otvorí sa sám vždy, keď zapnete Mac.",
+        liquidGlassCaption: "Priehľadné panely v štýle skla.",
+        panelIntro: "Kliknutím na ikonu Vorssaint v lište otvoríte panel. Jeho karty sa zobrazujú v tomto poradí.",
+        panelReorderHint: "Presunutím zmeníte poradie. Vypnite čokoľvek, čo nepotrebujete.",
+        iconMissingTitle: "Nemôžete nájsť ikonu?",
+        iconMissingCaption: "Preplnená lišta ju môže skryť, najmä na Macoch s výrezom.",
+        sectionKeepAwake: "Udrží váš Mac prebudený tak dlho, ako chcete.",
+        sectionDisplays: "Jas vašich obrazoviek.",
+        sectionMixer: "Hlasitosť každej aplikácie, každá má vlastný posuvník.",
+        sectionSystem: "Procesor, grafika a pamäť na jeden pohľad.",
+        sectionNetwork: "Rýchlosť internetu a ktoré aplikácie ho využívajú.",
+        sectionDisks: "Voľné miesto a aktivita disku.",
+        sectionPower: "Batéria, nabíjanie a spotreba energie.",
+        sectionFanControl: "Rýchlosť ventilátorov a vlastná krivka ventilátora.",
+        sectionUtilities: "Snímky obrazovky, čistenie, aktualizácie a ďalšie nástroje.",
+        sectionControls: "Prepínače pre funkcie myši, klávesnice a okien.",
+        sectionToggles: "Akcie na jedno kliknutie, napríklad tmavý režim a stlmenie mikrofónu."
     )
 
     static let de = GeneralSettingsStrings(

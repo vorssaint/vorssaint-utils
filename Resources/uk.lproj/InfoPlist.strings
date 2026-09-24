@@ -1,0 +1,24 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint використовує Автоматизацію, щоб переміщувати файли, переносити елементи до Смітника, відкривати запитані команди та керувати відтворенням у ваших медіапрограмах.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint отримує доступ до аудіо кожної програми, щоб регулювати її гучність у мікшері, рухати музичні смужки в Dynamic Island та додавати звук Mac до записів екрана, які ви запускаєте. Нічого не залишає ваш Mac.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint використовує Bluetooth лише для зчитування заряду підключених периферійних пристроїв. Нічого не залишає ваш Mac.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint записує звук із мікрофона, лише коли ви вмикаєте його для запису екрана. Аудіо залишається на вашому Mac, якщо ви не вирішите створити тимчасове посилання.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint показує зображення з камери лише у відкритому вами вікні попереднього перегляду, щоб ви могли перевірити свій вигляд перед викликом. Нічого не записується й не залишає ваш Mac.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint перевіряє локальні метадані в папці «Викачане», щоб переглядати, упорядковувати або переміщувати до Смітника лише підтверджені файли WhatsApp, які ви вибрали.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали.";
+"NSCalendarsFullAccessUsageDescription" = "Показує ваші майбутні події у верхній частині екрана. Події календаря залишаються на цьому Mac.";
