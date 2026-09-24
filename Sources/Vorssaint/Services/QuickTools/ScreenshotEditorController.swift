@@ -1356,7 +1356,15 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         else { return false }
         let folder = base.appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("Copied Screenshots", isDirectory: true)
-        let name = ScreenshotSupport.fileName(prefix: fileNamePrefix, date: Date())
+        let (name, consumedNumber) = ScreenshotSupport.nextFileName(
+            prefix: fileNamePrefix, defaults: UserDefaults.standard)
+        var copied = false
+        defer {
+            if !copied, let consumedNumber {
+                ScreenshotSupport.rewindNumberSequence(toReuse: consumedNumber,
+                                                       defaults: UserDefaults.standard)
+            }
+        }
         guard let url = try? ScreenshotSupport.copiedFile(data: data, name: name,
                                                          directory: folder) else {
             return false
@@ -1365,6 +1373,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             try? FileManager.default.removeItem(at: url)
             return false
         }
+        copied = true
         ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: url)
         return true
     }

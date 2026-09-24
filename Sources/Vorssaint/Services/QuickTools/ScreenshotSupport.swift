@@ -896,6 +896,32 @@ enum ScreenshotSupport {
         return "\(prefix) \(formatter.string(from: date)).\(fileExtension)"
     }
 
+    /// Saves and clipboard files use the same pattern and number sequence.
+    /// Reserve a number before asynchronous output starts; a failed output can
+    /// return it only if no later output has reserved another one.
+    static func nextFileName(prefix: String, date: Date = Date(),
+                             defaults: UserDefaults = .standard) -> (name: String, consumedNumber: Int?) {
+        let pattern = (defaults.string(forKey: DefaultsKey.screenshotFileNamePattern) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !pattern.isEmpty else {
+            return (fileName(prefix: prefix, date: date), nil)
+        }
+        let number = fileNamePatternUsesNumber(pattern)
+            ? defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext) : nil
+        let name = expandFileNamePattern(pattern, date: date, number: number ?? 0) + ".png"
+        if let number {
+            defaults.set(number + 1, forKey: DefaultsKey.screenshotFileNumberNext)
+        }
+        return (name, number)
+    }
+
+    static func rewindNumberSequence(toReuse consumed: Int, defaults: UserDefaults = .standard) {
+        guard defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext) == consumed + 1 else {
+            return
+        }
+        defaults.set(consumed, forKey: DefaultsKey.screenshotFileNumberNext)
+    }
+
     /// Writes one drag payload into its own temporary directory. Separate
     /// directories keep captures made in the same second from replacing each
     /// other while either drag is still in flight.

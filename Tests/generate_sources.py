@@ -639,6 +639,16 @@ def main():
           + declaration(view, "    private func isActive(_ item: QuickLauncherItem)")
           + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
 
+    screenshot = "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift"
+    editor = "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift"
+    write("ScreenshotCopyName.swift", "import Foundation\n"
+          + "extension ScreenshotCopyNameTests {\nfinal class Service: State {\n"
+          + declaration(screenshot, "    private func autoCopy(")
+              .replace("private func", "func", 1)
+              .replace("ScreenshotSupport.copiedFilesDirectory()", "copyDirectory")
+          + "}\nfinal class Editor: EditorState {\n"
+          + declaration(editor, "    static func copyImage(")
+          + "}\n}\n")
     preview = "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift"
     write("ScreenshotPreviewHover.swift", "import Foundation\n"
           + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"
