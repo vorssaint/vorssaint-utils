@@ -239,6 +239,13 @@ enum RepositoryFeatureTests {
                "a site the user added gets a row of its own")
         suite.expect(ruleGroups.contains { $0.site == "youtube.com" },
                "every built-in site is listed")
+        expectEqual(URLCleaning.clean("https://www.xiaohongshu.com/?shareRedId=a&exSource=b&id=1")?.url ?? "",
+                    "https://www.xiaohongshu.com/?id=1",
+                    "a built-in name spelled in mixed case by the site is still removed")
+        let upperCaseBuiltIns = URLCleaning.ruleGroups(rules: .none)
+            .flatMap(\.entries).map(\.name).filter { $0 != $0.lowercased() }
+        suite.expect(upperCaseBuiltIns.isEmpty,
+               "built-in names are lowercase, since matching and switched off names are: \(upperCaseBuiltIns)")
         expectEqual(URLCleaning.siteKey(from: " https://WWW.Weibo.com/path?x=1 ") ?? "",
                     "weibo.com", "the site field takes a pasted link and keeps the host")
         suite.expect(URLCleaning.siteKey(from: "not a host") == nil,

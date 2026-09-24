@@ -17,7 +17,7 @@ final class NotchAccessoryService: NSObject {
     private var active = false
     private var activationTime: TimeInterval = 0
     private var generation = UUID()
-    private var pending: [(notice: NotchNotice, expiresAt: Date)] = []
+    private var pending: [(notice: NotchNotice, device: String, expiresAt: Date)] = []
     private var noticeWork: DispatchWorkItem?
     private override init() { super.init() }
 
@@ -44,7 +44,7 @@ final class NotchAccessoryService: NSObject {
                 self.pending.removeAll { queued in
                     queued.notice.level != nil && sample.devices.contains { device in
                         self.batteryState.isFresh(device, in: sample, observedAfter: self.activationTime)
-                            && device.name == queued.notice.title
+                            && device.name == queued.device
                             && device.percent >= NotchAccessorySupport.recoveryThreshold
                     }
                 }
@@ -53,7 +53,7 @@ final class NotchAccessoryService: NSObject {
                     self.enqueue(NotchNotice(event: .accessory, title: device.name,
                         detail: text.lowBattery + " · \(device.percent)%",
                         symbol: NotchAccessorySupport.symbol(for: device.kind, name: device.name),
-                        level: Double(device.percent) / 100))
+                        level: Double(device.percent) / 100), device: device.name)
                 }
             }
         SystemMonitor.shared.setNotchAccessoryMonitoring(true)
@@ -91,10 +91,12 @@ final class NotchAccessoryService: NSObject {
             self.observeDisconnect(device)
             guard let name = device.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return }
             let text = FeatureStrings.notchActivities(L10n.shared.language)
-            let kind = PeripheralBatterySupport.kind(product: name,
-                primaryUsagePage: nil, primaryUsage: nil, usagePairs: [])
-            self.enqueue(NotchNotice(event: .accessory, title: name,
-                detail: text.connected, symbol: NotchAccessorySupport.symbol(for: kind, name: name)))
+            // The status stays short beside its icon, so the name gets a
+            // whole wing to itself before it has to be shortened.
+            self.enqueue(NotchNotice(event: .accessory, title: text.connected, detail: name,
+                symbol: NotchAccessorySupport.symbol(name: name, majorClass: UInt32(device.deviceClassMajor),
+                                                     minorClass: UInt32(device.deviceClassMinor))),
+                         device: name)
         }
     }
 
@@ -102,14 +104,14 @@ final class NotchAccessoryService: NSObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.active, !device.isConnected(), let id = device.addressString else { return }
             self.connectionState.disconnected(id)
-            if let name = device.name { self.pending.removeAll { $0.notice.title == name } }
+            if let name = device.name { self.pending.removeAll { $0.device == name } }
             self.disconnectNotifications.removeValue(forKey: id)?.unregister()
         }
     }
 
-    private func enqueue(_ notice: NotchNotice) {
+    private func enqueue(_ notice: NotchNotice, device: String) {
         if pending.count >= 8 { pending.removeFirst() }
-        pending.append((notice, Date().addingTimeInterval(30)))
+        pending.append((notice, device, Date().addingTimeInterval(30)))
         if noticeWork == nil { presentNext() }
     }
 

@@ -32,6 +32,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var targetUsesGlass = false
     private var mouseEventsBeforeHide: Bool?
     private var frameProbe: NotchFrameProbe?
+    private let overlaySpace = NotchOverlaySpace()
     private var concealedForFrameChange = false
     private var restoresKeyAfterFrameChange = false
     private var settledActions: [() -> Void] = []
@@ -62,11 +63,13 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         // Stationary keeps the island in place when the desktop is revealed,
         // where files are dragged onto it; a transient overlay is swept away
         // with the windows. The two behaviors are mutually exclusive, and the
-        // stationary one also slides with the desktop between Spaces.
+        // stationary one also slides with the desktop between Spaces; the
+        // island's own Space, joined before it first shows, holds it in place.
         panel.collectionBehavior = NotchPanel.overlayCollectionBehavior
         panel.contentView = quickAccessContainer ?? canvas
         canvas.layoutSubtreeIfNeeded()
         appliedFrame = panel.frame
+        overlaySpace?.add(panel)
     }
 
     /// Visible, or ordered out for the few milliseconds of a concealed frame change.
@@ -117,6 +120,13 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let changesFrame = revealing || (hideWhenSettled && !canAnimate) || size != targetSize
             || frame != previousFrame || (!isAnimating && panel.frame != appliedFrame)
         targetUsesGlass = usesGlass
+        if canAnimate && changesFrame && (usesGlass || canvas.usesGlass) {
+            // Glass closing into a black strip darkens on the way there, so the
+            // material swap on arrival changes nothing on screen; opening out of
+            // one lets the glass in gradually.
+            let start = revealing ? 0 : canvas.visiblePath?.boundingBoxOfPath.height ?? targetSize.height
+            canvas.backdropPresentation.planFade(from: start, to: size.height, endsInGlass: usesGlass)
+        }
         // A shape still moving keeps its glass until it settles, even when an
         // unanimated refresh lands meanwhile: a click in Settings closes the
         // island and the option it changes syncs preferences mid-close.
@@ -211,6 +221,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         isAnimating = false
         canvas.stopMotion()
         canvas.setUsesGlass(targetUsesGlass)
+        // Settled glass is fully open, whatever a cut-short transition planned.
+        if targetUsesGlass { canvas.backdropPresentation.openFully() }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         canvas.setContentSize(targetSize)
@@ -381,6 +393,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     var backdropProbePath: CGPath { canvas.backdropPresentation.contour.cgPath }
     var silhouetteProbePath: CGPath? { canvas.visiblePath }
     var backdropProbeUsesGlass: Bool { canvas.usesGlass }
+    var backdropProbeOpenness: Double { canvas.backdropPresentation.openness }
+    /// Nil where this macOS has no overlay Spaces to offer.
+    var overlayProbeHolds: Bool? { overlaySpace.map { $0.probeHolds(panel) } }
     var backdropProbeScheduled: Bool { canvas.backdropDisplayLink != nil }
     var backdropProbeTicks: Int { canvas.backdropTicks }
     func synchronizeBackdropProbe() { canvas.synchronizeBackdrop() }
@@ -416,6 +431,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         quickAccessContainer?.setHoverRects([])
         panel.orderOut(nil)
         panel.contentView = nil
+        overlaySpace?.close()
         frameProbe?.close()
         frameProbe = nil
         runSettledActions()

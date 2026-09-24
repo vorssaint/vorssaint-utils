@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch
+    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -49,6 +49,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case cleaningMode
     case soundOutputSwitcher
     case fanControl
+    case windowMaximizer
 
     var page: SettingsPage {
         switch self {
@@ -57,7 +58,8 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .scrollDirection, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
              .middleClick, .mouseClickDebounce:
             return .mouse
-        case .switcher, .dock, .dockClick: return .switcher
+        case .switcher: return .switcher
+        case .dock, .dockClick: return .dock
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad, .cleaningMode:
@@ -66,6 +68,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
             return .screenshot
         case .soundOutputSwitcher: return .shortcuts
         case .fanControl: return .monitor
+        case .windowMaximizer: return .windowLayout
         }
     }
 }
@@ -216,10 +219,10 @@ extension AppFeature {
     var settingsDestination: FeatureSettingsDestination {
         switch self {
         case .switcher: return FeatureSettingsDestination(.switcher, sectionAnchor: .switcher)
-        case .dockPreview: return FeatureSettingsDestination(.switcher, sectionAnchor: .dock)
-        case .dockClick: return FeatureSettingsDestination(.switcher, sectionAnchor: .dockClick)
+        case .dockPreview: return FeatureSettingsDestination(.dock, sectionAnchor: .dock)
+        case .dockClick: return FeatureSettingsDestination(.dock, sectionAnchor: .dockClick)
         case .windowMaximizer:
-            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
+            return FeatureSettingsDestination(.windowLayout, sectionAnchor: .windowMaximizer)
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
         case .autoQuit: return FeatureSettingsDestination(.autoQuit)
         case .quitWindowProtection: return FeatureSettingsDestination(.quitProtection)
@@ -327,8 +330,9 @@ enum FeatureVisibilitySupport {
         case .monitor: return monitorFeatures
         case .mouse: return [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
-        case .switcher: return [.switcher, .dockPreview, .dockClick]
-        case .windowLayout: return [.windowLayout]
+        case .switcher: return [.switcher]
+        case .dock: return [.dockPreview, .dockClick]
+        case .windowLayout: return [.windowLayout, .windowMaximizer]
         case .autoQuit: return [.autoQuit]
         case .quitProtection: return [.quitWindowProtection]
         case .clipboard: return [.clipboardHistory, .pastePlain, .finderCutPaste]
@@ -360,5 +364,13 @@ enum FeatureVisibilitySupport {
                               isAvailable: (AppFeature) -> Bool) -> Bool {
         let gate = features(for: page)
         return gate.isEmpty || gate.contains(where: isAvailable)
+    }
+
+    /// Whether one of `page`'s features is among `activeFeatures`, the live
+    /// users of a permission from `AppFeature.activeFeatures(using:)`. A page
+    /// that several features share asks for the grant while any of them uses it.
+    static func isPermissionNeeded(on page: SettingsPage,
+                                   activeFeatures: [AppFeature]) -> Bool {
+        features(for: page).contains(where: activeFeatures.contains)
     }
 }

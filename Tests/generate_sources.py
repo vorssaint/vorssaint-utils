@@ -147,6 +147,11 @@ def main():
           + "}\n}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
+    write("CommandBarCopyAnswer.swift", "import Foundation\n"
+          + "extension CommandBarFeatureTests.CopyAnswerHost {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                        "    private static func copyAnswer(").replace("private static", "static", 1)
+          + "}\n")
     write("CommandBarEmojiBodies.swift", "import Foundation\n"
           + "extension CommandBarEmojiContract.Catalog {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
@@ -503,6 +508,12 @@ def main():
           + declaration(canvas, "    override func draggingUpdated(").replace("override func", "func", 1)
           + declaration(canvas, "    override func draggingExited(").replace("override func", "func", 1)
           + declaration(canvas, "    override func performDragOperation(").replace("override func", "func", 1)
+          + "}\n}\n")
+    write("ShortcutsExpansion.swift", "import SwiftUI\n\nextension FeatureCatalogTests {\n"
+          + "final class Expansion { var features: [FeatureGroup: Set<AppFeature>] = [:] }\n"
+          + "struct ShortcutsPage {\nlet state: Expansion\n"
+          + "var expandedFeatures: [FeatureGroup: Set<AppFeature>] { get { state.features } nonmutating set { state.features = newValue } }\n"
+          + declaration("Sources/Vorssaint/UI/Settings/ShortcutsSettings.swift", "    private func expansionBinding(").replace("private func", "func", 1)
           + "}\n}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"

@@ -975,7 +975,7 @@ private struct WindowCard: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: SwitcherGridCard.fallbackIconSize,
                                height: SwitcherGridCard.fallbackIconSize)
-                        .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.scale)
+                        .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.switcherScale)
                 }
 
                 // One row along the bottom of the thumbnail: the app on the
@@ -1070,11 +1070,11 @@ private struct WindowCard: View {
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 84 * PreviewSizing.scale, height: 84 * PreviewSizing.scale)
-                    .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.scale)
+                    .frame(width: 84 * PreviewSizing.switcherScale, height: 84 * PreviewSizing.switcherScale)
+                    .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.switcherScale)
             }
             Text(l10n.s.switcherNoOpenWindow)
-                .font(.system(size: 11 * PreviewSizing.scale, weight: .medium))
+                .font(.system(size: 11 * PreviewSizing.switcherScale, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }

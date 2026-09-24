@@ -181,6 +181,9 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.windowPreviewExcludedApps)
                 && (Defaults.registeredDefaults[DefaultsKey.windowPreviewExcludedApps] as? [String]) == [],
                "the window preview exclusion list starts empty and travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.windowMaximizeExcludedApps)
+                && (Defaults.registeredDefaults[DefaultsKey.windowMaximizeExcludedApps] as? [String]) == [],
+               "the green button exception list starts empty and travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.panelShowToggles)
                 && backupKeys.contains(DefaultsKey.panelToggleOrder)
                 && backupKeys.contains(DefaultsKey.panelToggleDarkMode)
