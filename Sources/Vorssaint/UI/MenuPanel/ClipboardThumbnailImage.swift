@@ -14,6 +14,7 @@ struct ClipboardThumbnailImage: View {
     /// as the image and the row does not jump when it arrives.
     var aspectRatio: CGFloat?
     var contentMode: ContentMode = .fit
+    var failureText: String?
 
     @State private var loaded: (source: ClipboardImageStore.ThumbnailSource, image: NSImage?)?
 
@@ -33,6 +34,12 @@ struct ClipboardThumbnailImage: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
+            } else if failed, let failureText {
+                Text(failureText)
+                    .font(.system(size: 12))
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 Rectangle()
                     .fill(Color.primary.opacity(0.06))

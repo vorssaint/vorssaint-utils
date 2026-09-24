@@ -197,11 +197,8 @@ struct ClipboardEntryPreviewSidebar: View {
             VStack(spacing: 6) {
                 ForEach(entry.filePaths, id: \.self) { path in
                     HStack(spacing: 6) {
-                        if ClipboardImageStore.isImageFile(atPath: path),
-                           let thumb = ClipboardImageStore.fileThumbnail(atPath: path, maxPixelSize: 64) {
-                            Image(nsImage: thumb)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
+                        if ClipboardImageStore.isImageFile(atPath: path) {
+                            ClipboardThumbnailImage(source: .file(path: path, maxPixelSize: 64))
                                 .frame(width: 20, height: 20)
                                 .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                         } else {

@@ -183,8 +183,10 @@ struct NotchClipboardView: View {
     @ViewBuilder private func preview(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .image:
-            if let name = entry.imageFile, let image = ClipboardImageStore.thumbnail(named: name) {
-                Image(nsImage: image).resizable().scaledToFit()
+            if let name = entry.imageFile {
+                ClipboardThumbnailImage(source: .stored(name: name),
+                                        aspectRatio: entry.imageAspectRatio,
+                                        failureText: "\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
@@ -197,9 +199,9 @@ struct NotchClipboardView: View {
             // One image file shows itself; anything else reads as its name
             // or its count, the way the panel lists files.
             if entry.filePaths.count == 1, let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path),
-               let image = ClipboardImageStore.fileThumbnail(atPath: path) {
-                Image(nsImage: image).resizable().scaledToFit()
+               ClipboardImageStore.isImageFile(atPath: path) {
+                ClipboardThumbnailImage(source: .file(path: path),
+                                        failureText: entry.fileNames.first ?? entry.preview)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .help(path)
