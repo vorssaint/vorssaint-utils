@@ -16,6 +16,7 @@ struct MixerOutputDevice: Identifiable, Equatable {
     let isHeadphones: Bool
     let canBeDefaultOutput: Bool
     let canBeDefaultSystemOutput: Bool
+    let priorityTier: MixerRoutingSupport.PriorityTier
     fileprivate let audioObjectID: AudioObjectID
 }
 
@@ -658,6 +659,7 @@ final class AppVolumeMixer: ObservableObject {
                               isHeadphones: outputDevice.isHeadphones,
                               canBeDefaultOutput: outputDevice.canBeDefaultOutput,
                               canBeDefaultSystemOutput: outputDevice.canBeDefaultSystemOutput,
+                              priorityTier: outputDevice.priorityTier,
                               audioObjectID: outputDevice.audioObjectID)
         }
 
@@ -1700,6 +1702,8 @@ final class AppVolumeMixer: ObservableObject {
                 : uid
             guard !MicMuteSupport.isOwnDevice(name: name) else { continue }
             let dataSourceName = outputDataSourceName(for: deviceID)
+            var transportType: UInt32 = 0
+            _ = read(deviceID, kAudioDevicePropertyTransportType, &transportType)
 
             devices.append(MixerOutputDevice(id: uid,
                                              uid: uid,
@@ -1711,6 +1715,8 @@ final class AppVolumeMixer: ObservableObject {
                                                 dataSourceName: dataSourceName),
                                              canBeDefaultOutput: canBeDefaultOutput,
                                              canBeDefaultSystemOutput: canBeDefaultSystemOutput,
+                                             priorityTier: MixerRoutingSupport.PriorityTier(
+                                                transportType: transportType),
                                              audioObjectID: deviceID))
         }
 

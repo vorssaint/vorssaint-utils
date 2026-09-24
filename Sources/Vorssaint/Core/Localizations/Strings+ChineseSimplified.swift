@@ -623,7 +623,6 @@ extension Strings {
         audioPriorityMoveDown: "下移",
         audioPriorityUnavailable: "不可用",
         audioPriorityCurrent: "使用中",
-        audioPriorityEmpty: "未选择设备",
         audioPriorityCaption: "设备按优先级顺序选用。连接优先级更高的设备时，系统会切换到该设备；当前设备断开连接时，则切换到下一个可用设备。",
 
         updatesSection: "更新",

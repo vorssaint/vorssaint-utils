@@ -487,6 +487,40 @@ enum MixerInputVolumeContract {
         m.stop()
         check(HAL.current == 10, "stop restores original input selection")
 
+        // Audio device priority: a microphone it puts in use becomes the
+        // system's own choice, so quitting leaves it there. Only a change made
+        // by the saved preferred microphone is undone.
+        func priorityManager() -> AudioInputDeviceManager {
+            HAL.reset()
+            HAL.devices = [10, 20, 30]
+            HAL.levels[HAL.key(10)] = 0.5
+            HAL.levels[HAL.key(20)] = 0.5
+            HAL.levels[HAL.key(30)] = 0.5
+            let m = manager()
+            m.setInputPriorityActive(true)
+            DispatchQueue.drain()
+            m.setCurrentInputDeviceUID("device-20")
+            DispatchQueue.drain()
+            return m
+        }
+        m = priorityManager()
+        check(HAL.current == 20, "a priority pick becomes the system input")
+        m.stop()
+        check(HAL.current == 20, "quitting keeps the microphone the priority list picked")
+        m = priorityManager()
+        m.setInputPriorityActive(false)
+        DispatchQueue.drain()
+        m.stop()
+        check(HAL.current == 20, "turning priority off does not make quitting undo its pick")
+        m = priorityManager()
+        m.setInputPriorityActive(false)
+        DispatchQueue.drain()
+        m.setPreferredInputDeviceUID("device-30")
+        DispatchQueue.drain()
+        check(HAL.current == 30, "the saved preferred microphone takes over once priority is off")
+        m.stop()
+        check(HAL.current == 20, "quitting then goes back to the microphone the priority list picked")
+
         HAL.reset()
         HAL.levels[HAL.key(10)] = 0.6
         m = manager()

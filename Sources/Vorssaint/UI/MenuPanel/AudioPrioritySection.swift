@@ -75,6 +75,7 @@ struct AudioPriorityDisclosure: View {
                 isAvailable: priority.isOutputAvailable,
                 displayName: priority.displayName,
                 currentUID: mixer.currentOutputDeviceUID,
+                emptyText: l10n.s.mixerSystemOutputNoDevices,
                 onMove: { priority.setOutputPriorityUIDs($0) })
         }
     }
@@ -110,6 +111,7 @@ struct AudioPriorityDisclosure: View {
                 isAvailable: priority.isInputAvailable,
                 displayName: priority.displayName,
                 currentUID: inputManager.currentInputDeviceUID,
+                emptyText: l10n.s.mixerInputNoDevices,
                 onMove: { priority.setInputPriorityUIDs($0) })
         }
     }
@@ -140,6 +142,8 @@ private struct PriorityDeviceList: View {
     let isAvailable: (String) -> Bool
     let displayName: (String) -> String?
     let currentUID: String?
+    /// A list is only empty while the Mac has no such device.
+    let emptyText: String
     let onMove: ([String]) -> Void
 
     @State private var draggingUID: String?
@@ -147,7 +151,7 @@ private struct PriorityDeviceList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if priorityUIDs.isEmpty {
-                Text(l10n.s.audioPriorityEmpty)
+                Text(emptyText)
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             } else {

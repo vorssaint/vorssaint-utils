@@ -11,6 +11,7 @@ struct MixerInputDevice: Identifiable, Equatable {
     let uid: String
     let name: String
     let isDefault: Bool
+    let priorityTier: MixerRoutingSupport.PriorityTier
     fileprivate let audioObjectID: AudioObjectID
 }
 
@@ -460,6 +461,7 @@ final class AudioInputDeviceManager: ObservableObject {
                              uid: $0.uid,
                              name: $0.name,
                              isDefault: $0.uid == device.uid,
+                             priorityTier: $0.priorityTier,
                              audioObjectID: $0.audioObjectID)
         }
         if inputDevices != updated {
@@ -698,11 +700,15 @@ final class AudioInputDeviceManager: ObservableObject {
                 ? nameRef as String
                 : uid
             guard !MicMuteSupport.isOwnDevice(name: name) else { continue }
+            var transportType: UInt32 = 0
+            _ = read(deviceID, kAudioDevicePropertyTransportType, &transportType)
 
             devices.append(MixerInputDevice(id: uid,
                                             uid: uid,
                                             name: name,
                                             isDefault: uid == defaultUID,
+                                            priorityTier: MixerRoutingSupport.PriorityTier(
+                                                transportType: transportType),
                                             audioObjectID: deviceID))
         }
 

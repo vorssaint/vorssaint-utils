@@ -773,7 +773,6 @@ struct Strings {
     let audioPriorityMoveDown: String
     let audioPriorityUnavailable: String
     let audioPriorityCurrent: String
-    let audioPriorityEmpty: String
     let audioPriorityCaption: String
 
     // MARK: Settings — updates
@@ -1865,7 +1864,6 @@ extension Strings {
         audioPriorityMoveDown: "Mover para baixo",
         audioPriorityUnavailable: "Indisponível",
         audioPriorityCurrent: "Em uso",
-        audioPriorityEmpty: "Nenhum dispositivo selecionado",
         audioPriorityCaption: "Os dispositivos são selecionados por ordem de prioridade. Quando um dispositivo de maior prioridade é conectado, ele passa a ser usado. Quando o dispositivo ativo é desconectado, o próximo disponível é selecionado.",
 
         updatesSection: "Atualizações",
@@ -2937,7 +2935,6 @@ extension Strings {
         audioPriorityMoveDown: "Move down",
         audioPriorityUnavailable: "Unavailable",
         audioPriorityCurrent: "Current",
-        audioPriorityEmpty: "No devices selected",
         audioPriorityCaption: "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
 
         updatesSection: "Updates",

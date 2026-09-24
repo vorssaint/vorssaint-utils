@@ -560,28 +560,58 @@ enum MixerRoutingSupport {
         return nil
     }
 
-    /// Builds the complete priority editor order without disturbing existing
-    /// choices. The current device leads only an empty first-time list; after
-    /// that, newly discovered devices append below the user's stored order.
-    static func priorityListIncludingAvailableDevices(
-        storedUIDs: [String],
-        availableUIDs: [String],
-        currentUID: String?
-    ) -> [String] {
-        var orderedAvailable = availableUIDs
-        if storedUIDs.isEmpty,
-           let currentUID,
-           orderedAvailable.contains(currentUID) {
-            orderedAvailable = [currentUID] + orderedAvailable.filter { $0 != currentUID }
-        }
+    /// Where a device goes in a priority list that has not ranked it yet.
+    /// Virtual and aggregate devices play or record nothing on their own, so
+    /// they never take the place of hardware.
+    enum PriorityTier: Int {
+        case builtIn, hardware, virtual
 
-        var result: [String] = []
-        var seen = Set<String>()
-        for rawUID in storedUIDs + orderedAvailable {
-            guard let uid = sanitizedDeviceUID(rawUID), seen.insert(uid).inserted else { continue }
-            result.append(uid)
+        init(transportType: UInt32) {
+            switch transportType {
+            case kAudioDeviceTransportTypeBuiltIn: self = .builtIn
+            case kAudioDeviceTransportTypeVirtual, kAudioDeviceTransportTypeAggregate,
+                 kAudioDeviceTransportTypeAutoAggregate: self = .virtual
+            default: self = .hardware
+            }
         }
-        return result
+    }
+
+    /// The order a first-time list starts in: the device in use, then built-in
+    /// devices, where macOS itself falls back, then other hardware, and virtual
+    /// or aggregate devices last. Within a tier the available order is kept.
+    static func initialPriorityList(availableUIDs: [String],
+                                    currentUID: String?,
+                                    tier: (String) -> PriorityTier) -> [String] {
+        var seen = Set<String>()
+        let unique = availableUIDs.compactMap { sanitizedDeviceUID($0) }.filter { seen.insert($0).inserted }
+        let lead = unique.filter { $0 == currentUID }
+        let rest = unique.enumerated()
+            .filter { $0.element != currentUID }
+            .sorted { lhs, rhs in
+                let (a, b) = (tier(lhs.element).rawValue, tier(rhs.element).rawValue)
+                return a == b ? lhs.offset < rhs.offset : a < b
+            }
+            .map(\.element)
+        return lead + rest
+    }
+
+    /// Where a device the list has never seen joins it once macOS has settled
+    /// on it. The device in use goes first, since macOS or the user just picked
+    /// it; any other device goes above the virtual and aggregate entries, or
+    /// last when it is one itself. Stored entries keep their order.
+    static func placingNewPriorityDevice(_ rawUID: String,
+                                         in list: [String],
+                                         isCurrent: Bool,
+                                         tier: (String) -> PriorityTier) -> [String] {
+        guard let uid = sanitizedDeviceUID(rawUID), !list.contains(uid) else { return list }
+        if isCurrent { return [uid] + list }
+        guard tier(uid) != .virtual,
+              let firstVirtual = list.firstIndex(where: { tier($0) == .virtual }) else {
+            return list + [uid]
+        }
+        var placed = list
+        placed.insert(uid, at: firstVirtual)
+        return placed
     }
 
     /// Whether a CoreAudio write should be requested: only when the target

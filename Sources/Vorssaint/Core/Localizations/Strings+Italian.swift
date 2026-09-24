@@ -623,7 +623,6 @@ extension Strings {
         audioPriorityMoveDown: "Sposta giù",
         audioPriorityUnavailable: "Non disponibile",
         audioPriorityCurrent: "In uso",
-        audioPriorityEmpty: "Nessun dispositivo selezionato",
         audioPriorityCaption: "I dispositivi vengono selezionati in ordine di priorità. Quando viene collegato un dispositivo con priorità più alta, il sistema passa a quel dispositivo. Quando il dispositivo attivo viene scollegato, viene selezionato il successivo disponibile.",
 
         updatesSection: "Aggiornamenti",

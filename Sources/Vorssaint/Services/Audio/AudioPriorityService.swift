@@ -10,7 +10,8 @@ import Foundation
 /// When a higher-priority device connects, it becomes active. When the active
 /// device disconnects, the next available prioritized device takes over. When
 /// no prioritized device is available, the current macOS selection is left
-/// alone.
+/// alone, and so is a device the lists have not ranked yet: it joins first
+/// when macOS switches to it, and below the other hardware when it does not.
 ///
 /// The feature has its own enable flags for output and input, so one can be
 /// automated while the other stays under manual control. It reuses the
@@ -34,6 +35,11 @@ final class AudioPriorityService: ObservableObject {
     private var pendingInputUIDs: Set<String>?
     private var pendingOutputPreferenceChange = false
     private var pendingInputPreferenceChange = false
+    /// Devices the lists have never ranked wait here until macOS settles on
+    /// them. Until then priority does not override them.
+    private var unplacedOutputUIDs = Set<String>()
+    private var unplacedInputUIDs = Set<String>()
+    private var placementWork: DispatchWorkItem?
     private var started = false
 
     private init() {}
@@ -88,6 +94,10 @@ final class AudioPriorityService: ObservableObject {
         pendingInputUIDs = nil
         pendingOutputPreferenceChange = false
         pendingInputPreferenceChange = false
+        placementWork?.cancel()
+        placementWork = nil
+        unplacedOutputUIDs.removeAll()
+        unplacedInputUIDs.removeAll()
         if outputPriorityEnabled { outputPriorityEnabled = false }
         if inputPriorityEnabled { inputPriorityEnabled = false }
         AudioInputDeviceManager.shared.setInputPriorityActive(false)
@@ -199,32 +209,97 @@ final class AudioPriorityService: ObservableObject {
     }
 
     /// Keeps the editor as a complete ordered device list. Existing and
-    /// disconnected entries retain their positions; a device first seen now
-    /// is appended, except that the current device seeds an empty list first.
-    /// This makes setup useful immediately without letting newly discovered
-    /// hardware jump ahead of an established preference.
+    /// disconnected entries retain their positions. An empty list starts with
+    /// the current device, built-in devices, other hardware and then virtual
+    /// or aggregate devices. A device the list has never seen waits a moment
+    /// for macOS to settle before it gets a place (see `placeNewDevices`), so
+    /// headphones macOS just switched to are not taken back while unranked.
     private func mergeAvailableDevicesIntoPriorityLists() {
         let mixer = AppVolumeMixer.shared
-        let mergedOutputs = Defaults.sanitizedAudioPriorityUIDs(
-            MixerRoutingSupport.priorityListIncludingAvailableDevices(
-                storedUIDs: outputPriorityUIDs,
-                availableUIDs: mixer.outputDevices.filter(\.canBeDefaultOutput).map(\.uid),
-                currentUID: mixer.currentOutputDeviceUID))
-        if mergedOutputs != outputPriorityUIDs {
-            outputPriorityUIDs = mergedOutputs
-            UserDefaults.standard.set(mergedOutputs, forKey: DefaultsKey.audioPriorityOutputUIDs)
+        let outputs = mixer.outputDevices.filter(\.canBeDefaultOutput)
+        if outputPriorityUIDs.isEmpty {
+            storeOutputPriorityUIDs(MixerRoutingSupport.initialPriorityList(
+                availableUIDs: outputs.map(\.uid),
+                currentUID: mixer.currentOutputDeviceUID,
+                tier: outputTier))
+        } else {
+            let unseen = outputs.map(\.uid).filter { !outputPriorityUIDs.contains($0) }
+            unplacedOutputUIDs.formUnion(unseen)
+            if !unseen.isEmpty { schedulePlacement() }
         }
 
         let inputManager = AudioInputDeviceManager.shared
-        let mergedInputs = Defaults.sanitizedAudioPriorityUIDs(
-            MixerRoutingSupport.priorityListIncludingAvailableDevices(
-                storedUIDs: inputPriorityUIDs,
+        if inputPriorityUIDs.isEmpty {
+            storeInputPriorityUIDs(MixerRoutingSupport.initialPriorityList(
                 availableUIDs: inputManager.inputDevices.map(\.uid),
-                currentUID: inputManager.currentInputDeviceUID))
-        if mergedInputs != inputPriorityUIDs {
-            inputPriorityUIDs = mergedInputs
-            UserDefaults.standard.set(mergedInputs, forKey: DefaultsKey.audioPriorityInputUIDs)
+                currentUID: inputManager.currentInputDeviceUID,
+                tier: inputTier))
+        } else {
+            let unseen = inputManager.inputDevices.map(\.uid).filter { !inputPriorityUIDs.contains($0) }
+            unplacedInputUIDs.formUnion(unseen)
+            if !unseen.isEmpty { schedulePlacement() }
         }
+    }
+
+    /// Long enough for macOS to switch to headphones or AirPods it just
+    /// connected, which can land after the device itself appears.
+    private static let newDevicePlacementDelay: TimeInterval = 2
+
+    private func schedulePlacement() {
+        placementWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.placeNewDevices() }
+        placementWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.newDevicePlacementDelay, execute: work)
+    }
+
+    /// Gives each newly seen device that is still connected its place: first
+    /// when it is the device in use, otherwise below the other hardware.
+    private func placeNewDevices() {
+        placementWork = nil
+        guard started else { return }
+        let mixer = AppVolumeMixer.shared
+        let outputs = Set(mixer.outputDevices.filter(\.canBeDefaultOutput).map(\.uid))
+        var outputList = outputPriorityUIDs
+        for uid in unplacedOutputUIDs.sorted() where outputs.contains(uid) {
+            outputList = MixerRoutingSupport.placingNewPriorityDevice(
+                uid, in: outputList, isCurrent: uid == mixer.currentOutputDeviceUID, tier: outputTier)
+        }
+        unplacedOutputUIDs.removeAll()
+        storeOutputPriorityUIDs(outputList)
+
+        let inputManager = AudioInputDeviceManager.shared
+        let inputs = Set(inputManager.inputDevices.map(\.uid))
+        var inputList = inputPriorityUIDs
+        for uid in unplacedInputUIDs.sorted() where inputs.contains(uid) {
+            inputList = MixerRoutingSupport.placingNewPriorityDevice(
+                uid, in: inputList, isCurrent: uid == inputManager.currentInputDeviceUID, tier: inputTier)
+        }
+        unplacedInputUIDs.removeAll()
+        storeInputPriorityUIDs(inputList)
+        updateDeviceNames()
+    }
+
+    private func storeOutputPriorityUIDs(_ uids: [String]) {
+        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
+        guard sanitized != outputPriorityUIDs else { return }
+        outputPriorityUIDs = sanitized
+        UserDefaults.standard.set(sanitized, forKey: DefaultsKey.audioPriorityOutputUIDs)
+    }
+
+    private func storeInputPriorityUIDs(_ uids: [String]) {
+        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
+        guard sanitized != inputPriorityUIDs else { return }
+        inputPriorityUIDs = sanitized
+        UserDefaults.standard.set(sanitized, forKey: DefaultsKey.audioPriorityInputUIDs)
+    }
+
+    /// Devices that are not connected now keep the plain hardware tier.
+    private func outputTier(_ uid: String) -> MixerRoutingSupport.PriorityTier {
+        AppVolumeMixer.shared.outputDevices.first { $0.uid == uid }?.priorityTier ?? .hardware
+    }
+
+    private func inputTier(_ uid: String) -> MixerRoutingSupport.PriorityTier {
+        AudioInputDeviceManager.shared.inputDevices.first { $0.uid == uid }?.priorityTier ?? .hardware
     }
 
     /// Returns the display name for a UID, preferring a currently connected
@@ -334,6 +409,9 @@ final class AudioPriorityService: ObservableObject {
             .filter(\.canBeDefaultOutput)
             .map(\.uid))
         let currentUID = AppVolumeMixer.shared.currentOutputDeviceUID
+        // macOS just moved to a device the list has not ranked yet; leave that
+        // choice alone until the device has its place.
+        if let currentUID, unplacedOutputUIDs.contains(currentUID) { return }
         guard let target = MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: outputPriorityUIDs,
             availableUIDs: availableUIDs) else { return }
@@ -348,6 +426,7 @@ final class AudioPriorityService: ObservableObject {
     private func enforceInputPriority() {
         let availableUIDs = Set(AudioInputDeviceManager.shared.inputDevices.map(\.uid))
         let currentUID = AudioInputDeviceManager.shared.currentInputDeviceUID
+        if let currentUID, unplacedInputUIDs.contains(currentUID) { return }
         guard let target = MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: inputPriorityUIDs,
             availableUIDs: availableUIDs) else { return }
