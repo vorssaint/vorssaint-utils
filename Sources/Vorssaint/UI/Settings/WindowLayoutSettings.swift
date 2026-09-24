@@ -23,6 +23,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
+    @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
@@ -91,7 +92,6 @@ struct WindowLayoutSettings: View {
                         }
                         .controlSize(.small)
                     }
-                    Divider()
                     Toggle(text.gestureEnable, isOn: $gestureEnabled)
                         .onChange(of: gestureEnabled) { _, _ in
                             WindowLayoutService.shared.syncWithPreferences()
@@ -113,6 +113,10 @@ struct WindowLayoutSettings: View {
                             .foregroundStyle(.secondary)
                         Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
                     }
+                }
+
+                Section(FeatureStrings.windowLayoutIgnoredApps(l10n.language).sectionTitle) {
+                    WindowLayoutIgnoredAppsList()
                 }
 
                 Section(text.gapsSection) {
@@ -163,7 +167,9 @@ struct WindowLayoutSettings: View {
                     Toggle(PointerDisplayStrings.localized(l10n.language).title,
                            isOn: $pointerDisplayEnabled)
                         .onChange(of: pointerDisplayEnabled) { _, _ in
-                            pointerDisplay.syncWithPreferences()
+                            // Also syncs the pointer key, and starts or stops
+                            // watching app switches for Ignore apps.
+                            service.syncWithPreferences()
                         }
                     Text(PointerDisplayStrings.localized(l10n.language).caption)
                         .font(.caption)
@@ -302,7 +308,15 @@ struct WindowLayoutSettings: View {
     /// ten-view ViewBuilder limit.
     @ViewBuilder
     private var placementSections: some View {
-        actionSection(text.halves, Self.halfActions)
+        Section(text.halves) {
+            ForEach(Self.halfActions) { action in
+                actionRow(action)
+            }
+            Toggle(text.sideRepeatCycle, isOn: $sideRepeatCyclesThirds)
+            Text(text.sideRepeatCycleCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
         actionSection(text.thirds, Self.thirdActions)
         actionSection(text.quarterRows, Self.quarterRowActions)
         actionSection(text.quarterColumns, Self.quarterColumnActions)

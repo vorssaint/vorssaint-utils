@@ -65,6 +65,9 @@ struct SystemSnapshot {
     // Disk
     var disk: DiskReading?
 
+    // Connected USB Devices
+    var connectedDevices: [ConnectedUSBDevice] = []
+
     // History (oldest → newest) for the graphs
     var cpuHistory: [Double] = []          // 0...1
     var gpuHistory: [Double] = []          // 0...1
@@ -95,6 +98,7 @@ struct SystemMonitorPanelNeeds: Equatable {
     var gpuTemperature = false
     var batteryTemperature = false
     var fanSpeed = false
+    var connectedDevices = false
 
     func merging(_ other: Self) -> Self {
         Self(system: system || other.system,
@@ -109,14 +113,16 @@ struct SystemMonitorPanelNeeds: Equatable {
              cpuTemperature: cpuTemperature || other.cpuTemperature,
              gpuTemperature: gpuTemperature || other.gpuTemperature,
              batteryTemperature: batteryTemperature || other.batteryTemperature,
-             fanSpeed: fanSpeed || other.fanSpeed)
+             fanSpeed: fanSpeed || other.fanSpeed,
+             connectedDevices: connectedDevices || other.connectedDevices)
     }
 
     static let none = SystemMonitorPanelNeeds()
 
     var any: Bool {
         system || network || disk || power || cpu || gpu || memory || battery ||
-            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature || fanSpeed
+            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature || fanSpeed ||
+            connectedDevices
     }
 }
 
@@ -166,6 +172,7 @@ final class SystemMonitor: ObservableObject {
     private let diskSampler = DiskSampler()
     private let peripheralBatterySampler = PeripheralBatterySampler()
     private var powerSampler: PowerSampler?
+    private let usbSampler = USBDeviceSampler()
 
     // Running state
     private var previousCPUTicks: (busy: UInt64, total: UInt64, time: TimeInterval)?
@@ -191,6 +198,7 @@ final class SystemMonitor: ObservableObject {
     private var lastDiskReading: DiskReading?
     private var lastPowerReading: PowerReading?
     private var lastPeripheralBatterySample = PeripheralBatterySample()
+    private var lastConnectedDevices: [ConnectedUSBDevice] = []
     private var lastPublishedPlan: SamplingPlan?
     private var lastPublishedForeground: Bool?
 
@@ -472,6 +480,7 @@ final class SystemMonitor: ObservableObject {
         var needGPUTemperature = false
         var needBatteryTemperature = false
         var needFanSpeed = false
+        var needConnectedDevices = false
 
         var needSMC: Bool { needPower || needTemperature || needFanSpeed }
 
@@ -481,7 +490,7 @@ final class SystemMonitor: ObservableObject {
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature || needFanSpeed
+                needPeripheralBattery || needGPUUsage || needTemperature || needFanSpeed || needConnectedDevices
         }
     }
 
@@ -548,6 +557,8 @@ final class SystemMonitor: ObservableObject {
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
                 || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
         }
+        plan.needConnectedDevices = menuPanelNeeds.connectedDevices
+            || defaults.bool(forKey: DefaultsKey.menuBarConnectedDevices)
 
         // The hub gates whole metric families: an unavailable metric never
         // samples, no matter what is pinned, shown or alerting.
@@ -571,6 +582,7 @@ final class SystemMonitor: ObservableObject {
             plan.needBatteryTemperature = false
         }
         if !available(.fanControl) { plan.needFanSpeed = false }
+        if !available(.connectedDevices) { plan.needConnectedDevices = false }
         return plan
     }
 
@@ -622,6 +634,7 @@ final class SystemMonitor: ObservableObject {
         if plan.needGPUUsage { kinds.append(.gpuUsage) }
         if plan.needTemperature { kinds.append(.temperature) }
         if plan.needFanSpeed { kinds.append(.fanSpeed) }
+        if plan.needConnectedDevices { kinds.append(.connectedDevices) }
         return kinds
     }
 
@@ -857,6 +870,13 @@ final class SystemMonitor: ObservableObject {
                     }
                 }
                 next.fanSpeeds = self.lastFanSpeeds
+            }
+
+            if plan.needConnectedDevices {
+                if take(.connectedDevices) {
+                    self.lastConnectedDevices = self.usbSampler.sample()
+                }
+                next.connectedDevices = self.lastConnectedDevices
             }
 
             next.cpuHistory = plan.needCPU

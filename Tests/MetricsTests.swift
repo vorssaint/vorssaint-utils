@@ -21,8 +21,11 @@ struct MetricsTests {
             }),
             ("clipboard", { ClipboardFeatureTests.run(suite) }),
             ("pointer-input", {
+                PointerOnDisplayContract.run(suite)
                 PointerInputFeatureTests.run(suite)
+                PointerDisplayLookupContract.run(suite)
                 SuperKeyTapContract.run(suite)
+                PointerScreenContract.run(suite)
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
@@ -36,10 +39,12 @@ struct MetricsTests {
                 MixerInputVolumeContract.run(suite)
                 MixerFeatureTests.run(suite)
             }),
+            ("audio-priority", { AudioPriorityTests.run(suite) }),
             ("shelf", { ShelfFeatureTests.run(suite) }),
             ("updates", {
                 UpdateFeatureTests.run(suite)
                 PostUpdateStatusItemRecoveryTests.run(suite)
+                UpdateAdminInstallContract.run(suite)
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
             ("screenshots", {
@@ -107,6 +112,7 @@ struct MetricsTests {
             ("cleaner", {
                 CleanerEligibilityTests.run(suite)
                 CleanerLastRunContract.run(suite)
+                CleanerScanFlowTests.run(suite)
             }),
             ("uninstaller", {
                 UninstallerFlowTests.run(suite)

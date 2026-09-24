@@ -655,7 +655,7 @@ enum ShelfFeatureTests {
                                                  notePlural: "%d notes",
                                                  linkSingular: "%d link", linkFew: "%d links",
                                                  linkPlural: "%d links",
-                                                 usesFewForm: false)
+                                                 agreement: .oneAndMany)
         // Russian agrees a noun with the number in front of it three ways, and
         // the rule is the number's last digits, not its size: 1 and 21 take the
         // first, 2 and 22 the middle, 11 and 25 the last. A two-way choice put
@@ -669,7 +669,7 @@ enum ShelfFeatureTests {
                                                 notePlural: "many",
                                                 linkSingular: "one", linkFew: "few",
                                                 linkPlural: "many",
-                                                usesFewForm: true)
+                                                agreement: .byLastDigits)
         for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
                                 (11, .many), (12, .many), (14, .many), (15, .many),
                                 (21, .one), (22, .few), (25, .many), (101, .one), (111, .many)] {
@@ -681,8 +681,31 @@ enum ShelfFeatureTests {
             suite.expect(tooltipStrings.form(for: count) == wanted,
                    "a language without a middle form still only chooses between one and many at \(count)")
         }
-        suite.expect(AppLanguage.allCases.filter(\.usesFewCountForm) == [.ru],
-               "Russian is the one language of the thirteen that asks for the middle form")
+        // Slovak has the same three forms but reads the whole number, not its
+        // last digits: 21 and 22 stay with the last form, where Russian moves
+        // them back to the first and the middle. Borrowing the Russian rule
+        // put "21 súbor" and "22 súbory" on screen.
+        let slovakStrings = ShelfTooltipStrings(itemsFormat: "many", itemsFew: "few",
+                                                imageSingular: "one", imageFew: "few",
+                                                imagePlural: "many",
+                                                fileSingular: "one", fileFew: "few",
+                                                filePlural: "many",
+                                                noteSingular: "one", noteFew: "few",
+                                                notePlural: "many",
+                                                linkSingular: "one", linkFew: "few",
+                                                linkPlural: "many",
+                                                agreement: .byWholeNumber)
+        for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
+                                (11, .many), (14, .many), (21, .many), (22, .many),
+                                (25, .many), (101, .many), (111, .many)] {
+            suite.expect(slovakStrings.form(for: count) == wanted,
+                   "a language that reads the whole number asks for the right form at \(count)")
+        }
+        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .uk]
+               && AppLanguage.ru.countAgreement == .byLastDigits
+               && AppLanguage.uk.countAgreement == .byLastDigits
+               && AppLanguage.sk.countAgreement == .byWholeNumber,
+               "Russian, Slovak and Ukrainian are the three languages of the fifteen that ask for the middle form, each by its own rule")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",

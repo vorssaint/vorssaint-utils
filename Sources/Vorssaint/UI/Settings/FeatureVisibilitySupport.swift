@@ -264,6 +264,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .soundOutputSwitcher:
             return FeatureSettingsDestination(.shortcuts, sectionAnchor: .soundOutputSwitcher)
+        case .audioPriority:
+            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .micMute:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .micMute)
         case .musicBlock:
@@ -309,7 +311,7 @@ extension AppFeature {
         case .screenRecorder:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)
 
-        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
+        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return FeatureSettingsDestination(.monitor)
         case .fanControl:
             return FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl)
@@ -322,7 +324,7 @@ extension AppFeature {
 enum FeatureVisibilitySupport {
     static let monitorFeatures: [AppFeature] = [
         .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-        .fanControl,
+        .connectedDevices, .fanControl,
     ]
 
     /// Features gating a page; empty means the page is part of the app and

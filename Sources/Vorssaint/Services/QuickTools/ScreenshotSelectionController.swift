@@ -548,18 +548,20 @@ final class ScreenshotSelectionController {
         default: return
         }
         let location = currentPointerLocation ?? NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(location) })
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(location, $0.frame, false) })
             ?? NSScreen.withMouse else { return }
         let delta = ScreenshotSupport.captureLoupeNudge(dx: dx,
                                                         dy: dy,
                                                         fast: fast,
                                                         scale: screen.backingScaleFactor)
         var target = CGPoint(x: location.x + delta.x, y: location.y + delta.y)
-        if !NSScreen.screens.contains(where: { $0.frame.contains(target) }) {
+        if !NSScreen.screens.contains(where: { NSMouseInRect(target, $0.frame, false) }) {
+            // The pointer spans [minX, maxX) x (minY, maxY], as NSMouseInRect counts it.
             let frame = screen.frame
+            let pixel = 1 / max(screen.backingScaleFactor, 1)
             target = CGPoint(
-                x: min(max(target.x, frame.minX), frame.maxX),
-                y: min(max(target.y, frame.minY), frame.maxY))
+                x: min(max(target.x, frame.minX), frame.maxX - pixel),
+                y: min(max(target.y, frame.minY + pixel), frame.maxY))
         }
         currentPointerLocation = target
         let mainHeight = NSScreen.withMenuBar?.frame.height ?? 0
@@ -569,7 +571,7 @@ final class ScreenshotSelectionController {
 
     private func panelUnderMouse() -> ScreenshotOverlayPanel? {
         let location = currentPointerLocation ?? NSEvent.mouseLocation
-        return panels.first { $0.screenFrame.contains(location) } ?? panels.first
+        return panels.first { NSMouseInRect(location, $0.screenFrame, false) } ?? panels.first
     }
 
     private func keyPanelUnderMouse() -> ScreenshotOverlayPanel? {
@@ -1212,7 +1214,7 @@ private final class ScreenshotOverlayView: NSView {
         }
         let global = controller?.currentPointerLocation ?? NSEvent.mouseLocation
         guideHost.isHidden = !ScreenshotSupport.captureGuideIsVisible(
-            pointerOnDisplay: panel.screenFrame.contains(global),
+            pointerOnDisplay: NSMouseInRect(global, panel.screenFrame, false),
             selectionInProgress: controller?.selectionInProgress ?? true,
             capturePending: isCapturePending)
     }
