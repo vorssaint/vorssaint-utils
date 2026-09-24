@@ -43,6 +43,7 @@ struct MetricsTests {
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
             ("screenshots", {
+                ScreenshotCopyNameTests.run(suite)
                 ScreenshotPreviewHoverTests.run(suite)
                 ScreenshotWatermarkTests.run(suite)
                 ScreenshotFeatureTests.run(suite)

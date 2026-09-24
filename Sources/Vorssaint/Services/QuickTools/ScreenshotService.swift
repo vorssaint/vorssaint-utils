@@ -562,12 +562,20 @@ final class ScreenshotService: ObservableObject {
             NSSound.beep()
             return
         }
-        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        let (name, consumedNumber) = ScreenshotSupport.nextFileName(
+            prefix: strings.fileNamePrefix, defaults: UserDefaults.standard)
         autoCopyTask?.cancel()
         autoCopyGeneration += 1
         let generation = autoCopyGeneration
         let pasteboardChangeCount = NSPasteboard.general.changeCount
         autoCopyTask = Task { @MainActor [weak self] in
+            var copied = false
+            defer {
+                if !copied, let consumedNumber {
+                    ScreenshotSupport.rewindNumberSequence(toReuse: consumedNumber,
+                                                           defaults: UserDefaults.standard)
+                }
+            }
             let output = await Task.detached(priority: .userInitiated) {
                 guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
                     return nil as (URL, ScreenshotEditorController.ClipboardPayload)?
@@ -596,6 +604,7 @@ final class ScreenshotService: ObservableObject {
                 NSSound.beep()
                 return
             }
+            copied = true
             ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: output.0)
             self.autoCopyTask = nil
         }
@@ -771,45 +780,18 @@ final class ScreenshotService: ObservableObject {
                 destination = dated
             }
         }
-        let (name, consumedNumber) = Self.fileName(strings: strings)
+        let (name, consumedNumber) = ScreenshotSupport.nextFileName(prefix: strings.fileNamePrefix)
         let unique = ScreenshotSupport.uniqueFileName(name) { candidate in
             manager.fileExists(atPath: destination.appendingPathComponent(candidate).path)
         }
         return (destination.appendingPathComponent(unique), consumedNumber)
     }
 
-    /// The default localized "Screenshot yyyy-MM-dd at HH.mm.ss.png" name
-    /// when no pattern is set, otherwise the pattern with date tokens and
-    /// an optional "%#" number sequence expanded. Advances and persists the
-    /// number sequence when the pattern actually uses it.
-    private static func fileName(strings: ScreenshotFeatureStrings) -> (name: String, consumedNumber: Int?) {
-        let defaults = UserDefaults.standard
-        let pattern = (defaults.string(forKey: DefaultsKey.screenshotFileNamePattern) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !pattern.isEmpty else {
-            return (ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date()), nil)
-        }
-
-        if ScreenshotSupport.fileNamePatternUsesNumber(pattern) {
-            let number = defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext)
-            let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: number)
-            defaults.set(number + 1, forKey: DefaultsKey.screenshotFileNumberNext)
-            return (expanded + ".png", number)
-        } else {
-            let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: 0)
-            return (expanded + ".png", nil)
-        }
-    }
-
     /// Gives a consumed "%#" number back after its save failed or was
     /// deleted — but only while nothing else advanced the sequence since,
     /// so a rewind can never undo another capture's number.
     static func rewindNumberSequence(toReuse consumed: Int) {
-        let defaults = UserDefaults.standard
-        guard defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext) == consumed + 1 else {
-            return
-        }
-        defaults.set(consumed, forKey: DefaultsKey.screenshotFileNumberNext)
+        ScreenshotSupport.rewindNumberSequence(toReuse: consumed)
     }
 }
 
