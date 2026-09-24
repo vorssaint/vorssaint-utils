@@ -30,6 +30,7 @@ enum FanControlResumeContract {
     class Fixture {
         enum AccessState { case notRegistered, requiresApproval, enabled, unavailable }
         static let shared = Service()
+        static var helperVersion = "bundled"
         var accessState = AccessState.enabled
         var snapshot = FanControlSnapshot.empty
         var panelIsVisible = false
@@ -57,6 +58,7 @@ enum FanControlResumeContract {
             defaults.values = [:]
             defaults.values[DefaultsKey.fanControlResume] = resume
             defaults.values[DefaultsKey.fanControlRecoveryNeeded] = recovery
+            defaults.values[DefaultsKey.fanControlMode] = FanControlMode.manual.rawValue
             if let stored {
                 defaults.values[DefaultsKey.fanControlResumeConfiguration] =
                     FanControlConfiguration.encodeResume(stored)
@@ -94,6 +96,23 @@ enum FanControlResumeContract {
             #"{"curves":[],"manualLevel":100,"mode":"system"}"#
         Service.recoverIfNeeded()
         suite.expect(service.applied.isEmpty, "a damaged or System value is never re-applied")
+        reset()
+        defaults.values[DefaultsKey.fanControlMode] = FanControlMode.system.rawValue
+        Service.recoverIfNeeded()
+        service.workspaceDidWake()
+        service.stopIdleWorkIfPossible()
+        suite.expect(service.applied.isEmpty && !service.observing,
+                     "picking System in the card, with the fans already back there, is never undone by a resume")
+        reset()
+        defaults.values[DefaultsKey.fanControlHelperVersion] = "registered before the update"
+        Service.recoverIfNeeded()
+        service.workspaceDidWake()
+        suite.expect(service.applied.isEmpty,
+                     "a helper replaced by an update is registered anew before any resume holds the fans")
+        reset()
+        defaults.values[DefaultsKey.fanControlHelperVersion] = Service.helperVersion
+        Service.recoverIfNeeded()
+        suite.expect(service.applied == [manual], "the registered helper resumes as before")
 
         reset(resume: false, stored: nil)
         service.rememberForResume(manual)
@@ -115,6 +134,10 @@ enum FanControlResumeContract {
         reset(stored: nil)
         service.resumePreferenceDidChange()
         suite.expect(storedResume == nil, "turning resume on with the fans on System keeps nothing")
+        reset()
+        service.resumePreferenceDidChange()
+        suite.expect(storedResume == nil,
+                     "turning resume on with the fans on System drops an older kept control, such as a restored one")
 
         reset()
         service.returnToSystem()

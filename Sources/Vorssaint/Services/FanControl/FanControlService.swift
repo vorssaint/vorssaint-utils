@@ -297,16 +297,24 @@ final class FanControlService: ObservableObject {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
             return
         }
+        // Only the control running now is kept, never an older one left
+        // behind, for example by a restored backup.
         if snapshot.isCooling, let configuration = snapshot.configuration {
             rememberForResume(configuration)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
         }
     }
 
     /// The manual speed or curve to bring back when the app opens or the Mac
     /// wakes, while resume is on and the user has not returned to System.
     private static var resumableConfiguration: FanControlConfiguration? {
+        // Picking System in the card is a return to System too, even when a
+        // safety stop had already handed the fans back and left no button.
         guard AppFeature.fanControl.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.fanControlResume) else { return nil }
+              UserDefaults.standard.bool(forKey: DefaultsKey.fanControlResume),
+              UserDefaults.standard.string(forKey: DefaultsKey.fanControlMode)
+                != FanControlMode.system.rawValue else { return nil }
         return FanControlConfiguration.decodeResume(
             UserDefaults.standard.string(forKey: DefaultsKey.fanControlResumeConfiguration) ?? "")
     }
@@ -315,9 +323,17 @@ final class FanControlService: ObservableObject {
     /// enabled helper the fans stay with the system until the user acts.
     private func resume(_ configuration: FanControlConfiguration) -> Bool {
         refreshAccessState()
-        guard accessState == .enabled else { return false }
+        guard accessState == .enabled, !Self.helperAwaitsRegistration else { return false }
         applyConfiguration(configuration)
         return true
+    }
+
+    /// An update brought a helper other than the registered one. Kept control
+    /// would hold the recovery flag that blocks its registration swap, so a
+    /// resume waits for Fan Control to open and register it first.
+    private static var helperAwaitsRegistration: Bool {
+        let installed = UserDefaults.standard.string(forKey: DefaultsKey.fanControlHelperVersion) ?? ""
+        return !installed.isEmpty && installed != helperVersion
     }
 
     private func rememberForResume(_ configuration: FanControlConfiguration) {
