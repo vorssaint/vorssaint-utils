@@ -141,7 +141,7 @@ enum ScreenshotWatermarkTests {
                     imageSize: size, scale: 1, shadowsEnabled: false, cornerRadius: radius)
                 let reference = pixels(preview.makeImage()!)
                 let exported = ScreenshotRenderer.renderExport(baseImage: base, annotations: [],
-                    pixelated: nil, scale: 1, annotationShadowsEnabled: false, watermark: mark,
+                    pixelated: [:], scale: 1, annotationShadowsEnabled: false, watermark: mark,
                     watermarkImage: logo, style: .init(kind: .none, cornerRadius: 1),
                     fill: .none, downscaleTo1x: false)!
                 let actual = pixels(exported.image)

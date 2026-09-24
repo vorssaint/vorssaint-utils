@@ -25,12 +25,19 @@ struct NotchNotice: Equatable {
         // Reserve enough for the widest percentage without giving the short
         // label the same oversized wing used by text notices.
         if level != nil, event != .accessory { return 80 }
-        // Battery labels need breathing room at both the curved edge and the
-        // camera. Long accessory names still use bounded truncation.
+        // Long accessory names still use bounded truncation.
         let maximum: CGFloat = event == .accessory && level == nil ? 160 : 240
-        let padding: CGFloat = event == .battery ? 32 : 16
-        return min(maximum, max(88, ceil(max(leading + 18 + 8, trailing)) + padding))
+        return min(maximum, max(88, ceil(max(leading + 18 + 8, trailing)) + 16 + cameraGap))
     }
+
+    /// Two lines of text sit at the island's two ends, each as far from its
+    /// curved edge, so a short one leaves its spare room beside the camera
+    /// rather than at one end. Levels and banners keep their own layout.
+    var readsFromEnds: Bool { level == nil && notification == nil }
+
+    /// Room text keeps from the camera; battery labels need breathing room
+    /// at both the curved edge and the camera.
+    var cameraGap: CGFloat { event == .battery ? 16 : readsFromEnds ? 6 : 0 }
 
     var accessibilityText: String {
         notification?.accessibilityText ?? [title, detail].filter { !$0.isEmpty }.joined(separator: ", ")
@@ -102,6 +109,8 @@ final class NotchService: ObservableObject {
     private var inside = false
     private var hoverState = NotchHoverState()
     private var openedByHover = false
+    /// A click inside the open island, which may be what brings another app forward.
+    private var clickedSinceOpening = false
     private var trackingMenu = false
     private var fileInteractionActive = false
     private var keepsWorkingSurface: Bool {
@@ -1584,8 +1593,10 @@ final class NotchService: ObservableObject {
             collapse()
         }
         // Space changes do not run a full preference sync. Restore volume
-        // key routing when the island becomes eligible for feedback again.
+        // and brightness key routing when the island becomes eligible for
+        // feedback again, and hand the keys back while it is away.
         if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
+        if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
     }
 
     private func fullscreenEnvironmentDidChange() {
@@ -1659,7 +1670,11 @@ final class NotchService: ObservableObject {
         guard identifier != Bundle.main.bundleIdentifier, identifier != AssistiveKeyboard.bundleID else { return }
         panel?.resignKey()
         if expanded, modules.contains(.clipboard) { ClipboardHistoryService.shared.rememberPasteTarget() }
-        if expanded, !pinned, !keepsWorkingSurface, captureControls == nil { collapse() }
+        if expanded, !pinned, !keepsWorkingSurface, captureControls == nil,
+           NotchSupport.closesOnActivation(openedByHover: openedByHover, clicked: clickedSinceOpening,
+                                           pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true) {
+            collapse()
+        }
     }
 
     private func observe(_ center: NotificationCenter, _ name: Notification.Name,
@@ -1683,7 +1698,9 @@ final class NotchService: ObservableObject {
                 captureClose?()
                 clearCapture()
                 tearDownPresentation()
+                // The keys go back to the system while nothing can show them.
                 if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
+                if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
             }
         }
         // A dark display does not stop an alarm while the same user and Mac
@@ -1696,6 +1713,7 @@ final class NotchService: ObservableObject {
 
     private func installEventMonitors() {
         guard eventMonitors.isEmpty else { return }
+        clickedSinceOpening = false
         let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         if let token = NSEvent.addGlobalMonitorForEvents(matching: clicks, handler: { [weak self] _ in
             guard let self, !self.keepsWorkingSurface,
@@ -1747,8 +1765,9 @@ final class NotchService: ObservableObject {
                 self.collapse()
                 return nil
             }
-            if clicks.contains(NSEvent.EventTypeMask(rawValue: 1 << event.type.rawValue)),
-               event.window !== self.panel, !self.keepsWorkingSurface,
+            let click = clicks.contains(NSEvent.EventTypeMask(rawValue: 1 << event.type.rawValue))
+            if click, event.window === self.panel { self.clickedSinceOpening = true }
+            if click, event.window !== self.panel, !self.keepsWorkingSurface,
                self.windowHost?.contains(NSEvent.mouseLocation) != true,
                (NSApp.delegate as? AppDelegate)?.isOverStatusItem(NSEvent.mouseLocation) != true,
                !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) { self.collapse() }

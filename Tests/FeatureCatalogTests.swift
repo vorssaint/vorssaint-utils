@@ -1720,11 +1720,33 @@ enum FeatureCatalogTests {
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases),
                "every declared Settings section anchor is used by a feature destination")
-        suite.expect(AppFeature.windowMaximizer.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
-                && AppFeature.mixer.settingsDestination
+        suite.expect(AppFeature.dockPreview.settingsDestination
+                == FeatureSettingsDestination(.dock, sectionAnchor: .dock)
+                && AppFeature.dockClick.settingsDestination
+                == FeatureSettingsDestination(.dock, sectionAnchor: .dockClick)
+                && FeatureVisibilitySupport.features(for: .switcher) == [.switcher]
+                && pageVisible(.dock, available: [.dockClick])
+                && !pageVisible(.switcher, available: [.dockPreview, .dockClick]),
+               "Dock Preview and Dock clicks have their own page, apart from the switcher")
+        func dockNeedsAccessibility(available: Set<AppFeature>, on: Set<String>) -> Bool {
+            FeatureVisibilitySupport.isPermissionNeeded(
+                on: .dock, activeFeatures: Array(activeSet(.accessibility, available: available, on: on)))
+        }
+        suite.expect([DefaultsKey.dockClickMinimize, DefaultsKey.dockClickHide, DefaultsKey.dockClickCycleWindows]
+                .allSatisfy { dockNeedsAccessibility(available: [.dockClick], on: [$0]) }
+                && dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockPreviewEnabled])
+                && !dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockClickMinimize])
+                && !dockNeedsAccessibility(available: allFeatures, on: [DefaultsKey.switcherEnabled]),
+               "the Dock page asks for Accessibility while Dock Preview or any Dock click action is on")
+        suite.expect(AppFeature.mixer.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration),
                "panel-oriented features land on General panel configuration")
+        suite.expect(AppFeature.windowMaximizer.settingsDestination
+                == FeatureSettingsDestination(.windowLayout, sectionAnchor: .windowMaximizer)
+                && pageVisible(.windowLayout, available: [.windowMaximizer])
+                && !pageVisible(.windowLayout,
+                                available: allFeatures.subtracting([.windowLayout, .windowMaximizer])),
+               "the green button override and its exception list keep the window layout page on their own")
         suite.expect(AppFeature.cleaningMode.settingsDestination
                 == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode),
                "cleaning mode lands on Quick Tools cleaning mode section")
@@ -2325,6 +2347,17 @@ enum FeatureCatalogTests {
                                                           displayIsBuiltIn: false,
                                                           overlayReplacesNative: true),
                "with the overlay on, the system target is stepped here so only one OSD draws")
+        // An external keyboard's plain brightness keys must reach the island
+        // or the overlay too, not only the pointer routing (beta feedback).
+        suite.expect(BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: true)
+                && BrightnessSupport.answersPlainBrightnessKeys(followsPointer: true, overlayReplacesNative: false)
+                && !BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: false),
+               "plain brightness keys are answered here whenever the app replaces the system's handling")
+        suite.expect(BrightnessSupport.plainKeyTarget(followsPointer: false, pointerDisplay: 2, systemTarget: 1) == 1
+                && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: 2, systemTarget: 1) == 2
+                && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: nil, systemTarget: 1) == nil
+                && BrightnessSupport.plainKeyTarget(followsPointer: false, pointerDisplay: 2, systemTarget: nil) == nil,
+               "without pointer routing a plain key moves the system's own target, never the pointer's display")
         suite.expect(BrightnessSupport.filledBrightnessSegments(0) == 0
                 && BrightnessSupport.filledBrightnessSegments(0.01) == 1
                 && BrightnessSupport.filledBrightnessSegments(0.5) == 8
@@ -2336,6 +2369,25 @@ enum FeatureCatalogTests {
                 && BrightnessSupport.wholePercent(1.2) == 100
                 && BrightnessSupport.wholePercent(.infinity) == 0,
                "brightness overlay percentage rounds and clamps safely")
+        // Show brightness when adjusting governs the app's overlay. The island
+        // stands in for the system only while it shows notices.
+        suite.expect(BrightnessSupport.overlayReplacesNative(overlayEnabled: true, islandRoutes: false,
+                                                             islandShowsNotices: false),
+               "the opt-in overlay replaces the system's brightness feedback")
+        suite.expect(BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: true,
+                                                             islandShowsNotices: true),
+               "an island that shows notices stands in for the system's brightness feedback")
+        let hiddenIsland = BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: true,
+                                                                   islandShowsNotices: false)
+        suite.expect(!hiddenIsland && !BrightnessSupport.stepsSystemRoutedDisplay(followsPointer: false,
+                                                                                  displayIsBuiltIn: true,
+                                                                                  overlayReplacesNative: hiddenIsland),
+               "with the overlay off, an island hidden until hover leaves the built-in panel's key to the system")
+        suite.expect(!BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: false,
+                                                              islandShowsNotices: true),
+               "an island without brightness leaves the key to the system")
+        suite.expect(!brightnessWorkQueueCode.contains("NotchSupport.routes(.brightness)"),
+               "the app's overlay appears only with its own option, never in place of an island that shows nothing")
 
     }
 }

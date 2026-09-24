@@ -142,18 +142,21 @@ struct PanelClipboardView: View {
             // the selection renderer, which lays the whole preview out and
             // ignores the line limit, so a long entry paints over the rows
             // below it. The history window shows the full, selectable text.
-            Text(entry.preview)
-                .font(.system(size: 10.5))
-                .lineLimit(3)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .center, spacing: 7) {
+                if let color = entry.color {
+                    ClipboardColorSwatch(color: color, size: 12)
+                }
+                Text(entry.preview)
+                    .font(.system(size: 10.5))
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
             HStack(alignment: .center, spacing: 7) {
-                if let name = entry.imageFile,
-                   let thumbnail = ClipboardImageStore.thumbnail(named: name) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                if let name = entry.imageFile {
+                    ClipboardThumbnailImage(source: .stored(name: name),
+                                            aspectRatio: entry.imageAspectRatio)
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
@@ -164,12 +167,10 @@ struct PanelClipboardView: View {
         case .files:
             if entry.filePaths.count == 1,
                let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path),
-               let thumbnail = ClipboardImageStore.fileThumbnail(atPath: path) {
+               ClipboardImageStore.isImageFile(atPath: path) {
                 HStack(alignment: .center, spacing: 7) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                    ClipboardThumbnailImage(source: .file(path: path),
+                                            aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                     Text(entry.fileNames.first ?? entry.preview)

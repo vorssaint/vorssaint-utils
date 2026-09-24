@@ -287,8 +287,11 @@ struct NotchView: View {
                             .lineLimit(1)
                             .layoutPriority(-1)
                     }
-                    NotchSectionSearch(service: service, maximumFieldWidth: service.expandedGeometry.headerCameraGap > 0
-                                       ? max(24, (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 - 100) : 150)
+                    // Beside the camera the field takes the rest of its side,
+                    // stopping a little short of the cutout.
+                    NotchSectionSearch(service: service,
+                                       maximumFieldWidth: service.expandedGeometry.headerCameraGap > 0 ? .infinity : 150)
+                        .padding(.trailing, service.expandedGeometry.headerCameraGap > 0 ? 6 : 0)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if showsDetail || service.modules.isEmpty {
                     if showsDetail {
