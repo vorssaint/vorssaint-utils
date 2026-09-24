@@ -84,6 +84,7 @@ struct CleanerView: View {
     @AppStorage(DefaultsKey.cleanerScheduleWeekday) private var scheduleWeekday = 2
     @AppStorage(DefaultsKey.cleanerLastAutoRun) private var lastAutoRun = 0.0
     @AppStorage(DefaultsKey.cleanerLastAutoFreed) private var lastAutoFreed = 0
+    @AppStorage(DefaultsKey.cleanerLastAutoFailed) private var lastAutoFailed = 0
     @AppStorage(DefaultsKey.cleanerScheduleNotify) private var scheduleNotify = true
     @ObservedObject private var scheduler = CleanerScheduler.shared
     @ObservedObject private var whatsAppScheduler = WhatsAppDownloadScheduler.shared
@@ -640,11 +641,11 @@ struct CleanerView: View {
 
     private var lastRunLine: String {
         let ranAt = Self.nextRunFormatter.string(from: Date(timeIntervalSince1970: lastAutoRun))
-        if lastAutoFreed > 0 {
-            return String(format: l10n.s.cleanerScheduleLastFormat,
-                          Self.byteString(Int64(lastAutoFreed)))
-        }
-        return String(format: l10n.s.cleanerScheduleRanFormat, ranAt)
+        let line = lastAutoFreed > 0
+            ? String(format: l10n.s.cleanerScheduleLastFormat, Self.byteString(Int64(lastAutoFreed)))
+            : String(format: l10n.s.cleanerScheduleRanFormat, ranAt)
+        // A pass that moved nothing still reads as a normal run unless what it left is said.
+        return lastAutoFailed > 0 ? line + " " + l10n.s.uninstallerSomeFailed : line
     }
 
     /// Checked slightly delayed so a just fired authorization prompt has a

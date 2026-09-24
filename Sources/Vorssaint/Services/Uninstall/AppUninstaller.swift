@@ -98,6 +98,21 @@ final class AppUninstaller: ObservableObject {
         phase == .removing || isRemovingWithHomebrew
     }
 
+    /// What the Homebrew confirmation showed, since the panel, Settings and the
+    /// command bar share this uninstaller and can change it while it is open.
+    struct HomebrewRemovalConfirmation {
+        let package: HomebrewPackage
+        let targetURL: URL
+        let selectedIDs: Set<UUID>
+    }
+
+    var homebrewRemovalConfirmation: HomebrewRemovalConfirmation? {
+        guard phase == .results, !isRemoving,
+              let package = selectedHomebrewPackage, let target else { return nil }
+        return HomebrewRemovalConfirmation(package: package, targetURL: target.url,
+                                           selectedIDs: Set(items.filter(\.include).map(\.id)))
+    }
+
     // MARK: - Selection & scan
 
     /// Reads an app bundle and starts scanning for its leftovers.
@@ -363,9 +378,16 @@ final class AppUninstaller: ObservableObject {
     /// After Homebrew has removed its package receipt and app artifact, clean
     /// only the other items the person selected. The app itself is excluded so
     /// this flow never tries to remove the same bundle twice.
-    func removeSelectedWithHomebrew() {
-        guard phase == .results, !isRemoving else { return }
-        guard let package = selectedHomebrewPackage else { return }
+    func removeSelectedWithHomebrew(confirmation: HomebrewRemovalConfirmation) {
+        guard phase == .results, !isRemoving,
+              target?.url == confirmation.targetURL,
+              selectedHomebrewPackage?.id == confirmation.package.id,
+              Set(items.filter(\.include).map(\.id)) == confirmation.selectedIDs else {
+            QuickToolHUD.show(icon: "exclamationmark.circle",
+                              message: L10n.shared.s.uninstallerConfirmationExpired)
+            return
+        }
+        let package = confirmation.package
         let manager = HomebrewManager.shared
         guard manager.operation == nil else { return }
         manager.clearLog()

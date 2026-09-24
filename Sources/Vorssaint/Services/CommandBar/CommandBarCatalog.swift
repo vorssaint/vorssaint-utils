@@ -1142,8 +1142,15 @@ enum CommandBarCatalog {
                     .map { .appIcon(path: $0.path) } ?? .symbol("macwindow"),
                 countsUsage: false,
                 run: { _ in
+                    // Capture before the beat: the bar never activates, so this
+                    // is still the app in front, and a switch during the delay
+                    // must not become the handoff source for a later reclaim.
+                    let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
                     afterBeat(0.1) {
-                        WindowActivator.activate(pid: pid, windowID: windowID, appName: appName)
+                        WindowActivator.activate(pid: pid,
+                                                 windowID: windowID,
+                                                 appName: appName,
+                                                 handoffSourcePID: handoffSourcePID)
                     }
                 })
         }
@@ -1740,32 +1747,26 @@ enum CommandBarCatalog {
     }
 
     /// Brightness lands on the display under the pointer, the screen where
-    /// the bar was just used. The routes may need one refresh when the panel
-    /// or Settings never opened this session.
-    private static func applyBrightness(percent: Int, retried: Bool = false) {
+    /// the bar was just used, and never on another one. The routes may need
+    /// one refresh when the panel or Settings never opened this session, and
+    /// the retry looks for that same display wherever the pointer went since.
+    private static func applyBrightness(percent: Int, display: CGDirectDisplayID? = nil) {
         let service = BrightnessService.shared
         let value = Double(percent) / 100
-        if let display = pointerDisplay(in: service.displays) {
-            service.setBrightness(value, for: display.id, showOSD: true)
+        let pointer = NSEvent.mouseLocation
+        let target = display ?? NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+            .flatMap { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }
+        if let id = target, service.displays.contains(where: { $0.id == id }) {
+            service.setBrightness(value, for: id, showOSD: true)
             return
         }
-        guard !retried else {
+        guard display == nil, let target else {
             NSSound.beep()
             return
         }
         service.refresh()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            applyBrightness(percent: percent, retried: true)
+            applyBrightness(percent: percent, display: target)
         }
-    }
-
-    private static func pointerDisplay(in displays: [BrightnessDisplay]) -> BrightnessDisplay? {
-        guard !displays.isEmpty else { return nil }
-        let pointerScreen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
-        if let number = pointerScreen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
-           let match = displays.first(where: { $0.id == number.uint32Value }) {
-            return match
-        }
-        return displays.first
     }
 }

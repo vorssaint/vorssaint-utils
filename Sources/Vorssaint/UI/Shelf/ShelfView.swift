@@ -232,6 +232,7 @@ struct ShelfView: View {
                            contentRevision: shelf.contentRevision,
                            selection: shelf.selection,
                            expandedBatches: shelf.expandedBatches,
+                           pinnedIDs: shelf.pinnedIDs,
                            revealID: shelf.revealTargetID,
                            revealSerial: shelf.addSerial)
                 .frame(height: Self.tileAreaHeight)

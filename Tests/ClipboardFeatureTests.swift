@@ -12,6 +12,38 @@ import ImageIO
 import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
+    /// Runs the production `pasteIntoPreviousApp` with a target app, the
+    /// Accessibility grant, the beep and the paste all recorded as events.
+    final class QuickPasteHost {
+        final class App {
+            let isTerminated: Bool
+            init(isTerminated: Bool) { self.isTerminated = isTerminated }
+            func activate(options: [Int]) { host?.events.append("activate") }
+        }
+        typealias NSRunningApplication = App
+        enum Sound {
+            static func beep() { host?.events.append("beep") }
+        }
+        typealias NSSound = Sound
+        final class Access {
+            static let shared = Access()
+            func requestAccessibility() { host?.events.append("prompt") }
+        }
+        typealias Permissions = Access
+        final class Queue {
+            static let main = Queue()
+            func asyncAfter(deadline: DispatchTime, execute work: @escaping () -> Void) { work() }
+        }
+        typealias DispatchQueue = Queue
+        static var host: QuickPasteHost?
+        var events: [String] = []
+        var trusted = true
+        var promptedForAccessibility = false
+        init() { Self.host = self }
+        func AXIsProcessTrusted() -> Bool { trusted }
+        static func postPasteShortcut() { host?.events.append("paste") }
+    }
+
     static func run(_ suite: TestSuite) {
         ClipboardPreviewContract.run(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
@@ -401,6 +433,16 @@ enum ClipboardFeatureTests {
         } else {
             suite.expect(false, "clipboard persistence encodes a bounded escaped history")
         }
+        let oversizedPinnedHistory = escapingHistory.map { entry -> ClipboardHistoryEntry in
+            var pinned = entry
+            pinned.pinnedAt = Date()
+            return pinned
+        }
+        suite.expect(!ClipboardHistoryEditing.pinnedEntriesFit(oversizedPinnedHistory, byteLimit: encodedHistoryLimit)
+                && ClipboardHistoryEditing.pinnedEntriesFit(Array(oversizedPinnedHistory.prefix(2)),
+                                                            byteLimit: encodedHistoryLimit)
+                && ClipboardHistoryEditing.pinnedEntriesFit(escapingHistory, byteLimit: encodedHistoryLimit),
+               "pinned entries are measured as escaped JSON against the saved file, unpinned ones do not count")
         let largeClipboardPreview = ClipboardHistoryEntry(text: largeClipboardText).preview
         suite.expect(largeClipboardPreview.hasSuffix("…")
                 && largeClipboardPreview.count <= ClipboardHistoryEditing.previewCharacters + 1,
@@ -667,6 +709,26 @@ enum ClipboardFeatureTests {
             encoding: .utf8)) ?? ""
         suite.expect(pastePlainSource.contains("GeneralPasteboardAccess.shared.async"),
                "paste as plain text reads the clipboard on the lane, not on the main thread")
+        for (terminated, trusted, expected) in [
+            (true, true, ["beep"]),
+            (false, false, ["activate", "prompt", "activate", "beep"]),
+            (false, true, ["activate", "paste"]),
+        ] {
+            let host = QuickPasteHost()
+            host.trusted = trusted
+            let app = QuickPasteHost.App(isTerminated: terminated)
+            host.pasteIntoPreviousApp(app)
+            if !trusted { host.pasteIntoPreviousApp(app) }
+            suite.expect(host.events == expected,
+                   "quick paste beeps or asks for Accessibility when it cannot paste, found \(host.events)")
+        }
+        for trusted in [true, false] {
+            let host = QuickPasteHost()
+            host.trusted = trusted
+            host.pasteIntoPreviousApp(nil)
+            suite.expect(host.events.isEmpty,
+                   "quick paste with no target app stays a silent copy, found \(host.events)")
+        }
 
     }
 }
@@ -681,6 +743,7 @@ enum ClipboardPreviewContract {
         func writeToPasteboard(_ list: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
             pendingWrite = completion
         }
+        var encodedHistoryByteLimit = ClipboardHistoryEditing.maxEncodedHistoryBytes
         func trimToLimit() {}
         func save() {}
     }
@@ -741,5 +804,24 @@ enum ClipboardPreviewContract {
         service.setEntries([pinnedImage])
         suite.expect(service.latestPasteboardEntry == pinnedImage,
                      "immutable image content keeps its preview even when a legacy entry lacks a hash")
+
+        // Escaped backslashes double in the saved file: two of these pinned
+        // entries fit in 5,000 bytes and three do not.
+        var heavy = (0..<3).map { ClipboardHistoryEntry(text: String(repeating: "\\", count: 1_000 + $0)) }
+        heavy[0].pinnedAt = Date()
+        heavy[1].pinnedAt = Date()
+        service.setEntries(heavy)
+        service.encodedHistoryByteLimit = 5_000
+        service.togglePin(heavy[2])
+        suite.expect(service.entries == heavy,
+                     "a pin the saved file cannot hold beside the other pinned items is refused")
+        suite.expect(!service.updateText(heavy[0], to: String(repeating: "\\", count: 1_500))
+                     && service.entries == heavy,
+                     "an edit that makes the pinned items too large for the saved file is refused")
+        suite.expect(service.updateText(heavy[2], to: String(repeating: "\\", count: 1_500)),
+                     "an unpinned item can still grow, since saving trims it instead")
+        service.togglePin(heavy[0])
+        suite.expect(service.entries.first { $0.id == heavy[0].id }?.isPinned == false,
+                     "unpinning is never refused by the size of the saved file")
     }
 }

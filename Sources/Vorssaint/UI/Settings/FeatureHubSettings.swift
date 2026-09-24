@@ -358,6 +358,7 @@ private struct FeatureHubRow: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var confirmingExtensions = false
     @State private var hovering = false
+    @State private var showingMetadata = false
     let feature: AppFeature
     let hub: FeatureHubStrings
     let symbolName: String
@@ -506,21 +507,49 @@ private struct FeatureHubRow: View {
     }
 
     /// What the feature may ask for and what it keeps alive, as small icons
-    /// whose names appear on hover.
+    /// under one button: a tooltip on each bare 9-point glyph only fired with
+    /// the pointer exactly on it, and never reached keyboard or VoiceOver.
     private var metadata: some View {
-        HStack(spacing: 5) {
-            ForEach(feature.permissions, id: \.self) { permission in
-                Image(systemName: permission.symbolName)
-                    .help(permission.name(hub))
+        let explanation = (feature.permissions.map { $0.name(hub) } + [energyLabel])
+            .joined(separator: "\n")
+        return Button { showingMetadata.toggle() } label: {
+            HStack(spacing: 5) {
+                ForEach(feature.permissions, id: \.self) { permission in
+                    Image(systemName: permission.symbolName)
+                }
+                ForEach(energySymbols, id: \.self) { symbol in
+                    Image(systemName: symbol)
+                }
             }
-            ForEach(energySymbols, id: \.self) { symbol in
-                Image(systemName: symbol)
-                    .help(energyLabel)
-            }
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(.tertiary)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
         }
-        .font(.system(size: 9, weight: .medium))
-        .foregroundStyle(.tertiary)
-        .accessibilityHidden(true)
+        .buttonStyle(.plain)
+        .help(explanation)
+        .accessibilityLabel(explanation)
+        .popover(isPresented: $showingMetadata) {
+            // Symbols differ in width, so a centered icon column keeps the texts aligned.
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                ForEach(feature.permissions, id: \.self) { permission in
+                    GridRow {
+                        Image(systemName: permission.symbolName)
+                            .gridColumnAlignment(.center)
+                            .accessibilityHidden(true)
+                        Text(permission.name(hub))
+                    }
+                }
+                GridRow {
+                    HStack(spacing: 2) {
+                        ForEach(energySymbols, id: \.self) { Image(systemName: $0) }
+                    }
+                    .accessibilityHidden(true)
+                    Text(energyLabel)
+                }
+            }
+            .padding(14)
+        }
     }
 
     @ViewBuilder
@@ -859,6 +888,7 @@ extension AppFeature {
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
+        case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).pageTitle
         case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).title
         case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timer
         case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessories
@@ -936,6 +966,7 @@ extension AppFeature {
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
+        case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).hubDescription
         case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).description
         case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timerDescription
         case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessoryDescription

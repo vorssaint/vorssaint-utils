@@ -14,7 +14,7 @@ struct UninstallerView: View {
     @AppStorage(DefaultsKey.uninstallerCommandBarEnabled) private var commandBarEnabled = false
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
-    @State private var pendingHomebrewRemoval: HomebrewPackage?
+    @State private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
     @State private var showHomebrewDetails = false
 
     var body: some View {
@@ -23,14 +23,14 @@ struct UninstallerView: View {
             .alert(l10n.s.homebrewConfirmUninstallTitle,
                    isPresented: Binding(get: { pendingHomebrewRemoval != nil },
                                         set: { if !$0 { pendingHomebrewRemoval = nil } }),
-                   presenting: pendingHomebrewRemoval) { package in
+                   presenting: pendingHomebrewRemoval) { confirmation in
                 Button(l10n.s.uninstallerCancel, role: .cancel) {}
                 Button(l10n.s.homebrewUninstall, role: .destructive) {
                     pendingHomebrewRemoval = nil
-                    uninstaller.removeSelectedWithHomebrew()
+                    uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
                 }
-            } message: { package in
-                Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, package.displayName))
+            } message: { confirmation in
+                Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, confirmation.package.displayName))
             }
     }
 
@@ -230,8 +230,8 @@ struct UninstallerView: View {
             Button(l10n.s.uninstallerCancel) { uninstaller.reset() }
                 .disabled(uninstaller.isRemovingWithHomebrew)
             Button(removeButtonTitle) {
-                if let package = uninstaller.selectedHomebrewPackage {
-                    pendingHomebrewRemoval = package
+                if let confirmation = uninstaller.homebrewRemovalConfirmation {
+                    pendingHomebrewRemoval = confirmation
                 } else {
                     uninstaller.removeSelected()
                 }

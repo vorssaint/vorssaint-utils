@@ -33,28 +33,51 @@ enum UninstallerFlowTests {
             while !pending.isEmpty { pending.removeFirst()() }
         }
     }
+    struct Package: Equatable {
+        let id: String
+        var displayName: String { id }
+    }
     final class Brew {
+        struct Status {
+            enum Action { case uninstall }
+            enum Result { case running, succeeded }
+            let action: Action
+            let package: Package?
+            let result: Result
+        }
         static let shared = Brew()
-        var callback: ((String?) -> Void)?
-        func packageManagingApplication(at url: URL, completion: @escaping (String?) -> Void) {
+        var callback: ((Package?) -> Void)?
+        @Published var operationStatus: Status?
+        var operation: Status?
+        var uninstalled: [String] = []
+        func packageManagingApplication(at url: URL, completion: @escaping (Package?) -> Void) {
             callback = completion
         }
+        func clearLog() {}
+        func uninstall(_ package: Package) { uninstalled.append(package.id) }
+    }
+    enum HUD {
+        static var messages: [String] = []
+        static func show(icon: String, message: String) { messages.append(message) }
     }
     class UninstallerState {
         typealias DispatchQueue = Queue
         typealias HomebrewManager = Brew
+        typealias HomebrewPackage = Package
+        typealias QuickToolHUD = HUD
+        typealias L10n = Localization
         var phase: Phase = .empty
         var target: Target?
-        var homebrewPackage: String?
+        var homebrewPackage: Package?
         var homebrewRemovalSize: Int64 = 0
         var homebrewRemovedApplication = false
-        var homebrewRemovalObservation: Observation?
+        var homebrewRemovalObservation: AnyCancellable?
         var targetFileIdentity: UninstallerSupport.FileIdentity?
         var targetInfoIdentity: UninstallerSupport.FileIdentity?
         var allowedRemovalPaths = Set<String>()
         var items: [Leftover] = []
         var isRemovingWithHomebrew = false
-        var selectedHomebrewPackage: String? { homebrewPackage }
+        var selectedHomebrewPackage: Package? { homebrewPackage }
         static func allBundleIDs(in url: URL, fm: FileManager) -> Set<String> { [] }
         static func knownApplicationURLs(candidateBundleIDs: Set<String>) -> [URL] { [] }
         static func applicationBundleIdentifiers(in urls: [URL]) -> [String] { [] }
@@ -69,6 +92,7 @@ enum UninstallerFlowTests {
                 && UninstallerSupport.fileIdentity(at: url.appendingPathComponent("Contents/Info.plist")) == infoIdentity
         }
         func removeSelected() { if !items.isEmpty { phase = .removing } }
+        func finishRemovalAfterHomebrew(package: Package) {}
     }
     enum Feature {
         case uninstaller
@@ -86,6 +110,7 @@ enum UninstallerFlowTests {
         struct Text {
             let uninstallerRemoving = "Removing"
             let uninstallerSelectionUnavailable = "Unavailable"
+            let uninstallerConfirmationExpired = "Expired"
         }
     }
     enum Permission {
@@ -208,12 +233,12 @@ enum UninstallerFlowTests {
             suite.expect(uninstaller.items == originalItems, "an active removal keeps its captured selection")
             uninstaller.phase = .results
             uninstaller.isRemovingWithHomebrew = true
-            uninstaller.homebrewPackage = "first"
+            uninstaller.homebrewPackage = Package(id: "first")
             let observation = Observation()
-            uninstaller.homebrewRemovalObservation = observation
+            uninstaller.homebrewRemovalObservation = AnyCancellable(observation.cancel)
             service.beginUninstallReview(appURL: b, entryID: "b")
             uninstaller.reset()
-            suite.expect(!observation.canceled && uninstaller.target?.url == a && uninstaller.homebrewPackage == "first",
+            suite.expect(!observation.canceled && uninstaller.target?.url == a && uninstaller.homebrewPackage?.id == "first",
                          "a new selection or reset cannot discard package cleanup in progress")
             uninstaller.isRemovingWithHomebrew = false
             uninstaller.phase = .done(freed: 1, failed: [])
@@ -257,6 +282,29 @@ enum UninstallerFlowTests {
             service.beginUninstallReview(appURL: b, entryID: "b")
             suite.expect(service.mode == .search, "uninstalling the feature rejects a previously offered row")
             Feature.available = true
+            uninstaller.reset()
+            _ = uninstaller.select(appURL: a)
+            Queue.drain()
+            Brew.shared.callback?(Package(id: "first"))
+            if let confirmation = uninstaller.homebrewRemovalConfirmation, let app = uninstaller.items.first {
+                uninstaller.setInclude(false, for: app.id)
+                uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
+                uninstaller.setInclude(true, for: app.id)
+                uninstaller.homebrewPackage = Package(id: "second")
+                uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
+                uninstaller.homebrewPackage = Package(id: "first")
+                let shownTarget = uninstaller.target
+                uninstaller.target = Target(name: "Second", bundleID: nil, url: b, icon: NSImage())
+                uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
+                uninstaller.target = shownTarget
+                suite.expect(Brew.shared.uninstalled.isEmpty && HUD.messages.count == 3,
+                             "a Homebrew confirmation for other rows, another package or another app runs nothing, found \(Brew.shared.uninstalled)")
+                uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
+                suite.expect(Brew.shared.uninstalled == ["first"],
+                             "an unchanged Homebrew confirmation runs its package")
+            } else {
+                suite.expect(false, "a Homebrew-managed app offers a package confirmation")
+            }
             service.cachedApps = [a, b].map {
                 InstalledApps.InstalledApp(id: $0.path, name: $0.lastPathComponent,
                                           bundleID: nil, url: $0, isSystem: false)

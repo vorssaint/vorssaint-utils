@@ -778,7 +778,7 @@ enum AppManagementFeatureTests {
             contentsOfFile: "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift",
             encoding: .utf8)) ?? ""
         let removeSelectedBody = sourceBody(of: appUninstallerSource, from: "func removeSelected()",
-                                            to: "func removeSelectedWithHomebrew()")
+                                            to: "func removeSelectedWithHomebrew(")
         suite.expect(removeSelectedBody.contains("let knownApplications = mayClaimSharedData"),
                "a removal builds the known-application roster only when it may claim shared data")
         let finishHomebrewBody = sourceBody(of: appUninstallerSource,

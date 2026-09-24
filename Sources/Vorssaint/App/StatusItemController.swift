@@ -8,7 +8,9 @@ import Combine
 /// title and the tooltip. Click handling is delegated back to the AppDelegate.
 final class StatusItemController {
     var onLeftClick: (() -> Void)?
-    var onRightClick: (() -> Void)?
+    /// Receives the button that was clicked, so a menu can open from it
+    /// while the main item is out of the bar.
+    var onRightClick: ((NSStatusBarButton?) -> Void)?
     var onMetricClick: ((MenuBarMetric, NSStatusBarButton) -> Void)?
     var onClipboardPreviewClick: (() -> Void)?
 
@@ -26,6 +28,10 @@ final class StatusItemController {
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
     private var lastIconStateKey = ""
+    /// True while the app itself keeps the main item out of the bar, for
+    /// Dynamic Island or for separate metrics, as opposed to macOS dropping
+    /// it. Recovery leaves such an item alone.
+    private(set) var mainItemHiddenByChoice = false
     private var heldMicBadgeActive: Bool?
     /// A settings reply already waiting for the next turn of the run loop.
     private var settingsSyncScheduled = false
@@ -73,8 +79,10 @@ final class StatusItemController {
     var button: NSStatusBarButton? { statusItem.button }
 
     func containsStatusItem(at screenPoint: NSPoint) -> Bool {
-        let buttons = ([statusItem?.button, clipboardPreviewStatusItem?.button]
-            + metricStatusItems.values.map(\.button)).compactMap { $0 }
+        let items = [statusItem, clipboardPreviewStatusItem].compactMap { $0 } + Array(metricStatusItems.values)
+        // A hidden item keeps its last frame, which another app's item may
+        // occupy by now.
+        let buttons = items.filter(\.isVisible).compactMap(\.button)
         // Bound once for the whole scan: a default argument is evaluated per
         // call, so leaving it to the default would rebuild this per button.
         let screenFrames = NSScreen.screens.map(\.frame)
@@ -92,11 +100,12 @@ final class StatusItemController {
     }
 
     /// Creates the status item and configures its button. The menu bar item is the
-    /// app's only entry point, so an empty behavior set keeps it from being dragged
-    /// off the bar (reordering still works), and forcing isVisible undoes any hidden
-    /// state macOS may have persisted. If it ever goes missing, re-opening the app
-    /// recovers access (see applicationShouldHandleReopen) and the "Show menu bar
-    /// icon" button in Settings rebuilds it.
+    /// app's entry point unless the person lets Dynamic Island stand in for it, so
+    /// an empty behavior set keeps it from being dragged off the bar (reordering
+    /// still works), and forcing isVisible undoes any hidden state macOS may have
+    /// persisted. If it ever goes missing, re-opening the app recovers access (see
+    /// applicationShouldHandleReopen) and the "Show menu bar icon" button in
+    /// Settings rebuilds it.
     private func installStatusItem() {
         // Nothing here may touch the saved placement. 3.3.3 retired a legacy
         // 64pt offset on every launch and took working coordinates with it;
@@ -325,7 +334,8 @@ final class StatusItemController {
         let optionEnabled = defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
         let signal = updateAvailable || micBadgeActive
-        let hidden = MenuBarSpacingSupport.shouldHideStatusIcon(
+        let islandHides = MenuBarSpacingSupport.islandHidesStatusIcon(in: defaults) && !signal
+        let hidden = islandHides || MenuBarSpacingSupport.shouldHideStatusIcon(
             optionEnabled: optionEnabled,
             separateMetrics: separateMetrics,
             metricsEnabled: MenuBarMetric.anyEnabled(in: defaults),
@@ -333,13 +343,16 @@ final class StatusItemController {
             mustShowForSignal: signal)
         // In the separate-items mode the metrics are their own clickable
         // items, so hiding means the whole main item steps aside instead of
-        // just its image (which is all that item has).
-        let mainItemHidden = MenuBarSpacingSupport.shouldHideMainStatusItem(
-            optionEnabled: optionEnabled,
-            separateMetrics: separateMetrics,
-            metricItemsShown: renderedMetricItemCount,
-            renderedTitleLength: button.attributedTitle.length,
-            mustShowForSignal: signal)
+        // just its image (which is all that item has). With Dynamic Island
+        // standing in, the item goes whenever it has no text of its own.
+        let mainItemHidden = (islandHides && button.attributedTitle.length == 0)
+            || MenuBarSpacingSupport.shouldHideMainStatusItem(
+                optionEnabled: optionEnabled,
+                separateMetrics: separateMetrics,
+                metricItemsShown: renderedMetricItemCount,
+                renderedTitleLength: button.attributedTitle.length,
+                mustShowForSignal: signal)
+        mainItemHiddenByChoice = mainItemHidden
         let keepAwakeActive = KeepAwakeManager.shared.isActive
 
         // refresh() runs on every monitor tick and lands here; re-rendering
@@ -375,10 +388,19 @@ final class StatusItemController {
 
     @objc private func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
-            onRightClick?()
+            onRightClick?(statusItem.button)
         } else {
             onLeftClick?()
         }
+    }
+
+    /// The item a right-click menu opens from: the main one while it is in
+    /// the bar, otherwise the item that was clicked. A menu set on an item
+    /// that is out of the bar has nowhere on screen to open from.
+    func menuHost(for button: NSStatusBarButton?) -> NSStatusItem {
+        guard !statusItem.isVisible, let button else { return statusItem }
+        let others = [clipboardPreviewStatusItem].compactMap { $0 } + Array(metricStatusItems.values)
+        return others.first { $0.button === button } ?? statusItem
     }
 
     /// Updates the countdown title and tooltip from the current session state.
@@ -463,23 +485,24 @@ final class StatusItemController {
             }
         } else {
             // The leading space separates the glyph from the text; with the
-            // glyph hidden by the metrics-only option it would be pure dead
-            // padding on the item's left edge. Same decision inputs as
-            // updateIconAppearance, with a sentinel length: the title is
-            // known non-empty on this branch.
+            // glyph hidden by the metrics-only option or by Dynamic Island it
+            // would be pure dead padding on the item's left edge. Same
+            // decision inputs as updateIconAppearance, with a sentinel length:
+            // the title is known non-empty on this branch.
             let updateAvailable: Bool
             if case .available = UpdateService.shared.state {
                 updateAvailable = true
             } else {
                 updateAvailable = false
             }
-            let micBadgeActive = renderedMicBadgeActive
-            let glyphHidden = MenuBarSpacingSupport.shouldHideStatusIcon(
-                optionEnabled: defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
-                separateMetrics: separateMetrics,
-                metricsEnabled: !metrics.isEmpty,
-                renderedTitleLength: 1,
-                mustShowForSignal: updateAvailable || micBadgeActive)
+            let signal = updateAvailable || renderedMicBadgeActive
+            let glyphHidden = (MenuBarSpacingSupport.islandHidesStatusIcon(in: defaults) && !signal)
+                || MenuBarSpacingSupport.shouldHideStatusIcon(
+                    optionEnabled: defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
+                    separateMetrics: separateMetrics,
+                    metricsEnabled: !metrics.isEmpty,
+                    renderedTitleLength: 1,
+                    mustShowForSignal: signal)
             let full = NSMutableAttributedString(string: glyphHidden ? "" : " ")
             full.append(title)
             let stacked = full.string.contains("\n")
@@ -672,7 +695,7 @@ final class StatusItemController {
 
     @objc private func metricClicked(_ sender: NSStatusBarButton) {
         if NSApp.currentEvent?.type == .rightMouseUp {
-            onRightClick?()
+            onRightClick?(sender)
             return
         }
         guard let metric = focusMetric(from: sender) else {
@@ -811,7 +834,7 @@ final class StatusItemController {
 
     @objc private func clipboardPreviewClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
-            onRightClick?()
+            onRightClick?(clipboardPreviewStatusItem?.button)
             return
         }
         onClipboardPreviewClick?()

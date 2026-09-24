@@ -9,6 +9,8 @@ import AppKit
 final class ShelfFilePromiseTransfer {
     struct Result {
         let urls: [URL]
+        /// The receiver each URL came from, in the same order.
+        let receiverIndices: [Int]
         let failed: Bool
     }
 
@@ -128,7 +130,7 @@ final class ShelfFilePromiseTransfer {
         }
         let urls = ordered.map(\.url)
         copies.removeAll()
-        let result = Result(urls: urls, failed: failed)
+        let result = Result(urls: urls, receiverIndices: ordered.map(\.receiver), failed: failed)
         lock.unlock()
         // Callbacks already in this queue finish before its cleanup operation.
         queue.addOperation { [incomingDirectory] in

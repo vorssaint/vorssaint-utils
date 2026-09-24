@@ -1468,6 +1468,13 @@ enum SwitcherModelFeatureTests {
         suite.expect(DockPreviewSupport.cardThumbnailHeight
                 > DockPreviewSupport.cardHeight * 0.7,
                "the thumbnail keeps most of the Dock Preview card")
+        // Minimal previews have no title band, so the card loses its height
+        // rather than handing it to a picture too narrow to use it.
+        UserDefaults.standard.set(true, forKey: DefaultsKey.minimalWindowPreviews)
+        suite.expectClose(Double(DockPreviewSupport.cardHeight),
+                    Double(DockPreviewSupport.cardThumbnailHeight + DockPreviewSupport.cardPadding * 2),
+                    "a minimal Dock Preview card is the thumbnail and its padding, nothing more")
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.minimalWindowPreviews)
 
         // The card used to draw the app icon on every thumbnail and the window
         // title both over the thumbnail and under it. In a panel every card
@@ -2042,6 +2049,31 @@ enum SwitcherModelFeatureTests {
                                                                mustShowForSignal: false),
                "the whole-item hiding only applies to the separate-items mode")
 
+        // Dynamic Island may take the icon's place, but only while it runs:
+        // with the island off or removed, nothing else on screen would lead
+        // back to the app.
+        suite.expect(registeredDefaults[DefaultsKey.notchHidesMenuBarIcon] as? Bool == false,
+               "Dynamic Island only takes the icon's place when asked")
+        let islandIconSuite = "com.vorssaint.tests.islandMenuBarIcon"
+        if let islandDefaults = UserDefaults(suiteName: islandIconSuite) {
+            islandDefaults.removePersistentDomain(forName: islandIconSuite)
+            defer { islandDefaults.removePersistentDomain(forName: islandIconSuite) }
+            islandDefaults.set(true, forKey: AppFeature.notch.availabilityKey)
+            islandDefaults.set(true, forKey: DefaultsKey.notchEnabled)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "a running island leaves the icon alone until asked")
+            islandDefaults.set(true, forKey: DefaultsKey.notchHidesMenuBarIcon)
+            suite.expect(MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "a running island takes the icon's place when asked")
+            islandDefaults.set(false, forKey: DefaultsKey.notchEnabled)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "switching the island off brings the icon back")
+            islandDefaults.set(true, forKey: DefaultsKey.notchEnabled)
+            islandDefaults.set(false, forKey: AppFeature.notch.availabilityKey)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "removing the island in the hub brings the icon back")
+        }
+
         // A pinned metric that momentarily has nothing to show keeps its item
         // instead of being taken away and put back every tick.
         suite.expect(MenuBarSpacingSupport.keepsMetricStatusItem(hasRenderedTitle: true, itemExists: false),
@@ -2210,6 +2242,21 @@ enum SwitcherModelFeatureTests {
             .components(separatedBy: "\n    }").first ?? "")
         suite.expect(iconIsOnScreenCode.contains("StatusItemPlacementSupport.isPlacedStatusFrame("),
                "the recovery judges placement by the menu bar band, not by screen intersection")
+        suite.expect(iconIsOnScreenCode.contains("statusItem.isVisible == true"),
+               "a hidden item never counts as on screen, whatever frame its window kept")
+        // An item the app keeps out of the bar for Dynamic Island is not
+        // missing, and a rebuild on reopen could strand the panel's anchor.
+        let reopenCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "func applicationShouldHandleReopen(").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(reopenCode.contains("mainItemHiddenByChoice != true, !iconIsOnScreen()"),
+               "reopening the app leaves an item hidden by choice alone and opens Settings")
+        let reshowCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "func reshowStatusItem() {").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(reshowCode.contains("DefaultsKey.menuBarHideIconWithMetrics")
+                     && reshowCode.contains("DefaultsKey.notchHidesMenuBarIcon"),
+               "Show menu bar icon turns off both ways of hiding it")
 
         // macOS 26 lets the person switch an app's menu bar items off per app,
         // and remembers the choice in Control Center's group container. The
@@ -4671,7 +4718,53 @@ enum SwitcherModelFeatureTests {
                                                         targetIsMinimized: false,
                                                         targetStartedMinimized: false,
                                                         ownPID: 99),
-               "App Switcher focus retries can continue during the source-target handoff")
+               "App Switcher focus retries preserve the source handoff while it settles")
+        suite.expect(SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                   handoffSourcePID: 20,
+                                                   targetPID: 10,
+                                                   ownPID: 99) == 20,
+               "a caller's handoff app becomes the focus retry source without a session source")
+        suite.expect(SwitcherSupport.focusRetrySourcePID(sessionSourcePID: 20,
+                                                   handoffSourcePID: 30,
+                                                   targetPID: 10,
+                                                   ownPID: 99) == 20,
+               "a session source outranks a caller's handoff app")
+        suite.expect(SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                   handoffSourcePID: nil,
+                                                   targetPID: 10,
+                                                   ownPID: 99) == nil,
+               "activation without any source never adopts the frontmost app on its own")
+        suite.expect(SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                   handoffSourcePID: 10,
+                                                   targetPID: 10,
+                                                   ownPID: 99) == nil
+               && SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                handoffSourcePID: 99,
+                                                targetPID: 10,
+                                                ownPID: 99) == nil,
+               "the target and this process are never kept as a handoff source")
+        suite.expect(SwitcherSupport.shouldContinueFocusRetry(
+                        targetPID: 10,
+                        sourcePID: SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                                 handoffSourcePID: 20,
+                                                                 targetPID: 10,
+                                                                 ownPID: 99),
+                        frontmostPID: 20,
+                        targetIsMinimized: false,
+                        targetStartedMinimized: false,
+                        ownPID: 99),
+               "Dock Preview and Command Bar ordinary windows keep their settling retry while the retained source is frontmost")
+        suite.expect(!SwitcherSupport.shouldContinueFocusRetry(
+                         targetPID: 10,
+                         sourcePID: SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                                  handoffSourcePID: 20,
+                                                                  targetPID: 10,
+                                                                  ownPID: 99),
+                         frontmostPID: 30,
+                         targetIsMinimized: false,
+                         targetStartedMinimized: false,
+                         ownPID: 99),
+               "a handoff source still stands down after an unrelated app becomes frontmost")
         suite.expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                          sourcePID: 20,
                                                          frontmostPID: 20,
@@ -4686,6 +4779,13 @@ enum SwitcherModelFeatureTests {
                                                         targetStartedMinimized: true,
                                                         ownPID: 99),
                "App Switcher retries restoration when the selected target started minimized")
+        suite.expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: nil,
+                                                        frontmostPID: 30,
+                                                        targetIsMinimized: true,
+                                                        targetStartedMinimized: true,
+                                                        ownPID: 99),
+               "App Switcher keeps an initial minimized restoration alive without a source app")
         suite.expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                           sourcePID: 20,
                                                           frontmostPID: 10,
@@ -4728,6 +4828,85 @@ enum SwitcherModelFeatureTests {
             .components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
+        let activateBody: String = {
+            guard let start = activatorCode.range(of: "static func activate(_ item: SwitcherItem,"),
+                  let end = activatorCode.range(of: "static func activate(pid: pid_t,",
+                                                range: start.upperBound..<activatorCode.endIndex)
+            else { return "" }
+            return activatorCode[start.lowerBound..<end.lowerBound]
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        }()
+        suite.expect(activateBody.contains("focusRetrySourcePID(")
+               && !activateBody.contains("frontmostApplication"),
+               "activation never adopts the frontmost app as a source on its own")
+        suite.expect(activateBody.contains(
+                "watchTargetMinimizeIfNeeded(windowID: windowID, targetPID: item.pid, "
+                + "targetWindowOwnerPID: windowOwnerPID, sourcePID: sourcePID,")
+               && activateBody.contains("sourcePID: sourcePID, app: app)"),
+               "only the session source arms the minimize restore and Space hops")
+        suite.expect(activateBody.contains("sourcePID: sourcePID, retrySourcePID: retrySourcePID,")
+               && activateBody.contains("sourcePID: retrySourcePID, state: retryState,"),
+               "focus retry guards use the handoff source while staging keeps the session source")
+        suite.expect(activatorCode.contains("activate(item, retry: retry, handoffSourcePID: handoffSourcePID)"),
+               "activation by pid forwards its source only as a handoff")
+        let dockPreviewActivationCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let dockActivateCalls = dockPreviewActivationCode
+            .components(separatedBy: "WindowActivator.activate(")
+            .dropFirst()
+        suite.expect(dockActivateCalls.count >= 3
+               && dockActivateCalls.allSatisfy {
+                   $0.prefix(200).contains("handoffSourcePID: NSWorkspace.shared.frontmostApplication")
+                       && !$0.prefix(200).contains(" sourcePID:")
+               },
+               "Dock Preview passes the frontmost app only as a focus handoff source")
+        let commandBarWindowActivate: String = {
+            let source = ((try? String(
+                contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            guard let start = source.range(of: "WindowActivator.activate(pid:") else { return "" }
+            let before = source[..<start.lowerBound]
+            let sourceCapture = before.range(of: "let handoffSourcePID = NSWorkspace.shared.frontmostApplication",
+                                             options: .backwards)
+            let afterBeat = before.range(of: "afterBeat(", options: .backwards)
+            let call = String(source[start.lowerBound...].prefix(320))
+            guard let sourceCapture, let afterBeat,
+                  sourceCapture.lowerBound < afterBeat.lowerBound,
+                  call.contains("handoffSourcePID: handoffSourcePID") else { return "" }
+            return call
+        }()
+        suite.expect(!commandBarWindowActivate.isEmpty,
+               "Command Bar captures its handoff source before the activation beat")
+        let commitSessionCode: String = {
+            let source = ((try? String(
+                contentsOfFile: "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift",
+                encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            guard let start = source.range(of: "func commitSession()"),
+                  let end = source.range(of: "private func resumePendingCommitAfterClose()",
+                                         range: start.upperBound..<source.endIndex)
+            else { return "" }
+            return String(source[start.lowerBound..<end.lowerBound])
+        }()
+        let handoffCapture = commitSessionCode.range(
+            of: "let handoffSourcePID = NSWorkspace.shared.frontmostApplication")
+        let sessionEnd = commitSessionCode.range(of: "endSession()")
+        suite.expect(handoffCapture != nil && sessionEnd != nil
+               && handoffCapture!.lowerBound < sessionEnd!.lowerBound
+               && commitSessionCode.contains("sourcePID: source?.pid,")
+               && commitSessionCode.contains("handoffSourcePID: handoffSourcePID,"),
+               "App Switcher sessions without a source item keep the app in front as the handoff source")
         let windowScopes = activatorCode
             .components(separatedBy: "windowIDs(ownerPID:")
             .dropFirst()
@@ -5444,20 +5623,30 @@ enum SwitcherModelFeatureTests {
         let state = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                   targetStartedMinimized: false,
                                                   knownWindowIDs: snapshot)
-        suite.expect(state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
-                                    targetMinimizedState: false, targetAppWindowIDs: withHelper,
-                                    targetAppFocusedWindowID: 101, ownPID: 99),
-               "a transparent helper does not cancel the fullscreen focus chain")
         suite.expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
-                                     targetMinimizedState: false, targetAppWindowIDs: [500],
-                                     targetAppFocusedWindowID: 500, ownPID: 99),
+                                    targetMinimizedState: false, targetAppWindowIDs: withHelper,
+                                    targetAppFocusedWindowID: 101,
+                                    targetWindowIsFocused: true,
+                                    stopsWhenTargetFocused: true, ownPID: 99),
+               "a transparent helper does not justify re-raising an already focused target")
+        let fullscreenState = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                            targetStartedMinimized: false,
+                                                            knownWindowIDs: snapshot)
+        suite.expect(fullscreenState.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                             targetMinimizedState: false, targetAppWindowIDs: withHelper,
+                                             targetAppFocusedWindowID: 101,
+                                             targetWindowIsFocused: true, ownPID: 99),
+               "fullscreen retries keep later passes available for an already focused target")
+        suite.expect(!fullscreenState.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                               targetMinimizedState: false, targetAppWindowIDs: [500],
+                                               targetAppFocusedWindowID: 500, ownPID: 99),
                "a new focused window cancels the remaining fullscreen passes")
         var lateReads = 0
         func lateWindows() -> Set<CGWindowID> { lateReads += 1; return [102] }
         func lateFocus() -> CGWindowID? { lateReads += 1; return 102 }
-        suite.expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
-                                     targetMinimizedState: false, targetAppWindowIDs: lateWindows(),
-                                     targetAppFocusedWindowID: lateFocus(), ownPID: 99),
+        suite.expect(!fullscreenState.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                               targetMinimizedState: false, targetAppWindowIDs: lateWindows(),
+                                               targetAppFocusedWindowID: lateFocus(), ownPID: 99),
                "a later pass cannot reclaim focus after the new window closes")
         suite.expect(lateReads == 0, "a cancelled focus chain performs no later window queries")
 
@@ -5474,7 +5663,7 @@ enum SwitcherModelFeatureTests {
                 suite.expect(!pending.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: foreground,
                                                 targetMinimizedState: false, targetAppWindowIDs: [500],
                                                 targetAppFocusedWindowID: focusAfterSwitchingAway(), ownPID: 99),
-                       "a slow focus query cannot reclaim the app after the user leaves it")
+                       "a slow focus query cannot reclaim the app after the user leaves it (destination \(String(describing: destination)), focus \(String(describing: focusResult)))")
             }
         }
 
@@ -5485,6 +5674,23 @@ enum SwitcherModelFeatureTests {
                                       targetMinimizedState: false, targetAppWindowIDs: [101],
                                       targetAppFocusedWindowID: 101, ownPID: 99),
                "the selected target is not new when a partial snapshot missed it")
+        let focused = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                    targetStartedMinimized: false,
+                                                    knownWindowIDs: [102])
+        suite.expect(!focused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                       targetMinimizedState: false, targetAppWindowIDs: [101],
+                                       targetAppFocusedWindowID: 101,
+                                       targetWindowIsFocused: true,
+                                       stopsWhenTargetFocused: true, ownPID: 99),
+               "a focused selected target does not receive a redundant retry")
+        let unfocused = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                       targetStartedMinimized: false,
+                                                       knownWindowIDs: [101, 102])
+        suite.expect(unfocused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                        targetMinimizedState: false, targetAppWindowIDs: [102],
+                                        targetAppFocusedWindowID: 102,
+                                        stopsWhenTargetFocused: true, ownPID: 99),
+               "an unfocused selected target still gets its settling retry")
         let minimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                       targetStartedMinimized: true,
                                                       knownWindowIDs: snapshot)

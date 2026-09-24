@@ -35,6 +35,43 @@ enum CommandBarFeatureTests {
         typealias QuickToolHUD = HUD
     }
 
+    /// Runs the production `applyBrightness` with two screens, one of which
+    /// the brightness service cannot drive, and records where it lands.
+    enum BrightnessHost {
+        struct Display { let id: CGDirectDisplayID }
+        final class Service {
+            static let shared = Service()
+            var displays = [Display(id: 1), Display(id: 2)]
+            var set: [CGDirectDisplayID] = []
+            var onRefresh: (() -> Void)?
+            func setBrightness(_ value: Double, for id: CGDirectDisplayID, showOSD: Bool) { set.append(id) }
+            func refresh() { onRefresh?() }
+        }
+        typealias BrightnessService = Service
+        final class Screen {
+            static let screens = [Screen(id: 2, x: 0), Screen(id: 3, x: 100)]
+            let frame: NSRect
+            let deviceDescription: [NSDeviceDescriptionKey: Any]
+            init(id: UInt32, x: CGFloat) {
+                frame = NSRect(x: x, y: 0, width: 100, height: 100)
+                deviceDescription = [NSDeviceDescriptionKey("NSScreenNumber"): NSNumber(value: id)]
+            }
+        }
+        typealias NSScreen = Screen
+        enum Event { static var mouseLocation = NSPoint.zero }
+        typealias NSEvent = Event
+        enum Sound {
+            static var beeps = 0
+            static func beep() { beeps += 1 }
+        }
+        typealias NSSound = Sound
+        final class Queue {
+            static let main = Queue()
+            func asyncAfter(deadline: DispatchTime, execute work: @escaping () -> Void) { work() }
+        }
+        typealias DispatchQueue = Queue
+    }
+
     static func run(_ suite: TestSuite) {
         CommandBarInputSourceContract.run(suite)
         CommandBarTerminationContract.run(suite)
@@ -231,6 +268,32 @@ enum CommandBarFeatureTests {
                         && shown.map(\.message) == [FeatureStrings.commandBar(L10n.shared.language).copyFailed],
                    "a copied answer shows the value only when the pasteboard took it, found \(shown)")
         }
+        for (x, expected, beeps) in [(50.0, [CGDirectDisplayID(2)], 0), (150.0, [], 1)] {
+            BrightnessHost.Event.mouseLocation = NSPoint(x: x, y: 50)
+            BrightnessHost.Service.shared.set = []
+            BrightnessHost.Sound.beeps = 0
+            BrightnessHost.applyBrightness(percent: 40)
+            let set = BrightnessHost.Service.shared.set
+            suite.expect(set == expected && BrightnessHost.Sound.beeps == beeps,
+                   "brightness from the bar only reaches the display under the pointer, found \(set) and \(BrightnessHost.Sound.beeps) beeps")
+        }
+        // The refresh either finds the display the pointer was on, or the
+        // pointer has moved onto a listed display that must stay untouched.
+        for (refreshed, expected, beeps) in [
+            ({ BrightnessHost.Service.shared.displays.append(.init(id: 3)) }, [CGDirectDisplayID(3)], 0),
+            ({ BrightnessHost.Event.mouseLocation = NSPoint(x: 50, y: 50) }, [], 1),
+        ] as [(() -> Void, [CGDirectDisplayID], Int)] {
+            BrightnessHost.Event.mouseLocation = NSPoint(x: 150, y: 50)
+            BrightnessHost.Service.shared.displays = [.init(id: 1), .init(id: 2)]
+            BrightnessHost.Service.shared.set = []
+            BrightnessHost.Service.shared.onRefresh = refreshed
+            BrightnessHost.Sound.beeps = 0
+            BrightnessHost.applyBrightness(percent: 40)
+            let set = BrightnessHost.Service.shared.set
+            suite.expect(set == expected && BrightnessHost.Sound.beeps == beeps,
+                   "the retry after a refresh looks for the display the command started on, found \(set) and \(BrightnessHost.Sound.beeps) beeps")
+        }
+        BrightnessHost.Service.shared.onRefresh = nil
 
         // MARK: Compact mode, what an empty field shows
         suite.expect(CommandBarHome.showsBrowseList(compact: false, hasCategory: false, isPeeking: false),

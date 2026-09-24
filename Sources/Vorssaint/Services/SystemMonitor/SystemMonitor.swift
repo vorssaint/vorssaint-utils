@@ -168,7 +168,7 @@ final class SystemMonitor: ObservableObject {
     private var powerSampler: PowerSampler?
 
     // Running state
-    private var previousCPUTicks: (busy: UInt64, total: UInt64)?
+    private var previousCPUTicks: (busy: UInt64, total: UInt64, time: TimeInterval)?
     private var tickCount = 0
     /// Timer cadence in base ticks (GCD of the needed strides); 1 = every tick.
     private var scheduledWakeTicks = 1
@@ -695,7 +695,7 @@ final class SystemMonitor: ObservableObject {
 
             if plan.needCPU {
                 if take(.cpu),
-                   let cpu = self.readCPUUsage() {
+                   let cpu = self.readCPUUsage(now: now) {
                     self.lastCPUUsage = cpu
                     self.lastCPUUsageReadAt = now
                     self.missedCPUUsageSamples = 0
@@ -1052,8 +1052,10 @@ final class SystemMonitor: ObservableObject {
     // MARK: - CPU usage
 
     /// Aggregated load from HOST_CPU_LOAD_INFO; usage is the busy-tick share
-    /// since the previous refresh.
-    private func readCPUUsage() -> Double? {
+    /// since the previous refresh. After a gap (CPU was not needed, or the Mac
+    /// slept) the old ticks only serve as a baseline: their average over the
+    /// whole gap is not a current reading and must not reach the history.
+    private func readCPUUsage(now: TimeInterval) -> Double? {
         var info = host_cpu_load_info()
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.stride / MemoryLayout<integer_t>.stride)
         // mach_host_self() returns a send right the caller owns; release it or each
@@ -1074,8 +1076,15 @@ final class SystemMonitor: ObservableObject {
         let busy = user + system + nice
         let total = busy + idle
 
-        defer { previousCPUTicks = (busy, total) }
+        defer { previousCPUTicks = (busy, total, now) }
         guard let previous = previousCPUTicks, total > previous.total else { return nil }
+        guard now - previous.time <= 12.5 else {
+            // The held value and its read time predate the gap: drop them so the
+            // UI and the CPU alert wait for a fresh reading, as after launch.
+            lastCPUUsage = nil
+            lastCPUUsageReadAt = nil
+            return nil
+        }
         return Double(busy - previous.busy) / Double(total - previous.total)
     }
 

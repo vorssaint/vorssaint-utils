@@ -611,6 +611,11 @@ enum WindowLayoutFeatureTests {
                                                              frames: verticalDisplays,
                                                              movingForward: true) == 1,
                "window layout orders stacked displays by their vertical origin")
+        suite.expect(GlobalShortcutRole.pointerNextDisplay.storageKey == DefaultsKey.pointerDisplayShortcut
+                && GlobalShortcutRole.pointerNextDisplay.defaultShortcut == .pointerNextDisplayDefault
+                && GlobalShortcutRole.pointerNextDisplay.requiredEnableKeys == [DefaultsKey.pointerDisplayEnabled]
+                && GlobalShortcutRole.pointerNextDisplay.feature == .windowLayout,
+               "the pointer display shortcut is wired to its own keys and Window Layout")
         suite.expect(WindowLayoutGeometry.adjacentDisplayIndex(currentIndex: 0,
                                                          frames: [visibleFrame],
                                                          movingForward: false) == nil

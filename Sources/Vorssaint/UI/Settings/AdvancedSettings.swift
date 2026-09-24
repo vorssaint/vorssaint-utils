@@ -14,7 +14,7 @@ struct AdvancedSettings: View {
     @State private var uninstallFailedBody = ""
     @State private var working = false
     @State private var cleared: Bool?
-    @State private var exported = false
+    @State private var exported: Bool?
     @State private var importFailed = false
     @State private var pendingImport: [String: Any]?
     @State private var showImportConfirm = false
@@ -33,12 +33,12 @@ struct AdvancedSettings: View {
                 HStack(spacing: 10) {
                     Button {
                         importFailed = false
-                        exported = SettingsBackup.runExportPanel() == true
+                        exported = SettingsBackup.runExportPanel()
                     } label: {
                         Label(backup.exportButton, systemImage: "square.and.arrow.up")
                     }
                     Button {
-                        exported = false
+                        exported = nil
                         importFailed = false
                         guard let url = SettingsBackup.runImportPanel() else { return }
                         if let settings = SettingsBackup.readSettings(at: url) {
@@ -51,11 +51,15 @@ struct AdvancedSettings: View {
                         Label(backup.importButton, systemImage: "square.and.arrow.down")
                     }
                 }
-                if exported {
+                if exported == true {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                         Text(backup.exported).font(.caption).foregroundStyle(.green)
                     }
+                } else if exported == false {
+                    Text(backup.exportFailed)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
                 if importFailed {
                     Text(backup.invalidFile)

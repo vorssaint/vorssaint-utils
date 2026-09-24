@@ -774,6 +774,10 @@ enum NotchTests {
         defaults.set(false, forKey: DefaultsKey.notchDragReveal)
         suite.expect(NotchSupport.routesShelf(in: defaults) && !NotchSupport.revealsShelfDrag(in: defaults),
                "drag reveal can be disabled without moving the shelf")
+        defaults.set(false, forKey: DefaultsKey.notchShelf)
+        suite.expect(NotchSupport.showsFiles(in: defaults) && !NotchSupport.routesShelf(in: defaults),
+               "choosing a separate window keeps the choice on offer while the shelf stays out of the island")
+        defaults.set(true, forKey: DefaultsKey.notchShelf)
         defaults.set(false, forKey: DefaultsKey.notchCaptureControls)
         suite.expect(!NotchSupport.routesCaptureControls(in: defaults), "capture controls retain an independent destination")
         defaults.set(false, forKey: AppFeature.quickLauncher.availabilityKey)
@@ -791,7 +795,8 @@ enum NotchTests {
 
         let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
-                                DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel, DefaultsKey.notchScratchpad,
+                                DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
+                                DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
                                 DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,

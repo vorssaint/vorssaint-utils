@@ -207,6 +207,8 @@ final class MicMuteService: ObservableObject {
         let outcome = applyToDevices(
             muted: muted,
             savedVolumes: defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:],
+            savedChannelVolumes: defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes)
+                as? [String: [String: Double]] ?? [:],
             // Missing means never tracked; an empty list means tracked and
             // owning nothing, and the sweep must keep those two apart.
             mutedDevices: defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices),
@@ -215,6 +217,7 @@ final class MicMuteService: ObservableObject {
         // later unmute needs to put every level back.
         if outcome.applied {
             defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
+            defaults.set(outcome.savedChannelVolumes, forKey: DefaultsKey.micMuteSavedChannelVolumes)
             defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
         }
         return outcome
@@ -253,6 +256,9 @@ final class MicMuteService: ObservableObject {
     private struct MuteOutcome {
         var applied: Bool
         var savedVolumes: [String: Double]
+        /// Channel levels by device and element, so an unmute puts back the
+        /// balance between channels instead of one level everywhere.
+        var savedChannelVolumes: [String: [String: Double]]
         var mutedDevices: [String]
         /// A device this sweep had to reach and could not, next to ones it did.
         var failed = false
@@ -261,24 +267,30 @@ final class MicMuteService: ObservableObject {
     /// Runs on `halQueue`. Every CoreAudio call of a sweep happens here.
     private static func applyToDevices(muted: Bool,
                                        savedVolumes: [String: Double],
+                                       savedChannelVolumes: [String: [String: Double]],
                                        mutedDevices: [String]?,
                                        legacyVolume: Double) -> MuteOutcome {
         let devices = inputDevices()
         guard !devices.isEmpty else {
             // Nothing to silence. An unmute has still done its job, and keeps
             // its claims for the devices that are away.
-            return MuteOutcome(applied: !muted, savedVolumes: savedVolumes, mutedDevices: mutedDevices ?? [])
+            return MuteOutcome(applied: !muted, savedVolumes: savedVolumes,
+                               savedChannelVolumes: savedChannelVolumes, mutedDevices: mutedDevices ?? [])
         }
         return muted
-            ? mute(devices, savedVolumes: savedVolumes, mutedDevices: mutedDevices)
-            : unmute(devices, savedVolumes: savedVolumes, mutedDevices: mutedDevices, legacyVolume: legacyVolume)
+            ? mute(devices, savedVolumes: savedVolumes, savedChannelVolumes: savedChannelVolumes,
+                   mutedDevices: mutedDevices)
+            : unmute(devices, savedVolumes: savedVolumes, savedChannelVolumes: savedChannelVolumes,
+                     mutedDevices: mutedDevices, legacyVolume: legacyVolume)
     }
 
     private static func mute(_ devices: [InputDevice],
                              savedVolumes: [String: Double],
+                             savedChannelVolumes: [String: [String: Double]],
                              mutedDevices: [String]?) -> MuteOutcome {
         var outcome = MuteOutcome(applied: false,
                                   savedVolumes: savedVolumes,
+                                  savedChannelVolumes: savedChannelVolumes,
                                   mutedDevices: MicMuteSupport.absentClaims(recorded: mutedDevices,
                                                                             present: devices.map(\.uid)))
         let owned = Set(mutedDevices ?? [])
@@ -302,6 +314,8 @@ final class MicMuteService: ObservableObject {
             if MicMuteSupport.shouldSaveVolume(volume), let volume {
                 outcome.savedVolumes[device.uid] = Double(volume)
             }
+            let channels = channelVolumes(of: device.id)
+            if !channels.isEmpty { outcome.savedChannelVolumes[device.uid] = channels }
             // Claimed only when the device really went quiet: a driver that
             // takes the write and keeps its level must not be recorded as
             // muted, or the unmute would raise a microphone it never lowered.
@@ -310,6 +324,7 @@ final class MicMuteService: ObservableObject {
                 outcome.mutedDevices.append(device.uid)
             } else {
                 outcome.savedVolumes.removeValue(forKey: device.uid)
+                outcome.savedChannelVolumes.removeValue(forKey: device.uid)
                 // Only a microphone some app records from is left open. An aggregate
                 // has no switch or level of its own; the microphones under it are
                 // swept and reported on their own.
@@ -325,11 +340,13 @@ final class MicMuteService: ObservableObject {
 
     private static func unmute(_ devices: [InputDevice],
                                savedVolumes: [String: Double],
+                               savedChannelVolumes: [String: [String: Double]],
                                mutedDevices: [String]?,
                                legacyVolume: Double) -> MuteOutcome {
         let present = devices.map(\.uid)
         var outcome = MuteOutcome(applied: false,
                                   savedVolumes: savedVolumes,
+                                  savedChannelVolumes: savedChannelVolumes,
                                   mutedDevices: MicMuteSupport.absentClaims(recorded: mutedDevices,
                                                                             present: present))
         let targets = Set(MicMuteSupport.restoreTargets(recorded: mutedDevices, present: present))
@@ -343,6 +360,7 @@ final class MicMuteService: ObservableObject {
                 if setMuteSwitch(false, of: device.id) {
                     outcome.applied = true
                     outcome.savedVolumes.removeValue(forKey: device.uid)
+                    outcome.savedChannelVolumes.removeValue(forKey: device.uid)
                 } else {
                     outcome.mutedDevices.append(device.uid)
                     outcome.failed = true
@@ -358,15 +376,19 @@ final class MicMuteService: ObservableObject {
             guard volume <= 0.01 else {
                 // Already audible: the level has nothing left to restore.
                 outcome.savedVolumes.removeValue(forKey: device.uid)
+                outcome.savedChannelVolumes.removeValue(forKey: device.uid)
                 continue
             }
             attempted = true
             let restore = MicMuteSupport.volumeToRestore(uid: device.uid,
                                                          saved: savedVolumes,
                                                          legacy: legacyVolume)
-            if setInputVolume(restore, of: device.id) {
+            // A channel with no level of its own, as after a mute from before
+            // channels were saved, takes the main level back.
+            if setInputVolume(restore, of: device.id, channels: savedChannelVolumes[device.uid] ?? [:]) {
                 outcome.applied = true
                 outcome.savedVolumes.removeValue(forKey: device.uid)
+                outcome.savedChannelVolumes.removeValue(forKey: device.uid)
             } else {
                 outcome.mutedDevices.append(device.uid)
                 outcome.failed = true
@@ -483,13 +505,33 @@ final class MicMuteService: ObservableObject {
         return nil
     }
 
-    private static func setInputVolume(_ volume: Float, of device: AudioDeviceID) -> Bool {
+    /// Channels 1 and 2 as levels of their own, keyed by element. A mute
+    /// lowers them with the main level, and an unmute that wrote the main
+    /// level into every channel would flatten the balance between them.
+    private static func channelVolumes(of device: AudioDeviceID) -> [String: Double] {
+        var levels: [String: Double] = [:]
+        for var address in volumeAddresses() where address.mElement != kAudioObjectPropertyElementMain
+            && AudioObjectHasProperty(device, &address) {
+            var volume = Float(0)
+            var size = UInt32(MemoryLayout<Float>.size)
+            if AudioObjectGetPropertyData(device, &address, 0, nil, &size, &volume) == noErr,
+               MicMuteSupport.shouldSaveVolume(volume) {
+                levels[String(address.mElement)] = Double(volume)
+            }
+        }
+        return levels
+    }
+
+    /// Writes the main level and channels 1 and 2, each channel taking its
+    /// own entry in `channels` when there is one.
+    private static func setInputVolume(_ volume: Float, of device: AudioDeviceID,
+                                       channels: [String: Double] = [:]) -> Bool {
         var applied = false
         for var address in volumeAddresses() where AudioObjectHasProperty(device, &address) {
             var settable = DarwinBoolean(false)
             guard AudioObjectIsPropertySettable(device, &address, &settable) == noErr,
                   settable.boolValue else { continue }
-            var value = volume
+            var value = channels[String(address.mElement)].map(Float.init) ?? volume
             if AudioObjectSetPropertyData(device, &address, 0, nil,
                                           UInt32(MemoryLayout<Float>.size), &value) == noErr {
                 applied = true
