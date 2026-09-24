@@ -711,6 +711,8 @@ struct Strings {
     let shelfActionOpen: String
     let shelfActionOpenWith: String
     let shelfActionShare: String
+    let shelfActionPin: String
+    let shelfActionUnpin: String
 
     // MARK: Panel — per-app breakdown
     let breakdownMeasuring: String
@@ -1745,7 +1747,7 @@ extension Strings {
         shelfCloseAfterDrop: "Fechar depois de soltar em outro app",
         shelfCloseAfterDropCaption: "Fecha a área quando o destino aceita os itens. O alfinete no painel a mantém aberta.",
         shelfRemoveAfterDrop: "Remover itens depois de soltar",
-        shelfRemoveAfterDropCaption: "Itens aceitos por outro app saem da área. Desative para manter uma cópia nela.",
+        shelfRemoveAfterDropCaption: "Itens aceitos por outro app saem da área. Desative para manter uma cópia nela. Itens fixados sempre ficam.",
         shelfExclusionsTitle: "Exceções automáticas",
         shelfExclusionsEmpty: "Nenhum app adicionado.",
         shelfExclusionsCaption: "Sacudir e a área da barra de menus não abrem durante arrastes iniciados nesses apps. O atalho e Abrir agora continuam funcionando.",
@@ -1783,6 +1785,8 @@ extension Strings {
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir com",
         shelfActionShare: "Compartilhar",
+        shelfActionPin: "Fixar",
+        shelfActionUnpin: "Desafixar",
 
         breakdownMeasuring: "Medindo…",
 
@@ -2795,7 +2799,7 @@ extension Strings {
         shelfCloseAfterDrop: "Close after dropping into another app",
         shelfCloseAfterDropCaption: "Closes the shelf when the destination accepts the items. The pin in the panel keeps it open.",
         shelfRemoveAfterDrop: "Remove items after dropping",
-        shelfRemoveAfterDropCaption: "Items accepted by another app leave the shelf. Turn this off to keep a copy there.",
+        shelfRemoveAfterDropCaption: "Items accepted by another app leave the shelf. Turn this off to keep a copy there. Pinned items always stay.",
         shelfExclusionsTitle: "Automatic exceptions",
         shelfExclusionsEmpty: "No apps added.",
         shelfExclusionsCaption: "Shake and the menu bar drop zone stay off for drags started in these apps. The shortcut and Open now still work.",
@@ -2833,6 +2837,8 @@ extension Strings {
         shelfActionOpen: "Open",
         shelfActionOpenWith: "Open With",
         shelfActionShare: "Share",
+        shelfActionPin: "Pin",
+        shelfActionUnpin: "Unpin",
 
         breakdownMeasuring: "Measuring…",
 

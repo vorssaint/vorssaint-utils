@@ -93,6 +93,7 @@ struct ShelfTilesView: NSViewRepresentable {
     var contentRevision: Int
     var selection: Set<UUID>
     var expandedBatches: Set<UUID>
+    var pinnedIDs: Set<UUID>
     var revealID: UUID?
     var revealSerial: Int
     /// The island lays tiles out sideways: rows fill its height and columns
@@ -124,7 +125,7 @@ struct ShelfTilesView: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         Self.rebuildTiles(scroll: scroll, items: items, selection: selection, expandedBatches: expandedBatches,
-                          revealID: revealID, revealSerial: revealSerial, coordinator: context.coordinator)
+                          pinnedIDs: pinnedIDs, revealID: revealID, revealSerial: revealSerial, coordinator: context.coordinator)
     }
 
     /// Lays out every tile from scratch. Shared with `ShelfTileView`, which
@@ -144,6 +145,7 @@ struct ShelfTilesView: NSViewRepresentable {
                              items: [ShelfService.Item],
                              selection: Set<UUID>,
                              expandedBatches: Set<UUID>,
+                             pinnedIDs: Set<UUID>,
                              revealID: UUID? = nil,
                              revealSerial: Int = 0,
                              coordinator: Coordinator? = nil) {
@@ -181,6 +183,7 @@ struct ShelfTilesView: NSViewRepresentable {
                 && zip(items, $0.lastRebuiltItems ?? []).allSatisfy { $0.hasSameContent(as: $1) }
                 && selection == $0.lastRebuiltSelection
                 && expandedBatches == $0.lastRebuiltExpandedBatches
+                && pinnedIDs == $0.lastRebuiltPinnedIDs
                 && scroll.contentSize == $0.lastRebuiltContentSize
         } ?? false
         if unchanged {
@@ -195,6 +198,7 @@ struct ShelfTilesView: NSViewRepresentable {
         coordinator?.lastRebuiltItems = items
         coordinator?.lastRebuiltSelection = selection
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
+        coordinator?.lastRebuiltPinnedIDs = pinnedIDs
         coordinator?.lastRebuiltContentSize = scroll.contentSize
 
         document.subviews.forEach { $0.removeFromSuperview() }
@@ -202,7 +206,8 @@ struct ShelfTilesView: NSViewRepresentable {
         for (index, item) in items.enumerated() {
             let view = ShelfTileView(item: item,
                                      isSelected: selection.contains(item.id),
-                                     isExpanded: expandedBatches.contains(item.id))
+                                     isExpanded: expandedBatches.contains(item.id),
+                                     isPinned: pinnedIDs.contains(item.id))
             view.frame = frame(index)
             document.addSubview(view)
         }
@@ -239,6 +244,7 @@ struct ShelfTilesView: NSViewRepresentable {
         var lastRebuiltItems: [ShelfService.Item]?
         var lastRebuiltSelection: Set<UUID>?
         var lastRebuiltExpandedBatches: Set<UUID>?
+        var lastRebuiltPinnedIDs: Set<UUID>?
         var lastRebuiltContentSize: NSSize?
     }
 
@@ -285,19 +291,22 @@ final class ShelfTileView: NSView, NSDraggingSource {
     private let item: ShelfService.Item
     private let isSelected: Bool
     private let isExpanded: Bool
+    private let isPinned: Bool
     private var mouseDownPoint: NSPoint = .zero
     private var didDrag = false
     private var draggedIDs: [UUID] = []
     private var isDropTargeted = false
     private var pendingRebuildAfterDrag = false
     private var closeButton: NSButton!
+    private var pinBadge: NSImageView?
     private var expandButton: NSButton?
     private let sharePresenter = ShelfSharePresenter()
 
-    init(item: ShelfService.Item, isSelected: Bool, isExpanded: Bool) {
+    init(item: ShelfService.Item, isSelected: Bool, isExpanded: Bool, isPinned: Bool) {
         self.item = item
         self.isSelected = isSelected
         self.isExpanded = isExpanded
+        self.isPinned = isPinned
         super.init(frame: NSRect(origin: .zero, size: ShelfTilesView.tileSize))
         wantsLayer = true
         layer?.cornerRadius = 10
@@ -390,6 +399,15 @@ final class ShelfTileView: NSView, NSDraggingSource {
             addSubview(badge)
         }
 
+        // Shares the corner with the remove button, which takes over on hover.
+        if isPinned {
+            let badge = NSImageView(frame: NSRect(x: 58, y: 4, width: 17, height: 17))
+            badge.image = NSImage(systemSymbolName: "pin.circle.fill", accessibilityDescription: nil)
+            badge.contentTintColor = .controlAccentColor
+            pinBadge = badge
+            addSubview(badge)
+        }
+
         closeButton = NSButton(frame: NSRect(x: 58, y: 4, width: 17, height: 17))
         closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)
         closeButton.isBordered = false
@@ -466,11 +484,13 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     override func mouseEntered(with event: NSEvent) {
         closeButton.isHidden = false
+        pinBadge?.isHidden = true
         ShelfTooltipPopover.shared.scheduleShow(text: Self.tooltipText(for: item), for: self)
     }
 
     override func mouseExited(with event: NSEvent) {
         closeButton.isHidden = true
+        pinBadge?.isHidden = false
         ShelfTooltipPopover.shared.hide()
     }
 
@@ -479,7 +499,6 @@ final class ShelfTileView: NSView, NSDraggingSource {
     override func menu(for event: NSEvent) -> NSMenu? {
         ShelfService.shared.noteInteraction()
         let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
-        guard !urls.isEmpty else { return nil }
         // A tooltip already showing (or about to show, from a hover just
         // before the right-click) has no reason to stick around once a
         // context menu covers the same corner of the tile it anchors to.
@@ -487,6 +506,16 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
         let strings = L10n.shared.s
         let menu = NSMenu()
+        let pin = NSMenuItem(title: isPinned ? strings.shelfActionUnpin : strings.shelfActionPin,
+                             action: #selector(togglePin),
+                             keyEquivalent: "")
+        pin.target = self
+        pin.image = NSImage(systemSymbolName: isPinned ? "pin.slash" : "pin", accessibilityDescription: nil)
+        menu.addItem(pin)
+        // Notes and links have nothing to open or reveal.
+        guard !urls.isEmpty else { return menu }
+        menu.addItem(.separator())
+
         let open = NSMenuItem(title: strings.shelfActionOpen,
                               action: #selector(openFiles),
                               keyEquivalent: "")
@@ -557,6 +586,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     @objc private func removeSelf() {
         ShelfService.shared.removeItem(item.id)
+    }
+
+    @objc private func togglePin() {
+        ShelfService.shared.toggleItemPin(item.id)
     }
 
     @objc private func toggleBatchExpansion() {
@@ -681,7 +714,8 @@ final class ShelfTileView: NSView, NSDraggingSource {
         ShelfTilesView.rebuildTiles(scroll: scroll,
                                    items: ShelfService.shared.visibleItems,
                                    selection: ShelfService.shared.selection,
-                                   expandedBatches: ShelfService.shared.expandedBatches)
+                                   expandedBatches: ShelfService.shared.expandedBatches,
+                                   pinnedIDs: ShelfService.shared.pinnedIDs)
     }
 
     private func mergeOperation(for sender: NSDraggingInfo) -> NSDragOperation {

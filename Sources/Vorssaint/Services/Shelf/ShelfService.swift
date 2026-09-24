@@ -131,6 +131,12 @@ final class ShelfService: ObservableObject {
     /// Last tile explicitly touched, used as the start of a Shift-click range.
     private var selectionAnchor: UUID?
     @Published private(set) var expandedBatches: Set<UUID> = []
+    /// Items the user pinned: they stay after a drag-out and a Clear all, so
+    /// files reused across sessions do not have to be shelved again. Saved
+    /// with the items; a pinned pile protects everything inside it.
+    @Published private(set) var pinnedIDs: Set<UUID> = [] {
+        didSet { schedulePersist() }
+    }
     /// The item most recently put on the shelf, so the tiles can scroll it
     /// into view. Not persisted: it means "just now", and a relaunch has no
     /// just now.
@@ -1078,16 +1084,40 @@ final class ShelfService: ObservableObject {
         ShelfTooltipPopover.shared.hide()
     }
 
+    /// Clears everything except pinned items, the way the clipboard history
+    /// keeps its pinned entries. The tile's own remove button still takes a
+    /// pinned item away.
     func clear() {
         cancelPendingPromiseDeliveries()
-        let removed = items
-        items = []
-        selection = []
-        selectionAnchor = nil
-        expandedBatches = []
-        retireOwnedPayloads(in: removed)
+        let protected = protectedIDs
+        guard !protected.isEmpty else {
+            let removed = items
+            items = []
+            selection = []
+            selectionAnchor = nil
+            expandedBatches = []
+            retireOwnedPayloads(in: removed)
+            noteInteraction()
+            ShelfTooltipPopover.shared.hide()
+            return
+        }
+        let removable = leafIDs(in: items).subtracting(protected)
+        guard !removable.isEmpty else { return }
+        removeItems(Array(removable))
+    }
+
+    func toggleItemPin(_ id: UUID) {
+        guard item(withID: id) != nil else { return }
+        if pinnedIDs.contains(id) { pinnedIDs.remove(id) } else { pinnedIDs.insert(id) }
         noteInteraction()
-        ShelfTooltipPopover.shared.hide()
+    }
+
+    /// Pinned items and everything nested in a pinned pile.
+    private var protectedIDs: Set<UUID> {
+        guard !pinnedIDs.isEmpty else { return [] }
+        return items(withIDs: pinnedIDs, in: items).reduce(into: pinnedIDs) { ids, item in
+            ids.formUnion(allIDs(in: item.batchItems))
+        }
     }
 
     func toggleSelection(_ id: UUID) {
@@ -1324,11 +1354,12 @@ final class ShelfService: ObservableObject {
         guard !draggedIDs.isEmpty else { return }
 
         let defaults = UserDefaults.standard
+        let removableIDs = ShelfInteractionSupport.removableAfterDrag(draggedIDs, protectedIDs: protectedIDs)
         if ShelfInteractionSupport.shouldRemoveAfterDrag(
             dropAccepted: dropAccepted,
-            draggedItemCount: draggedIDs.count,
+            draggedItemCount: removableIDs.count,
             removeAfterDrop: defaults.bool(forKey: DefaultsKey.shelfRemoveAfterDrop)) {
-            removeItems(draggedIDs)
+            removeItems(removableIDs)
         }
         if ShelfInteractionSupport.shouldCloseAfterDrag(
             dropAccepted: dropAccepted,
@@ -1352,7 +1383,10 @@ final class ShelfService: ObservableObject {
     /// URL. Internal drops remain moves so stacking still works naturally.
     func sourceOperationMask(for context: NSDraggingContext) -> NSDragOperation {
         if context == .withinApplication { return .move }
-        return UserDefaults.standard.bool(forKey: DefaultsKey.shelfRemoveAfterDrop)
+        let protected = protectedIDs
+        return ShelfInteractionSupport.offersMoveOutside(
+            removeAfterDrop: UserDefaults.standard.bool(forKey: DefaultsKey.shelfRemoveAfterDrop),
+            dragIncludesPinned: activeInternalDragIDs.contains(where: protected.contains))
             ? [.copy, .move]
             : .copy
     }
@@ -1993,6 +2027,8 @@ final class ShelfService: ObservableObject {
                 expandedBatches.remove(item.id)
             } else if children.count == 1 {
                 expandedBatches.remove(item.id)
+                // The pile dissolves into its last item, which keeps its pin.
+                if pinnedIDs.contains(item.id) { pinnedIDs.insert(children[0].id) }
                 kept.append(children[0])
             } else {
                 kept.append(batchItem(id: item.id, children: children))
@@ -2091,6 +2127,20 @@ final class ShelfService: ObservableObject {
             self.selectionAnchor = nil
         }
         expandedBatches.formIntersection(batchIDs(in: items))
+        let survivingPins = pinnedIDs.intersection(survivingIDs)
+        if survivingPins != pinnedIDs { pinnedIDs = survivingPins }
+    }
+
+    private func leafIDs(in items: [Item]) -> Set<UUID> {
+        var ids = Set<UUID>()
+        for item in items {
+            if case let .batch(children) = item.payload {
+                ids.formUnion(leafIDs(in: children))
+            } else {
+                ids.insert(item.id)
+            }
+        }
+        return ids
     }
 
     private func cleanTemporaryFiles(keeping keptPaths: Set<String>, writtenBefore cutoff: Date) {
@@ -2144,7 +2194,8 @@ final class ShelfService: ObservableObject {
     }
 
     private func persistItems() {
-        let persisted = items.map(Self.persistedItem(from:))
+        let pinned = pinnedIDs
+        let persisted = items.map { Self.persistedItem(from: $0, pinnedIDs: pinned) }
         Self.persistQueue.async {
             guard let data = try? JSONEncoder().encode(persisted) else { return }
             UserDefaults.standard.set(data, forKey: DefaultsKey.shelfItems)
@@ -2200,6 +2251,9 @@ final class ShelfService: ObservableObject {
                         return true
                     }
                     self.items = keptRestored + self.items
+                    let restoredPins = Self.pinnedIDs(in: sanitized)
+                        .intersection(self.allIDs(in: keptRestored))
+                    if !restoredPins.isEmpty { self.pinnedIDs.formUnion(restoredPins) }
                     self.startContentThumbnails(for: keptRestored)
                 }
                 // A store this build could not read whole is not an empty
@@ -2224,19 +2278,29 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    private static func persistedItem(from item: Item) -> ShelfPersistedItem {
+    private static func persistedItem(from item: Item, pinnedIDs: Set<UUID>) -> ShelfPersistedItem {
+        let pinned = pinnedIDs.contains(item.id)
         switch item.payload {
         case let .file(url):
             return ShelfPersistedItem(id: item.id, kind: .file, title: item.title,
-                                      path: url.path, bookmark: item.bookmark)
+                                      path: url.path, bookmark: item.bookmark, pinned: pinned)
         case let .text(text):
-            return ShelfPersistedItem(id: item.id, kind: .text, title: item.title, text: text)
+            return ShelfPersistedItem(id: item.id, kind: .text, title: item.title, text: text,
+                                      pinned: pinned)
         case let .link(url):
             return ShelfPersistedItem(id: item.id, kind: .link, title: item.title,
-                                      url: url.absoluteString)
+                                      url: url.absoluteString, pinned: pinned)
         case let .batch(children):
             return ShelfPersistedItem(id: item.id, kind: .batch, title: item.title,
-                                      children: children.map(persistedItem(from:)))
+                                      children: children.map { persistedItem(from: $0, pinnedIDs: pinnedIDs) },
+                                      pinned: pinned)
+        }
+    }
+
+    private static func pinnedIDs(in persisted: [ShelfPersistedItem]) -> Set<UUID> {
+        persisted.reduce(into: Set<UUID>()) { ids, item in
+            if item.pinned == true { ids.insert(item.id) }
+            ids.formUnion(pinnedIDs(in: item.children ?? []))
         }
     }
 

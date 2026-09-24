@@ -527,7 +527,7 @@ extension Strings {
         shelfCloseAfterDrop: "Nach dem Ablegen in einer anderen App schließen",
         shelfCloseAfterDropCaption: "Schließt die Ablage, sobald das Ziel die Objekte annimmt. Die Stecknadel im Panel hält sie offen.",
         shelfRemoveAfterDrop: "Objekte nach dem Ablegen entfernen",
-        shelfRemoveAfterDropCaption: "Von einer anderen App angenommene Objekte verlassen die Ablage. Ausschalten, um eine Kopie zu behalten.",
+        shelfRemoveAfterDropCaption: "Von einer anderen App angenommene Objekte verlassen die Ablage. Ausschalten, um eine Kopie zu behalten. Angeheftete Objekte bleiben immer.",
         shelfExclusionsTitle: "Automatische Ausnahmen",
         shelfExclusionsEmpty: "Keine Apps hinzugefügt.",
         shelfExclusionsCaption: "Schütteln und die Menüleisten-Ablage bleiben bei Ziehvorgängen aus diesen Apps aus. Kurzbefehl und Jetzt öffnen funktionieren weiter.",
@@ -565,6 +565,8 @@ extension Strings {
         shelfActionOpen: "Öffnen",
         shelfActionOpenWith: "Öffnen mit",
         shelfActionShare: "Teilen",
+        shelfActionPin: "Anheften",
+        shelfActionUnpin: "Loslösen",
 
         breakdownMeasuring: "Wird gemessen…",
 

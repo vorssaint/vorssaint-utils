@@ -528,7 +528,7 @@ extension Strings {
         shelfCloseAfterDrop: "拖放到其他 App 後關閉",
         shelfCloseAfterDropCaption: "目標接收項目後關閉暫存架。面板中的圖釘可讓它保持開啟。",
         shelfRemoveAfterDrop: "拖放後移除項目",
-        shelfRemoveAfterDropCaption: "其他 App 接收的項目會離開暫存架。關閉此選項可保留副本。",
+        shelfRemoveAfterDropCaption: "其他 App 接收的項目會離開暫存架。關閉此選項可保留副本。已固定的項目會一直保留。",
         shelfExclusionsTitle: "自動例外",
         shelfExclusionsEmpty: "尚未加入 App。",
         shelfExclusionsCaption: "從這些 App 開始拖移時，搖動手勢和選單列區域不會開啟。快捷鍵和立即開啟仍可使用。",
@@ -566,6 +566,8 @@ extension Strings {
         shelfActionOpen: "開啟",
         shelfActionOpenWith: "開啟方式",
         shelfActionShare: "分享",
+        shelfActionPin: "固定",
+        shelfActionUnpin: "取消固定",
 
         breakdownMeasuring: "測量中…",
 

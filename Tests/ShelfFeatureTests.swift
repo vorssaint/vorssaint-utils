@@ -72,6 +72,14 @@ enum ShelfFeatureTests {
         suite.expect(!ShelfInteractionSupport.shouldRemoveAfterDrag(
             dropAccepted: true, draggedItemCount: 1, removeAfterDrop: false),
                "shelf retains an accepted item when automatic removal is off")
+        let pinnedDragID = UUID(), looseDragID = UUID()
+        suite.expect(ShelfInteractionSupport.removableAfterDrag([pinnedDragID, looseDragID],
+                                                                protectedIDs: [pinnedDragID]) == [looseDragID],
+               "a pinned shelf item stays after a drag-out while the rest of the drag leaves")
+        suite.expect(ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: true, dragIncludesPinned: false)
+                && !ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: true, dragIncludesPinned: true)
+                && !ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: false, dragIncludesPinned: false),
+               "a drag holding a pinned shelf item only offers a copy outside the app")
 
         suite.expect(!ShelfInteractionSupport.isContentDrag(
             baselineChangeCount: 5, changeCount: 5, beganInDock: false,
@@ -436,12 +444,25 @@ enum ShelfFeatureTests {
         // and read with nothing else complaining.
         let shelfFullItem = ShelfPersistedItem(id: UUID(), kind: .file, title: "t", text: "x",
                                                url: "https://example.com/u", path: "/tmp/p",
-                                               bookmark: Data([1]), children: [])
+                                               bookmark: Data([1]), children: [], pinned: true)
         let shelfFullRound = (try? JSONEncoder().encode(shelfFullItem))
             .flatMap { try? JSONDecoder().decode(ShelfPersistedItem.self, from: $0) }
         suite.expect(shelfFullRound == shelfFullItem,
                "every persisted shelf field survives an encode and decode round trip")
 
+        suite.expect(ShelfPersistedItem(id: UUID(), kind: .text, title: "t", text: "t", pinned: false).pinned == nil
+                && (try? JSONDecoder().decode(ShelfPersistedItem.self,
+                                              from: Data(#"{"kind":"text","text":"t"}"#.utf8)))?.pinned == nil,
+               "an unpinned shelf item and a store written before pins both read as unpinned")
+        let pinnedShelfText = ShelfPersistedItem(id: UUID(), kind: .text, title: "Hello",
+                                                 text: "Hello world", pinned: true)
+        suite.expect(ShelfPersistenceSupport.sanitized([pinnedShelfText]) { _ in true } == [pinnedShelfText],
+               "a pinned shelf item keeps its pin through restore")
+        let pinnedShelfBatch = ShelfPersistedItem(id: UUID(), kind: .batch, title: "batch",
+                                                  children: [shelfFile, shelfText], pinned: true)
+        suite.expect(ShelfPersistenceSupport.sanitized([pinnedShelfBatch]) { _ in true } == [pinnedShelfBatch]
+                && ShelfPersistenceSupport.sanitized([pinnedShelfBatch]) { _ in false }.first?.pinned == true,
+               "a pinned shelf pile keeps its pin, and passes it to the item it collapses to")
         suite.expect(ShelfPersistenceSupport.sanitized([shelfFile, shelfText, shelfLink]) { _ in true }
                    == [shelfFile, shelfText, shelfLink],
                "healthy shelf items pass sanitizing untouched")
