@@ -20,6 +20,7 @@ struct MetricsTests {
             }),
             ("clipboard", { ClipboardFeatureTests.run(suite) }),
             ("pointer-input", {
+                PointerOnDisplayContract.run(suite)
                 PointerInputFeatureTests.run(suite)
                 SuperKeyTapContract.run(suite)
             }),
