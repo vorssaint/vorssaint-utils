@@ -39,7 +39,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var desktopReadings = 0
     private var lastMissionControlCheck: TimeInterval = -.infinity
     private var lastMissionControlProbe: TimeInterval = -.infinity
-    private var dockOverlayWasVisible = false
+    private var overviewWasVisible = false
+    private var restoringFromMissionControl = false
     var missionControlDidRestore: (() -> Void)?
     private let overlaySpace = NotchOverlaySpace()
     private var concealedForFrameChange = false
@@ -96,9 +97,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     func blocksHoverReveal() -> Bool {
-        // Confirm again at the hover deadline: Mission Control can start while
+        // Check again at the hover deadline: Mission Control can start while
         // the pointer is waiting over the island's activation area.
-        refreshMissionControlState(forceProbe: true)
+        refreshMissionControlState(now: true)
         return concealedForMissionControl
     }
 
@@ -394,8 +395,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     /// The stationary island must stay on Show Desktop for file drops, but it
-    /// covers desktop names in Mission Control. Dock's overview window is a
-    /// cheap hint; the frame probe confirms it and handles other macOS layouts.
+    /// covers desktop names in Mission Control. A full-screen overview window
+    /// is the cheap hint, and the frame probe, which waits on the window
+    /// server, runs only while one is up or the island is concealed.
     private func syncMissionControlMonitoring() {
         guard panel.isVisible || concealedForMissionControl else {
             missionControlTimer?.invalidate()
@@ -406,26 +408,27 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             let timer = Timer(timeInterval: 0.08, repeats: true) { [weak self] _ in
                 self?.refreshMissionControlState()
             }
-            timer.tolerance = 0.02
+            timer.tolerance = 0.04
             missionControlTimer = timer
             RunLoop.main.add(timer, forMode: .common)
         }
-        if panel.isVisible { refreshMissionControlState(forceProbe: true) }
+        if panel.isVisible { refreshMissionControlState(now: true) }
     }
 
-    private func refreshMissionControlState(forceProbe: Bool = false) {
+    private func refreshMissionControlState(now immediate: Bool = false) {
         let now = ProcessInfo.processInfo.systemUptime
-        guard forceProbe || now - lastMissionControlCheck >= 0.08 else { return }
+        guard immediate || now - lastMissionControlCheck >= 0.08 else { return }
         lastMissionControlCheck = now
-        let dockOverlay = NotchFrameProbe.dockOverviewIsVisible()
-        let appeared = dockOverlay && !dockOverlayWasVisible
-        dockOverlayWasVisible = dockOverlay
-        // A WindowServer frame change and flush costs much more than the
-        // window-list hint. Check it at the transition, with a slow fallback
-        // for systems that do not expose that Dock window. While restoring,
-        // confirm desktop readings promptly so the island does not linger.
-        let interval = concealedForMissionControl && !dockOverlay ? 0.08 : 0.5
-        guard forceProbe || appeared || now - lastMissionControlProbe >= interval else { return }
+        let overview = NotchFrameProbe.overviewIsVisible(on: currentGeometry.screen)
+        let appeared = overview && !overviewWasVisible
+        overviewWasVisible = overview
+        // The window list costs a fraction of a millisecond; a probe reading
+        // waits up to a frame for the window server. Without an overview the
+        // desktop needs no reading at all. While one stays up the reading is
+        // repeated slowly, and once it closes the desktop is confirmed promptly.
+        guard overview || concealedForMissionControl else { return }
+        let interval = concealedForMissionControl && !overview ? 0.08 : 0.5
+        guard immediate || appeared || now - lastMissionControlProbe >= interval else { return }
         lastMissionControlProbe = now
         sampleMissionControl()
     }
@@ -438,7 +441,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             desktopReadings = 0
             guard !concealedForMissionControl else { panel.ignoresMouseEvents = true; return }
             concealedForMissionControl = true
-            missionControlAlpha = panel.alphaValue
+            // Reopened during the fade back in, the panel is still on its way
+            // to the alpha kept from the first entry.
+            if !restoringFromMissionControl { missionControlAlpha = panel.alphaValue }
             missionControlMouseEvents = mouseEventsBeforeHide ?? panel.ignoresMouseEvents
             panel.ignoresMouseEvents = true
             if panel.isVisible { fadeMissionControl(to: 0) }
@@ -457,19 +462,21 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         concealedForMissionControl = false
         desktopReadings = 0
         panel.ignoresMouseEvents = hidesWhenSettled ? true : missionControlMouseEvents
-        if panel.isVisible { fadeMissionControl(to: missionControlAlpha) }
-        else {
+        if panel.isVisible {
+            restoringFromMissionControl = true
+            fadeMissionControl(to: missionControlAlpha) { [weak self] in self?.restoringFromMissionControl = false }
+        } else {
             panel.alphaValue = missionControlAlpha
             syncMissionControlMonitoring()
         }
         missionControlDidRestore?()
     }
 
-    private func fadeMissionControl(to alpha: CGFloat) {
-        NSAnimationContext.runAnimationGroup { context in
+    private func fadeMissionControl(to alpha: CGFloat, completion: (() -> Void)? = nil) {
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.14
             panel.animator().alphaValue = alpha
-        }
+        }, completionHandler: completion)
     }
 
     var visibleFrame: CGRect {
@@ -598,15 +605,22 @@ private final class NotchFrameProbe {
             && abs(frame.width - other.width) <= 0.5 && abs(frame.height - other.height) <= 0.5
     }
 
-    /// Dock creates an overview window at layer 18 in Mission Control. Other
-    /// overviews can have one too, so this is only a reason to run the frame
-    /// probe, never a visibility decision by itself.
-    static func dockOverviewIsVisible() -> Bool {
+    /// On macOS 27 Mission Control and App Exposé cover the display with a
+    /// WindowManager window at layer 19; Show Desktop uses layer 18 and keeps
+    /// the island, and its own transition would read as animated. Earlier
+    /// systems had Dock's overview window at layer 18. This is only a reason
+    /// to run the frame probe, never a visibility decision by itself, and the
+    /// size check leaves Stage Manager's strip out.
+    static func overviewIsVisible(on screen: CGRect) -> Bool {
         guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
                 as? [[String: Any]] else { return false }
-        return windows.contains {
-            $0[kCGWindowOwnerName as String] as? String == "Dock"
-                && $0[kCGWindowLayer as String] as? Int == 18
+        return windows.contains { window in
+            let owner = window[kCGWindowOwnerName as String] as? String
+            let layer = window[kCGWindowLayer as String] as? Int
+            if owner == "Dock" { return layer == 18 }
+            guard owner == "WindowManager", layer == 19,
+                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat] else { return false }
+            return (bounds["Width"] ?? 0) >= screen.width - 1 && (bounds["Height"] ?? 0) >= screen.height - 1
         }
     }
 

@@ -246,8 +246,8 @@ enum NotchPresentationProbe {
         witness.orderFrontRegardless()
         let idleProbeCount = host.missionControlFrameProbeCount
         advance(0.5)
-        if host.missionControlFrameProbeCount - idleProbeCount > 2 {
-            failures.append("the island kept probing window frames continuously on the desktop")
+        if host.missionControlFrameProbeCount != idleProbeCount {
+            failures.append("the island probed window frames on the desktop")
         }
         func witnessLags() -> Bool {
             let side: CGFloat = witness.frame.width > 2 ? 2 : 40

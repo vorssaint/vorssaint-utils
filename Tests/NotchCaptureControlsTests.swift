@@ -130,6 +130,10 @@ extension NotchPresentationRefreshContract {
         host.restoreFromMissionControl()
         suite.expect(missionControl.panel?.ignoresMouseEvents == false,
                      "the resting island accepts clicks again after Mission Control")
+        suite.expect(host.panel.isVisible == host.restoringFromMissionControl,
+                     "a visible island stays marked as restoring while it fades back in")
+        host.fadeCompletion?()
+        suite.expect(!host.restoringFromMissionControl, "the finished fade ends the restore")
 
         let moving = begin()
         move(moving, inside: true)

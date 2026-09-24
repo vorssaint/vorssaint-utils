@@ -59,7 +59,12 @@ enum NotchPresentationRefreshContract {
         var desktopReadings = 0
         var mouseEventsBeforeHide: Bool?
         var hidesWhenSettled = false
-        func fadeMissionControl(to alpha: CGFloat) { panel.alphaValue = alpha }
+        var restoringFromMissionControl = false
+        var fadeCompletion: (() -> Void)?
+        func fadeMissionControl(to alpha: CGFloat, completion: (() -> Void)? = nil) {
+            panel.alphaValue = alpha
+            fadeCompletion = completion
+        }
         func syncMissionControlMonitoring() {}
         var hideAnimations: [Bool] = []
         func hide(animated: Bool) {
