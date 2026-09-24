@@ -1393,6 +1393,19 @@ enum ScreenshotFeatureTests {
                 && Strength.blockFactor(for: Strength.defaultLevel) == 1
                 && ScreenshotSupport.pixelBlockSize(for: CGSize(width: 40, height: 40), level: 1) >= 2,
                "blur levels stay in range and never shrink the mosaic to nothing")
+        suite.expect([0, 1, 2, 3].allSatisfy { Strength.startingLevel(remembered: $0) == Strength.defaultLevel }
+                && Strength.startingLevel(remembered: 4) == 4 && Strength.startingLevel(remembered: 5) == 5
+                && Strength.startingLevel(remembered: 9) == 5,
+               "a new capture never starts pixelating at a light level that can leave text readable")
+        var lightArea = ScreenshotSupport.Annotation(tool: .pixelate)
+        lightArea.blurLevel = 1
+        var strongArea = ScreenshotSupport.Annotation(tool: .pixelate)
+        strongArea.blurLevel = 5
+        var outlinedArea = ScreenshotSupport.Annotation(tool: .rect)
+        outlinedArea.blurLevel = 4
+        suite.expect(ScreenshotSupport.mosaicLevels(for: [lightArea, strongArea, strongArea, outlinedArea]) == [1, 5]
+                && ScreenshotSupport.mosaicLevels(for: [outlinedArea]).isEmpty,
+               "the editor keeps a capture-sized mosaic only for the levels its pixelate areas use")
         func filled(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat) -> CGImage? {
             let context = CGContext(data: nil, width: 20, height: 10, bitsPerComponent: 8,
                                     bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),

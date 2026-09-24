@@ -1446,6 +1446,14 @@ enum ScreenshotSupport {
             min(max(level, levels.lowerBound), levels.upperBound)
         }
 
+        /// Where a new capture's pixelate tool starts: the remembered level,
+        /// but never a light one. Levels 1 and 2 make blocks smaller than a
+        /// line of text, which can stay readable, so they are picked area by
+        /// area instead of carried into the next redaction.
+        static func startingLevel(remembered: Int) -> Int {
+            max(sanitized(remembered), defaultLevel)
+        }
+
         /// What the level does to the mosaic block, relative to level 3.
         static func blockFactor(for level: Int) -> CGFloat {
             switch sanitized(level) {
@@ -2077,13 +2085,20 @@ enum ScreenshotSupport {
 
     // MARK: - Redaction
 
-    /// Pixelation block size in image pixels: coarse enough that the mosaic
-    /// carries no legible detail, scaled to the capture so small crops and
-    /// full screens redact equally well.
+    /// Pixelation block size in image pixels, scaled to the capture so small
+    /// crops and full screens redact equally well. From the default level up
+    /// the mosaic carries no legible detail; levels 1 and 2 are lighter and
+    /// can leave large text readable.
     static func pixelBlockSize(for imageSize: CGSize,
                                level: Int = BlurStrength.defaultLevel) -> Int {
         let base = max(10, Int(min(imageSize.width, imageSize.height) / 55))
         return max(2, Int((CGFloat(base) * BlurStrength.blockFactor(for: level)).rounded()))
+    }
+
+    /// The blur levels the pixelate marks use. Each needs a mosaic as large as
+    /// the capture, so the editor keeps no other.
+    static func mosaicLevels(for annotations: [Annotation]) -> Set<Int> {
+        Set(annotations.filter { $0.tool == .pixelate }.map(\.blurLevel))
     }
 
     // MARK: - Export

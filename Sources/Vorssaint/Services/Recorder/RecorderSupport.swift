@@ -536,6 +536,8 @@ enum RecorderSupport {
     /// Sized from the area rather than the picture: a strip drawn around one
     /// line of text gets blocks taller than its letters, which is what makes
     /// it unreadable, while a big area is not turned into four squares.
+    /// Strengths below the default shrink the blocks under that size and can
+    /// leave the text readable; a new blur starts at the default.
     static func blurBlockSize(for area: CGSize,
                               strength: Int = ScreenshotSupport.BlurStrength.defaultLevel) -> CGFloat {
         let side = min(area.width, area.height)

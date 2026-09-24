@@ -188,8 +188,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             defaults.string(forKey: DefaultsKey.screenshotLastStroke))
         textSize = ScreenshotSupport.sanitizedTextSize(
             defaults.integer(forKey: DefaultsKey.screenshotLastTextSize))
-        blurLevel = ScreenshotSupport.BlurStrength.sanitized(
-            defaults.integer(forKey: DefaultsKey.screenshotLastBlurLevel))
+        blurLevel = ScreenshotSupport.BlurStrength.startingLevel(
+            remembered: defaults.integer(forKey: DefaultsKey.screenshotLastBlurLevel))
         arrowStyle = ScreenshotSupport.ArrowStyleID.sanitized(
             defaults.string(forKey: DefaultsKey.screenshotLastArrowStyle))
         sticker = ScreenshotSupport.StickerID.sanitized(
@@ -569,11 +569,16 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
               annotations[index].tool == .pixelate,
               annotations[index].blurLevel != blurLevel
         else { return }
-        registerUndo()
         // The mosaic must exist before the mark points at it, or the redraw
-        // would briefly show the area uncovered.
+        // would show the area uncovered; without one the area keeps its level.
         ensurePixelated(level: blurLevel)
+        guard pixelated[blurLevel] != nil else {
+            blurLevel = annotations[index].blurLevel
+            return
+        }
+        registerUndo()
         annotations[index].blurLevel = blurLevel
+        ensurePixelatedForAnnotations()
     }
 
     private func applyStickerToSelection() {
@@ -1094,10 +1099,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         pixelated[level] = mosaic
     }
 
+    /// Keeps a mosaic for each level in use and drops the rest: each one is
+    /// as large as the capture.
     private func ensurePixelatedForAnnotations() {
-        for level in Set(annotations.filter { $0.tool == .pixelate }.map(\.blurLevel)) {
-            ensurePixelated(level: level)
-        }
+        let levels = ScreenshotSupport.mosaicLevels(for: annotations)
+        pixelated = pixelated.filter { levels.contains($0.key) }
+        for level in levels { ensurePixelated(level: level) }
     }
 }
 
