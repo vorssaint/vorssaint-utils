@@ -688,6 +688,14 @@ enum NotchTests {
                && NotchSupport.adjacentModule(to: .camera, modules: [.files], backwards: true) == .files
                && NotchSupport.adjacentModule(to: nil, modules: [], backwards: false) == nil,
                "reverse cycling, removed selections and an empty gallery have safe destinations")
+        suite.expect(NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: false) == 1
+               && NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: true) == 1
+               && NotchSupport.steppedItem(from: 1, in: [1, 2, 3], backwards: false) == 2
+               && NotchSupport.steppedItem(from: 3, in: [1, 2, 3], backwards: false) == 3
+               && NotchSupport.steppedItem(from: 1, in: [1, 2, 3], backwards: true) == 1
+               && NotchSupport.steppedItem(from: 9, in: [1, 2, 3], backwards: true) == 1
+               && NotchSupport.steppedItem(from: 1, in: [Int](), backwards: false) == nil,
+               "clipboard arrow keys start at the top result, stop at the ends and recover from a filtered-out row")
         suite.expect(NotchSupport.filteredModules([.controls, .music, .files], query: "  MÚSＩCA  ", title: {
             $0 == .music ? "Música" : "Arquivos"
         }) == [.music], "gallery search ignores accents, letter case, character width and surrounding spaces")
