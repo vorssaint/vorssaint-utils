@@ -775,6 +775,7 @@ enum DefaultsKey {
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
     static let notchCalendarEnabled = "notchCalendarEnabled"
+    static let notchCalendarCountdown = "notchCalendarCountdown"
     // AI agents: what the island reads from Claude Code and Codex, and shows.
     static let notchAgentsEnabled = "notchAgentsEnabled"
     static let notchAgentsClaude = "notchAgentsClaude"
@@ -1273,6 +1274,7 @@ enum Defaults {
         DefaultsKey.notchCameraEnabled: false,
         DefaultsKey.notchAccessoriesEnabled: false,
         DefaultsKey.notchCalendarEnabled: true,
+        DefaultsKey.notchCalendarCountdown: false,
         DefaultsKey.notchAgentsEnabled: false,
         DefaultsKey.notchAgentsClaude: true,
         DefaultsKey.notchAgentsCodex: true,

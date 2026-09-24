@@ -23,7 +23,7 @@ When a feature needs a macOS permission such as Accessibility, Screen Recording 
 
 ## Optional notch features
 
-Calendar access is requested only from the permission button. The notch reads upcoming events through the system calendar service; it does not create, change or delete events. Event text stays in memory and is cleared when the notch stops or the Mac locks.
+Calendar access is requested only from the permission button. The notch reads upcoming events through the system calendar service; it does not create, change or delete events. Event text stays in memory and is cleared when the notch stops or the Mac locks. The optional countdown can show the next event's title in the closed notch, including in screen captures when notch capture is enabled.
 
 Notification mirroring uses Accessibility to read new visible system banners. It does not read the notification database or message stores and does not open notification history. The session inbox shows up to 50 notices; its temporary state is kept in memory and cleared on lock or disable. Clicking a notice invokes its original native action while valid. If that action is no longer available, the user’s click can instead open the previously identified source application. A separate, disabled-by-default option dismisses the original system banner about a second after the notch accepts the notice for display, allowing short sounds to finish while longer sounds may still be cut off; it revalidates that specific notice and never clears a notification group. Notices hidden by the system are not imported.
 

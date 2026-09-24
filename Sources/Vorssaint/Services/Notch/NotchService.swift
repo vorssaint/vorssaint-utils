@@ -176,9 +176,17 @@ final class NotchService: ObservableObject {
         NotchAgentSupport.showsLiveActivity() && !AgentUsageService.shared.snapshot.live.isEmpty
     }
 
+    var hasCalendarActivity: Bool {
+        guard NotchCalendarSupport.showsCountdown(),
+              let event = NotchCalendarService.shared.countdownEvent else { return false }
+        let now = Date()
+        return event.start > now && event.start.timeIntervalSince(now) <= NotchCalendarSupport.countdownLeadTime
+    }
+
     var compactActivity: NotchCompactActivity? {
         NotchSupport.compactActivity(timer: hasTimerActivity, downloads: hasDownloadActivity,
-                                     agents: hasAgentActivity, music: hasMusicActivity)
+                                     agents: hasAgentActivity, calendar: hasCalendarActivity,
+                                     music: hasMusicActivity)
     }
 
     private var compactActivityIsVisible: Bool {
@@ -193,6 +201,7 @@ final class NotchService: ObservableObject {
         case .music: return geometry.compactMusicGeometry
         case .timer: return geometry.compactTimerGeometry(showsDownloads: hasDownloadActivity)
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing)
+        case .calendar: return geometry.compactCalendarGeometry
         default: return geometry
         }
     }
@@ -1918,6 +1927,15 @@ final class NotchService: ObservableObject {
             AgentUsageService.shared.$snapshot
                 .map { ($0.loaded, $0.live.isEmpty, $0.seen) }
                 .removeDuplicates(by: ==)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.syncMenuSpaceMonitoring()
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
+        if modules.contains(.calendar) {
+            NotchCalendarService.shared.$countdownEvent.removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()

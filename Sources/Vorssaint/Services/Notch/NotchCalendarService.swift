@@ -34,6 +34,7 @@ private actor NotchCalendarReader {
 final class NotchCalendarService: NSObject, ObservableObject {
     static let shared = NotchCalendarService()
     @Published private(set) var events: [NotchCalendarEvent] = []
+    @Published private(set) var countdownEvent: NotchCalendarEvent?
     @Published private(set) var loading = false
     private var reader: NotchCalendarReader?
     private var task: Task<Void, Never>?
@@ -42,6 +43,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
     private var permissionSubscription: AnyCancellable?
     private var generation = UUID()
     private var visibleMonth: Date?
+    private var countdownEnabled = false
 
     private override init() { super.init() }
 
@@ -53,7 +55,16 @@ final class NotchCalendarService: NSObject, ObservableObject {
 
     func syncWithPreferences() {
         guard NotchCalendarSupport.isEnabled() else { stop(); return }
-        guard reader == nil else { return }
+        let countdownEnabled = NotchCalendarSupport.showsCountdown()
+        guard reader == nil else {
+            if self.countdownEnabled != countdownEnabled {
+                self.countdownEnabled = countdownEnabled
+                if !countdownEnabled { countdownEvent = nil }
+                refresh()
+            }
+            return
+        }
+        self.countdownEnabled = countdownEnabled
         reader = NotchCalendarReader()
         for name in [Notification.Name.EKEventStoreChanged, NSApplication.didBecomeActiveNotification,
                      .NSSystemClockDidChange, .NSSystemTimeZoneDidChange, .NSCalendarDayChanged] {
@@ -72,25 +83,37 @@ final class NotchCalendarService: NSObject, ObservableObject {
         generation = UUID()
         guard NotchCalendarSupport.isEnabled(), let reader else { stop(); return }
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
-            events = []; loading = false
+            events = []; countdownEvent = nil; loading = false
             return
         }
         let requested = generation
-        let interval = NotchCalendarSupport.readInterval(month: visibleMonth, now: Date())
+        let now = Date()
+        let interval = NotchCalendarSupport.readInterval(month: visibleMonth, now: now)
+        let currentInterval = NotchCalendarSupport.readInterval(month: nil, now: now)
+        let needsCurrentRead = NotchCalendarSupport.needsCurrentRead(
+            visible: interval, current: currentInterval, countdownEnabled: countdownEnabled)
         loading = events.isEmpty
         task = Task { @MainActor [weak self] in
             let result = await reader.read(interval: interval)
+            let currentResult = needsCurrentRead ? await reader.read(interval: currentInterval) : result
             guard !Task.isCancelled, let self, self.generation == requested,
                   NotchCalendarSupport.isEnabled() else { return }
             let now = Date()
             guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
-                self.events = []; self.loading = false; self.task = nil
+                self.events = []; self.countdownEvent = nil; self.loading = false; self.task = nil
                 return
             }
             self.events = NotchCalendarSupport.ordered(result)
+            let currentEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : self.events
+            self.countdownEvent = self.countdownEnabled
+                ? NotchCalendarSupport.countdownEvent(currentEvents, now: now) : nil
             self.loading = false
             self.task = nil
-            let timer = Timer(fireAt: NotchCalendarSupport.nextRefresh(self.events, now: now),
+            let agendaRefresh = NotchCalendarSupport.nextRefresh(self.events, now: now)
+            let countdownRefresh = self.countdownEnabled
+                ? NotchCalendarSupport.countdownTransition(currentEvents, now: now) : nil
+            let nextRefresh = min(agendaRefresh, countdownRefresh ?? agendaRefresh)
+            let timer = Timer(fireAt: nextRefresh,
                               interval: 0, target: self, selector: #selector(self.timedRefresh),
                               userInfo: nil, repeats: false)
             timer.tolerance = 1
@@ -110,6 +133,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         permissionSubscription = nil
         reader = nil
         visibleMonth = nil
-        events = []; loading = false
+        countdownEnabled = false
+        events = []; countdownEvent = nil; loading = false
     }
 }

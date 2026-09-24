@@ -26,6 +26,8 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
 }
 
 enum NotchCalendarSupport {
+    static let countdownLeadTime: TimeInterval = 60 * 60
+
     static func monthDays(containing date: Date, calendar: Calendar = .current) -> [Date] {
         guard let month = calendar.dateInterval(of: .month, for: date) else { return [] }
         let offset = (calendar.component(.weekday, from: month.start) - calendar.firstWeekday + 7) % 7
@@ -56,6 +58,11 @@ enum NotchCalendarSupport {
         return DateInterval(start: today, end: weekEnd)
     }
 
+    static func needsCurrentRead(visible: DateInterval, current: DateInterval,
+                                 countdownEnabled: Bool) -> Bool {
+        countdownEnabled && (visible.start > current.start || visible.end < current.end)
+    }
+
     /// End dates are exclusive, including all-day events and midnight boundaries.
     static func events(_ events: [NotchCalendarEvent], on day: Date,
                        calendar: Calendar = .current) -> [NotchCalendarEvent] {
@@ -78,6 +85,10 @@ enum NotchCalendarSupport {
             && NotchSupport.modules(in: defaults).contains(.calendar)
     }
 
+    static func showsCountdown(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCalendarCountdown)
+    }
+
     static func ordered(_ events: [NotchCalendarEvent]) -> [NotchCalendarEvent] {
         var seen = Set<String>()
         return events.filter {
@@ -97,6 +108,31 @@ enum NotchCalendarSupport {
 
     static func next(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
         upcoming(events, now: now).first { !$0.allDay }
+    }
+
+    /// The compact island counts down to a start, never to an event already in progress.
+    static func countdownEvent(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
+        ordered(events).first {
+            !$0.allDay && $0.start > now && $0.start.timeIntervalSince(now) <= countdownLeadTime
+        }
+    }
+
+    static func countdownTransition(_ events: [NotchCalendarEvent], now: Date) -> Date? {
+        ordered(events).filter { !$0.allDay && $0.start > now }
+            .flatMap { [$0.start.addingTimeInterval(-countdownLeadTime), $0.start] }
+            .filter { $0 > now }.min()
+    }
+
+    static func countdownText(until start: Date, now: Date) -> String {
+        let seconds = max(0, Int(ceil(start.timeIntervalSince(now))))
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    static func countdownAccessibilityText(until start: Date, now: Date, locale: Locale) -> String {
+        let seconds = max(0, ceil(start.timeIntervalSince(now)))
+        return Duration.seconds(seconds).formatted(.units(
+            allowed: [.minutes, .seconds], width: .wide,
+            fractionalPart: .hide(rounded: .down)).locale(locale))
     }
 
     /// The link Calendar resolves to one appointment. A series shares one

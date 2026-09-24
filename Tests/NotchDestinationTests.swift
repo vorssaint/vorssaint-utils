@@ -273,7 +273,7 @@ enum NotchDestinationContract {
         for returnHome in [false, true] {
             defaults.set(returnHome, forKey: DefaultsKey.notchReturnHome)
             defaults.set(NotchModule.controls.rawValue, forKey: DefaultsKey.notchHomeModule)
-            for activity in [NotchCompactActivity.timer, .downloads, .music] {
+            for activity in [NotchCompactActivity.timer, .downloads, .calendar, .music] {
                 let service = Service()
                 service.open(.files)
                 service.expanded = false
