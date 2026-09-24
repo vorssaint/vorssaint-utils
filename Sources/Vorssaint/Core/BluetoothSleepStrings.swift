@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -32,6 +33,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -85,6 +87,16 @@ extension BluetoothSleepStrings {
         restoreToggle: "Volver a encender el Bluetooth cuando el Mac despierte",
         restoreCaption: "Solo cuando fue Vorssaint quien lo apagó.",
         unsupported: "Este Mac no tiene controlador Bluetooth."
+    )
+
+    static let sk = BluetoothSleepStrings(
+        pageTitle: "Bluetooth v spánku",
+        hubDescription: "Vypne Bluetooth, kým Mac spí, aby sa slúchadlá v taške prestali k nemu pripájať.",
+        enable: "Vypnúť Bluetooth, keď Mac zaspí",
+        enableCaption: "Bluetooth, ktorý bol vypnutý už pred spánkom, sa nemení a po prebudení ostane vypnutý.",
+        restoreToggle: "Znova zapnúť Bluetooth pri prebudení Macu",
+        restoreCaption: "Iba ak ho vypol Vorssaint.",
+        unsupported: "Tento Mac nemá Bluetooth radič."
     )
 
     static let de = BluetoothSleepStrings(
@@ -165,5 +177,14 @@ extension BluetoothSleepStrings {
         restoreToggle: "Mac 喚醒時重新開啟藍牙",
         restoreCaption: "只在藍牙是由 Vorssaint 關閉時。",
         unsupported: "這部 Mac 沒有藍牙控制器。"
+    )
+    static let uk = BluetoothSleepStrings(
+        pageTitle: "Bluetooth під час сну",
+        hubDescription: "Вимикає Bluetooth, поки Mac спить, щоб навушники в сумці перестали з’єднуватися з ним.",
+        enable: "Вимикати Bluetooth, коли Mac засинає",
+        enableCaption: "Bluetooth, який уже був вимкнений до сну, залишається таким і не вмикається при пробудженні.",
+        restoreToggle: "Ввімкнути Bluetooth назад, коли Mac прокидається",
+        restoreCaption: "Лише коли Vorssaint сам його вимкнув.",
+        unsupported: "На цьому Mac немає Bluetooth-контролера."
     )
 }

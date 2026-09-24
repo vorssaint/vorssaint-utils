@@ -34,6 +34,10 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.red)
                 }
+                if service.keyboardLightEnabled != nil {
+                    Divider()
+                    keyboardLightRow
+                }
                 if service.brightnessOSDSupported {
                     Divider()
                     Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)
@@ -54,7 +58,10 @@ struct BrightnessSection: View {
                 optionsDisclosure
             }
             .panelCard()
-            .onAppear { service.refresh() }
+            .onAppear {
+                service.refresh()
+                service.refreshKeyboardLight()
+            }
         }
     }
 
@@ -138,6 +145,36 @@ struct BrightnessSection: View {
             }
             SoftwareDimmingButton(display: display, compact: true)
         }
+    }
+
+    /// Sits with the display sliders because it is the same control. The
+    /// Quick toggles switch stays the place to flip it off and back on, and
+    /// the slider reaches 0, so the row carries no switch of its own.
+    private var keyboardLightRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(strings.keyboardLight)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(Int(((service.keyboardLightLevel ?? 0) * 100).rounded()))%")
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: keyboardLightBinding, in: 0...1,
+                   onEditingChanged: service.keyboardLightDragChanged)
+                .controlSize(.small)
+                .accessibilityLabel(strings.keyboardLight)
+        }
+    }
+
+    private var keyboardLightBinding: Binding<Double> {
+        Binding(get: { Double(service.keyboardLightLevel ?? 0) },
+                set: { service.setKeyboardLightLevel(Float($0)) })
     }
 
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {

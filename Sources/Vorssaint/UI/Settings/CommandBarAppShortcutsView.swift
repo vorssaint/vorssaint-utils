@@ -14,6 +14,7 @@ struct CommandBarAppShortcutsView: View {
     @State private var query = ""
     @State private var filter = AppFilter.all
     @State private var message: String?
+    @State private var sortOrder = [AppColumnOrder(column: .name)]
 
     private enum AppFilter { case all, pinned, shortcuts }
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
@@ -61,8 +62,8 @@ struct CommandBarAppShortcutsView: View {
                 .fixedSize()
             }
 
-            Table(apps) {
-                TableColumn(text.sourceApps) { entry in
+            Table(apps, sortOrder: $sortOrder) {
+                TableColumn(text.sourceApps, sortUsing: AppColumnOrder(column: .name)) { entry in
                     HStack(spacing: 8) {
                         if let path = entry.revealPath {
                             Image(nsImage: CommandBarIconCache.icon(forPath: path))
@@ -78,18 +79,18 @@ struct CommandBarAppShortcutsView: View {
                 }
                 .width(min: 150, ideal: 210)
 
-                TableColumn(text.appAliasLabel) { entry in
+                TableColumn(text.appAliasLabel, sortUsing: AppColumnOrder(column: .alias)) { entry in
                     CommandBarAppAliasField(entry: entry, savedAlias: aliases[entry.stableKey] ?? "",
                                             text: text) { report($0, for: entry) }
                 }
                 .width(min: 110, ideal: 150)
 
-                TableColumn(text.appShortcutLabel) { entry in
+                TableColumn(text.appShortcutLabel, sortUsing: AppColumnOrder(column: .shortcut)) { entry in
                     shortcutField(for: entry, shortcut: shortcuts[entry.stableKey])
                 }
                 .width(180)
 
-                TableColumn(text.pinnedTitle) { entry in
+                TableColumn(text.pinnedTitle, sortUsing: AppColumnOrder(column: .pinned)) { entry in
                     let pinned = pins.contains(entry.stableKey)
                     Button {
                         service.togglePin(entry)
@@ -148,13 +149,17 @@ struct CommandBarAppShortcutsView: View {
         let entries = service.appEntries.reversed()
         let unique = CommandBarSearch.firstOccurrences(of: entries.map(\.stableKey))
         let candidates = Array(entries)
-        return unique.map { candidates[$0] }.filter { entry in
+        let visible = unique.map { candidates[$0] }.filter { entry in
             let included = filter == .all
                 || (filter == .pinned && pins.contains(entry.stableKey))
                 || (filter == .shortcuts && shortcuts[entry.stableKey] != nil)
             return included && (query.isEmpty || CommandBarSearch.normalized(
                 "\(entry.title) \(entry.keywords) \(aliases[entry.stableKey] ?? "")").contains(query))
-        }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        }
+        let order = sortOrder.first ?? AppColumnOrder(column: .name)
+        return CommandBarAppSort.sorted(visible, by: order.column, ascending: order.order == .forward,
+                                        title: \.title, key: \.stableKey,
+                                        aliases: aliases, shortcuts: shortcuts, pins: pins)
     }
 
     private func shortcutField(for entry: CommandBarEntry, shortcut: GlobalShortcut?) -> some View {
@@ -190,6 +195,21 @@ struct CommandBarAppShortcutsView: View {
 
     private func report(_ error: String?, for entry: CommandBarEntry) {
         message = error.map { "\(entry.title): \($0)" }
+    }
+}
+
+private struct AppColumnOrder: SortComparator {
+    let column: CommandBarAppSort.Column
+    var order: SortOrder = .forward
+
+    func compare(_ lhs: CommandBarEntry, _ rhs: CommandBarEntry) -> ComparisonResult {
+        let result = lhs.title.localizedStandardCompare(rhs.title)
+        guard order == .reverse else { return result }
+        switch result {
+        case .orderedAscending: return .orderedDescending
+        case .orderedDescending: return .orderedAscending
+        case .orderedSame: return .orderedSame
+        }
     }
 }
 

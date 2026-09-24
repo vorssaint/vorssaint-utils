@@ -274,11 +274,13 @@ enum DockPreviewSupport {
         CGSize(width: 210 * scale, height: 135 * scale)
     }
 
-    static func cardSize(scale: CGFloat) -> CGSize {
+    /// Minimal previews have no title band, so the card drops its height
+    /// instead of padding the width-bound picture with space it cannot fill.
+    static func cardSize(scale: CGFloat, minimal: Bool = false) -> CGSize {
         let thumbnail = cardThumbnailSize(scale: scale)
         let padding = 10 * scale
         return CGSize(width: thumbnail.width + padding * 2,
-                      height: thumbnail.height + padding * 2 + 7 * scale + cardTitleHeight)
+                      height: thumbnail.height + padding * 2 + (minimal ? 0 : 7 * scale + cardTitleHeight))
     }
 
     /// The picture's inset inside the thumbnail well. It scales with the well,
@@ -307,7 +309,10 @@ enum DockPreviewSupport {
     static var cardThumbnailWidth: CGFloat { cardThumbnailSize(scale: PreviewSizing.scale).width }
     static var cardThumbnailHeight: CGFloat { cardThumbnailSize(scale: PreviewSizing.scale).height }
     static var cardWidth: CGFloat { cardSize(scale: PreviewSizing.scale).width }
-    static var cardHeight: CGFloat { cardSize(scale: PreviewSizing.scale).height }
+    static var cardHeight: CGFloat {
+        cardSize(scale: PreviewSizing.scale,
+                 minimal: UserDefaults.standard.bool(forKey: DefaultsKey.minimalWindowPreviews)).height
+    }
     static var cardFallbackIconSize: CGFloat { cardFallbackIconSize(scale: PreviewSizing.scale) }
 
     /// How solid the panel's frosted background is drawn, as a fraction. The
