@@ -676,8 +676,10 @@ final class ClipboardHistoryService: ObservableObject {
             // Preserve exclusion over the whole time since the previous
             // accepted check, including any read that expired in between.
             let excludedSource = ClipboardIgnoredApps.shared.excludedSourceSinceLastCheck()
-            guard result.changeCount > self.lastChangeCount else { return }
-            self.lastChangeCount = result.changeCount
+            guard let accepted = ClipboardHistoryChangeCount.accepted(
+                read: result.changeCount, since: sinceChangeCount, last: self.lastChangeCount
+            ) else { return }
+            self.lastChangeCount = accepted
             // The pasteboard changed to something this check is about to
             // decide not to record (an ignored app, a concealed/secret copy,
             // or an image with the images toggle off): the menu bar preview

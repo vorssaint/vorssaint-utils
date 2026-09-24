@@ -33,6 +33,21 @@ struct ClipboardHistoryAccessTests {
         suite.expect(!capture.needsBaseline, "normal captures follow the accepted baseline")
         capture.finish()
 
+        // The change count restarts near zero when pboard restarts; history
+        // must follow the new server instead of waiting for it to catch up.
+        let accepted = ClipboardHistoryChangeCount.accepted
+        suite.expect(accepted(101, 100, 100) == 101, "a new copy is recorded")
+        suite.expect(accepted(100, 100, 100) == nil, "an unchanged count is not a copy")
+        suite.expect(accepted(2, 178, 178) == 2,
+               "a count below the last known one after a pasteboard server restart is a copy")
+        suite.expect(accepted(3, 2, 2) == 3, "copies after the restart keep recording")
+        suite.expect(accepted(0, 178, 178) == 0,
+               "a fresh server that has not counted anything yet is adopted")
+        suite.expect(accepted(101, 100, 102) == nil,
+               "a read that a history write overtook while in flight stays ignored")
+        suite.expect(accepted(103, 100, 102) == 103,
+               "a copy after that write is still recorded")
+
         let clock = TestClock()
         let deadlines = ManualDeadlineScheduler(clock: clock)
         let lane = GeneralPasteboardAccess(
