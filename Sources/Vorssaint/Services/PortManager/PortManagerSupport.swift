@@ -14,6 +14,19 @@ struct PortManagerEntry: Identifiable, Equatable {
 }
 
 enum PortManagerSupport {
+    /// Whether an lsof endpoint such as `*:3000` or `127.0.0.1:3000` is bound
+    /// to every interface rather than one specific address. A wildcard bind
+    /// accepts connections from other machines on the network unless a
+    /// firewall stops them, so it is worth pointing out.
+    static func listensOnAllInterfaces(_ endpoint: String) -> Bool {
+        guard let separator = endpoint.lastIndex(of: ":") else { return false }
+        var host = endpoint[..<separator]
+        if host.hasPrefix("["), host.hasSuffix("]") {
+            host = host.dropFirst().dropLast()
+        }
+        return host == "*" || host == "0.0.0.0" || host == "::"
+    }
+
     static func parseLsof(_ text: String) -> [PortManagerEntry] {
         var name = "", pid: Int32 = 0, address = "", port = 0, proto = "TCP"
         var rows: [PortManagerEntry] = []

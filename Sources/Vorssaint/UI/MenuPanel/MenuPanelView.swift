@@ -1900,12 +1900,13 @@ struct QuickControlsSection: View {
     private var switcherIconRowOption: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Text(String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString))
+                let title = String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString)
+                Text(title)
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Toggle("", isOn: $switcherIconRowMode)
+                Toggle(title, isOn: $switcherIconRowMode)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
@@ -2197,7 +2198,7 @@ struct PanelToggleRow: View {
             }
             PanelInlineHideButton(isVisible: visibility)
         } else {
-            Toggle("", isOn: $isOn)
+            Toggle(title, isOn: $isOn)
                 .labelsHidden()
                 .controlSize(.small)
                 .toggleStyle(.switch)
@@ -2486,7 +2487,7 @@ struct KeepAwakeCard: View {
                 HStack {
                     statusLine
                     Spacer()
-                    Toggle("", isOn: activeBinding)
+                    Toggle(l10n.s.keepAwakeTitle, isOn: activeBinding)
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
@@ -2692,7 +2693,7 @@ struct KeepAwakeCard: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Toggle("", isOn: isOn)
+                Toggle(title, isOn: isOn)
                     .toggleStyle(.switch)
                     .controlSize(.mini)
                     .labelsHidden()
@@ -2815,7 +2816,7 @@ struct KeepAwakeCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn)
+            Toggle(title, isOn: isOn)
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .labelsHidden()

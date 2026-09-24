@@ -166,6 +166,12 @@ enum NotchLayout {
     }
     /// Breathing room every compact strip keeps from its silhouette.
     static let compactEdgeGap: CGFloat = 5
+    /// The compact player's equalizer, spaced by its own bar width.
+    static let compactMusicBarCount = 7
+    static let compactMusicBarWidth: CGFloat = 1.8
+    static var compactMusicBarsWidth: CGFloat {
+        compactMusicBarWidth * (CGFloat(compactMusicBarCount) + CGFloat(compactMusicBarCount - 1) * 0.85)
+    }
     /// Corners of a surface of this height. A strip as tall as the camera
     /// keeps the cutout's own corners, so the closed island and the last
     /// frames of a collapse sit inside the notch instead of outlining a
@@ -726,6 +732,12 @@ enum NotchSupport {
         defaults.object(forKey: DefaultsKey.notchCoversMenus) as? Bool ?? true
     }
 
+    /// The closed island stays out of sight until the pointer reaches it, and
+    /// shows no notices while it waits.
+    static func hidesUntilHover(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchHideUntilHover) && defaults.bool(forKey: DefaultsKey.notchOpenOnHover)
+    }
+
     static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {
         let choice = NotchIdleContent(rawValue: defaults.string(forKey: DefaultsKey.notchIdleContent) ?? "") ?? .none
         if choice == .battery, !AppFeature.monitorPower.isAvailable(in: defaults) { return .none }
@@ -909,6 +921,8 @@ struct NotchGeometry: Equatable {
     var requiresFullWidthHeader = false
     private var allowsActivityFooter = true
     private var minimumCompactWidth: CGFloat = 0
+    /// Narrower wings than this are dropped rather than drawn cramped.
+    private var minimumWing: CGFloat = 44
 
     init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, layout: NotchSize = .compact,
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
@@ -969,12 +983,49 @@ struct NotchGeometry: Equatable {
     }
     /// Music remains one row high, with the physical camera between its wings.
     /// Insufficient menu space hides the wings instead of growing below the camera.
+    /// Beside a physical camera each wing is just wide enough for the cover or
+    /// the bars, kept as far from the strip's end as from its top and bottom.
     var compactMusicGeometry: NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
-        compact.compactSideRoom = room.isFinite && room >= 44 ? min(isNotched ? 44 : 56, room) : 0
         compact.allowsActivityFooter = false
+        let room = compactSideRoom ?? 0
+        let wing = isNotched ? compact.compactMusicContentWing : 44
+        compact.compactSideRoom = room.isFinite && room >= wing ? min(isNotched ? wing : 56, room) : 0
+        compact.minimumWing = wing
         return compact
+    }
+    /// The cover takes the strip's height less an even gap above and below.
+    var compactMusicArtworkSide: CGFloat {
+        max(0, min(26, compactActivityContentHeight - NotchLayout.compactEdgeGap * 2))
+    }
+    /// A cover that fills the strip keeps the same gap from its end as from
+    /// its top and bottom, and its corners share a centre with the strip's
+    /// lower corners, so both curves run parallel. A cover well short of a
+    /// tall strip keeps the usual edge gap and a tile's own corners.
+    private var compactMusicArtworkFills: Bool {
+        compactActivityContentHeight - compactMusicArtworkSide <= NotchLayout.compactEdgeGap * 4
+    }
+    var compactMusicArtworkRadius: CGFloat {
+        let side = compactMusicArtworkSide
+        guard compactMusicArtworkFills else { return side * 0.28 }
+        let concentric = NotchLayout.surfaceRadius(height: compactActivitySize.height)
+            - (compactActivityContentHeight - side) / 2
+        return min(side / 2, max(side * 0.2, concentric))
+    }
+    var compactMusicArtworkInset: CGFloat {
+        let gap = compactMusicArtworkFills ? (compactActivityContentHeight - compactMusicArtworkSide) / 2
+            : NotchLayout.compactEdgeGap
+        return compactActivityEdgeInset(boxHeight: compactMusicArtworkSide, radius: compactMusicArtworkRadius, gap: gap)
+    }
+    var compactMusicBarHeight: CGFloat {
+        min(16, max(6, compactActivityContentHeight - NotchLayout.compactEdgeGap * 2))
+    }
+    var compactMusicBarsInset: CGFloat {
+        compactActivityEdgeInset(boxHeight: compactMusicBarHeight, radius: NotchLayout.compactMusicBarWidth / 2)
+    }
+    private var compactMusicContentWing: CGFloat {
+        max(compactMusicArtworkInset + compactMusicArtworkSide,
+            compactMusicBarsInset + NotchLayout.compactMusicBarsWidth).rounded(.up)
     }
     var musicCameraGap: CGFloat { cameraWidth }
     var compactMusicLabelInset: CGFloat {
@@ -1015,7 +1066,7 @@ struct NotchGeometry: Equatable {
         let measuredRoom = compactSideRoom ?? 0
         let room = measuredRoom.isFinite ? max(0, measuredRoom).rounded(.down) : 0
         let wings = min(max(0, preferred - cameraWidth), room * 2)
-        return CGSize(width: cameraWidth + (wings >= 88 ? wings : 0), height: stripHeight)
+        return CGSize(width: cameraWidth + (wings >= minimumWing * 2 ? wings : 0), height: stripHeight)
     }
     var musicWingWidth: CGFloat { max(0, (musicStrip.width - musicCameraGap) / 2) }
 
@@ -1241,6 +1292,40 @@ enum NotchMotion {
 
     static func envelope(from: CGSize, to: CGSize) -> CGSize {
         CGSize(width: max(from.width, to.width), height: max(from.height, to.height))
+    }
+}
+
+/// How open the glass lip is at each height of a resize. Glass closing into
+/// a black strip darkens over the last stretch, so it arrives already black
+/// and the material swap at rest changes nothing on screen; glass leaving a
+/// black strip opens up over the first stretch. A resize that interrupts
+/// another starts from the openness already on screen.
+struct NotchGlassFade: Equatable {
+    /// Where the lip is shut, and the height over which it opens from there.
+    var solidHeight: CGFloat = 0
+    var range: CGFloat = 1
+
+    static let open = NotchGlassFade()
+    static let stretch: CGFloat = 48
+
+    func openness(atHeight height: CGFloat) -> CGFloat {
+        guard height.isFinite, range > 0 else { return 1 }
+        return min(1, max(0, (height - solidHeight) / range))
+    }
+
+    /// `current` is the openness on screen at `start`: zero while black.
+    static func plan(from start: CGFloat, to end: CGFloat, endsInGlass: Bool, current: CGFloat) -> NotchGlassFade {
+        guard start.isFinite, end.isFinite else { return .open }
+        let current = min(1, max(0, current.isFinite ? current : 1))
+        let travel = abs(end - start)
+        if endsInGlass {
+            guard end > start, current < 1 else { return .open }
+            if current == 0 { return NotchGlassFade(solidHeight: start, range: max(1, min(stretch, travel))) }
+            let range = travel / (1 - current)
+            return NotchGlassFade(solidHeight: start - current * range, range: max(1, range))
+        }
+        let range = current >= 1 ? min(stretch, travel) : travel / max(current, 0.01)
+        return NotchGlassFade(solidHeight: end, range: max(1, range))
     }
 }
 
