@@ -85,6 +85,7 @@ Clipboard History images open in the Screenshot Editor, copied color values show
 - Choosing Music or iTunes under Open instead says they are the apps being blocked, instead of doing nothing. Thanks to @PathGao.
 - App Switcher no longer focuses a window again a moment after its app is already in front, which could change that window's size in some apps, and windows that settle late still get their retry. Thanks to @DiogoDuart3.
 - The Window Layout shortcuts group no longer shows an empty row, and the screenshot subfolder and file name fields sit on the right like the other settings.
+- Tiling window managers no longer list Vorssaint's floating panels as windows on the current desktop, including the Command Bar, App Switcher, Clipboard History, capture and recording overlays, pinned screenshots, Dock and Window Layout previews, on-screen indicators and the invisible anchor that places the menu panel when the menu bar is hidden. Thanks to @Yahddyyp.
 
 ## [3.4.0-beta.4] - 2026-09-23
 

@@ -1218,10 +1218,10 @@ final class ClipboardHistoryService: ObservableObject {
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
         let initialSize = quickPreviewPresented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize
-        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: initialSize),
-                            styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: NSRect(origin: .zero, size: initialSize),
+                                 styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         panel.title = FeatureStrings.clipboard(L10n.shared.language).title
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden

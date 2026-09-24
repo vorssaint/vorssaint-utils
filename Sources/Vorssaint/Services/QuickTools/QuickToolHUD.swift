@@ -218,10 +218,10 @@ enum QuickToolHUD {
     }
 
     private static func makePanel() -> NSPanel {
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         configure(panel)
         return panel
     }
@@ -261,7 +261,7 @@ private struct QuickToolCountdownView: View {
 
 /// A non-activating panel that can still own Return and Escape while the
 /// underlying window continues receiving pointer and scrolling events.
-private final class ScrollingCapturePanel: NSPanel {
+private final class ScrollingCapturePanel: OverlayPanel {
     override var canBecomeKey: Bool { true }
 }
 

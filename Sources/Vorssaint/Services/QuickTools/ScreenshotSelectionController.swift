@@ -807,7 +807,7 @@ final class ScreenshotSelectionController {
 
 /// Full-screen borderless panel for one display. Never activates the app;
 /// becomes key only so Esc and friends arrive.
-private final class ScreenshotOverlayPanel: NSPanel {
+private final class ScreenshotOverlayPanel: OverlayPanel {
     let screenFrame: CGRect
     let displayID: CGDirectDisplayID
     private(set) var frozenImage: CGImage?

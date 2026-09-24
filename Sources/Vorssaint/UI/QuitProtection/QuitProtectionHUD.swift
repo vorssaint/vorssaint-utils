@@ -27,10 +27,10 @@ final class QuitProtectionHUD {
     func show(title: String, detail: String, on screen: NSScreen? = nil,
               holdDeadline: Date? = nil) {
         if panel == nil {
-            let panel = NSPanel(contentRect: CGRect(origin: .zero, size: size),
-                                styleMask: [.borderless, .nonactivatingPanel],
-                                backing: .buffered,
-                                defer: false)
+            let panel = OverlayPanel(contentRect: CGRect(origin: .zero, size: size),
+                                     styleMask: [.borderless, .nonactivatingPanel],
+                                     backing: .buffered,
+                                     defer: false)
             panel.contentView = ContentView(frame: CGRect(origin: .zero, size: size))
             panel.isOpaque = false
             panel.backgroundColor = .clear

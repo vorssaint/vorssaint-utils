@@ -986,10 +986,10 @@ final class WindowLayoutService: ObservableObject {
         if let directionalIndicatorPanel {
             panel = directionalIndicatorPanel
         } else {
-            panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+            panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
             panel.backgroundColor = .clear
             panel.isOpaque = false
             panel.hasShadow = true
@@ -1428,10 +1428,10 @@ final class WindowLayoutService: ObservableObject {
     }
 
     private func makeEdgeSnapPreviewPanel() -> NSPanel {
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false

@@ -127,7 +127,7 @@ final class QRResultController {
 
 /// A non-activating panel that can still take key focus so its buttons and
 /// selectable text respond without bringing the whole app forward.
-private final class QRResultPanel: NSPanel {
+private final class QRResultPanel: OverlayPanel {
     override var canBecomeKey: Bool { true }
 }
 
