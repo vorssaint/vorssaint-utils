@@ -25,6 +25,9 @@ final class NotchMusicService: ObservableObject {
     @Published private(set) var queueLoading = false
     @Published private(set) var queueActionPending = false
     @Published private(set) var queueActionFailed = false
+    /// A player moved on to another song; see NotchTrackChange.
+    let trackChanges = PassthroughSubject<Void, Never>()
+    private var trackChange = NotchTrackChange()
     private var queueVisible = false
     private var queueRequest: UUID?
     private var queueReply: [String: Any]?
@@ -135,6 +138,7 @@ final class NotchMusicService: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, self.generation == requested,
                       self.acceptsSourceReply(automatic: automatic, sources: sources) else { return }
+                let first = self.awaitingPlayback
                 self.updateArtwork(image, tint: tint, playback: next)
                 self.playback = next
                 self.sources = sources
@@ -144,6 +148,7 @@ final class NotchMusicService: ObservableObject {
                 self.updateAutomation(for: next)
                 NotchLyricsService.shared.playbackChanged(next)
                 self.updateQueue()
+                if self.trackChange.isNewSong(next, first: first) { self.trackChanges.send() }
             }
         }
         output.fileHandleForReading.readabilityHandler = { handle in
@@ -257,6 +262,7 @@ final class NotchMusicService: ObservableObject {
         restartWork?.cancel()
         restartWork = nil
         restartCount = 0
+        trackChange.reset()
         disconnect()
     }
 
@@ -470,7 +476,11 @@ final class NotchMusicService: ObservableObject {
         let cancellation = DispatchWorkItem {}
         automationDiscovery = cancellation
         automationTarget = target
-        automationAvailability = nil
+        // Every page that shows the controls asks for a fresh look at the
+        // same player. Its last answer stays on screen until the new one
+        // lands, instead of the fallback row flashing on each open; sending
+        // checks access again anyway. Another player starts from nothing.
+        if automationAvailability?.target != target { automationAvailability = nil }
         let requested = generation
         queue.async { [weak self] in
             guard !cancellation.isCancelled else { return }

@@ -1106,7 +1106,7 @@ final class WindowLayoutService: ObservableObject {
 
     private func showDirectionalIndicator(at pointer: CGPoint, action: WindowDirectionalAction?) {
         let size = CGSize(width: 180, height: 180)
-        let screenFrame = NSScreen.screens.first(where: { $0.frame.contains(pointer) })?.visibleFrame
+        let screenFrame = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) })?.visibleFrame
             ?? NSScreen.main?.visibleFrame ?? .zero
         var origin = CGPoint(x: pointer.x - size.width / 2, y: pointer.y - size.height / 2)
         origin.x = min(max(origin.x, screenFrame.minX + 8), screenFrame.maxX - size.width - 8)
@@ -1115,10 +1115,10 @@ final class WindowLayoutService: ObservableObject {
         if let directionalIndicatorPanel {
             panel = directionalIndicatorPanel
         } else {
-            panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+            panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
             panel.backgroundColor = .clear
             panel.isOpaque = false
             panel.hasShadow = true
@@ -1557,10 +1557,10 @@ final class WindowLayoutService: ObservableObject {
     }
 
     private func makeEdgeSnapPreviewPanel() -> NSPanel {
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false

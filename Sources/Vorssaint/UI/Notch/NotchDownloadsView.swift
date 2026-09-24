@@ -131,36 +131,32 @@ struct NotchDownloadStrip: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
 
+    private var geometry: NotchGeometry { service.compactActivityGeometry }
     /// The arrow keeps the shared gap from the top and bottom edges too.
     private var iconSize: CGFloat {
-        min(17, service.geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
+        min(17, geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
     }
     private var iconInset: CGFloat {
-        service.geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
+        geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
     }
 
     var body: some View {
         let item = downloads.items.first { $0.active && !$0.completed }
         Button { service.open(.downloads) } label: {
             HStack(spacing: 0) {
-                HStack(spacing: 6) {
-                    if service.geometry.compactActivityWingWidth >= 40 {
+                Group {
+                    if geometry.compactActivityWingWidth >= 40 {
                         Image(systemName: "arrow.down.circle.fill").font(.system(size: iconSize))
-                        if service.geometry.compactActivityWingWidth >= 94 {
-                            Text(item?.name ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle)
-                                .font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.middle)
-                        }
                     }
                 }
-                .padding(.leading, service.geometry.compactActivityWingWidth >= 40 ? iconInset : 0)
-                .padding(.trailing, 4)
+                .padding(.leading, geometry.compactActivityWingWidth >= 40 ? iconInset : 0)
                 // Each wing anchors to its own edge, so the silhouette's curve
                 // decides the margin instead of the content's own width.
-                .frame(width: service.geometry.compactActivityWingWidth, alignment: .leading).clipped()
-                Color.clear.frame(width: service.geometry.compactActivityCameraGap)
+                .frame(width: geometry.compactActivityWingWidth, alignment: .leading).clipped()
+                Color.clear.frame(width: geometry.compactActivityCameraGap)
                 HStack {
                     Spacer(minLength: 0)
-                    if service.geometry.compactActivityWingWidth >= 36 {
+                    if geometry.compactActivityWingWidth >= 36 {
                         if let fraction = item?.fraction {
                             Text(fraction, format: NotchDownloadSupport.percentFormat(l10n.language))
                                 .font(.system(size: NotchDownloadSupport.percentSize, weight: .medium))
@@ -171,13 +167,13 @@ struct NotchDownloadStrip: View {
                         }
                     }
                 }
-                .padding(.trailing, service.geometry.compactActivityWingWidth >= 36
-                                    ? NotchDownloadSupport.percentInset(in: service.geometry) : 0)
-                .frame(width: service.geometry.compactActivityWingWidth, alignment: .trailing).clipped()
+                .padding(.trailing, geometry.compactActivityWingWidth >= 36
+                                    ? NotchDownloadSupport.percentInset(in: geometry) : 0)
+                .frame(width: geometry.compactActivityWingWidth, alignment: .trailing).clipped()
             }
-            .frame(height: service.geometry.compactActivityContentHeight)
-            .padding(.horizontal, service.geometry.compactActivityHorizontalPadding)
-            .padding(.top, service.geometry.compactActivityTopPadding)
+            .frame(height: geometry.compactActivityContentHeight)
+            .padding(.horizontal, geometry.compactActivityHorizontalPadding)
+            .padding(.top, geometry.compactActivityTopPadding)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

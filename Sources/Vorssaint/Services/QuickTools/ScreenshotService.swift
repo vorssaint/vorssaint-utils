@@ -298,7 +298,7 @@ final class ScreenshotService: ObservableObject {
         preview?.close()
         preview = nil
         let pointer = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) })
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) })
                 ?? NSScreen.main,
               screen.displayID != 0 else {
             QuickToolHUD.show(icon: "camera.viewfinder", message: strings.captureFailed)

@@ -462,7 +462,7 @@ final class ScreenshotQuickPreviewController {
     }
 }
 
-private final class ScreenshotQuickPreviewPanel: NSPanel {
+private final class ScreenshotQuickPreviewPanel: OverlayPanel {
     override var canBecomeKey: Bool { true }
 
     /// The preview shows up unasked for, so presenting it leaves the keyboard

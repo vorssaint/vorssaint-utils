@@ -127,6 +127,22 @@ enum NotchPresentationProbe {
             if host.visibleFrame.size != geometry.peek {
                 failures.append("ordinary first presentation unexpectedly animated from a hidden panel")
             }
+            // Opening a page into an ordered-out panel sizes the island at once,
+            // as Reduce Motion does. The page waits for the surface beneath it
+            // instead of showing in the resting shape.
+            host.panel.orderOut(nil)
+            host.present(size: geometry.expanded, geometry: geometry, animated: true,
+                         transitionContent: .reveal, usesGlass: true)
+            let fadeStarted = host.contentProbeAnimating
+            host.panel.orderFrontRegardless()
+            advance(0.02)
+            if !fadeStarted || host.contentProbeOpacity > 0.01 {
+                failures.append("a page opened at once showed before the island reached its size")
+            }
+            advance(0.3)
+            if host.visibleFrame.size != geometry.expanded || host.contentProbeOpacity != 1 {
+                failures.append("a page opened at once did not appear once the island reached its size")
+            }
             host.hide(animated: true)
             host.hide(animated: false)
             if host.panel.isVisible { failures.append("nonanimated withdrawal did not hide the island immediately") }

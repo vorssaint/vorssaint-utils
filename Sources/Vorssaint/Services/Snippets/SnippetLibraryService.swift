@@ -217,7 +217,7 @@ final class SnippetLibraryService: ObservableObject {
 
     /// Borderless panels refuse key status by default, and the library needs
     /// it for the search field, arrows and Esc.
-    private final class KeyableLibraryPanel: NSPanel {
+    private final class KeyableLibraryPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 
