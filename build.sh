@@ -257,6 +257,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchStrings.swift
         Sources/Vorssaint/Core/NotchTourStrings.swift
         Sources/Vorssaint/Core/NotchEditorStrings.swift
+        Sources/Vorssaint/UI/Settings/NotchSettingsTabRow.swift
         Sources/Vorssaint/Core/NotchActivityStrings.swift
         Sources/Vorssaint/Services/Notch/NotchTimerSupport.swift
         Sources/Vorssaint/Services/Notch/NotchTimerAlert.swift
@@ -405,6 +406,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/InstalledApps.swift
         Sources/Vorssaint/Services/LaunchAtLoginSupport.swift
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift
+        Sources/Vorssaint/UI/Settings/SettingsSidebarSupport.swift
         Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift
         Sources/Vorssaint/UI/Settings/SettingsWindow.swift
         Sources/Vorssaint/Core/SettingsNavigationStrings.swift
@@ -451,6 +453,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
+        Sources/Vorssaint/UI/Settings/ScreenCaptureToolPicker.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
         Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift

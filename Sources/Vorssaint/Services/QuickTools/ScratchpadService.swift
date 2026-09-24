@@ -379,7 +379,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     /// Borderless panels refuse key status by default; the pad needs it so
     /// typing and Esc work without activating the app.
-    private final class KeyableScratchpadPanel: NSPanel {
+    private final class KeyableScratchpadPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

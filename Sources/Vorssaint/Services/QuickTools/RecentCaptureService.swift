@@ -85,7 +85,7 @@ final class RecentCaptureService: ObservableObject {
         panel?.orderOut(nil)
     }
 
-    private final class KeyableHistoryPanel: NSPanel {
+    private final class KeyableHistoryPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

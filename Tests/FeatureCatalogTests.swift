@@ -1673,6 +1673,26 @@ enum FeatureCatalogTests {
         } else {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.windowGestureEnabled)
         }
+        let radialMenuEnergyKeys = [DefaultsKey.radialMenuProfiles, DefaultsKey.radialMenuMouseButton]
+        let previousRadialMenuEnergy = radialMenuEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
+        func radialMenuEnergy(_ profiles: [RadialMenuProfile]?,
+                              legacyButton: RadialMenuMouseTrigger) -> FeatureEnergyProfile {
+            UserDefaults.standard.set(profiles.flatMap(RadialMenuSupport.encodeProfiles),
+                                      forKey: DefaultsKey.radialMenuProfiles)
+            UserDefaults.standard.set(legacyButton.rawValue, forKey: DefaultsKey.radialMenuMouseButton)
+            return AppFeature.radialMenu.energyProfile
+        }
+        suite.expect(radialMenuEnergy([RadialMenuProfile(mouseButton: RadialMenuMouseTrigger.back.rawValue)],
+                                      legacyButton: .off) == .mouse
+                && radialMenuEnergy([RadialMenuProfile(trackpadTap: true)], legacyButton: .off) == .mouse
+                && radialMenuEnergy([RadialMenuProfile()], legacyButton: .back) == .idle,
+               "radial menu energy follows the saved profiles and their trackpad tap, not the pre-profile button")
+        suite.expect(radialMenuEnergy(nil, legacyButton: .back) == .mouse
+                && radialMenuEnergy(nil, legacyButton: .off) == .idle,
+               "without saved profiles the pre-profile button still decides radial menu energy")
+        for (key, value) in zip(radialMenuEnergyKeys, previousRadialMenuEnergy) {
+            UserDefaults.standard.set(value, forKey: key)
+        }
 
         // MARK: Settings page visibility
 
@@ -1723,8 +1743,12 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.allCases.allSatisfy { $0.settingsDestination.hasValidSectionAnchor },
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
-                == Set(SettingsSectionAnchor.allCases),
-               "every declared Settings section anchor is used by a feature destination")
+                == Set(SettingsSectionAnchor.allCases).subtracting([
+                    .panelConfiguration, .keyboardBrightnessShortcuts,
+                ])
+                && SettingsSectionAnchor.panelConfiguration.page == .general
+                && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts,
+               "feature anchors and standalone Settings anchors reach their pages")
         suite.expect(AppFeature.dockPreview.settingsDestination
                 == FeatureSettingsDestination(.dock, sectionAnchor: .dock)
                 && AppFeature.dockClick.settingsDestination
@@ -1744,8 +1768,12 @@ enum FeatureCatalogTests {
                 && !dockNeedsAccessibility(available: allFeatures, on: [DefaultsKey.switcherEnabled]),
                "the Dock page asks for Accessibility while Dock Preview or any Dock click action is on")
         suite.expect(AppFeature.mixer.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration),
-               "panel-oriented features land on General panel configuration")
+                == FeatureSettingsDestination(.general, sectionAnchor: .mixer)
+                && AppFeature.soundOutputSwitcher.settingsDestination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .soundOutputSwitcher)
+                && AppFeature.audioPriority.settingsDestination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .audioPriority),
+               "Mixer, output switcher and audio priority have separate General controls")
         suite.expect(AppFeature.windowMaximizer.settingsDestination
                 == FeatureSettingsDestination(.windowLayout, sectionAnchor: .windowMaximizer)
                 && pageVisible(.windowLayout, available: [.windowMaximizer])
@@ -1757,8 +1785,6 @@ enum FeatureCatalogTests {
                "cleaning mode lands on Quick Tools cleaning mode section")
         suite.expect(AppFeature.musicBlock.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
-                && AppFeature.soundOutputSwitcher.settingsDestination
-                == FeatureSettingsDestination(.shortcuts, sectionAnchor: .soundOutputSwitcher)
                 && AppFeature.diskImageInstaller.settingsDestination
                 == FeatureSettingsDestination(.features),
                "features without dedicated pages use explicit nearest Settings destinations")
@@ -1912,6 +1938,25 @@ enum FeatureCatalogTests {
         suite.expect(hiddenHistoryRouter.page == .mouse
                 && hiddenHistoryRouter.cleanerTool == nil,
                "history can revisit re-enabled pages without replaying a stale Cleaner tool hint")
+
+        let toolHistoryRouter = SettingsRouter()
+        let sharedMouseDestination = AppFeature.scrollHorizontal.settingsDestination
+        toolHistoryRouter.request(sharedMouseDestination, sidebarFeature: .scrollHorizontal)
+        suite.expect(toolHistoryRouter.sidebarFeature == .scrollHorizontal,
+               "Settings navigation keeps the requested tool when tools share a section")
+        toolHistoryRouter.request(sharedMouseDestination, sidebarFeature: .scrollInverter)
+        suite.expect(toolHistoryRouter.sidebarFeature == .scrollInverter,
+               "switching between tools on one section updates the selected tool")
+        let audioPriorityDestination = AppFeature.audioPriority.settingsDestination
+        toolHistoryRouter.request(audioPriorityDestination, sidebarFeature: .audioPriority)
+        toolHistoryRouter.page = .about
+        toolHistoryRouter.goBack()
+        suite.expect(toolHistoryRouter.destination == audioPriorityDestination
+                && toolHistoryRouter.sidebarFeature == .audioPriority,
+               "Settings Back restores the selected tool alongside its destination")
+        toolHistoryRouter.goForward()
+        suite.expect(toolHistoryRouter.page == .about && toolHistoryRouter.sidebarFeature == nil,
+               "visiting a generic page clears the previous tool selection")
 
         // MARK: Display brightness (DDC/CI helpers)
 

@@ -4,7 +4,7 @@
 import SwiftUI
 
 /// One Settings destination for every tool that starts from the screen. The
-/// segmented control at the top changes the feature-specific options shown
+/// tool picker at the top changes the feature-specific options shown
 /// below it, and the top section also carries the selected tool's own
 /// shortcut where the old shared shortcut lived.
 struct ScreenCaptureSettings: View {
@@ -30,16 +30,10 @@ struct ScreenCaptureSettings: View {
             if !availableTools.isEmpty {
                 Section {
                     if availableTools.count > 1 {
-                        Picker(strings.screenCaptureTitle, selection: toolSelection) {
-                            ForEach(availableTools, id: \.self) { tool in
-                                Label(tool.settingsTitle(l10n.s, language: l10n.language),
-                                      systemImage: tool.systemImageName)
-                                    .tag(tool)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .controlSize(.large)
+                        ScreenCaptureToolPicker(tools: availableTools,
+                                                strings: l10n.s,
+                                                language: l10n.language,
+                                                selection: toolSelection)
                     }
                     ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
                         .id(currentTool)
@@ -64,7 +58,11 @@ struct ScreenCaptureSettings: View {
     }
 
     private var toolSelection: Binding<ScreenCaptureTool> {
-        Binding(get: { currentTool }, set: { selectedTool = $0 })
+        Binding(get: { currentTool }, set: { tool in
+            guard availableTools.contains(tool), tool != currentTool else { return }
+            selectedTool = tool
+            router.request(tool.feature.settingsDestination, sidebarFeature: tool.feature)
+        })
     }
 
     @ViewBuilder
@@ -86,11 +84,15 @@ struct ScreenCaptureSettings: View {
     }
 
     private func reconcileSelection(withDestination: Bool) {
-        if withDestination,
-           let anchor = router.destination.sectionAnchor,
-           let requestedTool = anchor.screenCaptureTool,
-           availableTools.contains(requestedTool) {
-            selectedTool = requestedTool
+        if withDestination {
+            if let anchor = router.destination.sectionAnchor,
+               let requestedTool = anchor.screenCaptureTool,
+               availableTools.contains(requestedTool) {
+                selectedTool = requestedTool
+            } else if router.destination.sectionAnchor == nil,
+                      let first = availableTools.first {
+                selectedTool = first
+            }
             return
         }
         if !availableTools.contains(selectedTool), let first = availableTools.first {

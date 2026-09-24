@@ -13,6 +13,16 @@ import VMStatisticsCompat
 
 enum MixerFeatureTests {
     static func run(_ suite: TestSuite) {
+        let switcherOnly = MixerRoutingSupport.observationNeeds {
+            $0 == .soundOutputSwitcher
+        }
+        let mixerOnly = MixerRoutingSupport.observationNeeds { $0 == .mixer }
+        let unavailable = MixerRoutingSupport.observationNeeds { _ in false }
+        suite.expect(switcherOnly.devices && !switcherOnly.processes
+                && mixerOnly.devices && mixerOnly.processes
+                && !unavailable.devices && !unavailable.processes,
+               "output switcher alone watches devices without starting per-app mixer taps")
+
         suite.expectClose(Defaults.sanitizedAppVolume(1.5), 1.5, "valid app volume is preserved")
         suite.expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         suite.expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")

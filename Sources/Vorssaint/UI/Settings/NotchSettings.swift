@@ -4,10 +4,6 @@
 import SwiftUI
 import EventKit
 
-private enum NotchSettingsTab: CaseIterable {
-    case layout, content, activity, behavior
-}
-
 struct NotchSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
@@ -47,6 +43,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchClipboardWindow) private var clipboardWindow = true
     @AppStorage(DefaultsKey.screenshotDefaultAction) private var captureAction = ""
     @AppStorage(DefaultsKey.notchCapture) private var capture = false
+    @AppStorage(DefaultsKey.notchTrackChange) private var trackChange = false
     @AppStorage(DefaultsKey.notchShowPlayingMusic) private var showPlayingMusic = true
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
     @AppStorage(DefaultsKey.notchHiddenControls) private var hiddenControls = NotchControlItem.defaultHidden
@@ -78,7 +75,7 @@ struct NotchSettings: View {
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(calendarCountdown), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, String(hover), hidden, order, String(volume),
-         String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), captureAction, String(showInCaptures), String(returnHome), homeModule, String(scratchpad), String(agentsEnabled)]
+         String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(scratchpad), String(agentsEnabled)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -110,16 +107,7 @@ struct NotchSettings: View {
                     PermissionRow(kind: .accessibility)
                 }
             }
-            HStack {
-                Picker(text.title, selection: $tab) {
-                    Text(editor.layout).tag(NotchSettingsTab.layout)
-                    Text(editor.content).tag(NotchSettingsTab.content)
-                    Text(editor.activity).tag(NotchSettingsTab.activity)
-                    Text(editor.behavior).tag(NotchSettingsTab.behavior)
-                }.pickerStyle(.segmented).labelsHidden()
-                Button { NotchService.shared.open() } label: { Image(systemName: "arrow.up.forward.app") }
-                    .buttonStyle(.bordered).disabled(!enabled).help(text.open).accessibilityLabel(text.open)
-            }
+            NotchSettingsTabRow(tab: $tab, language: l10n.language, canOpen: enabled) { NotchService.shared.open() }
             if tab == .content {
                 GeometryReader { proxy in contentEditor(in: proxy.size) }
             } else {
@@ -386,8 +374,9 @@ struct NotchSettings: View {
                 let clipboardAvailable = AppFeature.clipboardHistory.isAvailable && clipboardHistoryEnabled
                     && NotchSupport.modules().contains(.clipboard)
                 let capturesAvailable = AppFeature.screenshot.isAvailable && NotchSupport.modules().contains(.captures)
+                let musicAvailable = NotchSupport.modules().contains(.music)
                 let reserves = ![volumeAvailable, brightnessAvailable, keyboardLightAvailable, batteryAvailable,
-                                 accessoriesAvailable, clipboardAvailable, capturesAvailable].allSatisfy { $0 }
+                                 accessoriesAvailable, clipboardAvailable, capturesAvailable, musicAvailable].allSatisfy { $0 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
                     toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: volumeAvailable,
                                reason: enableFeatureReason(.mixer), reservesReason: reserves)
@@ -409,6 +398,8 @@ struct NotchSettings: View {
                     toggleCard(text.captures, symbol: "camera.viewfinder", value: $capture, available: capturesAvailable,
                                reason: AppFeature.screenshot.isAvailable ? editor.showPage(text.captures) : enableFeatureReason(.screenshot),
                                reservesReason: reserves)
+                    toggleCard(text.newTrack, symbol: "music.note", value: $trackChange, available: musicAvailable,
+                               reason: editor.showPage(text.music), reservesReason: reserves)
                 }
                 if accessoriesEnabled { Text(FeatureStrings.notchActivities(l10n.language).accessoryDescription).font(.caption).foregroundStyle(.secondary) }
                 if enabled, (volume || brightness || keyboardLight), !permissions.accessibility { PermissionRow(kind: .accessibility) }
@@ -594,11 +585,9 @@ struct NotchSettings: View {
     }
 
     private func destination(_ title: String, symbol: String, value: Binding<Bool>, available: Bool = true) -> some View {
-        SettingsRow(symbol: symbol, title: title) {
-            Picker(title, selection: value) {
-                Text(text.title).tag(true)
-                Text(editor.separate).tag(false)
-            }.pickerStyle(.segmented).labelsHidden().fixedSize()
+        SettingsChoiceRow(symbol: symbol, title: title, selection: value) {
+            Text(text.title).tag(true)
+            Text(editor.separate).tag(false)
         }.disabled(!available)
     }
 

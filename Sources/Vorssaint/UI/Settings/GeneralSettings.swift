@@ -35,6 +35,20 @@ struct GeneralSettings: View {
                 appearanceCard
                 menuBarCard
                     .settingsSectionAnchor(.panelConfiguration, cornerRadius: 16)
+                if AppFeature.mixer.isAvailable {
+                    MixerSection(settingsMode: true)
+                        .settingsSectionAnchor(.mixer, cornerRadius: 16)
+                }
+                if AppFeature.soundOutputSwitcher.isAvailable {
+                    SettingsCard(title: l10n.s.soundOutputSwitcherTitle) {
+                        SoundOutputSwitcherControls()
+                    }
+                    .settingsSectionAnchor(.soundOutputSwitcher, cornerRadius: 16)
+                }
+                if AppFeature.audioPriority.isAvailable {
+                    audioPriorityCard
+                        .settingsSectionAnchor(.audioPriority, cornerRadius: 16)
+                }
                 if AppFeature.keepAwake.isAvailable {
                     shortcutCard
                 }
@@ -132,6 +146,12 @@ struct GeneralSettings: View {
                     appDelegate()?.reshowStatusItem()
                 }
             }
+        }
+    }
+
+    private var audioPriorityCard: some View {
+        SettingsCard(title: l10n.s.audioPrioritySection) {
+            AudioPriorityDisclosure(initiallyExpanded: true, showsHeader: false)
         }
     }
 
