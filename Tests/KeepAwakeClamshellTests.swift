@@ -13,13 +13,19 @@ extension KeepAwakeLidSleepContract {
         static let clamshellPreferred = "preferred"
         static let sleepDisabledFlag = "disabled"
         static let keepAwakePauseWhenLocked = "pause"
+        static let dimScreenOnLidClose = "dimScreen"
+        static let dimmedDisplaySavedBrightness = "dimmedDisplaySavedBrightness"
     }
     enum UserDefaults {
         static let standard = Store()
         final class Store {
             var values: [String: Bool] = [:]
+            var doubles: [String: Double] = [:]
             func bool(forKey key: String) -> Bool { values[key] ?? false }
             func set(_ value: Bool, forKey key: String) { values[key] = value }
+            func set(_ value: Double, forKey key: String) { doubles[key] = value }
+            func object(forKey key: String) -> Any? { doubles[key] }
+            func removeObject(forKey key: String) { doubles[key] = nil }
         }
     }
     enum Thread {

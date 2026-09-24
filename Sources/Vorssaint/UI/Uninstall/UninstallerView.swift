@@ -129,6 +129,10 @@ struct UninstallerView: View {
                     Text(target.name).font(.callout)
                 }
             }
+            if uninstaller.phase == .scanning {
+                Button(l10n.s.uninstallerCancel) { uninstaller.reset() }
+                    .controlSize(.large)
+            }
             Spacer()
         }
     }

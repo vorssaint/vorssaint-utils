@@ -67,6 +67,7 @@ final class AppUninstaller: ObservableObject {
     private var homebrewRemovalSize: Int64 = 0
     private var homebrewRemovedApplication = false
     private var homebrewRemovalObservation: AnyCancellable?
+    private var scanCancellation: UninstallerSupport.ScanCancellation?
 
     private struct ScanCandidate {
         let url: URL
@@ -148,9 +149,15 @@ final class AppUninstaller: ObservableObject {
         homebrewRemovalObservation = nil
         items = []
         allowedRemovalPaths = []
+        // A new selection supersedes any scan still running, even for the
+        // same app, so only this scan can deliver results.
+        scanCancellation?.cancel()
+        let cancellation = UninstallerSupport.ScanCancellation()
+        scanCancellation = cancellation
         phase = .scanning
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard !cancellation.isCancelled else { return }
             let ownedBundleIDs = Self.allBundleIDs(in: selectedURL, fm: .default)
             let mayClaimSharedData = UninstallerSupport.applicationIsInTrustedInstallRoot(
                 selectedURL, home: FileManager.default.homeDirectoryForCurrentUser)
@@ -163,6 +170,7 @@ final class AppUninstaller: ObservableObject {
                     in: selectedURL, candidates: ownedBundleIDs,
                     knownApplicationIDs: knownApplicationIDs)
                 : []
+            guard !cancellation.isCancelled else { return }
             let signing = Self.signingIdentity(in: selectedURL, requireValidSignature: true)
             let exclusiveGroupIDs = mayClaimSharedData
                 ? Self.exclusiveGroupIDs(
@@ -173,9 +181,12 @@ final class AppUninstaller: ObservableObject {
                                      primaryBundleID: bundleID,
                                      exclusiveBundleIDs: exclusiveBundleIDs,
                                      teamIDs: signing.teamIDs,
-                                     exclusiveGroupIDs: exclusiveGroupIDs)
+                                     exclusiveGroupIDs: exclusiveGroupIDs,
+                                     cancellation: cancellation)
+            guard !cancellation.isCancelled else { return }
             DispatchQueue.main.async {
-                guard let self, self.phase == .scanning, self.target?.url == selectedURL else { return }
+                guard let self, !cancellation.isCancelled,
+                      self.phase == .scanning, self.target?.url == selectedURL else { return }
                 guard Self.applicationIdentityMatches(
                     selectedURL, appIdentity: selectedIdentity,
                     infoIdentity: selectedInfoIdentity) else {
@@ -185,7 +196,8 @@ final class AppUninstaller: ObservableObject {
                 HomebrewManager.shared.packageManagingApplication(at: selectedURL) { [weak self] package in
                     // Drop the result if the user picked a different app (or reset)
                     // while this scan was running — never show A's files under B.
-                    guard let self, self.phase == .scanning, self.target?.url == selectedURL else { return }
+                    guard let self, !cancellation.isCancelled,
+                          self.phase == .scanning, self.target?.url == selectedURL else { return }
                     guard Self.applicationIdentityMatches(
                         selectedURL, appIdentity: selectedIdentity,
                         infoIdentity: selectedInfoIdentity) else {
@@ -195,6 +207,7 @@ final class AppUninstaller: ObservableObject {
                     self.items = found
                     self.homebrewPackage = package
                     self.allowedRemovalPaths = Set(found.map { $0.url.standardizedFileURL.path })
+                    self.scanCancellation = nil
                     self.phase = .results
                 }
             }
@@ -210,6 +223,8 @@ final class AppUninstaller: ObservableObject {
 
     func reset() {
         guard !isRemoving else { return }
+        scanCancellation?.cancel()
+        scanCancellation = nil
         target = nil
         targetFileIdentity = nil
         targetInfoIdentity = nil
@@ -468,7 +483,8 @@ final class AppUninstaller: ObservableObject {
                                 primaryBundleID: String,
                                 exclusiveBundleIDs: Set<String>,
                                 teamIDs: Set<String>,
-                                exclusiveGroupIDs: Set<String>) -> [Leftover] {
+                                exclusiveGroupIDs: Set<String>,
+                                cancellation: UninstallerSupport.ScanCancellation) -> [Leftover] {
         let fm = FileManager.default
         let home = NSHomeDirectory()
         var paths = [ScanCandidate(url: appURL, category: .app,
@@ -499,8 +515,10 @@ final class AppUninstaller: ObservableObject {
             darwinCache: darwinUserDirectory(_CS_DARWIN_USER_CACHE_DIR),
             darwinTemp: darwinUserDirectory(_CS_DARWIN_USER_TEMP_DIR)
         ) {
+            guard !cancellation.isCancelled else { return [] }
             appendMatches(in: folder, identity: identity, fm: fm, into: &paths)
         }
+        guard !cancellation.isCancelled else { return [] }
         appendSpotlightMatches(identity: identity, roots: spotlightRoots(home: home),
                                fm: fm, into: &paths)
 
@@ -519,7 +537,9 @@ final class AppUninstaller: ObservableObject {
         }
         return safe
             .compactMap { candidate -> Leftover? in
-                guard let fileIdentity = UninstallerSupport.fileIdentity(at: candidate.url) else {
+                // Sizing walks every folder found; stop there too.
+                guard !cancellation.isCancelled,
+                      let fileIdentity = UninstallerSupport.fileIdentity(at: candidate.url) else {
                     return nil
                 }
                 return Leftover(url: candidate.url, category: candidate.category,

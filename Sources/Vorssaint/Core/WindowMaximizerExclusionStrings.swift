@@ -18,11 +18,13 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
         case .ja: return .ja
         case .ko: return .ko
+        case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -65,6 +67,12 @@ extension WindowMaximizerExclusionStrings {
         removeButton: "Quitar",
         caption: "El botón verde conserva el comportamiento de macOS en estas apps, para que juegos, emuladores y reproductores de vídeo puedan seguir usando la pantalla completa."
     )
+    static let sk = WindowMaximizerExclusionStrings(
+        listTitle: "Ponechať režim celej obrazovky v týchto aplikáciách",
+        addButton: "Pridať aplikáciu…",
+        removeButton: "Odstrániť",
+        caption: "V týchto aplikáciách si zelené tlačidlo zachová správanie macOS, takže hry, emulátory a prehrávače videa môžu naďalej prejsť na celú obrazovku."
+    )
 
     static let de = WindowMaximizerExclusionStrings(
         listTitle: "Vollbild in diesen Apps beibehalten",
@@ -99,6 +107,12 @@ extension WindowMaximizerExclusionStrings {
         addButton: "앱 추가…",
         removeButton: "제거",
         caption: "이 앱에서는 초록색 버튼이 macOS 기본 동작을 유지하므로 게임, 에뮬레이터, 동영상 플레이어에서도 전체 화면으로 전환할 수 있습니다."
+    )
+    static let uk = WindowMaximizerExclusionStrings(
+        listTitle: "Повноекранний режим у цих програмах",
+        addButton: "Додати програму…",
+        removeButton: "Видалити",
+        caption: "У цих програмах зелена кнопка працює як у macOS, тож ігри, емулятори й відеопрогравачі можуть і далі переходити в повноекранний режим."
     )
 
     static let zhHans = WindowMaximizerExclusionStrings(

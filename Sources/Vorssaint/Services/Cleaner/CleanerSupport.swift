@@ -20,6 +20,26 @@ enum CleanerSupport {
         var id: Int { rawValue }
     }
 
+    /// Cancellation for one scan. The main thread cancels it; the scan's
+    /// background loop reads it between categories and stops early instead
+    /// of walking every location for a result nobody is waiting for.
+    final class ScanCancellation {
+        private let lock = NSLock()
+        private var cancelled = false
+
+        var isCancelled: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return cancelled
+        }
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            lock.unlock()
+        }
+    }
+
     /// Cross product infrastructure that ships embedded in other vendors'
     /// apps (updaters, crash reporters, analytics): their folders belong to
     /// whatever installed apps carry them and can never be attributed to an

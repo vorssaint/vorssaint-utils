@@ -36,6 +36,7 @@ struct MetricsTests {
                 MixerInputVolumeContract.run(suite)
                 MixerFeatureTests.run(suite)
             }),
+            ("audio-priority", { AudioPriorityTests.run(suite) }),
             ("shelf", { ShelfFeatureTests.run(suite) }),
             ("updates", {
                 UpdateFeatureTests.run(suite)
@@ -107,6 +108,7 @@ struct MetricsTests {
             ("cleaner", {
                 CleanerEligibilityTests.run(suite)
                 CleanerLastRunContract.run(suite)
+                CleanerScanFlowTests.run(suite)
             }),
             ("uninstaller", {
                 UninstallerFlowTests.run(suite)
