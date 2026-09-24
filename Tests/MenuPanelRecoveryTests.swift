@@ -112,9 +112,10 @@ enum MenuPanelRecoveryTests {
         static var shared = PanelInteractionState()
         var viewKeepsPopoverOpen = false
         var isPresentingPopoverModal = false
+        var isDetached = false
         var anchorScreen: NSScreen?
         var preventsPopoverDismissal: Bool {
-            viewKeepsPopoverOpen || isPresentingPopoverModal
+            viewKeepsPopoverOpen || isDetached || isPresentingPopoverModal
         }
     }
     enum StatusItemAnchorSupport {
@@ -301,6 +302,11 @@ enum MenuPanelRecoveryTests {
             expect(!host.shouldDismissPopover(forLocalEvent: overlapEvent),
                    "modal presentation keeps panel open even when Settings window overlaps")
             PanelInteractionState.shared.isPresentingPopoverModal = false
+
+            PanelInteractionState.shared.isDetached = true
+            expect(!host.shouldDismissPopover(forLocalEvent: overlapEvent),
+                   "a detached panel stays open even when Settings window overlaps")
+            PanelInteractionState.shared.isDetached = false
 
             let popoverEvent = event(window: 71)!
             expect(!host.shouldDismissPopover(forLocalEvent: popoverEvent),
