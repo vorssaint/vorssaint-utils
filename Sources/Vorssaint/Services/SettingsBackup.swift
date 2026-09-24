@@ -86,6 +86,8 @@ enum SettingsBackup {
             out[scope.defaultsKey] = SettingsBackupSupport.pathIdentities(
                 in: defaults.stringArray(forKey: scope.defaultsKey) ?? [])
         }
+        let windowLayoutPaths = SettingsBackupSupport.pathIdentities(
+            in: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [])
         for key in SettingsBackupSupport.exportKeys() {
             defaults.removeObject(forKey: key)
         }
@@ -100,6 +102,11 @@ enum SettingsBackup {
             defaults.set(SettingsBackupSupport.restoredExceptionList(
                 restored: defaults.stringArray(forKey: key) ?? [],
                 carried: paths), forKey: key)
+        }
+        if !windowLayoutPaths.isEmpty {
+            defaults.set(SettingsBackupSupport.restoredExceptionList(
+                restored: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [],
+                carried: windowLayoutPaths), forKey: DefaultsKey.windowLayoutIgnoredApps)
         }
         FeatureRuntime.shared.relaunchApp()
     }
