@@ -6,6 +6,7 @@ import SwiftUI
 struct WindowLayoutSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var service = WindowLayoutService.shared
     @ObservedObject private var maximizer = WindowMaximizer.shared
     @AppStorage(DefaultsKey.windowMaximizeEnabled) private var maximizeEnabled = false
