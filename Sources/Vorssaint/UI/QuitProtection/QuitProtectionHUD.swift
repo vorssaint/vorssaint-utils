@@ -68,7 +68,7 @@ final class QuitProtectionHUD {
     private func positionPanel(on preferredScreen: NSScreen?) {
         guard let panel,
               let screen = preferredScreen
-                ?? NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+                ?? NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) })
                 ?? NSScreen.main
                 ?? NSScreen.screens.first
         else { return }

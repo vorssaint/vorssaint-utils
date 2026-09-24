@@ -107,11 +107,11 @@ extension AppFeature {
                 || edgeSnapRuns
                 ? .pointer : .idle
         case .radialMenu:
-            // With a side button configured the trigger is a mouse tap;
-            // shortcut-only costs nothing at rest.
-            return RadialMenuMouseTrigger.sanitized(
-                UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) == .off
-                ? .idle : .mouse
+            // A side button or the trackpad tap on any wheel keeps an input
+            // tap running; shortcut-only costs nothing at rest.
+            return RadialMenuSupport.opensFromMouseOrTrackpad(
+                UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
+                ? .mouse : .idle
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         case .notchAccessories: return .periodic
         // Log changes arrive as file events; a timer keeps countdowns and

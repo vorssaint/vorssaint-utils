@@ -21,8 +21,11 @@ struct MetricsTests {
             }),
             ("clipboard", { ClipboardFeatureTests.run(suite) }),
             ("pointer-input", {
+                PointerOnDisplayContract.run(suite)
                 PointerInputFeatureTests.run(suite)
+                PointerDisplayLookupContract.run(suite)
                 SuperKeyTapContract.run(suite)
+                PointerScreenContract.run(suite)
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
@@ -42,12 +45,14 @@ struct MetricsTests {
             ("updates", {
                 UpdateFeatureTests.run(suite)
                 PostUpdateStatusItemRecoveryTests.run(suite)
+                UpdateAdminInstallContract.run(suite)
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
             ("screenshots", {
                 ScreenshotPreviewHoverTests.run(suite)
                 ScreenshotWatermarkTests.run(suite)
                 ScreenshotFeatureTests.run(suite)
+                ScreenCaptureToolPickerTests.run(suite)
             }),
             ("recorder", {
                 RecorderFeatureTests.run(suite)
@@ -60,6 +65,7 @@ struct MetricsTests {
                 NotchTests.run(suite)
                 NotchCompactTests.run(suite)
                 NotchVolumeKeyTests.run(suite)
+                NotchSettingsTabRowTests.run(suite)
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
@@ -71,6 +77,7 @@ struct MetricsTests {
             ("settings", {
                 SettingsFeatureTests.run(suite)
                 SettingsWindowTests.run { suite.expect($0, $1) }
+                NotchSettingsChoiceTests.run(suite)
             }),
             ("display-restoration", {
                 DisplayRestorationTests.run(suite)

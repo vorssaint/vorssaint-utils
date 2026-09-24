@@ -183,7 +183,7 @@ enum SpaceWindowBridge {
     /// on without moving anything rather than guessing at a destination.
     static func visibleSpace(near pointer: CGPoint) -> UInt64? {
         guard let topology = topology() else { return nil }
-        let screen = NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
+        let screen = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? NSScreen.main
         if let number = (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
             .uint32Value,
            let display = topology.displays.first(where: { $0.displayID == number }) {
