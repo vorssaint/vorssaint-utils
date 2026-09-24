@@ -599,10 +599,11 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track
 
     var preferenceKey: String {
         switch self {
+        case .track: return DefaultsKey.notchTrackChange
         case .timer: return DefaultsKey.notchTimerEnabled
         case .accessory: return DefaultsKey.notchAccessoriesEnabled
         case .download: return DefaultsKey.notchDownloadsEnabled
@@ -622,14 +623,14 @@ enum NotchEvent: String, CaseIterable {
         case .volume, .brightness, .keyboardLight: return 3
         case .capture, .timer: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
-        case .clipboard, .download: return 0
+        case .clipboard, .download, .track: return 0
         }
     }
 
     var duration: TimeInterval {
         switch self {
         case .volume, .brightness, .keyboardLight: return 1.6
-        case .systemNotification: return 3
+        case .systemNotification, .track: return 3
         case .timer, .download: return 6
         case .agents: return 5
         case .battery, .accessory: return 4
@@ -666,6 +667,23 @@ enum NotchSupport {
         guard !modules.isEmpty else { return nil }
         guard let selected, let index = modules.firstIndex(of: selected) else { return modules.first }
         return modules[(index + (backwards ? modules.count - 1 : 1)) % modules.count]
+    }
+
+    /// The arrow keys step through a searched list without wrapping; the
+    /// first press, or one after the highlighted row left the list, lands on
+    /// the top result.
+    static func steppedItem<ID: Equatable>(from current: ID?, in ids: [ID], backwards: Bool) -> ID? {
+        guard !ids.isEmpty else { return nil }
+        guard let current, let index = ids.firstIndex(of: current) else { return ids.first }
+        return ids[min(max(index + (backwards ? -1 : 1), 0), ids.count - 1)]
+    }
+
+    /// The row a search leaves highlighted: the current one while it is still
+    /// listed, otherwise the top result of a typed search, so Return pastes it
+    /// like the history window does. An empty search waits for the first arrow.
+    static func searchHighlight<ID: Equatable>(keeping current: ID?, in ids: [ID], query: String) -> ID? {
+        if let current, ids.contains(current) { return current }
+        return query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : ids.first
     }
 
     /// A working agent outranks the music it plays over: its turn ends on its
@@ -824,6 +842,7 @@ enum NotchSupport {
         case .capture:
             return AppFeature.screenshot.isAvailable(in: defaults)
                 && modules(in: defaults).contains(.captures)
+        case .track: return modules(in: defaults).contains(.music)
         }
     }
 
@@ -901,7 +920,15 @@ struct NotchMenuBarMeasurements {
         let scale: CGFloat
         let height: CGFloat
     }
+    private static let range: ClosedRange<CGFloat> = 16...64
     private var readings: [UInt32: Reading] = [:]
+
+    /// A bar that hides until the pointer reveals it reserves nothing at the
+    /// top of the visible frame, and neither does a display without a bar.
+    static func showsBar(frame: CGRect, visibleTop: CGFloat) -> Bool {
+        let gap = frame.maxY - visibleTop
+        return gap.isFinite && range.contains(gap)
+    }
 
     mutating func retainDisplays(_ ids: [UInt32]) {
         readings = readings.filter { ids.contains($0.key) }
@@ -909,13 +936,13 @@ struct NotchMenuBarMeasurements {
 
     mutating func height(displayID: UInt32, frame: CGRect, visibleTop: CGFloat,
                          scale: CGFloat, statusBarThickness: CGFloat) -> CGFloat {
-        let range: ClosedRange<CGFloat> = 16...64
+        let range = Self.range
         let gap = frame.maxY - visibleTop
         let canRemember = displayID != 0 && scale.isFinite && scale > 0
         if let previous = readings[displayID], previous.size != frame.size || previous.scale != scale {
             readings[displayID] = nil
         }
-        if gap.isFinite, range.contains(gap) {
+        if Self.showsBar(frame: frame, visibleTop: visibleTop) {
             if canRemember { readings[displayID] = Reading(size: frame.size, scale: scale, height: gap) }
             return gap
         }
@@ -1065,6 +1092,17 @@ struct NotchGeometry: Equatable {
         // Menu changes, including full-screen transitions, must not push the
         // timer below the camera. Its expanded view remains available by click.
         compact.allowsActivityFooter = false
+        return compact
+    }
+    /// A download keeps its arrow and its progress beside the camera, like
+    /// the timer. The wide strip left a band of black between a clipped name
+    /// and the progress; the page and the finished notice name the file.
+    var compactDownloadGeometry: NotchGeometry {
+        var compact = self
+        let room = compactSideRoom ?? 0
+        let wing: CGFloat = 56
+        compact.compactSideRoom = room.isFinite && room >= 44 ? min(wing, room) : 0
+        compact.minimumCompactWidth = cameraWidth + wing * 2
         return compact
     }
     /// A working agent keeps its mark and one reading beside the camera,

@@ -897,7 +897,7 @@ final class RadialMenuService: ObservableObject {
 
     /// Borderless panels refuse key status by default, and the wheel wants it
     /// for Esc, arrows, digits and the hold-release detection.
-    private final class KeyableWheelPanel: NSPanel {
+    private final class KeyableWheelPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 
