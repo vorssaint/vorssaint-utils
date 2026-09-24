@@ -786,6 +786,15 @@ def main():
           + declaration(music, "    private func cancelAutomationAction()").replace("private func", "func", 1)
           + "}\n}\nextension NotchMusicAutomationFlowContract.NotchMusicAutomation {\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift", "    static func send(") + "}\n")
+    write("NotchMusicAutomationRefresh.swift", "import Foundation\n\nextension NotchMusicAutomationFlowContract {\n"
+          + "final class RefreshService {\nstruct AutomationAction { let playback: NotchPlayback }\n"
+          + "var playback: NotchPlayback?\nvar automationAction: AutomationAction?\n"
+          + "var automationAvailability: NotchMusicAutomation.Availability?\nvar automationTarget: NotchMusicAutomation.Target?\n"
+          + "var automationDiscovery = DispatchWorkItem {}\nvar automationConsentCancellation = DispatchWorkItem {}\n"
+          + "var generation = UUID()\nlet queue = Scheduler()\nfunc cancelAutomationAction() { automationAction = nil }\n"
+          + declaration(music, "    func refreshAutomation()")
+          + declaration(music, "    private func updateAutomation(").replace("private func", "func", 1)
+          + "}\n}\n")
 
     brightness_row = "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift"
     write("SoftwareDimmingRow.swift", "import CoreGraphics\nimport Foundation\n\n"

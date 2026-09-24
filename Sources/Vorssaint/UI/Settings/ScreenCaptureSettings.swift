@@ -30,16 +30,10 @@ struct ScreenCaptureSettings: View {
             if !availableTools.isEmpty {
                 Section {
                     if availableTools.count > 1 {
-                        Picker(strings.screenCaptureTitle, selection: toolSelection) {
-                            ForEach(availableTools, id: \.self) { tool in
-                                Label(tool.settingsTitle(l10n.s, language: l10n.language),
-                                      systemImage: tool.systemImageName)
-                                    .tag(tool)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .controlSize(.large)
+                        ScreenCaptureToolPicker(tools: availableTools,
+                                                strings: l10n.s,
+                                                language: l10n.language,
+                                                selection: toolSelection)
                     }
                     ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
                         .id(currentTool)

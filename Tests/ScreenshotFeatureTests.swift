@@ -708,7 +708,7 @@ enum ScreenshotFeatureTests {
             contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
             encoding: .utf8)) ?? ""
         suite.expect(captureSettingsSource.contains("selectedTool")
-                && captureSettingsSource.contains(".pickerStyle(.segmented)")
+                && captureSettingsSource.contains("ScreenCaptureToolPicker(tools: availableTools")
                 && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool")
                 && captureSettingsSource.contains("RecentCapturesShortcutRows()"),
                "the capture page keeps tool and shared-history shortcuts in the top section")
