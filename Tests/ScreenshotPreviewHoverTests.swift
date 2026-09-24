@@ -15,6 +15,7 @@ enum ScreenshotPreviewHoverTests {
 
     class State {
         var pointerInside = false
+        var systemSharing = false
         var dismissWork: DispatchWorkItem?
         var autoDismissDuration: TimeInterval = 12
         var closed = false
@@ -67,6 +68,22 @@ enum ScreenshotPreviewHoverTests {
             suite.expect(!floatingController.closed, "the floating preview retains its dismissal delay")
             DispatchQueue.main.advance(0.5)
             suite.expect(floatingController.closed, "leaving the floating preview still dismisses it")
+
+            // The system share sheet opens outside the preview, so the pointer
+            // leaves it while a target is being picked.
+            DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
+            let sharingController = Controller()
+            sharingController.autoDismissDuration = duration
+            sharingController.systemSharing = true
+            sharingController.hoverChanged(true)
+            sharingController.hoverChanged(false)
+            DispatchQueue.main.advance(duration)
+            suite.expect(!sharingController.closed && DispatchQueue.main.pending == 0,
+                         "an open share sheet keeps the preview from dismissing")
+            sharingController.systemSharing = false
+            sharingController.scheduleAutoDismiss()
+            DispatchQueue.main.advance(duration)
+            suite.expect(sharingController.closed, "a cancelled share sheet resumes the dismissal delay")
         }
     }
 }

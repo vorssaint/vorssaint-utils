@@ -1336,6 +1336,14 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     /// Every final output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
+    /// The edited image as it would be saved, in a temporary file for the
+    /// system share sheet.
+    func shareFile() -> URL? {
+        guard let export = model.exportImage() else { return nil }
+        return ScreenshotService.temporaryExportFile(image: export.image, scale: export.scale,
+                                                     strings: strings)
+    }
+
     func copyToClipboard() {
         guard let export = model.exportImage() else { return }
         guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) else {

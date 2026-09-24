@@ -23,6 +23,7 @@ struct ScreenshotEditorView: View {
     @State private var toolOptionsShown = false
     @State private var sharing = false
     @State private var sharedRecord: ScreenshotShareRecord?
+    @State private var shareAnchor = ShelfSharePickerAnchor.Anchor()
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
@@ -750,6 +751,24 @@ struct ScreenshotEditorView: View {
 
             Divider().frame(height: 16).padding(.horizontal, 3)
 
+            Button {
+                commitEditingTextIfNeeded()
+                guard let url = controller.shareFile() else {
+                    NSSound.beep()
+                    return
+                }
+                shareAnchor.present([url]) { chosen in
+                    if chosen { model.markExported() }
+                }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .background(ShelfSharePickerAnchor(anchor: shareAnchor))
+            .screenshotSafeHelp(strings.shareButton)
+            .accessibilityLabel(strings.shareButton)
+
             if sharingEnabled {
                 shareMenu
                 Divider().frame(height: 16).padding(.horizontal, 3)
@@ -816,8 +835,8 @@ struct ScreenshotEditorView: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .disabled(sharing)
-        .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareButton)
-        .accessibilityLabel(strings.shareButton)
+        .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareSectionTitle)
+        .accessibilityLabel(strings.shareSectionTitle)
     }
 
     // MARK: - Bottom row

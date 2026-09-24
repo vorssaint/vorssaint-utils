@@ -10,6 +10,7 @@ import AppKit
 /// behind whatever is in front), and lets the picker go afterwards.
 final class ShelfSharePresenter: NSObject, NSSharingServicePickerDelegate {
     private var picker: NSSharingServicePicker?
+    private var completion: ((Bool) -> Void)?
 
     /// The system's own share menu: AirDrop alongside every other place the
     /// Mac can send files to, kept current by macOS rather than by a list
@@ -20,22 +21,32 @@ final class ShelfSharePresenter: NSObject, NSSharingServicePickerDelegate {
         return item
     }
 
-    func present(for urls: [URL], from view: NSView) {
-        guard view.window != nil else { return }
-        makePicker(for: urls).show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+    /// `completion` reports whether a target was chosen once the sheet
+    /// closes. It never runs when there was no window to show the sheet
+    /// from, which the result reports as false.
+    @discardableResult
+    func present(for urls: [URL], from view: NSView, completion: ((Bool) -> Void)? = nil) -> Bool {
+        guard view.window != nil else { return false }
+        let picker = makePicker(for: urls)
+        self.completion = completion
+        picker.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+        return true
     }
 
     func sharingServicePicker(_ sharingServicePicker: NSSharingServicePicker,
                               didChoose service: NSSharingService?) {
         picker = nil
-        guard service != nil else { return }
-        NSApp.activate(ignoringOtherApps: true)
+        let completion = self.completion
+        self.completion = nil
+        if service != nil { NSApp.activate(ignoringOtherApps: true) }
+        completion?(service != nil)
     }
 
     private func makePicker(for urls: [URL]) -> NSSharingServicePicker {
         let picker = NSSharingServicePicker(items: urls)
         picker.delegate = self
         self.picker = picker
+        completion = nil
         return picker
     }
 }
