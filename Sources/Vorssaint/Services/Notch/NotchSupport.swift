@@ -677,6 +677,14 @@ enum NotchSupport {
         return music ? .music : nil
     }
 
+    /// The timer's orange clock says what it is on its own, so the wing its
+    /// mark would take shows the next activity instead, in the same order.
+    /// Every other strip fills both wings with its own content.
+    static func compactCompanion(timer: Bool, downloads: Bool, agents: Bool, music: Bool) -> NotchCompactActivity? {
+        guard timer else { return nil }
+        return compactActivity(timer: false, downloads: downloads, agents: agents, music: music)
+    }
+
     static func gestureIsOverHeader(expanded: Bool, peeking: Bool, fromTop: CGFloat, safeTop: CGFloat,
                                     height: CGFloat = NotchLayout.headerHeight) -> Bool {
         (expanded || peeking) && (safeTop...safeTop + height).contains(fromTop)
