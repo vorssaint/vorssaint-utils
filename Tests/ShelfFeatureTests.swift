@@ -248,6 +248,13 @@ enum ShelfFeatureTests {
                && ShelfTileLayout.sidewaysTileFrame(index: 3, rows: 1, tileSize: revealTile, spacing: 10, inset: 4)
                == CGRect(x: 268, y: 4, width: 78, height: 88),
                "a sideways shelf fills each column top to bottom before starting the next")
+        suite.expect(ShelfTileLayout.sidewaysDocumentSize(itemCount: 3, rows: 1, visibleSize: .zero,
+                                                          tileSize: revealTile, spacing: 10, inset: 4)
+               == CGSize(width: 262, height: 96)
+               && ShelfTileLayout.sidewaysDocumentSize(itemCount: 3, rows: 2, visibleSize: CGSize(width: 424, height: 240),
+                                                       tileSize: revealTile, spacing: 10, inset: 4)
+               == CGSize(width: 424, height: 240),
+               "a sideways strip laid out before it has a size still covers its tiles, and fills the visible area once it has one")
 
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]

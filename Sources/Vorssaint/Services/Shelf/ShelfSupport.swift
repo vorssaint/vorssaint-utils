@@ -104,6 +104,22 @@ enum ShelfTileLayout {
                       height: tileSize.height)
     }
 
+    /// The document size for a sideways strip: wide enough for every column
+    /// and tall enough for every row, and never smaller than the visible area.
+    static func sidewaysDocumentSize(itemCount: Int,
+                                     rows: Int,
+                                     visibleSize: CGSize,
+                                     tileSize: CGSize,
+                                     spacing: CGFloat,
+                                     inset: CGFloat) -> CGSize {
+        let safeRows = max(1, rows)
+        let columns = max(1, Int(ceil(Double(itemCount) / Double(safeRows))))
+        let filledRows = min(safeRows, max(1, itemCount))
+        let width = inset * 2 + CGFloat(columns) * tileSize.width + CGFloat(columns - 1) * spacing
+        let height = inset * 2 + CGFloat(filledRows) * tileSize.height + CGFloat(filledRows - 1) * spacing
+        return CGSize(width: max(width, visibleSize.width), height: max(height, visibleSize.height))
+    }
+
     /// Where the tile at `index` sits in the flipped document view.
     static func tileFrame(index: Int,
                           columns: Int,

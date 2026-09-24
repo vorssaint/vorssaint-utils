@@ -108,7 +108,19 @@ struct ShelfTilesView: NSViewRepresentable {
         // A view built now has nothing to reveal: the docked shelf rebuilds
         // one whenever a drag comes near, and it must open where it left off.
         context.coordinator.revealedSerial = revealSerial
-        let scroll = NSScrollView()
+        let scroll = ResizingScrollView()
+        // SwiftUI lays the strip out before it has a size, so the sideways
+        // strip lays out again on resize, keeping its tiles while one is dragged.
+        let coordinator = context.coordinator
+        scroll.sizeChanged = { [weak scroll, sideways] in
+            guard sideways, let scroll, let items = coordinator.lastRebuiltItems,
+                  !ShelfService.shared.isInternalDragActive else { return }
+            Self.rebuildTiles(scroll: scroll, items: items,
+                              selection: coordinator.lastRebuiltSelection ?? [],
+                              expandedBatches: coordinator.lastRebuiltExpandedBatches ?? [],
+                              pinnedIDs: coordinator.lastRebuiltPinnedIDs ?? [],
+                              coordinator: coordinator)
+        }
         scroll.drawsBackground = false
         scroll.hasHorizontalScroller = false
         scroll.hasVerticalScroller = false
@@ -117,7 +129,9 @@ struct ShelfTilesView: NSViewRepresentable {
         scroll.verticalScrollElasticity = sideways ? .none : .allowed
         scroll.contentView.drawsBackground = false
         let document = FlippedView()
-        document.acceptsDrops = true
+        // The island's own surface takes drops there, so a media drop can
+        // still offer optimizing instead of landing straight on the shelf.
+        document.acceptsDrops = !sideways
         document.sideways = sideways
         scroll.documentView = document
         return scroll
@@ -212,12 +226,11 @@ struct ShelfTilesView: NSViewRepresentable {
             document.addSubview(view)
         }
         if sideways {
-            let tileColumns = max(1, Int(ceil(Double(items.count) / Double(rows))))
-            let flowWidth = inset * 2 + CGFloat(tileColumns) * tile.width + CGFloat(max(0, tileColumns - 1)) * spacing
-            scroll.hasHorizontalScroller = flowWidth > scroll.contentSize.width + 1
-            document.frame = NSRect(x: 0, y: 0,
-                                    width: max(flowWidth, scroll.contentSize.width),
-                                    height: scroll.contentSize.height)
+            let size = ShelfTileLayout.sidewaysDocumentSize(itemCount: items.count, rows: rows,
+                                                             visibleSize: scroll.contentSize, tileSize: tile,
+                                                             spacing: spacing, inset: inset)
+            scroll.hasHorizontalScroller = size.width > scroll.contentSize.width + 1
+            document.frame = NSRect(origin: .zero, size: size)
         } else {
             let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * spacing
             scroll.hasVerticalScroller = contentHeight > scroll.contentSize.height + 1
@@ -278,9 +291,26 @@ struct ShelfTilesView: NSViewRepresentable {
         }
     }
 
+    private final class ResizingScrollView: NSScrollView {
+        var sizeChanged: (() -> Void)?
+
+        override func setFrameSize(_ newSize: NSSize) {
+            let oldSize = frame.size
+            super.setFrameSize(newSize)
+            if newSize != oldSize { sizeChanged?() }
+        }
+    }
+
     private final class FlippedView: ShelfPanelMoveView {
         var sideways = false
         override var isFlipped: Bool { true }
+
+        // The island is a fixed window, so its empty tile space must not
+        // drag it the way it drags the floating shelf.
+        override func mouseDown(with event: NSEvent) {
+            guard !sideways else { return }
+            super.mouseDown(with: event)
+        }
     }
 }
 
@@ -495,6 +525,14 @@ final class ShelfTileView: NSView, NSDraggingSource {
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    // A window that is not key, like the reopened island, only passes the
+    // first click to a view that accepts first mouse, which the thumbnail and
+    // title do not. The buttons keep their own clicks.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let hit = super.hitTest(point) else { return nil }
+        return hit is NSButton ? hit : self
+    }
 
     override func menu(for event: NSEvent) -> NSMenu? {
         ShelfService.shared.noteInteraction()
