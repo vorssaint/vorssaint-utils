@@ -183,8 +183,8 @@ final class NotchService: ObservableObject {
 
     /// What shares the closed island with the timer, left of the camera.
     var compactCompanion: NotchCompactActivity? {
-        NotchSupport.compactCompanion(timer: hasTimerActivity, downloads: hasDownloadActivity,
-                                      agents: hasAgentActivity, music: hasMusicActivity)
+        NotchSupport.compactCompanion(timer: hasTimerActivity, running: NotchTimerService.shared.session.isRunning,
+                                      downloads: hasDownloadActivity, agents: hasAgentActivity, music: hasMusicActivity)
     }
 
     private var compactActivityIsVisible: Bool {

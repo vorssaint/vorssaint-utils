@@ -496,17 +496,23 @@ enum NotchActivityTests {
     }
 
     private static func compactTimerContracts(_ suite: TestSuite) {
-        suite.expect(NotchSupport.compactCompanion(timer: true, downloads: true, agents: true, music: true) == .downloads
-               && NotchSupport.compactCompanion(timer: true, downloads: false, agents: true, music: true) == .agents
-               && NotchSupport.compactCompanion(timer: true, downloads: false, agents: false, music: true) == .music
-               && NotchSupport.compactCompanion(timer: true, downloads: false, agents: false, music: false) == nil,
+        suite.expect(NotchSupport.compactCompanion(timer: true, running: true, downloads: true, agents: true, music: true) == .downloads
+               && NotchSupport.compactCompanion(timer: true, running: true, downloads: false, agents: true, music: true) == .agents
+               && NotchSupport.compactCompanion(timer: true, running: true, downloads: false, agents: false, music: true) == .music
+               && NotchSupport.compactCompanion(timer: true, running: true, downloads: false, agents: false, music: false) == nil,
                "a running timer shares the island with the next live activity, in the island's own order")
-        for downloads in [false, true] {
-            for agents in [false, true] {
-                for music in [false, true] {
-                    suite.expect(NotchSupport.compactCompanion(timer: false, downloads: downloads,
-                                                               agents: agents, music: music) == nil,
-                           "without a timer, one activity keeps both wings of the island")
+        suite.expect(NotchSupport.compactCompanion(timer: true, running: false, downloads: false, agents: true, music: true) == nil
+               && NotchSupport.compactCompanion(timer: true, running: false, downloads: false, agents: false, music: true) == nil
+               && NotchSupport.compactCompanion(timer: true, running: false, downloads: true, agents: true, music: true) == .downloads,
+               "a paused or finished timer keeps its mark beside music or agents, and a download still takes the wing")
+        for running in [false, true] {
+            for downloads in [false, true] {
+                for agents in [false, true] {
+                    for music in [false, true] {
+                        suite.expect(NotchSupport.compactCompanion(timer: false, running: running, downloads: downloads,
+                                                                   agents: agents, music: music) == nil,
+                               "without a timer, one activity keeps both wings of the island")
+                    }
                 }
             }
         }

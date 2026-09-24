@@ -679,10 +679,16 @@ enum NotchSupport {
 
     /// The timer's orange clock says what it is on its own, so the wing its
     /// mark would take shows the next activity instead, in the same order.
+    /// A download takes it in any state, as before; music and agents only
+    /// while the timer runs, since a paused or finished timer needs its mark:
+    /// above a minute its clock alone reads the same as a running one.
     /// Every other strip fills both wings with its own content.
-    static func compactCompanion(timer: Bool, downloads: Bool, agents: Bool, music: Bool) -> NotchCompactActivity? {
+    static func compactCompanion(timer: Bool, running: Bool, downloads: Bool, agents: Bool,
+                                 music: Bool) -> NotchCompactActivity? {
         guard timer else { return nil }
-        return compactActivity(timer: false, downloads: downloads, agents: agents, music: music)
+        if downloads { return .downloads }
+        guard running else { return nil }
+        return compactActivity(timer: false, downloads: false, agents: agents, music: music)
     }
 
     static func gestureIsOverHeader(expanded: Bool, peeking: Bool, fromTop: CGFloat, safeTop: CGFloat,
