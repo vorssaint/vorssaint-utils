@@ -2943,7 +2943,7 @@ final class CommandBarService: ObservableObject {
 
     /// Borderless panels refuse key status by default, and the bar's field
     /// needs it for typing while the target app stays active.
-    private final class KeyableBarPanel: NSPanel {
+    private final class KeyableBarPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

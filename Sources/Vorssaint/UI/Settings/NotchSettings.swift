@@ -4,10 +4,6 @@
 import SwiftUI
 import EventKit
 
-private enum NotchSettingsTab: CaseIterable {
-    case layout, content, activity, behavior
-}
-
 struct NotchSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
@@ -110,16 +106,7 @@ struct NotchSettings: View {
                     PermissionRow(kind: .accessibility)
                 }
             }
-            HStack {
-                Picker(text.title, selection: $tab) {
-                    Text(editor.layout).tag(NotchSettingsTab.layout)
-                    Text(editor.content).tag(NotchSettingsTab.content)
-                    Text(editor.activity).tag(NotchSettingsTab.activity)
-                    Text(editor.behavior).tag(NotchSettingsTab.behavior)
-                }.pickerStyle(.segmented).labelsHidden()
-                Button { NotchService.shared.open() } label: { Image(systemName: "arrow.up.forward.app") }
-                    .buttonStyle(.bordered).disabled(!enabled).help(text.open).accessibilityLabel(text.open)
-            }
+            NotchSettingsTabRow(tab: $tab, language: l10n.language, canOpen: enabled) { NotchService.shared.open() }
             if tab == .content {
                 GeometryReader { proxy in contentEditor(in: proxy.size) }
             } else {
@@ -594,11 +581,9 @@ struct NotchSettings: View {
     }
 
     private func destination(_ title: String, symbol: String, value: Binding<Bool>, available: Bool = true) -> some View {
-        SettingsRow(symbol: symbol, title: title) {
-            Picker(title, selection: value) {
-                Text(text.title).tag(true)
-                Text(editor.separate).tag(false)
-            }.pickerStyle(.segmented).labelsHidden().fixedSize()
+        SettingsChoiceRow(symbol: symbol, title: title, selection: value) {
+            Text(text.title).tag(true)
+            Text(editor.separate).tag(false)
         }.disabled(!available)
     }
 

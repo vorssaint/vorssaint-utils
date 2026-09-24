@@ -476,7 +476,11 @@ final class NotchMusicService: ObservableObject {
         let cancellation = DispatchWorkItem {}
         automationDiscovery = cancellation
         automationTarget = target
-        automationAvailability = nil
+        // Every page that shows the controls asks for a fresh look at the
+        // same player. Its last answer stays on screen until the new one
+        // lands, instead of the fallback row flashing on each open; sending
+        // checks access again anyway. Another player starts from nothing.
+        if automationAvailability?.target != target { automationAvailability = nil }
         let requested = generation
         queue.async { [weak self] in
             guard !cancellation.isCancelled else { return }
