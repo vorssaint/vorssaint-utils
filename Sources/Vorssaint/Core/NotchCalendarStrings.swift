@@ -101,6 +101,29 @@ extension FeatureStrings {
             month: "Mes",
             emptyDay: "No hay citas este día",
             hasEvents: "Tiene citas")
+        case .sk: return NotchCalendarStrings(
+            title: "Kalendár",
+            description: "Prezerajte mesiac a nadchádzajúce stretnutia v Dynamic Island.",
+            permission: "Číta vaše kalendáre, aby zobrazil nadchádzajúce stretnutia. Udalosti zostávajú na tomto Macu.",
+            allow: "Povoliť prístup ku kalendáru",
+            denied: "Ak chcete vidieť svoje stretnutia, povoľte prístup ku kalendáru v Systémových nastaveniach.",
+            settings: "Otvoriť Systémové nastavenia",
+            empty: "Žiadne nadchádzajúce stretnutia",
+            next: "Nasleduje",
+            ongoing: "Prebieha teraz",
+            allDay: "Celý deň",
+            untitled: "Udalosť bez názvu",
+            openCalendar: "Otvoriť Kalendár",
+            week: "Nasledujúcich 7 dní",
+            today: "Dnes",
+            requestFailed: "Nepodarilo sa požiadať o prístup ku kalendáru. Skúste to znova.",
+            previousMonth: "Predchádzajúci mesiac",
+            nextMonth: "Nasledujúci mesiac",
+            previousWeek: "Predchádzajúci týždeň",
+            nextWeek: "Nasledujúci týždeň",
+            month: "Mesiac",
+            emptyDay: "V tento deň nemáte žiadne stretnutia",
+            hasEvents: "Má stretnutia")
         case .de: return NotchCalendarStrings(
             title: "Kalender",
             description: "Den Monat und deine nächsten Termine im Dynamic Island ansehen.",
@@ -331,6 +354,29 @@ extension FeatureStrings {
             month: "月",
             emptyDay: "當天沒有行程",
             hasEvents: "有行程")
+        case .uk: return NotchCalendarStrings(
+            title: "Календар",
+            description: "Переглядайте місяць та майбутні події у Dynamic Island.",
+            permission: "Читає ваші календарі, щоб показувати майбутні події. Події залишаються на цьому Mac.",
+            allow: "Дозволити доступ до календаря",
+            denied: "Дозвольте доступ до календаря в Системних параметрах, щоб бачити свої події.",
+            settings: "Відкрити Системні параметри",
+            empty: "Немає майбутніх подій",
+            next: "Далі",
+            ongoing: "Зараз триває",
+            allDay: "Увесь день",
+            untitled: "Подія без назви",
+            openCalendar: "Відкрити Календар",
+            week: "Наступні 7 днів",
+            today: "Сьогодні",
+            requestFailed: "Не вдалося запросити доступ до календаря. Спробуйте ще раз.",
+            previousMonth: "Попередній місяць",
+            nextMonth: "Наступний місяць",
+            previousWeek: "Попередній тиждень",
+            nextWeek: "Наступний тиждень",
+            month: "Місяць",
+            emptyDay: "Цього дня немає подій",
+            hasEvents: "Є події")
         }
     }
 }

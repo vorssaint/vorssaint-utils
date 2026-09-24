@@ -47,6 +47,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -55,6 +56,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -233,6 +235,41 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "Puedes guardar hasta %d borradores",
         previewFormatting: "Ver formato",
         editText: "Editar texto"
+    )
+
+    static let sk = ScratchpadFeatureStrings(
+        pageTitle: "Poznámkový blok",
+        hubDescription: "Plávajúce bloky pre krátkodobé poznámky",
+        panelCaption: "Rýchle poznámky v samostatných kartách",
+        openButton: "Otvoriť poznámkový blok",
+        placeholder: "Napíšte čokoľvek. Ukladá sa samo.",
+        copyAll: "Kopírovať všetko",
+        copied: "Skopírované",
+        exportAction: "Uložiť ako súbor",
+        exportFailed: "Súbor sa nepodarilo uložiť",
+        loadFailed: "Poznámky sa nepodarilo otvoriť. Zostali bez zmeny.",
+        clearAction: "Vymazať",
+        retentionTitle: "Vymazať automaticky",
+        retentionNever: "Nikdy",
+        retentionDay: "Po dni bez použitia",
+        retentionWeek: "Po týždni bez použitia",
+        retentionMonth: "Po mesiaci bez použitia",
+        retentionCaption: "Blok sa sám vyprázdni, keď text zostane taký dlho bez úprav.",
+        closeOnClickOutside: "Zavrieť pri kliknutí mimo",
+        keepOpen: "Nechať otvorené",
+        backgroundOpacity: "Pozadie bloku",
+        backgroundTranslucent: "Priesvitné",
+        backgroundOpaque: "Nepriehľadné",
+        newPad: "Nový poznámkový blok",
+        padActions: "Akcie poznámkového bloku",
+        renamePad: "Premenovať poznámkový blok",
+        closePad: "Zavrieť poznámkový blok",
+        saveName: "Uložiť",
+        cancel: "Zrušiť",
+        deletePadMessageFormat: "Vymazať „%@“ a celý jeho obsah?",
+        padLimitFormat: "Maximálny počet poznámkových blokov: %d",
+        previewFormatting: "Zobraziť formátovanie",
+        editText: "Upraviť text"
     )
 
     static let de = ScratchpadFeatureStrings(
@@ -513,5 +550,39 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "最多可保留 %d 個草稿板",
         previewFormatting: "顯示格式",
         editText: "編輯文字"
+    )
+    static let uk = ScratchpadFeatureStrings(
+        pageTitle: "Нотатник",
+        hubDescription: "Плаваючі блокноти для короткочасних нотаток",
+        panelCaption: "Швидкі нотатки в окремих вкладках",
+        openButton: "Відкрити нотатник",
+        placeholder: "Пишіть будь-що. Зберігається сам.",
+        copyAll: "Скопіювати все",
+        copied: "Скопійовано",
+        exportAction: "Зберегти як файл",
+        exportFailed: "Не вдалося зберегти файл.",
+        loadFailed: "Не вдалося відкрити нотатку. Вміст збережено і не змінено.",
+        clearAction: "Очистити",
+        retentionTitle: "Очищати сам",
+        retentionNever: "Ніколи",
+        retentionDay: "Через день без використання",
+        retentionWeek: "Через тиждень без використання",
+        retentionMonth: "Через місяць без використання",
+        retentionCaption: "Блокнот очищається сам, коли текст залишається без редагувань стільки часу.",
+        closeOnClickOutside: "Закривати при клаці зовні",
+        keepOpen: "Тримати відкритою",
+        backgroundOpacity: "Фон панелі",
+        backgroundTranslucent: "Напівпрозорий",
+        backgroundOpaque: "Непрозорий",
+        newPad: "Новий нотатник",
+        padActions: "Дії нотатника",
+        renamePad: "Перейменувати нотатник",
+        closePad: "Закрити нотатник",
+        saveName: "Зберегти",
+        cancel: "Скасувати",
+        deletePadMessageFormat: "Видалити «%@» та все в ньому?",
+        padLimitFormat: "Ви можете зберігати до %d нотатників",
+        previewFormatting: "Показувати форматування",
+        editText: "Редагувати текст"
     )
 }

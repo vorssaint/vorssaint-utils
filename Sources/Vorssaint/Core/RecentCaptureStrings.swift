@@ -22,6 +22,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -30,6 +31,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -88,6 +90,17 @@ extension RecentCaptureStrings {
         open: "Abrir",
         remove: "Quitar del historial",
         clear: "Borrar historial"
+    )
+
+    static let sk = RecentCaptureStrings(
+        title: "Nedávne zábery",
+        empty: "Vytvorte snímku obrazovky alebo uložte nahrávku a nájdete ju tu.",
+        screenshot: "Snímka obrazovky",
+        recording: "Nahrávka",
+        restore: "Obnoviť",
+        open: "Otvoriť",
+        remove: "Odstrániť z histórie",
+        clear: "Vymazať históriu"
     )
 
     static let de = RecentCaptureStrings(
@@ -176,5 +189,15 @@ extension RecentCaptureStrings {
         open: "開啟",
         remove: "從記錄移除",
         clear: "清除記錄"
+    )
+    static let uk = RecentCaptureStrings(
+        title: "Недавні знімки",
+        empty: "Зробіть знімок екрана або збережіть запис, щоб знайти його тут.",
+        screenshot: "Знімок екрана",
+        recording: "Запис",
+        restore: "Відновити",
+        open: "Відкрити",
+        remove: "Видалити з історії",
+        clear: "Очистити історію"
     )
 }

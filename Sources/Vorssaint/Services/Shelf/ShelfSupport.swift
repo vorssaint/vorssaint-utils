@@ -104,6 +104,22 @@ enum ShelfTileLayout {
                       height: tileSize.height)
     }
 
+    /// The document size for a sideways strip: wide enough for every column
+    /// and tall enough for every row, and never smaller than the visible area.
+    static func sidewaysDocumentSize(itemCount: Int,
+                                     rows: Int,
+                                     visibleSize: CGSize,
+                                     tileSize: CGSize,
+                                     spacing: CGFloat,
+                                     inset: CGFloat) -> CGSize {
+        let safeRows = max(1, rows)
+        let columns = max(1, Int(ceil(Double(itemCount) / Double(safeRows))))
+        let filledRows = min(safeRows, max(1, itemCount))
+        let width = inset * 2 + CGFloat(columns) * tileSize.width + CGFloat(columns - 1) * spacing
+        let height = inset * 2 + CGFloat(filledRows) * tileSize.height + CGFloat(filledRows - 1) * spacing
+        return CGSize(width: max(width, visibleSize.width), height: max(height, visibleSize.height))
+    }
+
     /// Where the tile at `index` sits in the flipped document view.
     static func tileFrame(index: Int,
                           columns: Int,
@@ -267,22 +283,31 @@ struct ShelfTooltipStrings {
     let linkSingular: String
     let linkFew: String
     let linkPlural: String
-    /// Set for a language whose two through four take a form of their own.
-    let usesFewForm: Bool
+    /// How the language agrees a counted noun with its number.
+    let agreement: CountAgreement
 
     /// The form a count asks for. Russian agrees by the number's last digits:
     /// one for 1, 21, 31 but not 11; the middle form for 2 through 4, 22
     /// through 24 but not 12 through 14; the last for everything else.
+    /// Slovak reads the whole number instead, so only 1 and only 2 through 4
+    /// leave the last form, and 21 and 22 stay with it.
     enum Form { case one, few, many }
 
     func form(for count: Int) -> Form {
-        guard usesFewForm else { return count == 1 ? .one : .many }
         let magnitude = abs(count)
-        if (11...14).contains(magnitude % 100) { return .many }
-        switch magnitude % 10 {
-        case 1: return .one
-        case 2, 3, 4: return .few
-        default: return .many
+        switch agreement {
+        case .oneAndMany:
+            return magnitude == 1 ? .one : .many
+        case .byWholeNumber:
+            if magnitude == 1 { return .one }
+            return (2...4).contains(magnitude) ? .few : .many
+        case .byLastDigits:
+            if (11...14).contains(magnitude % 100) { return .many }
+            switch magnitude % 10 {
+            case 1: return .one
+            case 2, 3, 4: return .few
+            default: return .many
+            }
         }
     }
 }
@@ -478,6 +503,34 @@ enum ShelfEdgeDragSupport {
 
     private static func hasNeighbor(at point: CGPoint, frames: [CGRect]) -> Bool {
         frames.contains { $0.insetBy(dx: -1, dy: -1).contains(point) }
+    }
+}
+
+/// Where the menu bar drop zone docks the shelf.
+enum ShelfDockPlacement: String {
+    case menuBar, topCenter
+
+    /// The Dynamic Island owns the top center of the screen while it is on,
+    /// so the top center placement waits until it is off.
+    static func current(in defaults: UserDefaults = .standard) -> Self {
+        guard !NotchSupport.isEnabled(in: defaults),
+              defaults.string(forKey: DefaultsKey.shelfDockPlacement) == Self.topCenter.rawValue
+        else { return .menuBar }
+        return .topCenter
+    }
+
+    /// The docked panel's frame: its top edge just below the menu bar, either
+    /// centered under the icon or centered on the screen, clamped on screen.
+    /// `safeTop` is the screen's `frame.maxY - safeAreaInsets.top`: with a
+    /// hidden menu bar or in full screen the visible frame reaches the very top,
+    /// which would put the centered badge behind the camera housing.
+    func frame(size: CGSize, visible: CGRect, safeTop: CGFloat, anchor: CGRect?) -> CGRect {
+        var x = self == .topCenter
+            ? visible.midX - size.width / 2
+            : anchor.map { $0.midX - size.width / 2 } ?? (visible.maxX - size.width - 12)
+        x = min(max(visible.minX + 8, x), visible.maxX - size.width - 8)
+        let top = self == .topCenter ? min(visible.maxY - 4, safeTop) : visible.maxY - 4
+        return CGRect(x: x, y: top - size.height, width: size.width, height: size.height)
     }
 }
 

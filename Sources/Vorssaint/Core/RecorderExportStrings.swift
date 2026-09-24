@@ -33,6 +33,10 @@ extension FeatureStrings {
             return RecorderExportStrings(
                 speed: "Velocidad de exportación", custom: "Velocidad personalizada", duration: "Duración exportada",
                 previewNote: "Se aplica a vídeos, GIF y enlaces compartidos. La vista previa sigue a 1×; la grabación original no cambia.")
+        case .sk:
+            return RecorderExportStrings(
+                speed: "Rýchlosť exportu", custom: "Vlastná rýchlosť", duration: "Dĺžka exportu",
+                previewNote: "Platí pre video, GIF a zdieľané odkazy. Náhľad úprav zostáva na 1×, pôvodná nahrávka sa nemení.")
         case .de:
             return RecorderExportStrings(
                 speed: "Exportgeschwindigkeit", custom: "Eigene Geschwindigkeit", duration: "Exportdauer",
@@ -53,6 +57,10 @@ extension FeatureStrings {
             return RecorderExportStrings(
                 speed: "내보내기 속도", custom: "사용자 지정 속도", duration: "내보내기 재생 시간",
                 previewNote: "동영상, GIF 및 공유 링크에 적용됩니다. 편집 미리보기는 1×로 유지되며 원본 녹화는 변경되지 않습니다.")
+        case .uk:
+            return RecorderExportStrings(
+                speed: "Швидкість експорту", custom: "Власна швидкість", duration: "Тривалість експорту",
+                previewNote: "Застосовується до відео, GIF і спільних посилань. Попередній перегляд під час редагування залишається на швидкості 1×; оригінальний запис не змінюється.")
         case .zhHans:
             return RecorderExportStrings(
                 speed: "导出速度", custom: "自定义速度", duration: "导出时长",

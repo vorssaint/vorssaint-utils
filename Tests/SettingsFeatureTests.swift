@@ -161,6 +161,8 @@ enum SettingsFeatureTests {
                "the apps each mouse feature leaves alone travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
                "the apps the clipboard history skips travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.windowLayoutIgnoredApps),
+               "the apps that pause window layout travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.switcherAppRules),
                "per-app switcher rules travel with the settings backup")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
@@ -287,6 +289,32 @@ enum SettingsFeatureTests {
         let localJavaPath = "/Users/tester/Library/Application Support/RuntimeLauncher"
             + "/java/jre-legacy/zulu-8.jre/Contents/Home/bin/java"
         let exceptionKeys = Set(MouseExceptionScope.allCases.map(\.defaultsKey))
+        let windowLayoutKey = DefaultsKey.windowLayoutIgnoredApps
+        for apps in [["com.apple.Safari", localJavaPath], [localJavaPath],
+                     ["com.apple.Safari", "com.apple.Terminal"], []] {
+            let expected = apps.filter { $0 != localJavaPath }
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == windowLayoutKey ? apps : nil
+            }
+            suite.expect((backup[SettingsBackupSupport.settingsKey] as? [String: Any])?[
+                        windowLayoutKey] as? [String] == expected,
+                   "window layout exports bundle IDs only, keeping an emptied list")
+            let imported = SettingsBackupSupport.sanitizedSettings(from: [
+                SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+                SettingsBackupSupport.settingsKey: [windowLayoutKey: apps],
+            ])
+            suite.expect(imported?[windowLayoutKey] as? [String] == expected,
+                   "window layout rejects executable paths from incoming backups")
+        }
+        for restoredApps: [String]? in [["com.apple.Safari"], [], nil] {
+            let restored = SettingsBackupSupport.restoredExceptionList(
+                restored: restoredApps ?? [], carried: [localJavaPath])
+            suite.expect(restored == (restoredApps ?? []) + [localJavaPath],
+                   "window layout preserves local paths for populated, empty and missing backup lists")
+            suite.expect(SettingsBackupSupport.restoredExceptionList(
+                restored: restored, carried: [localJavaPath]) == restored,
+                   "repeated window layout restores do not duplicate local paths")
+        }
         let mixedExceptionBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
             exceptionKeys.contains(key) ? ["com.apple.Safari", localJavaPath] : nil
         }
@@ -343,12 +371,22 @@ enum SettingsFeatureTests {
         let clearAt = backupServiceLines.firstIndex {
             isCodeLine($0) && $0.contains("defaults.removeObject(forKey: key)")
         }
+        let windowLayoutCaptureAt = backupServiceLines.firstIndex {
+            isCodeLine($0) && $0.contains("let windowLayoutPaths = SettingsBackupSupport.pathIdentities(")
+        }
+        let windowLayoutPutBackAt = backupServiceLines.firstIndex {
+            isCodeLine($0) && $0.contains("carried: windowLayoutPaths), forKey: DefaultsKey.windowLayoutIgnoredApps)")
+        }
         let putBackAt = backupServiceLines.firstIndex {
             isCodeLine($0) && $0.contains("SettingsBackupSupport.restoredExceptionList(")
         }
         let writeAt = backupServiceLines.firstIndex {
             isCodeLine($0) && $0.contains("defaults.set(value, forKey: key)")
         }
+        suite.expect(windowLayoutCaptureAt != nil && windowLayoutPutBackAt != nil
+                && clearAt != nil && writeAt != nil
+                && windowLayoutCaptureAt! < clearAt! && writeAt! < windowLayoutPutBackAt!,
+               "window layout paths are captured before clearing and restored after backup values")
         suite.expect([captureAt, clearAt, putBackAt, writeAt].allSatisfy { $0 != nil }
                 && captureAt! < clearAt! && writeAt! < putBackAt!,
                "a settings restore reads the machine-local entries before clearing "

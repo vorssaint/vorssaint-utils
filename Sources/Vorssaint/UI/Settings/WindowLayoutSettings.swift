@@ -10,6 +10,8 @@ struct WindowLayoutSettings: View {
     @ObservedObject private var service = WindowLayoutService.shared
     @ObservedObject private var maximizer = WindowMaximizer.shared
     @AppStorage(DefaultsKey.windowMaximizeEnabled) private var maximizeEnabled = false
+    @ObservedObject private var pointerDisplay = PointerDisplayService.shared
+    @AppStorage(DefaultsKey.pointerDisplayEnabled) private var pointerDisplayEnabled = false
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showInPanel = true
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
     @AppStorage(DefaultsKey.windowDirectionalEnabled) private var directionalEnabled = false
@@ -21,6 +23,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
+    @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
@@ -89,7 +92,6 @@ struct WindowLayoutSettings: View {
                         }
                         .controlSize(.small)
                     }
-                    Divider()
                     Toggle(text.gestureEnable, isOn: $gestureEnabled)
                         .onChange(of: gestureEnabled) { _, _ in
                             WindowLayoutService.shared.syncWithPreferences()
@@ -113,6 +115,10 @@ struct WindowLayoutSettings: View {
                     }
                 }
 
+                Section(FeatureStrings.windowLayoutIgnoredApps(l10n.language).sectionTitle) {
+                    WindowLayoutIgnoredAppsList()
+                }
+
                 Section(text.gapsSection) {
                     gapPicker(text.windowGap, selection: $windowGap)
                     gapPicker(text.screenGap, selection: $screenGap)
@@ -134,7 +140,6 @@ struct WindowLayoutSettings: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
-                    Divider()
                     Toggle(WindowDirectionalStrings.localized(l10n.language).title,
                            isOn: $directionalEnabled)
                         .onChange(of: directionalEnabled) { _, _ in service.syncWithPreferences() }
@@ -153,6 +158,33 @@ struct WindowLayoutSettings: View {
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                         }
+                    }
+                }
+
+                // The pointer moves without Accessibility, so this sits outside
+                // the window shortcuts toggle and works before that grant.
+                Section {
+                    Toggle(PointerDisplayStrings.localized(l10n.language).title,
+                           isOn: $pointerDisplayEnabled)
+                        .onChange(of: pointerDisplayEnabled) { _, _ in
+                            // Also syncs the pointer key, and starts or stops
+                            // watching app switches for Ignore apps.
+                            service.syncWithPreferences()
+                        }
+                    Text(PointerDisplayStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ShortcutPreferenceRow(role: .pointerNextDisplay,
+                                          isEnabled: pointerDisplayEnabled,
+                                          additionalConflict: {
+                                              service.shortcutConflictTitle($0)
+                                          }) {
+                        pointerDisplay.syncWithPreferences()
+                    }
+                    if pointerDisplayEnabled, pointerDisplay.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                 }
 
@@ -276,7 +308,15 @@ struct WindowLayoutSettings: View {
     /// ten-view ViewBuilder limit.
     @ViewBuilder
     private var placementSections: some View {
-        actionSection(text.halves, Self.halfActions)
+        Section(text.halves) {
+            ForEach(Self.halfActions) { action in
+                actionRow(action)
+            }
+            Toggle(text.sideRepeatCycle, isOn: $sideRepeatCyclesThirds)
+            Text(text.sideRepeatCycleCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
         actionSection(text.thirds, Self.thirdActions)
         actionSection(text.quarterRows, Self.quarterRowActions)
         actionSection(text.quarterColumns, Self.quarterColumnActions)

@@ -56,6 +56,7 @@ final class DiskImageInstallerService {
     private var pending: [Candidate] = []
     private var processingMounts = Set<String>()
     private var promptActive = false
+    private var installPrompt: NonModalAlert?
     private var progressPanel: NSPanel?
 
     private init() {}
@@ -86,6 +87,7 @@ final class DiskImageInstallerService {
         mountObserver = nil
         pending.removeAll()
         processingMounts.removeAll()
+        installPrompt?.dismiss(with: .alertSecondButtonReturn)
     }
 
     private func inspect(mountURL: URL) {
@@ -178,17 +180,32 @@ final class DiskImageInstallerService {
         options.frame = NSRect(origin: .zero, size: options.fittingSize)
         alert.accessoryView = options
 
+        // Not runModal: this runs inside a main-queue block (the hop after the
+        // mount check), and a modal loop started there holds back later
+        // main-queue work, such as shortcut actions, until the alert closes.
+        // Its modal panel mode also stops default-mode timers (issue #1665).
         NSApp.activate(ignoringOtherApps: true)
-        guard withExtendedLifetime(destinationPrompt, { alert.runModal() }) == .alertFirstButtonReturn else {
-            finishCurrentCandidate()
-            return
+        installPrompt = NonModalAlert.present(alert, retaining: [destinationPrompt]) { [weak self] response in
+            guard let self else { return }
+            self.installPrompt = nil
+            guard response == .alertFirstButtonReturn else {
+                self.finishCurrentCandidate()
+                return
+            }
+            let trashesDownload = trashDownload.state == .on
+            let revealsApp = revealApp.state == .on
+            let usesUserApplications = userApplications.state == .on
+            defaults.set(trashesDownload, forKey: DefaultsKey.diskImageInstallerTrashesDownload)
+            defaults.set(revealsApp, forKey: DefaultsKey.diskImageInstallerRevealsApp)
+            defaults.set(usesUserApplications, forKey: DefaultsKey.diskImageInstallerUseUserApplications)
+            self.beginInstall(candidate, strings: strings, trashingDownload: trashesDownload,
+                              revealingApp: revealsApp, useUserApplications: usesUserApplications)
         }
-        let trashesDownload = trashDownload.state == .on
-        let revealsApp = revealApp.state == .on
-        let usesUserApplications = userApplications.state == .on
-        defaults.set(trashesDownload, forKey: DefaultsKey.diskImageInstallerTrashesDownload)
-        defaults.set(revealsApp, forKey: DefaultsKey.diskImageInstallerRevealsApp)
-        defaults.set(usesUserApplications, forKey: DefaultsKey.diskImageInstallerUseUserApplications)
+    }
+
+    private func beginInstall(_ candidate: Candidate, strings: DiskImageInstallerStrings,
+                              trashingDownload trashesDownload: Bool, revealingApp revealsApp: Bool,
+                              useUserApplications usesUserApplications: Bool) {
         showProgress(for: candidate, strings: strings)
 
         workQueue.async { [weak self] in
@@ -196,12 +213,14 @@ final class DiskImageInstallerService {
                                        useUserApplications: usesUserApplications)
                 ?? InstallResult(outcome: .failed(.copy), destinationURL: nil)
             DispatchQueue.main.async { [weak self] in
-                self?.hideProgress()
-                self?.present(result: result, candidate: candidate)
-                if revealsApp, result.outcome.isInstalled, let destinationURL = result.destinationURL {
-                    NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
+                guard let self else { return }
+                self.hideProgress()
+                self.present(result: result, candidate: candidate) { [weak self] in
+                    if revealsApp, result.outcome.isInstalled, let destinationURL = result.destinationURL {
+                        NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
+                    }
+                    self?.finishCurrentCandidate()
                 }
-                self?.finishCurrentCandidate()
             }
         }
     }
@@ -351,7 +370,8 @@ final class DiskImageInstallerService {
         }
     }
 
-    private func present(result: InstallResult, candidate: Candidate) {
+    private func present(result: InstallResult, candidate: Candidate,
+                         completion: @escaping () -> Void) {
         let strings = FeatureStrings.diskImageInstaller(L10n.shared.language)
         let alert = NSAlert()
         let folder = result.destinationURL?.deletingLastPathComponent().path == "/Applications"
@@ -388,8 +408,9 @@ final class DiskImageInstallerService {
                 alert.informativeText = strings.failedBody
             }
         }
+        // Not runModal either: this runs inside the hop after the install.
         NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        NonModalAlert.present(alert) { _ in completion() }
     }
 
     private static func validBundle(at appURL: URL) -> Bool {
