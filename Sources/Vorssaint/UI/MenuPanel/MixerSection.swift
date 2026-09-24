@@ -821,7 +821,8 @@ struct SoundOutputSwitcherControls: View {
             }
         }
         .onAppear { selectedUIDs = outputSwitcher.selectedDeviceUIDs() }
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)) { _ in
             selectedUIDs = outputSwitcher.selectedDeviceUIDs()
         }
     }
