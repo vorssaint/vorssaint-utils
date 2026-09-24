@@ -16,11 +16,12 @@ struct NotchClipboardView: View {
     @State private var query = ""
     @State private var copiedID: UUID?
     @State private var pinnedOnly = false
-    /// The card the arrow keys chose from the search field; Return uses it
-    /// the way a click would.
+    /// The card the arrow keys chose from the search field, or the top result
+    /// of a typed search; Return uses it the way a click would.
     @State private var highlightedID: UUID?
     @FocusState private var searching: Bool
     @Environment(\.notchSettingsPreview) private var preview
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: ClipboardFeatureStrings { FeatureStrings.clipboard(l10n.language) }
 
     private var entries: [ClipboardHistoryEntry] {
@@ -96,15 +97,17 @@ struct NotchClipboardView: View {
                     .scrollIndicators(.automatic)
                     .onChange(of: highlightedID) { _, id in
                         guard let id else { return }
-                        withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id) }
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { proxy.scrollTo(id) }
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        // A new search starts from its top result instead of a row it hid.
-        .onChange(of: query) { _, _ in highlightedID = nil }
-        .onChange(of: pinnedOnly) { _, _ in highlightedID = nil }
+        // A new search starts from its top result instead of a row it hid,
+        // and a row that leaves the list hands the highlight on the same way.
+        .onChange(of: query) { _, _ in highlightedID = searchHighlight(keeping: nil) }
+        .onChange(of: pinnedOnly) { _, _ in highlightedID = searchHighlight(keeping: nil) }
+        .onChange(of: entries.map(\.id)) { _, _ in highlightedID = searchHighlight(keeping: highlightedID) }
         .task(id: copiedID) {
             // The tick confirms one copy; leaving it on the row forever would
             // read as a permanent state instead of an answer.
@@ -173,6 +176,10 @@ struct NotchClipboardView: View {
             .disabled(!canReorder || !history.canMove(entry, .down))
         Divider()
         Button(text.delete, role: .destructive) { remove(entry) }
+    }
+
+    private func searchHighlight(keeping current: UUID?) -> UUID? {
+        NotchSupport.searchHighlight(keeping: current, in: entries.map(\.id), query: query)
     }
 
     /// Up and Down move the highlight while the search field keeps typing;

@@ -696,6 +696,14 @@ enum NotchTests {
                && NotchSupport.steppedItem(from: 9, in: [1, 2, 3], backwards: true) == 1
                && NotchSupport.steppedItem(from: 1, in: [Int](), backwards: false) == nil,
                "clipboard arrow keys start at the top result, stop at the ends and recover from a filtered-out row")
+        suite.expect(NotchSupport.searchHighlight(keeping: nil, in: [1, 2, 3], query: "note") == 1
+               && NotchSupport.searchHighlight(keeping: nil, in: [1, 2, 3], query: " \n ") == nil
+               && NotchSupport.searchHighlight(keeping: 2, in: [1, 2, 3], query: "note") == 2
+               && NotchSupport.searchHighlight(keeping: 2, in: [1, 2, 3], query: "") == 2
+               && NotchSupport.searchHighlight(keeping: 9, in: [1, 2, 3], query: "note") == 1
+               && NotchSupport.searchHighlight(keeping: 9, in: [1, 2, 3], query: "") == nil
+               && NotchSupport.searchHighlight(keeping: nil, in: [Int](), query: "note") == nil,
+               "a typed clipboard search highlights its top result for Return, and an empty one waits for an arrow")
         suite.expect(NotchSupport.filteredModules([.controls, .music, .files], query: "  MÚSＩCA  ", title: {
             $0 == .music ? "Música" : "Arquivos"
         }) == [.music], "gallery search ignores accents, letter case, character width and surrounding spaces")
