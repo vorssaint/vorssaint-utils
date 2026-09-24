@@ -8,9 +8,9 @@ import SwiftUI
 /// column: a wider page is centered and cut on both sides, under the sidebar.
 enum ScreenCaptureToolPickerTests {
     static func run(_ suite: TestSuite) {
-        // The narrowest page row: the Settings window's 772-point minimum, less
+        // The narrowest page row: the Settings window's minimum width, less
         // the sidebar at its widest and the grouped form's insets.
-        let narrowestRow: CGFloat = 772 - 240 - 60
+        let narrowestRow = CGFloat(SettingsWindowSupport.minContentWidth) - 240 - 60
         for (language, strings) in LocalizationTests.languages {
             let picker = NSHostingController(rootView: ScreenCaptureToolPicker(
                 tools: ScreenCaptureTool.allCases, strings: strings, language: language,

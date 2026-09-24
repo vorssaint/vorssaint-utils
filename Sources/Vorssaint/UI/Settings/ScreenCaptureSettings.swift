@@ -4,7 +4,7 @@
 import SwiftUI
 
 /// One Settings destination for every tool that starts from the screen. The
-/// segmented control at the top changes the feature-specific options shown
+/// tool picker at the top changes the feature-specific options shown
 /// below it, and the top section also carries the selected tool's own
 /// shortcut where the old shared shortcut lived.
 struct ScreenCaptureSettings: View {
