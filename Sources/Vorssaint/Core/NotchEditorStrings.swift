@@ -888,8 +888,34 @@ extension FeatureStrings {
             lastPage: "آخر صفحة",
             activationTime: "زمن التفعيل",
             activationTimeHint: "أبقِ المؤشر فوق الجزيرة هذه المدة لفتحها.",
-            activationTimeFormat: "%.2f ث"
-        )
+            activationTimeFormat: "%.2f ث",
+            enableFeatureFormat: "فعّل “%@” من الميزات.",
+            enableSettingFormat: "فعّل “%@” من إعداداته.",
+            showPageFormat: "أظهر “%@” في تبويب المحتوى.",
+            keyboardLightUnavailable: "التحكم بإضاءة لوحة المفاتيح غير متاح على هذا الـ Mac.",
+            appPanelHint: "اختر أين تفتح النقرة على أيقونة Vorssaint في شريط القوائم لوحة التطبيق، على أي شاشة.",
+            sections: "الأقسام",
+            sectionsHint: "اسحب لإعادة الترتيب. وأزل التحديد عن قسم لإخفائه من الجزيرة.",
+            preview: "معاينة",
+            hiddenInIsland: "مخفي من الجزيرة",
+            openFeatures: "فتح الميزات",
+            cameraPreview: "تعمل الكاميرا داخل الجزيرة فقط.",
+            noOptions: "لا خيارات لهذا القسم.",
+            controlsSummary: "التشغيل ومستوى الصوت والسطوع واختصاراتك.",
+            mixerSummary: "مستوى صوت كل تطبيق، ومن أين يخرج الصوت.",
+            musicSummary: "الأغنية قيد التشغيل الآن، مع عناصر تحكمها.",
+            clipboardSummary: "ما نسخته مؤخرًا، جاهزًا للّصق من جديد.",
+            capturesSummary: "أحدث لقطات الشاشة والتسجيلات لديك.",
+            filesSummary: "رفّ للملفات التي تُسقطها على الجزيرة.",
+            systemSummary: "المعالج والذاكرة والقرص والشبكة والبطارية في لمحة.",
+            toolsSummary: "الأدوات والمرافق على بعد نقرة واحدة.",
+            calendarSummary: "أحداث اليوم والشهر المقبل.",
+            notificationsSummary: "إشعارات الـ Mac لديك، محفوظة في الجزيرة.",
+            timerSummary: "المؤقت وبومودورو وساعة الإيقاف.",
+            cameraSummary: "مرآة تتفقّد بها مظهرك قبل أي مكالمة.",
+            downloadsSummary: "التنزيلات الجارية وتلك التي انتهت للتو.",
+            scratchpadSummary: "ملاحظات سريعة تحفظ نفسها.",
+            agentsSummary: "استخدام Claude Code وCodex وحدودهما وتكاليفهما.")
         }
     }
 }

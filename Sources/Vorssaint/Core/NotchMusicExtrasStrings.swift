@@ -573,6 +573,8 @@ extension FeatureStrings {
             playNow: "التشغيل الآن",
             refresh: "تحديث",
             openPlayer: "فتح المشغّل",
+            playbackSource: "مصدر التشغيل",
+            automaticSource: "تلقائي",
             liveEqualizer: "الأشرطة تتبع الموسيقى",
             liveEqualizerDescription: "حرّك أشرطة الجزيرة الديناميكية مع الصوت الذي يصدره مشغّلك.",
             liveEqualizerHint: "ينصت إلى مخرج صوت المشغّل نفسه لتحريك الأشرطة. ويطلب macOS السماح بتسجيل صوت النظام مرة واحدة. ولا يُخزَّن شيء ولا يُرسل. وبدونه تحتفظ الأشرطة بحركتها المعتادة.",

@@ -2686,6 +2686,8 @@ extension ScreenshotFeatureStrings {
         cancel: "إلغاء",
         colorLabel: "اللون",
         strokeLabel: "السماكة",
+        fontSizeLabel: "حجم الخط",
+        blurStrengthLabel: "شدة التمويه",
         shadowLabel: "الظلال",
         backdropLabel: "الخلفية",
         backdropNone: "بلا",

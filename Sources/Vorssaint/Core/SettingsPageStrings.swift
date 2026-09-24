@@ -214,6 +214,8 @@ extension SettingsPageStrings {
         monitorDescription: "ما يعرضه شريط القائمة واللوحة عن الـ Mac، ومتى ينبّهك.",
         mouseDescription: "امنح العجلة والأزرار الجانبية ولوحة التتبع وظائف جديدة.",
         switcherDescription: "بدّل بين التطبيقات والنوافذ على طريقتك، وشاهِد النوافذ من الـ Dock.",
+        dockTitle: "Dock",
+        dockDescription: "اعرض نوافذ أي تطبيق من أيقونته في الـ Dock، واختر ما تفعله النقرة عليها.",
         switcherLayoutWindows: "معاينات النوافذ",
         switcherLayoutWindowsCaption: "معاينة لكل نافذة، بما فيها المصغّرة.",
         switcherLayoutIcons: "أيقونات كبيرة",

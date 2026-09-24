@@ -711,6 +711,6 @@ extension FanControlFeatureStrings {
         averageCPU: "متوسط المعالج",
         hottestCPU: "أسخن نقطة في المعالج",
         hottestGPU: "أسخن نقطة في بطاقة الرسوم",
-        helperUnavailable: "وحدة التحكم المحمية بالمراوح غير متاحة. اسمح لـ Vorssaint في “عناصر تسجيل الدخول” ثم حاول مجددًا."
-    )
+        helperUnavailable: "وحدة التحكم المحمية بالمراوح غير متاحة. اسمح لـ Vorssaint في “عناصر تسجيل الدخول” ثم حاول مجددًا.",
+        resumeAfterRestart: "الاستئناف بعد إعادة التشغيل أو الإسبات")
 }
