@@ -136,6 +136,43 @@ struct SettingsChoiceRow<Value: Hashable, Options: View>: View {
     }
 }
 
+/// A row whose choice is a menu: beside the title while the row fits on one
+/// line, under the title otherwise, lined up with its text, or with its icon
+/// when the menu is wider than the text leaves room for. A menu kept beside a
+/// title that has to wrap squeezes the title letter by letter, and a row
+/// wider than its column would center the page and cut it on both sides.
+struct SettingsMenuRow<Value: Hashable, Options: View>: View {
+    let symbol: String?
+    let title: String
+    @Binding var selection: Value
+    let options: Options
+
+    init(symbol: String?, title: String, selection: Binding<Value>, @ViewBuilder options: () -> Options) {
+        self.symbol = symbol
+        self.title = title
+        _selection = selection
+        self.options = options()
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            SettingsRow(symbol: symbol, title: title) { menu }
+            VStack(alignment: .leading, spacing: 8) {
+                SettingsRow(symbol: symbol, title: title) { EmptyView() }
+                menu.padding(.leading, settingsRowTextInset)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                SettingsRow(symbol: symbol, title: title) { EmptyView() }
+                menu
+            }
+        }
+    }
+
+    private var menu: some View {
+        Picker(title, selection: $selection) { options }.pickerStyle(.menu).labelsHidden().fixedSize()
+    }
+}
+
 /// A switch pushed to the trailing edge with its label at the leading one,
 /// so a shared control that carries its own label lines up with the rows
 /// around it on a redesigned page.

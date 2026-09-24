@@ -587,6 +587,7 @@ def main():
           + declaration(settings_card, "struct SettingsCard<")
           + declaration(settings_card, "struct SettingsRow<")
           + declaration(settings_card, "struct SettingsChoiceRow<")
+          + declaration(settings_card, "struct SettingsMenuRow<")
           + "struct Destination: View {\nlet language: AppLanguage\nlet title: String\n"
           + "var text: NotchStrings { FeatureStrings.notch(language) }\n"
           + "var editor: NotchEditorStrings { FeatureStrings.notchEditor(language) }\n"
@@ -598,7 +599,24 @@ def main():
           + "var body: some View {\n"
           + declaration("Sources/Vorssaint/UI/Settings/NotchAgentsSettings.swift",
                         "            SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol")
-          + "}\n}\n}\n")
+          + "}\n}\n"
+          # The AI agents card's menu rows, each with the indent it has there.
+          + "".join(f"struct {name}: View {{\nlet language: AppLanguage\n"
+                    + "@State var readout = NotchAgentReadout.elapsed.rawValue\n"
+                    + "@State var finishMinimum = NotchAgentSupport.defaultFinishMinimum\n"
+                    + "@State var limitThreshold = NotchAgentSupport.defaultLimitThreshold\n"
+                    + "@State var dailyBudget = 0.0\n"
+                    + "var text: NotchAgentStrings { FeatureStrings.notchAgents(language) }\n"
+                    + "var locale: Locale { language.formattingLocale() }\n"
+                    + "var body: some View {\nGroup {\n"
+                    + declaration("Sources/Vorssaint/UI/Settings/NotchAgentsSettings.swift", prefix)
+                    + "}\n" + (".padding(.leading, settingsRowTextInset)\n" if indented else "") + "}\n}\n"
+                    for name, prefix, indented in [
+                        ("Readout", '                SettingsMenuRow(symbol: "camera.metering.center.weighted"', True),
+                        ("FinishAfter", '                SettingsMenuRow(symbol: "timer"', True),
+                        ("LimitAt", '                SettingsMenuRow(symbol: "gauge.with.dots.needle.67percent"', True),
+                        ("Budget", '            SettingsMenuRow(symbol: "dollarsign.circle"', False)])
+          + "}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
           + "extension MediaWorkspaceLayoutTests {\n"

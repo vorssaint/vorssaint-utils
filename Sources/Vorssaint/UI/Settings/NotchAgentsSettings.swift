@@ -71,13 +71,10 @@ struct NotchAgentsSettingsControls: View {
             Text(text.liveTitle).font(.subheadline.weight(.medium))
             switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
             if liveActivity {
-                SettingsRow(symbol: "camera.metering.center.weighted", title: text.readout) {
-                    Picker(text.readout, selection: $readout) {
-                        ForEach(NotchAgentReadout.allCases) { option in
-                            Text(text.readout(option)).tag(option.rawValue)
-                        }
+                SettingsMenuRow(symbol: "camera.metering.center.weighted", title: text.readout, selection: $readout) {
+                    ForEach(NotchAgentReadout.allCases) { option in
+                        Text(text.readout(option)).tag(option.rawValue)
                     }
-                    .pickerStyle(.menu).labelsHidden().fixedSize()
                 }
                 .padding(.leading, settingsRowTextInset)
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
@@ -90,36 +87,27 @@ struct NotchAgentsSettingsControls: View {
             Text(text.alerts).font(.subheadline.weight(.medium))
             switchRow("checkmark.circle", text.finishAlert, isOn: $finishAlert)
             if finishAlert {
-                SettingsRow(symbol: "timer", title: text.finishAfter) {
-                    Picker(text.finishAfter, selection: $finishMinimum) {
-                        ForEach(NotchAgentSupport.finishMinimums, id: \.self) { seconds in
-                            Text(seconds == 0 ? text.anyLength : AgentFormat.duration(seconds, locale: locale, style: .short))
-                                .tag(seconds)
-                        }
+                SettingsMenuRow(symbol: "timer", title: text.finishAfter, selection: $finishMinimum) {
+                    ForEach(NotchAgentSupport.finishMinimums, id: \.self) { seconds in
+                        Text(seconds == 0 ? text.anyLength : AgentFormat.duration(seconds, locale: locale, style: .short))
+                            .tag(seconds)
                     }
-                    .pickerStyle(.menu).labelsHidden().fixedSize()
                 }
                 .padding(.leading, settingsRowTextInset)
             }
             switchRow("exclamationmark.triangle", text.limitAlert, isOn: $limitAlert)
             if limitAlert {
-                SettingsRow(symbol: "gauge.with.dots.needle.67percent", title: text.limitAt) {
-                    Picker(text.limitAt, selection: $limitThreshold) {
-                        ForEach(NotchAgentSupport.limitThresholds, id: \.self) { value in
-                            Text(text.usedShare(AgentFormat.percent(value / 100))).tag(value)
-                        }
+                SettingsMenuRow(symbol: "gauge.with.dots.needle.67percent", title: text.limitAt, selection: $limitThreshold) {
+                    ForEach(NotchAgentSupport.limitThresholds, id: \.self) { value in
+                        Text(text.usedShare(AgentFormat.percent(value / 100))).tag(value)
                     }
-                    .pickerStyle(.menu).labelsHidden().fixedSize()
                 }
                 .padding(.leading, settingsRowTextInset)
             }
-            SettingsRow(symbol: "dollarsign.circle", title: text.budget) {
-                Picker(text.budget, selection: $dailyBudget) {
-                    ForEach(NotchAgentSupport.budgets, id: \.self) { value in
-                        Text(value == 0 ? text.off : AgentFormat.cost(value)).tag(value)
-                    }
+            SettingsMenuRow(symbol: "dollarsign.circle", title: text.budget, selection: $dailyBudget) {
+                ForEach(NotchAgentSupport.budgets, id: \.self) { value in
+                    Text(value == 0 ? text.off : AgentFormat.cost(value)).tag(value)
                 }
-                .pickerStyle(.menu).labelsHidden().fixedSize()
             }
             Text(text.valueNote).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
