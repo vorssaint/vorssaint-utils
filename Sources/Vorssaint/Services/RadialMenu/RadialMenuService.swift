@@ -899,7 +899,14 @@ final class RadialMenuService: ObservableObject {
         panel.hasShadow = false
         panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: RadialMenuView().appLayoutDirection())
+        // The wheel is picked by the pointer's real direction from the
+        // centre, and it places its chips and its highlight wedge with
+        // offsets and a path — all of which a mirrored root flips, measured
+        // on this Mac. Its slices are directions on screen, not a reading
+        // order, so the wheel keeps one orientation and the highlight stays
+        // under the pointer. The labels inside it still read in the chosen
+        // language.
+        panel.contentViewController = NSHostingController(rootView: RadialMenuView().unmirroredLayout())
         self.panel = panel
         return panel
     }

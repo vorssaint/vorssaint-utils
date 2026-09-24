@@ -138,6 +138,26 @@ enum QuickToolsSupport {
         return candidate
     }
 
+    /// Which way through the order a horizontal arrow key steps. The arrows
+    /// name a direction on screen, and a mirrored grid or rail draws its
+    /// first index at the right edge, so the key that points at the next
+    /// tile the reader sees is the opposite of the one that steps the index.
+    /// Mirroring is horizontal: up and down are handed back untouched, and
+    /// so is every direction in a left-to-right interface.
+    ///
+    /// Reading the key here rather than inside the walk also puts the row
+    /// edges back where the eye sees them: the walk stops at the first and
+    /// last column of the row, which are the right and left edges on screen
+    /// once the grid is mirrored.
+    static func gridDirection(forArrow arrow: GridDirection, rightToLeft: Bool) -> GridDirection {
+        guard rightToLeft else { return arrow }
+        switch arrow {
+        case .left: return .right
+        case .right: return .left
+        case .up, .down: return arrow
+        }
+    }
+
     /// A column-major rail is the row-major walk with the axes swapped.
     static func gridIndex(after index: Int, count: Int, flow: GridFlow, direction: GridDirection) -> Int {
         switch flow {

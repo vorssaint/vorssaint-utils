@@ -53,7 +53,10 @@ over a new subsystem. Keep each PR focused on one independently useful change.
   string catalogs. A new language also needs its locale registration, localized
   permission prompts where applicable, and coverage tests. A right-to-left
   language also sets `AppLanguage.isRightToLeft`, which the window roots read
-  through `appLayoutDirection()` to mirror the interface.
+  through `appLayoutDirection()` to mirror the interface. A surface whose
+  horizontal axis is not a reading order (a time axis, a graph, an image's own
+  coordinates) takes `unmirroredLayout()` instead. A language whose counts need
+  more than one and many says so in `AppLanguage.countRule`.
 - New source files retain the project's SPDX license and copyright headers.
 
 Sensor changes should include a dump from `./build/Vorssaint --sensors` and the

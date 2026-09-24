@@ -285,6 +285,11 @@ private struct FanControlCurveGraph: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
+        // Temperature rises to the right on this graph in every language. A
+        // mirrored root would flip the curve and the handles while the drag
+        // still reported the location it was given, so a point would follow
+        // the pointer the wrong way.
+        .unmirroredLayout()
     }
 
     private func position(for point: FanControlCurvePoint, in size: CGSize) -> CGPoint {

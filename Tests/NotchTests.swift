@@ -76,6 +76,24 @@ enum NotchTests {
                && QuickToolsSupport.gridIndex(after: 5, count: 7, flow: .columns(rows: 2), direction: .right) == 5
                && QuickToolsSupport.gridIndex(after: 9, count: 7, flow: .columns(rows: 2), direction: .up) == 6,
                "with two rows the arrows follow the columns the tiles fill, clamped to the last tile")
+        // The arrows name a place on screen, and a mirrored grid draws index 0
+        // at the right edge. Without reading the key first, every side arrow
+        // moved the highlight the opposite way, and at a row edge the grid
+        // blocked the arrow that still had a neighbour in front of the reader.
+        suite.expect(QuickToolsSupport.gridDirection(forArrow: .left, rightToLeft: false) == .left
+               && QuickToolsSupport.gridDirection(forArrow: .right, rightToLeft: false) == .right
+               && QuickToolsSupport.gridDirection(forArrow: .left, rightToLeft: true) == .right
+               && QuickToolsSupport.gridDirection(forArrow: .right, rightToLeft: true) == .left,
+               "a side arrow steps the order the other way once the grid is mirrored")
+        suite.expect(QuickToolsSupport.gridDirection(forArrow: .up, rightToLeft: true) == .up
+               && QuickToolsSupport.gridDirection(forArrow: .down, rightToLeft: true) == .down,
+               "mirroring is horizontal, so up and down keep their meaning")
+        let mirroredEdge = QuickToolsSupport.gridDirection(forArrow: .right, rightToLeft: true)
+        suite.expect(QuickToolsSupport.gridIndex(after: 0, count: 8, flow: .rows(columns: 3),
+                                                 direction: mirroredEdge) == 0
+               && QuickToolsSupport.gridIndex(after: 1, count: 8, flow: .rows(columns: 3),
+                                              direction: mirroredEdge) == 0,
+               "in a mirrored row the right arrow stops at the tile drawn against the right edge")
         let controls = NotchLayout.controls(hasCards: true, shortcutCount: 4, width: 424, height: NotchLayout.compactContentHeight)
         suite.expect(controls == NotchControlsLayout(cardRow: NotchLayout.cardHeight, shortcutRows: 1)
                && controls.height == NotchLayout.compactContentHeight,

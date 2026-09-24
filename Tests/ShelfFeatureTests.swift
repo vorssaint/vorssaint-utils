@@ -598,7 +598,7 @@ enum ShelfFeatureTests {
                                                  notePlural: "%d notes",
                                                  linkSingular: "%d link", linkFew: "%d links",
                                                  linkPlural: "%d links",
-                                                 usesFewForm: false)
+                                                 countRule: .oneAndMany)
         // Russian agrees a noun with the number in front of it three ways, and
         // the rule is the number's last digits, not its size: 1 and 21 take the
         // first, 2 and 22 the middle, 11 and 25 the last. A two-way choice put
@@ -612,7 +612,7 @@ enum ShelfFeatureTests {
                                                 notePlural: "many",
                                                 linkSingular: "one", linkFew: "few",
                                                 linkPlural: "many",
-                                                usesFewForm: true)
+                                                countRule: .russian)
         for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
                                 (11, .many), (12, .many), (14, .many), (15, .many),
                                 (21, .one), (22, .few), (25, .many), (101, .one), (111, .many)] {
@@ -624,8 +624,30 @@ enum ShelfFeatureTests {
             suite.expect(tooltipStrings.form(for: count) == wanted,
                    "a language without a middle form still only chooses between one and many at \(count)")
         }
-        suite.expect(AppLanguage.allCases.filter(\.usesFewCountForm) == [.ru],
-               "Russian is the one language of the thirteen that asks for the middle form")
+        // Arabic asks for the middle form too, on its own boundaries: the
+        // ordinary plural from three through ten of every hundred, and the
+        // singular noun after the numeral from eleven up. Two goes with
+        // eleven rather than with three, since the dual is a word of its own
+        // and never follows a numeral. Russian's rule would have read wrong
+        // from two to ten, and no rule at all read wrong from three to ten.
+        let arabicStrings = ShelfTooltipStrings(itemsFormat: "many", itemsFew: "few",
+                                                imageSingular: "one", imageFew: "few",
+                                                imagePlural: "many",
+                                                fileSingular: "one", fileFew: "few",
+                                                filePlural: "many",
+                                                noteSingular: "one", noteFew: "few",
+                                                notePlural: "many",
+                                                linkSingular: "one", linkFew: "few",
+                                                linkPlural: "many",
+                                                countRule: .arabic)
+        for (count, wanted) in [(0, ShelfTooltipStrings.Form.many), (1, .one), (2, .many), (3, .few),
+                                (10, .few), (11, .many), (25, .many), (99, .many), (100, .many),
+                                (101, .many), (103, .few), (110, .few), (111, .many)] {
+            suite.expect(arabicStrings.form(for: count) == wanted,
+                   "Arabic asks for the right form at \(count)")
+        }
+        suite.expect(AppLanguage.allCases.filter { $0.countRule != .oneAndMany } == [.ru, .ar],
+               "Russian and Arabic are the two languages that ask for a middle form")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",

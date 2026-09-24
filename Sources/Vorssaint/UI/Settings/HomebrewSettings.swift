@@ -298,7 +298,7 @@ struct HomebrewSettings: View {
                                     expandedPackageIDs.insert(package.id)
                                 }
                             } label: {
-                                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                Image(systemName: isExpanded ? "chevron.down" : "chevron.forward")
                                     .font(.system(size: 9, weight: .semibold))
                                     .foregroundStyle(.secondary)
                                     .frame(width: 12, height: 20)

@@ -395,11 +395,13 @@ final class QuickLauncherService: ObservableObject {
         case kVK_Return, kVK_ANSI_KeypadEnter:
             activateSelection()
             return nil
-        case kVK_LeftArrow:
-            moveSelection(.left, flow: flow)
-            return nil
-        case kVK_RightArrow:
-            moveSelection(.right, flow: flow)
+        case kVK_LeftArrow, kVK_RightArrow:
+            // The side arrows point at a place on screen, and both the grid
+            // and the island's rail are drawn in reverse in a right-to-left
+            // interface. Up and down are left as they are.
+            moveSelection(QuickToolsSupport.gridDirection(
+                forArrow: Int(event.keyCode) == kVK_LeftArrow ? .left : .right,
+                rightToLeft: L10n.shared.language.isRightToLeft), flow: flow)
             return nil
         case kVK_UpArrow:
             moveSelection(.up, flow: flow)

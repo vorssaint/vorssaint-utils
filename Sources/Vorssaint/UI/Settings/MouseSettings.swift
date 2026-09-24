@@ -366,7 +366,7 @@ struct MouseSettings: View {
 
     private var navigationCard: some View {
         SettingsCard(title: l10n.s.mouseNavigationSection) {
-            SettingsRow(symbol: "arrowshape.turn.up.left", title: l10n.s.mouseNavigationEnable,
+            SettingsRow(symbol: "arrowshape.turn.up.backward", title: l10n.s.mouseNavigationEnable,
                         caption: l10n.s.mouseNavigationCaption) {
                 Toggle(l10n.s.mouseNavigationEnable, isOn: $mouseNavigationEnabled)
                     .labelsHidden()

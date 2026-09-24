@@ -240,6 +240,11 @@ struct RecorderEditorView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The picture has its own coordinates, and aiming a zoom or a blur
+        // compares a click against them. A mirrored root flips what is drawn
+        // while the click keeps the x it was given, so the mark would land on
+        // the far side of the frame from the pointer.
+        .unmirroredLayout()
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .onTapGesture {
@@ -378,7 +383,7 @@ struct RecorderEditorView: View {
             // place across the filmstrip, the ruler and the native lanes; the
             // labels and the controls around them still follow the language.
             content()
-                .environment(\.layoutDirection, .leftToRight)
+                .unmirroredLayout()
         }
     }
 

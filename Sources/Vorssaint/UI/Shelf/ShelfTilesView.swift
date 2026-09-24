@@ -213,6 +213,10 @@ struct ShelfTilesView: NSViewRepresentable {
             }
             return
         }
+        // Where the flow ends moves when the direction flips or the viewport
+        // resizes, and nothing else here moves it.
+        let endMoved = coordinator.map { $0.lastRebuiltRightToLeft != rightToLeft
+                                          || $0.lastRebuiltContentSize != scroll.contentSize } ?? true
         coordinator?.lastRebuiltItems = items
         coordinator?.lastRebuiltSelection = selection
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
@@ -233,6 +237,17 @@ struct ShelfTilesView: NSViewRepresentable {
             document.frame = NSRect(x: 0, y: 0,
                                     width: documentWidth,
                                     height: scroll.contentSize.height)
+            // A clip view opens at x = 0 whatever the layout direction, and
+            // the mirrored grid puts the first column at the document's right
+            // edge. With more columns than fit, a right-to-left shelf would
+            // otherwise open on its last ones, with the first waiting past the
+            // right edge until someone scrolled. Only when the end itself
+            // moved: an ordinary rebuild leaves the shelf where it was left.
+            if endMoved {
+                let origin = rightToLeft ? max(0, documentWidth - scroll.contentSize.width) : 0
+                scroll.contentView.scroll(to: NSPoint(x: origin, y: 0))
+                scroll.reflectScrolledClipView(scroll.contentView)
+            }
         } else {
             let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * spacing
             scroll.hasVerticalScroller = contentHeight > scroll.contentSize.height + 1
@@ -448,7 +463,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
                                               linkSingular: s.shelfTooltipLinkSingular,
                                               linkFew: s.shelfTooltipLinkFew,
                                               linkPlural: s.shelfTooltipLinkPlural,
-                                              usesFewForm: L10n.shared.language.usesFewCountForm)
+                                              countRule: L10n.shared.language.countRule)
             return ShelfTooltipSupport.text(forPile: breakdown, strings: strings)
         }
     }
