@@ -1591,8 +1591,10 @@ final class NotchService: ObservableObject {
             collapse()
         }
         // Space changes do not run a full preference sync. Restore volume
-        // key routing when the island becomes eligible for feedback again.
+        // and brightness key routing when the island becomes eligible for
+        // feedback again, and hand the keys back while it is away.
         if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
+        if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
     }
 
     private func fullscreenEnvironmentDidChange() {
@@ -1690,7 +1692,9 @@ final class NotchService: ObservableObject {
                 captureClose?()
                 clearCapture()
                 tearDownPresentation()
+                // The keys go back to the system while nothing can show them.
                 if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
+                if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
             }
         }
         // A dark display does not stop an alarm while the same user and Mac
