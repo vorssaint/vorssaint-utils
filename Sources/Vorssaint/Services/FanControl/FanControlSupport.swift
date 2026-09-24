@@ -86,25 +86,6 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
     static var defaultCurvesStorage: String {
         encodeCurves([defaultCurve]) ?? "[]"
     }
-
-    /// The control kept for a restart or wake. Only a valid manual speed or
-    /// curve qualifies: System control has nothing to bring back.
-    static func encodeResume(_ configuration: FanControlConfiguration) -> String? {
-        guard configuration.mode != .system,
-              FanControlPolicy.validConfiguration(configuration) else { return nil }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(configuration) else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    static func decodeResume(_ value: String) -> FanControlConfiguration? {
-        guard let data = value.data(using: .utf8),
-              let configuration = try? JSONDecoder().decode(FanControlConfiguration.self, from: data),
-              configuration.mode != .system,
-              FanControlPolicy.validConfiguration(configuration) else { return nil }
-        return configuration
-    }
 }
 
 struct FanControlSnapshot: Codable, Equatable, Sendable {
