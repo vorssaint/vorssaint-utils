@@ -14,7 +14,9 @@ struct ShelfSettings: View {
     @AppStorage(DefaultsKey.shelfCloseAfterDrop) private var closeAfterDrop = false
     @AppStorage(DefaultsKey.shelfRemoveAfterDrop) private var removeAfterDrop = true
     @AppStorage(DefaultsKey.shelfClearOnClose) private var clearOnClose = false
+    @AppStorage(DefaultsKey.notchShelf) private var opensInIsland = true
     @State private var showingAppPicker = false
+    @State private var islandShowsFiles = NotchSupport.showsFiles()
 
     var body: some View {
         Form {
@@ -38,6 +40,17 @@ struct ShelfSettings: View {
             }
 
             if enabled {
+                // Mirrors the island page's Files choice, which only matters while the island shows Files.
+                if islandShowsFiles {
+                    Section {
+                        Picker(FeatureStrings.notchEditor(l10n.language).destinations, selection: $opensInIsland) {
+                            Text(FeatureStrings.notch(l10n.language).title).tag(true)
+                            Text(FeatureStrings.notchEditor(l10n.language).separate).tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
                 Section {
                     Toggle(l10n.s.shelfShortcutToggle, isOn: $shortcutEnabled)
                         .onChange(of: shortcutEnabled) { _, _ in
@@ -141,6 +154,11 @@ struct ShelfSettings: View {
             }
         }
         .formStyle(.grouped)
+        // The island can be switched on or its modules changed elsewhere while this page is open.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)) { _ in
+            islandShowsFiles = NotchSupport.showsFiles()
+        }
         .sheet(isPresented: $showingAppPicker) {
             appPickerSheet
         }
