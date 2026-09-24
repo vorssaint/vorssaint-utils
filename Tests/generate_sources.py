@@ -428,6 +428,10 @@ def main():
           + "}\n"
           + declaration(update_view, "struct NotchUpdateControl:")
           + "}\n")
+    write("UpdateAdminInstall.swift", "import Foundation\n\nextension UpdateAdminInstallContract {\n"
+          + "final class Service: Fixture {\n"
+          + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
+          + "}\n}\n")
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
           + declaration(notch, "    func show(_ incoming:").replace("NotchSupport.routes(incoming.event)", "true")
