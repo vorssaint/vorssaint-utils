@@ -23,6 +23,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -31,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -94,6 +96,18 @@ extension RecorderShareStrings {
         tooLarge: "Esta grabación no cabe en 100 MB sin perder demasiada calidad.",
         failed: "No se pudo crear el enlace temporal",
         tourCaption: "Comprime una grabación terminada en este Mac y compártela durante 1 o 6 horas."
+    )
+
+    static let sk = RecorderShareStrings(
+        caption: "Vyberte 1 alebo 6 hodín. Finálne video sa na tomto Macu skomprimuje pod 100 MB a automaticky sa vymaže.",
+        privacyData: "Vorssaint odosiela iba finálne video vytvorené z tohto nahrávania, vrátane zvuku, ktorý ste ponechali, a vami zvolenej platnosti. Neodosiela vaše meno, účet ani identifikátor zariadenia.",
+        privacyStorage: "Poskytovatelia siete a služba dočasne spracúvajú vašu verejnú IP adresu, aby zabránili zneužitiu. Video a metadáta odkazu sa natrvalo vymažú, keď odkaz vymažete alebo keď uplynie jeho platnosť. Služba nevytvára zálohy.",
+        privacyAccess: "Ktokoľvek s odkazom môže video zobraziť, stiahnuť, uložiť alebo ďalej šíriť. Aktívne odkazy sú dostupné prevádzkovateľovi služby na moderovanie zneužitia. Zdieľajte iba s ľuďmi, ktorým dôverujete.",
+        compressing: "Komprimuje sa na zdieľanie…",
+        uploading: "Bezpečne sa nahráva…",
+        tooLarge: "Toto nahrávanie sa nezmestí pod 100 MB bez príliš veľkej straty kvality.",
+        failed: "Dočasný odkaz sa nepodarilo vytvoriť",
+        tourCaption: "Skomprimujte dokončené nahrávanie na tomto Macu a zdieľajte ho na 1 alebo 6 hodín."
     )
 
     static let de = RecorderShareStrings(
@@ -190,5 +204,16 @@ extension RecorderShareStrings {
         tooLarge: "這段錄製無法在不過度損失畫質的情況下壓縮至100 MB以內。",
         failed: "無法建立暫時連結",
         tourCaption: "在這部Mac上壓縮完成的錄製，並分享1小時或6小時。"
+    )
+    static let uk = RecorderShareStrings(
+        caption: "Виберіть 1 або 6 годин. Фінальне відео стискається на цьому Mac, щоб уміститися в 100 МБ, та видаляється автоматично.",
+        privacyData: "Vorssaint надсилає лише готове відео із цього запису, включно зі збереженим аудіо та обраним терміном дії. Він не надсилає ваше ім’я, обліковий запис або ідентифікатор пристрою.",
+        privacyStorage: "Мережеві провайдери та сервіс нетривало обробляють вашу публічну IP-адресу для запобігання зловживанням. Відео та метадані посилання безповоротно видаляються, коли ви видаляєте посилання або спливає термін його дії. Сервіс не створює резервних копій.",
+        privacyAccess: "Будь-хто з посиланням може переглядати, завантажувати, зберігати або передавати відео. Активні посилання доступні оператору сервісу для модерації зловживань. Діліться лише з тими, кому довіряєте.",
+        compressing: "Стиснення для поширення…",
+        uploading: "Безпечне завантаження…",
+        tooLarge: "Цей запис не може уміститися в 100 МБ без зайвої втрати якості.",
+        failed: "Не вдалося створити тимчасове посилання",
+        tourCaption: "Стисніть завершений запис на цьому Mac та поділіться ним на 1 або 6 годин."
     )
 }

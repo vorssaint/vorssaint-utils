@@ -10,11 +10,15 @@ struct ShelfSettings: View {
     @AppStorage(DefaultsKey.shelfShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.shelfShakeToOpen) private var shake = true
     @AppStorage(DefaultsKey.shelfDropZoneEnabled) private var dropZone = true
+    @AppStorage(DefaultsKey.shelfDockPlacement) private var dockPlacement = ShelfDockPlacement.menuBar.rawValue
+    @AppStorage(DefaultsKey.notchEnabled) private var islandEnabled = false
     @AppStorage(DefaultsKey.shelfEdgeDragEnabled) private var edgeDrag = false
     @AppStorage(DefaultsKey.shelfCloseAfterDrop) private var closeAfterDrop = false
     @AppStorage(DefaultsKey.shelfRemoveAfterDrop) private var removeAfterDrop = true
     @AppStorage(DefaultsKey.shelfClearOnClose) private var clearOnClose = false
+    @AppStorage(DefaultsKey.notchShelf) private var opensInIsland = true
     @State private var showingAppPicker = false
+    @State private var islandShowsFiles = NotchSupport.showsFiles()
 
     var body: some View {
         Form {
@@ -38,6 +42,17 @@ struct ShelfSettings: View {
             }
 
             if enabled {
+                // Mirrors the island page's Files choice, which only matters while the island shows Files.
+                if islandShowsFiles {
+                    Section {
+                        Picker(FeatureStrings.notchEditor(l10n.language).destinations, selection: $opensInIsland) {
+                            Text(FeatureStrings.notch(l10n.language).title).tag(true)
+                            Text(FeatureStrings.notchEditor(l10n.language).separate).tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
                 Section {
                     Toggle(l10n.s.shelfShortcutToggle, isOn: $shortcutEnabled)
                         .onChange(of: shortcutEnabled) { _, _ in
@@ -65,9 +80,27 @@ struct ShelfSettings: View {
                             .onChange(of: dropZone) { _, _ in
                                 ShelfService.shared.syncDragMonitor()
                             }
-                        Text(l10n.s.shelfDropZoneCaption)
+                        Text(dockPlacement == ShelfDockPlacement.topCenter.rawValue && !islandOn
+                             ? l10n.s.shelfDropZoneCaptionTopCenter : l10n.s.shelfDropZoneCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    if dropZone {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Picker(l10n.s.shelfDockPlacement, selection: $dockPlacement) {
+                                Text(l10n.s.shelfDockMenuBar).tag(ShelfDockPlacement.menuBar.rawValue)
+                                Text(l10n.s.shelfDockTopCenter).tag(ShelfDockPlacement.topCenter.rawValue)
+                            }
+                            .disabled(islandOn)
+                            .onChange(of: dockPlacement) { _, _ in
+                                ShelfService.shared.syncDockedShelf()
+                            }
+                            if islandOn {
+                                Text(l10n.s.shelfDockIslandNote)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                     VStack(alignment: .leading, spacing: 3) {
                         Toggle(l10n.s.shelfEdgeToggle, isOn: $edgeDrag)
@@ -141,9 +174,18 @@ struct ShelfSettings: View {
             }
         }
         .formStyle(.grouped)
+        // The island can be switched on or its modules changed elsewhere while this page is open.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)) { _ in
+            islandShowsFiles = NotchSupport.showsFiles()
+        }
         .sheet(isPresented: $showingAppPicker) {
             appPickerSheet
         }
+    }
+
+    private var islandOn: Bool {
+        islandEnabled && NotchSupport.isEnabled()
     }
 
     private var sortedExclusions: [String] {

@@ -67,6 +67,13 @@ enum BrightnessSupport {
         return min(lastNonzero, 1)
     }
 
+    /// A slider hands over whatever the drag produced. Nothing but a finite
+    /// value inside the supported range reaches the private setter.
+    static func sliderKeyboardLightLevel(_ level: Float) -> Float? {
+        guard level.isFinite else { return nil }
+        return min(max(level, 0), 1)
+    }
+
     static func steppedKeyboardLightLevel(current: Float, direction: Int) -> Float {
         guard current.isFinite else { return 0 }
         let step = direction < 0 ? -keyboardLightStep : keyboardLightStep

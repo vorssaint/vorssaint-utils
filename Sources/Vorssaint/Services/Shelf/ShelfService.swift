@@ -181,6 +181,8 @@ final class ShelfService: ObservableObject {
     /// During a drag the card only opens once the pointer comes near; far away
     /// it stays a pill, so a drag across the screen never throws a big box open.
     @Published private(set) var dockedProximate = false
+    /// Mirrors `ShelfDockPlacement.current()` so the pill redraws as the badge.
+    @Published private(set) var dockedPlacement = ShelfDockPlacement.menuBar
     /// A brief green tick after a drop lands, shown on the pill.
     @Published private(set) var dockedJustCaught = false
     private var dockedFlashWork: DispatchWorkItem?
@@ -669,11 +671,13 @@ final class ShelfService: ObservableObject {
             NSScreen.screens.first { $0.frame.intersects(rect) }
         }?.frame ?? NSScreen.main?.frame
 
+        // A badge at the top center is its own target; joining it to a far
+        // menu bar icon would make most of the menu bar open the card.
         let near = ShelfDockDragSupport.isPointNearDock(
             point: mouse,
             isProximate: dockedProximate,
             panelFrame: dockedPanel?.frame,
-            anchorFrame: anchor,
+            anchorFrame: dockedPlacement == .menuBar ? anchor : nil,
             screenFrame: screen)
 
         if dockedProximate {
@@ -954,6 +958,12 @@ final class ShelfService: ObservableObject {
         let wanted = dockedFeatureOn && !isVisible
             && (itemCount > 0 || dockedDragActive || dockedForcedOpen)
         guard wanted else { hideDocked(); return }
+        let placement = ShelfDockPlacement.current()
+        if dockedPlacement != placement {
+            // Reposition again once the view has redrawn at its new size.
+            dockedPlacement = placement
+            scheduleDockedSync()
+        }
         let panel = ensureDockedPanel()
         if panel.contentViewController == nil {
             let host = NSHostingController(rootView: DockedShelfView().environmentObject(self))
@@ -970,9 +980,9 @@ final class ShelfService: ObservableObject {
         dockedPanel.orderOut(nil)
     }
 
-    /// Anchors the docked panel under the menu bar icon, its top edge just
-    /// below the bar, and clamps it to that screen. The top edge stays put as
-    /// it grows and shrinks, so it reads as hanging from the icon. No frame
+    /// Anchors the docked panel under the menu bar icon (or at the top center
+    /// of that screen), its top edge just below the bar. The top edge stays put
+    /// as it grows and shrinks, so it reads as hanging from the bar. No frame
     /// animation: the panel resize and the SwiftUI content swap cannot be kept
     /// in step, and half-synced frames read as lag.
     private func positionDocked(_ panel: NSPanel) {
@@ -980,14 +990,13 @@ final class ShelfService: ObservableObject {
         view.layoutSubtreeIfNeeded()
         let size = view.fittingSize
         let anchor = statusItemFrameProvider?()
-        let visible = (anchor.flatMap { rect in
+        let screen = anchor.flatMap { rect in
             NSScreen.screens.first { $0.frame.intersects(rect) }
-        } ?? NSScreen.withMouse)?.visibleFrame ?? NSScreen.pointerVisibleFrame
-        var x = anchor.map { $0.midX - size.width / 2 } ?? (visible.maxX - size.width - 12)
-        x = min(max(visible.minX + 8, x), visible.maxX - size.width - 8)
-        let top = visible.maxY - 4
-        let frame = NSRect(x: x, y: top - size.height, width: size.width, height: size.height)
-        panel.setFrame(frame, display: true)
+        } ?? NSScreen.withMouse
+        let visible = screen?.visibleFrame ?? NSScreen.pointerVisibleFrame
+        let safeTop = screen.map { $0.frame.maxY - $0.safeAreaInsets.top } ?? visible.maxY
+        panel.setFrame(dockedPlacement.frame(size: size, visible: visible, safeTop: safeTop, anchor: anchor),
+                       display: true)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
     }

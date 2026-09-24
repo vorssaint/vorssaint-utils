@@ -1142,8 +1142,15 @@ enum CommandBarCatalog {
                     .map { .appIcon(path: $0.path) } ?? .symbol("macwindow"),
                 countsUsage: false,
                 run: { _ in
+                    // Capture before the beat: the bar never activates, so this
+                    // is still the app in front, and a switch during the delay
+                    // must not become the handoff source for a later reclaim.
+                    let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
                     afterBeat(0.1) {
-                        WindowActivator.activate(pid: pid, windowID: windowID, appName: appName)
+                        WindowActivator.activate(pid: pid,
+                                                 windowID: windowID,
+                                                 appName: appName,
+                                                 handoffSourcePID: handoffSourcePID)
                     }
                 })
         }

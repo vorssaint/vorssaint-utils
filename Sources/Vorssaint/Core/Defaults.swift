@@ -11,6 +11,7 @@ enum DefaultsKey {
     static let appearance = "appAppearance"               // AppAppearance.rawValue
     static let liquidGlassEnabled = "liquidGlassEnabled"  // Liquid Glass visual styling on macOS 26+
     static let clamshellPreferred = "clamshellPreferred"  // apply closed-lid mode to every session
+    static let dimScreenOnLidClose = "dimScreenOnLidClose" // dim the built-in display to zero while the lid is closed
     static let onboardingStep = "onboardingStep"          // resume point if onboarding is interrupted
     static let featuresOnboardingVersion = "featuresOnboardingVersion" // last feature-tour marker handled
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
@@ -43,6 +44,7 @@ enum DefaultsKey {
     static let statusItemPlacementGeneration = "statusItemPlacementGeneration"
     static let hasOnboarded = "hasOnboarded"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
+    static let dimmedDisplaySavedBrightness = "vorssDimmedDisplaySavedBrightness" // internal guard for closed-lid screen dimming recovery
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let scrollHorizontalEnabled = "scrollHorizontalEnabled"
@@ -136,6 +138,13 @@ enum DefaultsKey {
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
     static let soundOutputSwitcherDeviceUIDs = "soundOutputSwitcherDeviceUIDs"
+    // Audio device priority: ordered output and microphone lists the feature
+    // enforces automatically when its enable flags are on.
+    static let audioPriorityOutputEnabled = "audioPriorityOutputEnabled"
+    static let audioPriorityInputEnabled = "audioPriorityInputEnabled"
+    static let audioPriorityOutputUIDs = "audioPriorityOutputUIDs"    // [String] ordered device UIDs
+    static let audioPriorityInputUIDs = "audioPriorityInputUIDs"     // [String] ordered device UIDs
+    static let audioPriorityDeviceNames = "audioPriorityDeviceNames" // [uid: name] last-known names
     static let preferredInputDevice = "preferredInputDevice" // audio input device UID
     static let finderCutPasteEnabled = "finderCutPasteEnabled"
     static let finderCutPasteShowHUD = "finderCutPasteShowHUD"
@@ -169,6 +178,7 @@ enum DefaultsKey {
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
     static let shelfShakeToOpen = "shelfShakeToOpen"
     static let shelfDropZoneEnabled = "shelfDropZoneEnabled"
+    static let shelfDockPlacement = "shelfDockPlacement"   // ShelfDockPlacement raw value
     static let shelfEdgeDragEnabled = "shelfEdgeDragEnabled"
     static let shelfCloseAfterDrop = "shelfCloseAfterDrop"
     static let shelfRemoveAfterDrop = "shelfRemoveAfterDrop"
@@ -314,6 +324,7 @@ enum DefaultsKey {
     static let panelShowUtilities = "panelShowUtilities"
     static let panelShowControls = "panelShowControls"
     static let panelShowToggles = "panelShowToggles"
+    static let panelShowWallpaper = "panelShowWallpaper"
     // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
     static let panelToggleDarkMode = "panelToggleDarkMode"
     static let panelToggleKeyboardLight = "panelToggleKeyboardLight"
@@ -341,6 +352,7 @@ enum DefaultsKey {
     static let menuBarBattery = "menuBarBattery"
     static let menuBarBatteryTime = "menuBarBatteryTime"
     static let menuBarPeripheralBattery = "menuBarPeripheralBattery"
+    static let menuBarConnectedDevices = "menuBarConnectedDevices"
     static let menuBarPower = "menuBarPower"
     static let menuBarFanSpeed = "menuBarFanSpeed"
     static let menuBarPreset = "menuBarPreset"           // dense
@@ -444,6 +456,8 @@ enum DefaultsKey {
     static let windowLayoutHiddenActions = "windowLayoutHiddenActions" // comma-separated action ids hidden from the grid
     static let windowLayoutWindowGap = "windowLayoutWindowGap" // px between adjacent snapped windows
     static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
+    static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
+    static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
 
@@ -527,6 +541,11 @@ enum DefaultsKey {
     static let micMuteShortcut = "micMuteShortcut"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
     static let cameraPreviewShortcut = "cameraPreviewShortcut"
+    static let wallpaperApplyAllDisplays = "wallpaperApplyAllDisplays"
+    static let wallpaperFilter = "wallpaperFilter"
+    static let wallpaperOwnBookmarks = "wallpaperOwnBookmarks"
+    // paths hidden from folder scans (does not delete files)
+    static let wallpaperExcludedOwnPaths = "wallpaperExcludedOwnPaths"
     static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
     static let scratchpadShortcut = "scratchpadShortcut"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
@@ -659,6 +678,8 @@ enum DefaultsKey {
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
     static let windowDirectionalEnabled = "windowDirectionalEnabled"
     static let windowDirectionalShortcut = "windowDirectionalShortcut"
+    static let pointerDisplayEnabled = "pointerDisplayEnabled"
+    static let pointerDisplayShortcut = "pointerDisplayShortcut"
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
     static let windowGestureEnabled = "windowGestureEnabled"
@@ -1003,7 +1024,7 @@ enum Defaults {
         "gpu", "gpuTemperature",
         "memory",
         "battery", "batteryTime", "batteryTemperature", "peripheralBattery",
-        "network", "diskUsage", "diskActivity", "power", "fanSpeed",
+        "network", "diskUsage", "diskActivity", "connectedDevices", "power", "fanSpeed",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
@@ -1020,6 +1041,7 @@ enum Defaults {
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
         DefaultsKey.liquidGlassEnabled: false,
         DefaultsKey.clamshellPreferred: false,
+        DefaultsKey.dimScreenOnLidClose: false,
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.keepAwakeAutoStart: false,
@@ -1115,6 +1137,14 @@ enum Defaults {
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
+        // The feature itself ships uninstalled. On first install both halves
+        // work immediately; an explicit off choice is persisted and wins over
+        // these registered defaults on later launches or reinstalls.
+        DefaultsKey.audioPriorityOutputEnabled: true,
+        DefaultsKey.audioPriorityInputEnabled: true,
+        DefaultsKey.audioPriorityOutputUIDs: [String](),
+        DefaultsKey.audioPriorityInputUIDs: [String](),
+        DefaultsKey.audioPriorityDeviceNames: [String: String](),
         // Finder never benefits from being "quit" (it just relaunches), so
         // it's excepted out of the box.
         DefaultsKey.autoQuitExceptions: mandatoryAutoQuitExceptionBundleIDs,
@@ -1141,6 +1171,7 @@ enum Defaults {
         // On by default (owner's call): it costs nothing until the shelf itself
         // is on, and then the shelf lives handily under the menu bar icon.
         DefaultsKey.shelfDropZoneEnabled: true,
+        DefaultsKey.shelfDockPlacement: ShelfDockPlacement.menuBar.rawValue,
         // New Shelf behavior stays opt-in for existing users.
         DefaultsKey.shelfEdgeDragEnabled: false,
         // Closing after a drop is new behavior, so it arrives OFF for people
@@ -1347,6 +1378,7 @@ enum Defaults {
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
         DefaultsKey.panelShowToggles: true,
+        DefaultsKey.panelShowWallpaper: true,
         DefaultsKey.panelToggleDarkMode: true,
         DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,
@@ -1369,6 +1401,7 @@ enum Defaults {
         DefaultsKey.menuBarDiskUsage: false,
         DefaultsKey.menuBarDiskActivity: false,
         DefaultsKey.menuBarPeripheralBattery: false,
+        DefaultsKey.menuBarConnectedDevices: false,
         DefaultsKey.menuBarFanSpeed: false,
         DefaultsKey.menuBarPreset: "dense",
         DefaultsKey.menuBarMetricSpacing: "compact",  // owner's call: compact by default in 3.1.8
@@ -1382,6 +1415,7 @@ enum Defaults {
         DefaultsKey.windowLayoutHiddenActions: "",
         DefaultsKey.windowLayoutWindowGap: 0,
         DefaultsKey.windowLayoutScreenGap: 0,
+        DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
@@ -1493,6 +1527,7 @@ enum Defaults {
         DefaultsKey.clipboardHistorySkipSensitive: true,
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
+        DefaultsKey.windowLayoutIgnoredApps: [String](),
         DefaultsKey.clipboardHistoryQuickPreview: false,
         DefaultsKey.clipboardHistoryMenuBarPreview: false,
         DefaultsKey.clipboardHistoryMenuBarPreviewLength: Defaults.defaultClipboardMenuBarPreviewLength,
@@ -1524,6 +1559,8 @@ enum Defaults {
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
+        DefaultsKey.wallpaperApplyAllDisplays: true,
+        DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
@@ -1628,6 +1665,8 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutsEnabled: false,
         DefaultsKey.windowDirectionalEnabled: false,
         DefaultsKey.windowDirectionalShortcut: GlobalShortcut.windowDirectionalDefault.storageValue,
+        DefaultsKey.pointerDisplayEnabled: false,
+        DefaultsKey.pointerDisplayShortcut: GlobalShortcut.pointerNextDisplayDefault.storageValue,
         DefaultsKey.windowEdgeSnapEnabled: false,
         DefaultsKey.windowEdgeSnapDisabledZones: "",
         DefaultsKey.windowGestureEnabled: false,
@@ -2208,5 +2247,29 @@ enum Defaults {
 
     static func sanitizedPreferredInputDeviceUID(_ value: Any?) -> String? {
         MixerRoutingSupport.sanitizedDeviceUID(value)
+    }
+
+    static let audioPriorityMaxListSize = 64
+
+    static func sanitizedAudioPriorityUIDs(_ raw: [Any]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for value in raw {
+            guard let uid = MixerRoutingSupport.sanitizedDeviceUID(value),
+                  seen.insert(uid).inserted else { continue }
+            result.append(uid)
+            if result.count >= audioPriorityMaxListSize { break }
+        }
+        return result
+    }
+
+    static func sanitizedAudioPriorityDeviceNames(_ raw: [String: Any]) -> [String: String] {
+        var result: [String: String] = [:]
+        for (rawUID, rawName) in raw {
+            guard let uid = MixerRoutingSupport.sanitizedDeviceUID(rawUID),
+                  let name = MixerRoutingSupport.sanitizedDeviceUID(rawName) else { continue }
+            result[uid] = name
+        }
+        return result
     }
 }

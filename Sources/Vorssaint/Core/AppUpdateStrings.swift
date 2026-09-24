@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -63,6 +64,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -281,6 +283,49 @@ extension AppUpdateStrings {
         includeOnlineCaption: "Consulta directamente a los desarrolladores cuando es posible y complementa la búsqueda con un catálogo público. La propia app instala la actualización.",
         incompleteCheck: "Revisión incompleta",
         onlineUnavailable: "No se pudo completar la revisión en línea. Los demás resultados siguen visibles."
+    )
+
+    static let sk = AppUpdateStrings(
+        pageTitle: "Aktualizácie aplikácií",
+        hubDescription: "Vyhľadajte a nainštalujte aktualizácie svojich aplikácií",
+        caption: "Hľadá novšie verzie aplikácií na tomto Macu a pomôže vám dokončiť každú aktualizáciu z jej pôvodného zdroja.",
+        panelCaption: "Zistite, ktoré aplikácie majú novšiu verziu",
+        checkNow: "Skontrolovať teraz",
+        checking: "Kontroluje sa",
+        lastCheckFormat: "Posledná kontrola %@",
+        neverChecked: "Zatiaľ neskontrolované",
+        upToDate: "Nenašli sa žiadne aktualizácie",
+        partialUpToDate: "Pri tejto čiastočnej kontrole sa nenašli žiadne aktualizácie",
+        coverageNote: "Kontroluje pôvodné zdroje nainštalovaných aplikácií a verejný katalóg. Aktualizácie sa inštalujú cez pôvodný zdroj.",
+        selectAll: "Vybrať všetko",
+        clearSelection: "Zrušiť výber",
+        updateSelectedFormat: "Aktualizovať %d",
+        updateOne: "Aktualizovať",
+        openAppStore: "Otvoriť App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Otvorí App Store, kde sa táto aktualizácia nainštaluje",
+        frequencyLabel: "Kontrolovať na pozadí",
+        frequencyOff: "Vypnuté",
+        frequencyDaily: "Každý deň",
+        frequencyWeekly: "Každý týždeň",
+        nextCheckFormat: "Ďalšia kontrola %@",
+        notifyToggle: "Upozorniť ma, keď má aplikácia aktualizáciu",
+        includeStoreToggle: "Zahrnúť aplikácie z App Store",
+        includeStoreCaption: "Kontroluje verzie v obchode podľa regiónu tohto Macu. Tieto aktualizácie inštaluje Apple.",
+        packageMissing: "Homebrew nie je nainštalovaný, takže aplikácie sa odtiaľto zatiaľ nedajú aktualizovať.",
+        notificationBodyFormat: "Počet aplikácií s novšou verziou: %@.",
+        notificationBodyOne: "Jedna aplikácia má novšiu verziu.",
+        showInPanel: "Zobraziť v paneli",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Zdroje",
+        includeHomebrewToggle: "Zahrnúť aplikácie Homebrew",
+        onlineBadge: "Online",
+        openApp: "Otvoriť",
+        openAppHint: "Otvorí aplikáciu, aby jej vlastný aktualizátor mohol dokončiť aktualizáciu",
+        includeOnlineToggle: "Zahrnúť ostatné nainštalované aplikácie",
+        includeOnlineCaption: "Pri podpore kontroluje priamo u vývojárov a dopĺňa to verejným katalógom. Aktualizáciu inštaluje samotná aplikácia.",
+        incompleteCheck: "Kontrola nedokončená",
+        onlineUnavailable: "Online kontrolu sa nepodarilo dokončiť. Ostatné výsledky sa aj tak zobrazujú."
     )
 
     static let de = AppUpdateStrings(
@@ -625,5 +670,47 @@ extension AppUpdateStrings {
         includeOnlineCaption: "支援時會直接向開發者查詢，再用公開目錄補充搜尋。更新由 App 自行安裝。",
         incompleteCheck: "檢查未完成",
         onlineUnavailable: "無法完成網上檢查。其他結果仍然會顯示。"
+    )
+    static let uk = AppUpdateStrings(
+        pageTitle: "Оновлення програм",
+        hubDescription: "Знаходьте та встановлюйте оновлення для ваших програм",
+        caption: "Шукає новіші версії програм на цьому Mac та допомагає завершити кожне оновлення з його першоджерела.",
+        panelCaption: "Подивіться, які програми мають новішу версію",
+        checkNow: "Перевірити зараз",
+        checking: "Перевірка",
+        lastCheckFormat: "Найновіша перевірка %@",
+        neverChecked: "Ще не перевірено",
+        upToDate: "Оновлень не знайдено",
+        partialUpToDate: "При частковій перевірці оновлень не знайдено",
+        coverageNote: "Перевіряє початкові джерела встановлених програм і публічний каталог. Оновлення встановлюються через їхнє початкове джерело.",
+        selectAll: "Вибрати все",
+        clearSelection: "Очистити",
+        updateSelectedFormat: "Оновити %d",
+        updateOne: "Оновити",
+        openAppStore: "Відкрити App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Відкриває App Store, де встановлюється це оновлення",
+        frequencyLabel: "Перевіряти у фоновому режимі",
+        frequencyOff: "Вимкнено",
+        frequencyDaily: "Щодня",
+        frequencyWeekly: "Щотижня",
+        nextCheckFormat: "Наступна перевірка %@",
+        notifyToggle: "Повідомте мене, коли програма має оновлення",
+        includeStoreToggle: "Включити програми з App Store",
+        includeStoreCaption: "Перевіряє версії в магазині для регіону цього Mac. Apple встановлює ці оновлення.",
+        packageMissing: "Homebrew не встановлено, тому програми поки не можна оновити звідси.",
+        notificationBodyFormat: "Програм із новішою версією: %@.",
+        notificationBodyOne: "Одна програма має новішу версію.",
+        showInPanel: "Показати в панелі",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Джерела",
+        includeHomebrewToggle: "Включити програми Homebrew",
+        onlineBadge: "Онлайн",
+        openApp: "Відкрити",
+        openAppHint: "Відкриває програму, щоб її власний оновлювач завершив роботу",
+        includeOnlineToggle: "Включити інші встановлені програми",
+        includeOnlineCaption: "Коли підтримується, перевіряє оновлення безпосередньо в розробників програм, а потім використовує публічний каталог. Оновлення встановлює власний механізм програми.",
+        incompleteCheck: "Перевірку не завершено",
+        onlineUnavailable: "Онлайн-перевірку не вдалося завершити. Інші результати все ще показуються."
     )
 }
