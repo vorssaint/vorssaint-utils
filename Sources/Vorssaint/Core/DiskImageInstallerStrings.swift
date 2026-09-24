@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -42,6 +43,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -160,6 +162,29 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Mostrar la app instalada en Finder",
         installedKeptDownloadBodyFormat: "%@ está lista en %@. La imagen de disco se expulsó y la descarga se conservó.",
         installingFormat: "Instalando %@…"
+    )
+
+    static let sk = DiskImageInstallerStrings(
+        title: "Inštalátor obrazu disku",
+        hubDescription: "Nainštaluje jedinú aplikáciu z obrazu disku a upratá stiahnutý súbor",
+        useUserApplications: "Nainštalovať do priečinka Aplikácie vo vašom domovskom priečinku",
+        applicationsFolder: "priečinka Aplikácie",
+        userApplicationsFolder: "priečinka Aplikácie vo vašom domovskom priečinku",
+        promptTitle: "Nainštalovať túto aplikáciu?",
+        promptBodyFormat: "Aplikácia %@ sa skopíruje do %@ a obraz disku sa vysunie.",
+        installButton: "Nainštalovať",
+        installedTitle: "Aplikácia nainštalovaná",
+        installedBodyFormat: "Aplikácia %@ bola nainštalovaná do %@. Obraz disku bol vysunutý a stiahnutý súbor presunutý do Koša.",
+        installedKeepingMountBodyFormat: "Aplikácia %@ bola nainštalovaná do %@, ale obraz disku sa nepodarilo vysunúť. Stiahnutý súbor zostal zachovaný.",
+        installedKeepingDownloadBodyFormat: "Aplikácia %@ bola nainštalovaná do %@ a obraz disku bol vysunutý, ale stiahnutý súbor sa nepodarilo presunúť do Koša.",
+        failedTitle: "Nepodarilo sa nainštalovať",
+        failedBody: "Nič sa nezmenilo. Aplikáciu môžete stále presunúť do priečinka Aplikácie.",
+        verificationFailedBody: "Tento Mac nemohol overiť aplikáciu, preto sa nič nenainštalovalo.",
+        alreadyInstalledBodyFormat: "Aplikácia %@ je už v priečinku Aplikácie.",
+        trashDownloadOption: "Presunúť stiahnutý súbor do Koša",
+        revealAppOption: "Zobraziť nainštalovanú aplikáciu vo Finderi",
+        installedKeptDownloadBodyFormat: "Aplikácia %@ bola nainštalovaná do %@. Obraz disku bol vysunutý a stiahnutý súbor zostal zachovaný.",
+        installingFormat: "Inštaluje sa aplikácia %@…"
     )
 
     static let de = DiskImageInstallerStrings(
@@ -344,5 +369,27 @@ extension DiskImageInstallerStrings {
         revealAppOption: "在 Finder 中顯示已安裝的 App",
         installedKeptDownloadBodyFormat: "%@ 已可在%@中使用。磁碟映像檔已退出，下載檔案已保留。",
         installingFormat: "正在安裝 %@…"
+    )
+    static let uk = DiskImageInstallerStrings(
+        title: "Інсталятор образів диска",
+        hubDescription: "Встановлює окрему програму з образу диска та очищає завантаження",
+        useUserApplications: "Встановити в папку «Програми» у вашій домашній папці",
+        applicationsFolder: "папці «Програми»",
+        userApplicationsFolder: "папці «Програми» у вашій домашній папці",
+        promptTitle: "Встановити цю програму?",
+        promptBodyFormat: "%@ буде встановлено в %@, а образ диска вийнято.",
+        installButton: "Встановити",
+        installedTitle: "Програму встановлено",
+        installedBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження переміщено в Смітник.",
+        installedKeepingMountBodyFormat: "%@ встановлено в %@, але образ диска не вдалося вийняти. Завантаження збережено.",
+        installedKeepingDownloadBodyFormat: "%@ встановлено в %@, а образ диска вийнято, але завантаження не вдалося перемістити в Смітник.",
+        failedTitle: "Не вдалося встановити",
+        failedBody: "Нічого не змінено. Ви все ще можете перетягнути програму у «Програми».",
+        verificationFailedBody: "Цей Mac не зміг перевірити програму, тому нічого не встановлено.",
+        alreadyInstalledBodyFormat: "%@ вже у папці «Програми».",
+        trashDownloadOption: "Перемістити завантаження в Смітник",
+        revealAppOption: "Показати встановлену програму у Finder",
+        installedKeptDownloadBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження збережено.",
+        installingFormat: "Встановлення %@…"
     )
 }

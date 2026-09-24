@@ -16,6 +16,7 @@ enum ShelfDropRoutingContract {
         static var visibleModules: [NotchModule] = [.files]
         static func isEnabled() -> Bool { enabled }
         static func modules() -> [NotchModule] { visibleModules }
+        static func showsFiles() -> Bool { isEnabled() && modules().contains(.files) }
     }
     enum UserDefaults {
         static var standard = Store()
