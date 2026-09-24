@@ -20,7 +20,12 @@ final class PointerDisplayService: ObservableObject {
     func syncWithPreferences() {
         let enabled = AppFeature.windowLayout.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.pointerDisplayEnabled)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled,
+        // Like Window Layout's other keys, this one steps aside while an app
+        // from Ignore apps is in front, so the key reaches that app.
+        let front = NSWorkspace.shared.frontmostApplication
+        let paused = WindowLayoutIgnoredApps.shared.contains(bundleID: front?.bundleIdentifier,
+                                                             executablePath: front?.executableURL?.path)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled && !paused,
                                                   shortcut: GlobalShortcutRole.pointerNextDisplay.savedShortcut,
                                                   storageKey: DefaultsKey.pointerDisplayShortcut)
     }

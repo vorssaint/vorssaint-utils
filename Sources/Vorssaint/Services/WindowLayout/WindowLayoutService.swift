@@ -106,8 +106,11 @@ final class WindowLayoutService: ObservableObject {
             && !enabledEdgeSnapZones.isEmpty
             && !WindowEdgeSnapSupport.isSystemTilingEnabled
             && trusted
+        // The pointer shortcut needs no Accessibility, so it counts on its own.
+        let pointerEnabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.pointerDisplayEnabled)
         syncIgnoredAppsActivationObserver(inputsEnabled: shortcutsEnabled || directionalEnabled
-                                          || gestureEnabled || edgeSnapEnabled)
+                                          || gestureEnabled || edgeSnapEnabled || pointerEnabled)
         let frontmost = NSWorkspace.shared.frontmostApplication
         let inputAllowed = !WindowLayoutIgnoredApps.shared.contains(
             bundleID: frontmost?.bundleIdentifier,
@@ -123,6 +126,9 @@ final class WindowLayoutService: ObservableObject {
 
         let wantsEdgeSnap = edgeSnapEnabled && inputAllowed
         wantsEdgeSnap ? startEdgeSnapTap() : stopEdgeSnapTap()
+
+        // Its key pauses for a listed app like the ones above.
+        PointerDisplayService.shared.syncWithPreferences()
     }
 
     private func syncIgnoredAppsActivationObserver(inputsEnabled: Bool) {
