@@ -148,14 +148,15 @@ enum ScrollWheelSupport {
         )
         if plan.vertical {
             event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: -verticalLine)
-            if isContinuous || redirected {
+            // A zero whole-line field cannot reconstruct a high-resolution tick.
+            if isContinuous || redirected || verticalLine == 0 {
                 event.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: -verticalPoint)
                 event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: -verticalFixedPoint)
             }
         }
         if plan.horizontal {
             event.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: -horizontalLine)
-            if isContinuous || redirected {
+            if isContinuous || redirected || horizontalLine == 0 {
                 event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: -horizontalPoint)
                 event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: -horizontalFixedPoint)
             }

@@ -153,9 +153,6 @@ final class ScrollInverter: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         guard type == .scrollWheel else { return Unmanaged.passUnretained(event) }
-        if AppSwitcher.shared.scrollNavigationActive {
-            return Unmanaged.passUnretained(event)
-        }
         // Smooth scrolling swallows the wheel before this tap and already
         // turned its glide around, so flipping the glide here would cancel
         // that out and inverting would look broken while both are on. The

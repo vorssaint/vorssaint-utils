@@ -89,6 +89,23 @@ enum ScrollHorizontalModifierTests {
                     "raw redirection followed by inversion preserves high-resolution distances")
             }
         }
+        for horizontal in [false, true] {
+            for sign: Int64 in [-1, 1] {
+                let raw = wheel(flags: .maskCommand, line: 0, point: 0, fixed: 0)
+                let line: CGEventField = horizontal ? .scrollWheelEventDeltaAxis2 : .scrollWheelEventDeltaAxis1
+                let point: CGEventField = horizontal ? .scrollWheelEventPointDeltaAxis2 : .scrollWheelEventPointDeltaAxis1
+                let fixed: CGEventField = horizontal ? .scrollWheelEventFixedPtDeltaAxis2 : .scrollWheelEventFixedPtDeltaAxis1
+                raw.setIntegerValueField(point, value: sign * 2)
+                raw.setDoubleValueField(fixed, value: Double(sign) * 0.25)
+                ScrollWheelSupport.applyDirection(to: raw, isContinuous: false,
+                    invertVertical: !horizontal, invertHorizontal: horizontal, horizontalModifier: nil)
+                suite.expect(raw.getIntegerValueField(line) == 0
+                    && raw.getIntegerValueField(point) == -sign * 2
+                    && raw.getDoubleValueField(fixed) == -Double(sign) * 0.25
+                    && raw.flags == .maskCommand,
+                    "unredirected sub-line wheels retain their precision and modifiers after inversion")
+            }
+        }
         let disabled = wheel(flags: .maskAlternate)
         ScrollWheelSupport.applyDirection(to: disabled, isContinuous: false,
             invertVertical: false, invertHorizontal: false, horizontalModifier: nil)
