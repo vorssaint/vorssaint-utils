@@ -261,19 +261,40 @@ public final class VirtualDisplayService: @unchecked Sendable {
         associatedTargetIDs.subtracting(onlineDisplayIDs)
     }
 
-    /// Tears down virtual sources whose physical targets have actually left the
-    /// online display list. There is no target left to unmirror; releasing the
-    /// retained CGVirtualDisplay is the safe cleanup and removes the invisible desktop.
+    /// Evaluates which associated targets are no longer online or no longer
+    /// mirroring their assigned virtual display source (e.g. Extended Display selected).
+    public static func disassociatedTargetIDs(
+        associatedDummies: [CGDirectDisplayID: CGDirectDisplayID],
+        onlineDisplayIDs: Set<CGDirectDisplayID>,
+        mirrorsDisplay: (CGDirectDisplayID) -> CGDirectDisplayID = { CGDisplayMirrorsDisplay($0) }
+    ) -> Set<CGDirectDisplayID> {
+        var disassociated = Set<CGDirectDisplayID>()
+        for (targetID, virtualID) in associatedDummies {
+            if !onlineDisplayIDs.contains(targetID) {
+                disassociated.insert(targetID)
+            } else if mirrorsDisplay(targetID) != virtualID {
+                disassociated.insert(targetID)
+            }
+        }
+        return disassociated
+    }
+
+    /// Tears down virtual sources whose physical targets have left the online
+    /// display list or are no longer mirroring their assigned virtual source
+    /// (e.g. user selected Extended Display in System Settings).
     @discardableResult
-    public func removeVirtualMirrorsForMissingTargets(
-        onlineDisplayIDs: Set<CGDirectDisplayID>
+    public func reconcileVirtualMirrors(
+        onlineDisplayIDs: Set<CGDirectDisplayID>,
+        mirrorsDisplay: (CGDirectDisplayID) -> CGDirectDisplayID = { CGDisplayMirrorsDisplay($0) }
     ) -> [CGDirectDisplayID] {
         lock.lock()
-        let orphaned = Self.orphanedTargetIDs(
-            associatedTargetIDs: Set(associatedDummies.keys),
-            onlineDisplayIDs: onlineDisplayIDs
+        let associatedMap = associatedDummies.compactMapValues { $0.displayID }
+        let toRemove = Self.disassociatedTargetIDs(
+            associatedDummies: associatedMap,
+            onlineDisplayIDs: onlineDisplayIDs,
+            mirrorsDisplay: mirrorsDisplay
         )
-        let removed = orphaned.compactMap { targetID -> (CGDirectDisplayID, VirtualDisplayInstance)? in
+        let removed = toRemove.compactMap { targetID -> (CGDirectDisplayID, VirtualDisplayInstance)? in
             guard let instance = associatedDummies.removeValue(forKey: targetID) else { return nil }
             return (targetID, instance)
         }
@@ -285,11 +306,32 @@ public final class VirtualDisplayService: @unchecked Sendable {
         return removed.map(\.0).sorted()
     }
 
+    /// Tears down virtual sources whose physical targets have actually left the
+    /// online display list or are no longer mirrored.
+    @discardableResult
+    public func removeVirtualMirrorsForMissingTargets(
+        onlineDisplayIDs: Set<CGDirectDisplayID>
+    ) -> [CGDirectDisplayID] {
+        reconcileVirtualMirrors(onlineDisplayIDs: onlineDisplayIDs)
+    }
+
     /// Returns the virtual display ID mirroring the target physical display, if active.
     public func virtualDisplayID(for targetDisplayID: CGDirectDisplayID) -> CGDirectDisplayID? {
         lock.lock()
         defer { lock.unlock() }
         return associatedDummies[targetDisplayID]?.displayID
+    }
+
+    /// Returns the physical target display ID being mirrored by the virtual display, if active.
+    public func physicalTargetID(for virtualDisplayID: CGDirectDisplayID) -> CGDirectDisplayID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return associatedDummies.first(where: { $0.value.displayID == virtualDisplayID })?.key
+    }
+
+    /// Resolves a display ID: if it is a virtual source, returns its physical target; otherwise returns the ID itself.
+    public func resolvePhysicalTarget(for displayID: CGDirectDisplayID) -> CGDirectDisplayID {
+        physicalTargetID(for: displayID) ?? displayID
     }
 
     /// Returns the active dummy instance for the target physical display, if any.

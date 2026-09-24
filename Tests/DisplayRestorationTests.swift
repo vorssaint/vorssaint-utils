@@ -789,6 +789,18 @@ enum DisplayRestorationTests {
         suite.expect(orphanedTargets == [22],
                      "virtual HiDPI cleanup removes only targets that actually left the online topology")
 
+        let disassociatedTargets = VirtualDisplayService.disassociatedTargetIDs(
+            associatedDummies: [11: 111, 22: 222, 33: 333],
+            onlineDisplayIDs: [11, 22],
+            mirrorsDisplay: { displayID in
+                if displayID == 11 { return 111 }
+                if displayID == 22 { return 0 }
+                return 0
+            }
+        )
+        suite.expect(disassociatedTargets == [22, 33],
+                     "virtual HiDPI cleanup identifies both offline targets and unmirrored targets")
+
         let qhdProfile = VirtualDisplayProfile.profile(matchingWidth: 2560, height: 1440)
         if let backing = qhdProfile.modes.first(where: { $0.width == 5120 && $0.height == 2880 }) {
             let logical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: backing)
@@ -834,6 +846,12 @@ enum DisplayRestorationTests {
                      && resolutionSource.contains("newModesPerDisplay[targetID] = availableModes")
                      && resolutionSource.contains("newHiDPIStatusPerDisplay[targetID] = .virtualMirror"),
                      "mirror rows use physical-target mode indices and virtual-source current state")
+        suite.expect(resolutionSource.contains("isResolutionManagementActive")
+                     && resolutionSource.contains("reconcileVirtualMirrors")
+                     && resolutionSource.contains("if self.modesPerDisplay != newModesPerDisplay")
+                     && resolutionSource.contains("if self.currentModePerDisplay != newCurrentModePerDisplay")
+                     && resolutionSource.contains("if self.hiDPIStatusPerDisplay != newHiDPIStatusPerDisplay"),
+                     "resolution service publishes only on changes and suppresses background polling when disabled")
 
         let brightnessSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
@@ -841,6 +859,10 @@ enum DisplayRestorationTests {
         suite.expect(brightnessSource.contains("isVirtualMirrorTarget(for: id)")
                      && brightnessSource.contains("activeTopology.contains(id) || virtualMirrorTarget"),
                      "the physical virtual-HiDPI target remains a controllable brightness/resolution row")
+        suite.expect(brightnessSource.contains("cleanupForBrightnessFeatureRemoval()")
+                     && brightnessSource.contains("resolvePhysicalTarget(for: CGMainDisplayID())")
+                     && brightnessSource.contains("resolvePhysicalTarget(for: id)"),
+                     "brightness service rolls back virtual mirrors on disable and routes virtual IDs to physical displays")
 
         let virtualSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Display/VirtualDisplayService.swift",
@@ -857,6 +879,18 @@ enum DisplayRestorationTests {
         } else {
             suite.expect(false, "virtual mirror teardown source contract is present")
         }
+
+        let commandBarSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(commandBarSource.contains("resolvePhysicalTarget(for: $0)"),
+                     "command bar translates virtual display IDs to physical targets")
+
+        let osdSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessOSD.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(osdSource.contains("virtualDisplayID(for: displayID) ?? displayID"),
+                     "brightness OSD maps physical targets to active virtual screens")
 
         let brightnessSectionSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift",

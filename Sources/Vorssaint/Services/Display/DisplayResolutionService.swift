@@ -118,10 +118,23 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
             .store(in: &cancellables)
     }
 
+    private var isResolutionManagementActive: Bool {
+        (AppFeature.brightness.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled))
+            || !VirtualDisplayService.shared.virtualMirrorTargetIDs().isEmpty
+    }
+
     /// Display mode notifications can arrive in bursts while EDR ramps. Keep
     /// one refresh scheduled from the first event so those bursts do not run
     /// repeated CoreGraphics/SkyLight mode enumeration on the main thread.
     private func scheduleScreenRefresh() {
+        guard isResolutionManagementActive else {
+            if !modesPerDisplay.isEmpty || !currentModePerDisplay.isEmpty || !hiDPIStatusPerDisplay.isEmpty {
+                modesPerDisplay = [:]
+                currentModePerDisplay = [:]
+                hiDPIStatusPerDisplay = [:]
+            }
+            return
+        }
         guard pendingScreenRefresh == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -153,16 +166,25 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
     }
 
     private func _performRefresh() {
+        guard isResolutionManagementActive else {
+            if !modesPerDisplay.isEmpty || !currentModePerDisplay.isEmpty || !hiDPIStatusPerDisplay.isEmpty {
+                modesPerDisplay = [:]
+                currentModePerDisplay = [:]
+                hiDPIStatusPerDisplay = [:]
+            }
+            return
+        }
+
         // The screen-change notification is also our lifecycle signal for a
-        // physical target disappearing. Only mutate virtual state after a
-        // successful online-list query; a transient query failure must never
-        // be mistaken for every monitor being unplugged.
+        // physical target disappearing or having its mirror broken in System Settings.
+        // Only mutate virtual state after a successful online-list query; a
+        // transient query failure must never be mistaken for every monitor being unplugged.
         let onlineIDs = Self.onlineDisplayIDs()
         if let onlineIDs {
             let removedTargets = VirtualDisplayService.shared
-                .removeVirtualMirrorsForMissingTargets(onlineDisplayIDs: onlineIDs)
+                .reconcileVirtualMirrors(onlineDisplayIDs: onlineIDs)
             if !removedTargets.isEmpty {
-                Self.log.info("Removed orphaned virtual HiDPI mirrors for targets \(String(describing: removedTargets), privacy: .public).")
+                Self.log.info("Removed orphaned or disassociated virtual HiDPI mirrors for targets \(String(describing: removedTargets), privacy: .public).")
             }
         }
 
@@ -241,9 +263,15 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
             newHiDPIStatusPerDisplay[targetID] = .virtualMirror
         }
 
-        self.modesPerDisplay = newModesPerDisplay
-        self.currentModePerDisplay = newCurrentModePerDisplay
-        self.hiDPIStatusPerDisplay = newHiDPIStatusPerDisplay
+        if self.modesPerDisplay != newModesPerDisplay {
+            self.modesPerDisplay = newModesPerDisplay
+        }
+        if self.currentModePerDisplay != newCurrentModePerDisplay {
+            self.currentModePerDisplay = newCurrentModePerDisplay
+        }
+        if self.hiDPIStatusPerDisplay != newHiDPIStatusPerDisplay {
+            self.hiDPIStatusPerDisplay = newHiDPIStatusPerDisplay
+        }
     }
 
     /// Queries all available display modes for a given display ID, combining CGDisplay modes and CGS private modes.

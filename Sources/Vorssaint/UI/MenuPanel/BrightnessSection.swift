@@ -145,9 +145,6 @@ struct BrightnessSection: View {
             }
             if display.isActive {
                 DisplayResolutionRow(displayID: display.id)
-                if XDRBoostService.shared.isEDRSupported(for: display.id) {
-                    XDRBoostRow(displayID: display.id)
-                }
             }
             SoftwareDimmingButton(display: display, compact: true)
         }
