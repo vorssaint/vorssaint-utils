@@ -15,6 +15,7 @@ enum NotchActivityTests {
         rulerContracts(suite)
         compactTimerContracts(suite)
         compactMarginContracts(suite)
+        compactDownloadContracts(suite)
         accessoryContracts(suite)
         PeripheralBatteryLifecycleTests.run(suite)
         gateContracts(suite)
@@ -589,6 +590,46 @@ enum NotchActivityTests {
                         let width = reading.size(withAttributes: [.font: font]).width
                         suite.expect(wing - inset >= width * NotchDownloadSupport.percentMinimumScale,
                                "a download reading its last percent keeps one whole line in every language")
+                    }
+                }
+            }
+        }
+    }
+
+    /// A download shows its arrow and its progress in wings no wider than
+    /// they need, not in a strip wide enough for a name it had to clip.
+    private static func compactDownloadContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: NotchDownloadSupport.percentSize, weight: .medium)
+        for layout in NotchSize.allCases {
+            for barHeight: CGFloat in [24, 32, 37, 44] {
+                for room: CGFloat in [0, 30, 44, 50, 56, 72, 200, 600] {
+                    for notched in [true, false] {
+                        let geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                     cameraWidth: notched ? 180 : 160, layout: layout,
+                                                     menuBarHeight: barHeight, compactSideRoom: room)
+                        let download = geometry.compactDownloadGeometry
+                        let size = download.compactActivitySize
+                        if download.compactActivityUsesFooter {
+                            suite.expect(notched && room < 44 && size.width == geometry.cameraWidth,
+                                   "only a crowded physical camera still moves a download below it")
+                            continue
+                        }
+                        let wing = download.compactActivityWingWidth
+                        suite.expect(wing == (room >= 44 ? min(56, room) : 0)
+                               && size.width == download.cameraWidth + wing * 2 && size.height == geometry.stripHeight,
+                               "a download's wings hold its arrow and progress beside the camera, never the wide strip")
+                        guard wing > 0 else { continue }
+                        let iconSize = min(17, download.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
+                        suite.expect(download.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2) + iconSize <= wing,
+                               "the download arrow fits its wing past the curved edge")
+                        let inset = NotchDownloadSupport.percentInset(in: download)
+                        for language in AppLanguage.allCases {
+                            let reading = (1.0).formatted(NotchDownloadSupport.percentFormat(language)) as NSString
+                            suite.expect(wing - inset >= reading.size(withAttributes: [.font: font]).width
+                                            * NotchDownloadSupport.percentMinimumScale,
+                                   "a download reading its last percent keeps one whole line in every language")
+                        }
                     }
                 }
             }

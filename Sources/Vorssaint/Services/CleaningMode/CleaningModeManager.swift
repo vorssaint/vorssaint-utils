@@ -373,9 +373,9 @@ final class CleaningModeManager: ObservableObject {
     }
 
     private func makeOverlay(frame: NSRect) -> NSPanel {
-        let panel = NSPanel(contentRect: frame,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
+        let panel = OverlayPanel(contentRect: frame,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered, defer: false)
         panel.isFloatingPanel = true
         // Above the menu bar and full-screen apps — the shielding level macOS uses
         // for its own lock-style windows.

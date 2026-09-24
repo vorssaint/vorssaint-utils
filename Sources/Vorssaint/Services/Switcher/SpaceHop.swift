@@ -204,7 +204,7 @@ final class SpaceHop {
             let screenFrame = NSScreen.screens.first(where: {
                 (($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value) == displayID
             })?.frame
-            if let screenFrame, !screenFrame.contains(currentMouse) {
+            if let screenFrame, !NSMouseInRect(currentMouse, screenFrame, false) {
                 if originalCursorLocation == nil {
                     originalCursorLocation = CGEvent(source: nil)?.location
                 }

@@ -352,7 +352,7 @@ final class CameraPreviewService: ObservableObject {
 
     /// Borderless panels refuse key status by default; the preview needs it
     /// so Esc closes it without a click.
-    private final class KeyablePreviewPanel: NSPanel {
+    private final class KeyablePreviewPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

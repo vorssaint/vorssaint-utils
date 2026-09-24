@@ -322,7 +322,7 @@ final class DockPreviewService: ObservableObject {
             return
         }
         let pointer = NSEvent.mouseLocation
-        let visibleFrame = (NSScreen.screens.first { $0.frame.contains(pointer) }
+        let visibleFrame = (NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
             ?? NSScreen.withMouse)?.visibleFrame ?? .zero
         let origin = axPoint(fromAppKit: DockPreviewSupport.dragOrigin(
             pointer: pointer,
@@ -588,7 +588,7 @@ final class DockPreviewService: ObservableObject {
     /// Dock geometry is unknown so detection never silently stops working.
     private func isNearDock(_ point: CGPoint) -> Bool {
         guard let preferences = cachedPreferences else { return true }
-        let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
+        let screen = NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) } ?? NSScreen.main
         guard let frame = screen?.frame else { return true }
         let band = DockPreviewSupport.dockProximityBand(tileSize: preferences.hoverTileSize)
         switch preferences.orientation {
@@ -1187,10 +1187,10 @@ final class DockPreviewService: ObservableObject {
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
 
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         panel.level = .statusBar
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -1230,10 +1230,10 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func makePinnedPanel(for pinned: DockPreviewPinnedPanel) -> NSPanel {
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         panel.level = .statusBar
         panel.isOpaque = false
         panel.backgroundColor = .clear

@@ -345,6 +345,14 @@ enum NotchTests {
             measurements.height(displayID: id, frame: frame, visibleTop: frame.maxY - gap,
                                 scale: scale, statusBarThickness: fallback)
         }
+        for gap: CGFloat in [16, 24, 37, 64] {
+            suite.expect(NotchMenuBarMeasurements.showsBar(frame: screen, visibleTop: screen.maxY - gap),
+                   "a bar reserving its height at the top of the visible frame is on screen")
+        }
+        for gap: CGFloat in [0, 1, -10, 15, 65, 600, .nan, .infinity] {
+            suite.expect(!NotchMenuBarMeasurements.showsBar(frame: screen, visibleTop: screen.maxY - gap),
+                   "a bar that hides until revealed, or a display without one, reserves no room")
+        }
         for height: CGFloat in [16, 22, 24, 28, 30, 32, 33, 37, 64] {
             suite.expect(read(1, gap: height) == height, "the selected display's current visible bar supplies its height")
             let geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: height)
@@ -552,6 +560,13 @@ enum NotchTests {
                && NotchSupport.routesClipboardWindow(in: defaults) && NotchSupport.routesShelf(in: defaults)
                && NotchSupport.routesCaptureControls(in: defaults),
                "enabling a fresh island routes available panels into it")
+        suite.expect(!NotchSupport.routes(.track, in: defaults), "the island announces a new song only when asked to")
+        defaults.set(true, forKey: DefaultsKey.notchTrackChange)
+        suite.expect(NotchSupport.routes(.track, in: defaults), "a new song shows while the music section is on")
+        defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(!NotchSupport.routes(.track, in: defaults), "a hidden music section announces no new song")
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        defaults.set(false, forKey: DefaultsKey.notchTrackChange)
         let initialLayout = NotchQuickAccessConfiguration.current(in: defaults)
         suite.expect(initialLayout.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.timer)]
                && initialLayout.buttons.filter { $0.side == .right }.compactMap(\.action) == [.settings, .module(.mixer)]
@@ -818,7 +833,7 @@ enum NotchTests {
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
                                 DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
                                 DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow, DefaultsKey.notchCapture,
-                                DefaultsKey.notchMusicActivity, DefaultsKey.notchHideInCaptures, DefaultsKey.panelControlNotch,
+                                DefaultsKey.notchTrackChange, DefaultsKey.notchMusicActivity, DefaultsKey.notchHideInCaptures, DefaultsKey.panelControlNotch,
                                 AppFeature.notch.availabilityKey]
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: keys), "every notch preference travels in backup")
         let restored = SettingsBackupSupport.sanitizedSettings(from: [

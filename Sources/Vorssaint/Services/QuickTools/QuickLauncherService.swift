@@ -328,7 +328,7 @@ final class QuickLauncherService: ObservableObject {
     /// Borderless panels refuse key status by default, and the launcher needs
     /// it for arrows, digits and Esc. Borderless also removes the invisible
     /// title-bar strip that would swallow clicks on the header controls.
-    private final class KeyableLauncherPanel: NSPanel {
+    private final class KeyableLauncherPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

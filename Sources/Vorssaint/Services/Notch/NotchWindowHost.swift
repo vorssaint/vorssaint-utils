@@ -138,7 +138,13 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             return
         }
         if canAnimate { canvas.transitionContent(revealing ? .reveal : transitionContent) }
-        else { canvas.restoreContent() }
+        else if animated && changesFrame && (revealing || transitionContent == .reveal) {
+            // Reduce Motion, or a panel that was ordered out, puts the island
+            // at its new size at once. Shown at once, the page reached the
+            // screen in the resting shape, flushed ahead of the resize, or
+            // ahead of the surface drawn beneath it. A fade is not motion.
+            canvas.transitionContent(.reveal, shapeSnaps: true)
+        } else { canvas.restoreContent() }
         guard changesFrame else { configureQuickAccess(); return }
         // An ordered-out panel still has its last expanded shape. Start the
         // reveal at the screen edge, even when reopening at that same size.
@@ -862,7 +868,7 @@ private final class NotchCanvas: NSView {
 
     deinit { backdropDisplayLink?.invalidate() }
 
-    func transitionContent(_ kind: NotchContentTransition) {
+    func transitionContent(_ kind: NotchContentTransition, shapeSnaps: Bool = false) {
         guard kind != .none else { return }
         let currentOpacity = contentVisibility.presentation()?.opacity ?? contentVisibility.opacity
         contentVisibility.removeAnimation(forKey: "notch.opacity")
@@ -883,9 +889,10 @@ private final class NotchCanvas: NSView {
             let start: Float = kind == .dismiss || currentOpacity == 1 ? 0 : currentOpacity
             // Give the silhouette a head start before revealing full-width
             // content. Reversals continue from the opacity already on screen.
+            // A shape that snaps into place only needs its first frames drawn.
             animation.values = [start, start, 1]
-            animation.keyTimes = kind == .dismiss ? [0, 0.65, 1] : [0, 0.625, 1]
-            animation.duration = 0.40
+            animation.keyTimes = kind == .dismiss ? [0, 0.65, 1] : shapeSnaps ? [0, 0.25, 1] : [0, 0.625, 1]
+            animation.duration = shapeSnaps ? 0.2 : 0.40
             animation.calculationMode = .linear
             animation.timingFunctions = [CAMediaTimingFunction(name: .linear), CAMediaTimingFunction(name: .easeOut)]
             contentVisibility.opacity = 1
