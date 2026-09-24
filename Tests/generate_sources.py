@@ -412,7 +412,7 @@ def main():
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
-    write("NotchCompact.swift", "import AppKit\nimport SwiftUI\nextension NotchCompactTests {\n"
+    write("NotchCompact.swift", "import AppKit\nimport Carbon.HIToolbox\nimport SwiftUI\nextension NotchCompactTests {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraView:")
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCalendarEventRow:")
               .replace("private struct", "struct", 1)
@@ -421,6 +421,7 @@ def main():
           + declaration(scratchpad_view, "struct NotchScratchpadView:")
           + "}\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "extension NotchCalendarColor {")
+          + declaration("Sources/Vorssaint/UI/PlainTextLineMover.swift", "enum PlainTextLineMover")
           + "extension NotchCompactTests.ScratchpadService {\n"
           + declaration(scratchpad_service, "    func clear(")
           + "}\nextension NotchCompactTests.Floating {\n"
