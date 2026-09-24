@@ -1334,8 +1334,6 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Every final output closes the editor: the capture leaves the app
-    /// and the window's job is done, so nothing lingers to tidy up.
     /// The edited image as it would be saved, in a temporary file for the
     /// system share sheet.
     func shareFile() -> URL? {
@@ -1344,6 +1342,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                      strings: strings)
     }
 
+    /// Every final output closes the editor: the capture leaves the app
+    /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
         guard let export = model.exportImage() else { return }
         guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) else {

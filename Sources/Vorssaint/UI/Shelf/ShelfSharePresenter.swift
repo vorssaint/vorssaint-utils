@@ -35,6 +35,9 @@ final class ShelfSharePresenter: NSObject, NSSharingServicePickerDelegate {
 
     func sharingServicePicker(_ sharingServicePicker: NSSharingServicePicker,
                               didChoose service: NSSharingService?) {
+        // A late answer from a menu that was already replaced must not take
+        // the newer one's completion.
+        guard sharingServicePicker === picker else { return }
         picker = nil
         let completion = self.completion
         self.completion = nil

@@ -771,8 +771,8 @@ struct ScreenshotEditorView: View {
 
             if sharingEnabled {
                 shareMenu
-                Divider().frame(height: 16).padding(.horizontal, 3)
             }
+            Divider().frame(height: 16).padding(.horizontal, 3)
 
             Menu {
                 Button(strings.saveButton) {
