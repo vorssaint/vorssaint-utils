@@ -192,6 +192,10 @@ def main():
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    private static func applyBrightness(").replace("private static", "static", 1)
           + "}\n")
+    write("PointerScreen.swift", "import AppKit\n"
+          + "extension PointerScreenContract.Screen {\n"
+          + declaration("Sources/Vorssaint/Core/AppKitExtensions.swift", "    static var withMouse:")
+          + "}\n")
     write("CommandBarEmojiBodies.swift", "import Foundation\n"
           + "extension CommandBarEmojiContract.Catalog {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
@@ -445,6 +449,10 @@ def main():
           + "}\n"
           + declaration(update_view, "struct NotchUpdateControl:")
           + "}\n")
+    write("UpdateAdminInstall.swift", "import Foundation\n\nextension UpdateAdminInstallContract {\n"
+          + "final class Service: Fixture {\n"
+          + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
+          + "}\n}\n")
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
           + declaration(notch, "    func show(_ incoming:").replace("NotchSupport.routes(incoming.event)", "true")
@@ -720,6 +728,18 @@ def main():
           + declaration(selection, "    private static func matchesShortcutKey(")
           + declaration(selection, "    private func installKeyMonitor()")
           + "}\n}\n")
+    hop = "Sources/Vorssaint/Services/Switcher/SpaceHop.swift"
+    write("PointerOnDisplay.swift", "import AppKit\n"
+          + "extension PointerOnDisplayContract.Bridge {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
+          + "}\nextension PointerOnDisplayContract.Hop {\n"
+          + "".join(declaration(hop, prefix).replace("private ", "", 1)
+                    for prefix in ["    private enum TravelOutcome {", "    private func stepWithSpaceShortcut()"])
+          + "}\nextension PointerOnDisplayContract.Overlay {\n"
+          + declaration(selection, "    func refreshGuideVisibility()")
+          + "}\nextension PointerOnDisplayContract.Dock {\n"
+          + declaration(dock, "    private func isNearDock(").replace("private func", "func", 1)
+          + "}\n")
 
     lyrics = "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift"
     write("NotchLyricsLifecycle.swift", "import Foundation\nimport UniformTypeIdentifiers\n\nextension NotchLyricsContract {\n"
