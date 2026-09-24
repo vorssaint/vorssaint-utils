@@ -239,6 +239,13 @@ enum RepositoryFeatureTests {
                "a site the user added gets a row of its own")
         suite.expect(ruleGroups.contains { $0.site == "youtube.com" },
                "every built-in site is listed")
+        expectEqual(URLCleaning.clean("https://www.xiaohongshu.com/?shareRedId=a&exSource=b&id=1")?.url ?? "",
+                    "https://www.xiaohongshu.com/?id=1",
+                    "a built-in name spelled in mixed case by the site is still removed")
+        let upperCaseBuiltIns = URLCleaning.ruleGroups(rules: .none)
+            .flatMap(\.entries).map(\.name).filter { $0 != $0.lowercased() }
+        suite.expect(upperCaseBuiltIns.isEmpty,
+               "built-in names are lowercase, since matching and switched off names are: \(upperCaseBuiltIns)")
         expectEqual(URLCleaning.siteKey(from: " https://WWW.Weibo.com/path?x=1 ") ?? "",
                     "weibo.com", "the site field takes a pasted link and keeps the host")
         suite.expect(URLCleaning.siteKey(from: "not a host") == nil,
@@ -657,6 +664,65 @@ enum RepositoryFeatureTests {
         suite.expect(HomebrewPackageOrdering.updatesFirst(orderingPackages).map(\.name)
                == ["beta-tool", "gamma-tool", "alpha-tool", "delta-tool"],
                "Homebrew installed packages keep all pending updates first without reordering either group")
+        let dependencyJSON = """
+        {
+          "formulae": [
+            { "name": "app-a", "full_name": "app-a",
+              "installed": [{ "version": "1", "installed_on_request": true,
+                              "runtime_dependencies": [{ "full_name": "shared-lib" }, { "full_name": "deep-lib" }] }] },
+            { "name": "app-b", "full_name": "example/tap/app-b",
+              "installed": [{ "version": "1", "installed_on_request": true,
+                              "runtime_dependencies": [{ "full_name": "shared-lib" }, { "full_name": "example/tap/tap-lib" }] }] },
+            { "name": "shared-lib", "full_name": "shared-lib",
+              "installed": [{ "version": "2", "installed_on_request": false,
+                              "runtime_dependencies": [{ "full_name": "deep-lib" }] }] },
+            { "name": "deep-lib", "full_name": "deep-lib",
+              "installed": [{ "version": "3", "installed_on_request": false, "runtime_dependencies": [] }] },
+            { "name": "tap-lib", "full_name": "example/tap/tap-lib",
+              "installed": [{ "version": "4", "installed_on_request": false, "runtime_dependencies": [] }] },
+            { "name": "cask-lib", "full_name": "cask-lib",
+              "installed": [{ "version": "5", "installed_on_request": false, "runtime_dependencies": [] }] },
+            { "name": "orphan-lib", "full_name": "orphan-lib",
+              "installed": [{ "version": "6", "installed_on_request": false, "runtime_dependencies": [] }] }
+          ],
+          "casks": [
+            { "token": "cask-app", "name": ["Cask App"], "installed": "1",
+              "depends_on": { "formula": ["cask-lib"] } }
+          ]
+        }
+        """
+        let dependencyPackages = (try? HomebrewParser.parseInfoJSON(Data(dependencyJSON.utf8))) ?? []
+        let folded = HomebrewDependencyGraph.fold(dependencyPackages, installed: dependencyPackages)
+        suite.expect(folded.rows.map(\.name) == ["cask-app", "app-a", "example/tap/app-b", "orphan-lib"],
+                     "Homebrew keeps requested packages and unneeded dependencies as rows, found \(folded.rows.map(\.name))")
+        suite.expect(folded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
+                     "Homebrew lists direct and transitive dependencies under a requested formula")
+        suite.expect(folded.dependencies["formula:example/tap/app-b"]?.map(\.name)
+                     == ["deep-lib", "example/tap/tap-lib", "shared-lib"],
+                     "Homebrew lists a shared dependency under each parent and resolves tapped names")
+        suite.expect(folded.dependencies["cask:cask-app"]?.map(\.name) == ["cask-lib"],
+                     "Homebrew lists a cask's formula dependencies under the cask")
+        let withUpdate = HomebrewPackageOrdering.updatesFirst(dependencyPackages.map { package in
+            var package = package
+            if package.name == "shared-lib" {
+                package.update = HomebrewPackageUpdate(kind: .formula, name: "shared-lib",
+                                                       installedVersions: ["2"], currentVersion: "3", isPinned: false)
+            }
+            return package
+        })
+        let updateFolded = HomebrewDependencyGraph.fold(withUpdate, installed: withUpdate)
+        suite.expect(updateFolded.rows.map(\.name) == ["shared-lib", "cask-app", "app-a", "example/tap/app-b", "orphan-lib"]
+                     && updateFolded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
+                     "Homebrew keeps a reached dependency with an update as its own first row and under its parent, found \(updateFolded.rows.map(\.name))")
+        let formulaOnly = dependencyPackages.filter { $0.kind == .formula }
+        suite.expect(HomebrewDependencyGraph.fold(formulaOnly, installed: dependencyPackages).rows.map(\.name).contains("cask-lib"),
+                     "Homebrew shows a cask's dependency as a row when the filter hides the cask")
+        let oldBrewPackages = (try? HomebrewParser.parseInfoJSON(Data(dependencyJSON
+            .replacingOccurrences(of: "\"installed_on_request\": true,", with: "")
+            .replacingOccurrences(of: "\"installed_on_request\": false,", with: "").utf8))) ?? []
+        let oldBrewFolded = HomebrewDependencyGraph.fold(oldBrewPackages, installed: oldBrewPackages)
+        suite.expect(oldBrewFolded.rows.count == 8 && oldBrewFolded.dependencies.isEmpty,
+                     "Homebrew keeps the flat list when brew does not report installed_on_request, found \(oldBrewFolded.rows.count)")
         let searchPackages = HomebrewParser.parseSearchOutput("sample-formula\nbad token\nsample-filter\nsample-tool\n",
                                                               kind: .formula,
                                                               installed: homebrewPackages)

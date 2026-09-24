@@ -149,9 +149,8 @@ enum NotchPresentationProbe {
             cameraWidth: cameraWidth, menuBarHeight: measurements.height(
                 displayID: screen.notchDisplayID, frame: screen.frame, visibleTop: screen.visibleFrame.maxY,
                 scale: screen.backingScaleFactor, statusBarThickness: NSStatusBar.system.thickness))
-        let notice = NotchNotice(event: .accessory, title: title,
-                                detail: FeatureStrings.notchActivities(L10n.shared.language).connected,
-                                symbol: NotchAccessorySupport.symbol(for: .audio, name: title))
+        let notice = NotchNotice(event: .accessory, title: FeatureStrings.notchActivities(L10n.shared.language).connected,
+                                detail: title, symbol: NotchAccessorySupport.symbol(name: title, majorClass: 0x04, minorClass: 0x06))
         let size = geometry.noticeSize(wingWidth: notice.preferredWingWidth)
         let content = NotchNoticeView(notice: notice, geometry: geometry)
             .frame(width: size.width, height: size.height).background(.black)
@@ -312,6 +311,9 @@ enum NotchPresentationProbe {
             || !host.panel.collectionBehavior.contains(.canJoinAllSpaces) {
             failures.append("the island must stay stationary when revealing the desktop, without a conflicting window motion policy")
         }
+        if host.overlayProbeHolds == false {
+            failures.append("the island is not held in a Space of its own, so a desktop swipe would slide it away")
+        }
         if host.panel.level.rawValue <= NSWindow.Level.statusBar.rawValue
             || host.panel.level.rawValue >= NSWindow.Level.popUpMenu.rawValue {
             failures.append("top-edge activation must outrank status items while leaving native menus above the island")
@@ -343,10 +345,16 @@ enum NotchPresentationProbe {
         var noticeHeightLimit: CGFloat?
         var lostStationaryHover = false
         var hoverHosts = [host]
+        // The openness of the last glass frame on the way to a black strip.
+        var tracksClosingGlass = false
+        var closingGlassOpenness: Double?
         let stationaryPointer = CGPoint(x: screen.frame.midX - geometry.cameraWidth / 4,
                                         y: screen.frame.maxY)
         func sample() {
             samples += 1
+            if tracksClosingGlass, host.backdropProbeUsesGlass {
+                closingGlassOpenness = host.backdropProbeOpenness
+            }
             if host.contentCanvasSize != host.panel.frame.size { canvasChangedSize = true }
             maxAnchorError = max(maxAnchorError, abs(host.panel.frame.maxY - (screen.frame.maxY)))
             maxContentError = max(maxContentError, abs(host.contentTopOnScreen - host.panel.frame.maxY))
@@ -374,6 +382,9 @@ enum NotchPresentationProbe {
         host.present(size: geometry.expanded, geometry: geometry, animated: true, transitionContent: .reveal, usesGlass: true)
         if !reduceMotion, !host.contentProbeAnimating {
             failures.append("opening content has no reveal transition")
+        }
+        if !reduceMotion, host.backdropProbeOpenness > 0.01 {
+            failures.append("glass opened at full strength over the black strip it grows out of")
         }
         advance(0.09)
         let intermediate = host.visibleFrame
@@ -405,6 +416,10 @@ enum NotchPresentationProbe {
         advance(0.52)
         if nativeResizes > 2 { failures.append("opening resized its native window every frame: \(nativeResizes)") }
         let openingResizes = nativeResizes
+        if !reduceMotion, host.backdropProbeOpenness < 0.99 {
+            failures.append("settled glass stayed partly closed")
+        }
+        tracksClosingGlass = true
         host.present(size: geometry.notice, geometry: geometry, animated: true, transitionContent: .dismiss)
         var completedActions = 0
         host.whenSettled { completedActions += 1 }
@@ -421,6 +436,10 @@ enum NotchPresentationProbe {
             failures.append("closing disabled the hosting view's interaction frame")
         }
         advance(0.52)
+        tracksClosingGlass = false
+        if !reduceMotion, (closingGlassOpenness ?? 1) > 0.15 {
+            failures.append("glass reached the black strip still open: \(closingGlassOpenness ?? 1)")
+        }
         if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.notice)) { failures.append("notice did not settle") }
         if host.backdropProbeUsesGlass || host.backdropProbeScheduled {
             failures.append("compact notice retained glass or its frame scheduler after settling")

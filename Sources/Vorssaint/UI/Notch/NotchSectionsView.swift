@@ -158,27 +158,44 @@ struct NotchSectionsView: View {
 /// keyboard already goes to it while the gallery is open.
 struct NotchSectionSearch: View {
     @ObservedObject var service: NotchService
+    /// Infinite fills the room its parent gives it, up to the camera.
     var maximumFieldWidth: CGFloat = 150
     @ObservedObject private var l10n = L10n.shared
     @FocusState private var searching: Bool
     @State private var hovered = false
+    @State private var fieldWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
     private var expanded: Bool { hovered || !service.sectionQuery.isEmpty }
 
+    /// The whole prompt where it fits, otherwise the plain word, and no
+    /// prompt where even that would be cut, so the placeholder never ends
+    /// in a letter cut in half. The magnifier and the accessibility label
+    /// still say what the field is for.
+    private var prompt: String {
+        let font = NSFont.systemFont(ofSize: 12)
+        // The field's text sits a few points inside its frame.
+        func fits(_ prompt: String) -> Bool {
+            (prompt as NSString).size(withAttributes: [.font: font]).width + 6 <= fieldWidth
+        }
+        if fits(text.searchSections) { return text.searchSections }
+        return fits(l10n.s.actionSearch) ? l10n.s.actionSearch : ""
+    }
+
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: expanded ? 4 : 6) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(expanded ? .white : .white.opacity(0.55))
-                .frame(width: 28, height: 28)
+                .frame(width: expanded ? 22 : 28, height: 28)
             // The field keeps its focus at a hair's width, so typing filters
             // the gallery before the field has even shown itself.
-            TextField(text.searchSections, text: Binding(get: { service.sectionQuery }, set: service.searchSections))
+            TextField(prompt, text: Binding(get: { service.sectionQuery }, set: service.searchSections))
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .focused($searching)
-                .frame(width: expanded ? maximumFieldWidth : 1)
+                .frame(maxWidth: expanded ? maximumFieldWidth : 1)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fieldWidth = $0 }
                 .opacity(expanded ? 1 : 0)
                 .accessibilityLabel(text.searchSections)
             if !service.sectionQuery.isEmpty {

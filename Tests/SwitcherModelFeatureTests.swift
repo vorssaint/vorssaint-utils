@@ -1692,6 +1692,13 @@ enum SwitcherModelFeatureTests {
                "URL cleaner clipboard watching is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.windowMaximizeEnabled] as? Bool == false,
                "green button maximize override is opt-in")
+        suite.expect(WindowMaximizerSupport.excludes(bundleIdentifier: "com.example.game",
+                                                     excludedBundleIdentifiers: [" com.example.game "])
+                && !WindowMaximizerSupport.excludes(bundleIdentifier: "com.example.editor",
+                                                    excludedBundleIdentifiers: ["com.example.game"])
+                && !WindowMaximizerSupport.excludes(bundleIdentifier: nil,
+                                                    excludedBundleIdentifiers: ["com.example.game"]),
+               "only apps on the exception list keep the native green button")
         suite.expect(registeredDefaults[DefaultsKey.keyboardDebounceEnabled] as? Bool == false,
                "keyboard debounce is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keyboardDebounceWindowMs] as? Int == 5,
@@ -2829,7 +2836,9 @@ enum SwitcherModelFeatureTests {
                                                    movingDown: false) == 1,
                "App Switcher up navigation keeps its existing column behavior")
         let previousPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
+        let previousSwitcherPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.switcherPreviewSize)
         UserDefaults.standard.set("small", forKey: DefaultsKey.previewSize)
+        UserDefaults.standard.set("small", forKey: DefaultsKey.switcherPreviewSize)
         suite.expectClose(Double(PreviewSizing.scale), 0.75,
                     "Preview sizing accepts the Small option")
         suite.expectClose(Double(SwitcherIconRowLayout.scale), 0.75,
@@ -2851,14 +2860,16 @@ enum SwitcherModelFeatureTests {
         // The grid card's chrome is two lines of text that do not change with
         // the preview size. The card does, so the thumbnail has to take every
         // point the chrome leaves, at whichever size is stored.
-        let smallGridScale = PreviewSizing.scale
+        let smallGridScale = PreviewSizing.switcherScale
         let smallGridCardHeight = SwitcherGridCard.height
         let smallGridCardChrome = smallGridCardHeight - SwitcherGridCard.thumbnailHeight
         suite.expect(SwitcherGridCard.fallbackIconSize < SwitcherGridCard.thumbnailHeight,
                "App Switcher Small keeps the stand-in app icon inside its grid card thumbnail")
-        UserDefaults.standard.set("xlarge", forKey: DefaultsKey.previewSize)
+        UserDefaults.standard.set("xlarge", forKey: DefaultsKey.switcherPreviewSize)
+        suite.expect(SwitcherIconRowLayout.scale > 1 && DockPreviewSupport.cardSpacing == 6,
+               "the switcher and Dock Preview each follow their own preview size")
         suite.expectClose(Double(SwitcherGridCard.height / smallGridCardHeight),
-                    Double(PreviewSizing.scale / smallGridScale),
+                    Double(PreviewSizing.switcherScale / smallGridScale),
                     "an App Switcher grid card's height follows the preview size")
         suite.expectClose(Double(SwitcherGridCard.height - SwitcherGridCard.thumbnailHeight),
                     Double(smallGridCardChrome),
@@ -2896,6 +2907,23 @@ enum SwitcherModelFeatureTests {
             UserDefaults.standard.set(previousPreviewSize, forKey: DefaultsKey.previewSize)
         } else {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize)
+        }
+        if let previousSwitcherPreviewSize {
+            UserDefaults.standard.set(previousSwitcherPreviewSize, forKey: DefaultsKey.switcherPreviewSize)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherPreviewSize)
+        }
+        let previewSizeSuite = "com.vorssaint.tests.switcher-preview-size.\(UUID().uuidString)"
+        if let previewSizeDefaults = UserDefaults(suiteName: previewSizeSuite) {
+            previewSizeDefaults.set("large", forKey: DefaultsKey.previewSize)
+            Defaults.migrateSwitcherPreviewSize(in: previewSizeDefaults)
+            let upgradedSwitcherSize = previewSizeDefaults.string(forKey: DefaultsKey.switcherPreviewSize)
+            previewSizeDefaults.set("small", forKey: DefaultsKey.switcherPreviewSize)
+            Defaults.migrateSwitcherPreviewSize(in: previewSizeDefaults)
+            suite.expect(upgradedSwitcherSize == "large"
+                    && previewSizeDefaults.string(forKey: DefaultsKey.switcherPreviewSize) == "small",
+                   "an upgrade keeps the switcher at the preview size it shared with Dock Preview, once")
+            previewSizeDefaults.removePersistentDomain(forName: previewSizeSuite)
         }
         let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
                                                                  windowShortcut: .switcherWindowDefault)
@@ -4176,16 +4204,16 @@ enum SwitcherModelFeatureTests {
         suite.expect(groupedIconLayout.previewFitsWithoutScrolling(cardCount: 2),
                "App Switcher shows a pair of windows even with a short icon row")
         do {
-            let savedPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
+            let savedPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.switcherPreviewSize)
             defer {
                 if let savedPreviewSize {
-                    UserDefaults.standard.set(savedPreviewSize, forKey: DefaultsKey.previewSize)
+                    UserDefaults.standard.set(savedPreviewSize, forKey: DefaultsKey.switcherPreviewSize)
                 } else {
-                    UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize)
+                    UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherPreviewSize)
                 }
             }
             for size in Defaults.allowedPreviewSizes {
-                UserDefaults.standard.set(size, forKey: DefaultsKey.previewSize)
+                UserDefaults.standard.set(size, forKey: DefaultsKey.switcherPreviewSize)
                 for width in [640.0, 800.0, 1440.0] {
                     for hints in [false, true] {
                         let frame = CGRect(x: 0, y: 0, width: width, height: 900)

@@ -25,6 +25,7 @@ struct MetricsTests {
             ("mixer", {
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
+                SoundOutputSwitchContract.run(suite)
                 MixerInputVolumeContract.run(suite)
                 MixerFeatureTests.run(suite)
             }),
@@ -93,7 +94,10 @@ struct MetricsTests {
                 LocalizationFeatureContractTests.run(suite)
             }),
             ("cleaner", { CleanerEligibilityTests.run(suite) }),
-            ("uninstaller", { UninstallerFlowTests.run(suite) }),
+            ("uninstaller", {
+                UninstallerFlowTests.run(suite)
+                SelfUninstallContract.run(suite)
+            }),
             ("launcher", { QuickLauncherContract.run(suite) }),
             ("dock-autohide", {
                 DockAutohideHoldTests.run(suite)
@@ -105,6 +109,7 @@ struct MetricsTests {
             }),
             ("keep-awake", {
                 KeepAwakeCatalogContract.run(suite)
+                MenuPanelToggleLabelContract.run(suite)
                 KeepAwakeLidSleepTests.run { suite.expect($0, $1) }
                 KeepAwakeTimerHandoffTests.run { suite.expect($0, $1) }
             }),

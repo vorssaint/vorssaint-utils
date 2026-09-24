@@ -11,8 +11,9 @@ struct AdvancedSettings: View {
     @State private var showClearConfirm = false
     @State private var showUninstallConfirm = false
     @State private var uninstallFailed = false
+    @State private var uninstallFailedBody = ""
     @State private var working = false
-    @State private var cleared = false
+    @State private var cleared: Bool?
     @State private var exported = false
     @State private var importFailed = false
     @State private var pendingImport: [String: Any]?
@@ -74,11 +75,15 @@ struct AdvancedSettings: View {
                     Label(l10n.s.advancedClearButton, systemImage: "lock.slash")
                 }
                 .disabled(working)
-                if cleared {
+                if cleared == true {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                         Text(l10n.s.advancedCleared).font(.caption).foregroundStyle(.green)
                     }
+                } else if cleared == false {
+                    Text(l10n.s.advancedClearFailed)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             }
 
@@ -100,10 +105,10 @@ struct AdvancedSettings: View {
             Button(l10n.s.uninstallerCancel, role: .cancel) {}
             Button(l10n.s.advancedClearButton, role: .destructive) {
                 working = true
-                cleared = false
-                SelfUninstall.clearPermissions {
+                cleared = nil
+                SelfUninstall.clearPermissions { succeeded in
                     working = false
-                    cleared = true
+                    cleared = succeeded
                 }
             }
         } message: {
@@ -113,8 +118,9 @@ struct AdvancedSettings: View {
             Button(l10n.s.uninstallerCancel, role: .cancel) {}
             Button(l10n.s.advancedUninstallButton, role: .destructive) {
                 working = true
-                SelfUninstall.uninstallCompletely {
+                SelfUninstall.uninstallCompletely { body in
                     working = false
+                    uninstallFailedBody = body
                     // Stopping leaves the Mac exactly as it was, so the only
                     // thing left to do is say so: the button going quiet on
                     // its own reads as the app ignoring the request.
@@ -127,7 +133,7 @@ struct AdvancedSettings: View {
         .alert(l10n.s.advancedUninstallFailedTitle, isPresented: $uninstallFailed) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(l10n.s.advancedUninstallFailedBody)
+            Text(uninstallFailedBody)
         }
         .alert(backup.importConfirmTitle, isPresented: $showImportConfirm) {
             Button(l10n.s.uninstallerCancel, role: .cancel) { pendingImport = nil }

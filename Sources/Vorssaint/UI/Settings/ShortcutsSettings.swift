@@ -11,7 +11,8 @@ struct ShortcutsSettings: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var superKey = SuperKeyService.shared
     @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
-    @State private var expandedFeatures: Set<AppFeature> = [.screenshot]
+    /// Keyed by group too: brightness has a row in two groups, and each opens on its own.
+    @State private var expandedFeatures: [FeatureGroup: Set<AppFeature>] = [.tools: [.screenshot]]
     @State private var showsAppShortcuts = false
 
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
@@ -100,8 +101,8 @@ struct ShortcutsSettings: View {
             symbolName: AppFeature.screenshot.symbolName,
             isActive: featureHasActiveShortcut(.screenshot, roles: roles),
             count: roles.count,
-            isExpanded: expansionBinding(for: .screenshot))
-        if expandedFeatures.contains(.screenshot) {
+            isExpanded: expansionBinding(for: .screenshot, in: .tools))
+        if expandedFeatures[.tools, default: []].contains(.screenshot) {
             ForEach(roles) { role in
                 roleRow(role, showsFeatureContext: false)
                     .disclosureIndent()
@@ -119,8 +120,8 @@ struct ShortcutsSettings: View {
                 symbolName: featureSymbol(feature, roles: roles),
                 isActive: featureHasActiveShortcut(feature, roles: roles),
                 count: count,
-                isExpanded: expansionBinding(for: feature))
-            if expandedFeatures.contains(feature) {
+                isExpanded: expansionBinding(for: feature, in: group))
+            if expandedFeatures[group, default: []].contains(feature) {
                 if feature == .windowLayout {
                     ForEach(WindowLayoutAction.shortcutActions) { action in
                         CentralWindowLayoutShortcutRow(
@@ -216,14 +217,14 @@ struct ShortcutsSettings: View {
         )
     }
 
-    private func expansionBinding(for feature: AppFeature) -> Binding<Bool> {
+    private func expansionBinding(for feature: AppFeature, in group: FeatureGroup) -> Binding<Bool> {
         Binding {
-            expandedFeatures.contains(feature)
+            expandedFeatures[group, default: []].contains(feature)
         } set: { expanded in
             if expanded {
-                expandedFeatures.insert(feature)
+                expandedFeatures[group, default: []].insert(feature)
             } else {
-                expandedFeatures.remove(feature)
+                expandedFeatures[group, default: []].remove(feature)
             }
         }
     }

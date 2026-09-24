@@ -17,8 +17,9 @@ enum SelfUninstall {
 
     /// Resets every TCC permission the app holds, drops the login item and the
     /// optional closed-lid sudoers rule, and leaves the app in place. Calls back
-    /// on the main queue. Used by "Clear all permissions".
-    static func clearPermissions(completion: @escaping () -> Void) {
+    /// on the main queue with whether the rule and permissions were removed.
+    /// Used by "Clear all permissions".
+    static func clearPermissions(completion: @escaping (Bool) -> Void) {
         // Stop every input interceptor FIRST (on the main thread), then revoke.
         // Revoking Accessibility while a tap is live makes the tap callback hang
         // on an AX call and freezes the whole machine's input — see the note on
@@ -26,16 +27,16 @@ enum SelfUninstall {
         DispatchQueue.main.async {
             _ = suspendInputInterceptors()
             DispatchQueue.global(qos: .userInitiated).async {
-                detachFromSystem()
-                removeSudoersRuleIfPresent {           // may show one admin prompt
-                    resetTCC()
+                if restoreSleepBeforeRemoval() { detachFromSystem() }
+                removeSudoersRuleIfPresent { ruleRemoved in    // may show one admin prompt
+                    let reset = resetTCC()
                     DispatchQueue.main.async {
                         // The published permissions still say granted. Read the
                         // reset state now, or a grant made before the next poll
                         // looks unchanged and the suspended taps never resume.
                         Permissions.shared.refresh()
                         BrightnessService.shared.resumeInputTaps()
-                        completion()
+                        completion(ruleRemoved && reset)
                     }
                 }
             }
@@ -44,22 +45,38 @@ enum SelfUninstall {
 
     /// Clears permissions, removes preferences and saved state, sends the app
     /// bundle to the Trash and quits. Used by "Uninstall Vorssaint completely".
-    static func uninstallCompletely(onFailure: @escaping () -> Void) {
+    /// A failure passes the message explaining what stopped it.
+    static func uninstallCompletely(onFailure: @escaping (String) -> Void) {
+        // Every stop brings back what the teardown suspended, so the Mac is
+        // left as it was.
+        func stop(_ body: String) {
+            DispatchQueue.main.async {
+                FeatureRuntime.shared.sync(AppFeature.allCases)
+                BrightnessService.shared.resumeInputTaps()
+                onFailure(body)
+            }
+        }
         DispatchQueue.main.async {
             guard suspendInputInterceptors() else {
-                BrightnessService.shared.resumeInputTaps()
-                onFailure()
+                stop(L10n.shared.s.advancedUninstallFailedBody)
                 return
             }
             DispatchQueue.global(qos: .userInitiated).async {
-                guard detachFromSystem() else {
-                    DispatchQueue.main.async {
-                        BrightnessService.shared.resumeInputTaps()
-                        onFailure()
-                    }
+                // Sleep may still be restored through the rule, and a refused
+                // rule removal must stop before anything else is removed.
+                guard restoreSleepBeforeRemoval() else {
+                    stop(L10n.shared.s.advancedUninstallFailedBody)
                     return
                 }
-                removeSudoersRuleIfPresent {
+                removeSudoersRuleIfPresent { ruleRemoved in
+                    guard ruleRemoved else {
+                        stop(L10n.shared.s.advancedClearFailed)
+                        return
+                    }
+                    guard detachFromSystem() else {
+                        stop(L10n.shared.s.advancedUninstallFailedBody)
+                        return
+                    }
                     resetTCC()
                     removePreferences()
                     DispatchQueue.main.async { trashOwnBundleAndQuit() }
@@ -127,10 +144,6 @@ enum SelfUninstall {
 
     @discardableResult
     private static func detachFromSystem() -> Bool {
-        if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag),
-           !restoreSleepBeforeRemoval() {
-            return false
-        }
         guard FanControlService.restoreAndUnregisterForRemoval() else { return false }
         // Unregister the login item (scoped to our bundle id). The stored
         // intent goes with it, or the startup repair would quietly register
@@ -151,6 +164,7 @@ enum SelfUninstall {
     /// anything has, which is why it may ask for the password the launch-time
     /// recovery would have asked for.
     private static func restoreSleepBeforeRemoval() -> Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) else { return true }
         // The flag can outlive the setting, so a stale one must not put a
         // password dialog in front of someone uninstalling. Only a reading that
         // answered, and answered "off", is allowed to skip the rest: a probe
@@ -169,16 +183,17 @@ enum SelfUninstall {
             && !SudoersSupport.sleepDisabled(inPmsetOutput: verification.output)
     }
 
-    private static func removeSudoersRuleIfPresent(then: @escaping () -> Void) {
-        guard Sudoers.ruleFilesPresent || Sudoers.isConfigured() else { then(); return }
-        Sudoers.remove { _ in then() }            // shows the admin password prompt
+    private static func removeSudoersRuleIfPresent(then: @escaping (Bool) -> Void) {
+        guard Sudoers.ruleFilesPresent || Sudoers.isConfigured() else { then(true); return }
+        Sudoers.remove(completion: then)            // shows the admin password prompt
     }
 
     /// `tccutil reset All <bundle id>` clears Accessibility, Screen Recording,
     /// Full Disk Access, Automation and the rest, for this app only. The bundle
     /// id is a constant, so there is nothing to inject.
-    private static func resetTCC() {
-        _ = Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID])
+    @discardableResult
+    private static func resetTCC() -> Bool {
+        Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID]).status == 0
     }
 
     private static func removePreferences() {
