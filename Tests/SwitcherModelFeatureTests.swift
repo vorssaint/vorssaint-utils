@@ -2042,6 +2042,31 @@ enum SwitcherModelFeatureTests {
                                                                mustShowForSignal: false),
                "the whole-item hiding only applies to the separate-items mode")
 
+        // Dynamic Island may take the icon's place, but only while it runs:
+        // with the island off or removed, nothing else on screen would lead
+        // back to the app.
+        suite.expect(registeredDefaults[DefaultsKey.notchHidesMenuBarIcon] as? Bool == false,
+               "Dynamic Island only takes the icon's place when asked")
+        let islandIconSuite = "com.vorssaint.tests.islandMenuBarIcon"
+        if let islandDefaults = UserDefaults(suiteName: islandIconSuite) {
+            islandDefaults.removePersistentDomain(forName: islandIconSuite)
+            defer { islandDefaults.removePersistentDomain(forName: islandIconSuite) }
+            islandDefaults.set(true, forKey: AppFeature.notch.availabilityKey)
+            islandDefaults.set(true, forKey: DefaultsKey.notchEnabled)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "a running island leaves the icon alone until asked")
+            islandDefaults.set(true, forKey: DefaultsKey.notchHidesMenuBarIcon)
+            suite.expect(MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "a running island takes the icon's place when asked")
+            islandDefaults.set(false, forKey: DefaultsKey.notchEnabled)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "switching the island off brings the icon back")
+            islandDefaults.set(true, forKey: DefaultsKey.notchEnabled)
+            islandDefaults.set(false, forKey: AppFeature.notch.availabilityKey)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "removing the island in the hub brings the icon back")
+        }
+
         // A pinned metric that momentarily has nothing to show keeps its item
         // instead of being taken away and put back every tick.
         suite.expect(MenuBarSpacingSupport.keepsMetricStatusItem(hasRenderedTitle: true, itemExists: false),
@@ -2210,6 +2235,21 @@ enum SwitcherModelFeatureTests {
             .components(separatedBy: "\n    }").first ?? "")
         suite.expect(iconIsOnScreenCode.contains("StatusItemPlacementSupport.isPlacedStatusFrame("),
                "the recovery judges placement by the menu bar band, not by screen intersection")
+        suite.expect(iconIsOnScreenCode.contains("statusItem.isVisible == true"),
+               "a hidden item never counts as on screen, whatever frame its window kept")
+        // An item the app keeps out of the bar for Dynamic Island is not
+        // missing, and a rebuild on reopen could strand the panel's anchor.
+        let reopenCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "func applicationShouldHandleReopen(").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(reopenCode.contains("mainItemHiddenByChoice != true, !iconIsOnScreen()"),
+               "reopening the app leaves an item hidden by choice alone and opens Settings")
+        let reshowCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "func reshowStatusItem() {").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(reshowCode.contains("DefaultsKey.menuBarHideIconWithMetrics")
+                     && reshowCode.contains("DefaultsKey.notchHidesMenuBarIcon"),
+               "Show menu bar icon turns off both ways of hiding it")
 
         // macOS 26 lets the person switch an app's menu bar items off per app,
         // and remembers the choice in Control Center's group container. The

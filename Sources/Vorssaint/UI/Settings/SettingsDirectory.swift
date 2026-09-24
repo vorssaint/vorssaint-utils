@@ -238,6 +238,7 @@ enum SettingsDirectory {
                                       title: FeatureStrings.notch(language).title,
                                       icon: "macbook",
                                       keywords: [FeatureStrings.notch(language).description,
+                                                 FeatureStrings.notchEditor(language).hideMenuBarIcon,
                                                  "notch", "camera", "music", "clipboard",
                                                  FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens"]),
                 SettingsDirectoryItem(page: .commandBar,
