@@ -314,7 +314,31 @@ enum ScreenshotCaptureEngine {
             imageSize: imageBounds.size)
         let cropBounds = ScreenshotSupport.clamp(pixelBounds, to: imageBounds)
         guard !cropBounds.isEmpty else { return nil }
-        return image.cropping(to: cropBounds)
+        let packedBounds = ScreenshotSupport.clamp(
+            CGRect(origin: .zero, size: cropBounds.size), to: imageBounds)
+        guard packedBounds != cropBounds, let alpha = alphaCoverage(of: image) else {
+            return image.cropping(to: cropBounds)
+        }
+        return image.cropping(to: ScreenshotSupport.attachedCaptureCrop(
+            placed: cropBounds, packed: packedBounds, coverage: alpha))
+    }
+
+    /// The image's alpha, one byte per pixel with the top row first, which is
+    /// all it takes to tell where the included windows were drawn.
+    private static func alphaCoverage(of image: CGImage) -> ScreenshotSupport.AlphaCoverage? {
+        let width = image.width, height = image.height
+        guard width > 0, height > 0 else { return nil }
+        var alpha = [UInt8](repeating: 0, count: width * height)
+        let drawn = alpha.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height,
+                                          bitsPerComponent: 8, bytesPerRow: width,
+                                          space: CGColorSpaceCreateDeviceGray(),
+                                          bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue)
+            else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        return drawn ? ScreenshotSupport.AlphaCoverage(alpha: alpha, width: width, height: height) : nil
     }
 
     /// The window's size as the window server knows it, used to tell a whole

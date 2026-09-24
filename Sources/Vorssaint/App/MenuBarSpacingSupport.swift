@@ -247,6 +247,17 @@ enum MenuBarSpacingSupport {
             && !mustShowForSignal
     }
 
+    /// Whether Dynamic Island takes the glyph's place (user request). The
+    /// island itself opens Settings and the panel, so the glyph may go for as
+    /// long as the island runs; switching the island off, or removing it in
+    /// the hub, brings the icon straight back rather than leaving nothing on
+    /// screen to reach the app by. Signals still bring the glyph back, and
+    /// text the main item carries (metrics, a countdown) keeps the item, as
+    /// with the metrics-only option.
+    static func islandHidesStatusIcon(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchHidesMenuBarIcon) && NotchSupport.isEnabled(in: defaults)
+    }
+
     /// How many refreshes in a row a metric may render nothing before its item
     /// goes. Long enough to ride out a sensor that skips a tick, short enough
     /// that a reading which stops for good does not leave an empty slot behind.

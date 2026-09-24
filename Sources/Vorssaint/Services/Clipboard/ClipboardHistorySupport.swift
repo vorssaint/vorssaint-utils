@@ -119,6 +119,11 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         }
     }
 
+    /// The color a text entry spells out, if that is all it holds.
+    var color: ClipboardHistoryColor? {
+        kind == .text ? ClipboardHistoryColor(text: text) : nil
+    }
+
     /// `preview` collapsed further to a menu bar sized excerpt, for the
     /// optional "show latest copy" status item. `preview` itself renders an
     /// image as bare dimensions (nothing else displays it raw — every other
@@ -179,6 +184,129 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageHash = try container.decodeIfPresent(String.self, forKey: .imageHash)
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
+    }
+}
+
+/// A text entry that is only a color value, so the history can show a swatch
+/// beside it. The accepted forms are the CSS ones designers copy and the ones
+/// the color picker writes: `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, `rgb()`,
+/// `rgba()`, `hsl()` and `hsla()`. The value must be the whole entry; a color
+/// inside a longer text is not one, and a bare `RRGGBB` would also match plain
+/// numbers and hashes.
+struct ClipboardHistoryColor: Equatable {
+    let red: Double
+    let green: Double
+    let blue: Double
+    let alpha: Double
+
+    /// Longer than any accepted form with generous spacing; the cap keeps a
+    /// render from trimming or scanning a large entry.
+    static let maxLength = 64
+
+    init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
+    }
+
+    init?(text: String) {
+        guard text.utf8.count <= Self.maxLength else { return nil }
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if value.hasPrefix("#") {
+            self.init(hexDigits: value.dropFirst())
+        } else if let arguments = Self.arguments(of: value, names: ["rgba", "rgb"]) {
+            self.init(rgbArguments: arguments)
+        } else if let arguments = Self.arguments(of: value, names: ["hsla", "hsl"]) {
+            self.init(hslArguments: arguments)
+        } else {
+            return nil
+        }
+    }
+
+    private init?(hexDigits: Substring) {
+        guard [3, 4, 6, 8].contains(hexDigits.count),
+              hexDigits.allSatisfy(\.isHexDigit)
+        else { return nil }
+        let expanded = hexDigits.count <= 4
+            ? String(hexDigits.flatMap { [$0, $0] })
+            : String(hexDigits)
+        guard let value = UInt64(expanded, radix: 16) else { return nil }
+        let hasAlpha = expanded.count == 8
+        let rgb = hasAlpha ? value >> 8 : value
+        self.init(red: Double((rgb >> 16) & 0xFF) / 255,
+                  green: Double((rgb >> 8) & 0xFF) / 255,
+                  blue: Double(rgb & 0xFF) / 255,
+                  alpha: hasAlpha ? Double(value & 0xFF) / 255 : 1)
+    }
+
+    private init?(rgbArguments: [String]) {
+        guard (3...4).contains(rgbArguments.count) else { return nil }
+        var channels: [Double] = []
+        for argument in rgbArguments.prefix(3) {
+            if let percent = Self.percentage(argument) {
+                channels.append(percent)
+            } else if let number = Self.number(argument), (0...255).contains(number) {
+                channels.append(number / 255)
+            } else {
+                return nil
+            }
+        }
+        guard let alpha = Self.alpha(rgbArguments.dropFirst(3).first) else { return nil }
+        self.init(red: channels[0], green: channels[1], blue: channels[2], alpha: alpha)
+    }
+
+    private init?(hslArguments: [String]) {
+        guard (3...4).contains(hslArguments.count) else { return nil }
+        let hueText = hslArguments[0].hasSuffix("deg")
+            ? String(hslArguments[0].dropLast(3))
+            : hslArguments[0]
+        guard let hue = Self.number(hueText),
+              let saturation = Self.percentage(hslArguments[1]),
+              let lightness = Self.percentage(hslArguments[2]),
+              let alpha = Self.alpha(hslArguments.dropFirst(3).first)
+        else { return nil }
+        let h = (hue.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 360
+        let chroma = (1 - abs(2 * lightness - 1)) * saturation
+        func channel(_ offset: Double) -> Double {
+            let k = (offset + h * 12).truncatingRemainder(dividingBy: 12)
+            return lightness - chroma / 2 * max(-1, min(k - 3, 9 - k, 1))
+        }
+        self.init(red: channel(0), green: channel(8), blue: channel(4), alpha: alpha)
+    }
+
+    /// The arguments of `name(...)`, split on commas, spaces and the slash
+    /// that CSS puts before the alpha value.
+    private static func arguments(of value: String, names: [String]) -> [String]? {
+        guard value.hasSuffix(")"),
+              let name = names.first(where: { value.hasPrefix($0 + "(") })
+        else { return nil }
+        let inner = value.dropFirst(name.count + 1).dropLast()
+        return inner
+            .split(whereSeparator: { $0 == "," || $0 == "/" || $0.isWhitespace })
+            .map(String.init)
+    }
+
+    private static func number(_ text: String) -> Double? {
+        guard let value = Double(text), value.isFinite else { return nil }
+        return value
+    }
+
+    /// A `0%`...`100%` value as a fraction.
+    private static func percentage(_ text: String) -> Double? {
+        guard text.hasSuffix("%"),
+              let value = number(String(text.dropLast())),
+              (0...100).contains(value)
+        else { return nil }
+        return value / 100
+    }
+
+    /// Opaque when absent; otherwise a `0`...`1` number or a percentage.
+    private static func alpha(_ text: String?) -> Double? {
+        guard let text else { return 1 }
+        if let percent = percentage(text) { return percent }
+        guard let value = number(text), (0...1).contains(value) else { return nil }
+        return value
     }
 }
 
@@ -243,6 +371,30 @@ enum ClipboardHistoryEditing {
     static func canLoadEncodedHistory(byteCount: Int?) -> Bool {
         guard let byteCount else { return false }
         return byteCount >= 0 && byteCount <= maxEncodedHistoryBytes
+    }
+
+    /// Whether the pinned entries alone still fit the saved file. The encoder
+    /// below keeps pinned entries first and drops whatever no longer fits, so
+    /// a pin or an edit that fails this check would lose a pinned entry.
+    static func pinnedEntriesFit(_ entries: [ClipboardHistoryEntry],
+                                 byteLimit: Int = maxEncodedHistoryBytes) -> Bool {
+        let pinned = entries.filter(\.isPinned)
+        // JSON escaping turns one UTF-8 byte into at most six, and an entry's
+        // other fields stay well under 512 bytes, so a small pinned set is
+        // never encoded on the main thread just to be measured.
+        let rawBound = pinned.reduce(0) { total, entry in
+            total + 512 + entry.text.utf8.count + (entry.imageFile?.utf8.count ?? 0)
+                + entry.filePaths.reduce(0) { $0 + $1.utf8.count + 3 }
+        }
+        guard rawBound > (byteLimit - 2) / 6 else { return true }
+        let encoder = JSONEncoder()
+        var encodedSize = 2 // Opening and closing brackets.
+        for (offset, entry) in pinned.enumerated() {
+            guard let encoded = try? encoder.encode(entry) else { return false }
+            encodedSize += encoded.count + (offset == 0 ? 0 : 1)
+            if encodedSize > byteLimit { return false }
+        }
+        return true
     }
 
     /// Encodes a readable snapshot without ever writing a file the next

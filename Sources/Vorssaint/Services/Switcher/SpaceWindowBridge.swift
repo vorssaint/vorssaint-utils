@@ -256,11 +256,15 @@ enum SpaceWindowBridge {
     /// window as the one that comes up front, marked as user-initiated. Older
     /// macOS also travels to the window's Space; current macOS ignores the
     /// Space part, which is why SpaceHop verifies the outcome and escalates.
-    /// The follow-up record pair makes the window key without clicking any of
-    /// its content: the record carries no usable location, so nothing in the
-    /// window is hit. A point just outside the frame lands on the invisible
-    /// resize border instead, and the repeated focus pass then finished a
-    /// resize that dragged the window's top-left corner to the screen's own.
+    /// The follow-up record is a lone press that makes the window key without
+    /// clicking any of its content. It has no release, so no control can ever
+    /// be activated, and it aims far past the bottom-right of any window. A
+    /// point just outside the frame lands on the invisible resize border, and
+    /// the repeated focus pass then finished a resize that dragged the
+    /// window's top-left corner to the screen's own. An all-ones (NaN) point
+    /// is turned back into (0, 0) by some apps, which then click whatever sits
+    /// at their top-left corner; a far positive point keeps any such fallback
+    /// on the opposite corner.
     /// Returns false when the window server did not take the request, so the
     /// caller can fall back to app-level activation.
     @discardableResult
@@ -275,14 +279,11 @@ enum SpaceWindowBridge {
         record[0x04] = 0xf8 // declared record length
         record[0x3a] = 0x10
         withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
-        // Location bytes: all ones reads as no point at all (NaN), so the
-        // click cannot hit content, a title bar or the resize border.
-        for offset in 0x20..<0x30 { record[offset] = 0xff }
-        record[0x08] = 0x01 // left mouse down…
-        let down = postEventRecord(&psn, &record)
-        record[0x08] = 0x02 // …then up: the pair makes the window key
-        let up = postEventRecord(&psn, &record)
-        return down == .success && up == .success
+        // Window-relative location, far past the bottom-right of any window.
+        var farPoint = CGPoint(x: 300_000, y: 300_000)
+        withUnsafeBytes(of: &farPoint) { record.replaceSubrange(0x20..<0x20 + $0.count, with: $0) }
+        record[0x08] = 0x01 // left mouse down alone makes the window key
+        return postEventRecord(&psn, &record) == .success
     }
 
     // MARK: - The user's "move a space" shortcut

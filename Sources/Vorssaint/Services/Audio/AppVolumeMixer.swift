@@ -715,7 +715,12 @@ final class AppVolumeMixer: ObservableObject {
         guard let nextUID = MixerRoutingSupport.nextSelectedOutputDeviceUID(
             currentUID: currentOutputDeviceUID,
             selectedUIDs: selectedUIDs,
-            availableUIDs: availableUIDs) else { return false }
+            availableUIDs: availableUIDs) else {
+            // With an available selection, no next output means the only one is already playing.
+            return selectedUIDs.contains { rawUID in
+                MixerRoutingSupport.sanitizedDeviceUID(rawUID).map { availableUIDs.contains($0) } ?? false
+            }
+        }
         return setUniversalOutputDeviceUID(nextUID)
     }
 

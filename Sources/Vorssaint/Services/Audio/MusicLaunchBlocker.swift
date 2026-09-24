@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import CoreServices
 
 /// Blocks a new system music-app process only when a trusted media-key
 /// observation explains it. Other launches are preserved, including voice,
@@ -22,6 +23,8 @@ final class MusicLaunchBlocker: ObservableObject {
     /// notification; the replacement should open once, not twice.
     private var lastReplacementLaunch: TimeInterval = 0
     private var lastMediaKeyAt: TimeInterval?
+    /// Only Play/Pause asks the replacement to play; the other keys open it.
+    private var lastMediaKeyCode: UInt16?
     /// The launch already judged at will-launch. Did-launch for the same
     /// process arrives seconds later, once the app is up, by which time the
     /// click that started it is old enough to look like no gesture at all;
@@ -97,7 +100,7 @@ final class MusicLaunchBlocker: ObservableObject {
             secondsSinceUserGesture: Self.secondsSinceUserGesture
         ) else { return }
         guard app.forceTerminate() || app.terminate() else { return }
-        openReplacementIfConfigured()
+        openReplacementIfConfigured(startingPlayback: lastMediaKeyCode == MusicLaunchSupport.playPauseKeyCode)
     }
 
     /// Pointer buttons and ordinary keys can ask to open an app. Modifier
@@ -115,7 +118,7 @@ final class MusicLaunchBlocker: ObservableObject {
         }.min() ?? .infinity
     }
 
-    private func openReplacementIfConfigured() {
+    private func openReplacementIfConfigured(startingPlayback: Bool) {
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastReplacementLaunch > 1.0 else { return }
         lastReplacementLaunch = now
@@ -128,7 +131,11 @@ final class MusicLaunchBlocker: ObservableObject {
         guard let replacementID = Bundle(url: url)?.bundleIdentifier,
               !Self.blockedBundleIDs.contains(replacementID),
               FileManager.default.fileExists(atPath: url.path) else { return }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { app, _ in
+            // Play/Pause asked for music, not just a window.
+            guard startingPlayback, let app else { return }
+            MusicReplacementPlayback.start(app)
+        }
     }
 
     private func installMediaKeyTap() {
@@ -201,6 +208,65 @@ final class MusicLaunchBlocker: ObservableObject {
         // Use the event's time, not delivery time: a delayed callback must
         // not turn an old key press into fresh launch evidence.
         lastMediaKeyAt = nsEvent.timestamp
+        lastMediaKeyCode = MusicLaunchSupport.keyCode(data1: nsEvent.data1)
         return Unmanaged.passUnretained(event)
+    }
+}
+
+/// Starts playback in the app opened in place of the music app. The command
+/// comes from that app's own scripting dictionary, so an app that declares
+/// none is only opened, as before, and the media key is never replayed.
+private enum MusicReplacementPlayback {
+    private static let queue = DispatchQueue(label: "com.vorssaint.music-block.playback",
+                                             qos: .userInitiated)
+
+    static func start(_ app: NSRunningApplication) {
+        guard let url = app.bundleURL,
+              let command = NotchMusicAutomationCapabilities.load(bundleURL: url)?.playCommand else { return }
+        let launching = !app.isFinishedLaunching
+        let deadline = ProcessInfo.processInfo.systemUptime + MusicLaunchSupport.replacementLaunchTimeout
+        queue.async { waitForLaunch(app, command: command, launching: launching, deadline: deadline) }
+    }
+
+    private static func waitForLaunch(_ app: NSRunningApplication,
+                                      command: NotchMusicAutomationCapabilities.Event,
+                                      launching: Bool, deadline: TimeInterval) {
+        guard !app.isTerminated, ProcessInfo.processInfo.systemUptime < deadline else { return }
+        guard app.isFinishedLaunching else {
+            queue.asyncAfter(deadline: .now() + 0.1) {
+                waitForLaunch(app, command: command, launching: launching, deadline: deadline)
+            }
+            return
+        }
+        // A player that just started may not take commands the moment it is up.
+        let settle = launching ? MusicLaunchSupport.replacementSettleDelay : 0
+        queue.asyncAfter(deadline: .now() + settle) {
+            send(command, to: app, attemptsLeft: MusicLaunchSupport.playbackAttempts)
+        }
+    }
+
+    private static func send(_ command: NotchMusicAutomationCapabilities.Event,
+                             to app: NSRunningApplication, attemptsLeft: Int) {
+        guard !app.isTerminated else { return }
+        let target = NSAppleEventDescriptor(processIdentifier: app.processIdentifier)
+        // Consent is asked once per app, right after the key that needs it;
+        // a refusal leaves the app opened, as before.
+        var status = Int(AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, true))
+        if status == Int(noErr) {
+            let event = NSAppleEventDescriptor(eventClass: command.eventClass, eventID: command.eventID,
+                                               targetDescriptor: target,
+                                               returnID: AEReturnID(kAutoGenerateReturnID),
+                                               transactionID: AETransactionID(kAnyTransactionID))
+            do {
+                _ = try event.sendEvent(options: [.waitForReply, .neverInteract, .dontRecord], timeout: 2)
+                return
+            } catch {
+                status = (error as NSError).code
+            }
+        }
+        guard attemptsLeft > 1, MusicLaunchSupport.playbackNeverArrived(status) else { return }
+        queue.asyncAfter(deadline: .now() + 0.5) {
+            send(command, to: app, attemptsLeft: attemptsLeft - 1)
+        }
     }
 }

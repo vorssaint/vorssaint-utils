@@ -656,6 +656,37 @@ enum ScreenshotSupport {
             && (draft.standardized == bounds.standardized || !draft.contains(point))
     }
 
+    /// A captured image's alpha, top row first.
+    struct AlphaCoverage {
+        let alpha: [UInt8]
+        let width: Int
+        let height: Int
+
+        /// Total alpha inside `rect`, in image pixels from the top left.
+        func sum(in rect: CGRect) -> Int {
+            let area = rect.integral.intersection(CGRect(x: 0, y: 0, width: width, height: height))
+            guard !area.isNull, !area.isEmpty else { return 0 }
+            var total = 0
+            for row in Int(area.minY)..<Int(area.maxY) {
+                let start = row * width
+                for column in Int(area.minX)..<Int(area.maxX) { total += Int(alpha[start + column]) }
+            }
+            return total
+        }
+    }
+
+    /// Where a display capture of only some windows put them. Older systems
+    /// draw each window where it sits on the display. macOS 27 packs the
+    /// included windows into the image's top-left corner, keeping their
+    /// relative layout, so cropping at the window's place on screen kept only
+    /// its lower-right part beside empty space. Everything but those windows
+    /// is transparent, so
+    /// the placement that holds more of them is the one the system used.
+    static func attachedCaptureCrop(placed: CGRect, packed: CGRect,
+                                    coverage: AlphaCoverage) -> CGRect {
+        coverage.sum(in: packed) > coverage.sum(in: placed) ? packed : placed
+    }
+
     static func clamp(_ rect: CGRect, to bounds: CGRect) -> CGRect {
         var result = rect.intersection(bounds)
         if result.isNull { result = .zero }
@@ -1418,6 +1449,54 @@ enum ScreenshotSupport {
         }
     }
 
+    /// Text point sizes at 1x, offered as presets. Text has its own size
+    /// instead of borrowing the shape thickness, so a thin arrow can sit
+    /// beside a large label.
+    static let textSizes: [Int] = [10, 12, 14, 16, 19, 24, 28, 36, 48, 64, 72, 96]
+    static let defaultTextSize = 19
+
+    static func sanitizedTextSize(_ size: Int) -> Int {
+        guard let first = textSizes.first, let last = textSizes.last else { return defaultTextSize }
+        return size == 0 ? defaultTextSize : min(max(size, first), last)
+    }
+
+    /// The preset one step away from `size`, or nil at either end.
+    static func steppedTextSize(from size: Int, up: Bool) -> Int? {
+        up ? textSizes.first(where: { $0 > size }) : textSizes.last(where: { $0 < size })
+    }
+
+    /// How hard a blur hides what is under it, from 1 (lightest) to 5
+    /// (heaviest). Level 3 is the strength blurs always had. The screenshot
+    /// pixelate tool and video blurs share the scale so a level means the
+    /// same thing in both editors.
+    enum BlurStrength {
+        static let levels = 1...5
+        static let defaultLevel = 3
+
+        static func sanitized(_ level: Int) -> Int {
+            min(max(level, levels.lowerBound), levels.upperBound)
+        }
+
+        /// Where a new capture's pixelate tool starts: the remembered level,
+        /// but never a light one. Levels 1 and 2 make blocks smaller than a
+        /// line of text, which can stay readable, so they are picked area by
+        /// area instead of carried into the next redaction.
+        static func startingLevel(remembered: Int) -> Int {
+            max(sanitized(remembered), defaultLevel)
+        }
+
+        /// What the level does to the mosaic block, relative to level 3.
+        static func blockFactor(for level: Int) -> CGFloat {
+            switch sanitized(level) {
+            case 1: return 0.4
+            case 2: return 0.65
+            case 4: return 1.5
+            case 5: return 2.2
+            default: return 1
+            }
+        }
+    }
+
     enum ArrowStyleID: String, CaseIterable {
         case filled, outline, open, doubleEnded, scribbly
 
@@ -1484,6 +1563,8 @@ enum ScreenshotSupport {
         var text: String
         var color: ColorID
         var stroke: StrokeID
+        var textSize: Int
+        var blurLevel: Int
         var arrowStyle: ArrowStyleID
         var scribbleSeed: UInt64
         var number: Int
@@ -1495,6 +1576,8 @@ enum ScreenshotSupport {
              text: String = "",
              color: ColorID = .red,
              stroke: StrokeID = .medium,
+             textSize: Int = ScreenshotSupport.defaultTextSize,
+             blurLevel: Int = BlurStrength.defaultLevel,
              arrowStyle: ArrowStyleID = .filled,
              scribbleSeed: UInt64? = nil,
              number: Int = 0) {
@@ -1505,6 +1588,8 @@ enum ScreenshotSupport {
             self.text = text
             self.color = color
             self.stroke = stroke
+            self.textSize = textSize
+            self.blurLevel = blurLevel
             self.arrowStyle = arrowStyle
             self.scribbleSeed = scribbleSeed
                 ?? (arrowStyle == .scribbly
@@ -1519,6 +1604,8 @@ enum ScreenshotSupport {
         let color: ColorID?
         let stroke: StrokeID?
         let arrowStyle: ArrowStyleID?
+        var textSize: Int? = nil
+        var blurLevel: Int? = nil
     }
 
     static func selectionStyle(for annotation: Annotation) -> SelectionStyle {
@@ -1527,15 +1614,25 @@ enum ScreenshotSupport {
             return SelectionStyle(color: annotation.color,
                                   stroke: annotation.stroke,
                                   arrowStyle: annotation.arrowStyle)
-        case .line, .rect, .ellipse, .freehand, .text:
+        case .line, .rect, .ellipse, .freehand:
             return SelectionStyle(color: annotation.color,
                                   stroke: annotation.stroke,
                                   arrowStyle: nil)
+        case .text:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: nil,
+                                  arrowStyle: nil,
+                                  textSize: annotation.textSize)
         case .highlight, .counter, .redact:
             return SelectionStyle(color: annotation.color,
                                   stroke: nil,
                                   arrowStyle: nil)
-        case .sticker, .pixelate, .select, .crop:
+        case .pixelate:
+            return SelectionStyle(color: nil,
+                                  stroke: nil,
+                                  arrowStyle: nil,
+                                  blurLevel: annotation.blurLevel)
+        case .sticker, .select, .crop:
             return SelectionStyle(color: nil,
                                   stroke: nil,
                                   arrowStyle: nil)
@@ -2019,11 +2116,20 @@ enum ScreenshotSupport {
 
     // MARK: - Redaction
 
-    /// Pixelation block size in image pixels: coarse enough that the mosaic
-    /// carries no legible detail, scaled to the capture so small crops and
-    /// full screens redact equally well.
-    static func pixelBlockSize(for imageSize: CGSize) -> Int {
-        max(10, Int(min(imageSize.width, imageSize.height) / 55))
+    /// Pixelation block size in image pixels, scaled to the capture so small
+    /// crops and full screens redact equally well. From the default level up
+    /// the mosaic carries no legible detail; levels 1 and 2 are lighter and
+    /// can leave large text readable.
+    static func pixelBlockSize(for imageSize: CGSize,
+                               level: Int = BlurStrength.defaultLevel) -> Int {
+        let base = max(10, Int(min(imageSize.width, imageSize.height) / 55))
+        return max(2, Int((CGFloat(base) * BlurStrength.blockFactor(for: level)).rounded()))
+    }
+
+    /// The blur levels the pixelate marks use. Each needs a mosaic as large as
+    /// the capture, so the editor keeps no other.
+    static func mosaicLevels(for annotations: [Annotation]) -> Set<Int> {
+        Set(annotations.filter { $0.tool == .pixelate }.map(\.blurLevel))
     }
 
     // MARK: - Export

@@ -229,9 +229,11 @@ struct ScreenshotCaptureSettings: View {
     private var defaultActionRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             ScreenshotDefaultActionPicker(strings: strings, selection: $defaultActionRaw)
-            Text(strings.defaultActionCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if defaultActionRaw != ScreenshotDefaultAction.edit.rawValue {
+                Text(strings.defaultActionCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -288,15 +290,16 @@ struct ScreenshotCaptureSettings: View {
             HStack {
                 Text(strings.subfolderLabel)
                     .lineLimit(1)
-                TextField("", text: $saveSubfolder)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 150)
+                Spacer(minLength: 12)
                 if !saveSubfolder.isEmpty {
                     Text(ScreenshotSupport.expandSaveSubfolder(saveSubfolder, date: Date()))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
+                TextField("", text: $saveSubfolder)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 150)
             }
             .fixedSize(horizontal: false, vertical: true)
             Text(strings.subfolderCaption)
@@ -310,13 +313,14 @@ struct ScreenshotCaptureSettings: View {
             HStack {
                 Text(strings.fileNamePatternLabel)
                     .lineLimit(1)
-                TextField("", text: $fileNamePattern)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 150)
+                Spacer(minLength: 12)
                 Text(fileNamePreview)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                TextField("", text: $fileNamePattern)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 150)
             }
             .fixedSize(horizontal: false, vertical: true)
             Text(strings.fileNamePatternCaption)

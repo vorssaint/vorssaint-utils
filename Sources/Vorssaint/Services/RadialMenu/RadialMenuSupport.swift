@@ -66,7 +66,7 @@ enum RadialMenuColor: String, Codable, CaseIterable, Identifiable {
 }
 
 /// A complete configuration of the radial menu wheel: its items, color theme,
-/// keyboard shortcut, and mouse button trigger.
+/// keyboard shortcut, mouse button and trackpad tap triggers.
 struct RadialMenuProfile: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
     var name: String = ""
@@ -78,15 +78,29 @@ struct RadialMenuProfile: Codable, Identifiable, Equatable {
     /// brings back that one. Kept as the raw value because it is persisted;
     /// nil for a wheel whose origin is not known.
     var preset: String?
+    /// A four-finger tap on the trackpad opens this wheel. Settings keeps it
+    /// on one profile at most; the first one wins otherwise.
+    var trackpadTap = false
 
     func displayName(_ text: RadialMenuFeatureStrings) -> String {
         name.isEmpty ? text.presetGeneral : name
+    }
+
+    /// The copy Duplicate adds. The shortcut and the trackpad tap each open
+    /// one wheel, so the copy starts without them and leaves the original's.
+    func duplicate(named name: String) -> RadialMenuProfile {
+        var copy = self
+        copy.id = UUID()
+        copy.name = name
+        copy.shortcut = ""
+        copy.trackpadTap = false
+        return copy
     }
 }
 
 extension RadialMenuProfile {
     private enum CodingKeys: String, CodingKey {
-        case id, name, color, shortcut, mouseButton, items, preset
+        case id, name, color, shortcut, mouseButton, items, preset, trackpadTap
     }
 
     init(from decoder: Decoder) throws {
@@ -98,7 +112,8 @@ extension RadialMenuProfile {
                   mouseButton: try container.decodeIfPresent(String.self, forKey: .mouseButton) ?? RadialMenuMouseTrigger.off.rawValue,
                   items: try container.decodeIfPresent([FailableRadialMenuItem].self, forKey: .items)?
                       .compactMap(\.value) ?? [],
-                  preset: try container.decodeIfPresent(String.self, forKey: .preset))
+                  preset: try container.decodeIfPresent(String.self, forKey: .preset),
+                  trackpadTap: try container.decodeIfPresent(Bool.self, forKey: .trackpadTap) ?? false)
     }
 }
 
@@ -758,10 +773,12 @@ enum RadialMenuSupport {
     }
 
     /// True when any profile, at any level, controls keyboard input or windows,
-    /// or claims a mouse button, and therefore needs the Accessibility permission.
+    /// or claims a mouse button or the trackpad tap, and therefore needs the
+    /// Accessibility permission.
     static func needsAccessibility(_ profiles: [RadialMenuProfile]) -> Bool {
         profiles.contains { profile in
             RadialMenuMouseTrigger.sanitized(profile.mouseButton) != .off
+                || profile.trackpadTap
                 || needsAccessibility(profile.items)
         }
     }

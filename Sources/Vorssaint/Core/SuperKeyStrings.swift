@@ -24,6 +24,7 @@ struct SuperKeyStrings {
     let soloInputSource: String
     let mappingForeignMapping: String
     let mappingSystemRefused: String
+    let keyboardTapRefused: String
 
     /// What to show when the key mapping was refused. Every refusal names one
     /// thing to change; none of them is visible in the key itself.
@@ -31,6 +32,7 @@ struct SuperKeyStrings {
         switch failure {
         case .foreignMapping: return mappingForeignMapping
         case .systemRefused: return mappingSystemRefused
+        case .keyboardTapRefused: return keyboardTapRefused
         }
     }
 }
@@ -81,7 +83,8 @@ extension SuperKeyStrings {
         manageButton: "Set up…",
         soloInputSource: "Switch input source; hold for Caps Lock",
         mappingForeignMapping: "Another app’s key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
-        mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again."
+        mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again.",
+        keyboardTapRefused: "macOS would not let Vorssaint watch the keyboard. Turn Vorssaint off and on in System Settings › Privacy & Security › Accessibility, then switch this on again."
     )
 
     static let ptBR = SuperKeyStrings(
@@ -104,7 +107,8 @@ extension SuperKeyStrings {
         manageButton: "Configurar…",
         soloInputSource: "Trocar fonte de entrada; segure para Caps Lock",
         mappingForeignMapping: "O mapeamento de outro app usa a tecla selecionada. Remova-o naquele app: sair dele não basta.",
-        mappingSystemRefused: "O macOS recusou o mapeamento de teclas. Reconecte o teclado ou reinicie o Mac e ligue isto de novo."
+        mappingSystemRefused: "O macOS recusou o mapeamento de teclas. Reconecte o teclado ou reinicie o Mac e ligue isto de novo.",
+        keyboardTapRefused: "O macOS não deixou o Vorssaint observar o teclado. Desligue e ligue o Vorssaint em Ajustes do Sistema › Privacidade e Segurança › Acessibilidade e ligue isto de novo."
     )
 
     static let tr = SuperKeyStrings(
@@ -127,7 +131,8 @@ extension SuperKeyStrings {
         manageButton: "Ayarla…",
         soloInputSource: "Giriş kaynağını değiştir; Caps Lock için basılı tut",
         mappingForeignMapping: "Başka bir uygulamanın tuş eşlemesi seçili tuşu kullanıyor. Eşlemeyi o uygulamada kaldırın: çıkmak yetmez.",
-        mappingSystemRefused: "macOS tuş eşlemesini kabul etmedi. Klavyeyi yeniden bağlayın veya Mac’i yeniden başlatın, sonra bunu tekrar açın."
+        mappingSystemRefused: "macOS tuş eşlemesini kabul etmedi. Klavyeyi yeniden bağlayın veya Mac’i yeniden başlatın, sonra bunu tekrar açın.",
+        keyboardTapRefused: "macOS, Vorssaint’in klavyeyi izlemesine izin vermedi. Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik bölümünde Vorssaint’i kapatıp açın, sonra bunu tekrar açın."
     )
 
     static let ru = SuperKeyStrings(
@@ -150,7 +155,8 @@ extension SuperKeyStrings {
         manageButton: "Настроить…",
         soloInputSource: "Сменить источник ввода; удерживать для Caps Lock",
         mappingForeignMapping: "Другая программа переназначила выбранную клавишу. Удалите назначение в той программе: завершить её недостаточно.",
-        mappingSystemRefused: "macOS отклонил переназначение клавиш. Переподключите клавиатуру или перезапустите Mac и включите это снова."
+        mappingSystemRefused: "macOS отклонил переназначение клавиш. Переподключите клавиатуру или перезапустите Mac и включите это снова.",
+        keyboardTapRefused: "macOS не разрешил Vorssaint следить за клавиатурой. Выключите и снова включите Vorssaint в Системных настройках › Конфиденциальность и безопасность › Универсальный доступ и включите это снова."
     )
 
     static let es = SuperKeyStrings(
@@ -173,7 +179,8 @@ extension SuperKeyStrings {
         manageButton: "Configurar…",
         soloInputSource: "Cambiar fuente de entrada; mantener para Bloq Mayús",
         mappingForeignMapping: "La reasignación de otra app usa la tecla seleccionada. Elimínala en esa app: salir de ella no basta.",
-        mappingSystemRefused: "macOS rechazó la reasignación de teclas. Vuelve a conectar el teclado o reinicia el Mac y activa esto de nuevo."
+        mappingSystemRefused: "macOS rechazó la reasignación de teclas. Vuelve a conectar el teclado o reinicia el Mac y activa esto de nuevo.",
+        keyboardTapRefused: "macOS no dejó que Vorssaint vigilara el teclado. Desactiva y vuelve a activar Vorssaint en Ajustes del Sistema › Privacidad y seguridad › Accesibilidad y activa esto de nuevo."
     )
 
     static let de = SuperKeyStrings(
@@ -196,7 +203,8 @@ extension SuperKeyStrings {
         manageButton: "Einrichten…",
         soloInputSource: "Eingabequelle wechseln; für Feststelltaste halten",
         mappingForeignMapping: "Die Tastenbelegung einer anderen App verwendet die ausgewählte Taste. Entferne sie in dieser App: Beenden reicht nicht.",
-        mappingSystemRefused: "macOS hat die Tastenbelegung abgelehnt. Schließe die Tastatur neu an oder starte den Mac neu und schalte dies wieder ein."
+        mappingSystemRefused: "macOS hat die Tastenbelegung abgelehnt. Schließe die Tastatur neu an oder starte den Mac neu und schalte dies wieder ein.",
+        keyboardTapRefused: "macOS hat Vorssaint nicht erlaubt, die Tastatur zu beobachten. Schalte Vorssaint unter Systemeinstellungen › Datenschutz & Sicherheit › Bedienungshilfen aus und wieder ein und schalte dies dann wieder ein."
     )
 
     static let fr = SuperKeyStrings(
@@ -219,7 +227,8 @@ extension SuperKeyStrings {
         manageButton: "Configurer…",
         soloInputSource: "Changer de source d’entrée\u{00A0}; maintenir pour Verr. Maj",
         mappingForeignMapping: "Le remappage d’une autre app utilise la touche sélectionnée. Supprimez-le dans cette app\u{00A0}: la quitter ne suffit pas.",
-        mappingSystemRefused: "macOS a refusé le remappage. Rebranchez le clavier ou redémarrez le Mac, puis réactivez ceci."
+        mappingSystemRefused: "macOS a refusé le remappage. Rebranchez le clavier ou redémarrez le Mac, puis réactivez ceci.",
+        keyboardTapRefused: "macOS n’a pas autorisé Vorssaint à surveiller le clavier. Désactivez puis réactivez Vorssaint dans Réglages Système › Confidentialité et sécurité › Accessibilité, puis réactivez ceci."
     )
 
     static let it = SuperKeyStrings(
@@ -242,7 +251,8 @@ extension SuperKeyStrings {
         manageButton: "Configura…",
         soloInputSource: "Cambia sorgente di input; tieni premuto per Blocco Maiuscole",
         mappingForeignMapping: "La rimappatura di un’altra app usa il tasto selezionato. Rimuovila in quell’app: chiuderla non basta.",
-        mappingSystemRefused: "macOS ha rifiutato la rimappatura. Ricollega la tastiera o riavvia il Mac, poi riattiva questa funzione."
+        mappingSystemRefused: "macOS ha rifiutato la rimappatura. Ricollega la tastiera o riavvia il Mac, poi riattiva questa funzione.",
+        keyboardTapRefused: "macOS non ha permesso a Vorssaint di osservare la tastiera. Disattiva e riattiva Vorssaint in Impostazioni di Sistema › Privacy e sicurezza › Accessibilità, poi riattiva questa funzione."
     )
 
     static let ja = SuperKeyStrings(
@@ -265,7 +275,8 @@ extension SuperKeyStrings {
         manageButton: "設定…",
         soloInputSource: "入力ソースを切り替え（長押しで Caps Lock）",
         mappingForeignMapping: "他のアプリのキー割り当てが選択したキーを使っています。そのアプリで割り当てを削除してください。終了するだけでは残ります。",
-        mappingSystemRefused: "macOS がキー割り当てを受け付けませんでした。キーボードを接続し直すか Mac を再起動してから、もう一度オンにしてください。"
+        mappingSystemRefused: "macOS がキー割り当てを受け付けませんでした。キーボードを接続し直すか Mac を再起動してから、もう一度オンにしてください。",
+        keyboardTapRefused: "macOS が Vorssaint にキーボードの監視を許可しませんでした。システム設定 › プライバシーとセキュリティ › アクセシビリティで Vorssaint をオフにしてからオンに戻し、もう一度オンにしてください。"
     )
 
     static let ko = SuperKeyStrings(
@@ -288,7 +299,8 @@ extension SuperKeyStrings {
         manageButton: "설정…",
         soloInputSource: "입력 소스 전환(길게 눌러 Caps Lock)",
         mappingForeignMapping: "다른 앱의 키 매핑이 선택한 키를 사용하고 있습니다. 그 앱에서 매핑을 지우세요. 종료만으로는 사라지지 않습니다.",
-        mappingSystemRefused: "macOS가 키 매핑을 거부했습니다. 키보드를 다시 연결하거나 Mac을 재시동한 뒤 이 기능을 켜세요."
+        mappingSystemRefused: "macOS가 키 매핑을 거부했습니다. 키보드를 다시 연결하거나 Mac을 재시동한 뒤 이 기능을 켜세요.",
+        keyboardTapRefused: "macOS가 Vorssaint의 키보드 감시를 허용하지 않았습니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 Vorssaint를 껐다가 다시 켠 뒤 이 기능을 켜세요."
     )
 
     static let zhHans = SuperKeyStrings(
@@ -311,7 +323,8 @@ extension SuperKeyStrings {
         manageButton: "设置…",
         soloInputSource: "切换输入法；长按开关大写锁定",
         mappingForeignMapping: "另一个 App 的按键映射使用了所选按键。请在那个 App 里删除映射：仅退出它并不够。",
-        mappingSystemRefused: "macOS 拒绝了按键映射。请重新连接键盘或重启 Mac，然后重新打开此功能。"
+        mappingSystemRefused: "macOS 拒绝了按键映射。请重新连接键盘或重启 Mac，然后重新打开此功能。",
+        keyboardTapRefused: "macOS 不允许 Vorssaint 监听键盘。请在系统设置 › 隐私与安全性 › 辅助功能中关闭再打开 Vorssaint，然后重新打开此功能。"
     )
 
     static let zhTW = SuperKeyStrings(
@@ -334,7 +347,8 @@ extension SuperKeyStrings {
         manageButton: "設定…",
         soloInputSource: "切換輸入法；長按切換大寫鎖定",
         mappingForeignMapping: "另一個 App 的按鍵對應使用了所選按鍵。請在那個 App 裡移除對應：只結束它並不夠。",
-        mappingSystemRefused: "macOS 拒絕了按鍵對應。請重新連接鍵盤或重新啟動 Mac，然後重新開啟此功能。"
+        mappingSystemRefused: "macOS 拒絕了按鍵對應。請重新連接鍵盤或重新啟動 Mac，然後重新開啟此功能。",
+        keyboardTapRefused: "macOS 不允許 Vorssaint 監聽鍵盤。請在系統設定 › 隱私權與安全性 › 輔助使用中關閉再開啟 Vorssaint，然後重新開啟此功能。"
     )
 
     static let zhHK = SuperKeyStrings(
@@ -357,6 +371,7 @@ extension SuperKeyStrings {
         manageButton: "設定…",
         soloInputSource: "切換輸入法；長撳切換大寫鎖定",
         mappingForeignMapping: "另一個 App 嘅按鍵對應用咗所選按鍵。請喺嗰個 App 度移除對應：淨係結束佢唔夠。",
-        mappingSystemRefused: "macOS 拒絕咗按鍵對應。請重新接駁鍵盤或者重新啟動 Mac，然後重新開啟呢個功能。"
+        mappingSystemRefused: "macOS 拒絕咗按鍵對應。請重新接駁鍵盤或者重新啟動 Mac，然後重新開啟呢個功能。",
+        keyboardTapRefused: "macOS 唔俾 Vorssaint 監聽鍵盤。請喺系統設定 › 隱私權與安全性 › 輔助使用入面關閉再開啟 Vorssaint，然後重新開啟呢個功能。"
     )
 }

@@ -38,6 +38,7 @@ enum MixerInputVolumeContract {
         static let audioPriorityInputEnabled = "audioPriorityInputEnabled"
         static let micMuteActive = "mute"
         static let micMuteSavedVolumes = "savedVolumes"
+        static let micMuteSavedChannelVolumes = "savedChannelVolumes"
         static let micMuteMutedDevices = "owned"
         static let micMuteSavedVolume = "legacyVolume"
         static let micMuteShortcutEnabled = "shortcutEnabled"
@@ -67,13 +68,18 @@ enum MixerInputVolumeContract {
         static let micMuteDefault = GlobalShortcut()
         static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut { fallback }
     }
-    enum QuickToolHUD { static func show(icon: String, message: String) {} }
+    enum QuickToolHUD {
+        static var messages: [String] = []
+        static func show(icon: String, message: String) { messages.append(message) }
+    }
     enum L10n {
         static let shared = Strings()
         struct Strings {
             var s: Strings { self }
             let micMutedHUD = "muted"
             let micUnmutedHUD = "unmuted"
+            let micMutePartialHUD = "mute partial"
+            let micUnmutePartialHUD = "unmute partial"
         }
     }
     struct Key: Hashable {
@@ -103,6 +109,8 @@ enum MixerInputVolumeContract {
         static var afterUIDRead: (() -> Void)?
         static var current: UInt32 = 10
         static var uids: [UInt32: String] = [:]
+        static var aggregates: Set<UInt32> = []
+        static var running: Set<UInt32> = []
         static func key(_ d: UInt32, _ e: UInt32 = 0, _ s: UInt32 = kAudioDevicePropertyVolumeScalar)
             -> Key
         {
@@ -124,6 +132,8 @@ enum MixerInputVolumeContract {
             devices = [10]
             current = 10
             uids = [:]
+            aggregates = []
+            running = []
             streamChannels = [:]
             streamReadFails = false
             afterWrite = nil
@@ -189,6 +199,11 @@ enum MixerInputVolumeContract {
             case kAudioDevicePropertyDeviceIsAlive, kAudioDevicePropertyDeviceCanBeDefaultDevice:
                 p.storeBytes(of: UInt32(1), as: UInt32.self)
             case kAudioDevicePropertyIsHidden: p.storeBytes(of: UInt32(0), as: UInt32.self)
+            case kAudioDevicePropertyTransportType:
+                guard aggregates.contains(d) else { return -1 }
+                p.storeBytes(of: kAudioDeviceTransportTypeAggregate, as: UInt32.self)
+            case kAudioDevicePropertyDeviceIsRunningSomewhere:
+                p.storeBytes(of: UInt32(running.contains(d) ? 1 : 0), as: UInt32.self)
             case kAudioDevicePropertyMute:
                 guard let v = mute[d] else { return -1 }
                 p.storeBytes(of: v, as: UInt32.self)
@@ -639,5 +654,104 @@ enum MixerInputVolumeContract {
         m = manager()
         check(m.inputVolume == nil, "channel discovery failure does not guess channel addresses")
         m.stop()
+        HAL.reset()
+        HAL.devices = [10, 20]
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.levels[HAL.key(20)] = 0.5
+        HAL.readOnly.insert(HAL.key(20))
+        HAL.running = [20]
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(
+            QuickToolHUD.messages == ["mute partial"] && HAL.levels[HAL.key(20)] == 0.5,
+            "a microphone left open is announced instead of a plain mute")
+        HAL.reset()
+        HAL.devices = [10, 20]
+        HAL.mute[10] = 0
+        HAL.mute[20] = 0
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.writeFails.insert(HAL.key(20, 0, kAudioDevicePropertyMute))
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(
+            QuickToolHUD.messages == ["muted", "unmute partial"] && HAL.mute[10] == 0 && HAL.mute[20] == 1,
+            "a claimed microphone that stays muted is announced instead of a plain unmute")
+        HAL.reset()
+        HAL.devices = [10, 20]
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.mute[20] = 1
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(
+            QuickToolHUD.messages == ["muted"] && MicMuteService.isSilenced(10),
+            "every microphone silent, one by the user, still announces a plain mute")
+        HAL.reset()
+        HAL.devices = [10, 30]
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.aggregates = [30]
+        HAL.running = [30]
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(
+            QuickToolHUD.messages == ["muted"] && MicMuteService.isSilenced(10),
+            "an aggregate with no mute or level of its own does not make the mute partial")
+        HAL.reset()
+        HAL.devices = [10, 40]
+        HAL.levels[HAL.key(10)] = 0.5
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(
+            QuickToolHUD.messages == ["muted"] && MicMuteService.isSilenced(10),
+            "an idle microphone with no mute or level of its own does not make the mute partial")
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.levels[HAL.key(10, 1)] = 1
+        HAL.levels[HAL.key(10, 2)] = 0.6
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(
+            MicMuteService.shared.isMuted && HAL.levels[HAL.key(10)] == 0
+                && HAL.levels[HAL.key(10, 1)] == 0 && HAL.levels[HAL.key(10, 2)] == 0,
+            "a gain mute lowers the main level and every channel")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(
+            HAL.levels[HAL.key(10)] == 0.5 && HAL.levels[HAL.key(10, 1)] == 1
+                && HAL.levels[HAL.key(10, 2)] == 0.6,
+            "a gain unmute puts back the main level and the balance between channels")
+        HAL.reset()
+        HAL.levels[HAL.key(10, 1)] = 0.8
+        HAL.levels[HAL.key(10, 2)] = 0.4
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(
+            HAL.levels[HAL.key(10, 1)] == 0.8 && HAL.levels[HAL.key(10, 2)] == 0.4,
+            "a device with channel levels only keeps their balance through a gain mute")
+        // What a version without saved channel levels leaves behind: the main
+        // level and both channels at zero, with only the main level saved.
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0
+        HAL.levels[HAL.key(10, 1)] = 0
+        HAL.levels[HAL.key(10, 2)] = 0
+        UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
+        UserDefaults.standard.set(["device-10": 0.5], forKey: DefaultsKey.micMuteSavedVolumes)
+        UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+        MicMuteService.shared = MicMuteService()
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(
+            !MicMuteService.shared.isMuted && HAL.levels[HAL.key(10)] == 0.5
+                && HAL.levels[HAL.key(10, 1)] == 0.5 && HAL.levels[HAL.key(10, 2)] == 0.5,
+            "an unmute after updating brings back the channels an earlier version lowered")
     }
 }

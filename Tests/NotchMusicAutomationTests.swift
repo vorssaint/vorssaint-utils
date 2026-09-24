@@ -105,6 +105,16 @@ enum NotchMusicAutomationTests {
         suite.expect(parse(playPause)?.canToggle == true
                && parse(playPause)?.event(for: .toggle, isPlaying: true)?.eventID == 0x70617573,
                "optional play arguments are omitted and a playing snapshot chooses its declared pause operation")
+        suite.expect(parse(playPause)?.playCommand?.eventID == 0x706C6179
+               && result?.playCommand?.eventID == 0x746F676C
+               && parse(unrelated)?.playCommand == nil,
+               "starting playback prefers the declared play command and falls back to the toggle alone")
+        suite.expect(MusicLaunchSupport.playbackNeverArrived(-600)
+               && MusicLaunchSupport.playbackNeverArrived(-609)
+               && !MusicLaunchSupport.playbackNeverArrived(-1712)
+               && !MusicLaunchSupport.playbackNeverArrived(-1743)
+               && !MusicLaunchSupport.playbackNeverArrived(0),
+               "a play command is asked again only when the player was not listening yet")
         let entity = "<!DOCTYPE dictionary [<!ENTITY payload 'private'>]><dictionary>&payload;</dictionary>"
         suite.expect(parse(entity) == nil && parse(String(repeating: "x", count: NotchMusicAutomationCapabilities.maximumBytes + 1)) == nil,
                "entity expansion and oversized dictionaries are rejected without external reads")

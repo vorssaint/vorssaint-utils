@@ -14,9 +14,16 @@ struct MetricsTests {
                 TestHarnessTests.run(suite)
                 PreferenceNamespaceTests.run(suite)
             }),
-            ("metrics", { MetricsFeatureTests.run(suite) }),
+            ("metrics", {
+                MetricsFeatureTests.run(suite)
+                ProcessNameContract.run(suite)
+                SystemMonitorCPUTests.run(suite)
+            }),
             ("clipboard", { ClipboardFeatureTests.run(suite) }),
-            ("pointer-input", { PointerInputFeatureTests.run(suite) }),
+            ("pointer-input", {
+                PointerInputFeatureTests.run(suite)
+                SuperKeyTapContract.run(suite)
+            }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", { AppManagementFeatureTests.run(suite) }),
@@ -25,6 +32,7 @@ struct MetricsTests {
             ("mixer", {
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
+                SoundOutputSwitchContract.run(suite)
                 MixerInputVolumeContract.run(suite)
                 MixerFeatureTests.run(suite)
             }),
@@ -63,7 +71,10 @@ struct MetricsTests {
                 SettingsFeatureTests.run(suite)
                 SettingsWindowTests.run { suite.expect($0, $1) }
             }),
-            ("display-restoration", { DisplayRestorationTests.run(suite) }),
+            ("display-restoration", {
+                DisplayRestorationTests.run(suite)
+                BrightnessStepTests.run(suite)
+            }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
@@ -93,8 +104,15 @@ struct MetricsTests {
                 LocalizationTests.run(suite)
                 LocalizationFeatureContractTests.run(suite)
             }),
-            ("cleaner", { CleanerEligibilityTests.run(suite) }),
-            ("uninstaller", { UninstallerFlowTests.run(suite) }),
+            ("cleaner", {
+                CleanerEligibilityTests.run(suite)
+                CleanerLastRunContract.run(suite)
+                CleanerScanFlowTests.run(suite)
+            }),
+            ("uninstaller", {
+                UninstallerFlowTests.run(suite)
+                SelfUninstallContract.run(suite)
+            }),
             ("launcher", { QuickLauncherContract.run(suite) }),
             ("dock-autohide", {
                 DockAutohideHoldTests.run(suite)
@@ -106,9 +124,11 @@ struct MetricsTests {
             }),
             ("keep-awake", {
                 KeepAwakeCatalogContract.run(suite)
+                MenuPanelToggleLabelContract.run(suite)
                 KeepAwakeLidSleepTests.run { suite.expect($0, $1) }
                 KeepAwakeTimerHandoffTests.run { suite.expect($0, $1) }
             }),
+            ("wallpaper", { WallpaperContract.run(suite) }),
             ("emoji", { CommandBarEmojiContract.run(suite) }),
         ]
         var selected = Set<String>()

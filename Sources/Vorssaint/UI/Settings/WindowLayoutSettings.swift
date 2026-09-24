@@ -6,7 +6,12 @@ import SwiftUI
 struct WindowLayoutSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var service = WindowLayoutService.shared
+    @ObservedObject private var maximizer = WindowMaximizer.shared
+    @AppStorage(DefaultsKey.windowMaximizeEnabled) private var maximizeEnabled = false
+    @ObservedObject private var pointerDisplay = PointerDisplayService.shared
+    @AppStorage(DefaultsKey.pointerDisplayEnabled) private var pointerDisplayEnabled = false
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showInPanel = true
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
     @AppStorage(DefaultsKey.windowDirectionalEnabled) private var directionalEnabled = false
@@ -18,6 +23,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
+    @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
@@ -30,14 +36,16 @@ struct WindowLayoutSettings: View {
 
     var body: some View {
         Form {
-            Section {
-                Toggle(text.showInPanel, isOn: $showInPanel)
-                Text(text.caption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Label(text.permissionCaption, systemImage: "hand.raised")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if AppFeature.windowLayout.isAvailable {
+                Section {
+                    Toggle(text.showInPanel, isOn: $showInPanel)
+                    Text(text.caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Label(text.permissionCaption, systemImage: "hand.raised")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if !permissions.accessibility {
@@ -46,127 +54,166 @@ struct WindowLayoutSettings: View {
                 }
             }
 
-            Section(text.gestureSection) {
-                Toggle(text.edgeSnapEnable, isOn: $edgeSnapEnabled)
-                    .onChange(of: edgeSnapEnabled) { _, _ in
-                        WindowLayoutService.shared.syncWithPreferences()
-                    }
-                Text(text.edgeSnapCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                WindowEdgeSnapZonePicker(disabledZonesStorage: $edgeSnapDisabledZones,
-                                         text: text,
-                                         resetTitle: l10n.s.shortcutReset)
-                    .disabled(!edgeSnapEnabled)
-                    .opacity(edgeSnapEnabled ? 1 : 0.45)
-                    .onChange(of: edgeSnapDisabledZones) { _, _ in
-                        WindowLayoutService.shared.syncWithPreferences()
-                    }
-                if systemTilingEnabled {
-                    Label(text.edgeSnapSystemConflict, systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    if edgeSnapEnabled {
-                        Text(text.edgeSnapWaitingForSystem)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Button(text.edgeSnapOpenSystemSettings) {
-                        NSWorkspace.shared.open(WindowEdgeSnapSupport.desktopAndDockSettingsURL)
-                    }
-                    .controlSize(.small)
-                }
-                Divider()
-                Toggle(text.gestureEnable, isOn: $gestureEnabled)
-                    .onChange(of: gestureEnabled) { _, _ in
-                        WindowLayoutService.shared.syncWithPreferences()
-                    }
-                Text(text.gestureCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if gestureEnabled {
-                    WindowGestureModifierPicker(storageValue: $gestureModifiers,
-                                                title: text.gestureModifiers)
-                        .onChange(of: gestureModifiers) { _, _ in
+            // The green button override has no page of its own; it lives here
+            // with the other window behaviors and keeps this page reachable
+            // when it is the only one of the two still switched on in the hub.
+            if AppFeature.windowMaximizer.isAvailable {
+                windowMaximizerSection
+            }
+
+            if AppFeature.windowLayout.isAvailable {
+                Section(text.gestureSection) {
+                    Toggle(text.edgeSnapEnable, isOn: $edgeSnapEnabled)
+                        .onChange(of: edgeSnapEnabled) { _, _ in
                             WindowLayoutService.shared.syncWithPreferences()
                         }
-                    WindowGestureHints(modifierStorage: gestureModifiers,
-                                       moveText: text.gestureMove,
-                                       resizeText: text.gestureResize)
-                    Text(text.gestureResizeHint)
+                    Text(text.edgeSnapCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
-                }
-            }
-
-            Section(text.gapsSection) {
-                gapPicker(text.windowGap, selection: $windowGap)
-                gapPicker(text.screenGap, selection: $screenGap)
-                Text(text.gapsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section(text.shortcuts) {
-                Toggle(text.shortcuts, isOn: $shortcutsEnabled)
-                    .onChange(of: shortcutsEnabled) { _, _ in
-                        WindowLayoutService.shared.syncWithPreferences()
+                    WindowEdgeSnapZonePicker(disabledZonesStorage: $edgeSnapDisabledZones,
+                                             text: text,
+                                             resetTitle: l10n.s.shortcutReset)
+                        .disabled(!edgeSnapEnabled)
+                        .opacity(edgeSnapEnabled ? 1 : 0.45)
+                        .onChange(of: edgeSnapDisabledZones) { _, _ in
+                            WindowLayoutService.shared.syncWithPreferences()
+                        }
+                    if systemTilingEnabled {
+                        Label(text.edgeSnapSystemConflict, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        if edgeSnapEnabled {
+                            Text(text.edgeSnapWaitingForSystem)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button(text.edgeSnapOpenSystemSettings) {
+                            NSWorkspace.shared.open(WindowEdgeSnapSupport.desktopAndDockSettingsURL)
+                        }
+                        .controlSize(.small)
                     }
-                Text(text.shortcutsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !service.failedShortcutActions.isEmpty {
-                    Text(l10n.s.shortcutUnavailable)
+                    Divider()
+                    Toggle(text.gestureEnable, isOn: $gestureEnabled)
+                        .onChange(of: gestureEnabled) { _, _ in
+                            WindowLayoutService.shared.syncWithPreferences()
+                        }
+                    Text(text.gestureCaption)
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
+                    if gestureEnabled {
+                        WindowGestureModifierPicker(storageValue: $gestureModifiers,
+                                                    title: text.gestureModifiers)
+                            .onChange(of: gestureModifiers) { _, _ in
+                                WindowLayoutService.shared.syncWithPreferences()
+                            }
+                        WindowGestureHints(modifierStorage: gestureModifiers,
+                                           moveText: text.gestureMove,
+                                           resizeText: text.gestureResize)
+                        Text(text.gestureResizeHint)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
+                    }
                 }
-                Divider()
-                Toggle(WindowDirectionalStrings.localized(l10n.language).title,
-                       isOn: $directionalEnabled)
-                    .onChange(of: directionalEnabled) { _, _ in service.syncWithPreferences() }
-                Text(WindowDirectionalStrings.localized(l10n.language).caption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if directionalEnabled {
-                    ShortcutRecorderButton(shortcut: directionalShortcut,
-                                           isEnabled: permissions.accessibility,
-                                           waitingTitle: l10n.s.shortcutPressKeys,
-                                           invalidAction: {},
-                                           captureAction: saveDirectionalShortcut)
-                        .frame(width: 108)
-                    if service.directionalShortcutRegistrationFailed {
+
+                Section(FeatureStrings.windowLayoutIgnoredApps(l10n.language).sectionTitle) {
+                    WindowLayoutIgnoredAppsList()
+                }
+
+                Section(text.gapsSection) {
+                    gapPicker(text.windowGap, selection: $windowGap)
+                    gapPicker(text.screenGap, selection: $screenGap)
+                    Text(text.gapsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section(text.shortcuts) {
+                    Toggle(text.shortcuts, isOn: $shortcutsEnabled)
+                        .onChange(of: shortcutsEnabled) { _, _ in
+                            WindowLayoutService.shared.syncWithPreferences()
+                        }
+                    Text(text.shortcutsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if !service.failedShortcutActions.isEmpty {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    Toggle(WindowDirectionalStrings.localized(l10n.language).title,
+                           isOn: $directionalEnabled)
+                        .onChange(of: directionalEnabled) { _, _ in service.syncWithPreferences() }
+                    Text(WindowDirectionalStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if directionalEnabled {
+                        ShortcutRecorderButton(shortcut: directionalShortcut,
+                                               isEnabled: permissions.accessibility,
+                                               waitingTitle: l10n.s.shortcutPressKeys,
+                                               invalidAction: {},
+                                               captureAction: saveDirectionalShortcut)
+                            .frame(width: 108)
+                        if service.directionalShortcutRegistrationFailed {
+                            Text(l10n.s.shortcutUnavailable)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+
+                // The pointer moves without Accessibility, so this sits outside
+                // the window shortcuts toggle and works before that grant.
+                Section {
+                    Toggle(PointerDisplayStrings.localized(l10n.language).title,
+                           isOn: $pointerDisplayEnabled)
+                        .onChange(of: pointerDisplayEnabled) { _, _ in
+                            // Also syncs the pointer key, and starts or stops
+                            // watching app switches for Ignore apps.
+                            service.syncWithPreferences()
+                        }
+                    Text(PointerDisplayStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ShortcutPreferenceRow(role: .pointerNextDisplay,
+                                          isEnabled: pointerDisplayEnabled,
+                                          additionalConflict: {
+                                              service.shortcutConflictTitle($0)
+                                          }) {
+                        pointerDisplay.syncWithPreferences()
+                    }
+                    if pointerDisplayEnabled, pointerDisplay.shortcutRegistrationFailed {
                         Text(l10n.s.shortcutUnavailable)
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
                 }
-            }
 
-            Section {
-                Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
-                    .onChange(of: dockClickCycleWindows) { _, _ in
-                        DockClickService.shared.syncWithPreferences()
-                    }
-                Text(l10n.s.dockClickCycleWindowsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            placementSections
-
-            Section(text.other) {
-                actionRow(.maximize)
-                actionRow(.marginMaximize)
-                actionRow(.fullScreen)
-                actionRow(.center)
-                actionRow(.previousDisplay)
-                actionRow(.nextDisplay)
-                actionRow(.restore)
-                if let message = resultMessage {
-                    Text(message)
+                Section {
+                    Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
+                        .onChange(of: dockClickCycleWindows) { _, _ in
+                            DockClickService.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.dockClickCycleWindowsCaption)
                         .font(.caption)
-                        .foregroundStyle(resultColor)
+                        .foregroundStyle(.secondary)
+                }
+
+                placementSections
+
+                Section(text.other) {
+                    actionRow(.maximize)
+                    actionRow(.marginMaximize)
+                    actionRow(.fullScreen)
+                    actionRow(.center)
+                    actionRow(.previousDisplay)
+                    actionRow(.nextDisplay)
+                    actionRow(.restore)
+                    if let message = resultMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(resultColor)
+                    }
                 }
             }
         }
@@ -176,6 +223,25 @@ struct WindowLayoutSettings: View {
             for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshSystemTilingState()
         }
+    }
+
+    private var windowMaximizerSection: some View {
+        Section {
+            Toggle(l10n.s.windowMaximizeName, isOn: $maximizeEnabled)
+                .onChange(of: maximizeEnabled) { _, _ in
+                    WindowMaximizer.shared.syncWithPreferences()
+                }
+            Text(l10n.s.windowMaximizeCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if maximizeEnabled, maximizer.isRunning {
+                Label(l10n.s.windowMaximizeActiveNow, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+            WindowMaximizerExclusionsList()
+        }
+        .settingsSectionAnchor(.windowMaximizer)
     }
 
     private var directionalShortcut: GlobalShortcut {
@@ -243,7 +309,15 @@ struct WindowLayoutSettings: View {
     /// ten-view ViewBuilder limit.
     @ViewBuilder
     private var placementSections: some View {
-        actionSection(text.halves, Self.halfActions)
+        Section(text.halves) {
+            ForEach(Self.halfActions) { action in
+                actionRow(action)
+            }
+            Toggle(text.sideRepeatCycle, isOn: $sideRepeatCyclesThirds)
+            Text(text.sideRepeatCycleCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
         actionSection(text.thirds, Self.thirdActions)
         actionSection(text.quarterRows, Self.quarterRowActions)
         actionSection(text.quarterColumns, Self.quarterColumnActions)

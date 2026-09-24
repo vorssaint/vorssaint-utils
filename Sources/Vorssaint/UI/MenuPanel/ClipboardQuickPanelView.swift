@@ -364,18 +364,21 @@ private struct QuickEntryRow: View, Equatable {
     private func entryContent(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .text:
-            Text(entry.preview)
-                .font(.system(size: 12))
-                .lineLimit(2)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .center, spacing: 8) {
+                if let color = entry.color {
+                    ClipboardColorSwatch(color: color, size: 14)
+                }
+                Text(entry.preview)
+                    .font(.system(size: 12))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
             HStack(alignment: .center, spacing: 8) {
-                if let name = entry.imageFile,
-                   let thumbnail = ClipboardImageStore.thumbnail(named: name) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                if let name = entry.imageFile {
+                    ClipboardThumbnailImage(source: .stored(name: name),
+                                            aspectRatio: entry.imageAspectRatio)
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
@@ -388,12 +391,10 @@ private struct QuickEntryRow: View, Equatable {
         case .files:
             if entry.filePaths.count == 1,
                let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path),
-               let thumbnail = ClipboardImageStore.fileThumbnail(atPath: path) {
+               ClipboardImageStore.isImageFile(atPath: path) {
                 HStack(alignment: .center, spacing: 8) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                    ClipboardThumbnailImage(source: .file(path: path),
+                                            aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {

@@ -130,6 +130,10 @@ final class BrightnessService: ObservableObject {
     /// Whether the app's own overlay stands in for the system's, sampled with
     /// the tap so the tap thread never reads published state.
     private var overlayReplacesNativeOSD = false
+    /// Where a plain key press lands, sampled the same way: the display under
+    /// the pointer, or the one the system's own keys move.
+    private var functionKeysFollowPointer = false
+    private var functionKeySystemTarget: CGDirectDisplayID?
     /// Codes whose press this app consumed, so the matching release is
     /// consumed as well and the system never sees half a key.
     private var swallowedKeyCodes = Set<Int>()
@@ -229,8 +233,15 @@ final class BrightnessService: ObservableObject {
     private func tapsAreSuspended() -> Bool {
         keyThreadLock.withLock { inputTapsSuspended }
     }
-    private var keyboardLightLevel: Float?
+    @Published private(set) var keyboardLightLevel: Float?
     private var keyboardNoticeWork: DispatchWorkItem?
+    /// A drag folds into one write of its newest value, like the display
+    /// sliders. Non-nil means a write is already scheduled.
+    private var keyboardLevelWork: DispatchWorkItem?
+    /// Set between the slider's begin and end events. Holds the level the
+    /// light was at before the drag, which is what the switch brings back
+    /// when the drag ends at 0 (nil inside when it started off).
+    private var keyboardDragStart: Float??
     private var lastKeyboardLightLevel: Float = BrightnessSupport.defaultKeyboardLightLevel
     private var keyboardLightBridge: KeyboardLightBridge? { Self.sharedKeyboardLightBridge }
     private let displayBrightnessDecreaseHotkey = QuickToolHotkey(id: 59)
@@ -261,6 +272,7 @@ final class BrightnessService: ObservableObject {
 
     func setKeyboardLightEnabled(_ enabled: Bool) {
         guard keyboardLightEnabled != nil, let keyboardLightBridge else { return }
+        finishKeyboardLightDrag()
         if !enabled, let level = keyboardLightLevel, level > 0 {
             lastKeyboardLightLevel = level
         }
@@ -276,8 +288,71 @@ final class BrightnessService: ObservableObject {
         showKeyboardLightNotice(target)
     }
 
-    /// Reads this Mac's keyboard light only when its Quick toggles surface opens.
+    /// Writes an absolute level, for the sliders in the panel and in Settings.
+    /// The published value moves on the spot for a responsive slider; the
+    /// write is folded so a drag reaches the keyboard once, with its newest
+    /// value. The Quick toggles switch keeps to `setKeyboardLightEnabled`,
+    /// which restores the last level rather than naming one.
+    func setKeyboardLightLevel(_ level: Float) {
+        guard keyboardLightEnabled != nil,
+              let target = BrightnessSupport.sliderKeyboardLightLevel(level)
+        else { return }
+        keyboardLightLevel = target
+        keyboardLightEnabled = target > 0
+        // A step with no drag around it (VoiceOver, arrow keys) settles now.
+        if keyboardDragStart == nil, target > 0 { lastKeyboardLightLevel = target }
+        guard keyboardLevelWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.keyboardLevelWork = nil
+            self.commitKeyboardLightLevel()
+        }
+        keyboardLevelWork = work
+        // One frame of folding; a real throttle if a drag ever outruns the
+        // private setter by more than this.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 60.0, execute: work)
+    }
+
+    private func commitKeyboardLightLevel() {
+        guard let target = keyboardLightLevel, let keyboardLightBridge else { return }
+        guard keyboardLightBridge.setBrightness(target) else {
+            refreshKeyboardLight()
+            return
+        }
+        showKeyboardLightNotice(target)
+    }
+
+    /// The slider's own begin and end events bracket a drag. A pause while
+    /// still holding it is not an end.
+    func keyboardLightDragChanged(_ editing: Bool) {
+        if editing {
+            finishKeyboardLightDrag()
+            let current = keyboardLightLevel
+            keyboardDragStart = .some(current.flatMap { $0 > 0 ? $0 : nil })
+        } else {
+            finishKeyboardLightDrag()
+        }
+    }
+
+    /// Settles the level the switch brings back: where the drag left it, or,
+    /// if it went all the way off, the level held before the drag rather than
+    /// whatever it passed on the way down. Anything else that takes over the
+    /// light (the switch, a key step) calls this first.
+    private func finishKeyboardLightDrag() {
+        guard let start = keyboardDragStart else { return }
+        keyboardDragStart = nil
+        if let level = keyboardLightLevel, level > 0 {
+            lastKeyboardLightLevel = level
+        } else if let start {
+            lastKeyboardLightLevel = start
+        }
+    }
+
+    /// Reads this Mac's keyboard light when a surface that shows it opens.
     func refreshKeyboardLight() {
+        // A read landing mid-drag would show the level the keyboard is still
+        // catching up to, so the slider keeps its own value until the write lands.
+        guard keyboardLevelWork == nil else { return }
         guard let level = keyboardLightBridge?.brightness(), level >= 0, level <= 1 else {
             keyboardLightLevel = nil
             keyboardLightEnabled = nil
@@ -295,6 +370,7 @@ final class BrightnessService: ObservableObject {
               let keyboardLightBridge,
               let current = keyboardLightLevel(using: keyboardLightBridge)
         else { return }
+        finishKeyboardLightDrag()
         let target = BrightnessSupport.steppedKeyboardLightLevel(
             current: current, direction: direction)
         guard keyboardLightBridge.setBrightness(target) else {
@@ -423,6 +499,8 @@ final class BrightnessService: ObservableObject {
         // changes during the asynchronous permission teardown. The reset
         // owner releases it explicitly through resumeInputTaps().
         keyboardNoticeWork?.cancel(); keyboardNoticeWork = nil
+        keyboardLevelWork?.cancel(); keyboardLevelWork = nil
+        keyboardDragStart = nil
         removeKeyTap()
         displayBrightnessDecreaseHotkey.unregister()
         displayBrightnessIncreaseHotkey.unregister()
@@ -890,8 +968,15 @@ final class BrightnessService: ObservableObject {
         guard !tapsAreSuspended() else { return }
         let defaults = UserDefaults.standard
         let wantsKeyRouting = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
-        let wantsBrightnessOSD = (defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
-            || NotchSupport.routes(.brightness)) && brightnessOSDSupported
+        // An island away in full screen, or set to stay hidden until hover,
+        // shows no notices while closed, so its keys keep the system's own
+        // feedback. The plain key tap runs on its own thread and keeps this
+        // sample; the island asks for a new one when full screen hides it.
+        let wantsBrightnessOSD = BrightnessSupport.overlayReplacesNative(
+            overlayEnabled: defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled),
+            islandRoutes: NotchSupport.routes(.brightness),
+            islandShowsNotices: NotchService.shared.acceptsSystemFeedback
+                && !NotchSupport.hidesUntilHover(in: defaults)) && brightnessOSDSupported
         let wantsKeyboardLight = NotchSupport.routes(.keyboardLight) && keyboardLightBridge != nil
         if !wantsKeyboardLight || !SessionActivity.shared.isActive {
             keyboardNoticeWork?.cancel(); keyboardNoticeWork = nil
@@ -901,21 +986,34 @@ final class BrightnessService: ObservableObject {
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
         if wanted { installKeyTap() } else { removeKeyTap() }
-        // The plain key press path only earns its keystroke tap when the
-        // pointer actually decides the target.
-        if wanted, running, wantsKeyRouting {
+        // Other keyboards send brightness as plain key presses. Their
+        // keystroke tap is only earned when this app answers a brightness key
+        // instead of the system: the pointer decides the target, or an overlay
+        // or the island stands in for the system's own.
+        if wanted, running, BrightnessSupport.answersPlainBrightnessKeys(followsPointer: wantsKeyRouting,
+                                                                          overlayReplacesNative: wantsBrightnessOSD) {
             let hotKeys = UserDefaults(suiteName: "com.apple.symbolichotkeys")?
                 .dictionary(forKey: "AppleSymbolicHotKeys")
             let adjusts = BrightnessSupport.functionKeysAdjustBrightness(symbolicHotKeys: hotKeys)
             let overlayReplaces = wantsBrightnessOSD
+            let systemTarget = systemKeyTarget?.id
             keyThreadLock.withLock {
                 functionKeysAdjustBrightness = adjusts
                 overlayReplacesNativeOSD = overlayReplaces
+                functionKeysFollowPointer = wantsKeyRouting
+                functionKeySystemTarget = systemTarget
             }
             installFunctionKeyTap()
         } else {
             removeFunctionKeyTap()
         }
+    }
+
+    /// The display the system's own brightness keys move: the built-in panel,
+    /// or in clamshell mode a display on the same system pipeline.
+    private var systemKeyTarget: BrightnessDisplay? {
+        displays.first(where: { $0.isBuiltIn && $0.isActive && $0.method == .system })
+            ?? displays.first(where: { $0.isActive && $0.method == .system })
     }
 
     private func installKeyTap() {
@@ -1120,25 +1218,30 @@ final class BrightnessService: ObservableObject {
             functionKeysAdjustBrightness: adjusts)
         else { return Unmanaged.passUnretained(event) }
 
-        var displayID: CGDirectDisplayID = 0
+        let (followsPointer, systemTarget, overlayReplacesNative) = keyThreadLock.withLock {
+            (functionKeysFollowPointer, functionKeySystemTarget, overlayReplacesNativeOSD)
+        }
+        var pointerDisplay: CGDirectDisplayID = 0
         var matched: UInt32 = 0
-        guard CGGetDisplaysWithPoint(event.location, 1, &displayID, &matched) == .success,
-              matched > 0
+        let underPointer = followsPointer
+            && CGGetDisplaysWithPoint(event.location, 1, &pointerDisplay, &matched) == .success && matched > 0
+        guard let displayID = BrightnessSupport.plainKeyTarget(followsPointer: followsPointer,
+                                                               pointerDisplay: underPointer ? pointerDisplay : nil,
+                                                               systemTarget: systemTarget)
         else { return Unmanaged.passUnretained(event) }
 
         stateLock.lock()
         let route = routes[displayID]
         stateLock.unlock()
-        guard let route else { return Unmanaged.passUnretained(event) }
+        guard let route, followsPointer || route.method == .system else { return Unmanaged.passUnretained(event) }
         if route.method == .system {
             // Same rule the media keys follow, so both kinds of keyboard
             // behave alike: the built-in panel keeps the system's own handling
             // and its animation unless the app's own overlay replaces it, and
             // every other system-routed display has to be stepped here,
             // because the system only ever moves its native target.
-            let overlayReplacesNative = keyThreadLock.withLock { overlayReplacesNativeOSD }
             guard BrightnessSupport.stepsSystemRoutedDisplay(
-                followsPointer: true,
+                followsPointer: followsPointer,
                 displayIsBuiltIn: CGDisplayIsBuiltin(displayID) != 0,
                 overlayReplacesNative: overlayReplacesNative
             ), BrightnessBridge.setBrightness != nil else {
@@ -1156,8 +1259,8 @@ final class BrightnessService: ObservableObject {
     private func applyKeyStep(_ press: BrightnessSupport.BrightnessKeyEvent,
                               to displayID: CGDirectDisplayID,
                               method: BrightnessDisplay.Method) {
+        // The island shows the step on its own; the overlay needs its option.
         let showOSD = UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled)
-            || NotchSupport.routes(.brightness)
         step(displayID, method: method, delta: press.delta, showOSD: showOSD)
     }
 
@@ -1226,7 +1329,13 @@ final class BrightnessService: ObservableObject {
             DispatchQueue.main.async {
                 let queued = self.ddcPendingSteps.removeValue(forKey: displayID) ?? 0
                 var current = cached
-                if case let .replied(value, maximum) = probe {
+                self.stateLock.lock()
+                let superseded = self.levelKnownAt[displayID] != known
+                self.stateLock.unlock()
+                if superseded {
+                    // A level set while the monitor was being read is newer than the read.
+                    current = self.displays.first(where: { $0.id == displayID })?.brightness ?? cached
+                } else if case let .replied(value, maximum) = probe {
                     let level = BrightnessSupport.normalized(
                         current: value, maximum: BrightnessSupport.sanitizedMaximum(maximum))
                     Self.log.log("display \(displayID) reads \(level) before stepping")
@@ -1281,8 +1390,12 @@ final class BrightnessService: ObservableObject {
 
         let defaults = UserDefaults.standard
         let followsPointer = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
-        let wantsBrightnessOSD = (defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
-            || NotchSupport.routes(.brightness))
+        let showsOverlay = defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
+        // This tap runs on the main thread, so every press asks the island
+        // whether it shows notices right now.
+        let wantsBrightnessOSD = BrightnessSupport.overlayReplacesNative(
+            overlayEnabled: showsOverlay, islandRoutes: NotchSupport.routes(.brightness),
+            islandShowsNotices: NotchService.shared.showsSystemFeedback)
         let displayID: CGDirectDisplayID
         if followsPointer {
             let pointer = NSEvent.mouseLocation
@@ -1293,12 +1406,7 @@ final class BrightnessService: ObservableObject {
                 return Unmanaged.passUnretained(event)
             }
             displayID = id
-        } else if wantsBrightnessOSD,
-                  let systemTarget = displays.first(where: {
-                      $0.isBuiltIn && $0.isActive && $0.method == .system
-                  }) ?? displays.first(where: {
-                      $0.isActive && $0.method == .system
-                  }) {
+        } else if wantsBrightnessOSD, let systemTarget = systemKeyTarget {
             // With pointer routing off, keep the native target. In clamshell
             // mode this can be a system-managed external display.
             displayID = systemTarget.id
@@ -1336,7 +1444,7 @@ final class BrightnessService: ObservableObject {
             ) {
                 let stepped = BrightnessSupport.steppedBrightness(current, delta: press.delta)
                 Self.log.log("key step display \(displayID) route system \(current) to \(stepped)")
-                setBrightness(stepped, for: displayID, showOSD: wantsBrightnessOSD)
+                setBrightness(stepped, for: displayID, showOSD: showsOverlay)
             }
             // Both halves are replaced so the system never draws a second OSD.
             return nil
@@ -1345,7 +1453,7 @@ final class BrightnessService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         if press.isKeyDown {
-            step(displayID, method: route.method, delta: press.delta, showOSD: wantsBrightnessOSD)
+            step(displayID, method: route.method, delta: press.delta, showOSD: showsOverlay)
         }
         return nil
     }
@@ -1868,8 +1976,7 @@ final class BrightnessService: ObservableObject {
             if writeSucceeded, let osdLevel {
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.running,
-                          (UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled)
-                              || NotchSupport.routes(.brightness)) else { return }
+                          UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled) else { return }
                     self.stateLock.lock()
                     let current = self.rebuildGeneration
                     let latestWrite = self.writeSequence
@@ -2204,7 +2311,10 @@ final class BrightnessService: ObservableObject {
 /// through dlopen/dlsym and the feature degrades gracefully wherever one is
 /// missing: no system brightness symbol means no built-in slider, no I2C
 /// symbols mean no external sliders, never a crash.
-private enum BrightnessBridge {
+/// Also used by `LidDisplayDimmer` to write the built-in panel directly by
+/// ID while the lid is closed, when it is off `CGGetOnlineDisplayList`'s
+/// active subset and this class's own display rows do not cover it.
+enum BrightnessBridge {
     typealias GetBrightnessFn = @convention(c) (UInt32, UnsafeMutablePointer<Float>) -> Int32
     typealias SetBrightnessFn = @convention(c) (UInt32, Float) -> Int32
     typealias CreateInfoDictionaryFn = @convention(c) (UInt32) -> Unmanaged<CFDictionary>?
