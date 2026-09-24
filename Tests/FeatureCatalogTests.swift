@@ -302,6 +302,30 @@ enum FeatureCatalogTests {
         let unrelatedSystemEvent = CleaningSystemKeyEvent.decode(subtype: 99, data1: 0)
         suite.expect(unrelatedSystemEvent == nil, "unrelated system-defined events do not count as unlock keys")
 
+        // MARK: Media keys to the music player
+
+        func mediaKey(_ code: UInt16, state: Int = 10, repeatFlag: Bool = false) -> MediaKeyPlayerSupport.Key? {
+            MediaKeyPlayerSupport.key(subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+                                      data1: Int((UInt32(code) << 16) | (UInt32(state) << 8) | (repeatFlag ? 1 : 0)))
+        }
+        suite.expect(mediaKey(16)?.command == .toggle && mediaKey(17)?.command == .next
+                && mediaKey(19)?.command == .next && mediaKey(18)?.command == .previous
+                && mediaKey(20)?.command == .previous,
+               "play/pause, next/fast-forward and previous/rewind map to the player's commands")
+        suite.expect(mediaKey(16)?.phase == .down && mediaKey(16, repeatFlag: true)?.phase == .repeatDown
+                && mediaKey(16, state: 11)?.phase == .up,
+               "media keys tell a press, its repeats and its release apart")
+        suite.expect(mediaKey(0) == nil && mediaKey(1) == nil && mediaKey(7) == nil
+                && MediaKeyPlayerSupport.key(subtype: 99, data1: Int(UInt32(16) << 16 | 10 << 8)) == nil,
+               "volume, mute and unrelated system events never go to the player")
+        let spotify = MediaKeyPlayerSupport.Player(pid: 40, launched: Date(timeIntervalSince1970: 100))
+        let music = MediaKeyPlayerSupport.Player(pid: 50, launched: Date(timeIntervalSince1970: 200))
+        suite.expect(MediaKeyPlayerSupport.preferredPlayer([spotify, music], lastActivePID: 40) == 40
+                && MediaKeyPlayerSupport.preferredPlayer([spotify, music], lastActivePID: 99) == 50
+                && MediaKeyPlayerSupport.preferredPlayer([spotify, music], lastActivePID: nil) == 50
+                && MediaKeyPlayerSupport.preferredPlayer([], lastActivePID: 40) == nil,
+               "the player last brought forward wins, then the one launched last")
+
         // MARK: Music launch blocker
 
         func musicKeyData(keyCode: Int, state: Int = 10, repeatFlag: Bool = false) -> Int {

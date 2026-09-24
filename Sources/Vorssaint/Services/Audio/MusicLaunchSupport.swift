@@ -64,3 +64,64 @@ enum MusicLaunchSupport {
         return (0...launchArmWindow).contains(elapsed) && secondsSinceUserGesture > elapsed
     }
 }
+
+/// Sends the playback keys to the music player instead of whatever the system
+/// last saw playing, which is often a browser tab.
+enum MediaKeyPlayerSupport {
+    enum Command: Equatable {
+        case toggle, next, previous
+
+        /// The scripting dictionary command that carries it out.
+        var dictionaryName: String {
+            switch self {
+            case .toggle: return "playpause"
+            case .next: return "next track"
+            case .previous: return "previous track"
+            }
+        }
+    }
+
+    enum KeyPhase: Equatable { case down, repeatDown, up }
+
+    struct Key: Equatable {
+        let command: Command
+        let code: UInt16
+        let phase: KeyPhase
+    }
+
+    /// Apple keyboards send fast-forward and rewind for the track keys, so
+    /// both pairs mean next and previous.
+    static func key(subtype: Int, data1: Int) -> Key? {
+        guard subtype == MusicLaunchSupport.auxiliaryControlButtonsSubtype else { return nil }
+        let code = MusicLaunchSupport.keyCode(data1: data1)
+        let command: Command
+        switch code {
+        case MusicLaunchSupport.playPauseKeyCode: command = .toggle
+        case MusicLaunchSupport.nextTrackKeyCode, MusicLaunchSupport.fastForwardKeyCode: command = .next
+        case MusicLaunchSupport.previousTrackKeyCode, MusicLaunchSupport.rewindKeyCode: command = .previous
+        default: return nil
+        }
+        let raw = UInt32(truncatingIfNeeded: data1)
+        let state = Int((raw >> 8) & 0xFF)
+        let phase: KeyPhase
+        switch state {
+        case MusicLaunchSupport.keyDownState: phase = (raw & 0x1) == 0 ? .down : .repeatDown
+        case 11: phase = .up
+        default: return nil
+        }
+        return Key(command: command, code: code, phase: phase)
+    }
+
+    struct Player: Equatable {
+        let pid: Int32
+        let launched: Date?
+    }
+
+    /// The player last brought to the front, then the one launched last.
+    static func preferredPlayer(_ players: [Player], lastActivePID: Int32?) -> Int32? {
+        if let lastActivePID, players.contains(where: { $0.pid == lastActivePID }) { return lastActivePID }
+        return players.max {
+            ($0.launched ?? .distantPast, -$0.pid) < ($1.launched ?? .distantPast, -$1.pid)
+        }?.pid
+    }
+}
