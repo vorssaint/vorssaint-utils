@@ -1255,7 +1255,13 @@ final class BrightnessService: ObservableObject {
             DispatchQueue.main.async {
                 let queued = self.ddcPendingSteps.removeValue(forKey: displayID) ?? 0
                 var current = cached
-                if case let .replied(value, maximum) = probe {
+                self.stateLock.lock()
+                let superseded = self.levelKnownAt[displayID] != known
+                self.stateLock.unlock()
+                if superseded {
+                    // A level set while the monitor was being read is newer than the read.
+                    current = self.displays.first(where: { $0.id == displayID })?.brightness ?? cached
+                } else if case let .replied(value, maximum) = probe {
                     let level = BrightnessSupport.normalized(
                         current: value, maximum: BrightnessSupport.sanitizedMaximum(maximum))
                     Self.log.log("display \(displayID) reads \(level) before stepping")

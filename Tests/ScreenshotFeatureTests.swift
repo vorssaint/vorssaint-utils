@@ -156,6 +156,27 @@ enum ScreenshotFeatureTests {
             id: 1, ownerPID: 500, frame: CGRect(x: 100, y: 100, width: 800, height: 600))
         let sheet = CaptureWindow(
             id: 2, ownerPID: 500, frame: CGRect(x: 300, y: 100, width: 400, height: 300))
+        func attachedCoverage(windowAt origin: CGPoint) -> ScreenshotSupport.AlphaCoverage {
+            var alpha = [UInt8](repeating: 0, count: 40 * 20)
+            for row in Int(origin.y)..<Int(origin.y) + 6 {
+                for column in Int(origin.x)..<Int(origin.x) + 8 { alpha[row * 40 + column] = 255 }
+            }
+            return ScreenshotSupport.AlphaCoverage(alpha: alpha, width: 40, height: 20)
+        }
+        let placedWindow = CGRect(x: 20, y: 10, width: 8, height: 6)
+        let packedWindow = CGRect(x: 0, y: 0, width: 8, height: 6)
+        suite.expect(ScreenshotSupport.attachedCaptureCrop(
+            placed: placedWindow, packed: packedWindow,
+            coverage: attachedCoverage(windowAt: CGPoint(x: 20, y: 10))) == placedWindow,
+               "a window drawn where it sits on the display is cropped there")
+        suite.expect(ScreenshotSupport.attachedCaptureCrop(
+            placed: placedWindow, packed: packedWindow,
+            coverage: attachedCoverage(windowAt: .zero)) == packedWindow,
+               "windows packed into the corner of the capture are cropped whole, not as a slice")
+        suite.expect(ScreenshotSupport.attachedCaptureCrop(
+            placed: CGRect(x: 4, y: 2, width: 8, height: 6), packed: packedWindow,
+            coverage: attachedCoverage(windowAt: CGPoint(x: 4, y: 2))) == CGRect(x: 4, y: 2, width: 8, height: 6),
+               "an overlapping placement still follows where the window was drawn")
         suite.expect(ScreenshotCapturePolicy.attachedCapturePlan(
             target: capturedWindow, frontToBack: [sheet, capturedWindow])
             == ScreenshotCapturePolicy.AttachedCapturePlan(
