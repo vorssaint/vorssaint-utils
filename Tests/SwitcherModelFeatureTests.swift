@@ -2445,7 +2445,7 @@ enum SwitcherModelFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.menuBarFanSpeed] as? Bool == false,
                "menu bar fan speed is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricOrder] as? String
-               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTime,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,power,fanSpeed",
+               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTime,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,connectedDevices,power,fanSpeed",
                "menu bar metric order keeps temperature sensors next to their components and disk near live I/O")
         suite.expect(registeredDefaults[DefaultsKey.menuBarCombineTemperatures] as? Bool == true,
                "menu bar combines usage and temperature by default")
@@ -2475,6 +2475,16 @@ enum SwitcherModelFeatureTests {
                "window gestures start with the deliberate control-command chord")
         suite.expect(registeredDefaults[DefaultsKey.windowGestureRaiseWindow] as? Bool == false,
                "window gestures do not change app focus unless requested")
+        suite.expect(registeredDefaults[DefaultsKey.windowLayoutIgnoredApps] as? [String] == [],
+               "window layout ignores no apps by default")
+        suite.expect(WindowLayoutIgnoredApps.contains("com.example.game", in: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.contains("com.example.editor", in: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.contains(nil, in: ["com.example.game"]),
+               "window layout only pauses for the focused app on its list")
+        suite.expect(WindowLayoutIgnoredApps.matches(bundleID: nil,
+                                               executablePath: "/Applications/Game",
+                                               apps: ["/Applications/Game"]),
+               "window layout pauses for a focused executable without a bundle identifier")
         let assignedLayoutShortcutKeys = [
             DefaultsKey.windowLayoutShortcutLeft,
             DefaultsKey.windowLayoutShortcutRight,

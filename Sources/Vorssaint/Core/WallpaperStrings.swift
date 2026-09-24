@@ -39,11 +39,13 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
         case .ja: return .ja
         case .ko: return .ko
+        case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -181,6 +183,31 @@ extension WallpaperFeatureStrings {
         previousPage: "Anterior",
         nextPage: "Siguiente"
     )
+    static let sk = WallpaperFeatureStrings(
+        pageTitle: "Pozadie",
+        hubDescription: "Vyberte statické pozadie bez otvárania Systémových nastavení",
+        panelDescription: "Vyberte statické pozadie bez otvárania Systémových nastavení.",
+        filterAll: "Všetky",
+        filterOwn: "Vaše obrázky",
+        filterApple: "Apple",
+        applyAllDisplays: "Zobraziť na všetkých plochách",
+        addImage: "Pridať obrázok",
+        addFolder: "Pridať priečinok",
+        removeAdded: "Odstrániť",
+        doneRemoving: "Hotovo",
+        sourceUnavailable: "Nedostupné",
+        addImagePrompt: "Vyberte obrázky, ktoré sa majú ponechať v zozname pozadí Vorssaintu",
+        addFolderPrompt: "Vyberte priečinok s obrázkami, ktorý sa má ponechať v zozname pozadí Vorssaintu",
+        openSystemSettings: "Otvoriť nastavenia pozadia",
+        emptyAll: "Nenašli sa žiadne pozadia",
+        emptyOwn: "Zatiaľ ste nepridali žiadne obrázky",
+        emptyApple: "Nenašli sa žiadne statické pozadia od Apple",
+        downloading: "Sťahuje sa…",
+        downloadFailed: "Pozadie sa nepodarilo stiahnuť",
+        applyFailed: "Pozadie sa nepodarilo nastaviť",
+        previousPage: "Predchádzajúca",
+        nextPage: "Ďalšia"
+    )
 
     static let de = WallpaperFeatureStrings(
         pageTitle: "Hintergrundbild",
@@ -310,6 +337,31 @@ extension WallpaperFeatureStrings {
         applyFailed: "배경화면을 설정할 수 없습니다",
         previousPage: "이전",
         nextPage: "다음"
+    )
+    static let uk = WallpaperFeatureStrings(
+        pageTitle: "Шпалера",
+        hubDescription: "Вибирайте статичну шпалеру, не відкриваючи Системні параметри",
+        panelDescription: "Вибирайте статичну шпалеру, не відкриваючи Системні параметри.",
+        filterAll: "Усі",
+        filterOwn: "Ваші зображення",
+        filterApple: "Apple",
+        applyAllDisplays: "Показувати всюди",
+        addImage: "Додати зображення",
+        addFolder: "Додати папку",
+        removeAdded: "Видалити",
+        doneRemoving: "Готово",
+        sourceUnavailable: "Недоступно",
+        addImagePrompt: "Виберіть зображення для списку шпалер Vorssaint",
+        addFolderPrompt: "Виберіть папку із зображеннями для списку шпалер Vorssaint",
+        openSystemSettings: "Відкрити параметри шпалери",
+        emptyAll: "Шпалер не знайдено",
+        emptyOwn: "Зображень ще не додано",
+        emptyApple: "Статичних шпалер Apple не знайдено",
+        downloading: "Завантаження…",
+        downloadFailed: "Не вдалося завантажити шпалеру",
+        applyFailed: "Не вдалося встановити шпалеру",
+        previousPage: "Назад",
+        nextPage: "Далі"
     )
 
     static let zhHans = WallpaperFeatureStrings(

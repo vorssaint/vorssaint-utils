@@ -283,22 +283,31 @@ struct ShelfTooltipStrings {
     let linkSingular: String
     let linkFew: String
     let linkPlural: String
-    /// Set for a language whose two through four take a form of their own.
-    let usesFewForm: Bool
+    /// How the language agrees a counted noun with its number.
+    let agreement: CountAgreement
 
     /// The form a count asks for. Russian agrees by the number's last digits:
     /// one for 1, 21, 31 but not 11; the middle form for 2 through 4, 22
     /// through 24 but not 12 through 14; the last for everything else.
+    /// Slovak reads the whole number instead, so only 1 and only 2 through 4
+    /// leave the last form, and 21 and 22 stay with it.
     enum Form { case one, few, many }
 
     func form(for count: Int) -> Form {
-        guard usesFewForm else { return count == 1 ? .one : .many }
         let magnitude = abs(count)
-        if (11...14).contains(magnitude % 100) { return .many }
-        switch magnitude % 10 {
-        case 1: return .one
-        case 2, 3, 4: return .few
-        default: return .many
+        switch agreement {
+        case .oneAndMany:
+            return magnitude == 1 ? .one : .many
+        case .byWholeNumber:
+            if magnitude == 1 { return .one }
+            return (2...4).contains(magnitude) ? .few : .many
+        case .byLastDigits:
+            if (11...14).contains(magnitude % 100) { return .many }
+            switch magnitude % 10 {
+            case 1: return .one
+            case 2, 3, 4: return .few
+            default: return .many
+            }
         }
     }
 }

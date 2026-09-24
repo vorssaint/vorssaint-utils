@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -35,6 +36,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -51,6 +53,18 @@ extension BackupFeatureStrings {
         importConfirmBody: "현재 설정이 파일의 설정으로 바뀌고 앱이 다시 시작됩니다. 이 Mac의 다른 항목은 변경되지 않습니다.",
         importAction: "가져오고 다시 시작",
         invalidFile: "이 파일은 유효한 Vorssaint 백업이 아닙니다."
+    )
+    static let uk = BackupFeatureStrings(
+        title: "Резервна копія",
+        description: "Перенесіть свої налаштування на інший Mac: експортуйте всі параметри у файл та імпортуйте їх там. Нотатки Нотатника, історія буфера обміну, елементи Полиці та системні дозволи ніколи не залишають цей Mac.",
+        exportButton: "Експортувати налаштування…",
+        importButton: "Імпортувати налаштування…",
+        exported: "Резервну копію збережено",
+        exportFailed: "Не вдалося зберегти резервну копію.",
+        importConfirmTitle: "Імпортувати ці налаштування?",
+        importConfirmBody: "Ваші поточні налаштування замінюються файлом, і програма перезапускається. Нічого іншого на цьому Mac не зачіпається.",
+        importAction: "Імпортувати та перезапустити",
+        invalidFile: "Цей файл не є коректною резервною копією Vorssaint."
     )
 }
 
@@ -118,6 +132,19 @@ extension BackupFeatureStrings {
         importConfirmBody: "Los ajustes actuales se sustituyen por los del archivo y la app se reinicia. Nada más cambia en este Mac.",
         importAction: "Importar y reiniciar",
         invalidFile: "Este archivo no es una copia de seguridad válida de Vorssaint."
+    )
+
+    static let sk = BackupFeatureStrings(
+        title: "Záloha",
+        description: "Preneste svoje nastavenia na iný Mac: exportujte všetky predvoľby do súboru a tam ich importujte. Poznámkový blok, história schránky, položky police a systémové povolenia nikdy neopustia tento Mac.",
+        exportButton: "Exportovať nastavenia…",
+        importButton: "Importovať nastavenia…",
+        exported: "Záloha uložená",
+        exportFailed: "Zálohu sa nepodarilo uložiť.",
+        importConfirmTitle: "Importovať tieto nastavenia?",
+        importConfirmBody: "Vaše aktuálne nastavenia sa nahradia nastaveniami zo súboru a aplikácia sa reštartuje. Nič iné na tomto Macu sa nezmení.",
+        importAction: "Importovať a reštartovať",
+        invalidFile: "Tento súbor nie je platná záloha Vorssaint."
     )
 
     static let de = BackupFeatureStrings(

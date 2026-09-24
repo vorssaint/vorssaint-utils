@@ -475,7 +475,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
                                               linkSingular: s.shelfTooltipLinkSingular,
                                               linkFew: s.shelfTooltipLinkFew,
                                               linkPlural: s.shelfTooltipLinkPlural,
-                                              usesFewForm: L10n.shared.language.usesFewCountForm)
+                                              agreement: L10n.shared.language.countAgreement)
             return ShelfTooltipSupport.text(forPile: breakdown, strings: strings)
         }
     }

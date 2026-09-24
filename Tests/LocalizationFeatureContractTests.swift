@@ -40,15 +40,14 @@ enum LocalizationFeatureContractTests {
                    + "(\(language.rawValue): \(strings.switcherMinimizedPlacementLabel))")
         }
         // Quotation marks are part of looking native and each language has its
-        // own. Checked against what the system itself ships on this Mac: French
-        // and Russian use the angled pair, German pairs a low opening mark with
+        // own. Checked against what the system itself ships on this Mac: French,
+        // Russian and Ukrainian use the angled pair, German pairs a low opening mark with
         // a high closing one, and every other language here uses the curly
         // pair. Spanish, Italian, Portuguese and Turkish had picked up the
         // angled pair, which reads as a translation from somewhere else.
         // A label that says work is under way ends with the ellipsis character,
-        // the way the system's own do, not with three periods. Ten of the
-        // thirteen languages had the periods while three already had the
-        // character, which is the tell that it was never a decision.
+        // the way the system's own do, not with three periods. Earlier catalogs
+        // differed on this, so it was not an intentional language choice.
         for (language, strings) in localizedStrings {
             let working = [strings.homebrewOperationPreparing, strings.homebrewOperationDownloading,
                            strings.homebrewOperationInstalling, strings.homebrewOperationUninstalling,
@@ -60,11 +59,11 @@ enum LocalizationFeatureContractTests {
         for (language, strings) in localizedStrings {
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
             let anglesUsed = values.contains { $0.contains("«") || $0.contains("»") }
-            suite.expect(anglesUsed == (language == .fr || language == .ru),
-                   "only French and Russian quote with angled marks (\(language.rawValue))")
+            suite.expect(anglesUsed == (language == .fr || language == .ru || language == .uk),
+                   "only French, Russian and Ukrainian quote with angled marks (\(language.rawValue))")
             let lowOpenUsed = values.contains { $0.contains("„") }
-            suite.expect(lowOpenUsed == (language == .de),
-                   "only German opens a quote with the low mark (\(language.rawValue))")
+            suite.expect(lowOpenUsed == (language == .de || language == .sk),
+                   "only German and Slovak open a quote with the low mark (\(language.rawValue))")
         }
         for (language, strings) in localizedStrings {
             let prefix = "localization \(language.rawValue)"

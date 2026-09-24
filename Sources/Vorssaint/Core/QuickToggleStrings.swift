@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -50,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -193,6 +195,34 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Iniciar el salvapantallas",
         screenSaverCaption: "Empieza al momento, en todas las pantallas.",
         actionFailed: "No se pudo completar."
+    )
+
+    static let sk = QuickToggleFeatureStrings(
+        pageTitle: "Rýchle prepínače",
+        hubDescription: "Akcie na jeden klik, ako tmavý režim a Kôš",
+        panelCaption: "Systémové akcie na jeden klik v paneli v lište a v rýchlom paneli.",
+        darkModeToDark: "Prepnúť na tmavý režim",
+        darkModeToLight: "Prepnúť na svetlý režim",
+        darkModeCaption: "Zmení vzhľad celého systému.",
+        emptyTrashTitle: "Vyprázdniť Kôš",
+        emptyTrashCaption: "Odstráni všetko z Koša.",
+        emptyTrashConfirmTitle: "Vyprázdniť Kôš?",
+        emptyTrashConfirmMessage: "Všetky položky v Koši budú odstránené. Túto akciu nemožno vrátiť späť.",
+        emptyTrashConfirmButton: "Vyprázdniť Kôš",
+        ejectTitle: "Vysunúť všetky disky",
+        ejectCaption: "Bezpečne vysunie každý externý disk.",
+        hiddenFilesShow: "Zobraziť skryté súbory",
+        hiddenFilesHide: "Skryť skryté súbory",
+        desktopIconsHide: "Skryť ikony na ploche",
+        desktopIconsShow: "Zobraziť ikony na ploche",
+        finderRestartCaption: "Finder sa reštartuje, aby zmenu použil.",
+        lockScreenTitle: "Uzamknúť obrazovku",
+        lockScreenCaption: "Pri návrate požiada o heslo.",
+        displayOffTitle: "Vypnúť displej",
+        displayOffCaption: "Mac beží ďalej aj s vypnutou obrazovkou.",
+        screenSaverTitle: "Spustiť šetrič obrazovky",
+        screenSaverCaption: "Spustí sa hneď, na všetkých displejoch.",
+        actionFailed: "Nepodarilo sa dokončiť."
     )
 
     static let de = QuickToggleFeatureStrings(
@@ -417,5 +447,32 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "啟動螢幕保護程式",
         screenSaverCaption: "在所有顯示器上立即啟動。",
         actionFailed: "無法完成。"
+    )
+    static let uk = QuickToggleFeatureStrings(
+        pageTitle: "Швидкі перемикачі",
+        hubDescription: "Дії в один клік, як-от темний режим і Смітник",
+        panelCaption: "Системні дії в один клік у панелі на смузі меню та в швидкій панелі.",
+        darkModeToDark: "Перемикнути на темний режим",
+        darkModeToLight: "Перемикнути на світлий режим",
+        darkModeCaption: "Змінює вигляд усієї системи.",
+        emptyTrashTitle: "Очистити Смітник",
+        emptyTrashCaption: "Видаляє все зі Смітника.",
+        emptyTrashConfirmTitle: "Очистити Смітник?",
+        emptyTrashConfirmMessage: "Усі елементи в Смітнику будуть видалені. Це не можна скасувати.",
+        emptyTrashConfirmButton: "Очистити Смітник",
+        ejectTitle: "Вийняти всі диски",
+        ejectCaption: "Безпечно виймає всі зовнішні диски.",
+        hiddenFilesShow: "Показати приховані файли",
+        hiddenFilesHide: "Сховати приховані файли",
+        desktopIconsHide: "Сховати значки робочого стола",
+        desktopIconsShow: "Показати значки робочого стола",
+        finderRestartCaption: "Finder перезапускається для застосування.",
+        lockScreenTitle: "Заблокувати екран",
+        lockScreenCaption: "Просить пароль для повернення.",
+        displayOffTitle: "Вимкнути дисплей",
+        displayOffCaption: "Mac продовжує працювати з вимкненим екраном.",
+        screenSaverTitle: "Запустити зберігач екрана",
+        screenSaverCaption: "Запускається одразу, на кожному дисплеї.",
+        actionFailed: "Не вдалося завершити."
     )
 }

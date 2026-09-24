@@ -82,6 +82,7 @@ extension FeatureStrings {
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -92,6 +93,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -314,6 +316,78 @@ extension NotchStrings {
         sectionKeyboardHint: "Usa las flechas y pulsa Intro",
         quickAccessLeft: "Izquierdo",
         quickAccessRight: "Derecho"
+    )
+
+    static let sk = NotchStrings(
+        title: "Dynamic Island",
+        enable: "Zapnúť Dynamic Island",
+        description: "Vaša hudba, ovládacie prvky a bežné nástroje na jednom mieste v hornej časti obrazovky. Voliteľné. Vypnutím budete naďalej používať samostatné panely.",
+        menuBarAccessHint: "Povoľte Prístupnosť, aby sa Dynamic Island mohol zobraziť na tomto displeji bez prekrývania ponúk.",
+        display: "Displej",
+        automatic: "Automaticky",
+        builtIn: "Vstavaný displej",
+        mainDisplay: "Hlavný displej",
+        hover: "Otvoriť, keď kurzor zostane na Dynamic Island",
+        modules: "Čo sa zobrazuje",
+        events: "Ďalšie možnosti",
+        clipboardActivity: "Upozorniť pri skopírovaní",
+        captureActivity: "Zobraziť tu náhľady snímok obrazovky",
+        privacy: "Skopírovaný obsah zostáva súkromný, kým neotvoríte históriu. Tieto možnosti sa riadia nastaveniami danej funkcie.",
+        open: "Otvoriť Dynamic Island",
+        collapse: "Zbaliť",
+        pin: "Ponechať otvorené",
+        unpin: "Povoliť automatické zatvorenie",
+        panel: "Otvoriť panel aplikácie",
+        dropHint: "Súbory pretiahnite sem",
+        empty: "Vyberte, čo sa má zobrazovať v nastaveniach Dynamic Island.",
+        volume: "Hlasitosť",
+        brightness: "Jas",
+        battery: "Batéria",
+        onBattery: "Na batérii",
+        charging: "Nabíja sa",
+        charged: "Úplne nabitá",
+        lowBattery: "Nízky stav batérie",
+        controls: "Ovládacie prvky",
+        system: "Systém",
+        disabled: "Zapnite príslušnú funkciu, aby ste ju tu mohli používať.",
+        files: "Súbory",
+        hideInFullscreen: "Skryť v celej obrazovke",
+        showInCaptures: "Zobraziť v snímkach obrazovky a videách",
+        clipboardWindow: "Otvoriť históriu schránky v Dynamic Island",
+        tools: "Nástroje",
+        size: "Veľkosť",
+        compact: "Kompaktná",
+        spacious: "Priestranná",
+        hoverExpand: "Pri prejdení kurzorom úplne rozbaliť",
+        shelfWindow: "Otvoriť policu súborov v Dynamic Island",
+        dragReveal: "Zobraziť cieľ presunu počas ťahania",
+        captureControls: "Zobraziť ovládanie snímania obrazovky v Dynamic Island",
+        quickPanel: "Otvoriť rýchly panel v Dynamic Island",
+        appPanel: "Otvoriť panel aplikácie v Dynamic Island",
+        idleContent: "V nečinnosti",
+        idleNone: "Nič",
+        coverMenus: "Zobraziť nad ponukami",
+        coverMenusHint: "Ponechá časovač, hudbu a ostatnú kompaktnú aktivitu na obrazovke, keď lišta nemá miesto, pričom prekryje ponuky vedľa kamery.",
+        controlShortcuts: "Ovládanie a skratky",
+        activity: "Aktivita",
+        playingMusic: "Zobraziť hudbu počas prehrávania",
+        custom: "Vlastná",
+        width: "Šírka",
+        maximumHeight: "Maximálna výška",
+        sizeHint: "Ovládacie prvky zostávajú kompaktné. Dlhšie zoznamy využijú až túto výšku.",
+        hapticFeedback: "Haptická odozva",
+        hapticHint: "Jemné impulzy pri otváraní, prepínaní sekcií alebo úprave minút časovača na kompatibilnom trackpade.",
+        playbackPosition: "Pozícia prehrávania",
+        musicHint: "Tu sa zobrazí vaša hudba a ovládanie prehrávania.",
+        music: "Hudba",
+        captures: "Snímky",
+        customizeTools: "Prispôsobiť nástroje",
+        switchSection: "Prepnúť sekciu",
+        sectionsTitle: "Preskúmať",
+        searchSections: "Nájsť sekciu",
+        sectionKeyboardHint: "Použite šípky a stlačte Return",
+        quickAccessLeft: "Vľavo",
+        quickAccessRight: "Vpravo"
     )
 
     static let de = NotchStrings(
@@ -1044,6 +1118,78 @@ extension NotchStrings {
         sectionKeyboardHint: "使用方向鍵選取，再按 Return 鍵開啟",
         quickAccessLeft: "左側",
         quickAccessRight: "右側"
+    )
+
+    static let uk = NotchStrings(
+        title: "Dynamic Island",
+        enable: "Увімкнути Dynamic Island",
+        description: "Ваша музика, елементи керування та повсякденні інструменти, зібрані у верхній частині екрана. Необов’язково. Вимкніть, щоб і надалі користуватися окремими панелями.",
+        menuBarAccessHint: "Надайте дозвіл «Доступність», щоб Dynamic Island з’являвся на цьому дисплеї, не затуляючи меню.",
+        display: "Дисплей",
+        automatic: "Автоматично",
+        builtIn: "Вбудований дисплей",
+        mainDisplay: "Основний дисплей",
+        hover: "Відкривати, коли вказівник зупиняється на Dynamic Island",
+        modules: "Що показувати",
+        events: "Більше опцій",
+        clipboardActivity: "Сповіщати, коли щось скопійовано",
+        captureActivity: "Показувати мініатюри знімків тут",
+        privacy: "Скопійований вміст залишається приватним, доки ви не відкриєте буфер обміну. Ці опції дотримуються налаштувань відповідної функції.",
+        open: "Відкрити Dynamic Island",
+        collapse: "Згорнути",
+        pin: "Тримати відкритим",
+        unpin: "Дозволити автоматичне закриття",
+        panel: "Відкрити панель програми",
+        dropHint: "Перетягніть файли сюди",
+        empty: "Виберіть, що показувати, у налаштуваннях Dynamic Island.",
+        volume: "Гучність",
+        brightness: "Яскравість",
+        battery: "Акумулятор",
+        onBattery: "Від акумулятора",
+        charging: "Заряджається",
+        charged: "Повністю заряджено",
+        lowBattery: "Низький заряд",
+        controls: "Елементи керування",
+        system: "Система",
+        disabled: "Увімкніть відповідну функцію, щоб використовувати її тут.",
+        files: "Файли",
+        hideInFullscreen: "Приховувати в повноекранному режимі",
+        showInCaptures: "Показувати на знімках і відео",
+        clipboardWindow: "Відкривати історію буфера обміну у Dynamic Island",
+        tools: "Інструменти",
+        size: "Розмір",
+        compact: "Компактний",
+        spacious: "Просторий",
+        hoverExpand: "Розгортати повністю при наведенні",
+        shelfWindow: "Відкривати полицю файлів у Dynamic Island",
+        dragReveal: "Показувати зону скидання під час перетягування",
+        captureControls: "Показувати елементи захоплення екрана у Dynamic Island",
+        quickPanel: "Відкривати швидку панель у Dynamic Island",
+        appPanel: "Відкривати панель програми у Dynamic Island",
+        idleContent: "Поки неактивний",
+        idleNone: "Нічого",
+        coverMenus: "Показувати поверх меню",
+        coverMenusHint: "Залишає таймер, музику й інші компактні елементи на екрані, коли на смузі меню бракує місця, перекриваючи меню поруч із камерою.",
+        controlShortcuts: "Керування та скорочення",
+        activity: "Активність",
+        playingMusic: "Показувати музику під час відтворення",
+        custom: "Власне",
+        width: "Ширина",
+        maximumHeight: "Максимальна висота",
+        sizeHint: "Елементи керування залишаються компактними. Довші списки використовують щонайбільше цю висоту.",
+        hapticFeedback: "Тактильний відгук",
+        hapticHint: "Легкі дотики при відкритті, перемиканні розділів або зміні хвилин таймера на сумісному трекпеді.",
+        playbackPosition: "Позиція відтворення",
+        musicHint: "Ваша музика та елементи керування відтворенням з’являються тут.",
+        music: "Музика",
+        captures: "Зйомки",
+        customizeTools: "Налаштувати інструменти",
+        switchSection: "Перемкнути розділ",
+        sectionsTitle: "Огляд",
+        searchSections: "Знайти розділ",
+        sectionKeyboardHint: "Використовуйте стрілки, потім натисніть Return",
+        quickAccessLeft: "Ліворуч",
+        quickAccessRight: "Праворуч"
     )
 
 }
