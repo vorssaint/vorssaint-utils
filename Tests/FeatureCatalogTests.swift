@@ -1978,6 +1978,13 @@ enum FeatureCatalogTests {
                "keyboard brightness shortcut steps clamp to the supported range")
         suite.expect(BrightnessSupport.steppedKeyboardLightLevel(current: .nan, direction: 1) == 0,
                "an invalid keyboard brightness reading never reaches the private setter")
+        suite.expect(BrightnessSupport.sliderKeyboardLightLevel(0.37) == 0.37
+                && BrightnessSupport.sliderKeyboardLightLevel(-0.2) == 0
+                && BrightnessSupport.sliderKeyboardLightLevel(1.4) == 1,
+               "the keyboard light slider passes levels through and clamps the ends")
+        suite.expect(BrightnessSupport.sliderKeyboardLightLevel(.nan) == nil
+                && BrightnessSupport.sliderKeyboardLightLevel(.infinity) == nil,
+               "a slider value that is not a number never reaches the private setter")
 
         // EDID UUID chunks at fixed positions: vendor, product (little endian),
         // manufacture date, image size.

@@ -161,6 +161,8 @@ extension Strings {
         configuring: "設定中…",
         sudoersFailed: "ふたを閉じたモードを有効にできませんでした。もう一度お試しください。",
         clamshellExplanation: "「ふたを閉じても続ける」は、「スリープ防止」がオンのあいだスリープを完全に無効化し、セッションの終了時またはアプリの終了時に自動的に元に戻ります。電源に接続した状態での使用をおすすめします。",
+        dimScreenOnLidCloseTitle: "画面を完全に暗くする",
+        dimScreenOnLidCloseCaption: "ふたを閉じると画面を暗くし、開くと明るさを元に戻します。",
 
         scrollSection: "スクロール",
         invertMouseScroll: "マウスのスクロールを反転",

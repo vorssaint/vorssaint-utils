@@ -1330,5 +1330,95 @@ enum AppManagementFeatureTests {
                == ["uninstaller", "homebrew", "media", "cleanURL", "cleaning"],
                "panel item order keeps saved valid items first and appends defaults")
 
+        runNonModalAlertChecks(suite)
+    }
+
+    /// The disk image installer's alerts used to run modal inside a main-queue
+    /// block (the hop after the mount check and the one after the install).
+    /// A modal loop started there holds back later main-queue work, such as a
+    /// Window Layout shortcut, until the alert closes, and its modal panel
+    /// mode stops default-mode timers (issue #1665). The alert is never
+    /// ordered on screen here.
+    private static func runNonModalAlertChecks(_ suite: TestSuite) {
+        func makeAlert() -> NSAlert {
+            let alert = NSAlert()
+            alert.messageText = "Install?"
+            alert.addButton(withTitle: "Install")
+            alert.addButton(withTitle: "Cancel")
+            return alert
+        }
+
+        let alert = makeAlert()
+        var shownWindows: [NSWindow] = []
+        var responses: [NSApplication.ModalResponse] = []
+        var queuedWorkRan = false
+        DispatchQueue.main.async { queuedWorkRan = true }
+        let presentation = NonModalAlert.present(alert, show: { shownWindows.append($0) }) {
+            responses.append($0)
+        }
+        // One pass of the run loop returns after the first source it handles,
+        // which on a busy runner need not be the main queue, so keep turning it.
+        let queuedWorkDeadline = Date(timeIntervalSinceNow: 2)
+        while !queuedWorkRan && Date() < queuedWorkDeadline {
+            _ = RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
+        }
+        suite.expect(queuedWorkRan && responses.isEmpty && presentation.isOpen,
+               "main-queue work runs while an installer alert is still waiting for an answer")
+        suite.expect(shownWindows.count == 1 && shownWindows.first === alert.window
+               && alert.window.level == .modalPanel,
+               "the alert shows its own window at the level a modal alert would use")
+        suite.expect(!alert.window.hidesOnDeactivate,
+               "the alert stays on screen when another app becomes active")
+        suite.expect(alert.buttons.map(\.keyEquivalent) == ["\r", "\u{1b}"],
+               "Return and Escape still answer the alert")
+
+        alert.buttons[0].performClick(nil)
+        alert.buttons[1].performClick(nil)
+        suite.expect(responses == [.alertFirstButtonReturn] && !presentation.isOpen,
+               "the first button answers once and later clicks are ignored")
+
+        let cancelled = makeAlert()
+        var cancelResponses: [NSApplication.ModalResponse] = []
+        NonModalAlert.present(cancelled, show: { _ in }) { cancelResponses.append($0) }
+        cancelled.buttons[1].performClick(nil)
+        suite.expect(cancelResponses == [.alertSecondButtonReturn],
+               "the second button answers with the second button's response")
+
+        let result = NSAlert()
+        result.messageText = "Installed"
+        var resultResponses: [NSApplication.ModalResponse] = []
+        let resultPresentation = NonModalAlert.present(result, show: { _ in }) { resultResponses.append($0) }
+        result.buttons.first?.performClick(nil)
+        suite.expect(result.buttons.count == 1 && result.buttons.first?.keyEquivalent == "\r"
+               && resultResponses == [.alertFirstButtonReturn] && !resultPresentation.isOpen,
+               "an alert without buttons answers through its OK button, like the installer's result alert")
+
+        weak var weakTarget: NSObject?
+        var dismissed: NonModalAlert?
+        var dismissResponses: [NSApplication.ModalResponse] = []
+        let dismissedAlert = makeAlert()
+        autoreleasepool {
+            let target = NSObject()
+            weakTarget = target
+            dismissed = NonModalAlert.present(dismissedAlert, retaining: [target], show: { _ in }) {
+                dismissResponses.append($0)
+            }
+        }
+        suite.expect(weakTarget != nil,
+               "a checkbox target the alert references weakly stays alive while the alert is open")
+        autoreleasepool {
+            dismissed?.dismiss(with: .alertSecondButtonReturn)
+            dismissedAlert.buttons[0].performClick(nil)
+            dismissed = nil
+        }
+        suite.expect(dismissResponses == [.alertSecondButtonReturn] && weakTarget == nil,
+               "dismissing answers once, ignores later clicks and releases what the alert retained")
+
+        let installerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!installerSource.isEmpty && !installerSource.contains(".runModal()")
+               && installerSource.components(separatedBy: "NonModalAlert.present(").count == 3,
+               "the install prompt and the result alert both open without a modal session")
     }
 }

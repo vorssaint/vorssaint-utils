@@ -243,6 +243,14 @@ struct EnergySettings: View {
                     .foregroundStyle(.red)
                     .padding(.leading, settingsRowTextInset)
             }
+            if awake.clamshellPreferred {
+                SettingsRow(symbol: "sun.min", title: l10n.s.dimScreenOnLidCloseTitle,
+                            caption: l10n.s.dimScreenOnLidCloseCaption) {
+                    Toggle(l10n.s.dimScreenOnLidCloseTitle, isOn: $awake.dimScreenOnLidClose)
+                        .labelsHidden()
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
         }
     }
 

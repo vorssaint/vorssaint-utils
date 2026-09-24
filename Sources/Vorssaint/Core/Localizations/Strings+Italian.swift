@@ -161,6 +161,8 @@ extension Strings {
         configuring: "Configurazione…",
         sudoersFailed: "Impossibile attivare il coperchio chiuso. Riprova.",
         clamshellExplanation: "“Continua con il coperchio chiuso” disattiva completamente lo stop mentre “Mantieni attivo” è attivo e viene ripristinato automaticamente al termine della sessione o alla chiusura dell’app. È preferibile usarlo collegato all’alimentazione.",
+        dimScreenOnLidCloseTitle: "Oscura lo schermo del tutto",
+        dimScreenOnLidCloseCaption: "Oscura lo schermo quando il coperchio si chiude e ripristina la luminosità alla riapertura.",
 
         scrollSection: "Scorrimento",
         invertMouseScroll: "Inverti lo scorrimento del mouse",

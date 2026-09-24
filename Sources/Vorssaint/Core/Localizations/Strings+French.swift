@@ -161,6 +161,8 @@ extension Strings {
         configuring: "Configuration…",
         sudoersFailed: "Impossible d’activer l’écran rabattu. Réessayez.",
         clamshellExplanation: "«\u{00A0}Continuer écran rabattu\u{00A0}» désactive entièrement la veille tant que «\u{00A0}Garder éveillé\u{00A0}» est actif et se rétablit automatiquement à la fin de la session ou quand l’app quitte. À privilégier branché sur secteur.",
+        dimScreenOnLidCloseTitle: "Assombrir complètement l’écran",
+        dimScreenOnLidCloseCaption: "Assombrit l’écran à la fermeture du couvercle et restaure la luminosité à l’ouverture.",
 
         scrollSection: "Défilement",
         invertMouseScroll: "Inverser le défilement de la souris",

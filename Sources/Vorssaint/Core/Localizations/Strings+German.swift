@@ -161,6 +161,8 @@ extension Strings {
         configuring: "Wird konfiguriert…",
         sudoersFailed: "Modus bei geschlossenem Display konnte nicht aktiviert werden. Erneut versuchen.",
         clamshellExplanation: "„Bei zugeklapptem Mac weiterlaufen“ deaktiviert den Ruhezustand vollständig, solange „Wachhalten“ aktiv ist, und wird automatisch zurückgesetzt, sobald die Sitzung endet oder die App beendet wird. Nutze es am besten am Netzteil.",
+        dimScreenOnLidCloseTitle: "Bildschirm vollständig abdunkeln",
+        dimScreenOnLidCloseCaption: "Dunkelt den Bildschirm ab, sobald der Deckel geschlossen wird, und stellt die Helligkeit beim Öffnen wieder her.",
 
         scrollSection: "Scrollen",
         invertMouseScroll: "Mausscrollen umkehren",

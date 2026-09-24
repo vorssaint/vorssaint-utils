@@ -106,6 +106,7 @@ struct MetricsTests {
             ("cleaner", {
                 CleanerEligibilityTests.run(suite)
                 CleanerLastRunContract.run(suite)
+                CleanerScanFlowTests.run(suite)
             }),
             ("uninstaller", {
                 UninstallerFlowTests.run(suite)
