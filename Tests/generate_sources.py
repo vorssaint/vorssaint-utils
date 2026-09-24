@@ -180,6 +180,10 @@ def main():
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    private static func applyBrightness(").replace("private static", "static", 1)
           + "}\n")
+    write("PointerScreen.swift", "import AppKit\n"
+          + "extension PointerScreenContract.Screen {\n"
+          + declaration("Sources/Vorssaint/Core/AppKitExtensions.swift", "    static var withMouse:")
+          + "}\n")
     write("CommandBarEmojiBodies.swift", "import Foundation\n"
           + "extension CommandBarEmojiContract.Catalog {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",

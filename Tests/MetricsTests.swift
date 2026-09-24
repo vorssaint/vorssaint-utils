@@ -22,6 +22,7 @@ struct MetricsTests {
             ("pointer-input", {
                 PointerInputFeatureTests.run(suite)
                 SuperKeyTapContract.run(suite)
+                PointerScreenContract.run(suite)
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
