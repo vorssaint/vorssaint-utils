@@ -192,6 +192,10 @@ def main():
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    private static func applyBrightness(").replace("private static", "static", 1)
           + "}\n")
+    write("PointerScreen.swift", "import AppKit\n"
+          + "extension PointerScreenContract.Screen {\n"
+          + declaration("Sources/Vorssaint/Core/AppKitExtensions.swift", "    static var withMouse:")
+          + "}\n")
     write("CommandBarEmojiBodies.swift", "import Foundation\n"
           + "extension CommandBarEmojiContract.Catalog {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
@@ -445,6 +449,10 @@ def main():
           + "}\n"
           + declaration(update_view, "struct NotchUpdateControl:")
           + "}\n")
+    write("UpdateAdminInstall.swift", "import Foundation\n\nextension UpdateAdminInstallContract {\n"
+          + "final class Service: Fixture {\n"
+          + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
+          + "}\n}\n")
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
           + declaration(notch, "    func show(_ incoming:").replace("NotchSupport.routes(incoming.event)", "true")
@@ -579,6 +587,44 @@ def main():
           + "var expandedFeatures: [FeatureGroup: Set<AppFeature>] { get { state.features } nonmutating set { state.features = newValue } }\n"
           + declaration("Sources/Vorssaint/UI/Settings/ShortcutsSettings.swift", "    private func expansionBinding(").replace("private func", "func", 1)
           + "}\n}\n")
+    settings_card = "Sources/Vorssaint/UI/Settings/SettingsCard.swift"
+    text_inset = next(line for line in (ROOT / settings_card).read_text().splitlines()
+                      if line.startswith("let settingsRowTextInset:"))
+    write("NotchSettingsChoice.swift", "import SwiftUI\n" + text_inset + "\n\nextension NotchSettingsChoiceTests {\n"
+          + "struct MenuBarGlyph: View { var body: some View { EmptyView() } }\n"
+          + declaration(settings_card, "struct SettingsCard<")
+          + declaration(settings_card, "struct SettingsRow<")
+          + declaration(settings_card, "struct SettingsChoiceRow<")
+          + declaration(settings_card, "struct SettingsMenuRow<")
+          + "struct Destination: View {\nlet language: AppLanguage\nlet title: String\n"
+          + "var text: NotchStrings { FeatureStrings.notch(language) }\n"
+          + "var editor: NotchEditorStrings { FeatureStrings.notchEditor(language) }\n"
+          + 'var body: some View { destination(title, symbol: "tray.full", value: .constant(true)) }\n'
+          + declaration("Sources/Vorssaint/UI/Settings/NotchSettings.swift", "    private func destination(")
+          + "}\nstruct Limits: View {\nlet language: AppLanguage\n"
+          + "@State var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue\n"
+          + "var text: NotchAgentStrings { FeatureStrings.notchAgents(language) }\n"
+          + "var body: some View {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/NotchAgentsSettings.swift",
+                        "            SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol")
+          + "}\n}\n"
+          # The AI agents card's menu rows, each with the indent it has there.
+          + "".join(f"struct {name}: View {{\nlet language: AppLanguage\n"
+                    + "@State var readout = NotchAgentReadout.elapsed.rawValue\n"
+                    + "@State var finishMinimum = NotchAgentSupport.defaultFinishMinimum\n"
+                    + "@State var limitThreshold = NotchAgentSupport.defaultLimitThreshold\n"
+                    + "@State var dailyBudget = 0.0\n"
+                    + "var text: NotchAgentStrings { FeatureStrings.notchAgents(language) }\n"
+                    + "var locale: Locale { language.formattingLocale() }\n"
+                    + "var body: some View {\nGroup {\n"
+                    + declaration("Sources/Vorssaint/UI/Settings/NotchAgentsSettings.swift", prefix)
+                    + "}\n" + (".padding(.leading, settingsRowTextInset)\n" if indented else "") + "}\n}\n"
+                    for name, prefix, indented in [
+                        ("Readout", '                SettingsMenuRow(symbol: "camera.metering.center.weighted"', True),
+                        ("FinishAfter", '                SettingsMenuRow(symbol: "timer"', True),
+                        ("LimitAt", '                SettingsMenuRow(symbol: "gauge.with.dots.needle.67percent"', True),
+                        ("Budget", '            SettingsMenuRow(symbol: "dollarsign.circle"', False)])
+          + "}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
           + "extension MediaWorkspaceLayoutTests {\n"
@@ -720,6 +766,18 @@ def main():
           + declaration(selection, "    private static func matchesShortcutKey(")
           + declaration(selection, "    private func installKeyMonitor()")
           + "}\n}\n")
+    hop = "Sources/Vorssaint/Services/Switcher/SpaceHop.swift"
+    write("PointerOnDisplay.swift", "import AppKit\n"
+          + "extension PointerOnDisplayContract.Bridge {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
+          + "}\nextension PointerOnDisplayContract.Hop {\n"
+          + "".join(declaration(hop, prefix).replace("private ", "", 1)
+                    for prefix in ["    private enum TravelOutcome {", "    private func stepWithSpaceShortcut()"])
+          + "}\nextension PointerOnDisplayContract.Overlay {\n"
+          + declaration(selection, "    func refreshGuideVisibility()")
+          + "}\nextension PointerOnDisplayContract.Dock {\n"
+          + declaration(dock, "    private func isNearDock(").replace("private func", "func", 1)
+          + "}\n")
 
     lyrics = "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift"
     write("NotchLyricsLifecycle.swift", "import Foundation\nimport UniformTypeIdentifiers\n\nextension NotchLyricsContract {\n"
@@ -943,6 +1001,31 @@ def main():
           + "static let factories: [(String, (AppLanguage) -> Any)] = [\n"
           + "".join(f'("{name}", {{ FeatureStrings.{name}($0) }}),\n' for name in factories)
           + "]\n}\n")
+
+    screens = "Sources/Vorssaint/Core/AppKitExtensions.swift"
+    bridge = "Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift"
+    write("PointerDisplayLookups.swift", "import AppKit\nimport Carbon.HIToolbox\nimport QuartzCore\n"
+          + "extension PointerDisplayLookupContract.Screen {\n"
+          + declaration(screens, "    static var withMouse:")
+          + declaration(screens, "    static var withMenuBar:")
+          + "}\nextension PointerDisplayLookupContract.Capturer {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+                        "    private func beginFullScreenCapture()").replace("private func", "func", 1)
+          + "}\nextension PointerDisplayLookupContract.Bridge {\n"
+          + declaration(bridge, "    struct Topology {")
+          + declaration(bridge, "    static func visibleSpace(near")
+          + "}\nextension PointerDisplayLookupContract.Layout {\n"
+          + declaration("Sources/Vorssaint/Services/WindowLayout/WindowLayoutService.swift",
+                        "    private func showDirectionalIndicator(").replace("private func", "func", 1)
+          + "}\nextension PointerDisplayLookupContract.HUD {\n"
+          + declaration("Sources/Vorssaint/UI/QuitProtection/QuitProtectionHUD.swift",
+                        "    private func positionPanel(").replace("private func", "func", 1)
+          + "}\nextension PointerDisplayLookupContract.Chooser {\n"
+          + "".join(declaration(selection, prefix).replace("private func", "func", 1)
+                    for prefix in ["    private func nudgePointer(", "    private func panelUnderMouse()"])
+          + "}\nextension PointerDisplayLookupContract.Dock {\n"
+          + declaration(dock, "    func endWindowDrag(")
+          + "}\n")
 
     # Same-file extensions can exercise the private AppKit content view without
     # widening the production interface or presenting an application window.

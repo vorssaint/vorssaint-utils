@@ -648,6 +648,27 @@ enum ScreenshotFeatureTests {
             screens: previewScreens,
             fallback: .zero) == previewScreens[1].visibleFrame,
                "a disconnected capture display falls back to the current pointer display")
+        // AppKit reports the pointer on a display's top row at frame.maxY.
+        suite.expect(ScreenshotSupport.quickPreviewVisibleFrame(
+            anchor: CGRect(x: 5000, y: 5000, width: 400, height: 300),
+            pointer: CGPoint(x: 2000, y: 1324),
+            screens: previewScreens,
+            fallback: .zero) == previewScreens[2].visibleFrame,
+               "a disconnected capture display falls back to the display whose top row holds the pointer")
+        let stackedScreens = [
+            (frame: CGRect(x: 0, y: 900, width: 1440, height: 900),
+             visibleFrame: CGRect(x: 0, y: 900, width: 1440, height: 875)),
+            (frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+             visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 875)),
+        ]
+        for screens in [stackedScreens, Array(stackedScreens.reversed())] {
+            suite.expect(ScreenshotSupport.quickPreviewVisibleFrame(
+                anchor: CGRect(x: 100, y: 800, width: 400, height: 200),
+                pointer: CGPoint(x: 300, y: 900),
+                screens: screens,
+                fallback: .zero) == stackedScreens[1].visibleFrame,
+                   "an even split across stacked displays goes to the lower one when its top row holds the pointer")
+        }
         suite.expect(ScreenshotSupport.QuickPreviewPosition.allCases.map(\.rawValue)
                 == ["", "topLeft", "topRight", "bottomLeft", "bottomRight"]
                 && ScreenshotSupport.QuickPreviewPosition(rawValue: "bogus") == nil,
