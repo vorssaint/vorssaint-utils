@@ -32,6 +32,15 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var targetUsesGlass = false
     private var mouseEventsBeforeHide: Bool?
     private var frameProbe: NotchFrameProbe?
+    private var missionControlTimer: Timer?
+    private var concealedForMissionControl = false
+    private var missionControlAlpha: CGFloat = 1
+    private var missionControlMouseEvents = false
+    private var desktopReadings = 0
+    private var lastMissionControlCheck: TimeInterval = -.infinity
+    private var lastMissionControlProbe: TimeInterval = -.infinity
+    private var dockOverlayWasVisible = false
+    var missionControlDidRestore: (() -> Void)?
     private let overlaySpace = NotchOverlaySpace()
     private var concealedForFrameChange = false
     private var restoresKeyAfterFrameChange = false
@@ -39,6 +48,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private(set) var targetSize: CGSize
     private(set) var resizeCount = 0
     private(set) var concealedFrameChanges = 0
+    private(set) var missionControlFrameProbeCount = 0
 
     init(content: AnyView, geometry: NotchGeometry, size: CGSize,
          background: (NotchBackdropPresentation) -> AnyView = { _ in AnyView(Color.black) },
@@ -70,10 +80,36 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         canvas.layoutSubtreeIfNeeded()
         appliedFrame = panel.frame
         overlaySpace?.add(panel)
+        panel.visibilityDidChange = { [weak self] in self?.syncMissionControlMonitoring() }
     }
 
     /// Visible, or ordered out for the few milliseconds of a concealed frame change.
     private var isPresented: Bool { panel.isVisible || concealedForFrameChange }
+    var isConcealedForMissionControl: Bool {
+        // Media-key taps can ask from a worker thread. Never touch AppKit or
+        // run the frame probe there; a panel being hidden cannot show feedback.
+        guard Thread.isMainThread else { return concealedForMissionControl || hidesWhenSettled }
+        // A hidden panel needs on-demand checks to detect Mission Control;
+        // once concealed, its timer keeps watching for the desktop to return.
+        if !panel.isVisible && !concealedForFrameChange { refreshMissionControlState() }
+        return concealedForMissionControl
+    }
+
+    func blocksHoverReveal() -> Bool {
+        // Confirm again at the hover deadline: Mission Control can start while
+        // the pointer is waiting over the island's activation area.
+        refreshMissionControlState(forceProbe: true)
+        return concealedForMissionControl
+    }
+
+    func setMouseEventsIgnored(_ ignored: Bool) {
+        // Capture controls can change their click-through policy while the
+        // island is concealed or on its way out. Keep that policy for restore.
+        if concealedForMissionControl { missionControlMouseEvents = ignored }
+        if mouseEventsBeforeHide != nil { mouseEventsBeforeHide = ignored }
+        let effective = ignored || concealedForMissionControl || hidesWhenSettled
+        if panel.ignoresMouseEvents != effective { panel.ignoresMouseEvents = effective }
+    }
 
     func hide(animated: Bool) {
         guard isPresented else { return }
@@ -88,13 +124,16 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
                  hideWhenSettled: Bool = false, usesGlass: Bool = false) {
         hidesWhenSettled = hideWhenSettled
         if hideWhenSettled {
-            if mouseEventsBeforeHide == nil { mouseEventsBeforeHide = panel.ignoresMouseEvents }
+            if mouseEventsBeforeHide == nil {
+                mouseEventsBeforeHide = concealedForMissionControl ? missionControlMouseEvents : panel.ignoresMouseEvents
+            }
             // The departing surface must already release the menu bar below it.
             panel.ignoresMouseEvents = true
         } else if let previous = mouseEventsBeforeHide {
             panel.ignoresMouseEvents = previous
             mouseEventsBeforeHide = nil
         }
+        if concealedForMissionControl { panel.ignoresMouseEvents = true }
         canvas.updateContrast()
         let revealing = revealFromHidden && !isPresented
         if isPresented || revealing {
@@ -334,7 +373,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     func containsHover(_ screenPoint: CGPoint) -> Bool {
-        guard isPresented else { return false }
+        guard isPresented, !concealedForMissionControl else { return false }
         // Hover follows the destination bounds, not a transient mask edge.
         // A resize must never turn a stationary pointer into an exit.
         if currentGeometry.contains(screenPoint, in: targetSize) { return true }
@@ -354,19 +393,98 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         for action in actions { DispatchQueue.main.async(execute: action) }
     }
 
+    /// The stationary island must stay on Show Desktop for file drops, but it
+    /// covers desktop names in Mission Control. Dock's overview window is a
+    /// cheap hint; the frame probe confirms it and handles other macOS layouts.
+    private func syncMissionControlMonitoring() {
+        guard panel.isVisible || concealedForMissionControl else {
+            missionControlTimer?.invalidate()
+            missionControlTimer = nil
+            return
+        }
+        if missionControlTimer == nil {
+            let timer = Timer(timeInterval: 0.08, repeats: true) { [weak self] _ in
+                self?.refreshMissionControlState()
+            }
+            timer.tolerance = 0.02
+            missionControlTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
+        }
+        if panel.isVisible { refreshMissionControlState(forceProbe: true) }
+    }
+
+    private func refreshMissionControlState(forceProbe: Bool = false) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard forceProbe || now - lastMissionControlCheck >= 0.08 else { return }
+        lastMissionControlCheck = now
+        let dockOverlay = NotchFrameProbe.dockOverviewIsVisible()
+        let appeared = dockOverlay && !dockOverlayWasVisible
+        dockOverlayWasVisible = dockOverlay
+        // A WindowServer frame change and flush costs much more than the
+        // window-list hint. Check it at the transition, with a slow fallback
+        // for systems that do not expose that Dock window. While restoring,
+        // confirm desktop readings promptly so the island does not linger.
+        let interval = concealedForMissionControl && !dockOverlay ? 0.08 : 0.5
+        guard forceProbe || appeared || now - lastMissionControlProbe >= interval else { return }
+        lastMissionControlProbe = now
+        sampleMissionControl()
+    }
+
+    private func sampleMissionControl() {
+        missionControlFrameProbeCount += 1
+        let probe = frameProbe ?? NotchFrameProbe(collectionBehavior: panel.collectionBehavior)
+        frameProbe = probe
+        if probe.serverAnimatesFrames(level: panel.level, screen: currentGeometry.screen) {
+            desktopReadings = 0
+            guard !concealedForMissionControl else { panel.ignoresMouseEvents = true; return }
+            concealedForMissionControl = true
+            missionControlAlpha = panel.alphaValue
+            missionControlMouseEvents = mouseEventsBeforeHide ?? panel.ignoresMouseEvents
+            panel.ignoresMouseEvents = true
+            if panel.isVisible { fadeMissionControl(to: 0) }
+            else {
+                panel.alphaValue = 0
+                syncMissionControlMonitoring()
+            }
+        } else if concealedForMissionControl {
+            desktopReadings += 1
+            guard desktopReadings >= 3 else { return }
+            restoreFromMissionControl()
+        }
+    }
+
+    private func restoreFromMissionControl() {
+        concealedForMissionControl = false
+        desktopReadings = 0
+        panel.ignoresMouseEvents = hidesWhenSettled ? true : missionControlMouseEvents
+        if panel.isVisible { fadeMissionControl(to: missionControlAlpha) }
+        else {
+            panel.alphaValue = missionControlAlpha
+            syncMissionControlMonitoring()
+        }
+        missionControlDidRestore?()
+    }
+
+    private func fadeMissionControl(to alpha: CGFloat) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.14
+            panel.animator().alphaValue = alpha
+        }
+    }
+
     var visibleFrame: CGRect {
         currentGeometry.frame(for: canvas.visiblePath?.boundingBoxOfPath.size ?? targetSize)
     }
 
     /// The island's own surface, without the floating controls beside it.
     func containsSurface(_ screenPoint: CGPoint) -> Bool {
-        guard isPresented else { return false }
+        guard isPresented, !concealedForMissionControl else { return false }
         return canvas.containsVisiblePoint(canvas.convert(panel.convertPoint(fromScreen: screenPoint), from: nil))
     }
 
     func contains(_ screenPoint: CGPoint) -> Bool {
         if containsSurface(screenPoint) { return true }
-        guard isPresented, let container = quickAccessContainer else { return false }
+        guard isPresented, !concealedForMissionControl, let container = quickAccessContainer else { return false }
         return container.motion.contains(container.convert(panel.convertPoint(fromScreen: screenPoint), from: nil))
     }
 
@@ -429,6 +547,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     func close() {
+        missionControlTimer?.invalidate()
+        missionControlTimer = nil
+        panel.visibilityDidChange = nil
         animationGeneration += 1
         isAnimating = false
         concealedForFrameChange = false
@@ -477,6 +598,18 @@ private final class NotchFrameProbe {
             && abs(frame.width - other.width) <= 0.5 && abs(frame.height - other.height) <= 0.5
     }
 
+    /// Dock creates an overview window at layer 18 in Mission Control. Other
+    /// overviews can have one too, so this is only a reason to run the frame
+    /// probe, never a visibility decision by itself.
+    static func dockOverviewIsVisible() -> Bool {
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
+                as? [[String: Any]] else { return false }
+        return windows.contains {
+            $0[kCGWindowOwnerName as String] as? String == "Dock"
+                && $0[kCGWindowLayer as String] as? Int == 18
+        }
+    }
+
     /// Keeps the probe on the island's display, below its menu bar so the
     /// space measurements never count it, at the island's own level.
     func attach(level: NSWindow.Level, screen: CGRect) {
@@ -497,6 +630,13 @@ private final class NotchFrameProbe {
     /// frame (5 ms median, 15 ms at the 90th percentile in the presentation
     /// checks); a direct window-server query waits just the same.
     func serverAnimatesFrames(level: NSWindow.Level, screen: CGRect) -> Bool {
+        if !window.isVisible {
+            // A panel created directly in hidden-until-hover mode has not
+            // primed this probe. Give the server a settled initial frame.
+            attach(level: level, screen: screen)
+            window.contentView?.layoutSubtreeIfNeeded()
+            CATransaction.flush()
+        }
         grown.toggle()
         attach(level: level, screen: screen)
         window.contentView?.layoutSubtreeIfNeeded()
@@ -523,6 +663,7 @@ final class NotchPanel: NSPanel {
     static let normalLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
     var acceptsKeyFocus = false
     var handleScroll: ((NSEvent) -> Bool)?
+    var visibilityDidChange: (() -> Void)?
     override var canBecomeKey: Bool { acceptsKeyFocus }
     override var canBecomeMain: Bool { false }
     // Liquid Glass swaps to a flat, blurred stand-in in a window that looks
@@ -543,6 +684,12 @@ final class NotchPanel: NSPanel {
     override func orderOut(_ sender: Any?) {
         if let sheet = attachedSheet { endSheet(sheet, returnCode: .cancel) }
         super.orderOut(sender)
+        visibilityDidChange?()
+    }
+
+    override func orderFrontRegardless() {
+        super.orderFrontRegardless()
+        visibilityDidChange?()
     }
 
     override func sendEvent(_ event: NSEvent) {

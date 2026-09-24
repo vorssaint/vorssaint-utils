@@ -9,14 +9,18 @@ extension NotchPresentationRefreshContract {
     static func captureControlsChecks(_ suite: TestSuite) {
         DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
         NSEvent.mouseLocation = .zero
+        NSEvent.monitorRemovals = 0
         defer {
             DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
             NSEvent.mouseLocation = .zero
+            NSEvent.monitorRemovals = 0
         }
         func begin() -> Service {
             let service = Service()
+            service.windowHost?.missionControlDidRestore = { [weak service] in service?.missionControlDidRestore() }
             service.expanded = false
             service.captureControls = CaptureOptions()
+            service.captureControlsMonitors = [1]
             service.refreshPresentation(animated: false)
             service.updateCaptureControlsClickThrough()
             service.scheduleCaptureControlsCollapse()
@@ -101,7 +105,7 @@ extension NotchPresentationRefreshContract {
         DispatchQueue.main.advance(5)
         suite.expect(idle.captureControls == nil && idle.panel?.keyRequests == keyRequests,
                "ending capture cancels a pending hover without reopening anything")
-        suite.expect(DispatchQueue.main.pending == 0 && idle.monitorRemovals == 1,
+        suite.expect(DispatchQueue.main.pending == 0 && NSEvent.monitorRemovals == 1,
                "capture teardown leaves no scheduled work or capture monitors")
 
         NSEvent.mouseLocation = .zero
@@ -115,5 +119,44 @@ extension NotchPresentationRefreshContract {
         suite.expect(!replaced.captureControlsCollapsed,
                "even a delivered stale callback cannot collapse a replacement session")
         replaced.endCaptureControls()
+
+        let missionControl = begin()
+        let host = missionControl.windowHost!
+        host.missionControlMouseEvents = missionControl.panel!.ignoresMouseEvents
+        host.concealedForMissionControl = true
+        missionControl.endCaptureControls()
+        suite.expect(host.missionControlMouseEvents == false && missionControl.panel?.ignoresMouseEvents == true,
+                     "ending capture updates the saved input policy while Mission Control keeps the panel click-through")
+        host.restoreFromMissionControl()
+        suite.expect(missionControl.panel?.ignoresMouseEvents == false,
+                     "the resting island accepts clicks again after Mission Control")
+
+        let moving = begin()
+        move(moving, inside: true)
+        let movingHost = moving.windowHost!
+        movingHost.concealedForMissionControl = true
+        movingHost.missionControlMouseEvents = false
+        moving.panel?.ignoresMouseEvents = true
+        move(moving, inside: true)
+        suite.expect(movingHost.missionControlMouseEvents && moving.panel?.ignoresMouseEvents == true,
+                     "a concealed hit test cannot determine the saved capture input policy")
+        movingHost.restoreFromMissionControl()
+        suite.expect(moving.panel?.ignoresMouseEvents == false && moving.panel?.acceptsMouseMovedEvents == true,
+                     "restoring Mission Control recomputes the capture policy for a pointer over the controls")
+        movingHost.concealedForMissionControl = true
+        movingHost.missionControlMouseEvents = false
+        moving.panel?.ignoresMouseEvents = true
+        NSEvent.mouseLocation = .zero
+        movingHost.restoreFromMissionControl()
+        suite.expect(moving.panel?.ignoresMouseEvents == true && moving.panel?.acceptsMouseMovedEvents == false,
+                     "restoring Mission Control also handles a pointer that moved away without a local event")
+        moving.endCaptureControls()
+
+        let hidden = Host()
+        hidden.hidesWhenSettled = true
+        hidden.mouseEventsBeforeHide = true
+        hidden.setMouseEventsIgnored(false)
+        suite.expect(hidden.panel.ignoresMouseEvents && hidden.mouseEventsBeforeHide == false,
+                     "a hidden island retains its new input policy for the next reveal")
     }
 }

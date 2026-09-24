@@ -54,6 +54,8 @@ enum NotchFullscreenTests {
     class State {
         var running = true, suspended = false, hiddenInFullscreen = false
         var panel: Bool? = true
+        var windowHost: Host? = Host()
+        struct Host { var isConcealedForMissionControl = false }
         var screenUpdate: (() -> Void)?
         var heldDrag = true, dragPlaceholder = true, noticeExpanded = true
         var hoverWork: DispatchWorkItem?, noticeWork: DispatchWorkItem?

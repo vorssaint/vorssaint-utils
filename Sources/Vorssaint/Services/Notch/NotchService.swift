@@ -324,6 +324,7 @@ final class NotchService: ObservableObject {
     var presentationWindow: NSPanel? { panel }
     var acceptsSystemFeedback: Bool {
         running && !suspended && !hiddenInFullscreen && panel != nil
+            && windowHost?.isConcealedForMissionControl != true
     }
     var showsSystemFeedback: Bool {
         acceptsSystemFeedback && !hiddenUntilHover
@@ -589,6 +590,7 @@ final class NotchService: ObservableObject {
         let point = NSEvent.mouseLocation
         let wasInside = inside
         inside = hiddenUntilHover ? geometry.contains(point, in: geometry.collapsed)
+            && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true
         hoverState.update(pointerInside: inside)
         captureHover?(entered)
@@ -619,6 +621,7 @@ final class NotchService: ObservableObject {
                       !self.expanded, !self.peeking, !self.pinned, !self.heldDrag, !self.keepsWorkingSurface,
                       self.captureControls == nil, (self.notice == nil || self.hiddenUntilHover), !self.dragPlaceholder,
                       UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
+                      self.windowHost?.blocksHoverReveal() == false,
                       self.geometry.contains(NSEvent.mouseLocation, in: self.hiddenUntilHover ? self.geometry.collapsed : self.surfaceSize) else { return }
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
                     self.open(takeFocus: false)
@@ -1027,7 +1030,7 @@ final class NotchService: ObservableObject {
         // the compact target should own clicks while that space is released.
         let overControls = !captureSelectionInProgress && windowHost?.contains(point) == true
             && (!captureControlsCollapsed || windowHost?.containsHover(point) == true)
-        if panel.ignoresMouseEvents != !overControls { panel.ignoresMouseEvents = !overControls }
+        windowHost?.setMouseEventsIgnored(!overControls)
         // While the panel catches the mouse it is the window under the pointer
         // across its whole frame, transparent parts included, so it must be the
         // one reporting the move that leaves the controls; otherwise the next
@@ -1056,8 +1059,13 @@ final class NotchService: ObservableObject {
     private func removeCaptureControlsClickThrough() {
         captureControlsMonitors.forEach(NSEvent.removeMonitor)
         captureControlsMonitors.removeAll()
-        panel?.ignoresMouseEvents = false
+        windowHost?.setMouseEventsIgnored(false)
         panel?.acceptsMouseMovedEvents = false
+    }
+
+    private func missionControlDidRestore() {
+        if captureControls != nil { updateCaptureControlsClickThrough() }
+        else { hover(windowHost?.containsHover(NSEvent.mouseLocation) == true) }
     }
 
     func endCaptureControls() {
@@ -1589,6 +1597,7 @@ final class NotchService: ObservableObject {
             windowHost = NotchWindowHost(content: AnyView(NotchView(service: self)), geometry: geometry, size: surfaceSize,
                                         background: { AnyView(NotchWindowBackground(presentation: $0)) },
                                         quickAccess: { AnyView(NotchQuickAccessView(service: self, motion: $0)) })
+            windowHost?.missionControlDidRestore = { [weak self] in self?.missionControlDidRestore() }
             windowHost?.setHoverHandler { [weak self] in self?.hover($0) }
             panel?.title = FeatureStrings.notch(L10n.shared.language).title
         }
