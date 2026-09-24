@@ -76,6 +76,7 @@ enum PointerDisplayLookupContract {
     final class Layout {
         typealias NSScreen = Screen
         typealias NSPanel = Panel
+        typealias OverlayPanel = Panel
         final class Panel {
             var frame = CGRect.zero
             var backgroundColor = NSColor.clear
@@ -149,7 +150,7 @@ enum PointerDisplayLookupContract {
                 origins.append(origin)
                 return false
             }
-            static func activate(_ item: SwitcherItem) {}
+            static func activate(_ item: SwitcherItem, handoffSourcePID: pid_t? = nil) {}
             static func focusPlacedWindow(_ item: SwitcherItem) {}
         }
         var isDraggingWindow = true
