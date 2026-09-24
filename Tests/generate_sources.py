@@ -88,6 +88,13 @@ def main():
               "    private func commitDisplayToggle(", "    private func finishDisplayToggle(",
               "    private func restoreManagedDisplayIfHeadless("])
           + "}\n}\n")
+    write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
+          + "extension BrightnessStepTests {\n"
+          + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
+              "    private struct Route", "    private enum DDCProbe"])
+          + "final class Service: Fixture {\n"
+          + declaration(brightness, "    private func step(").replace("private ", "", 1)
+          + "}\n}\n")
     activator = "Sources/Vorssaint/Services/Switcher/WindowActivator.swift"
     write("SwitcherActivationBodies.swift", "import AppKit\nimport ApplicationServices\n"
           + "extension SwitcherActivationTests.Activator {\n"
@@ -162,6 +169,11 @@ def main():
     write("ProcessName.swift", "import Foundation\n"
           + "extension ProcessNameContract {\nfinal class Lookup: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/ResponsibleProcess.swift", "    static func displayName(")
+          + "}\n}\n")
+    write("SystemMonitorCPU.swift", "import Darwin\nimport Foundation\n"
+          + "extension SystemMonitorCPUTests {\nfinal class Monitor: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/SystemMonitor/SystemMonitor.swift",
+                        "    private func readCPUUsage(").replace("private func", "func", 1)
           + "}\n}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"

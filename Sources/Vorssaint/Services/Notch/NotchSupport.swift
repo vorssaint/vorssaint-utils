@@ -818,9 +818,14 @@ enum NotchSupport {
             && modules(in: defaults).contains(.clipboard)
     }
 
+    /// Whether the island is on and shows its Files module, whichever window
+    /// the user chose for the shelf.
+    static func showsFiles(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && modules(in: defaults).contains(.files)
+    }
+
     static func routesShelf(in defaults: UserDefaults = .standard) -> Bool {
-        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchShelf)
-            && modules(in: defaults).contains(.files)
+        showsFiles(in: defaults) && defaults.bool(forKey: DefaultsKey.notchShelf)
     }
 
     static func revealsShelfDrag(in defaults: UserDefaults = .standard) -> Bool {
