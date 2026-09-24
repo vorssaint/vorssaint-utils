@@ -673,6 +673,10 @@ struct CleanerView: View {
             if let detail {
                 Text(detail).font(.caption).foregroundStyle(.tertiary)
             }
+            if cleaner.phase == .scanning {
+                Button(l10n.s.uninstallerCancel) { cleaner.reset() }
+                    .controlSize(compact ? .small : .large)
+            }
             Spacer(minLength: compact ? 24 : 0)
         }
         .frame(maxWidth: .infinity, minHeight: compact ? 0 : 320)
@@ -894,6 +898,10 @@ struct PanelCleanerView: View {
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button {
+                    // Closing means cancel: a scan left running would come
+                    // back on the next open. Cleaning in progress is left alone.
+                    let cleaner = JunkCleaner.shared
+                    if cleaner.phase == .scanning { cleaner.reset() }
                     onClose()
                 } label: {
                     Image(systemName: "xmark.circle.fill")

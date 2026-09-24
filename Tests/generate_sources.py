@@ -88,6 +88,13 @@ def main():
               "    private func commitDisplayToggle(", "    private func finishDisplayToggle(",
               "    private func restoreManagedDisplayIfHeadless("])
           + "}\n}\n")
+    write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
+          + "extension BrightnessStepTests {\n"
+          + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
+              "    private struct Route", "    private enum DDCProbe"])
+          + "final class Service: Fixture {\n"
+          + declaration(brightness, "    private func step(").replace("private ", "", 1)
+          + "}\n}\n")
     activator = "Sources/Vorssaint/Services/Switcher/WindowActivator.swift"
     write("SwitcherActivationBodies.swift", "import AppKit\nimport ApplicationServices\n"
           + "extension SwitcherActivationTests.Activator {\n"
@@ -162,6 +169,11 @@ def main():
     write("ProcessName.swift", "import Foundation\n"
           + "extension ProcessNameContract {\nfinal class Lookup: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/ResponsibleProcess.swift", "    static func displayName(")
+          + "}\n}\n")
+    write("SystemMonitorCPU.swift", "import Darwin\nimport Foundation\n"
+          + "extension SystemMonitorCPUTests {\nfinal class Monitor: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/SystemMonitor/SystemMonitor.swift",
+                        "    private func readCPUUsage(").replace("private func", "func", 1)
           + "}\n}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
@@ -291,6 +303,11 @@ def main():
           + "leftoverOwner(entry: url.lastPathComponent, url: url, usesContainerMetadata: metadata)\n}\n"
           + "static func canRemove(_ item: Item, installed: Set<String> = []) -> Bool {\n"
           + "mayRemove(item, installed: installed)\n}\n}\n")
+    write("CleanerScanFlow.swift", "import Foundation\nextension CleanerScanFlowTests {\n"
+          + declaration(cleaner, "    enum Phase:")
+          + "final class Scanner: ScannerState {\nstatic let shared = Scanner()\n"
+          + "".join(declaration(cleaner, prefix) for prefix in ["    func reset()", "    func scan()"])
+          + "}\n}\n")
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
     write("SuperKeyTap.swift", "import CoreGraphics\nimport Foundation\n"
@@ -818,10 +835,20 @@ def main():
         "    private func finishRecovery(",
         "    private var clamshellNeedsRestore:",
         "    private func finishClamshellRestore(",
+        "    private func recoverDimmedDisplayIfNeeded(",
+        "    private func syncLidDimmingObserver(",
+        "    private func lidStateMayHaveChangedForDimming(",
+        "    private func applyDimmingAction(",
+        "    private func attemptDisplayRestore(",
     ]
-    write("KeepAwakeLidSleep.swift", "import Foundation\n\nextension KeepAwakeLidSleepContract {\n"
+    write("KeepAwakeLidSleep.swift", "import Foundation\nimport os\n\nextension KeepAwakeLidSleepContract {\n"
+          # The extracted dimming bodies unwrap `Unmanaged<KeepAwakeManager>`
+          # for the IOKit callback's context; this makes that name resolve to
+          # the fixture's own class instead of leaving it undefined.
+          + "typealias KeepAwakeManager = Service\n"
           + "final class Service {\n"
-          + "var isActive = false\nvar sessionPausedForScreenLock = false\nvar clamshellActive = false\n"
+          + "static let log = Logger(subsystem: \"vorssaint.tests\", category: \"keep-awake\")\n"
+          + "var isActive = false\nvar sessionPausedForScreenLock = false\n"
           + "var isTerminating = false\nvar clamshellEnablePending = false\nvar clamshellRestorePending = false\n"
           + "var clamshellOperationGeneration = 0\nvar clamshellSetupID: UUID?\n"
           + "var lidSleepGeneration = 0\nvar lidSleepAttemptsRemaining = 0\n"
@@ -831,8 +858,13 @@ def main():
           + "var endTimer: Timer?\nvar endDate: Date?\nvar sessionTrigger: SessionTrigger?\n"
           + "var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()\n"
           + "var onSessionEnded: ((EndReason) -> Void)?\n"
+          + "var lidDimmingNotificationPort: IONotificationPortRef?\nvar lidDimmingNotification: io_object_t = 0\n"
+          + "var lidClosedForDimming: Bool?\nvar savedDisplayBrightness: Double?\n"
+          + declaration(keep_awake, "    @Published private(set) var clamshellActive = false {")
+                .replace("@Published private(set) ", "", 1)
           + declaration(keep_awake, "    @Published var clamshellPreferred:").replace("@Published ", "", 1)
-          + "init() { clamshellPreferred = true }\n"
+          + declaration(keep_awake, "    @Published var dimScreenOnLidClose: Bool {").replace("@Published ", "", 1)
+          + "init() { clamshellPreferred = true; dimScreenOnLidClose = false }\n"
           + "func syncScreenLockMonitoring() {}\nfunc applyAssertions() { assertionsHeld = true }\n"
           + "func releaseAssertions() { assertionsHeld = false }\nfunc scheduleEnd(at date: Date) {}\n"
           + "func startBatteryWatch() {}\nfunc stopBatteryWatch() {}\nfunc syncMouseJiggleTimer() {}\n"
