@@ -66,11 +66,16 @@ enum NotchSettingsChoiceTests {
                 found.insert("segments squeezed to \(Int(control.frame.width)) of \(Int(segments.fittingSize.width)) points")
             }
             // A choice drawn beside the title, rather than under it where the
-            // title's text or its icon starts, squeezes the title unless the
-            // row fits on one line.
-            if abs(frame.minX - textColumn) > 0.5, abs(frame.minX - (textColumn - settingsRowTextInset)) > 0.5,
-               !fitsOneLine {
+            // title's text starts, squeezes the title unless the row fits on
+            // one line. A menu too wide for that column may start under the
+            // icon instead, but only then.
+            guard !fitsOneLine else { continue }
+            let underText = abs(frame.minX - textColumn) <= 0.5
+            let underIcon = abs(frame.minX - (textColumn - settingsRowTextInset)) <= 0.5
+            if !underText, !underIcon {
                 found.insert("a \(type(of: control)) at \(Int(frame.minX)) crowds the title")
+            } else if underIcon, control is NSSegmentedControl || textColumn + frame.width <= width - 16 + 0.5 {
+                found.insert("a \(type(of: control)) under the icon at \(Int(frame.minX)) though it fits under the title")
             }
         }
         return found.sorted()

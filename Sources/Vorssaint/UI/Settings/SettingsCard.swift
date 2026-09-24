@@ -159,11 +159,12 @@ struct SettingsMenuRow<Value: Hashable, Options: View>: View {
             SettingsRow(symbol: symbol, title: title) { menu }
             VStack(alignment: .leading, spacing: 8) {
                 SettingsRow(symbol: symbol, title: title) { EmptyView() }
-                menu.padding(.leading, settingsRowTextInset)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                SettingsRow(symbol: symbol, title: title) { EmptyView() }
-                menu
+                // Only the menu's width decides here: a title too long for one
+                // line wraps above it either way.
+                ViewThatFits(in: .horizontal) {
+                    menu.padding(.leading, settingsRowTextInset)
+                    menu
+                }
             }
         }
     }
