@@ -70,6 +70,7 @@ struct MetricsTests {
             ("settings", {
                 SettingsFeatureTests.run(suite)
                 SettingsWindowTests.run { suite.expect($0, $1) }
+                NotchSettingsChoiceTests.run(suite)
             }),
             ("display-restoration", {
                 DisplayRestorationTests.run(suite)

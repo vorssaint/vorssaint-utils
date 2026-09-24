@@ -579,6 +579,26 @@ def main():
           + "var expandedFeatures: [FeatureGroup: Set<AppFeature>] { get { state.features } nonmutating set { state.features = newValue } }\n"
           + declaration("Sources/Vorssaint/UI/Settings/ShortcutsSettings.swift", "    private func expansionBinding(").replace("private func", "func", 1)
           + "}\n}\n")
+    settings_card = "Sources/Vorssaint/UI/Settings/SettingsCard.swift"
+    text_inset = next(line for line in (ROOT / settings_card).read_text().splitlines()
+                      if line.startswith("let settingsRowTextInset:"))
+    write("NotchSettingsChoice.swift", "import SwiftUI\n" + text_inset + "\n\nextension NotchSettingsChoiceTests {\n"
+          + "struct MenuBarGlyph: View { var body: some View { EmptyView() } }\n"
+          + declaration(settings_card, "struct SettingsCard<")
+          + declaration(settings_card, "struct SettingsRow<")
+          + declaration(settings_card, "struct SettingsChoiceRow<")
+          + "struct Destination: View {\nlet language: AppLanguage\nlet title: String\n"
+          + "var text: NotchStrings { FeatureStrings.notch(language) }\n"
+          + "var editor: NotchEditorStrings { FeatureStrings.notchEditor(language) }\n"
+          + 'var body: some View { destination(title, symbol: "tray.full", value: .constant(true)) }\n'
+          + declaration("Sources/Vorssaint/UI/Settings/NotchSettings.swift", "    private func destination(")
+          + "}\nstruct Limits: View {\nlet language: AppLanguage\n"
+          + "@State var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue\n"
+          + "var text: NotchAgentStrings { FeatureStrings.notchAgents(language) }\n"
+          + "var body: some View {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/NotchAgentsSettings.swift",
+                        "            SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol")
+          + "}\n}\n}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
           + "extension MediaWorkspaceLayoutTests {\n"

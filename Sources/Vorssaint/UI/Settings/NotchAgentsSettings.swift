@@ -62,12 +62,9 @@ struct NotchAgentsSettingsControls: View {
                 }
             }
             Text(text.cardsHint).font(.caption).foregroundStyle(.secondary)
-            SettingsRow(symbol: NotchAgentCard.limits.symbol, title: text.limitsAs) {
-                Picker(text.limitsAs, selection: $limitDisplay) {
-                    Text(text.remaining).tag(NotchAgentLimitDisplay.remaining.rawValue)
-                    Text(text.used).tag(NotchAgentLimitDisplay.used.rawValue)
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
+            SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol, title: text.limitsAs, selection: $limitDisplay) {
+                Text(text.remaining).tag(NotchAgentLimitDisplay.remaining.rawValue)
+                Text(text.used).tag(NotchAgentLimitDisplay.used.rawValue)
             }
 
             Divider()

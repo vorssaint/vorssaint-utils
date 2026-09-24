@@ -590,11 +590,9 @@ struct NotchSettings: View {
     }
 
     private func destination(_ title: String, symbol: String, value: Binding<Bool>, available: Bool = true) -> some View {
-        SettingsRow(symbol: symbol, title: title) {
-            Picker(title, selection: value) {
-                Text(text.title).tag(true)
-                Text(editor.separate).tag(false)
-            }.pickerStyle(.segmented).labelsHidden().fixedSize()
+        SettingsChoiceRow(symbol: symbol, title: title, selection: value) {
+            Text(text.title).tag(true)
+            Text(editor.separate).tag(false)
         }.disabled(!available)
     }
 
