@@ -17,6 +17,9 @@ struct WindowMaximizerExclusionsList: View {
                       addTitle: text.addButton,
                       removeLabel: text.removeButton,
                       bundleIDs: apps,
+                      // Games often live outside the Applications folders,
+                      // so the picker offers running apps and browsing too.
+                      reachesEveryApp: true,
                       onAdd: { save(apps + [$0]) },
                       onRemove: { bundleID in save(apps.filter { $0 != bundleID }) })
     }
