@@ -290,7 +290,7 @@ extension NotchAgentStrings {
         claudeLimitsTitle: "Ліміти плану Claude",
         claudeLimitsCurrentFormat: "Прочитано з програми Claude, оновлено %@",
         claudeLimitsStaleFormat: "Програма Claude востаннє перевіряла їх %@.",
-        claudeLimitsMenuBar: "Claude перевіряє ліміти, лише коли його значок є в рядку меню. Увімкніть значок у налаштуваннях програми Claude, і ліміти з’являться тут протягом кількох хвилин.",
+        claudeLimitsMenuBar: "Claude перевіряє ліміти, лише коли його значок є на смузі меню. Увімкніть значок у налаштуваннях програми Claude, і ліміти з’являться тут протягом кількох хвилин.",
         claudeLimitsNoApp: "Ліміти плану надходять із програми Claude, якої немає на цьому Mac. Поки що п’ятигодинний сеанс оцінюється за активністю Claude Code.",
         claudeLimitsPrivacy: "Vorssaint читає відсотки, які програма Claude зберігає на цьому Mac. Вхід в обліковий запис не потрібен, і нічого не надсилається.",
         openClaude: "Відкрити Claude",

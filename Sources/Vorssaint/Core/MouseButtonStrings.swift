@@ -570,7 +570,7 @@ extension MouseButtonFeatureStrings {
         backButtonName: "Задня бокова кнопка",
         forwardButtonName: "Передня бокова кнопка",
         otherButtonFormat: "Кнопка %d",
-        setShortcutButton: "Встановити клавіатурне скорочення",
+        setShortcutButton: "Призначити",
         removeButton: "Видалити",
         emptyCaption: "Ще немає клавіатурних скорочень. Додайте кнопку або напрямок бокового колеса.",
         rowWheelNote: "Ця кнопка зараз відкриває радіальне меню, тому клавіатурне скорочення недоступне.",
@@ -581,11 +581,11 @@ extension MouseButtonFeatureStrings {
         spacesEnableLabel: "Перемикати Space перетягуванням кнопки",
         spacesEnableCaption: "Утримуйте обрану кнопку та перетягуйте: вліво або вправо перемикає на один Space, вгору відкриває Mission Control, вниз відкриває App Exposé. Короткий клац все ще робить те, що робив раніше.",
         spacesPickButton: "Виберіть кнопку",
-        spacesShortcutsOffNote: "Клавіатурні скорочення Mission Control вимкнені в Системних налаштуваннях, тому цей жест нічого не може викликати.",
+        spacesShortcutsOffNote: "Клавіатурні скорочення Mission Control вимкнені в Системних параметрах, тому цей жест нічого не може викликати.",
         spacesCaptureWaiting: "Тепер натисніть додаткову кнопку.",
         spacesCaptureUnsupported: "Це введення не можна утримувати для перетягування. Використовуйте додаткову кнопку.",
         spacesCaptureExists: "Ця кнопка вже має клавіатурне скорочення. Виберіть іншу.",
         spacesFollowsDragLabel: "Space слідує за перетягуванням",
-        spacesFollowsDragCaption: "Перетягування вправо підтягує Space ліворуч, як на трекпаді, коли робочий стіл слідує за пальцем."
+        spacesFollowsDragCaption: "Перетягування вправо підтягує Space ліворуч, як на трекпеді, коли робочий стіл слідує за пальцем."
     )
 }

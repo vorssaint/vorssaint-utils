@@ -51,14 +51,14 @@ extension FeatureStrings {
 
 extension GeneralSettingsStrings {
     static let uk = GeneralSettingsStrings(
-        pageDescription: "Як запускається Vorssaint, який має вигляд і що показує панель у рядку меню.",
+        pageDescription: "Як запускається Vorssaint, який має вигляд і що показує панель на смузі меню.",
         appearanceCaption: "Стосується лише вікон і панелей Vorssaint, а не всього Mac.",
         launchAtLoginCaption: "Автоматично відкривається щоразу після запуску Mac.",
         liquidGlassCaption: "Прозорі панелі з ефектом скла.",
-        panelIntro: "Натисніть значок Vorssaint у рядку меню, щоб відкрити панель. Вкладки розташовані в такому порядку.",
+        panelIntro: "Натисніть значок Vorssaint на смузі меню, щоб відкрити панель. Вкладки розташовані в такому порядку.",
         panelReorderHint: "Перетягуйте, щоб змінити порядок. Вимкніть те, що вам не потрібно.",
         iconMissingTitle: "Не можете знайти значок?",
-        iconMissingCaption: "Переповнений рядок меню може його приховати, особливо на Mac із вирізом.",
+        iconMissingCaption: "Переповнена смуга меню може його приховати, особливо на Mac із вирізом.",
         sectionKeepAwake: "Не дає Mac заснути стільки, скільки потрібно.",
         sectionDisplays: "Яскравість екранів.",
         sectionMixer: "Гучність кожної програми на окремому повзунку.",

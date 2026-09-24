@@ -45,6 +45,7 @@ extension FeatureStrings {
         case .it: return .it
         case .ja: return .ja
         case .ko: return .ko
+        case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -336,6 +337,31 @@ extension WallpaperFeatureStrings {
         applyFailed: "배경화면을 설정할 수 없습니다",
         previousPage: "이전",
         nextPage: "다음"
+    )
+    static let uk = WallpaperFeatureStrings(
+        pageTitle: "Шпалера",
+        hubDescription: "Вибирайте статичну шпалеру, не відкриваючи Системні параметри",
+        panelDescription: "Вибирайте статичну шпалеру, не відкриваючи Системні параметри.",
+        filterAll: "Усі",
+        filterOwn: "Ваші зображення",
+        filterApple: "Apple",
+        applyAllDisplays: "Показувати всюди",
+        addImage: "Додати зображення",
+        addFolder: "Додати папку",
+        removeAdded: "Видалити",
+        doneRemoving: "Готово",
+        sourceUnavailable: "Недоступно",
+        addImagePrompt: "Виберіть зображення для списку шпалер Vorssaint",
+        addFolderPrompt: "Виберіть папку із зображеннями для списку шпалер Vorssaint",
+        openSystemSettings: "Відкрити параметри шпалери",
+        emptyAll: "Шпалер не знайдено",
+        emptyOwn: "Зображень ще не додано",
+        emptyApple: "Статичних шпалер Apple не знайдено",
+        downloading: "Завантаження…",
+        downloadFailed: "Не вдалося завантажити шпалеру",
+        applyFailed: "Не вдалося встановити шпалеру",
+        previousPage: "Назад",
+        nextPage: "Далі"
     )
 
     static let zhHans = WallpaperFeatureStrings(

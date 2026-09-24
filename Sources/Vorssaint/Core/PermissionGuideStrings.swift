@@ -60,7 +60,7 @@ extension PermissionGuideStrings {
     )
     static let uk = PermissionGuideStrings(
         title: "Залишився один крок",
-        stepOpen: "macOS відкрила Системні налаштування на правильному списку.",
+        stepOpen: "macOS відкрила Системні параметри на потрібному списку.",
         stepToggle: "Увімкніть Vorssaint у тому списку.",
         stepReturn: "Поверніться. Ця картка помітить сама.",
         waiting: "Очікування дозволу…",

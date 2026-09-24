@@ -18,6 +18,7 @@ struct PointerDisplayStrings {
         case .it: return .init(title: "Sposta il puntatore al display successivo", caption: "Porta il puntatore al centro del display successivo.")
         case .ja: return .init(title: "ポインタを次のディスプレイへ移動", caption: "ポインタを次のディスプレイの中央に移動します。")
         case .ko: return .init(title: "포인터를 다음 디스플레이로 이동", caption: "포인터를 다음 디스플레이의 가운데로 옮깁니다.")
+        case .uk: return .init(title: "Перемістити вказівник на наступний дисплей", caption: "Ставить вказівник у центр наступного дисплея.")
         case .zhHans: return .init(title: "将指针移到下一台显示器", caption: "将指针移到下一台显示器的中央。")
         case .zhTW: return .init(title: "將指標移到下一台顯示器", caption: "將指標移到下一台顯示器的中央。")
         case .zhHK: return .init(title: "將指標移到下一部顯示器", caption: "將指標移到下一部顯示器的中央。")

@@ -2136,7 +2136,7 @@ extension RecorderFeatureStrings {
         exportingLabel: "Збереження…",
         cancelButton: "Скасувати",
         exportFailed: "Не вдалося зберегти запис",
-        gifTooLongFormat: "GIF може тривати до %d секунд",
+        gifTooLongFormat: "GIF може тривати щонайбільше %d с",
         gifSizeLabel: "Розмір GIF",
         gifSizeSmall: "Малий",
         gifSizeMedium: "Середній",

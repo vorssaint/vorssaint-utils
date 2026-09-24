@@ -28,7 +28,7 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.bytes(512), "512 B", "bytes < 1K")
         expectEqual(MetricFormat.bytes(1024), "1.0 KB", "bytes 1K")
         expectEqual(MetricFormat.bytes(1536), "1.5 KB", "bytes 1.5K")
-        // Eight of the fourteen languages here are spoken where a decimal is
+        // Nine of the fifteen languages here are spoken where a decimal is
         // written with a comma, and the panel wrote a point at everyone.
         MetricFormat.locale = Locale(identifier: "pt_BR")
         expectEqual(MetricFormat.bytes(1536), "1,5 KB", "a comma region reads its own decimal")

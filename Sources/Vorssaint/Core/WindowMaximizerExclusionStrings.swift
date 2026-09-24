@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .it: return .it
         case .ja: return .ja
         case .ko: return .ko
+        case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -106,6 +107,12 @@ extension WindowMaximizerExclusionStrings {
         addButton: "앱 추가…",
         removeButton: "제거",
         caption: "이 앱에서는 초록색 버튼이 macOS 기본 동작을 유지하므로 게임, 에뮬레이터, 동영상 플레이어에서도 전체 화면으로 전환할 수 있습니다."
+    )
+    static let uk = WindowMaximizerExclusionStrings(
+        listTitle: "Повноекранний режим у цих програмах",
+        addButton: "Додати програму…",
+        removeButton: "Видалити",
+        caption: "У цих програмах зелена кнопка працює як у macOS, тож ігри, емулятори й відеопрогравачі можуть і далі переходити в повноекранний режим."
     )
 
     static let zhHans = WindowMaximizerExclusionStrings(

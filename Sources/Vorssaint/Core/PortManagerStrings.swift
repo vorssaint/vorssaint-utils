@@ -53,7 +53,9 @@ extension PortManagerFeatureStrings {
         loadFailed: "Не вдалося прочитати список портів. Спробуйте оновити.",
         refresh: "Оновити", terminateFormat: "Завершити %@?",
         terminateMessageFormat: "Це закриє порт %d, завершивши процес із PID %d.",
-        hubDescription: "Переглядайте відкриті порти й, якщо встановлено функцію завершення процесів, завершуйте процеси, що їх використовують"
+        hubDescription: "Переглядайте відкриті порти й, якщо встановлено функцію завершення процесів, завершуйте процеси, що їх використовують",
+        allInterfaces: "Усі інтерфейси",
+        allInterfacesHelp: "Очікує з’єднань на всіх мережевих інтерфейсах, тож інші пристрої в мережі, можливо, зможуть підключитися."
     )
 
     static let enUS = PortManagerFeatureStrings(title: "Port Manager", filter: "Filter by port, process, or PID", openFormat: "%d open", empty: "No listening ports found", emptyHint: "Try refreshing or changing your search.", listeningCaption: "Your listening ports", kill: "Kill", forceKill: "Force Kill", loadFailed: "Could not read listening ports. Try refreshing.", refresh: "Refresh", terminateFormat: "Terminate %@?", terminateMessageFormat: "This closes port %d by terminating PID %d.", hubDescription: "View active listening ports and, with Kill Process installed, terminate the processes using them", allInterfaces: "All interfaces", allInterfacesHelp: "Listening on every network interface, so other devices on the network may be able to connect.")

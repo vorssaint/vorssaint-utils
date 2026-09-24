@@ -43,9 +43,11 @@ extension FeatureStrings {
 extension SettingsPageStrings {
     static let uk = SettingsPageStrings(
         energyDescription: "Не давайте Mac заснути, керуйте екранами та заощаджуйте заряд акумулятора.",
-        monitorDescription: "Що рядок меню й панель показують про Mac та коли попереджати вас.",
-        mouseDescription: "Дайте колесу, боковим кнопкам і трекпаду нові функції.",
-        switcherDescription: "Перемикайте програми й вікна на свій лад та переглядайте вікна з Dock.",
+        monitorDescription: "Що смуга меню й панель показують про Mac та коли попереджати вас.",
+        mouseDescription: "Дайте колесу, боковим кнопкам і трекпеду нові функції.",
+        switcherDescription: "Перемикайте програми й вікна на свій лад.",
+        dockTitle: "Dock",
+        dockDescription: "Переглядайте вікна програми з її значка в Dock і вибирайте, що робить клацання по ньому.",
         switcherLayoutWindows: "Мініатюри вікон",
         switcherLayoutWindowsCaption: "По одній мініатюрі для кожного вікна, включно зі згорнутими.",
         switcherLayoutIcons: "Великі значки",

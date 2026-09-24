@@ -380,16 +380,16 @@ extension DiskImageInstallerStrings {
         promptBodyFormat: "%@ буде встановлено в %@, а образ диска вийнято.",
         installButton: "Встановити",
         installedTitle: "Програму встановлено",
-        installedBodyFormat: "%@ готова у %@. Образ диска вийнято, а завантаження переміщено в Кошик.",
+        installedBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження переміщено в Смітник.",
         installedKeepingMountBodyFormat: "%@ встановлено в %@, але образ диска не вдалося вийняти. Завантаження збережено.",
-        installedKeepingDownloadBodyFormat: "%@ встановлено в %@, а образ диска вийнято, але завантаження не вдалося перемістити в Кошик.",
+        installedKeepingDownloadBodyFormat: "%@ встановлено в %@, а образ диска вийнято, але завантаження не вдалося перемістити в Смітник.",
         failedTitle: "Не вдалося встановити",
         failedBody: "Нічого не змінено. Ви все ще можете перетягнути програму у «Програми».",
         verificationFailedBody: "Цей Mac не зміг перевірити програму, тому нічого не встановлено.",
         alreadyInstalledBodyFormat: "%@ вже у папці «Програми».",
-        trashDownloadOption: "Перемістити завантаження в Кошик",
+        trashDownloadOption: "Перемістити завантаження в Смітник",
         revealAppOption: "Показати встановлену програму у Finder",
-        installedKeptDownloadBodyFormat: "%@ готова у %@. Образ диска вийнято, а завантаження збережено.",
+        installedKeptDownloadBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження збережено.",
         installingFormat: "Встановлення %@…"
     )
 }
