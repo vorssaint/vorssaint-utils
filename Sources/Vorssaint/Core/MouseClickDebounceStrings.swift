@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -27,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -70,6 +72,14 @@ extension MouseClickDebounceStrings {
         moreOptions: "Más opciones",
         windowLabel: "Intervalo del filtro",
         windowCaption: "Un clic repetido dentro de este intervalo se considera una repetición accidental."
+    )
+
+    static let sk = MouseClickDebounceStrings(
+        title: "Filter dvojitých klikov",
+        caption: "Ignoruje rýchle nadbytočné kliknutia z opotrebovaných tlačidiel myši bez spomalenia bežných kliknutí.",
+        moreOptions: "Ďalšie možnosti",
+        windowLabel: "Interval filtra",
+        windowCaption: "Opakované kliknutie v tomto intervale sa považuje za náhodné zduplikovanie."
     )
 
     static let de = MouseClickDebounceStrings(
@@ -134,5 +144,12 @@ extension MouseClickDebounceStrings {
         moreOptions: "更多選項",
         windowLabel: "過濾時段",
         windowCaption: "此時段內的重複點按會視為意外重複。"
+    )
+    static let uk = MouseClickDebounceStrings(
+        title: "Фільтр зайвих клаців",
+        caption: "Ігнорує швидкі зайві клацання від зношених кнопок миші без уповільнення звичайних клаців.",
+        moreOptions: "Більше опцій",
+        windowLabel: "Фільтрувати вікно",
+        windowCaption: "Повторний клац усередині цього інтервалу вважається випадковим дублікатом."
     )
 }

@@ -50,6 +50,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -58,6 +59,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -236,6 +238,41 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "Ese botón ya tiene un atajo. Elige otro.",
         spacesFollowsDragLabel: "Los Espacios siguen el arrastre",
         spacesFollowsDragCaption: "Arrastrar a la derecha trae el Espacio de la izquierda, igual que un deslizamiento en el trackpad lo lleva con tus dedos."
+    )
+
+    static let sk = MouseButtonFeatureStrings(
+        pageTitle: "Skratky tlačidiel myši",
+        hubDescription: "Extra tlačidlá a smery bočného kolieska stláčajú kombináciu klávesov, ktorú si vyberiete.",
+        enableLabel: "Používať extra tlačidlá ako skratky",
+        enableCaption: "Každé extra tlačidlo alebo smer bočného kolieska môže za vás stlačiť kombináciu klávesov. Kým má skratku, prestane robiť to, čo predtým.",
+        addButton: "Pridať tlačidlo alebo bočné koliesko",
+        captureWaiting: "Teraz stlačte extra tlačidlo alebo pohnite bočným kolieskom.",
+        captureCancel: "Zrušiť",
+        captureBlind: "Vorssaint teraz nemôže sledovať myš.",
+        captureUnsupported: "Tomuto vstupu nemožno priradiť skratku. Použite extra tlačidlo alebo smer bočného kolieska.",
+        captureWheel: "Toto tlačidlo už otvára radiálne menu. Vyberte iné, alebo ho tam najprv uvoľnite.",
+        captureExists: "Toto tlačidlo alebo smer už je v zozname nižšie.",
+        captureHint: "Ak sa nič nestane, tento ovládací prvok už možno používa vlastný softvér myši.",
+        backButtonName: "Bočné tlačidlo späť",
+        forwardButtonName: "Bočné tlačidlo dopredu",
+        otherButtonFormat: "Tlačidlo %d",
+        setShortcutButton: "Nastaviť skratku",
+        removeButton: "Odstrániť",
+        emptyCaption: "Zatiaľ žiadne skratky. Pridajte tlačidlo alebo smer bočného kolieska.",
+        rowWheelNote: "Toto tlačidlo teraz otvára radiálne menu, takže skratka čaká.",
+        manageButton: "Nastaviť…",
+        panelCaption: "Extra tlačidlá a smery bočného kolieska stláčajú kombinácie klávesov, ktoré si vyberiete.",
+        sideWheelLeftName: "Bočné koliesko vľavo",
+        sideWheelRightName: "Bočné koliesko vpravo",
+        spacesEnableLabel: "Prepínať plochy presunutím tlačidla",
+        spacesEnableCaption: "Podržte zvolené tlačidlo a presuňte: vľavo alebo vpravo prejde o jednu plochu, hore otvorí Mission Control, dole otvorí Exposé aplikácie. Krátke kliknutie naďalej robí to, čo vždy.",
+        spacesPickButton: "Vybrať tlačidlo",
+        spacesShortcutsOffNote: "Klávesové skratky pre Mission Control sú v Systémových nastaveniach vypnuté, takže toto gesto nemá o čo požiadať.",
+        spacesCaptureWaiting: "Teraz stlačte extra tlačidlo.",
+        spacesCaptureUnsupported: "Tento vstup nemožno podržať pre presunutie. Použite extra tlačidlo.",
+        spacesCaptureExists: "Toto tlačidlo už má skratku. Vyberte iné.",
+        spacesFollowsDragLabel: "Plochy sledujú presun",
+        spacesFollowsDragCaption: "Presunutie doprava privedie plochu vľavo, rovnako ako ju ťah po trackpade unáša spolu s vašimi prstami."
     )
 
     static let de = MouseButtonFeatureStrings(
@@ -516,5 +553,39 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "該按鍵已設有快捷鍵。請換一個。",
         spacesFollowsDragLabel: "桌面跟著拖曳走",
         spacesFollowsDragCaption: "向右拖曳會帶來左邊的桌面，就像在觸控式軌跡板上滑動時桌面跟著手指移動一樣。"
+    )
+    static let uk = MouseButtonFeatureStrings(
+        pageTitle: "Клавіатурні скорочення кнопок миші",
+        hubDescription: "Додаткові кнопки та напрямки бокового колеса натискають обране вами клавіатурне скорочення.",
+        enableLabel: "Використовувати додаткові кнопки як клавіатурні скорочення",
+        enableCaption: "Кожна додаткова кнопка або напрямок бокового колеса може натискати клавіатурне скорочення замість вас. Поки для неї призначено клавіатурне скорочення, вона не виконує попередню дію.",
+        addButton: "Додати кнопку або бокове колесо",
+        captureWaiting: "Тепер натисніть додаткову кнопку або проверніть бокове колесо.",
+        captureCancel: "Скасувати",
+        captureBlind: "Vorssaint не може стежити за мишею зараз.",
+        captureUnsupported: "Це введення не може мати клавіатурне скорочення. Використовуйте додаткову кнопку або напрямок бокового колеса.",
+        captureWheel: "Ця кнопка вже відкриває радіальне меню. Виберіть іншу або спочатку звільніть її там.",
+        captureExists: "Ця кнопка або напрямок вже є в списку нижче.",
+        captureHint: "Якщо нічого не відбувається, ПЗ вашої миші, можливо, вже використовує цей елемент керування.",
+        backButtonName: "Задня бокова кнопка",
+        forwardButtonName: "Передня бокова кнопка",
+        otherButtonFormat: "Кнопка %d",
+        setShortcutButton: "Призначити",
+        removeButton: "Видалити",
+        emptyCaption: "Ще немає клавіатурних скорочень. Додайте кнопку або напрямок бокового колеса.",
+        rowWheelNote: "Ця кнопка зараз відкриває радіальне меню, тому клавіатурне скорочення недоступне.",
+        manageButton: "Налаштувати…",
+        panelCaption: "Додаткові кнопки та напрямки бокового колеса натискають обрані вами клавіатурні скорочення.",
+        sideWheelLeftName: "Бокове колесо ліворуч",
+        sideWheelRightName: "Бокове колесо праворуч",
+        spacesEnableLabel: "Перемикати Space перетягуванням кнопки",
+        spacesEnableCaption: "Утримуйте обрану кнопку та перетягуйте: вліво або вправо перемикає на один Space, вгору відкриває Mission Control, вниз відкриває App Exposé. Короткий клац все ще робить те, що робив раніше.",
+        spacesPickButton: "Виберіть кнопку",
+        spacesShortcutsOffNote: "Клавіатурні скорочення Mission Control вимкнені в Системних параметрах, тому цей жест нічого не може викликати.",
+        spacesCaptureWaiting: "Тепер натисніть додаткову кнопку.",
+        spacesCaptureUnsupported: "Це введення не можна утримувати для перетягування. Використовуйте додаткову кнопку.",
+        spacesCaptureExists: "Ця кнопка вже має клавіатурне скорочення. Виберіть іншу.",
+        spacesFollowsDragLabel: "Space слідує за перетягуванням",
+        spacesFollowsDragCaption: "Перетягування вправо підтягує Space ліворуч, як на трекпеді, коли робочий стіл слідує за пальцем."
     )
 }

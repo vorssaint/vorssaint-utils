@@ -71,7 +71,12 @@ struct PanelUninstallerView: View {
             Label(l10n.s.uninstallerName, systemImage: "trash")
                 .font(.system(size: 12, weight: .semibold))
             Spacer()
-            Button(action: onClose) {
+            Button {
+                // Closing means cancel: a scan left running would come back
+                // on the next open. A removal in progress is left alone.
+                if uninstaller.phase == .scanning { uninstaller.reset() }
+                onClose()
+            } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
@@ -160,6 +165,10 @@ struct PanelUninstallerView: View {
                         .font(.system(size: 11.5, weight: .medium))
                         .lineLimit(1)
                 }
+            }
+            if uninstaller.phase == .scanning {
+                Button(l10n.s.uninstallerCancel) { uninstaller.reset() }
+                    .controlSize(.small)
             }
         }
         .frame(maxWidth: .infinity)

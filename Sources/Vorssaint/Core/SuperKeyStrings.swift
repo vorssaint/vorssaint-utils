@@ -45,6 +45,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -53,6 +54,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -181,6 +183,30 @@ extension SuperKeyStrings {
         mappingForeignMapping: "La reasignación de otra app usa la tecla seleccionada. Elimínala en esa app: salir de ella no basta.",
         mappingSystemRefused: "macOS rechazó la reasignación de teclas. Vuelve a conectar el teclado o reinicia el Mac y activa esto de nuevo.",
         keyboardTapRefused: "macOS no dejó que Vorssaint vigilara el teclado. Desactiva y vuelve a activar Vorssaint en Ajustes del Sistema › Privacidad y seguridad › Accesibilidad y activa esto de nuevo."
+    )
+
+    static let sk = SuperKeyStrings(
+        pageTitle: "Super kláves",
+        hubDescription: "Zmení jeden kláves na kombináciu modifikátorov, ktorú si vyberiete.",
+        enableToggle: "Použiť tento kláves ako super kláves",
+        enableCaption: "Podržte ho a stlačte akýkoľvek kláves. Nižšie vyberte jeden alebo viac modifikátorov.",
+        modifierKeysNote: "Ponechajte tento kláves s predvolenou akciou v Systémových nastaveniach › Klávesnica › Klávesy – modifikátory.",
+        sourceKey: "Kláves na podržanie",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Pravý %@",
+        holdHint: "Podržte",
+        soloSection: "Samostatné stlačenie",
+        soloCaption: "Čo urobí rýchle stlačenie, keď nie je stlačený žiadny iný kláves.",
+        soloNothing: "Nič",
+        soloCapsLock: "Zapne a vypne veľké písmená",
+        soloEscape: "Stlačí Escape",
+        activeNow: "Momentálne aktívne",
+        panelCaptionFormat: "%1$@ podrží %2$@.",
+        manageButton: "Nastaviť…",
+        soloInputSource: "Prepne zdroj vstupu; podržaním aktivujete Caps Lock",
+        mappingForeignMapping: "Mapovanie klávesov inej aplikácie používa vybraný kláves. Odstráňte ho v tejto aplikácii: samotné ukončenie nestačí.",
+        mappingSystemRefused: "macOS odmietol mapovanie klávesov. Znova pripojte klávesnicu alebo reštartujte Mac a potom to znova zapnite.",
+        keyboardTapRefused: "macOS nedovolil Vorssaintu sledovať klávesnicu. Vorssaint vypnite a zapnite v Systémových nastaveniach › Súkromie a bezpečnosť › Prístupnosť a potom túto voľbu znova zapnite."
     )
 
     static let de = SuperKeyStrings(
@@ -373,5 +399,28 @@ extension SuperKeyStrings {
         mappingForeignMapping: "另一個 App 嘅按鍵對應用咗所選按鍵。請喺嗰個 App 度移除對應：淨係結束佢唔夠。",
         mappingSystemRefused: "macOS 拒絕咗按鍵對應。請重新接駁鍵盤或者重新啟動 Mac，然後重新開啟呢個功能。",
         keyboardTapRefused: "macOS 唔俾 Vorssaint 監聽鍵盤。請喺系統設定 › 隱私權與安全性 › 輔助使用入面關閉再開啟 Vorssaint，然後重新開啟呢個功能。"
+    )
+    static let uk = SuperKeyStrings(
+        pageTitle: "Супер-клавіша",
+        hubDescription: "Перетворює одну клавішу на обране вами поєднання модифікаторів.",
+        enableToggle: "Використовувати цю клавішу як супер-клавішу",
+        enableCaption: "Утримуйте її та натисніть будь-яку клавішу. Виберіть один або кілька модифікаторів нижче.",
+        modifierKeysNote: "Залиште для цієї клавіші типову дію в розділі «Системні параметри › Клавіатура › Клавіші-модифікатори».",
+        sourceKey: "Клавіша для утримання",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Правий %@",
+        holdHint: "Утримати",
+        soloSection: "Окреме натискання",
+        soloCaption: "Що робить коротке натискання, коли не натиснуто інших клавіш.",
+        soloNothing: "Нічого",
+        soloCapsLock: "Вмикати й вимикати Caps Lock",
+        soloEscape: "Натискати Escape",
+        activeNow: "Зараз працює",
+        panelCaptionFormat: "%1$@ утримує %2$@.",
+        manageButton: "Налаштувати…",
+        soloInputSource: "Перемикати джерело вводу; утримувати для Caps Lock",
+        mappingForeignMapping: "Прив’язка клавіш іншої програми використовує обрану клавішу. Видаліть її у тій програмі: просто закрити її недостатньо.",
+        mappingSystemRefused: "macOS відхилила прив’язку клавіш. Перепідключіть клавіатуру або перезавантажте Mac, потім увімкніть знову.",
+        keyboardTapRefused: "macOS не дозволила Vorssaint стежити за клавіатурою. Вимкніть і знову ввімкніть Vorssaint у розділі «Системні параметри › Приватність і безпека › Доступність», а потім знову ввімкніть цю функцію."
     )
 }

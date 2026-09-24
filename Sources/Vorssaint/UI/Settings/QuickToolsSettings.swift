@@ -75,6 +75,18 @@ struct QuickToolsSettings: View {
                             Label(FeatureStrings.brightness(l10n.language).keyboardLight,
                                   systemImage: "keyboard")
                         }
+                        HStack(spacing: 8) {
+                            Slider(value: Binding(
+                                get: { Double(brightness.keyboardLightLevel ?? 0) },
+                                set: { brightness.setKeyboardLightLevel(Float($0)) }
+                            ), in: 0...1, onEditingChanged: brightness.keyboardLightDragChanged)
+                            .accessibilityLabel(
+                                FeatureStrings.brightness(l10n.language).keyboardLight)
+                            Text("\(Int(((brightness.keyboardLightLevel ?? 0) * 100).rounded()))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 34, alignment: .trailing)
+                        }
                     }
                     DiskExclusionsList()
                     Text(FeatureStrings.quickToggles(l10n.language).panelCaption)
@@ -157,6 +169,25 @@ struct QuickToolsSettings: View {
                     Text(FeatureStrings.cameraPreview(l10n.language).pageTitle)
                 }
                 .settingsSectionAnchor(.cameraPreview)
+            }
+
+            if AppFeature.wallpaper.isAvailable {
+                Section {
+                    Toggle(FeatureStrings.wallpaper(l10n.language).applyAllDisplays,
+                           isOn: Binding(
+                            get: { WallpaperService.shared.applyAllDisplays },
+                            set: { WallpaperService.shared.applyAllDisplays = $0 }
+                           ))
+                    Button {
+                        WallpaperService.shared.openSystemWallpaperSettings()
+                    } label: {
+                        Label(FeatureStrings.wallpaper(l10n.language).openSystemSettings,
+                              systemImage: "gearshape")
+                    }
+                } header: {
+                    Text(FeatureStrings.wallpaper(l10n.language).pageTitle)
+                }
+                .settingsSectionAnchor(.wallpaper)
             }
 
             if AppFeature.scratchpad.isAvailable {
