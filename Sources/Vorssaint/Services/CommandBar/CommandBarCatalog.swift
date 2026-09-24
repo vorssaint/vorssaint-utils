@@ -845,6 +845,12 @@ enum CommandBarCatalog {
                         item.destination.page, isAvailable: { $0.isAvailable })
                 else { return nil }
                 id = "settings.feature.\(feature.rawValue)"
+            case .setting(let anchor):
+                guard item.feature.map(\.isAvailable) ?? true,
+                      FeatureVisibilitySupport.isPageVisible(
+                        item.destination.page, isAvailable: { $0.isAvailable })
+                else { return nil }
+                id = "settings.setting.\(anchor.rawValue)"
             }
             return CommandBarEntry(
                 id: id,
@@ -854,7 +860,8 @@ enum CommandBarCatalog {
                 icon: .symbol(item.icon),
                 run: { _ in
                     let routed = SettingsSearchSupport.route(for: item)
-                    openSettings(at: routed.destination, targetFeature: routed.targetFeature)
+                    openSettings(at: routed.destination, targetFeature: routed.targetFeature,
+                                 sidebarFeature: item.feature)
                 })
         }
     }
@@ -1710,8 +1717,10 @@ enum CommandBarCatalog {
     }
 
     private static func openSettings(at destination: FeatureSettingsDestination,
-                                     targetFeature: AppFeature? = nil) {
-        SettingsRouter.shared.request(destination, targetFeature: targetFeature)
+                                     targetFeature: AppFeature? = nil,
+                                     sidebarFeature: AppFeature? = nil) {
+        SettingsRouter.shared.request(destination, targetFeature: targetFeature,
+                                      sidebarFeature: sidebarFeature)
         appDelegate()?.openSettingsWindow()
     }
 

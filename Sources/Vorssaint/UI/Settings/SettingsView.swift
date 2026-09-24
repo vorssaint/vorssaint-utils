@@ -4,9 +4,8 @@
 import AppKit
 import SwiftUI
 
-/// System-Settings-style window: a sidebar of pages on the left, the selected
-/// page on the right. Scales cleanly as features are added, and gives each
-/// feature a page of its own with room for examples and advanced options.
+/// Settings window with named tools in the sidebar. The detail keeps each
+/// tool's existing settings and section anchor.
 struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
@@ -38,12 +37,32 @@ struct SettingsView: View {
         }
     }
 
-    /// The one map of pages, shared with the command bar (SettingsDirectory).
-    private var sidebarSections: [(title: String, items: [SettingsDirectoryItem])] {
-        SettingsDirectory.sections(
+    private var sidebarItems: [SettingsSidebarItem] {
+        SettingsDirectory.sidebarItems(
             l10n.s,
             language: l10n.language,
-            superKeySource: SuperKeySource.sanitized(superKeySourceRaw)
+            superKeySource: SuperKeySource.sanitized(superKeySourceRaw),
+            isAvailable: { features.isAvailable($0) }
+        )
+    }
+
+    private var sidebarSelection: Binding<SettingsSidebarItem.ID?> {
+        Binding(
+            get: {
+                SettingsSidebarSupport.selection(for: router.destination, in: sidebarItems,
+                                                 preferredID: router.sidebarFeature.map { .feature($0) })
+            },
+            set: { selectedID in
+                guard let selectedID,
+                      let item = sidebarItems.first(where: { $0.id == selectedID }) else { return }
+                let feature: AppFeature?
+                if case .feature(let selectedFeature) = selectedID {
+                    feature = selectedFeature
+                } else {
+                    feature = nil
+                }
+                router.request(item.destination, sidebarFeature: feature)
+            }
         )
     }
 
@@ -151,7 +170,7 @@ struct SettingsView: View {
     @ViewBuilder
     private func sidebarList(searchResults: SearchResultsSnapshot) -> some View {
         ScrollViewReader { proxy in
-            List(selection: $router.page) {
+            List(selection: sidebarSelection) {
                 if hasSearchQuery {
                     searchResultRows(searchResults)
                 } else {
@@ -175,7 +194,7 @@ struct SettingsView: View {
                 // fresh list starts; a top anchor leaves the list's inset hidden.
                 guard !searching else { return }
                 DispatchQueue.main.async {
-                    if let first = firstSidebarPage { proxy.scrollTo(first, anchor: .center) }
+                    if let first = firstSidebarItem { proxy.scrollTo(first, anchor: .center) }
                 }
             }
             .background {
@@ -186,36 +205,28 @@ struct SettingsView: View {
         }
     }
 
-    private var firstSidebarPage: SettingsPage? {
-        sidebarSections.lazy.flatMap(\.items)
-            .first { FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable } }?
-            .page
+    private var firstSidebarItem: SettingsSidebarItem.ID? {
+        sidebarItems.first?.id
     }
 
     @ViewBuilder
     private var normalSidebarRows: some View {
-        ForEach(sidebarSections, id: \.title) { section in
-            let items = section.items.filter {
-                FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable }
-                    && SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
-                                                     keywords: $0.keywords)
+        let items = sidebarItems
+        let selectedID = SettingsSidebarSupport.selection(for: router.destination, in: items,
+                                                          preferredID: router.sidebarFeature.map { .feature($0) })
+        ForEach(items) { item in
+            Label {
+                Text(item.title)
+            } icon: {
+                Image(systemName: item.icon)
+                    // The sidebar's automatic icon tint can briefly disappear
+                    // while the window activates. Resolve it in the icon itself.
+                    .foregroundStyle(selectedID == item.id
+                        ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
             }
-            if !items.isEmpty {
-                Section(section.title) {
-                    ForEach(items) { item in
-                        Label {
-                            Text(item.title)
-                        } icon: {
-                            Image(systemName: item.icon)
-                                // The sidebar's automatic icon tint can briefly disappear
-                                // while the window activates. Resolve it in the icon itself.
-                                .foregroundStyle(router.page == item.page
-                                    ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
-                        }
-                        .tag(item.page)
-                    }
-                }
-            }
+            .tag(item.id)
+            .id(item.id)
+            .help(item.title)
         }
     }
 
@@ -373,7 +384,8 @@ struct SettingsView: View {
     private func requestSearchItem(_ suggestion: SettingsSearchSuggestion) {
         activeSearchIndex = nil
         let routed = SettingsSearchSupport.route(for: suggestion)
-        router.request(routed.destination, targetFeature: routed.targetFeature)
+        router.request(routed.destination, targetFeature: routed.targetFeature,
+                       sidebarFeature: suggestion.item.feature)
     }
 
     /// The selected page can leave the sidebar when its last feature is

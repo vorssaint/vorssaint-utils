@@ -9,6 +9,7 @@ struct SettingsSearchItem: Identifiable {
     enum ID: Hashable {
         case page(SettingsPage)
         case feature(AppFeature)
+        case setting(SettingsSectionAnchor)
     }
 
     let id: ID
@@ -84,6 +85,19 @@ enum SettingsSearchSupport {
                                icon: feature.symbolName,
                                feature: feature)
         }
+    }
+
+    static func keyboardBrightnessShortcutItem(language: AppLanguage) -> SettingsSearchItem {
+        let brightness = FeatureStrings.brightness(language)
+        return SettingsSearchItem(
+            id: .setting(.keyboardBrightnessShortcuts),
+            destination: FeatureSettingsDestination(
+                .shortcuts, sectionAnchor: .keyboardBrightnessShortcuts),
+            title: brightness.keyboardBrightnessShortcuts,
+            icon: "keyboard",
+            keywords: [brightness.keyboardLight, brightness.keyboardBrightnessDecrease,
+                       brightness.keyboardBrightnessIncrease],
+            feature: .brightness)
     }
 
     /// A dedicated page row wins over a generated feature row only when their

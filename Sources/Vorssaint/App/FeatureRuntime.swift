@@ -228,7 +228,10 @@ final class FeatureRuntime: ObservableObject {
             AppVolumeMixer.shared.syncWithPreferences()
             AudioInputDeviceManager.shared.syncWithPreferences()
         },
-        .soundOutputSwitcher: { SoundOutputSwitcher.shared.syncWithPreferences() },
+        .soundOutputSwitcher: {
+            AppVolumeMixer.shared.syncWithPreferences()
+            SoundOutputSwitcher.shared.syncWithPreferences()
+        },
         .audioPriority: {
             // Priority owns no sibling CoreAudio listener stack. Keep the
             // shared system-device observers alive even when Volume mixer is

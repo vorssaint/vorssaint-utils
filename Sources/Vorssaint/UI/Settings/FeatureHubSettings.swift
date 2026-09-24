@@ -424,7 +424,8 @@ private struct FeatureHubRow: View {
         HStack(spacing: 12) {
             if opensSettings {
                 Button {
-                    SettingsRouter.shared.request(feature.settingsDestination)
+                    SettingsRouter.shared.request(feature.settingsDestination,
+                                                  sidebarFeature: feature)
                 } label: {
                     rowContent(showsChevron: true)
                 }

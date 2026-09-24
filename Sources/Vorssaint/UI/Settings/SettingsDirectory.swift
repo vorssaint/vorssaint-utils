@@ -32,12 +32,48 @@ struct SettingsDirectoryItem: Identifiable {
 }
 
 /// The single map of the Settings window: sections, pages, icons and search
-/// keywords. The sidebar renders it; the command bar searches it. One list,
-/// so a page added here is findable everywhere at once.
+/// keywords. The sidebar draws its tool list from these pages; the command bar
+/// searches them. One list, so a page added here is findable everywhere.
 enum SettingsDirectory {
-    /// Destination-aware rows for focused Settings search. The regular
-    /// directory remains page-based so blank-query sidebar identity and
-    /// command-bar behavior do not change.
+    /// Shared pages whose tools cover the page without a separate overview row.
+    private static let toolOnlyPages: Set<SettingsPage> = [
+        .energy, .mouse, .switcher, .dock, .cutPaste, .quickTools, .screenshot,
+    ]
+
+    /// A flat list of page-level settings and individually named tools.
+    static func sidebarItems(_ s: Strings,
+                             language: AppLanguage,
+                             superKeySource: SuperKeySource = SuperKeyService.shared.source,
+                             isAvailable: (AppFeature) -> Bool) -> [SettingsSidebarItem] {
+        let hub = FeatureStrings.hub(language)
+        let pageItems = sections(s, language: language, superKeySource: superKeySource)
+            .flatMap(\.items)
+        return pageItems.flatMap { pageItem -> [SettingsSidebarItem] in
+            var rows = SettingsSidebarSupport.items(
+                page: pageItem.page, title: pageItem.title, icon: pageItem.icon,
+                preferredFeatures: pageItem.keywordFeatures.compactMap { $0 },
+                includePage: !toolOnlyPages.contains(pageItem.page),
+                isAvailable: isAvailable) { feature in
+                    if feature == .clipboardHistory {
+                        return FeatureStrings.commandBar(language).sourceClipboard
+                    }
+                    return feature.hubTitle(s, hub: hub)
+                }
+            if pageItem.page == .shortcuts, isAvailable(.brightness),
+               BrightnessService.keyboardLightIsSupported {
+                let destination = FeatureSettingsDestination(
+                    .shortcuts, sectionAnchor: .keyboardBrightnessShortcuts)
+                rows.append(SettingsSidebarItem(
+                    id: .setting(.keyboardBrightnessShortcuts), destination: destination,
+                    title: FeatureStrings.brightness(language).keyboardLight,
+                    icon: "keyboard"))
+            }
+            return rows
+        }
+    }
+
+    /// Destination-aware rows for focused Settings and Command Bar search.
+    /// Search keeps the page groups even though the normal sidebar is flat.
     static func searchItems(_ s: Strings,
                             language: AppLanguage) -> [SettingsSearchItem] {
         let pageItems = sections(s, language: language).flatMap(\.items).map { item in
@@ -52,8 +88,12 @@ enum SettingsDirectory {
         let featureItems = SettingsSearchSupport.featureItems(language: language) { feature in
             feature.hubTitle(s, hub: hub)
         }
-        return SettingsSearchSupport.combinedItems(pageItems: pageItems,
-                                                   featureItems: featureItems)
+        var items = SettingsSearchSupport.combinedItems(pageItems: pageItems,
+                                                        featureItems: featureItems)
+        if BrightnessService.keyboardLightIsSupported {
+            items.append(SettingsSearchSupport.keyboardBrightnessShortcutItem(language: language))
+        }
+        return items
     }
 
     static func sections(_ s: Strings,
@@ -191,6 +231,7 @@ enum SettingsDirectory {
                                                                 .autoClearOnScreenLock,
                                                              FeatureStrings.clipboardIgnoredApps(language)
                                                                 .listTitle]),
+                                        (.pastePlain, [s.pastePlainName]),
                                        ]),
                 SettingsDirectoryItem(page: .cutPaste,
                                        title: FeatureStrings.finderRename(language).pageTitle,

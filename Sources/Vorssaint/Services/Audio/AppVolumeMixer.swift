@@ -175,17 +175,16 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// System device observation is shared with Audio device priority. The
-    /// per-app portion still follows only the Volume mixer availability.
+    /// System device observation is shared with Audio device priority and the
+    /// output switcher. The per-app portion still follows only Volume mixer.
     func syncWithPreferences() {
-        let shouldObserveDevices = AppFeature.mixer.isAvailable || AppFeature.audioPriority.isAvailable
-        guard shouldObserveDevices else {
+        let needs = MixerRoutingSupport.observationNeeds(isAvailable: { $0.isAvailable })
+        guard needs.devices else {
             stop()
             return
         }
 
-        let shouldMonitorProcesses = AppFeature.mixer.isAvailable
-        if listenerInstalled, processMonitoringEnabled != shouldMonitorProcesses {
+        if listenerInstalled, processMonitoringEnabled != needs.processes {
             stop()
         }
         start()

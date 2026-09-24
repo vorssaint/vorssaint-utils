@@ -140,7 +140,8 @@ struct MouseSettings: View {
                 ForEach(legendFeatures, id: \.self) { feature in
                     let on = isOn(feature)
                     Button {
-                        SettingsRouter.shared.request(feature.settingsDestination)
+                        SettingsRouter.shared.request(feature.settingsDestination,
+                                                      sidebarFeature: feature)
                     } label: {
                         HStack(spacing: 10) {
                             Circle()
