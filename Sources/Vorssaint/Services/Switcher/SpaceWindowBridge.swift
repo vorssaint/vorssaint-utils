@@ -286,6 +286,38 @@ enum SpaceWindowBridge {
         return postEventRecord(&psn, &record) == .success
     }
 
+    /// Hands the keyboard to a window and leaves the stacking order alone,
+    /// after yabai's window_manager_focus_window_without_raise. Within the app
+    /// already in front, the window server moves focus only once the old
+    /// window hears it lost focus and the new one that it gained it. Some apps
+    /// miss the pair when it arrives at once, so the second half waits 40 ms
+    /// without blocking the main thread.
+    static func focusWithoutRaise(_ windowID: CGWindowID, ownerPID: pid_t,
+                                  replacing focusedWindowID: CGWindowID?) {
+        guard let focusedWindowID else {
+            frontWindow(windowID, ownerPID: ownerPID)
+            return
+        }
+        postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
+            frontWindow(windowID, ownerPID: ownerPID)
+        }
+    }
+
+    private static func postFocusRecord(_ windowID: CGWindowID, ownerPID: pid_t, gained: Bool) {
+        guard let processForPID, let postEventRecord else { return }
+        var psn = ProcessSerialNumber()
+        guard processForPID(ownerPID, &psn) == noErr else { return }
+        var targetID = windowID
+        var record = [UInt8](repeating: 0, count: 0x100)
+        record[0x04] = 0xf8 // declared record length
+        record[0x08] = 0x0d
+        record[0x8a] = gained ? 0x01 : 0x02
+        withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
+        _ = postEventRecord(&psn, &record)
+    }
+
     // MARK: - The user's "move a space" shortcut
 
     private typealias HotKeyValueFunction =

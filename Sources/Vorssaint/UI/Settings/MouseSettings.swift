@@ -20,6 +20,8 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.scrollHorizontalModifier) private var horizontalScrollModifier =
         ScrollHorizontalModifier.shift
     @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
+    @AppStorage(DefaultsKey.focusFollowsMouseRaise) private var focusFollowsMouseRaise = true
+    @AppStorage(DefaultsKey.focusFollowsMouseWaitForStop) private var focusFollowsMouseWaitForStop = true
     @AppStorage(DefaultsKey.focusFollowsMouseDelay) private var focusFollowsMouseDelay =
         FocusFollowsMouseSupport.defaultDelayMilliseconds
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
@@ -281,6 +283,10 @@ struct MouseSettings: View {
                                   ... Double(FocusFollowsMouseSupport.delayRange.upperBound),
                               step: 50,
                               readout: "\(focusFollowsMouseDelay) ms")
+                    Toggle(l10n.s.focusFollowsMouseRaise, isOn: $focusFollowsMouseRaise)
+                    if !focusFollowsMouseRaise {
+                        Toggle(l10n.s.focusFollowsMouseWaitForStop, isOn: $focusFollowsMouseWaitForStop)
+                    }
                     MouseExceptionsList(scope: .focusFollowsMouse)
                 }
                 .padding(.leading, settingsRowTextInset)
