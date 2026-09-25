@@ -25,7 +25,7 @@ Dynamic Island gains a floating capsule, display selection, optional calendar an
 
 ### Changed
 - Settings lists tools directly in the sidebar and gives Dock Preview and Dock clicks their own page. App Switcher and Dock Preview keep separate preview sizes.
-- App Switcher separates apps without open windows. Its minimized-window preference still applies to apps hidden with Cmd+H by default, with a new switch to exclude them. The App shortcuts table can be sorted by any column.
+- App Switcher separates apps without open windows. Its minimized-window preference also applies to apps hidden with Cmd+H by default, with a new switch to exclude them. The App shortcuts table can be sorted by any column.
 - The chosen replacement for Music can start playing when Play/Pause opens it, after Automation access is granted. Play after opening replacement is on by default and can be turned off. The menu panel uses the native macOS popover animation.
 - Dynamic Island uses narrower music and download indicators, keeps a download's name when space allows, and shows clearer connection notices. It adds a spring animation for opening and closing, and floating buttons that match Liquid Glass. Notices shrink into the island as they close.
 - Homebrew's Installed list groups dependencies under their parent packages, with a switch to restore the flat list. Port Manager marks listeners available on every network interface.

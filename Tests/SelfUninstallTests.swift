@@ -56,7 +56,7 @@ enum SelfUninstallContract {
     }
     struct KeepAwakeManager {
         static let shared = KeepAwakeManager()
-        func resumeAfterFailedSystemTeardown() { events.append("restore keep awake") }
+        func resumeAfterSystemTeardown() { events.append("restore keep awake") }
     }
     struct L10n {
         struct Text {
@@ -99,9 +99,9 @@ enum SelfUninstallContract {
         var cleared: Bool?
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
-        suite.expect(cleared == false
-                        && events == ["suspend", "refresh permissions", "resume features", "resume brightness"],
-                     "failed input teardown does not remove permissions or the rule, found \(events)")
+        suite.expect(cleared == true
+                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "restore keep awake", "resume brightness"],
+                     "a mouse journal kept for a disconnected device does not block clearing permissions, found \(events)")
 
         reset(allowRule: true)
         sleepRestoreAllowed = false
@@ -138,7 +138,7 @@ enum SelfUninstallContract {
         Host.clearPermissions { cleared = $0 }
         DispatchQueue.main.flush()
         suite.expect(cleared == true
-                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "resume brightness"],
+                        && events == ["suspend", "sleep", "fan", "login", "rule", "tccutil", "refresh permissions", "restore keep awake", "resume brightness"],
                      "clear permissions succeeds when the rule and permissions are removed, found \(events)")
 
         reset(allowRule: false)
@@ -203,5 +203,14 @@ enum SelfUninstallContract {
         suite.expect(failure == nil
                         && events == ["suspend", "sleep", "rule", "fan registration", "fan", "tccutil", "login", "preferences", "trash"],
                      "a full uninstall detaches the fan helper before permission reset and login afterward, found \(events)")
+
+        reset(allowRule: true)
+        suspensionAllowed = false
+        failure = nil
+        Host.uninstallCompletely { failure = $0 }
+        DispatchQueue.main.flush()
+        suite.expect(failure == "stopped"
+                        && events == ["suspend", "refresh permissions", "resume features", "resume brightness"],
+                     "a full uninstall still waits for mouse acceleration before deleting its journal, found \(events)")
     }
 }

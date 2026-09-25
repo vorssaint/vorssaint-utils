@@ -891,7 +891,7 @@ enum SwitcherModelFeatureTests {
                "App Switcher leaves minimized windows in normal order by default and carries the choice in backups")
         suite.expect(registeredDefaults[DefaultsKey.switcherTreatHiddenAppsLikeMinimized] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherTreatHiddenAppsLikeMinimized),
-               "hidden apps keep their beta 4 placement by default and the opt-out travels with settings backups")
+               "hidden apps follow the minimized-window placement by default and the opt-out travels with settings backups")
         suite.expect(registeredDefaults[DefaultsKey.switcherShowFullscreenWindows] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowFullscreenWindows),
                "App Switcher keeps fullscreen windows visible by default and carries the choice in backups")

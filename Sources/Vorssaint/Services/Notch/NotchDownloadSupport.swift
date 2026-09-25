@@ -199,11 +199,29 @@ enum NotchDownloadSupport {
         let provisional = geometry.compactDownloadGeometry(wing: compactNameWingThreshold)
         let icon = min(17, provisional.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
         let inset = provisional.compactActivityEdgeInset(boxHeight: icon, radius: icon / 2)
+        return min(compactNameMaximumWing,
+                   max(compactNameMinimumWing, (inset + compactNameContentWidth(name, icon: icon) + 4).rounded(.up)))
+    }
+
+    /// The island asks for its geometry on every layout and progress tick, so
+    /// the one name on show is measured once rather than each time.
+    private static var measuredCompactName: (name: String, icon: CGFloat, width: CGFloat)?
+
+    private static func compactNameContentWidth(_ name: String, icon: CGFloat) -> CGFloat {
+        if let measured = measuredCompactName, measured.name == name, measured.icon == icon {
+            return measured.width
+        }
+        // The symbol draws wider than its point size; measuring the size alone
+        // left every name a few points short and cut it in the middle.
+        let symbol = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: icon, weight: .regular))?
+            .size.width ?? icon + 3
         let title = (name as NSString).size(withAttributes: [
             .font: NSFont.systemFont(ofSize: 11, weight: .medium)
-        ]).width
-        return min(compactNameMaximumWing,
-                   max(compactNameMinimumWing, (inset + icon + 6 + title + 4).rounded(.up)))
+        ]).width.rounded(.up)
+        let width = max(icon, symbol) + 6 + title
+        measuredCompactName = (name, icon, width)
+        return width
     }
 
     static func showsCompactName(in geometry: NotchGeometry) -> Bool {

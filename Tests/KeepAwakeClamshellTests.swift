@@ -136,38 +136,53 @@ enum KeepAwakeClamshellTests {
                "a status request from before a newer enable cannot overwrite that operation's verified result")
 
         let retainedRule = active(); C.Sudoers.disabled = false
-        retainedRule.resumeAfterFailedSystemTeardown(); C.drain()
+        retainedRule.resumeAfterSystemTeardown(); C.drain()
         expect(retainedRule.clamshellActive && C.Sudoers.disabled && C.Sudoers.calls == [true]
                && C.Sudoers.installCompletions.isEmpty
                && C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
-               "a failed uninstall rearms the active session through a rule that remained installed")
+               "a teardown that stopped rearms the active session through a rule that remained installed")
 
         let removedRule = active(); C.Sudoers.disabled = false; C.Sudoers.configured = false
-        removedRule.resumeAfterFailedSystemTeardown()
-        expect(!removedRule.clamshellActive && !removedRule.passwordlessClamshell
-               && !C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
-               "a confirmed sleep restore immediately clears the stale closed-lid state")
+        removedRule.resumeAfterSystemTeardown()
+        expect(!removedRule.clamshellActive && !removedRule.passwordlessClamshell,
+               "a teardown discards the stale closed-lid session at once")
         C.drain()
-        expect(C.Sudoers.installCompletions.count == 1 && C.Sudoers.calls.isEmpty,
-               "a removed rule is requested again before closed-lid mode is enabled")
+        expect(C.Sudoers.installCompletions.isEmpty && C.Sudoers.calls.isEmpty && C.AdminShell.prompts == 0
+               && !C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag)
+               && removedRule.clamshellPreferred && !removedRule.clamshellSetupFailed,
+               "a removed rule is not requested again right after the teardown, and a confirmed restore clears the marker")
+        removedRule.deactivate(reason: .manual); C.drain()
+        expect(C.Sudoers.calls.isEmpty && C.AdminShell.prompts == 0,
+               "ending that session asks for nothing, since sleep is already back on")
+        removedRule.activate(end: nil, trigger: .manual); C.drain()
+        expect(C.Sudoers.installCompletions.count == 1,
+               "the next session requests the removed rule the usual way")
         C.Sudoers.configured = true
         C.Sudoers.installCompletions.removeFirst()(true); C.drain()
-        expect(removedRule.clamshellActive && C.Sudoers.disabled && C.Sudoers.calls == [true]
-               && C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
-               "successful rule setup restores the active closed-lid session")
+        expect(removedRule.clamshellActive && C.Sudoers.disabled && C.Sudoers.calls == [true],
+               "successful rule setup enables closed-lid mode for that session")
 
-        let deniedRule = active(); C.Sudoers.disabled = false; C.Sudoers.configured = false
-        deniedRule.resumeAfterFailedSystemTeardown(); C.drain()
-        C.Sudoers.installCompletions.removeFirst()(false); C.drain()
-        expect(!deniedRule.clamshellActive && !deniedRule.clamshellPreferred && deniedRule.clamshellSetupFailed
+        let rearmedDuringRemoval = active(); C.Sudoers.configured = false
+        rearmedDuringRemoval.resumeAfterSystemTeardown(); C.drain()
+        expect(!rearmedDuringRemoval.clamshellActive && C.Sudoers.installCompletions.isEmpty
+               && C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
+               "sleep turned off again while the rule was being removed keeps its recovery marker")
+        rearmedDuringRemoval.deactivate(reason: .manual); C.drain()
+        expect(C.Sudoers.calls == [false] && !C.Sudoers.disabled
                && !C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
-               "refused setup leaves sleep enabled and shows the closed-lid failure")
+               "ending the session still restores sleep that remained off")
+
+        let unreadableReport = active(); C.Sudoers.disabled = false; C.Sudoers.configured = false; C.Shell.status = 1
+        unreadableReport.resumeAfterSystemTeardown(); C.drain()
+        expect(C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
+               "an unreadable sleep report does not drop the recovery marker")
+        C.Shell.status = 0
 
         let pendingSetup = active(); C.Sudoers.disabled = false; C.Sudoers.configured = false
         pendingSetup.prepareClamshellPreference(); C.drain()
-        pendingSetup.resumeAfterFailedSystemTeardown(); C.drain()
+        pendingSetup.resumeAfterSystemTeardown(); C.drain()
         expect(C.Sudoers.installCompletions.count == 1,
-               "a failed uninstall keeps one pending rule authorization instead of asking twice")
+               "a teardown keeps one pending rule authorization instead of asking twice")
         C.Sudoers.configured = true
         C.Sudoers.installCompletions.removeFirst()(true); C.drain()
         expect(pendingSetup.clamshellActive && C.Sudoers.disabled,
@@ -177,10 +192,10 @@ enum KeepAwakeClamshellTests {
         pendingRestore.deactivate(reason: .manual); C.drain()
         pendingRestore.activate(end: nil, trigger: .manual); C.drain()
         C.Sudoers.disabled = false
-        pendingRestore.resumeAfterFailedSystemTeardown(); C.drain()
+        pendingRestore.resumeAfterSystemTeardown(); C.drain()
         expect(!pendingRestore.clamshellActive && C.Sudoers.calls == [false]
                && !C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
-               "a failed uninstall waits for an older authorized restore before rearming")
+               "a teardown waits for an older authorized restore before rearming")
         C.AdminShell.answer(true); C.drain()
         expect(pendingRestore.clamshellActive && C.Sudoers.disabled && C.Sudoers.calls == [false, true],
                "the older restore cannot silently turn off a session that has already rearmed")

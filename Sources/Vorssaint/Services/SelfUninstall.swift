@@ -22,7 +22,7 @@ enum SelfUninstall {
     static func clearPermissions(completion: @escaping (Bool) -> Void) {
         func stop(sleepRestored: Bool = false) {
             DispatchQueue.main.async {
-                if sleepRestored { KeepAwakeManager.shared.resumeAfterFailedSystemTeardown() }
+                if sleepRestored { KeepAwakeManager.shared.resumeAfterSystemTeardown() }
                 Permissions.shared.refresh()
                 FeatureRuntime.shared.sync(AppFeature.allCases)
                 BrightnessService.shared.resumeInputTaps()
@@ -34,7 +34,10 @@ enum SelfUninstall {
         // on an AX call and freezes the whole machine's input — see the note on
         // `suspendInputInterceptors`.
         DispatchQueue.main.async {
-            guard suspendInputInterceptors() else { stop(); return }
+            // Mouse acceleration keeps its recovery journal and guard here.
+            // Only a full uninstall deletes that journal, so only it must wait
+            // for a disconnected device to be restored.
+            _ = suspendInputInterceptors()
             DispatchQueue.global(qos: .userInitiated).async {
                 guard restoreSleepBeforeRemoval() else { stop(); return }
                 guard detachFromSystem() else {
@@ -48,8 +51,10 @@ enum SelfUninstall {
                         // reset state now, or a grant made before the next poll
                         // looks unchanged and the suspended taps never resume.
                         Permissions.shared.refresh()
+                        // Sleep was restored directly, so the closed-lid session
+                        // state is stale whether or not the reset finished.
+                        KeepAwakeManager.shared.resumeAfterSystemTeardown()
                         if !ruleRemoved || !reset {
-                            KeepAwakeManager.shared.resumeAfterFailedSystemTeardown()
                             FeatureRuntime.shared.sync(AppFeature.allCases)
                         }
                         BrightnessService.shared.resumeInputTaps()
@@ -68,7 +73,7 @@ enum SelfUninstall {
         // rearming services in the app that remains installed.
         func stop(_ body: String, sleepRestored: Bool = false) {
             DispatchQueue.main.async {
-                if sleepRestored { KeepAwakeManager.shared.resumeAfterFailedSystemTeardown() }
+                if sleepRestored { KeepAwakeManager.shared.resumeAfterSystemTeardown() }
                 Permissions.shared.refresh()
                 FeatureRuntime.shared.sync(AppFeature.allCases)
                 BrightnessService.shared.resumeInputTaps()

@@ -897,7 +897,7 @@ def main():
     keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"
     keep_awake_methods = [
         "    func refreshPasswordlessStatus(",
-        "    func resumeAfterFailedSystemTeardown(",
+        "    func resumeAfterSystemTeardown(",
         "    private func activate(end:",
         "    func deactivate(reason:",
         "    private func applyClamshellPreference(",

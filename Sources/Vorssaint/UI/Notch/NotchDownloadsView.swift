@@ -159,14 +159,21 @@ struct NotchDownloadStrip: View {
                 // decides the margin instead of the content's own width.
                 .frame(width: geometry.compactActivityWingWidth, alignment: .leading).clipped()
                 Color.clear.frame(width: geometry.compactActivityCameraGap)
-                HStack {
-                    Spacer(minLength: 0)
+                HStack(spacing: 6) {
+                    // The name widens both wings; the bar fills the side the
+                    // percentage alone would leave as a band of black.
+                    if NotchDownloadSupport.showsCompactName(in: geometry), let fraction = item?.fraction {
+                        NotchMeter(value: fraction, height: 4).padding(.leading, 4)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
                     if geometry.compactActivityWingWidth >= 36 {
                         if let fraction = item?.fraction {
                             Text(fraction, format: NotchDownloadSupport.percentFormat(l10n.language))
                                 .font(.system(size: NotchDownloadSupport.percentSize, weight: .medium))
                                 .monospacedDigit()
                                 .lineLimit(1).minimumScaleFactor(NotchDownloadSupport.percentMinimumScale)
+                                .layoutPriority(1)
                         } else {
                             ProgressView().controlSize(.mini)
                         }

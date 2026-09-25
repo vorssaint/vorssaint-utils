@@ -671,6 +671,17 @@ enum NotchActivityTests {
                      && short < long && long <= 160
                      && NotchDownloadSupport.compactWing(for: nil, in: roomy) == 56,
                      "short filenames do not reserve an empty 94-point wing; long names have a cap")
+        for name in ["a.zip", "installer.dmg", "unknown-size.bin"] {
+            let wing = NotchDownloadSupport.compactWing(for: name, in: roomy)
+            let strip = roomy.compactDownloadGeometry(wing: wing)
+            let icon = min(17, strip.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
+            let content = NSHostingView(rootView: HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill").font(.system(size: icon))
+                Text(name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+            }).fittingSize.width
+            suite.expect(strip.compactActivityEdgeInset(boxHeight: icon, radius: icon / 2) + content + 4 <= wing + 0.5,
+                         "the measured download wing holds the whole name \(name) beside its arrow")
+        }
         for layout in [NotchSize.compact, .spacious] {
             let wideMenu = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180,
                                          layout: layout, menuBarHeight: 32, compactSideRoom: 200)
