@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 import Combine
 
@@ -23,7 +24,14 @@ enum NotchPresentationRefreshContract {
         static var standard = Preferences()
         struct Preferences {
             var hides = false
-            func bool(forKey key: String) -> Bool { key == DefaultsKey.notchHideUntilHover ? hides : true }
+            var outline = false
+            func bool(forKey key: String) -> Bool {
+                switch key {
+                case DefaultsKey.notchHideUntilHover: return hides
+                case DefaultsKey.notchOutlineEnabled: return outline
+                default: return true
+                }
+            }
         }
     }
     enum NotchContentTransition { case none }
@@ -81,6 +89,12 @@ enum NotchPresentationRefreshContract {
         var onPresent: ((CGSize) -> Void)?
         var usesGlass = false
         var revealFromHidden = false
+        var outlineEnabled = false
+        var outlineColor = NSColor.white
+        func setOutline(enabled: Bool, color: NSColor) {
+            outlineEnabled = enabled
+            outlineColor = color
+        }
         func present(size: CGSize, geometry: NotchGeometry, animated: Bool,
                      transitionContent: NotchContentTransition, quickAccess: NotchQuickAccessConfiguration?,
                      revealFromHidden: Bool, usesGlass: Bool) {
@@ -115,6 +129,7 @@ enum NotchPresentationRefreshContract {
         var selectedMetric: Bool?
         var expanded = true
         var peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
+        var compactActivity: NotchCompactActivity? { compactActivityIsVisible ? .timer : nil }
         var noticeExpanded = false
         var notice: Bool?
         var captureControls: CaptureOptions?
@@ -152,7 +167,25 @@ enum NotchPresentationRefreshContract {
 
     static func run(_ suite: TestSuite) {
         UserDefaults.standard.hides = false
-        defer { UserDefaults.standard.hides = false }
+        UserDefaults.standard.outline = false
+        defer {
+            UserDefaults.standard.hides = false
+            UserDefaults.standard.outline = false
+        }
+        let outlined = Service()
+        outlined.expanded = false
+        UserDefaults.standard.outline = true
+        outlined.refreshPresentation(animated: false)
+        suite.expect(outlined.windowHost?.outlineEnabled == true && outlined.windowHost?.outlineColor == .white,
+                     "the optional outline reaches the resting island")
+        outlined.compactActivityIsVisible = true
+        outlined.refreshPresentation(animated: false)
+        suite.expect(outlined.windowHost?.outlineColor == .systemOrange,
+                     "the compact timer tints the optional outline orange")
+        UserDefaults.standard.outline = false
+        outlined.refreshPresentation(animated: false)
+        suite.expect(outlined.windowHost?.outlineEnabled == false,
+                     "turning the outline off updates the existing island")
         let toolbar = Service()
         toolbar.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                           safeAreaTop: 32, cameraWidth: 210, layout: .spacious)
