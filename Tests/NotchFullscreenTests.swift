@@ -60,8 +60,9 @@ enum NotchFullscreenTests {
         var heldDrag = true, dragPlaceholder = true, noticeExpanded = true
         var hoverWork: DispatchWorkItem?, noticeWork: DispatchWorkItem?
         var notice: Bool? = true
-        var collapses = 0, cancellations = 0, screenUpdates = 0, consumerSyncs = 0, refreshes = 0
+        var collapses = 0, cancellations = 0, screenUpdates = 0, consumerSyncs = 0, refreshes = 0, departures = 0
         func cancelCaptureControls() { cancellations += 1 }
+        func endDeparture() { departures += 1 }
         func collapse() { collapses += 1 }
         func updateScreen() { screenUpdates += 1; screenUpdate?() }
         func syncVisibleConsumers() { consumerSyncs += 1 }
@@ -109,8 +110,8 @@ enum NotchFullscreenTests {
         service.updateFullscreenVisibility(displayID: 2)
         suite.expect(service.hiddenInFullscreen && service.collapses == 1 && service.cancellations == 1
                      && !service.heldDrag && !service.dragPlaceholder && service.notice == nil
-                     && hover.isCancelled && notice.isCancelled,
-                     "entering fullscreen clears pending reveals, banners, drags and capture controls")
+                     && hover.isCancelled && notice.isCancelled && service.departures == 1,
+                     "entering fullscreen clears pending reveals, banners, departing notices, drags and capture controls")
         suite.expect(BrightnessService.shared.syncs == brightnessSyncs + 1,
                      "entering fullscreen hands the brightness keys back to the system")
         service.updateFullscreenVisibility(displayID: 2)

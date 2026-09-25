@@ -491,6 +491,7 @@ final class NotchService: ObservableObject {
         geometry.compactSideRoom = nil
         hoverWork?.cancel(); hoverWork = nil
         noticeWork?.cancel(); noticeWork = nil
+        endDeparture()
         trackWork?.cancel(); trackWork = nil
         subscriptions.removeAll()
         stopPower()
@@ -1688,6 +1689,7 @@ final class NotchService: ObservableObject {
             dragPlaceholder = false
             cancelCaptureControls()
             noticeWork?.cancel(); noticeWork = nil
+            endDeparture()
             notice = nil
             noticeExpanded = false
             collapse()
