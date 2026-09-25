@@ -275,11 +275,9 @@ final class NotchBackdropPresentation: ObservableObject {
     fileprivate var contourBottom: CGFloat { contour.boundingRect.isNull ? 0 : contour.boundingRect.maxY }
 
     /// How much of the resting black still lies beneath the glass. It lets go
-    /// a stretch after the glass opens: the drawn gradient trails the island
-    /// by a frame as it grows, and uncovered clear glass read as a grey flash.
-    var restingBlack: Double {
-        1 - Double(fade.openness(atHeight: contourBottom - fade.blackLag))
-    }
+    /// as the glass opens and is gone once the glass is fully open, so an
+    /// opening never settles over a black that then vanishes at once.
+    var restingBlack: Double { 1 - openness }
 
     /// Plans a resize from `start` to `end` from what is on screen now.
     func planFade(from start: CGFloat, to end: CGFloat, endsInGlass: Bool) {

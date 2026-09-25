@@ -1560,9 +1560,6 @@ struct NotchGlassFade: Equatable {
     /// Where the lip is shut, and the height over which it opens from there.
     var solidHeight: CGFloat = 0
     var range: CGFloat = 1
-    /// Where an opening out of black ends; the black beneath the glass must
-    /// have let go by then.
-    var end: CGFloat?
 
     static let open = NotchGlassFade()
     static let stretch: CGFloat = 48
@@ -1570,13 +1567,6 @@ struct NotchGlassFade: Equatable {
     func openness(atHeight height: CGFloat) -> CGFloat {
         guard height.isFinite, range > 0 else { return 1 }
         return min(1, max(0, (height - solidHeight) / range))
-    }
-
-    /// How far the resting black trails the glass: a stretch, or less when
-    /// the opening ends before the glass could open that far behind it.
-    var blackLag: CGFloat {
-        guard let end, end.isFinite else { return Self.stretch }
-        return min(Self.stretch, max(0, end - solidHeight - range))
     }
 
     /// `current` is the openness on screen at `start`: zero while black.
@@ -1588,10 +1578,10 @@ struct NotchGlassFade: Equatable {
             guard end > start, current < 1 else { return .open }
             if current == 0 {
                 let range = min(stretch, travel)
-                return NotchGlassFade(solidHeight: end - range, range: max(1, range), end: end)
+                return NotchGlassFade(solidHeight: end - range, range: max(1, range))
             }
             let range = travel / (1 - current)
-            return NotchGlassFade(solidHeight: start - current * range, range: max(1, range), end: end)
+            return NotchGlassFade(solidHeight: start - current * range, range: max(1, range))
         }
         return NotchGlassFade(solidHeight: max(start, end), range: 1)
     }

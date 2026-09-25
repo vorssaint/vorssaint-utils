@@ -1308,17 +1308,13 @@ enum NotchTests {
         let short = NotchGlassFade.plan(from: 32, to: 56, endsInGlass: true, current: 0)
         suite.expect(near(short.openness(atHeight: 32), 0) && near(short.openness(atHeight: 56), 1),
                "glass growing less than the stretch opens over its whole travel")
-        let peek = NotchGlassFade.plan(from: 32, to: 84, endsInGlass: true, current: 0)
-        suite.expect(near(peek.openness(atHeight: 84 - peek.blackLag), 1)
-                && near(opening.openness(atHeight: 200 - opening.blackLag), 1),
-                     "an opening lets go of the black beneath its glass by the time it arrives")
         let reopened = NotchGlassFade.plan(from: 56, to: 200, endsInGlass: true, current: 0.5)
         suite.expect(near(reopened.openness(atHeight: 56), 0.5) && near(reopened.openness(atHeight: 200), 1),
                "a close reversed halfway reopens from the openness on screen and ends fully open")
         let partlyOpen = opening.openness(atHeight: 180)
         let retargeted = NotchGlassFade.plan(from: 180, to: 220, endsInGlass: true, current: partlyOpen)
         suite.expect(near(retargeted.openness(atHeight: 180), partlyOpen)
-               && near(retargeted.openness(atHeight: 220 - retargeted.blackLag), 1),
+               && near(retargeted.openness(atHeight: 220), 1),
                "a changed target keeps the glass already on screen and releases its black before settling")
         let reclosed = NotchGlassFade.plan(from: 180, to: 32, endsInGlass: false, current: 0.5)
         suite.expect(near(reclosed.openness(atHeight: 180), 0) && near(reclosed.openness(atHeight: 32), 0),
