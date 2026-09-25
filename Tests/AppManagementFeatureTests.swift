@@ -1112,6 +1112,23 @@ enum AppManagementFeatureTests {
         suite.expect(!AutoQuitSupport.hasDependentApplication(hostBundleIdentifier: "com.example.unrelated",
                                                         applicationBundleURLs: [dependentApp]),
                "AutoQuit does not protect an unrelated host")
+        func agentBundle(_ name: String, _ info: [String: Any]) -> URL {
+            let url = outerApp.deletingLastPathComponent().appendingPathComponent("\(name).app")
+            try? FileManager.default.createDirectory(at: url.appendingPathComponent("Contents"),
+                                                     withIntermediateDirectories: true)
+            NSDictionary(dictionary: info).write(to: url.appendingPathComponent("Contents/Info.plist"), atomically: true)
+            return url
+        }
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBar", ["LSUIElement": true])),
+               "AutoQuit leaves a menu bar app running when its settings window closes")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBarString", ["LSUIElement": "1"])),
+               "AutoQuit reads a string LSUIElement the way Launch Services does")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Daemon", ["LSBackgroundOnly": true])),
+               "AutoQuit leaves a background-only app running")
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Regular", ["LSUIElement": false])),
+               "AutoQuit still quits a regular app when its last window closes")
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: nil),
+               "AutoQuit treats a process without a bundle as a regular app")
         try? FileManager.default.removeItem(at: outerApp.deletingLastPathComponent())
         suite.expect(!AutoQuitSupport.shouldScheduleWindowCheck(for: .appDeactivated,
                                                           hasRecentCloseRequest: false),
