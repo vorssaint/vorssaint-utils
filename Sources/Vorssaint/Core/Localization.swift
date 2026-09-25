@@ -1252,6 +1252,7 @@ struct Strings {
     let focusFollowsMouseName: String
     let focusFollowsMouseCaption: String
     let focusFollowsMouseDelay: String
+    let focusFollowsMouseRaise: String
     let switcherMinimizedPlacementLabel: String
     let switcherMinimizedPlacementNormal: String
     let switcherMinimizedPlacementEnd: String
@@ -2324,8 +2325,9 @@ extension Strings {
         shelfEdgeToggle: "Abrir perto de uma borda da tela",
         shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua.",
         focusFollowsMouseName: "Foco ao passar o mouse",
-        focusFollowsMouseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
+        focusFollowsMouseCaption: "Coloca em foco a janela sob o ponteiro após uma breve pausa.",
         focusFollowsMouseDelay: "Atraso ao passar o mouse",
+        focusFollowsMouseRaise: "Trazer a janela para frente",
         switcherMinimizedPlacementLabel: "Janelas minimizadas e apps ocultos",
         switcherMinimizedPlacementNormal: "Ordem normal",
         switcherMinimizedPlacementEnd: "Colocar no final",
@@ -3399,8 +3401,9 @@ extension Strings {
         shelfEdgeToggle: "Open near a screen edge",
         shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats.",
         focusFollowsMouseName: "Focus follows mouse",
-        focusFollowsMouseCaption: "Focuses and raises the window under the pointer after a short pause.",
+        focusFollowsMouseCaption: "Focuses the window under the pointer after a short pause.",
         focusFollowsMouseDelay: "Hover delay",
+        focusFollowsMouseRaise: "Bring the window to the front",
         switcherMinimizedPlacementLabel: "Minimized windows and hidden apps",
         switcherMinimizedPlacementNormal: "Normal ordering",
         switcherMinimizedPlacementEnd: "Place at end",

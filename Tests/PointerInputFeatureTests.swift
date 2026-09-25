@@ -774,6 +774,9 @@ enum PointerInputFeatureTests {
                "focus follows mouse ships off with a safe delay")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseDelay),
                "focus follows mouse preferences follow settings backups")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseRaise] as? Bool == true
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseRaise),
+               "focus follows mouse keeps raising by default and backs up the choice")
         let focusFollowsMouseServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseService.swift",
             encoding: .utf8)) ?? ""

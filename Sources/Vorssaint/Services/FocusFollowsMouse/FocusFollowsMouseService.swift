@@ -142,6 +142,8 @@ final class FocusFollowsMouseService {
             ) { self.target(at: evaluation.point, processID: $0) }
             guard let target else { return }
             DispatchQueue.main.async { [weak self] in
+                let targetAppIsFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                    == target.processID
                 guard let self, self.isRunning, self.nothingIsHeldDown,
                       self.state.isCurrent(evaluation),
                       Self.receivingWindow(at: evaluation.point) == pointerWindowID,
@@ -150,8 +152,7 @@ final class FocusFollowsMouseService {
                       FocusFollowsMouseSupport.shouldActivate(
                           targetWindowID: target.windowID,
                           focusedWindowID: target.focusedWindowID,
-                          targetAppIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier
-                              == target.processID),
+                          targetAppIsFrontmost: targetAppIsFrontmost),
                       // The window server reports a desktop switch only once
                       // its animation ends, so a target it still parks on a
                       // hidden Space is a switch in flight: the activator would
@@ -159,6 +160,12 @@ final class FocusFollowsMouseService {
                       // travels between desktops.
                       !SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID)
                 else { return }
+                guard UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseRaise) else {
+                    SpaceWindowBridge.focusWithoutRaise(
+                        target.windowID, ownerPID: target.processID,
+                        replacing: targetAppIsFrontmost ? target.focusedWindowID : nil)
+                    return
+                }
                 WindowActivator.activate(pid: target.processID,
                                          windowID: target.windowID,
                                          appName: app.localizedName ?? "",

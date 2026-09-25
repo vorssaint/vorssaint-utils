@@ -51,6 +51,7 @@ enum DefaultsKey {
     static let scrollHorizontalModifier = "scrollHorizontalModifier"
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
     static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
+    static let focusFollowsMouseRaise = "focusFollowsMouseRaise"
     static let focusFollowsMouseExceptions = "focusFollowsMouseExceptions"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
@@ -1070,6 +1071,7 @@ enum Defaults {
         DefaultsKey.scrollHorizontalModifier: ScrollHorizontalModifier.shift.rawValue,
         DefaultsKey.focusFollowsMouseEnabled: false,
         DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
+        DefaultsKey.focusFollowsMouseRaise: true,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.mouseAccelerationDisabled: false,
