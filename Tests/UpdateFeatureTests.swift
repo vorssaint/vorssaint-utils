@@ -292,6 +292,100 @@ enum UpdateFeatureTests {
                     keywords: captureSearchKeywords),
                "Screen capture tools and their options find the one settings page")
 
+        let quickToolFeatures: [AppFeature] = [.quickLauncher, .micMute, .scratchpad, .cleaningMode]
+        let quickToolRows = SettingsSidebarSupport.items(
+            page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
+            preferredFeatures: quickToolFeatures, includePage: false,
+            isAvailable: { quickToolFeatures.contains($0) },
+            featureTitle: { $0.rawValue })
+        let generalFeatures: [AppFeature] = [
+            .musicBlock, .mixer, .soundOutputSwitcher, .audioPriority,
+        ]
+        let generalRows = SettingsSidebarSupport.items(
+            page: .general, title: "General", icon: "gearshape",
+            preferredFeatures: [.musicBlock], includePage: true,
+            isAvailable: { generalFeatures.contains($0) },
+            featureTitle: { $0.rawValue })
+        let toolRows = generalRows + quickToolRows
+        func toolRow(_ feature: AppFeature) -> SettingsSidebarItem? {
+            toolRows.first { $0.id == .feature(feature) }
+        }
+        suite.expect(toolRow(.musicBlock)?.icon == AppFeature.musicBlock.symbolName
+                && toolRow(.mixer)?.icon == AppFeature.mixer.symbolName
+                && toolRow(.soundOutputSwitcher)?.icon == AppFeature.soundOutputSwitcher.symbolName
+                && toolRow(.audioPriority)?.icon == AppFeature.audioPriority.symbolName
+                && toolRow(.micMute)?.icon == AppFeature.micMute.symbolName
+                && toolRow(.scratchpad)?.icon == AppFeature.scratchpad.symbolName
+                && toolRow(.cleaningMode)?.icon == AppFeature.cleaningMode.symbolName,
+               "shared Settings pages expose every anchored tool with its own symbol")
+        suite.expect(toolRows.count == Set(toolRows.map(\.id)).count
+                && !quickToolRows.contains { $0.id == .page(.quickTools) }
+                && toolRow(.mixer)?.destination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .mixer)
+                && toolRow(.soundOutputSwitcher)?.destination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .soundOutputSwitcher)
+                && toolRow(.audioPriority)?.destination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .audioPriority)
+                && SettingsSidebarSupport.selection(for: AppFeature.scratchpad.settingsDestination,
+                                                    in: toolRows) == .feature(.scratchpad)
+                && SettingsSidebarSupport.selection(for: AppFeature.audioPriority.settingsDestination,
+                                                    in: toolRows, preferredID: .feature(.audioPriority))
+                    == .feature(.audioPriority),
+               "flat tool rows keep unique identities and select the clicked tool")
+        let scratchpadOnlyRows = SettingsSidebarSupport.items(
+            page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
+            preferredFeatures: quickToolFeatures, includePage: false,
+            isAvailable: { $0 == .scratchpad },
+            featureTitle: { $0.rawValue })
+        suite.expect(scratchpadOnlyRows.count == 1
+                && scratchpadOnlyRows.first?.id == .feature(.scratchpad)
+                && SettingsSidebarSupport.selection(for: AppFeature.micMute.settingsDestination,
+                                                    in: scratchpadOnlyRows) == .feature(.scratchpad),
+               "the sidebar hides unavailable tools and keeps a visible selection for their page")
+        let scrollingRows = SettingsSidebarSupport.items(
+            page: .mouse, title: "Mouse", icon: "computermouse",
+            preferredFeatures: [.scrollInverter, .scrollHorizontal], includePage: false,
+            isAvailable: { [.scrollInverter, .scrollHorizontal].contains($0) },
+            featureTitle: { $0.rawValue })
+        let sidewaysOnlyRows = SettingsSidebarSupport.items(
+            page: .mouse, title: "Mouse", icon: "computermouse",
+            preferredFeatures: [.scrollInverter, .scrollHorizontal], includePage: false,
+            isAvailable: { $0 == .scrollHorizontal }, featureTitle: { $0.rawValue })
+        suite.expect(scrollingRows.count == 2
+                && Set(scrollingRows.map(\.id)) == [.feature(.scrollInverter),
+                                                    .feature(.scrollHorizontal)]
+                && scrollingRows[0].destination == scrollingRows[1].destination
+                && sidewaysOnlyRows.first?.id == .feature(.scrollHorizontal),
+               "tools sharing a section keep separate named rows")
+        let keyboardDestination = FeatureSettingsDestination(
+            .shortcuts, sectionAnchor: .keyboardBrightnessShortcuts)
+        let keyboardShortcutItem = SettingsSearchSupport.keyboardBrightnessShortcutItem(language: .enUS)
+        let shortcutPageItem = SettingsSearchItem(
+            id: .page(.shortcuts), destination: FeatureSettingsDestination(.shortcuts),
+            title: "Shortcuts", icon: "command")
+        let keyboardShortcutGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "keyboard brightness shortcuts",
+            items: [shortcutPageItem, keyboardShortcutItem],
+            isAvailable: { _ in true })
+        suite.expect(keyboardShortcutGroups.first?.id == .shortcuts
+                && keyboardShortcutGroups.first?.suggestions.first.map {
+                    SettingsSearchSupport.route(for: $0, isAvailable: { _ in true }).destination
+                } == keyboardDestination,
+               "keyboard brightness shortcut search reveals its own Shortcuts section")
+        let keyboardLightGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "keyboard light", items: [shortcutPageItem, keyboardShortcutItem],
+            isAvailable: { _ in true })
+        suite.expect(keyboardLightGroups.first?.suggestions.first.map {
+            SettingsSearchSupport.route(for: $0, isAvailable: { _ in true }).destination
+        } == keyboardDestination,
+               "searching the sidebar label also opens keyboard brightness shortcuts")
+        suite.expect(AppLanguage.allCases.allSatisfy { language in
+            let item = SettingsSearchSupport.keyboardBrightnessShortcutItem(language: language)
+            return SettingsSearchSupport.matches(
+                query: FeatureStrings.brightness(language).keyboardLight,
+                title: item.title, keywords: item.keywords)
+        }, "search finds keyboard brightness shortcuts by their sidebar name in every language")
+
         let settingsFeatureTitles: [AppFeature: String] = [
             .homebrew: "Homebrew",
             .cameraPreview: "Camera Preview",

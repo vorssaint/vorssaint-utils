@@ -27,36 +27,48 @@ struct MixerSection: View {
     @State private var draggingAppID: String?
     @State private var dropTarget: MixerAppDropTarget?
     var collapsible = true
+    var settingsMode = false
 
     var body: some View {
-        PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
-            VStack(alignment: .leading, spacing: 8) {
-                audioDevicesSection
-
-                if AppVolumeMixer.isSupported, (!visibleApps.isEmpty || mixer.needsPermission) {
-                    Divider()
+        Group {
+            if settingsMode {
+                SettingsCard(title: l10n.s.mixerSection) {
+                    mixerControls
                 }
-
-                if !AppVolumeMixer.isSupported {
-                    emptyLabel(l10n.s.mixerUnavailable)
-                } else if mixer.needsPermission {
-                    permissionHint
-                } else if visibleApps.isEmpty {
-                    emptyLabel(l10n.s.mixerEmpty)
-                } else {
-                    mixerRows
+            } else {
+                PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
+                    mixerControls.panelCard(interactive: false)
                 }
-
-                Divider()
-                optionsDisclosure
             }
-            .panelCard(interactive: false)
         }
         .onReceive(NSApplication.shared.publisher(for: \.effectiveAppearance, options: [.new])) { _ in
             refreshSliderTint()
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("NSSystemColorsDidChangeNotification"))) { _ in
             refreshSliderTint()
+        }
+    }
+
+    private var mixerControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            audioDevicesSection
+
+            if AppVolumeMixer.isSupported, (!visibleApps.isEmpty || mixer.needsPermission) {
+                Divider()
+            }
+
+            if !AppVolumeMixer.isSupported {
+                emptyLabel(l10n.s.mixerUnavailable)
+            } else if mixer.needsPermission {
+                permissionHint
+            } else if visibleApps.isEmpty {
+                emptyLabel(l10n.s.mixerEmpty)
+            } else {
+                mixerRows
+            }
+
+            Divider()
+            optionsDisclosure
         }
     }
 
@@ -93,7 +105,7 @@ struct MixerSection: View {
             .buttonStyle(.plain)
 
             if optionsExpanded {
-                MixerOptionsControls()
+                MixerOptionsControls(includeSharedAudioFeatures: !settingsMode)
                     .padding(.leading, 19)
             }
         }
@@ -519,7 +531,6 @@ struct MixerSection: View {
 struct MixerOptionsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
-    @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
     @ObservedObject private var preciseVolumeRoller = PreciseVolumeRollerService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.mixerHideInactiveApps)
@@ -530,10 +541,8 @@ struct MixerOptionsControls: View {
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
-    @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
-    private var soundOutputSwitcherEnabled = false
-    @State private var soundOutputSwitcherUIDs: [String] = []
     @State private var showListChooser = false
+    var includeSharedAudioFeatures = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -542,27 +551,16 @@ struct MixerOptionsControls: View {
             }
             headphoneDisconnectProtectionToggle
             preciseVolumeRollerToggle
-            if AppFeature.soundOutputSwitcher.isAvailable {
-                soundOutputSwitcherControls
+            if includeSharedAudioFeatures, AppFeature.soundOutputSwitcher.isAvailable {
+                SoundOutputSwitcherControls()
             }
-            if AppFeature.audioPriority.isAvailable {
+            if includeSharedAudioFeatures, AppFeature.audioPriority.isAvailable {
                 AudioPriorityDisclosure()
             }
             if AppVolumeMixer.isSupported, !listChoices.isEmpty {
                 listVisibilityFooter
             }
         }
-        .onAppear {
-            soundOutputSwitcherUIDs = SoundOutputSwitcher.shared.selectedDeviceUIDs()
-        }
-    }
-
-    private var universalOutputDevices: [MixerOutputDevice] {
-        mixer.outputDevices.filter(\.canBeDefaultOutput)
-    }
-
-    private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
-        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
 
     private func inputMessage(_ text: String, systemImage: String) -> some View {
@@ -644,87 +642,6 @@ struct MixerOptionsControls: View {
                              systemImage: "exclamationmark.triangle")
             }
         }
-    }
-
-    private var soundOutputSwitcherControls: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Toggle(l10n.s.soundOutputSwitcherEnable, isOn: $soundOutputSwitcherEnabled)
-                .toggleStyle(.checkbox)
-                .font(.system(size: 11.5, weight: .medium))
-                .onChange(of: soundOutputSwitcherEnabled) { _, enabled in
-                    if enabled, soundOutputSwitcherUIDs.isEmpty,
-                       let current = mixer.currentOutputDeviceUID,
-                       universalOutputDevices.contains(where: { $0.uid == current }) {
-                        setSoundOutputSwitcherUIDs([current])
-                    }
-                    SoundOutputSwitcher.shared.syncWithPreferences()
-                }
-
-            Text(l10n.s.soundOutputSwitcherCaption)
-                .font(.system(size: 9.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if soundOutputSwitcherEnabled {
-                ShortcutPreferenceRow(role: .soundOutputSwitcher,
-                                      isEnabled: soundOutputSwitcherEnabled,
-                                      additionalConflict: WindowLayoutService.shared.shortcutConflictTitle) {
-                    SoundOutputSwitcher.shared.syncWithPreferences()
-                }
-                if outputSwitcher.registrationFailed {
-                    inputMessage(l10n.s.shortcutUnavailable, systemImage: "keyboard.badge.ellipsis")
-                }
-                if outputSwitcher.lastSwitchFailed {
-                    inputMessage(l10n.s.soundOutputSwitcherNoAvailableSelection,
-                                 systemImage: "speaker.badge.exclamationmark")
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(l10n.s.soundOutputSwitcherDevices)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    if universalOutputDevices.isEmpty {
-                        inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "speaker.slash")
-                    } else {
-                        ForEach(universalOutputDevices) { device in
-                            Toggle(isOn: soundOutputSwitcherSelectionBinding(for: device.uid)) {
-                                Text(outputDeviceTitle(device))
-                                    .font(.system(size: 10.5))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                            .toggleStyle(.checkbox)
-                            .controlSize(.small)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func soundOutputSwitcherSelectionBinding(for uid: String) -> Binding<Bool> {
-        Binding(
-            get: { soundOutputSwitcherUIDs.contains(uid) },
-            set: { selected in
-                var next = soundOutputSwitcherUIDs
-                if selected {
-                    if !next.contains(uid) { next.append(uid) }
-                } else {
-                    next.removeAll { $0 == uid }
-                }
-                let visibleOrder = universalOutputDevices.map(\.uid)
-                let visible = visibleOrder.filter { next.contains($0) }
-                let unavailable = next.filter { !visibleOrder.contains($0) }
-                setSoundOutputSwitcherUIDs(visible + unavailable)
-            }
-        )
-    }
-
-    private func setSoundOutputSwitcherUIDs(_ uids: [String]) {
-        let sanitized = Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(uids)
-        soundOutputSwitcherUIDs = sanitized
-        SoundOutputSwitcher.shared.setSelectedDeviceUIDs(sanitized)
     }
 
     /// One entry per app the list knows about: visible rows checked, hidden
@@ -836,6 +753,118 @@ struct MixerOptionsControls: View {
                 .controlSize(.mini)
                 .accessibilityLabel(label)
         }
+    }
+}
+
+/// The same output-switcher preferences in the menu panel and Settings.
+struct SoundOutputSwitcherControls: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var mixer = AppVolumeMixer.shared
+    @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
+    @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
+    private var enabled = false
+    @State private var selectedUIDs: [String] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Toggle(l10n.s.soundOutputSwitcherEnable, isOn: $enabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .onChange(of: enabled) { _, isEnabled in
+                    if isEnabled, selectedUIDs.isEmpty,
+                       let current = mixer.currentOutputDeviceUID,
+                       universalOutputDevices.contains(where: { $0.uid == current }) {
+                        setSelectedUIDs([current])
+                    }
+                    outputSwitcher.syncWithPreferences()
+                }
+
+            Text(l10n.s.soundOutputSwitcherCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if enabled {
+                ShortcutPreferenceRow(role: .soundOutputSwitcher,
+                                      isEnabled: enabled,
+                                      additionalConflict: WindowLayoutService.shared.shortcutConflictTitle) {
+                    outputSwitcher.syncWithPreferences()
+                }
+                if outputSwitcher.registrationFailed {
+                    inputMessage(l10n.s.shortcutUnavailable, systemImage: "keyboard.badge.ellipsis")
+                }
+                if outputSwitcher.lastSwitchFailed {
+                    inputMessage(l10n.s.soundOutputSwitcherNoAvailableSelection,
+                                 systemImage: "speaker.badge.exclamationmark")
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(l10n.s.soundOutputSwitcherDevices)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    if universalOutputDevices.isEmpty {
+                        inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "speaker.slash")
+                    } else {
+                        ForEach(universalOutputDevices) { device in
+                            Toggle(isOn: selectionBinding(for: device.uid)) {
+                                Text(outputDeviceTitle(device))
+                                    .font(.system(size: 10.5))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .toggleStyle(.checkbox)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear { selectedUIDs = outputSwitcher.selectedDeviceUIDs() }
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)) { _ in
+            selectedUIDs = outputSwitcher.selectedDeviceUIDs()
+        }
+    }
+
+    private var universalOutputDevices: [MixerOutputDevice] {
+        mixer.outputDevices.filter(\.canBeDefaultOutput)
+    }
+
+    private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
+        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+    }
+
+    private func inputMessage(_ text: String, systemImage: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.system(size: 9.5))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func selectionBinding(for uid: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedUIDs.contains(uid) },
+            set: { selected in
+                var next = selectedUIDs
+                if selected {
+                    if !next.contains(uid) { next.append(uid) }
+                } else {
+                    next.removeAll { $0 == uid }
+                }
+                let visibleOrder = universalOutputDevices.map(\.uid)
+                let visible = visibleOrder.filter { next.contains($0) }
+                let unavailable = next.filter { !visibleOrder.contains($0) }
+                setSelectedUIDs(visible + unavailable)
+            }
+        )
+    }
+
+    private func setSelectedUIDs(_ uids: [String]) {
+        let sanitized = Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(uids)
+        selectedUIDs = sanitized
+        outputSwitcher.setSelectedDeviceUIDs(sanitized)
     }
 }
 

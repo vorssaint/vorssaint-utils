@@ -10,6 +10,7 @@ struct ShortcutsSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var superKey = SuperKeyService.shared
+    @ObservedObject private var router = SettingsRouter.shared
     @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
     /// Keyed by group too: brightness has a row in two groups, and each opens on its own.
     @State private var expandedFeatures: [FeatureGroup: Set<AppFeature>] = [.tools: [.screenshot]]
@@ -48,9 +49,6 @@ struct ShortcutsSettings: View {
                     ForEach(featuresWithShortcuts(in: group), id: \.self) { feature in
                         if feature == .screenshot {
                             captureGroupRows
-                        } else if feature == .soundOutputSwitcher {
-                            featureRows(feature, in: group)
-                                .settingsSectionAnchor(.soundOutputSwitcher)
                         } else {
                             featureRows(feature, in: group)
                         }
@@ -73,6 +71,8 @@ struct ShortcutsSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { revealKeyboardBrightnessShortcuts() }
+        .onChange(of: router.requestID) { _, _ in revealKeyboardBrightnessShortcuts() }
         .sheet(isPresented: $showsAppShortcuts) {
             CommandBarAppShortcutsView()
         }
@@ -117,12 +117,7 @@ struct ShortcutsSettings: View {
             ? WindowLayoutAction.shortcutActions.count + roles.count
             : roles.count
         if count > 1 {
-            disclosureHeader(
-                title: featureTitle(feature, roles: roles),
-                symbolName: featureSymbol(feature, roles: roles),
-                isActive: featureHasActiveShortcut(feature, roles: roles),
-                count: count,
-                isExpanded: expansionBinding(for: feature, in: group))
+            featureHeader(feature, roles: roles, count: count, in: group)
             if expandedFeatures[group, default: []].contains(feature) {
                 if feature == .windowLayout {
                     ForEach(WindowLayoutAction.shortcutActions) { action in
@@ -158,6 +153,28 @@ struct ShortcutsSettings: View {
         } else if let role = roles.first {
             roleRow(role)
         }
+    }
+
+    @ViewBuilder
+    private func featureHeader(_ feature: AppFeature, roles: [GlobalShortcutRole],
+                               count: Int, in group: FeatureGroup) -> some View {
+        let header = disclosureHeader(
+            title: featureTitle(feature, roles: roles),
+            symbolName: featureSymbol(feature, roles: roles),
+            isActive: featureHasActiveShortcut(feature, roles: roles),
+            count: count,
+            isExpanded: expansionBinding(for: feature, in: group))
+        if feature == .brightness, roles.allSatisfy(\.isKeyboardBrightness) {
+            header.settingsSectionAnchor(.keyboardBrightnessShortcuts)
+        } else {
+            header
+        }
+    }
+
+    private func revealKeyboardBrightnessShortcuts() {
+        guard router.destination == FeatureSettingsDestination(
+            .shortcuts, sectionAnchor: .keyboardBrightnessShortcuts) else { return }
+        expandedFeatures[.mouseKeyboard, default: []].insert(.brightness)
     }
 
     private func featureTitle(_ feature: AppFeature, roles: [GlobalShortcutRole]) -> String {

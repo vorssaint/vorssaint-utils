@@ -70,6 +70,18 @@ enum NotchNotificationTests {
         suite.expect(NotchNotificationSupport.sourceBundleIdentifier(for: ["Chat"], applications: applications + [
             (name: "Chat", bundleIdentifier: "test.chat")]) == "test.chat",
                "multiple processes belonging to the same application do not create false ambiguity")
+        let installed = [(name: "Calendar", bundleIdentifier: "test.calendar"),
+                         (name: "Chat", bundleIdentifier: "test.chat-copy")]
+        suite.expect(NotchNotificationSupport.sourceBundleIdentifier(for: ["Calendar"], running: applications,
+                                                                     installed: installed) == "test.calendar",
+               "a message from a closed app still resolves its installed source so it can be opened")
+        suite.expect(NotchNotificationSupport.sourceBundleIdentifier(for: ["Chat"], running: applications,
+                                                                     installed: installed) == "test.chat",
+               "the running application wins over another installed copy with the same name")
+        suite.expect(NotchNotificationSupport.sourceBundleIdentifier(for: ["Chat"], running: [],
+                                                                     installed: installed + [
+            (name: "Chat", bundleIdentifier: "test.chat")]) == nil,
+               "two installed apps sharing a name never pick one of them for a closed source")
         suite.expect(NotchNotificationSupport.sourceBundleIdentifier(for: ["Contact photo", "Chat"], applications: applications) == "test.chat",
                "an application icon label can identify the source beside an unrelated contact image")
         suite.expect(NotchNotificationSupport.sourceBundleIdentifier(for: ["Chat", "Mail"], applications: applications) == nil,

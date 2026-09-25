@@ -459,7 +459,7 @@ def main():
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
           + declaration(notch, "    func show(_ incoming:").replace("NotchSupport.routes(incoming.event)", "true")
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
-              "    private var hiddenUntilHover:", "    func hover(",
+              "    private var hiddenUntilHover:", "    func hover(", "    private func missionControlDidRestore()",
               "    private var holdsNotification:", "    private func holdNotification(",
               "    private func syncNoticeWithPreferences(",
               "    private func releaseNotification(", "    private func scheduleNoticeDismissal(",
@@ -476,6 +476,7 @@ def main():
     music_visibility = music_visibility.replace("NotchSupport.routes(.track)",
                                                 "NotchSupport.routes(.track, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("UserDefaults.standard", "ReviewDefaults.current!")
+    music_visibility = music_visibility.replace("calendar: hasCalendarActivity", "calendar: false")
     music_visibility = music_visibility.replace("playback?.isPlaying == true)",
                                                 "playback?.isPlaying == true, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("captureControls: captureControls != nil)",
@@ -515,6 +516,7 @@ def main():
               "    func collapseCaptureControls()", "    func expandCaptureControls()",
               "    private func setCaptureSelectionInProgress(", "    func scheduleCaptureControlsCollapse()",
               "    private func updateCaptureControlsHover(", "    private func updateCaptureControlsClickThrough()",
+              "    private func removeCaptureControlsClickThrough()", "    private func missionControlDidRestore()",
               "    func endCaptureControls()"])
           + declaration(notch, "    private var hiddenUntilHover:").replace("private var", "var", 1)
           + declaration(notch, "    var acceptsSystemFeedback:")
@@ -526,7 +528,10 @@ def main():
           + declaration(notch, "    func updateCaptureHeight(")
           + declaration(notch, "    func removeCapture(")
           + declaration(notch, "    private func clearCapture(")
-          + "}\n}\n")
+          + "}\n}\nextension NotchPresentationRefreshContract.Host {\n"
+          + declaration(canvas, "    func setMouseEventsIgnored(")
+          + declaration(canvas, "    private func restoreFromMissionControl(").replace("private func", "func", 1)
+          + "}\n")
     metric_view = "Sources/Vorssaint/UI/MenuPanel/MetricDetailView.swift"
     renderer = "Sources/Vorssaint/App/MenuBarRenderer.swift"
     metric_cases = "\n".join(line for line in declaration(metric_view, "enum MetricDetailKind:").splitlines()

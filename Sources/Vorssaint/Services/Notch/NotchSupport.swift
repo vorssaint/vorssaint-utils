@@ -329,13 +329,14 @@ struct NotchHoverState {
 }
 
 enum NotchCompactActivity: Equatable {
-    case timer, downloads, agents, music
+    case timer, downloads, agents, calendar, music
 
     var module: NotchModule {
         switch self {
         case .timer: return .timer
         case .downloads: return .downloads
         case .agents: return .agents
+        case .calendar: return .calendar
         case .music: return .music
         }
     }
@@ -688,10 +689,12 @@ enum NotchSupport {
 
     /// A working agent outranks the music it plays over: its turn ends on its
     /// own, while music is there all day.
-    static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false, music: Bool) -> NotchCompactActivity? {
+    static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false,
+                                calendar: Bool = false, music: Bool) -> NotchCompactActivity? {
         if timer { return .timer }
         if downloads { return .downloads }
         if agents { return .agents }
+        if calendar { return .calendar }
         return music ? .music : nil
     }
 
@@ -1103,6 +1106,22 @@ struct NotchGeometry: Equatable {
         let wing: CGFloat = 56
         compact.compactSideRoom = room.isFinite && room >= 44 ? min(wing, room) : 0
         compact.minimumCompactWidth = cameraWidth + wing * 2
+        return compact
+    }
+    static let calendarWingRange: ClosedRange<CGFloat> = 72...120
+    /// Give the title useful space beside the camera, as wide as the title or
+    /// the clock needs, so neither wing ends in a band of empty black. When
+    /// menus leave less than a readable wing, a physical notch uses one row
+    /// below the camera.
+    var compactCalendarGeometry: NotchGeometry { compactCalendarGeometry(wing: Self.calendarWingRange.upperBound) }
+    func compactCalendarGeometry(wing: CGFloat) -> NotchGeometry {
+        var compact = self
+        let room = compactSideRoom ?? 0
+        let range = Self.calendarWingRange
+        let fitted = min(range.upperBound, max(range.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
+        compact.compactSideRoom = room.isFinite && room >= range.lowerBound ? min(fitted, room) : 0
+        compact.minimumCompactWidth = cameraWidth + fitted * 2
+        compact.minimumWing = 72
         return compact
     }
     /// A working agent keeps its mark and one reading beside the camera,
