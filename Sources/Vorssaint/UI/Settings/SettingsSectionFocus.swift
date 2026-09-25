@@ -98,6 +98,12 @@ private struct SettingsSectionFocusModifier: ViewModifier {
     /// Centered, so the section lands in the middle of the eye line rather
     /// than at an edge of the window.
     private func focus(_ anchor: SettingsSectionAnchor, using proxy: ScrollViewProxy) {
+        // These destinations render just the selected tool at the top.
+        // Scrolling their newly created view twice only delays navigation.
+        if page == .general || page == .energy {
+            focusedAnchor = anchor
+            return
+        }
         if reduceMotion {
             proxy.scrollTo(anchor, anchor: .center)
             focusedAnchor = anchor

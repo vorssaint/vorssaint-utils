@@ -546,6 +546,7 @@ enum NotchTests {
                && defaults.bool(forKey: DefaultsKey.notchHoverExpands),
                "a new island starts spacious and expands on hover")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideUntilHover), "hidden hover is opt-in")
+        suite.expect(!defaults.bool(forKey: DefaultsKey.notchOutlineEnabled), "the island outline is opt-in")
         suite.expect(defaults.double(forKey: DefaultsKey.notchHoverDelay) == 0.25,
                "hover activation defaults to a deliberate quarter-second pause")
         for value in [0.10, 0.25, 0.65, 1.0] {
@@ -824,7 +825,7 @@ enum NotchTests {
         suite.expect(NotchEvent.allCases.allSatisfy { !NotchSupport.routes($0, in: defaults) },
                "hub removal gates every notch event")
 
-        let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
+        let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchOutlineEnabled, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
@@ -843,6 +844,7 @@ enum NotchTests {
                                                 DefaultsKey.notchSize: "custom",
                                                 DefaultsKey.notchCustomWidth: 390.0,
                                                 DefaultsKey.notchCustomHeight: 580.0,
+                                                DefaultsKey.notchOutlineEnabled: true,
                                                 DefaultsKey.notchHapticFeedback: true,
                                                 DefaultsKey.notchHiddenModules: "clipboard",
                                                 DefaultsKey.notchVolume: false,
@@ -857,8 +859,9 @@ enum NotchTests {
         suite.expect(restored?[DefaultsKey.notchSize] as? String == "custom"
                && restored?[DefaultsKey.notchCustomWidth] as? Double == 390
                && restored?[DefaultsKey.notchCustomHeight] as? Double == 580
+               && restored?[DefaultsKey.notchOutlineEnabled] as? Bool == true
                && restored?[DefaultsKey.notchHapticFeedback] as? Bool == true,
-               "backup restores custom dimensions and tactile feedback together")
+               "backup restores custom dimensions, outline and tactile feedback together")
         suite.expect(restored?[DefaultsKey.notchQuickAccessSide] as? String == "right"
                && restored?[DefaultsKey.notchQuickAccessSecond] as? String == "timer"
                && restored?[DefaultsKey.notchQuickAccessThird] as? String == "settings",
