@@ -777,12 +777,15 @@ enum NotchActivityTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
-        suite.expect(NotchTimerSupport.isEnabled(in: defaults) && !NotchCameraSupport.isEnabled(in: defaults)
-               && !NotchAccessorySupport.isEnabled(in: defaults), "on-demand timer is available by default while camera and accessory monitoring remain opt-in")
+        suite.expect(NotchTimerSupport.isEnabled(in: defaults) && NotchCameraSupport.isEnabled(in: defaults)
+               && NotchAccessorySupport.isEnabled(in: defaults), "installed timer, camera and accessory activity start enabled")
         let preferenceKeys = [DefaultsKey.notchTimerEnabled, DefaultsKey.notchCameraEnabled, DefaultsKey.notchAccessoriesEnabled]
+        for key in preferenceKeys { defaults.set(false, forKey: key) }
+        suite.expect(!NotchTimerSupport.isEnabled(in: defaults) && !NotchCameraSupport.isEnabled(in: defaults)
+               && !NotchAccessorySupport.isEnabled(in: defaults), "timer, camera and accessory activity can be turned off")
         for key in preferenceKeys { defaults.set(true, forKey: key) }
         suite.expect(NotchTimerSupport.isEnabled(in: defaults) && NotchCameraSupport.isEnabled(in: defaults)
-               && NotchAccessorySupport.isEnabled(in: defaults), "each explicit opt-in enables its activity")
+               && NotchAccessorySupport.isEnabled(in: defaults), "turning them back on restores their activity")
         suite.expect(NotchCameraSupport.canPresent(expanded: true, selected: .camera, appPanel: false,
             captureControls: false, in: defaults), "the mirror can start only on its selected, expanded surface")
         suite.expect(!NotchCameraSupport.canPresent(expanded: false, selected: .camera, appPanel: false,

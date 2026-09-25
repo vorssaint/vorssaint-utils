@@ -370,6 +370,10 @@ extension AppFeature {
         features(in: .dynamicIsland).filter { $0 != .notch }
     }
 
+    var initialInstallGroup: [AppFeature] {
+        self == .notch ? [self] + Self.dynamicIslandExtensions : [self]
+    }
+
     /// Registered defaults preserve existing features on update. New opt-in
     /// features and explicit betas ship uninstalled.
     static var availabilityDefaults: [String: Any] {

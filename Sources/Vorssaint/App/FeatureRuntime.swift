@@ -97,11 +97,20 @@ final class FeatureRuntime: ObservableObject {
     /// with its extensions all pass through here, with one revision bump.
     func setAvailable(_ features: [AppFeature], _ available: Bool) {
         var changed = false
-        for feature in features where mayFlip(feature, to: available) {
+        let firstIslandInstall = available && features.contains(.notch)
+            && mayFlip(.notch, to: true)
+            && !UserDefaults.standard.bool(forKey: DefaultsKey.notchInitialExtensionsInstalled)
+        let requested = firstIslandInstall
+            ? features + AppFeature.dynamicIslandExtensions.filter { !features.contains($0) }
+            : features
+        for feature in requested where mayFlip(feature, to: available) {
             UserDefaults.standard.set(available, forKey: feature.availabilityKey)
             if available { loadedThisSession.insert(feature) }
             Self.bindings[feature]?()
             changed = true
+        }
+        if firstIslandInstall && AppFeature.notch.isAvailable {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         if changed { finishAvailabilityChange() }
     }
@@ -135,6 +144,9 @@ final class FeatureRuntime: ObservableObject {
         // unavailable one and its service never comes to life.
         for feature in selected where feature.isAvailable {
             Self.bindings[feature]?()
+        }
+        if selected.contains(.notch) && AppFeature.notch.isAvailable {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         finishAvailabilityChange()
     }

@@ -342,8 +342,11 @@ private struct PurposeStep: View {
             selectedPreset = nil
             if selected {
                 selectedFeatures.remove(feature)
+                if feature == .notch {
+                    selectedFeatures.subtract(AppFeature.dynamicIslandExtensions)
+                }
             } else {
-                selectedFeatures.insert(feature)
+                selectedFeatures.formUnion(feature.initialInstallGroup)
             }
         } label: {
             HStack(spacing: 10) {
