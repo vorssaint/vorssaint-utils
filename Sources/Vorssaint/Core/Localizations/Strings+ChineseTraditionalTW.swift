@@ -790,7 +790,6 @@ extension Strings {
         monitorShowPeripheralBattery: "外接裝置電池",
         peripheralBatteryNoDevices: "未發現外接裝置電池",
         monitorGraphsSection: "圖表",
-        monitorGraphsCaption: "選擇要以圖表顯示隨時間變化的指標。",
 
         updateBannerTitle: "有可用更新",
         updateBannerAction: "更新",

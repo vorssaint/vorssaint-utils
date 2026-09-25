@@ -789,7 +789,6 @@ extension Strings {
         monitorShowPeripheralBattery: "周辺機器のバッテリー",
         peripheralBatteryNoDevices: "周辺機器が見つかりません",
         monitorGraphsSection: "グラフ",
-        monitorGraphsCaption: "経過に応じてグラフを表示する項目を選びます。",
 
         updateBannerTitle: "アップデートが利用できます",
         updateBannerAction: "アップデート",

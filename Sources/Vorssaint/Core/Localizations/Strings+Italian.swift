@@ -789,7 +789,6 @@ extension Strings {
         monitorShowPeripheralBattery: "Batteria periferiche",
         peripheralBatteryNoDevices: "Nessuna periferica trovata",
         monitorGraphsSection: "Grafici",
-        monitorGraphsCaption: "Scegli quali metriche mostrano un grafico nel tempo.",
 
         updateBannerTitle: "Aggiornamento disponibile",
         updateBannerAction: "Aggiorna",

@@ -789,7 +789,6 @@ extension Strings {
         monitorShowPeripheralBattery: "Çevre birimi pili",
         peripheralBatteryNoDevices: "Aygıt bulunamadı",
         monitorGraphsSection: "Grafikler",
-        monitorGraphsCaption: "Hangi metriklerin zaman içinde grafik göstereceğini seç.",
 
         updateBannerTitle: "Güncelleme var",
         updateBannerAction: "Güncelle",

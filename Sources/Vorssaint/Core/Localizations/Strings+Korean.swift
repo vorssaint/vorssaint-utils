@@ -790,7 +790,6 @@ extension Strings {
         monitorShowPeripheralBattery: "주변 기기 배터리",
         peripheralBatteryNoDevices: "주변 기기를 찾을 수 없습니다",
         monitorGraphsSection: "그래프",
-        monitorGraphsCaption: "시간 흐름에 따라 그래프로 표시할 항목을 선택합니다.",
 
         updateBannerTitle: "업데이트를 사용할 수 있습니다",
         updateBannerAction: "업데이트",

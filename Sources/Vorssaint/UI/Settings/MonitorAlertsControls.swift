@@ -26,8 +26,8 @@ struct MonitorAlertsControls: View {
     }
 
     var body: some View {
-        // The panel keeps its compact checkbox list; Settings draws one tile
-        // per alert, with its limit inside the tile once it is on.
+        // The panel keeps its compact checkbox list; Settings draws one label
+        // per alert, with its limit on the label's options half.
         Group {
             if compact {
                 checklist
@@ -55,41 +55,42 @@ struct MonitorAlertsControls: View {
 
     private var tiles: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 156), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: monitorTokenColumns, spacing: 8) {
                 if AppFeature.monitorCPU.isAvailable {
-                    AlertTile(title: text.cpu, symbol: "cpu", isOn: $alertCPU,
-                              limit: .init(label: text.cpuThreshold, value: $alertCPUThreshold,
-                                           range: 50...100, step: 5, unit: "%"))
-                    AlertTile(title: text.cpuTemperature, symbol: "thermometer.medium", isOn: $alertCPUTemperature,
-                              limit: .init(label: text.cpuTemperatureThreshold, value: $alertCPUTemperatureThreshold,
-                                           range: 70...105, step: 5, unit: " °C"))
+                    alertToken(text.cpu, symbol: "cpu", isOn: $alertCPU,
+                               limit: .init(label: text.cpuThreshold, value: $alertCPUThreshold,
+                                            range: 50...100, step: 5, unit: "%"))
+                    alertToken(text.cpuTemperature, symbol: "thermometer.medium", isOn: $alertCPUTemperature,
+                               limit: .init(label: text.cpuTemperatureThreshold, value: $alertCPUTemperatureThreshold,
+                                            range: 70...105, step: 5, unit: " °C"))
                 }
                 if AppFeature.monitorMemory.isAvailable {
-                    AlertTile(title: text.memory, symbol: "memorychip", isOn: $alertMemory, limit: nil)
+                    alertToken(text.memory, symbol: "memorychip", isOn: $alertMemory, limit: nil)
                 }
                 if AppFeature.monitorDisk.isAvailable {
-                    AlertTile(title: text.disk, symbol: "internaldrive", isOn: $alertDisk,
-                              limit: .init(label: text.diskThreshold, value: $alertDiskFreePercent,
-                                           range: 5...30, step: 5, unit: "%"))
+                    alertToken(text.disk, symbol: "internaldrive", isOn: $alertDisk,
+                               limit: .init(label: text.diskThreshold, value: $alertDiskFreePercent,
+                                            range: 5...30, step: 5, unit: "%"))
                 }
                 if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
-                    AlertTile(title: text.batteryTemperature, symbol: "thermometer.high", isOn: $alertBatteryTemperature,
-                              limit: .init(label: text.batteryTemperatureThreshold,
-                                           value: $alertBatteryTemperatureThreshold,
-                                           range: 30...50, step: 5, unit: " °C"))
-                    AlertTile(title: text.battery, symbol: "battery.25percent", isOn: $alertBattery,
-                              limit: .init(label: text.batteryThreshold, value: $alertBatteryPercent,
-                                           range: 5...50, step: 5, unit: "%"))
+                    alertToken(text.batteryTemperature, symbol: "thermometer.high", isOn: $alertBatteryTemperature,
+                               limit: .init(label: text.batteryTemperatureThreshold,
+                                            value: $alertBatteryTemperatureThreshold,
+                                            range: 30...50, step: 5, unit: " °C"))
+                    alertToken(text.battery, symbol: "battery.25percent", isOn: $alertBattery,
+                               limit: .init(label: text.batteryThreshold, value: $alertBatteryPercent,
+                                            range: 5...50, step: 5, unit: "%"))
                 }
             }
-            if anyAlertEnabled {
-                HStack {
-                    Text(text.cooldown)
-                    Spacer(minLength: 12)
-                    cooldownPicker
-                        .labelsHidden()
-                }
+            .monitorTokenGroup()
+            // One interval for every alert, each timed on its own, so it sits
+            // outside the alerts box rather than under the last of them.
+            SettingsRow(symbol: "bell.badge", title: text.cooldown) {
+                cooldownPicker
+                    .labelsHidden()
+                    .fixedSize()
             }
+            .disabled(!anyAlertEnabled)
             if notificationsDenied, anyAlertEnabled {
                 Text(text.notificationsDenied)
                     .font(.caption)
@@ -101,6 +102,25 @@ struct MonitorAlertsControls: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private struct Limit {
+        let label: String
+        let value: Binding<Int>
+        let range: ClosedRange<Int>
+        let step: Int
+        let unit: String
+    }
+
+    /// One alert as a label, with the limit it fires at on its options half.
+    private func alertToken(_ title: String, symbol: String, isOn: Binding<Bool>, limit: Limit?) -> some View {
+        MonitorToken(symbol: symbol, title: title, included: isOn,
+                     options: limit.map { limit in
+                         AnyView(Stepper(value: limit.value, in: limit.range, step: limit.step) {
+                             Text("\(limit.label) \(limit.value.wrappedValue)\(limit.unit)").monospacedDigit()
+                         })
+                     },
+                     optionsSummary: limit.map { "\($0.value.wrappedValue)\($0.unit)" } ?? "")
     }
 
     private var cooldownPicker: some View {
@@ -208,74 +228,5 @@ struct MonitorAlertsControls: View {
         alertDiskFreePercent = Defaults.sanitizedPercent(alertDiskFreePercent, fallback: 10, range: 5...30)
         alertBatteryPercent = Defaults.sanitizedPercent(alertBatteryPercent, fallback: 15, range: 5...50)
         alertCooldown = Defaults.sanitizedMonitorAlertCooldown(alertCooldown)
-    }
-}
-
-/// One alert as a tile: its icon and name, ticked when it is on, with the
-/// limit it fires at shown inside once it is.
-private struct AlertTile: View {
-    struct Limit {
-        let label: String
-        let value: Binding<Int>
-        let range: ClosedRange<Int>
-        let step: Int
-        let unit: String
-    }
-
-    let title: String
-    let symbol: String
-    @Binding var isOn: Bool
-    let limit: Limit?
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: 8) {
-                Button {
-                    isOn.toggle()
-                } label: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: symbol)
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(isOn ? Color.accentColor : .secondary)
-                        Text(title)
-                            .font(.system(size: 11, weight: .medium))
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.trailing, 22)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(title)
-                .accessibilityAddTraits(isOn ? .isSelected : [])
-                if isOn, let limit {
-                    HStack(spacing: 6) {
-                        Text("\(limit.label) \(limit.value.wrappedValue)\(limit.unit)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                        Spacer(minLength: 0)
-                        Stepper(limit.label, value: limit.value, in: limit.range, step: limit.step)
-                            .labelsHidden()
-                            .controlSize(.mini)
-                    }
-                }
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
-            .background(isOn ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.05),
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(isOn ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1)
-            }
-            Image(systemName: isOn ? "checkmark.circle.fill" : "plus.circle")
-                .font(.system(size: 15))
-                .foregroundStyle(isOn ? Color.accentColor : .secondary)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
-        }
     }
 }
