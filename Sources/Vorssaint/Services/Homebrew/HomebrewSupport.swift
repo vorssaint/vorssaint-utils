@@ -33,6 +33,23 @@ struct HomebrewPackage: Identifiable, Hashable {
     var versionText: String? { installedVersion ?? stableVersion }
 }
 
+enum HomebrewSearchResults {
+    static func reconciled(_ results: [HomebrewPackage],
+                           installed: [HomebrewPackage]) -> [HomebrewPackage] {
+        let installedByID = Dictionary(uniqueKeysWithValues: installed.map { ($0.id, $0) })
+        return results.map { result in
+            if var current = installedByID[result.id] {
+                current.popularity = result.popularity ?? current.popularity
+                return current
+            }
+            var current = result
+            current.installedVersion = nil
+            current.update = nil
+            return current
+        }
+    }
+}
+
 struct HomebrewPackageUpdate: Hashable {
     let kind: HomebrewPackageKind
     let name: String

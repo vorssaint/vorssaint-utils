@@ -388,6 +388,19 @@ struct PanelHomebrewView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(.green)
+            } else {
+                Button {
+                    presentConfirmation(HomebrewPendingAction(action: .install, package: package))
+                } label: {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 22, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(homebrew.isBusy)
+                .help(l10n.s.homebrewInstall)
+                .accessibilityLabel(l10n.s.homebrewInstall)
             }
         }
         .padding(.horizontal, 7)
