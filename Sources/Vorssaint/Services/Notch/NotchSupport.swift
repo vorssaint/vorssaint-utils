@@ -1108,14 +1108,19 @@ struct NotchGeometry: Equatable {
         compact.minimumCompactWidth = cameraWidth + wing * 2
         return compact
     }
-    /// Give the title useful space beside the camera. When menus leave less
-    /// than a readable wing, a physical notch uses one row below the camera.
-    var compactCalendarGeometry: NotchGeometry {
+    static let calendarWingRange: ClosedRange<CGFloat> = 72...120
+    /// Give the title useful space beside the camera, as wide as the title or
+    /// the clock needs, so neither wing ends in a band of empty black. When
+    /// menus leave less than a readable wing, a physical notch uses one row
+    /// below the camera.
+    var compactCalendarGeometry: NotchGeometry { compactCalendarGeometry(wing: Self.calendarWingRange.upperBound) }
+    func compactCalendarGeometry(wing: CGFloat) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        let wing: CGFloat = 120
-        compact.compactSideRoom = room.isFinite && room >= 72 ? min(wing, room) : 0
-        compact.minimumCompactWidth = cameraWidth + wing * 2
+        let range = Self.calendarWingRange
+        let fitted = min(range.upperBound, max(range.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
+        compact.compactSideRoom = room.isFinite && room >= range.lowerBound ? min(fitted, room) : 0
+        compact.minimumCompactWidth = cameraWidth + fitted * 2
         compact.minimumWing = 72
         return compact
     }
@@ -1370,11 +1375,12 @@ enum NotchMotion {
     }
 }
 
-/// How open the glass lip is at each height of a resize. Glass closing into
-/// a black strip darkens over the last stretch, so it arrives already black
-/// and the material swap at rest changes nothing on screen; glass leaving a
-/// black strip opens up over the first stretch. A resize that interrupts
-/// another starts from the openness already on screen.
+/// How open the glass lip is at each height of a resize. The page leaves the
+/// island as soon as it starts closing, so glass closing into a black strip
+/// shuts at once: open, the empty glass showed the windows beneath it through
+/// the whole collapse. Glass leaving a black strip stays shut until the last
+/// stretch, where the page fades in over it. An opening that interrupts a
+/// close starts from the openness already on screen.
 struct NotchGlassFade: Equatable {
     /// Where the lip is shut, and the height over which it opens from there.
     var solidHeight: CGFloat = 0
@@ -1395,12 +1401,14 @@ struct NotchGlassFade: Equatable {
         let travel = abs(end - start)
         if endsInGlass {
             guard end > start, current < 1 else { return .open }
-            if current == 0 { return NotchGlassFade(solidHeight: start, range: max(1, min(stretch, travel))) }
+            if current == 0 {
+                let range = min(stretch, travel)
+                return NotchGlassFade(solidHeight: end - range, range: max(1, range))
+            }
             let range = travel / (1 - current)
             return NotchGlassFade(solidHeight: start - current * range, range: max(1, range))
         }
-        let range = current >= 1 ? min(stretch, travel) : travel / max(current, 0.01)
-        return NotchGlassFade(solidHeight: end, range: max(1, range))
+        return NotchGlassFade(solidHeight: max(start, end), range: 1)
     }
 }
 

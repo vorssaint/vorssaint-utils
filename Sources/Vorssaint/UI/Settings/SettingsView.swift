@@ -190,12 +190,15 @@ struct SettingsView: View {
             .onChange(of: hasSearchQuery) { _, searching in
                 // The list stays in place across a search so the field keeps
                 // focus, which also keeps the results' scroll offset. Centering
-                // the first page clamps the pages back to the very top, where a
-                // fresh list starts; a top anchor leaves the list's inset hidden.
+                // the chosen tool brings it back into view; near the top, the
+                // pages clamp to where a fresh list starts, and a top anchor
+                // would leave the list's inset hidden.
                 guard !searching else { return }
-                DispatchQueue.main.async {
-                    if let first = firstSidebarItem { proxy.scrollTo(first, anchor: .center) }
-                }
+                DispatchQueue.main.async { scrollSidebarToSelection(proxy) }
+            }
+            .onChange(of: router.requestID) { _, _ in
+                // A Command Bar or search link can pick a tool far down the list.
+                DispatchQueue.main.async { scrollSidebarToSelection(proxy) }
             }
             .background {
                 SearchKeyMonitor(customSearchFocused: sidebarSearchFocused) { keyCode in
@@ -205,8 +208,16 @@ struct SettingsView: View {
         }
     }
 
-    private var firstSidebarItem: SettingsSidebarItem.ID? {
-        sidebarItems.first?.id
+    private var selectedSidebarItem: SettingsSidebarItem.ID? {
+        let items = sidebarItems
+        return SettingsSidebarSupport.selection(for: router.destination, in: items,
+                                                preferredID: router.sidebarFeature.map { .feature($0) })
+            ?? items.first?.id
+    }
+
+    private func scrollSidebarToSelection(_ proxy: ScrollViewProxy) {
+        guard !hasSearchQuery, let selected = selectedSidebarItem else { return }
+        proxy.scrollTo(selected, anchor: .center)
     }
 
     @ViewBuilder

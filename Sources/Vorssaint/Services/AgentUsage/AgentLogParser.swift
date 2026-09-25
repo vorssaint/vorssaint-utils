@@ -81,7 +81,7 @@ enum AgentLogParser {
         adopt(json, into: &state)
         let date = timestamp(json["timestamp"]) ?? now
         var entries: [AgentLogEntry] = []
-        let model = message["model"] as? String ?? ""
+        let model = native(message["model"] as? String ?? "")
         if let usage = message["usage"] as? [String: Any], !model.isEmpty, !model.hasPrefix("<") {
             state.model = model
             var billable = AgentBillable()
@@ -139,7 +139,7 @@ enum AgentLogParser {
     }
 
     private static func adopt(_ json: [String: Any], into state: inout AgentLogState) {
-        if let session = json["sessionId"] as? String, !session.isEmpty { state.session = session }
+        if let session = json["sessionId"] as? String, !session.isEmpty { state.session = native(session) }
         if let cwd = json["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
     }
 
@@ -160,11 +160,11 @@ enum AgentLogParser {
         let date = timestamp(json["timestamp"]) ?? now
         switch json["type"] as? String {
         case "session_meta":
-            if let id = payload["id"] as? String, !id.isEmpty { state.session = id }
+            if let id = payload["id"] as? String, !id.isEmpty { state.session = native(id) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
             return []
         case "turn_context":
-            if let model = payload["model"] as? String, !model.isEmpty { state.model = model }
+            if let model = payload["model"] as? String, !model.isEmpty { state.model = native(model) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
             if let tier = payload["service_tier"] as? String { state.fast = fastTier(tier) }
             return []
@@ -172,7 +172,7 @@ enum AgentLogParser {
             guard let usage = payload["usage"] as? [String: Any] else { return [] }
             state.sawUsageRecords = true
             if let session = payload["session_id"] as? String, !session.isEmpty, state.session.isEmpty {
-                state.session = session
+                state.session = native(session)
             }
             let response = payload["response_id"] as? String ?? ""
             let key = response.isEmpty ? "codex:\(state.session):\(date.timeIntervalSince1970)" : "codex:\(response)"
@@ -306,7 +306,15 @@ enum AgentLogParser {
         var path = path
         if let range = path.range(of: "/.claude/worktrees/") { path = String(path[..<range.lowerBound]) }
         while path.count > 1, path.hasSuffix("/") { path.removeLast() }
-        return (path as NSString).lastPathComponent
+        return native((path as NSString).lastPathComponent)
+    }
+
+    /// Text decoded from a line arrives bridged from Foundation, and every
+    /// record keeps it. The summary hashes and compares these per response on
+    /// each refresh, which bridged text does through Unicode normalization,
+    /// many times slower than with Swift's own UTF-8 storage.
+    static func native(_ text: String) -> String {
+        String(decoding: text.utf8, as: UTF8.self)
     }
 
     static func int(_ value: Any?) -> Int {
