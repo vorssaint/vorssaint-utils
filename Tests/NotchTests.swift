@@ -1584,6 +1584,12 @@ enum NotchTests {
         suite.expect(calendarWings.compactActivityWingWidth == 120 && !calendarWings.compactActivityUsesFooter
                      && calendarFooter.compactActivityUsesFooter && calendarFooter.compactActivityCameraGap == 0,
                      "the event title uses the available wings or a full row below a crowded physical notch")
+        suite.expect(physical.compactCalendarGeometry(wing: 90).compactActivityWingWidth == 90
+                     && physical.compactCalendarGeometry(wing: 30).compactActivityWingWidth == 72
+                     && physical.compactCalendarGeometry(wing: 500).compactActivityWingWidth == 120
+                     && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 80)
+                        .compactCalendarGeometry(wing: 100).compactActivityWingWidth == 80,
+                     "the countdown wings fit the wider of the title and the clock, within the menus' room")
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         let midnight = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8))!

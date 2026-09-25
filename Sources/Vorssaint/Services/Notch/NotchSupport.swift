@@ -1108,14 +1108,19 @@ struct NotchGeometry: Equatable {
         compact.minimumCompactWidth = cameraWidth + wing * 2
         return compact
     }
-    /// Give the title useful space beside the camera. When menus leave less
-    /// than a readable wing, a physical notch uses one row below the camera.
-    var compactCalendarGeometry: NotchGeometry {
+    static let calendarWingRange: ClosedRange<CGFloat> = 72...120
+    /// Give the title useful space beside the camera, as wide as the title or
+    /// the clock needs, so neither wing ends in a band of empty black. When
+    /// menus leave less than a readable wing, a physical notch uses one row
+    /// below the camera.
+    var compactCalendarGeometry: NotchGeometry { compactCalendarGeometry(wing: Self.calendarWingRange.upperBound) }
+    func compactCalendarGeometry(wing: CGFloat) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        let wing: CGFloat = 120
-        compact.compactSideRoom = room.isFinite && room >= 72 ? min(wing, room) : 0
-        compact.minimumCompactWidth = cameraWidth + wing * 2
+        let range = Self.calendarWingRange
+        let fitted = min(range.upperBound, max(range.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
+        compact.compactSideRoom = room.isFinite && room >= range.lowerBound ? min(fitted, room) : 0
+        compact.minimumCompactWidth = cameraWidth + fitted * 2
         compact.minimumWing = 72
         return compact
     }

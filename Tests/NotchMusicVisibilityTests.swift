@@ -71,6 +71,7 @@ enum NotchMusicVisibilityTests {
         var hasDownloadActivity = false
         var hasAgentActivity = false
         var agentStripWing: CGFloat = 58
+        var calendarStripWing: CGFloat = 120
         var notchNeedsMonitor = false
         var heldDrag = false
         var pinned = false

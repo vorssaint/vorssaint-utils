@@ -212,9 +212,34 @@ final class NotchService: ObservableObject {
         case .timer: return geometry.compactTimerGeometry(showsDownloads: hasDownloadActivity)
         case .downloads: return geometry.compactDownloadGeometry
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing)
-        case .calendar: return geometry.compactCalendarGeometry
+        case .calendar: return geometry.compactCalendarGeometry(wing: calendarStripWing)
         default: return geometry
         }
+    }
+
+    /// The wider of the two sides, the event's title or its clock and start
+    /// time, measured with the strip's fonts and its clearance from the curve.
+    private var calendarStripWing: CGFloat {
+        guard let event = NotchCalendarService.shared.countdownEvent else {
+            return NotchGeometry.calendarWingRange.upperBound
+        }
+        let provisional = geometry.compactCalendarGeometry(wing: NotchGeometry.calendarWingRange.lowerBound)
+        let inset = provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0)
+        func width(_ text: String, _ font: NSFont) -> CGFloat {
+            (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+        }
+        let language = L10n.shared.language
+        let trimmed = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = trimmed.isEmpty ? FeatureStrings.notchCalendar(language).untitled : trimmed
+        let titleSide = NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripTitleSpacing
+            + width(title, .systemFont(ofSize: 11, weight: .semibold))
+        // The widest clock the hour can show, so the island keeps its size
+        // while the minutes count down.
+        let clockSide = width("00:00", .monospacedDigitSystemFont(ofSize: 13, weight: .medium))
+            + NotchCalendarSupport.stripClockSpacing
+            + width(NotchCalendarSupport.startText(event.start, locale: language.formattingLocale()),
+                    .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
+        return inset + max(titleSide, clockSide)
     }
 
     /// The wider of the two sides, the reading or the working agents' marks,
