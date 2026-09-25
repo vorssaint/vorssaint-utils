@@ -47,6 +47,8 @@ struct NotchCalendarStrip: View {
     }
 
     private func fullRow(event: NotchCalendarEvent, title: String, remaining: String) -> some View {
+        // The row below the camera ends in the island's deep lower corners;
+        // a fixed margin left the dot and the clock on their curve.
         HStack(spacing: 6) {
             dot(event)
             Text(title)
@@ -55,13 +57,13 @@ struct NotchCalendarStrip: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             clock(remaining)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, max(10, geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0)))
     }
 
     private func wings(event: NotchCalendarEvent, title: String, remaining: String) -> some View {
         let inset = geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0)
         return HStack(spacing: 0) {
-            HStack(spacing: 5) {
+            HStack(spacing: NotchCalendarSupport.stripTitleSpacing) {
                 dot(event)
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
@@ -71,9 +73,20 @@ struct NotchCalendarStrip: View {
             .frame(width: geometry.compactActivityWingWidth, alignment: .trailing)
             .clipped()
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            clock(remaining)
-                .padding(.trailing, inset)
-                .frame(width: geometry.compactActivityWingWidth, alignment: .leading)
+            // The start time fills the side the clock alone left mostly
+            // empty; a wing narrowed by the menus keeps just the clock.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: NotchCalendarSupport.stripClockSpacing) {
+                    clock(remaining)
+                    Text(NotchCalendarSupport.startText(event.start, locale: l10n.language.formattingLocale()))
+                        .font(.system(size: 11, weight: .medium)).monospacedDigit()
+                        .foregroundStyle(.white.opacity(0.55))
+                        .fixedSize()
+                }
+                clock(remaining)
+            }
+            .padding(.trailing, inset)
+            .frame(width: geometry.compactActivityWingWidth, alignment: .leading)
         }
     }
 

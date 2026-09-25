@@ -39,8 +39,14 @@ enum NotchHoverTests {
     final class Host {
         var visible = true
         var rect = CGRect.zero
+        var isConcealedForMissionControl = false
+        var revealChecks = 0
+        func blocksHoverReveal() -> Bool {
+            revealChecks += 1
+            return isConcealedForMissionControl
+        }
         func containsHover(_ point: CGPoint) -> Bool {
-            visible && CGRect(origin: .zero, size: rect.size)
+            visible && !isConcealedForMissionControl && CGRect(origin: .zero, size: rect.size)
                 .contains(CGPoint(x: point.x - rect.minX, y: rect.maxY - point.y))
         }
     }
@@ -60,6 +66,7 @@ enum NotchHoverTests {
         var hoverWork: DispatchWorkItem?
         var captureHover: ((Bool) -> Void)?
         func updateCaptureControlsHover(wasInside: Bool) {}
+        func updateCaptureControlsClickThrough() {}
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: -1920, y: 900, width: 1920, height: 1080),
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)
@@ -178,6 +185,66 @@ enum NotchHoverTests {
                        "stopping releases both hidden hover observers")
             }
         }
+        for expands in [false, true] {
+            let hidden = fixture()
+            UserDefaults.standard.hides = true
+            UserDefaults.standard.expands = expands
+            hidden.windowHost?.visible = false
+            hidden.windowHost?.isConcealedForMissionControl = true
+            hidden.hover(true)
+            suite.expect(!hidden.inside && hidden.hoverWork == nil,
+                         "Mission Control cannot start a hidden island's hover deadline")
+            hidden.windowHost?.isConcealedForMissionControl = false
+            hidden.hover(true)
+            suite.expect(hidden.inside && hidden.hoverWork != nil,
+                         "leaving Mission Control allows a fresh hidden hover deadline")
+            hidden.windowHost?.isConcealedForMissionControl = true
+            DispatchQueue.main.advance(0.26)
+            suite.expect(hidden.openings == 0 && !hidden.peeking && hidden.windowHost?.revealChecks == 1,
+                         "Mission Control starting during the hover delay blocks expansion and preview")
+
+            let visible = fixture()
+            UserDefaults.standard.expands = expands
+            visible.hover(true)
+            suite.expect(visible.inside && visible.hoverWork != nil,
+                         "a visible island has a pending hover deadline before Mission Control")
+            visible.windowHost?.isConcealedForMissionControl = true
+            DispatchQueue.main.advance(0.26)
+            suite.expect(visible.openings == 0 && !visible.peeking && visible.windowHost?.revealChecks == 1,
+                         "Mission Control blocks a pending visible hover without a mouse-exit event")
+            visible.windowHost?.isConcealedForMissionControl = false
+            visible.missionControlDidRestore()
+            suite.expect(visible.hoverWork != nil,
+                         "restoring Mission Control restarts a hover deadline when the pointer stayed over the island")
+            DispatchQueue.main.advance(0.26)
+            suite.expect(expands ? visible.openings == 1 : visible.peeking,
+                         "the restored hover opens the island after its normal delay")
+        }
+        let capturePreview = fixture()
+        capturePreview.expanded = true
+        capturePreview.updateBounds()
+        var previewHovered: Bool?
+        capturePreview.captureHover = { previewHovered = $0 }
+        capturePreview.windowHost?.isConcealedForMissionControl = true
+        capturePreview.windowHost?.isConcealedForMissionControl = false
+        capturePreview.missionControlDidRestore()
+        suite.expect(previewHovered == true,
+                     "restoring with the pointer over a capture preview keeps its auto-dismiss paused")
+
+        let departed = fixture()
+        departed.hover(true)
+        DispatchQueue.main.advance(0.26)
+        suite.expect(departed.expanded && departed.openedByHover,
+                     "the island is open from hover before Mission Control")
+        departed.windowHost?.isConcealedForMissionControl = true
+        NSEvent.mouseLocation = CGPoint(x: departed.geometry.screen.minX, y: departed.geometry.screen.minY)
+        departed.windowHost?.isConcealedForMissionControl = false
+        departed.missionControlDidRestore()
+        suite.expect(!departed.inside && departed.hoverWork != nil,
+                     "restoration notices that the pointer left while Mission Control owned input")
+        DispatchQueue.main.advance(0.19)
+        suite.expect(departed.closures == 1,
+                     "the hover-open island closes after its normal pointer exit delay")
         for disable: (Service) -> Void in [
             { $0.suspended = true }, { $0.windowHost = nil },
             { _ in UserDefaults.standard.hides = false }, { _ in UserDefaults.standard.enabled = false }

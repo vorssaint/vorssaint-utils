@@ -113,6 +113,16 @@ enum NotchMusicExtrasTests {
         reply["albumName"] = "Concert Recording"
         suite.expect(decode() == nil, "a matching title and artist never substitute a different album or live recording")
         reply["albumName"] = identity.album
+        let release = RadialNowPlayingSnapshot(title: track.title, artist: track.artist, album: "Studio Recording - EP",
+                                               artworkData: nil, appBundleIdentifier: nil, appPID: nil)
+        let releaseIdentity = NotchMusicIdentity(NotchPlayback(track: release, isPlaying: true, elapsed: 0, duration: 180,
+                                                               rate: 1, sampledAt: playback.sampledAt, canSeek: false))
+        let releaseQuery = URLComponents(url: NotchLyricsSupport.lookupURL(for: releaseIdentity)!, resolvingAgainstBaseURL: false)!
+        suite.expect(releaseQuery.queryItems?.first(where: { $0.name == "album_name" })?.value == identity.album
+               && (try? JSONSerialization.data(withJSONObject: reply)).flatMap { NotchLyricsSupport.decode($0, for: releaseIdentity) } != nil
+               && NotchLyricsSupport.catalogAlbum("Single - Single") == "Single"
+               && NotchLyricsSupport.catalogAlbum(" - EP") == "- EP",
+               "Apple Music's Single and EP album suffixes still find the release's lyrics")
         reply["trackName"] = identity.title + " (Live)"
         suite.expect(decode() == nil, "version qualifiers are not stripped from the lyric match")
         reply["trackName"] = identity.title

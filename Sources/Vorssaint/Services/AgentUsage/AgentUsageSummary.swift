@@ -162,10 +162,10 @@ enum AgentUsageSummary {
                 name = AgentPricing.displayName(record.model)
                 names[record.model] = name
             }
+            let modelID = record.provider.rawValue + ":" + name
             for period in AgentPeriod.allCases where day > lastDay - period.days {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
-                let modelID = record.provider.rawValue + ":" + name
                 models[period, default: [:]][modelID, default: AgentShare(
                     id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
                     .totals.add(record)
@@ -233,7 +233,9 @@ enum AgentUsageSummary {
     /// Claude app's readings are placed.
     static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
         var block: AgentBlock?
-        for record in records.sorted(by: { $0.date < $1.date }) {
+        // Sorting positions moves no strings: a day of records is thousands.
+        for position in records.indices.sorted(by: { records[$0].date < records[$1].date }) {
+            let record = records[position]
             if let current = block, record.date < current.end {
                 block?.totals.add(record)
                 continue

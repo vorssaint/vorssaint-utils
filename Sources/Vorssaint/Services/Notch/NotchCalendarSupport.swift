@@ -123,6 +123,15 @@ enum NotchCalendarSupport {
             .filter { $0 > now }.min()
     }
 
+    static let stripDotWidth: CGFloat = 6
+    static let stripTitleSpacing: CGFloat = 5
+    static let stripClockSpacing: CGFloat = 4
+
+    /// The start time beside the countdown clock in the closed island.
+    static func startText(_ start: Date, locale: Locale) -> String {
+        "·\u{2009}" + start.formatted(.dateTime.hour().minute().locale(locale))
+    }
+
     static func countdownText(until start: Date, now: Date) -> String {
         let seconds = max(0, Int(ceil(start.timeIntervalSince(now))))
         return String(format: "%d:%02d", seconds / 60, seconds % 60)

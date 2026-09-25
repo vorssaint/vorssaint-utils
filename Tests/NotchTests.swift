@@ -1206,21 +1206,22 @@ enum NotchTests {
                "horizontal dismissal remains quicker than opening")
         func near(_ value: CGFloat, _ expected: CGFloat) -> Bool { abs(value - expected) < 0.000_1 }
         let closing = NotchGlassFade.plan(from: 200, to: 32, endsInGlass: false, current: 1)
-        suite.expect(near(closing.openness(atHeight: 200), 1) && near(closing.openness(atHeight: 80), 1)
-                && near(closing.openness(atHeight: 56), 0.5) && near(closing.openness(atHeight: 32), 0),
-               "settled glass closing into a black strip darkens only over the last stretch and arrives black")
+        suite.expect(near(closing.openness(atHeight: 200), 0) && near(closing.openness(atHeight: 80), 0)
+                && near(closing.openness(atHeight: 32), 0),
+               "settled glass closing into a black strip shuts at once, since its page has already left")
         let opening = NotchGlassFade.plan(from: 32, to: 200, endsInGlass: true, current: 0)
-        suite.expect(near(opening.openness(atHeight: 32), 0) && near(opening.openness(atHeight: 56), 0.5)
-                && near(opening.openness(atHeight: 80), 1) && near(opening.openness(atHeight: 200), 1),
-               "glass leaving a black strip opens up over the first stretch")
-        let reopened = NotchGlassFade.plan(from: 56, to: 200, endsInGlass: true,
-                                           current: closing.openness(atHeight: 56))
+        suite.expect(near(opening.openness(atHeight: 32), 0) && near(opening.openness(atHeight: 152), 0)
+                && near(opening.openness(atHeight: 176), 0.5) && near(opening.openness(atHeight: 200), 1),
+               "glass leaving a black strip stays shut until the last stretch, where its page fades in")
+        let short = NotchGlassFade.plan(from: 32, to: 56, endsInGlass: true, current: 0)
+        suite.expect(near(short.openness(atHeight: 32), 0) && near(short.openness(atHeight: 56), 1),
+               "glass growing less than the stretch opens over its whole travel")
+        let reopened = NotchGlassFade.plan(from: 56, to: 200, endsInGlass: true, current: 0.5)
         suite.expect(near(reopened.openness(atHeight: 56), 0.5) && near(reopened.openness(atHeight: 200), 1),
                "a close reversed halfway reopens from the openness on screen and ends fully open")
-        let reclosed = NotchGlassFade.plan(from: 44, to: 32, endsInGlass: false,
-                                           current: opening.openness(atHeight: 44))
-        suite.expect(near(reclosed.openness(atHeight: 44), 0.25) && near(reclosed.openness(atHeight: 32), 0),
-               "an opening reversed early closes from the openness on screen and ends black")
+        let reclosed = NotchGlassFade.plan(from: 180, to: 32, endsInGlass: false, current: 0.5)
+        suite.expect(near(reclosed.openness(atHeight: 180), 0) && near(reclosed.openness(atHeight: 32), 0),
+               "an opening reversed late shuts as its page leaves and ends black")
         suite.expect(NotchGlassFade.plan(from: 100, to: 300, endsInGlass: true, current: 1) == .open
                 && NotchGlassFade.plan(from: 300, to: 100, endsInGlass: true, current: 1) == .open
                 && NotchGlassFade.plan(from: .nan, to: 100, endsInGlass: false, current: 1) == .open,
@@ -1584,6 +1585,12 @@ enum NotchTests {
         suite.expect(calendarWings.compactActivityWingWidth == 120 && !calendarWings.compactActivityUsesFooter
                      && calendarFooter.compactActivityUsesFooter && calendarFooter.compactActivityCameraGap == 0,
                      "the event title uses the available wings or a full row below a crowded physical notch")
+        suite.expect(physical.compactCalendarGeometry(wing: 90).compactActivityWingWidth == 90
+                     && physical.compactCalendarGeometry(wing: 30).compactActivityWingWidth == 72
+                     && physical.compactCalendarGeometry(wing: 500).compactActivityWingWidth == 120
+                     && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 80)
+                        .compactCalendarGeometry(wing: 100).compactActivityWingWidth == 80,
+                     "the countdown wings fit the wider of the title and the clock, within the menus' room")
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         let midnight = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8))!
