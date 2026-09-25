@@ -346,6 +346,9 @@ final class MediaKeyAudioActivity {
                                 _ value: inout T) -> Bool {
         var address = address(selector)
         var size = UInt32(MemoryLayout<T>.size)
-        return AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr
+        return withUnsafeMutablePointer(to: &value) { pointer in
+            AudioObjectGetPropertyData(object, &address, 0, nil, &size,
+                                       UnsafeMutableRawPointer(pointer)) == noErr
+        }
     }
 }
