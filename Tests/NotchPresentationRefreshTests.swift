@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 import Combine
 
@@ -31,7 +32,24 @@ enum NotchPresentationRefreshContract {
         }
     }
     enum NotchContentTransition { case none, reveal, depart, replace }
-    struct NotchCompactMusicSnapshot { let track: Int }
+    struct NotchPlayback { let track: Int }
+    struct NotchArtworkTint { let value: Int }
+    final class NotchMusicService {
+        static let shared = NotchMusicService()
+        var playback: NotchPlayback?
+        var artwork: NSImage?
+        var artworkTint: NotchArtworkTint?
+    }
+    struct NotchCompactMusicSnapshot {
+        let playback: NotchPlayback
+        let artwork: NSImage?
+        let tint: NotchArtworkTint?
+        var track: Int { playback.track }
+        init(track: Int) { playback = NotchPlayback(track: track); artwork = nil; tint = nil }
+        init(playback: NotchPlayback, artwork: NSImage?, tint: NotchArtworkTint?, geometry: NotchGeometry) {
+            self.playback = playback; self.artwork = artwork; self.tint = tint
+        }
+    }
     struct NotchQuickAccessConfiguration {
         let buttons: [Int] = []
         static func current() -> Self { Self() }
@@ -160,7 +178,6 @@ enum NotchPresentationRefreshContract {
             departingMusic = nil
             windowHost?.finishDeparture()
         }
-        func rememberPresentedMusic() {}
         func removeHiddenHoverMonitors() {}
         func toggle() { expanded.toggle() }
         func collapse() { expanded = false }
@@ -408,6 +425,23 @@ enum NotchPresentationRefreshContract {
     }
 
     private static func compactMusicDepartureChecks(_ suite: TestSuite) {
+        let changed = Service()
+        changed.expanded = false
+        changed.compactActivity = .music
+        changed.compactActivityIsVisible = true
+        let oldCover = NSImage(size: NSSize(width: 1, height: 1))
+        let newCover = NSImage(size: NSSize(width: 2, height: 2))
+        changed.rememberPresentedMusic(playback: NotchPlayback(track: 1), artwork: oldCover, tint: nil)
+        changed.rememberPresentedMusic(playback: NotchPlayback(track: 2), artwork: oldCover, tint: nil)
+        changed.rememberPresentedMusic(playback: NotchPlayback(track: 2), artwork: newCover,
+                                       tint: NotchArtworkTint(value: 2))
+        changed.compactActivity = nil
+        changed.compactActivityIsVisible = false
+        suite.expect(changed.compactMusicTransition(.none, animated: true) == .depart
+                     && changed.departingMusic?.track == 2 && changed.departingMusic?.artwork === newCover
+                     && changed.departingMusic?.tint?.value == 2,
+                     "a track and cover changed during playback remain current through departure")
+
         let closing = Service()
         closing.expanded = false
         closing.presentedMusic = NotchCompactMusicSnapshot(track: 1)

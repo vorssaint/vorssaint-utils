@@ -1452,12 +1452,10 @@ final class NotchService: ObservableObject {
         return !expanded && !peeking && compactActivity != nil && notice == nil ? .replace : requested
     }
 
-    private func rememberPresentedMusic() {
-        guard compactMusicIsVisible, panel?.isVisible == true,
-              let playback = NotchMusicService.shared.playback else { presentedMusic = nil; return }
-        let music = NotchMusicService.shared
-        presentedMusic = NotchCompactMusicSnapshot(playback: playback, artwork: music.artwork,
-                                                  tint: music.artworkTint, geometry: compactActivityGeometry)
+    private func rememberPresentedMusic(playback: NotchPlayback?, artwork: NSImage?, tint: NotchArtworkTint?) {
+        guard compactMusicIsVisible, panel?.isVisible == true, let playback else { presentedMusic = nil; return }
+        presentedMusic = NotchCompactMusicSnapshot(playback: playback, artwork: artwork,
+                                                  tint: tint, geometry: compactActivityGeometry)
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
@@ -1523,7 +1521,8 @@ final class NotchService: ObservableObject {
                 else { self.toggle() }
             })
         if panel?.isVisible != true { panel?.orderFrontRegardless() }
-        rememberPresentedMusic()
+        let music = NotchMusicService.shared
+        rememberPresentedMusic(playback: music.playback, artwork: music.artwork, tint: music.artworkTint)
         if contentTransition == .depart {
             if windowHost?.departsContent == true {
                 let work = DispatchWorkItem { [weak self] in self?.finishMusicDeparture() }
@@ -2070,7 +2069,15 @@ final class NotchService: ObservableObject {
                 }.store(in: &subscriptions)
         }
         if modules.contains(.music) {
-            NotchMusicService.shared.$playback.map { ($0 != nil, $0?.isPlaying == true) }
+            let music = NotchMusicService.shared
+            music.$playback.combineLatest(music.$artwork, music.$artworkTint)
+                .sink { [weak self] playback, artwork, tint in
+                    // @Published sends before storing the new value. Keep the last
+                    // visible track and cover before playback disappears.
+                    guard playback != nil else { return }
+                    self?.rememberPresentedMusic(playback: playback, artwork: artwork, tint: tint)
+                }.store(in: &subscriptions)
+            music.$playback.map { ($0 != nil, $0?.isPlaying == true) }
                 .removeDuplicates { $0 == $1 }.receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()
