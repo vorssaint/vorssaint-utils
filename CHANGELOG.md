@@ -12,6 +12,9 @@ Dynamic Island's closed timer takes less space beside music and other activity.
 ### Changed
 - The compact timer strip fits its wings to the reading and companion, places their content at the island's ends, and resizes when the reading or working agents change.
 
+### Fixed
+- Importing a backup from before Dynamic Island keeps this Mac's island settings and explains that a newer export is needed to copy them.
+
 ## [3.4.0-beta.5] - 2026-09-25
 
 ### Summary
