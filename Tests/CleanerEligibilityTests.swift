@@ -87,6 +87,18 @@ enum CleanerEligibilityTests {
                      && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-03-01 at 09.00.00.png",
                                                                    created: taken, timeZone: utc),
                      "a renamed capture is no longer a default screenshot")
+        // A rename that keeps the name macOS gave it and adds to it is still a
+        // rename. Duplicating a capture in Finder is the everyday case, and the
+        // day period on a twelve hour Mac has to survive the same check.
+        suite.expect(CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 2.13.20\u{202F}PM.png",
+                                                               created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 14.13.20 copy.png",
+                                                                   created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 2.13.20\u{202F}PM copy.png",
+                                                                   created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("button spacing 2026-09-21.png",
+                                                                   created: taken, timeZone: utc),
+                     "a capture renamed by adding to its name is no longer a default screenshot")
         let now = taken.addingTimeInterval(31 * 86_400)
         suite.expect(CleanerSupport.isForgottenScreenshot(created: taken, modified: taken, lastUsed: nil,
                                                           now: now, days: 30)

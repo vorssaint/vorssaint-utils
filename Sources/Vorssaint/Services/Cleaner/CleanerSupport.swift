@@ -302,10 +302,25 @@ enum CleanerSupport {
         return Date(timeIntervalSince1970: TimeInterval(seconds) + TimeInterval(nanoseconds) / 1e9)
     }
 
+    /// The clock time macOS ends a capture name with, and whatever may follow
+    /// it. The separator and day period words are localized and unknowable
+    /// here, so the tail is judged by shape rather than by word.
+    private static let captureTimePattern = try? NSRegularExpression(
+        pattern: #"\d{1,2}\.\d{2}\.\d{2}(\D*)$"#)
+
+    /// The collision suffix macOS appends when a name is already taken.
+    private static let captureCopyIndexPattern = try? NSRegularExpression(
+        pattern: #"\s*\(\d+\)$"#)
+
     /// Whether a capture still carries the name macOS gave it, which always
-    /// holds the capture day. A renamed file is a decision the user made
-    /// about it, so it never counts as forgotten. The check is deliberately
-    /// narrow: a capture saved without a date in its name is simply skipped.
+    /// holds the capture day and ends on the capture time. A renamed file is a
+    /// decision the user made about it, so it never counts as forgotten, and
+    /// that has to include a rename that keeps the original name and adds to
+    /// it, which is what duplicating a capture in Finder produces
+    /// ("... 14.13.20 copy.png"). Anything after the time is therefore allowed
+    /// only two letters, which covers AM, PM, "p. m." and 上午 while excluding
+    /// any word somebody typed. The check stays deliberately narrow: a capture
+    /// saved without a date and a time in its name is simply skipped.
     static func screenshotKeepsDefaultName(_ name: String, created: Date,
                                            timeZone: TimeZone = .current) -> Bool {
         let formatter = DateFormatter()
@@ -313,7 +328,28 @@ enum CleanerSupport {
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.timeZone = timeZone
         formatter.dateFormat = "yyyy-MM-dd"
-        return name.contains(formatter.string(from: created))
+        guard name.contains(formatter.string(from: created)) else { return false }
+
+        let base = strippingCaptureCopyIndex((name as NSString).deletingPathExtension)
+        guard let captureTimePattern else { return true }
+        let range = NSRange(base.startIndex..<base.endIndex, in: base)
+        guard let match = captureTimePattern.firstMatch(in: base, range: range),
+              NSMaxRange(match.range) == range.length,
+              let trailing = Range(match.range(at: 1), in: base) else { return false }
+        return letterCount(String(base[trailing])) <= 2
+    }
+
+    static func strippingCaptureCopyIndex(_ name: String) -> String {
+        guard let captureCopyIndexPattern else { return name }
+        let range = NSRange(name.startIndex..<name.endIndex, in: name)
+        guard let match = captureCopyIndexPattern.firstMatch(in: name, range: range),
+              NSMaxRange(match.range) == range.length,
+              let suffix = Range(match.range, in: name) else { return name }
+        return String(name[name.startIndex..<suffix.lowerBound])
+    }
+
+    private static func letterCount(_ text: String) -> Int {
+        text.unicodeScalars.reduce(0) { CharacterSet.letters.contains($1) ? $0 + 1 : $0 }
     }
 
     /// A capture is forgotten when nothing happened to it for `days`: not
