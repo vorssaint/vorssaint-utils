@@ -64,3 +64,129 @@ enum MusicLaunchSupport {
         return (0...launchArmWindow).contains(elapsed) && secondsSinceUserGesture > elapsed
     }
 }
+
+/// Sends the playback keys to the music player instead of whatever the system
+/// last saw playing, which is often a browser tab.
+enum MediaKeyPlayerSupport {
+    enum Command: Equatable, Hashable, CaseIterable {
+        case toggle, next, previous
+
+        /// The scripting dictionary command that carries it out. A player
+        /// without `playpause` keeps the toggle with the system: its `play`
+        /// alone could only start playback, never pause it.
+        var dictionaryName: String {
+            switch self {
+            case .toggle: return "playpause"
+            case .next: return "next track"
+            case .previous: return "previous track"
+            }
+        }
+    }
+
+    enum KeyPhase: Equatable { case down, repeatDown, up }
+
+    struct Key: Equatable {
+        let command: Command
+        let code: UInt16
+        let phase: KeyPhase
+    }
+
+    /// Apple keyboards send fast-forward and rewind for the track keys, so
+    /// both pairs mean next and previous.
+    static func key(subtype: Int, data1: Int) -> Key? {
+        guard subtype == MusicLaunchSupport.auxiliaryControlButtonsSubtype else { return nil }
+        let code = MusicLaunchSupport.keyCode(data1: data1)
+        let command: Command
+        switch code {
+        case MusicLaunchSupport.playPauseKeyCode: command = .toggle
+        case MusicLaunchSupport.nextTrackKeyCode, MusicLaunchSupport.fastForwardKeyCode: command = .next
+        case MusicLaunchSupport.previousTrackKeyCode, MusicLaunchSupport.rewindKeyCode: command = .previous
+        default: return nil
+        }
+        let raw = UInt32(truncatingIfNeeded: data1)
+        let state = Int((raw >> 8) & 0xFF)
+        let phase: KeyPhase
+        switch state {
+        case MusicLaunchSupport.keyDownState: phase = (raw & 0x1) == 0 ? .down : .repeatDown
+        case 11: phase = .up
+        default: return nil
+        }
+        return Key(command: command, code: code, phase: phase)
+    }
+
+    /// Whether macOS lets this app send Apple Events to the player.
+    enum Access: Equatable { case granted, consent, denied }
+
+    /// A running music app as the snapshot saw it, off the tap.
+    struct Player: Equatable {
+        let pid: Int32
+        let bundleIdentifier: String
+        let launched: Date?
+        let commands: Set<Command>
+        let access: Access
+    }
+
+    /// A process Core Audio reports as producing output. Helpers carry
+    /// their app's identifier as a prefix.
+    struct SoundingProcess: Equatable {
+        let pid: Int32
+        let bundleIdentifier: String?
+    }
+
+    enum Route: Equatable {
+        /// The key keeps its system behavior.
+        case system
+        case player(Int32)
+        /// The player needs consent first; the key keeps its system behavior
+        /// this time.
+        case askConsent(Int32)
+    }
+
+    static func sounds(_ player: Player, in sounding: [SoundingProcess]) -> Bool {
+        sounding.contains { process in
+            process.pid == player.pid
+                || process.bundleIdentifier.map {
+                    $0 == player.bundleIdentifier || $0.hasPrefix(player.bundleIdentifier + ".")
+                } == true
+        }
+    }
+
+    /// Where a playback key goes. A player that is sounding takes it first.
+    /// With every player silent, sound from any other app (a video, a
+    /// podcast, a browser tab) keeps the key with the system, so the key
+    /// pauses what is audible instead of starting music on top of it. With
+    /// nothing sounding, the player last brought forward takes it, then the
+    /// one launched last.
+    static func route(_ command: Command, players: [Player], sounding: [SoundingProcess],
+                      lastActivePID: Int32?, ownPID: Int32) -> Route {
+        let usable = players.filter { $0.commands.contains(command) }
+        guard !usable.isEmpty else { return .system }
+        let playing = usable.filter { sounds($0, in: sounding) }
+        let otherSounds = sounding.contains { process in
+            process.pid != ownPID && !usable.contains { sounds($0, in: [process]) }
+        }
+        let pool: [Player]
+        if !playing.isEmpty {
+            pool = playing
+        } else if otherSounds {
+            return .system
+        } else {
+            pool = usable
+        }
+        guard let pid = preferredPlayer(pool, lastActivePID: lastActivePID),
+              let chosen = pool.first(where: { $0.pid == pid }) else { return .system }
+        switch chosen.access {
+        case .granted: return .player(pid)
+        case .consent: return .askConsent(pid)
+        case .denied: return .system
+        }
+    }
+
+    /// The player last brought to the front, then the one launched last.
+    static func preferredPlayer(_ players: [Player], lastActivePID: Int32?) -> Int32? {
+        if let lastActivePID, players.contains(where: { $0.pid == lastActivePID }) { return lastActivePID }
+        return players.max {
+            ($0.launched ?? .distantPast, -$0.pid) < ($1.launched ?? .distantPast, -$1.pid)
+        }?.pid
+    }
+}

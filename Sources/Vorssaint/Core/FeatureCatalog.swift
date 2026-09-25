@@ -269,7 +269,7 @@ extension AppFeature {
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
         case .audioPriority: return [DefaultsKey.audioPriorityOutputEnabled,
                                      DefaultsKey.audioPriorityInputEnabled]
-        case .musicBlock: return [DefaultsKey.musicBlockEnabled]
+        case .musicBlock: return [DefaultsKey.musicBlockEnabled, DefaultsKey.mediaKeysPlayerOnly]
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]

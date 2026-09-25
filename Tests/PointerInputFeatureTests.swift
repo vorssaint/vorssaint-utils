@@ -1651,6 +1651,17 @@ enum PointerInputFeatureTests {
                 && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID).spacesGesture\""),
                "the Command Bar exposes the Spaces gesture as its own localized toggle row")
 
+        let musicBlockToggleCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("if feature == .musicBlock {")
+        }.map {
+            commandBarCatalogLines[$0...].prefix(12).filter(isCodeLine).joined(separator: "\n")
+        } ?? ""
+        suite.expect(musicBlockToggleCode.contains("DefaultsKey.musicBlockEnabled")
+                && musicBlockToggleCode.contains("id: \"toggle.\\(feature.rawValue)\"")
+                && musicBlockToggleCode.contains("DefaultsKey.mediaKeysPlayerOnly")
+                && musicBlockToggleCode.contains("id: \"toggle.\\(feature.rawValue).playerOnly\""),
+               "the Command Bar keeps the music blocker's row and adds the playback-key switch beside it")
+
         let restartAppCode = commandBarCatalogLines.firstIndex {
             isCodeLine($0) && $0.contains("id: \"action.restartApp\"")
         }.map {

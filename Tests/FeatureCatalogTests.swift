@@ -302,6 +302,70 @@ enum FeatureCatalogTests {
         let unrelatedSystemEvent = CleaningSystemKeyEvent.decode(subtype: 99, data1: 0)
         suite.expect(unrelatedSystemEvent == nil, "unrelated system-defined events do not count as unlock keys")
 
+        // MARK: Media keys to the music player
+
+        func mediaKey(_ code: UInt16, state: Int = 10, repeatFlag: Bool = false) -> MediaKeyPlayerSupport.Key? {
+            MediaKeyPlayerSupport.key(subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+                                      data1: Int((UInt32(code) << 16) | (UInt32(state) << 8) | (repeatFlag ? 1 : 0)))
+        }
+        suite.expect(mediaKey(16)?.command == .toggle && mediaKey(17)?.command == .next
+                && mediaKey(19)?.command == .next && mediaKey(18)?.command == .previous
+                && mediaKey(20)?.command == .previous,
+               "play/pause, next/fast-forward and previous/rewind map to the player's commands")
+        suite.expect(mediaKey(16)?.phase == .down && mediaKey(16, repeatFlag: true)?.phase == .repeatDown
+                && mediaKey(16, state: 11)?.phase == .up,
+               "media keys tell a press, its repeats and its release apart")
+        suite.expect(mediaKey(0) == nil && mediaKey(1) == nil && mediaKey(7) == nil
+                && MediaKeyPlayerSupport.key(subtype: 99, data1: Int(UInt32(16) << 16 | 10 << 8)) == nil,
+               "volume, mute and unrelated system events never go to the player")
+        func player(_ pid: Int32, _ bundle: String, launched: TimeInterval,
+                    commands: Set<MediaKeyPlayerSupport.Command> = [.toggle, .next, .previous],
+                    access: MediaKeyPlayerSupport.Access = .granted) -> MediaKeyPlayerSupport.Player {
+            MediaKeyPlayerSupport.Player(pid: pid, bundleIdentifier: bundle,
+                                         launched: Date(timeIntervalSince1970: launched),
+                                         commands: commands, access: access)
+        }
+        let firstPlayer = player(40, "com.example.player", launched: 100)
+        let secondPlayer = player(50, "com.example.other-player", launched: 200)
+        func route(_ players: [MediaKeyPlayerSupport.Player],
+                   command: MediaKeyPlayerSupport.Command = .toggle,
+                   sounding: [MediaKeyPlayerSupport.SoundingProcess] = [],
+                   lastActive: Int32? = nil) -> MediaKeyPlayerSupport.Route {
+            MediaKeyPlayerSupport.route(command, players: players, sounding: sounding,
+                                        lastActivePID: lastActive, ownPID: 1)
+        }
+        suite.expect(route([firstPlayer, secondPlayer], lastActive: 40) == .player(40)
+                && route([firstPlayer, secondPlayer]) == .player(50)
+                && route([]) == .system,
+               "with nothing sounding the player last brought forward wins, then the one launched last")
+        suite.expect(route([firstPlayer, secondPlayer],
+                           sounding: [.init(pid: 900, bundleIdentifier: "com.example.player.helper")],
+                           lastActive: 50) == .player(40),
+               "the player that is sounding, through a helper process too, takes the key before the one brought forward")
+        suite.expect(route([firstPlayer], sounding: [.init(pid: 700, bundleIdentifier: "com.example.browser.audio")])
+                    == .system
+                && route([firstPlayer], command: .next, sounding: [.init(pid: 701, bundleIdentifier: nil)]) == .system
+                && route([firstPlayer], sounding: [.init(pid: 1, bundleIdentifier: "own")]) == .player(40),
+               "sound from another app keeps the key with the system while the player is silent, but not this app's own")
+        suite.expect(route([player(40, "com.example.player", launched: 100, commands: [.next, .previous])]) == .system
+                && route([player(40, "com.example.player", launched: 100, commands: [.next, .previous])], command: .next)
+                    == .player(40),
+               "a player without playpause leaves the toggle with the system and still takes the track keys")
+        let trackOnlyPlayer = player(40, "com.example.player", launched: 100, commands: [.next, .previous])
+        suite.expect(route([trackOnlyPlayer, secondPlayer],
+                           sounding: [.init(pid: 40, bundleIdentifier: "com.example.player")], lastActive: 50) == .system
+                && route([trackOnlyPlayer, secondPlayer],
+                         sounding: [.init(pid: 900, bundleIdentifier: "com.example.player.helper")], lastActive: 50) == .system,
+               "a sounding player without playpause keeps the key with the system instead of starting another player")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.mediaKeys(language)
+            suite.expect(!strings.playerOnlyTitle.isEmpty && !strings.playerOnlyCaption.isEmpty,
+                         "every language has playback key settings")
+        }
+        suite.expect(route([player(40, "com.example.player", launched: 100, access: .consent)]) == .askConsent(40)
+                && route([player(40, "com.example.player", launched: 100, access: .denied)]) == .system,
+               "a player awaiting consent asks once and a refused or revoked consent hands the key back")
+
         // MARK: Music launch blocker
 
         func musicKeyData(keyCode: Int, state: Int = 10, repeatFlag: Bool = false) -> Int {
@@ -1174,6 +1238,10 @@ enum FeatureCatalogTests {
                 && activeSet(.accessibility, available: [.musicBlock]).isEmpty
                 && activeSet(.accessibility, available: [], on: [DefaultsKey.musicBlockEnabled]).isEmpty,
                "music blocking requires access only while both enabled and installed")
+        suite.expect(AppFeature.musicBlock.enabledKeys == [DefaultsKey.musicBlockEnabled, DefaultsKey.mediaKeysPlayerOnly]
+                && activeSet(.accessibility, available: [.musicBlock], on: [DefaultsKey.mediaKeysPlayerOnly])
+                    == [.musicBlock],
+               "sending playback keys to the player counts as the media keys feature using accessibility")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.finderRenameEnabled]).contains(.finderRename),
                "the enabled Finder rename shortcut uses accessibility")
         suite.expect(!activeSet(.accessibility, available: [], on: [DefaultsKey.scrollInverterEnabled])

@@ -249,6 +249,18 @@ enum CommandBarCatalog {
                           id: "toggle.scrollInverter.horizontal"),
                 ]
             }
+            if feature == .musicBlock {
+                return [
+                    entry(for: feature,
+                          key: DefaultsKey.musicBlockEnabled,
+                          name: feature.hubTitle(s, hub: hub),
+                          id: "toggle.\(feature.rawValue)"),
+                    entry(for: feature,
+                          key: DefaultsKey.mediaKeysPlayerOnly,
+                          name: FeatureStrings.mediaKeys(language).playerOnlyTitle,
+                          id: "toggle.\(feature.rawValue).playerOnly"),
+                ]
+            }
             if feature == .mouseButtonShortcuts {
                 let buttons = FeatureStrings.mouseButtons(language)
                 return [
