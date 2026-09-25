@@ -1654,7 +1654,7 @@ final class NotchService: ObservableObject {
         if windowHost == nil {
             windowHost = NotchWindowHost(content: AnyView(NotchView(service: self)), geometry: geometry, size: surfaceSize,
                                         background: { AnyView(NotchWindowBackground(presentation: $0)) },
-                                        quickAccess: { AnyView(NotchQuickAccessView(service: self, motion: $0)) })
+                                        quickAccess: { AnyView(NotchQuickAccessView(service: self, motion: $0, backdrop: $1)) })
             windowHost?.missionControlDidRestore = { [weak self] in self?.missionControlDidRestore() }
             windowHost?.setHoverHandler { [weak self] in self?.hover($0) }
             panel?.title = FeatureStrings.notch(L10n.shared.language).title

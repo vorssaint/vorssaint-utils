@@ -17,6 +17,26 @@ enum NotchPresentationProbe {
             .environment(\.colorScheme, .dark))
     }
 
+    /// The floating buttons take the same glass choice as `surface`. The suite
+    /// is only registered, so nothing is written to disk.
+    private static let glassDefaults: UserDefaults = {
+        let defaults = UserDefaults(suiteName: "com.vorssaint.tests.notch-presentation")!
+        defaults.register(defaults: [DefaultsKey.liquidGlassEnabled: CommandLine.arguments.contains("--glass")])
+        return defaults
+    }()
+
+    /// Reduce Transparency and Increase Contrast keep the buttons solid.
+    private static var quickAccessGlass: Bool {
+        guard #available(macOS 26, *) else { return false }
+        let workspace = NSWorkspace.shared
+        return CommandLine.arguments.contains("--glass") && !workspace.accessibilityDisplayShouldReduceTransparency
+            && !workspace.accessibilityDisplayShouldIncreaseContrast
+    }
+
+    private static func quickAccess(_ motion: NotchQuickAccessMotion, _ backdrop: NotchBackdropPresentation) -> AnyView {
+        AnyView(NotchQuickAccessView(service: .shared, motion: motion, backdrop: backdrop).defaultAppStorage(glassDefaults))
+    }
+
     /// The glass gradient must follow the visible lip, not the larger reserved
     /// canvas, and content transitions must never cover or fade the backdrop.
     private static func checkBackdrop(_ host: NotchWindowHost, failures: inout [String]) {
@@ -43,7 +63,7 @@ enum NotchPresentationProbe {
             let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: safeArea,
                                          cameraWidth: safeArea > 0 ? 210 : 0)
             let host = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.collapsed, background: surface,
-                                      quickAccess: { AnyView(NotchQuickAccessView(service: .shared, motion: $0)) })
+                                      quickAccess: quickAccess)
             host.panel.alphaValue = 0
             host.panel.ignoresMouseEvents = true
             func advance(_ seconds: TimeInterval) {
@@ -223,7 +243,7 @@ enum NotchPresentationProbe {
         let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
                                      cameraWidth: screen.safeAreaInsets.top > 0 ? 210 : 0)
         let host = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.collapsed, background: surface,
-                                  quickAccess: { AnyView(NotchQuickAccessView(service: .shared, motion: $0)) })
+                                  quickAccess: quickAccess)
         let restingAlpha: CGFloat = 0.01
         host.panel.alphaValue = restingAlpha
         host.panel.ignoresMouseEvents = true
@@ -664,7 +684,7 @@ enum NotchPresentationProbe {
             failures.append("a withdrawn drop left a painted fragment")
         }
         let bubbles = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.collapsed, background: surface,
-                                      quickAccess: { AnyView(NotchQuickAccessView(service: .shared, motion: $0)) })
+                                      quickAccess: quickAccess)
         bubbles.panel.alphaValue = 0
         bubbles.panel.ignoresMouseEvents = true
         bubbles.panel.orderFrontRegardless()
@@ -686,6 +706,33 @@ enum NotchPresentationProbe {
             }
             if bubbles.quickAccessProbeTrackingAreas != 1 {
                 failures.append("floating controls did not create exactly one hover corridor")
+            }
+            // Glass shades the circles like the island at the same height, and
+            // like its lip below it. Sampled under the glyph.
+            for point in bubbles.quickAccessProbeCenters {
+                let sample = CGPoint(x: point.x, y: point.y - 15)
+                let depth = min(1, (bubbles.panel.frame.maxY - sample.y) / geometry.expanded.height)
+                let expected = quickAccessGlass ? 1 - 0.45 * pow(depth, 2.5) : 1
+                let opacity = bubbles.quickAccessProbeOpacity(at: sample) ?? 0
+                if abs(opacity - expected) > 0.04 {
+                    failures.append("a floating control on the \(side) side drew opacity \(opacity), expected \(expected)")
+                }
+            }
+            if quickAccessGlass && !reduceMotion {
+                // A drop still inside the translucent island must not show through it.
+                bubbles.present(size: geometry.expanded, geometry: geometry, animated: false, usesGlass: true)
+                bubbles.present(size: geometry.expanded, geometry: geometry, animated: true, quickAccess: configuration, usesGlass: true)
+                let inside = bubbles.quickAccessProbeCenters.map { point in
+                    side == .bottom ? CGPoint(x: point.x, y: point.y + 38)
+                        : CGPoint(x: point.x + (side == .left ? 38 : -38), y: point.y)
+                }
+                var covered = 0
+                let deadline = Date().addingTimeInterval(1)
+                while Date() < deadline {
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.008))
+                    covered += inside.filter { (bubbles.quickAccessProbeOpacity(at: $0) ?? 0) > 0.01 }.count
+                }
+                if covered > 0 { failures.append("an emerging drop showed through the glass island on the \(side) side") }
             }
             for point in bubbles.quickAccessProbeCenters {
                 let local = bubbles.panel.convertPoint(fromScreen: point)
@@ -830,7 +877,7 @@ enum NotchPresentationProbe {
                                              menuBarHeight: barHeight, compactSideRoom: 64)
                 geometry.quickAccessBottomInset = NotchQuickAccessLayout.gutter
                 let host = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.collapsed, background: surface,
-                                          quickAccess: { _ in AnyView(Color.clear) })
+                                          quickAccess: { _, _ in AnyView(Color.clear) })
                 host.panel.alphaValue = 0
                 host.panel.ignoresMouseEvents = true
                 host.panel.orderFrontRegardless()

@@ -88,7 +88,7 @@ enum NotchMediaPresentationProbe {
         let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: 32, cameraWidth: 180, layout: .spacious)
         let model = Model(geometry: geometry, defaults: defaults)
         let host = NotchWindowHost(content: AnyView(Content(model: model)), geometry: geometry, size: model.size,
-                                   quickAccess: { _ in AnyView(Color.clear) })
+                                   quickAccess: { _, _ in AnyView(Color.clear) })
         model.host = host
         host.panel.alphaValue = 0
         host.panel.ignoresMouseEvents = true
@@ -106,7 +106,7 @@ enum NotchMediaPresentationProbe {
         var failures: [String] = []
         let backing = NotchWindowHost(content: AnyView(Color.black), geometry: geometry,
                                       size: CGSize(width: geometry.expanded.width, height: 300),
-                                      quickAccess: { _ in AnyView(Color.clear) })
+                                      quickAccess: { _, _ in AnyView(Color.clear) })
         backing.panel.alphaValue = 0
         backing.panel.ignoresMouseEvents = true
         backing.panel.orderFrontRegardless()

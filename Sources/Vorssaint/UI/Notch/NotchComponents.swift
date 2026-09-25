@@ -320,16 +320,8 @@ struct NotchSurfaceBackground: View {
                     .environment(\.appearsActive, true)
                     .materialActiveAppearance(.active)
                     .overlay {
-                        // Near a black strip the lip closes up, so the last
-                        // frames of a collapse already match the resting island.
-                        let openness = presentation.openness
-                        let stops = (0...64).map { index in
-                            let t = Double(index) / 64
-                            return Gradient.Stop(
-                                color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
-                                location: t)
-                        }
-                        LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
+                        LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast),
+                                       startPoint: .top, endPoint: .bottom)
                             .frame(height: presentation.contour.boundingRect.height)
                             .frame(maxHeight: .infinity, alignment: .top)
                             .mask(shape)
@@ -344,6 +336,18 @@ struct NotchSurfaceBackground: View {
         .environment(\.colorScheme, .dark)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// The dimming over the glass, from the top of the island to its lip. Near
+    /// a black strip the lip closes up, so the last frames of a collapse
+    /// already match the resting island.
+    static func shade(openness: Double, contrast: ColorSchemeContrast) -> [Gradient.Stop] {
+        (0...64).map { index in
+            let t = Double(index) / 64
+            return Gradient.Stop(
+                color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
+                location: t)
+        }
     }
 }
 

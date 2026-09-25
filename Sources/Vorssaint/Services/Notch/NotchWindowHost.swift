@@ -55,7 +55,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
 
     init(content: AnyView, geometry: NotchGeometry, size: CGSize,
          background: (NotchBackdropPresentation) -> AnyView = { _ in AnyView(Color.black) },
-         quickAccess: ((NotchQuickAccessMotion) -> AnyView)? = nil) {
+         quickAccess: ((NotchQuickAccessMotion, NotchBackdropPresentation) -> AnyView)? = nil) {
         targetSize = size
         currentGeometry = geometry
         panel = NotchPanel(contentRect: geometry.frame(for: size),
@@ -550,6 +550,18 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         }
     }
 
+    /// The floating layer's opacity at a screen point, drawn offscreen.
+    func quickAccessProbeOpacity(at screenPoint: CGPoint) -> CGFloat? {
+        guard let view = quickAccessContainer?.quickView,
+              let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let point = view.convert(panel.convertPoint(fromScreen: screenPoint), from: nil)
+        let scale = CGFloat(bitmap.pixelsWide) / max(1, view.bounds.width)
+        // Bitmap rows run from the top.
+        let row = view.isFlipped ? point.y : view.bounds.height - point.y
+        return bitmap.colorAt(x: Int(point.x * scale), y: Int(row * scale))?.alphaComponent
+    }
+
     func beginProbeDrop(_ pasteboard: NSPasteboard, localSource: Bool = false) -> NSDragOperation {
         canvas.beginDrop(pasteboard, localSource: localSource)
     }
@@ -738,11 +750,11 @@ private final class NotchQuickAccessContainer: NSView {
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
 
-    init(canvas: NotchCanvas, content: (NotchQuickAccessMotion) -> AnyView) {
+    init(canvas: NotchCanvas, content: (NotchQuickAccessMotion, NotchBackdropPresentation) -> AnyView) {
         self.canvas = canvas
         let motion = NotchQuickAccessMotion()
         self.motion = motion
-        quickView = NSHostingView(rootView: content(motion))
+        quickView = NSHostingView(rootView: content(motion, canvas.backdropPresentation))
         quickView.sizingOptions = []
         quickView.wantsLayer = true
         quickView.isHidden = true
