@@ -14,6 +14,10 @@ enum NotchPresentationRefreshContract {
         static var monitorRemovals = 0
         static func removeMonitor(_ token: Any) { monitorRemovals += 1 }
     }
+    enum NSWorkspace {
+        static var shared = Accessibility()
+        struct Accessibility { var accessibilityDisplayShouldReduceMotion = false }
+    }
     enum NotchPanel { static let normalLevel = 0 }
     final class CaptureOptions {
         var hasFocusedControl = false
@@ -26,7 +30,8 @@ enum NotchPresentationRefreshContract {
             func bool(forKey key: String) -> Bool { key == DefaultsKey.notchHideUntilHover ? hides : true }
         }
     }
-    enum NotchContentTransition { case none }
+    enum NotchContentTransition { case none, reveal, depart, replace }
+    struct NotchCompactMusicSnapshot { let track: Int }
     struct NotchQuickAccessConfiguration {
         let buttons: [Int] = []
         static func current() -> Self { Self() }
@@ -51,6 +56,8 @@ enum NotchPresentationRefreshContract {
     }
     final class Host {
         let panel = Panel()
+        var departsContent = false
+        func finishDeparture() { departsContent = false }
         var concealedForMissionControl = false
         var isConcealedForMissionControl: Bool { concealedForMissionControl }
         var missionControlDidRestore: (() -> Void)?
@@ -84,6 +91,7 @@ enum NotchPresentationRefreshContract {
         func present(size: CGSize, geometry: NotchGeometry, animated: Bool,
                      transitionContent: NotchContentTransition, quickAccess: NotchQuickAccessConfiguration?,
                      revealFromHidden: Bool, usesGlass: Bool) {
+            departsContent = transitionContent == .depart
             self.usesGlass = usesGlass
             self.revealFromHidden = revealFromHidden
             onPresent?(size)
@@ -115,6 +123,11 @@ enum NotchPresentationRefreshContract {
         var selectedMetric: Bool?
         var expanded = true
         var peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
+        var compactActivity: NotchCompactActivity?
+        var compactMusicIsVisible: Bool { compactActivityIsVisible && compactActivity == .music }
+        var presentedMusic: NotchCompactMusicSnapshot?
+        var departingMusic: NotchCompactMusicSnapshot?
+        var musicDepartureWork: DispatchWorkItem?
         var noticeExpanded = false
         var notice: Bool?
         var captureControls: CaptureOptions?
@@ -142,6 +155,12 @@ enum NotchPresentationRefreshContract {
                                          timerMode: session.hasSession ? session.mode : mode)
         }
         func syncHiddenHoverMonitoring() {}
+        func finishMusicDeparture() {
+            musicDepartureWork?.cancel(); musicDepartureWork = nil
+            departingMusic = nil
+            windowHost?.finishDeparture()
+        }
+        func rememberPresentedMusic() {}
         func removeHiddenHoverMonitors() {}
         func toggle() { expanded.toggle() }
         func collapse() { expanded = false }
@@ -151,6 +170,7 @@ enum NotchPresentationRefreshContract {
     }
 
     static func run(_ suite: TestSuite) {
+        compactMusicDepartureChecks(suite)
         UserDefaults.standard.hides = false
         defer { UserDefaults.standard.hides = false }
         let toolbar = Service()
@@ -385,5 +405,36 @@ enum NotchPresentationRefreshContract {
                && physical.compactActivityGeometry.compactActivityWingWidth == 0
                && physical.windowHost?.targetSize.height == physical.geometry.menuBarHeight,
                "an active timer on a physical camera retracts its wings and stays at menu-bar height without a menu measurement")
+    }
+
+    private static func compactMusicDepartureChecks(_ suite: TestSuite) {
+        let closing = Service()
+        closing.expanded = false
+        closing.presentedMusic = NotchCompactMusicSnapshot(track: 1)
+        suite.expect(closing.compactMusicTransition(.none, animated: true) == .depart
+                     && closing.departingMusic?.track == 1,
+                     "closing the last playing source keeps its compact track for the departure")
+        closing.compactActivity = .music
+        closing.compactActivityIsVisible = true
+        suite.expect(closing.compactMusicTransition(.none, animated: true) == .reveal
+                     && closing.departingMusic == nil,
+                     "new playback interrupts a departing track and reveals its replacement")
+
+        let replacement = Service()
+        replacement.expanded = false
+        replacement.presentedMusic = NotchCompactMusicSnapshot(track: 2)
+        replacement.compactActivity = .timer
+        replacement.compactActivityIsVisible = true
+        suite.expect(replacement.compactMusicTransition(.none, animated: true) == .replace,
+                     "a compact timer replaces the disappearing music with a fade")
+
+        let reduced = Service()
+        reduced.expanded = false
+        reduced.presentedMusic = NotchCompactMusicSnapshot(track: 3)
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
+        suite.expect(reduced.compactMusicTransition(.none, animated: true) == .none
+                     && reduced.departingMusic == nil,
+                     "Reduce Motion removes the music strip immediately")
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
     }
 }
