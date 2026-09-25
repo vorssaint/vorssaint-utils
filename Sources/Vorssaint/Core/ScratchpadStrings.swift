@@ -37,6 +37,17 @@ struct ScratchpadFeatureStrings {
     let padLimitFormat: String
     let previewFormatting: String
     let editText: String
+    let markBold: String
+    let markItalic: String
+    let markStrikethrough: String
+    let markHeading: String
+    let markBullet: String
+    let markNumbered: String
+    let markQuote: String
+    let markCode: String
+    let markLink: String
+    let formatMarks: String
+    let textSize: String
 }
 
 extension FeatureStrings {
@@ -94,7 +105,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "Delete “%@” and everything in it?",
         padLimitFormat: "You can keep up to %d scratchpads",
         previewFormatting: "Show formatting",
-        editText: "Edit text"
+        editText: "Edit text",
+        markBold: "Bold",
+        markItalic: "Italic",
+        markStrikethrough: "Strikethrough",
+        markHeading: "Heading",
+        markBullet: "Bulleted list",
+        markNumbered: "Numbered list",
+        markQuote: "Quote",
+        markCode: "Code",
+        markLink: "Link",
+        formatMarks: "Formatting",
+        textSize: "Text size"
     )
 
     static let ptBR = ScratchpadFeatureStrings(
@@ -129,7 +151,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "Apagar “%@” e todo o conteúdo?",
         padLimitFormat: "Você pode manter até %d rascunhos",
         previewFormatting: "Ver formatação",
-        editText: "Editar texto"
+        editText: "Editar texto",
+        markBold: "Negrito",
+        markItalic: "Itálico",
+        markStrikethrough: "Tachado",
+        markHeading: "Título",
+        markBullet: "Lista com marcadores",
+        markNumbered: "Lista numerada",
+        markQuote: "Citação",
+        markCode: "Código",
+        markLink: "Link",
+        formatMarks: "Formatação",
+        textSize: "Tamanho do texto"
     )
 
     static let tr = ScratchpadFeatureStrings(
@@ -164,7 +197,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "“%@” ve içindeki her şey silinsin mi?",
         padLimitFormat: "%d adede kadar karalama defteri tutabilirsiniz",
         previewFormatting: "Biçimlendirmeyi göster",
-        editText: "Metni düzenle"
+        editText: "Metni düzenle",
+        markBold: "Kalın",
+        markItalic: "İtalik",
+        markStrikethrough: "Üstü çizili",
+        markHeading: "Başlık",
+        markBullet: "Madde işaretli liste",
+        markNumbered: "Numaralı liste",
+        markQuote: "Alıntı",
+        markCode: "Kod",
+        markLink: "Bağlantı",
+        formatMarks: "Biçimlendirme",
+        textSize: "Metin boyutu"
     )
 
     static let ru = ScratchpadFeatureStrings(
@@ -199,7 +243,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "Удалить «%@» вместе со всем содержимым?",
         padLimitFormat: "Можно хранить до %d черновиков",
         previewFormatting: "Показать форматирование",
-        editText: "Редактировать текст"
+        editText: "Редактировать текст",
+        markBold: "Полужирный",
+        markItalic: "Курсив",
+        markStrikethrough: "Зачёркнутый",
+        markHeading: "Заголовок",
+        markBullet: "Маркированный список",
+        markNumbered: "Нумерованный список",
+        markQuote: "Цитата",
+        markCode: "Код",
+        markLink: "Ссылка",
+        formatMarks: "Форматирование",
+        textSize: "Размер текста"
     )
 
     static let es = ScratchpadFeatureStrings(
@@ -234,7 +289,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "¿Eliminar “%@” y todo su contenido?",
         padLimitFormat: "Puedes guardar hasta %d borradores",
         previewFormatting: "Ver formato",
-        editText: "Editar texto"
+        editText: "Editar texto",
+        markBold: "Negrita",
+        markItalic: "Cursiva",
+        markStrikethrough: "Tachado",
+        markHeading: "Título",
+        markBullet: "Lista con viñetas",
+        markNumbered: "Lista numerada",
+        markQuote: "Cita",
+        markCode: "Código",
+        markLink: "Enlace",
+        formatMarks: "Formato",
+        textSize: "Tamaño del texto"
     )
 
     static let sk = ScratchpadFeatureStrings(
@@ -269,7 +335,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "Vymazať „%@“ a celý jeho obsah?",
         padLimitFormat: "Maximálny počet poznámkových blokov: %d",
         previewFormatting: "Zobraziť formátovanie",
-        editText: "Upraviť text"
+        editText: "Upraviť text",
+        markBold: "Tučné",
+        markItalic: "Kurzíva",
+        markStrikethrough: "Prečiarknuté",
+        markHeading: "Nadpis",
+        markBullet: "Zoznam s odrážkami",
+        markNumbered: "Číslovaný zoznam",
+        markQuote: "Citát",
+        markCode: "Kód",
+        markLink: "Odkaz",
+        formatMarks: "Formátovanie",
+        textSize: "Veľkosť textu"
     )
 
     static let de = ScratchpadFeatureStrings(
@@ -304,7 +381,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "„%@“ und den gesamten Inhalt löschen?",
         padLimitFormat: "Du kannst bis zu %d Schmierzettel behalten",
         previewFormatting: "Formatierung zeigen",
-        editText: "Text bearbeiten"
+        editText: "Text bearbeiten",
+        markBold: "Fett",
+        markItalic: "Kursiv",
+        markStrikethrough: "Durchgestrichen",
+        markHeading: "Überschrift",
+        markBullet: "Aufzählung",
+        markNumbered: "Nummerierte Liste",
+        markQuote: "Zitat",
+        markCode: "Code",
+        markLink: "Link",
+        formatMarks: "Formatierung",
+        textSize: "Textgröße"
     )
 
     static let fr = ScratchpadFeatureStrings(
@@ -339,7 +427,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "Supprimer «\u{00A0}%@\u{00A0}» et tout son contenu\u{00A0}?",
         padLimitFormat: "Vous pouvez conserver jusqu’à %d brouillons",
         previewFormatting: "Afficher la mise en forme",
-        editText: "Modifier le texte"
+        editText: "Modifier le texte",
+        markBold: "Gras",
+        markItalic: "Italique",
+        markStrikethrough: "Barré",
+        markHeading: "Titre",
+        markBullet: "Liste à puces",
+        markNumbered: "Liste numérotée",
+        markQuote: "Citation",
+        markCode: "Code",
+        markLink: "Lien",
+        formatMarks: "Mise en forme",
+        textSize: "Taille du texte"
     )
 
     static let it = ScratchpadFeatureStrings(
@@ -374,7 +473,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "Eliminare “%@” e tutto il contenuto?",
         padLimitFormat: "Puoi conservare fino a %d bozze",
         previewFormatting: "Mostra formattazione",
-        editText: "Modifica testo"
+        editText: "Modifica testo",
+        markBold: "Grassetto",
+        markItalic: "Corsivo",
+        markStrikethrough: "Barrato",
+        markHeading: "Titolo",
+        markBullet: "Elenco puntato",
+        markNumbered: "Elenco numerato",
+        markQuote: "Citazione",
+        markCode: "Codice",
+        markLink: "Collegamento",
+        formatMarks: "Formattazione",
+        textSize: "Dimensione del testo"
     )
 
     static let ja = ScratchpadFeatureStrings(
@@ -409,7 +519,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "「%@」とその内容をすべて削除しますか？",
         padLimitFormat: "クイックメモは最大%d個まで作成できます",
         previewFormatting: "書式を表示",
-        editText: "テキストを編集"
+        editText: "テキストを編集",
+        markBold: "太字",
+        markItalic: "斜体",
+        markStrikethrough: "取り消し線",
+        markHeading: "見出し",
+        markBullet: "箇条書き",
+        markNumbered: "番号付きリスト",
+        markQuote: "引用",
+        markCode: "コード",
+        markLink: "リンク",
+        formatMarks: "書式",
+        textSize: "文字サイズ"
     )
 
     static let ko = ScratchpadFeatureStrings(
@@ -444,7 +565,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "“%@” 및 모든 내용을 삭제할까요?",
         padLimitFormat: "빠른 메모는 최대 %d개까지 만들 수 있습니다",
         previewFormatting: "서식 보기",
-        editText: "텍스트 편집"
+        editText: "텍스트 편집",
+        markBold: "굵게",
+        markItalic: "기울임꼴",
+        markStrikethrough: "취소선",
+        markHeading: "제목",
+        markBullet: "글머리 기호 목록",
+        markNumbered: "번호 목록",
+        markQuote: "인용",
+        markCode: "코드",
+        markLink: "링크",
+        formatMarks: "서식",
+        textSize: "텍스트 크기"
     )
 
     static let zhHans = ScratchpadFeatureStrings(
@@ -479,7 +611,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "删除“%@”及其中的全部内容？",
         padLimitFormat: "最多可保留 %d 个草稿板",
         previewFormatting: "显示格式",
-        editText: "编辑文本"
+        editText: "编辑文本",
+        markBold: "粗体",
+        markItalic: "斜体",
+        markStrikethrough: "删除线",
+        markHeading: "标题",
+        markBullet: "项目符号列表",
+        markNumbered: "编号列表",
+        markQuote: "引用",
+        markCode: "代码",
+        markLink: "链接",
+        formatMarks: "格式",
+        textSize: "文字大小"
     )
 
     static let zhTW = ScratchpadFeatureStrings(
@@ -514,7 +657,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "刪除「%@」和其中的所有內容？",
         padLimitFormat: "最多可保留 %d 個草稿板",
         previewFormatting: "顯示格式",
-        editText: "編輯文字"
+        editText: "編輯文字",
+        markBold: "粗體",
+        markItalic: "斜體",
+        markStrikethrough: "刪除線",
+        markHeading: "標題",
+        markBullet: "項目符號列表",
+        markNumbered: "編號清單",
+        markQuote: "引用",
+        markCode: "程式碼",
+        markLink: "連結",
+        formatMarks: "格式",
+        textSize: "文字大小"
     )
 
     static let zhHK = ScratchpadFeatureStrings(
@@ -549,7 +703,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "刪除「%@」及當中的所有內容？",
         padLimitFormat: "最多可保留 %d 個草稿板",
         previewFormatting: "顯示格式",
-        editText: "編輯文字"
+        editText: "編輯文字",
+        markBold: "粗體",
+        markItalic: "斜體",
+        markStrikethrough: "刪除線",
+        markHeading: "標題",
+        markBullet: "項目符號列表",
+        markNumbered: "編號清單",
+        markQuote: "引用",
+        markCode: "程式碼",
+        markLink: "連結",
+        formatMarks: "格式",
+        textSize: "文字大小"
     )
     static let uk = ScratchpadFeatureStrings(
         pageTitle: "Нотатник",
@@ -583,6 +748,35 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "Видалити «%@» та все в ньому?",
         padLimitFormat: "Ви можете зберігати до %d нотатників",
         previewFormatting: "Показувати форматування",
-        editText: "Редагувати текст"
+        editText: "Редагувати текст",
+        markBold: "Жирний",
+        markItalic: "Курсив",
+        markStrikethrough: "Закреслений",
+        markHeading: "Заголовок",
+        markBullet: "Маркований список",
+        markNumbered: "Нумерований список",
+        markQuote: "Цитата",
+        markCode: "Код",
+        markLink: "Посилання",
+        formatMarks: "Форматування",
+        textSize: "Розмір тексту"
     )
+}
+
+extension ScratchpadFeatureStrings {
+    /// One place both toolbars read their labels from, so the floating pad and
+    /// the island cannot drift into calling the same mark different things.
+    func label(for mark: ScratchpadMark) -> String {
+        switch mark {
+        case .bold: return markBold
+        case .italic: return markItalic
+        case .strikethrough: return markStrikethrough
+        case .heading: return markHeading
+        case .bullet: return markBullet
+        case .numbered: return markNumbered
+        case .quote: return markQuote
+        case .code: return markCode
+        case .link: return markLink
+        }
+    }
 }

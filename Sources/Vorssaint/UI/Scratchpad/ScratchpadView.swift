@@ -10,6 +10,7 @@ struct ScratchpadView: View {
     @ObservedObject private var service = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var backgroundOpacity = 0.0
+    @AppStorage(DefaultsKey.scratchpadTextSize) private var storedTextSize = ScratchpadSupport.defaultTextSize
     @State private var copied = false
     @State private var dialog: ScratchpadDialog?
     @State private var renameDraft = ""
@@ -18,12 +19,14 @@ struct ScratchpadView: View {
 
     private var text: ScratchpadFeatureStrings { FeatureStrings.scratchpad(l10n.language) }
     private var isEmpty: Bool { service.text.isEmpty }
+    private var textSize: CGFloat { CGFloat(ScratchpadSupport.sanitizedTextSize(storedTextSize)) }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             tabBar
             editor
+            if service.marksExpanded, !service.isPreviewing { formatBar }
             footer
         }
         .frame(minWidth: 280, minHeight: 220)
@@ -278,8 +281,10 @@ struct ScratchpadView: View {
     private var editor: some View {
         ZStack {
             PlainTextEditor(text: $service.text,
+                            fontSize: textSize,
                             textColor: .labelColor,
                             textContainerInset: Self.editorInset,
+                            usesFindBar: true,
                             onCreate: { ScratchpadService.shared.registerTextView($0) })
                 .opacity(service.isPreviewing ? 0 : 1)
                 .allowsHitTesting(!service.isPreviewing)
@@ -289,7 +294,7 @@ struct ScratchpadView: View {
                         // NSTextView has no placeholder of its own; this sits at
                         // the exact spot of the first line and never takes clicks.
                         Text(text.placeholder)
-                            .font(.system(size: PlainTextEditor.fontSize))
+                            .font(.system(size: textSize))
                             .foregroundStyle(.tertiary)
                             .padding(.leading,
                                      Self.editorInset.width + PlainTextEditor.lineFragmentPadding)
@@ -299,20 +304,36 @@ struct ScratchpadView: View {
                 }
 
             if service.isPreviewing {
-                MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(service.text))
+                MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(service.text),
+                                baseSize: textSize)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
 
+    private var formatBar: some View {
+        ScratchpadFormatBar(style: .pad)
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+    }
+
     private var footer: some View {
         HStack(spacing: 12) {
-            footerButton(service.isPreviewing ? "pencil" : "eye",
-                         service.isPreviewing ? text.editText : text.previewFormatting,
-                         tint: service.isPreviewing ? .accentColor : nil) {
-                service.togglePreview()
+            // Outside the disabled group below: an empty pad is exactly where
+            // someone reaches for a heading, and the chip is how they find one.
+            footerButton("textformat", text.formatMarks,
+                         tint: service.marksExpanded ? .accentColor : nil) {
+                withAnimation(.easeOut(duration: 0.15)) { service.toggleMarks() }
             }
-            footerButton(copied ? "checkmark" : "doc.on.doc",
+            .disabled(service.isPreviewing)
+
+            Group {
+                footerButton(service.isPreviewing ? "pencil" : "eye",
+                             service.isPreviewing ? text.editText : text.previewFormatting,
+                             tint: service.isPreviewing ? .accentColor : nil) {
+                    service.togglePreview()
+                }
+                footerButton(copied ? "checkmark" : "doc.on.doc",
                          copied ? text.copied : text.copyAll,
                          tint: copied ? .green : nil) {
                 service.copyAll()
@@ -325,13 +346,14 @@ struct ScratchpadView: View {
                 service.exportText(suggestedName:
                     ScratchpadSupport.exportFileName(title: service.selectedPadName, date: Date()))
             }
-            Spacer()
-            footerButton("trash", text.clearAction) {
-                service.clear()
+                Spacer()
+                footerButton("trash", text.clearAction) {
+                    service.clear()
+                }
             }
+            .disabled(isEmpty)
+            .opacity(isEmpty ? 0.5 : 1)
         }
-        .disabled(isEmpty)
-        .opacity(isEmpty ? 0.5 : 1)
         .padding(.horizontal, 12)
         .frame(height: 36)
     }
@@ -543,6 +565,7 @@ private struct ScratchpadResizeOverlay: NSViewRepresentable {
 /// Shared with the island's page, which shows the same formatted reading.
 struct MarkdownPreview: NSViewRepresentable {
     let blocks: [ScratchpadMarkdownBlock]
+    var baseSize: CGFloat = PlainTextEditor.defaultFontSize
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView()
@@ -557,13 +580,13 @@ struct MarkdownPreview: NSViewRepresentable {
         textView.isRichText = true
         textView.textContainerInset = NSSize(width: 7, height: 2)
         textView.linkTextAttributes = [.foregroundColor: NSColor.controlAccentColor]
-        textView.textStorage?.setAttributedString(Self.rendered(blocks))
+        textView.textStorage?.setAttributedString(Self.rendered(blocks, base: baseSize))
         return scroll
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? NSTextView else { return }
-        let content = Self.rendered(blocks)
+        let content = Self.rendered(blocks, base: baseSize)
         guard !textView.attributedString().isEqual(to: content) else { return }
         textView.textStorage?.setAttributedString(content)
     }
@@ -572,7 +595,8 @@ struct MarkdownPreview: NSViewRepresentable {
         Coordinator()
     }
 
-    private static func rendered(_ blocks: [ScratchpadMarkdownBlock]) -> NSAttributedString {
+    private static func rendered(_ blocks: [ScratchpadMarkdownBlock],
+                                 base: CGFloat) -> NSAttributedString {
         let result = NSMutableAttributedString()
         for (index, block) in blocks.enumerated() {
             if index > 0 {
@@ -580,15 +604,16 @@ struct MarkdownPreview: NSViewRepresentable {
                     && block.containerID == blocks[index - 1].containerID
                 result.append(NSAttributedString(string: sameContainer ? "\n" : "\n\n"))
             }
-            result.append(rendered(block))
+            result.append(rendered(block, base: base))
         }
         return result
     }
 
-    private static func rendered(_ block: ScratchpadMarkdownBlock) -> NSAttributedString {
+    private static func rendered(_ block: ScratchpadMarkdownBlock,
+                                 base: CGFloat) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 2
-        var font = NSFont.systemFont(ofSize: 13)
+        var font = NSFont.systemFont(ofSize: base)
         var color = NSColor.labelColor
         var prefix = ""
         var text = block.text
@@ -596,7 +621,9 @@ struct MarkdownPreview: NSViewRepresentable {
 
         switch block.kind {
         case .heading(let level):
-            let size: CGFloat = level == 1 ? 18 : (level == 2 ? 16 : 14)
+            // Steps above the body rather than fixed points, so the
+            // document keeps its shape at whatever size the pad is set to.
+            let size: CGFloat = base + (level == 1 ? 5 : (level == 2 ? 3 : 1))
             font = .systemFont(ofSize: size, weight: .semibold)
         case .unorderedListItem(let depth):
             prefix = String(repeating: "  ", count: depth - 1) + "• "
@@ -606,7 +633,9 @@ struct MarkdownPreview: NSViewRepresentable {
             prefix = String(repeating: "  ", count: depth - 1) + "▏ "
             color = .secondaryLabelColor
         case .code:
-            font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+            // A point under the body, as inline code is, since monospace
+            // reads larger than the system face at the same size.
+            font = .monospacedSystemFont(ofSize: base - 1, weight: .regular)
         case .thematicBreak:
             text = AttributedString(String(repeating: "─", count: 24))
             color = .secondaryLabelColor
@@ -652,7 +681,7 @@ struct MarkdownPreview: NSViewRepresentable {
 
         for (intent, range) in intents {
             var font = intent.contains(.code)
-                ? NSFont.monospacedSystemFont(ofSize: max(12, baseFont.pointSize - 1), weight: .regular)
+                ? NSFont.monospacedSystemFont(ofSize: max(9, baseFont.pointSize - 1), weight: .regular)
                 : baseFont
             if intent.contains(.stronglyEmphasized) {
                 font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)

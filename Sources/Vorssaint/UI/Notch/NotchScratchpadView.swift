@@ -18,7 +18,9 @@ struct NotchScratchpadView: View {
     @State private var copied = false
     @State private var hoveredPadID: UUID?
     @State private var editor = EditorHandle()
+    @AppStorage(DefaultsKey.scratchpadTextSize) private var storedTextSize = ScratchpadSupport.defaultTextSize
     private var text: ScratchpadFeatureStrings { FeatureStrings.scratchpad(l10n.language) }
+    private var textSize: CGFloat { CGFloat(ScratchpadSupport.sanitizedTextSize(storedTextSize)) }
     private static let editorInset = NSSize(width: 6, height: 6)
 
     /// Holds the editor's text view so a tab change can aim the caret at it
@@ -38,7 +40,10 @@ struct NotchScratchpadView: View {
                 VStack(spacing: 6) {
                     toolbar
                     ZStack(alignment: .topLeading) {
-                        PlainTextEditor(text: $pad.text, textColor: .white, textContainerInset: Self.editorInset) { view in
+                        PlainTextEditor(text: $pad.text, fontSize: textSize,
+                                        textColor: .white,
+                                        textContainerInset: Self.editorInset,
+                                        usesFindBar: true) { view in
                             view.insertionPointColor = .white
                             editor.view = view
                             DispatchQueue.main.async { focusEditor() }
@@ -47,10 +52,11 @@ struct NotchScratchpadView: View {
                         .allowsHitTesting(!pad.isPreviewing)
                         .accessibilityHidden(pad.isPreviewing)
                         if pad.isPreviewing {
-                            MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(pad.text))
+                            MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(pad.text),
+                                            baseSize: textSize)
                         } else if pad.text.isEmpty {
                             Text(text.placeholder)
-                                .font(.system(size: PlainTextEditor.fontSize))
+                                .font(.system(size: textSize))
                                 .foregroundStyle(.white.opacity(0.35))
                                 .padding(.leading, Self.editorInset.width + PlainTextEditor.lineFragmentPadding)
                                 .padding(.top, Self.editorInset.height)
@@ -70,17 +76,30 @@ struct NotchScratchpadView: View {
             DispatchQueue.main.async { focusEditor() }
         }
         .onChange(of: pad.isPreviewing) { _, previewing in
+            guard let view = editor.view else { return }
             if previewing {
-                if let view = editor.view, view.window?.firstResponder === view {
+                pad.hideFindBar(in: view)
+                if view.window?.firstResponder === view || PlainTextEditor.findBarHasKeyboard(in: view.window) {
                     view.window?.makeFirstResponder(nil)
                 }
             } else {
-                DispatchQueue.main.async { focusEditor() }
+                DispatchQueue.main.async {
+                    // Preview closed the bar and took the keyboard, so a bar
+                    // up now was opened by Command-F and a focused text was
+                    // given the keyboard by Command-G, both on their way out
+                    // of preview. Either keeps its focus and the match.
+                    guard view.enclosingScrollView?.isFindBarVisible != true,
+                          view.window?.firstResponder !== view else { return }
+                    focusEditor()
+                }
             }
         }
         .onChange(of: service.scratchpadCloseSerial) { _, _ in
             guard let selectedPad else { return }
             requestClose(selectedPad)
+        }
+        .onChange(of: service.scratchpadFindSerial) { _, _ in
+            pad.performFind(service.scratchpadFindAction, in: editor.view)
         }
         .task(id: copied) {
             guard copied else { return }
@@ -90,24 +109,45 @@ struct NotchScratchpadView: View {
         }
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 4) {
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal) {
-                    HStack(spacing: 4) {
-                        ForEach(pad.pads) { entry in tab(entry).id(entry.id) }
-                    }
-                }
-                .scrollIndicators(.hidden)
-                .onAppear {
-                    guard let selected = pad.selectedPadID else { return }
-                    proxy.scrollTo(selected, anchor: .center)
-                }
-                .onChange(of: pad.selectedPadID) { _, selected in
-                    guard let selected else { return }
-                    withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(selected, anchor: .center) }
+    private var tabStrip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: 4) {
+                    ForEach(pad.pads) { entry in tab(entry).id(entry.id) }
                 }
             }
+            .scrollIndicators(.hidden)
+            .onAppear {
+                guard let selected = pad.selectedPadID else { return }
+                proxy.scrollTo(selected, anchor: .center)
+            }
+            .onChange(of: pad.selectedPadID) { _, selected in
+                guard let selected else { return }
+                withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(selected, anchor: .center) }
+            }
+        }
+    }
+
+    private var markRow: some View {
+        ScratchpadFormatBar(style: .island, editor: editor.view)
+    }
+
+    private var toolbar: some View {
+        HStack(spacing: 4) {
+            // The island has one row to spend. The marks take the tab strip's
+            // place while they are up rather than squeezing in beside it, and
+            // the chip stays put so the same click puts the tabs back.
+            if pad.marksExpanded {
+                markRow
+            } else {
+                tabStrip
+            }
+            NotchIconButton(symbol: "textformat",
+                            title: text.formatMarks,
+                            selected: pad.marksExpanded) {
+                withAnimation(.easeOut(duration: 0.15)) { pad.toggleMarks() }
+            }
+            .disabled(pad.isPreviewing)
             NotchIconButton(symbol: "plus",
                             title: pad.canCreatePad
                                 ? text.newPad

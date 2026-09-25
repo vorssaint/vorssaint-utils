@@ -84,6 +84,10 @@ final class NotchService: ObservableObject {
     /// Bumped when Command-W asks the Scratchpad page to close its selected
     /// pad, so the confirmation stays in the page as it does in the floating pad.
     @Published private(set) var scratchpadCloseSerial = 0
+    /// Find runs against the island's own text view, which the page holds;
+    /// the key arrives here, so it is passed on the way Command-W already is.
+    @Published private(set) var scratchpadFindSerial = 0
+    private(set) var scratchpadFindAction = NSTextFinder.Action.showFindInterface
     @Published private var captureContentHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
@@ -879,20 +883,32 @@ final class NotchService: ObservableObject {
     private func handleScratchpadKey(_ event: NSEvent) -> Bool {
         guard selected == .scratchpad, !showingAppPanel, !showingSections, selectedMetric == nil else { return false }
         let pad = ScratchpadService.shared
-        let commandOnly = event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command
-        guard let action = ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+        let commandOnly = event.modifierFlags.intersection([.command, .control, .option]) == .command
+        let shift = event.modifierFlags.contains(.shift)
+        guard let action = ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: event.charactersIgnoringModifiers,
                                                                commandOnly: commandOnly,
+                                                               shift: shift,
                                                                canCreatePad: pad.canCreatePad,
                                                                canClosePad: pad.canClosePad) else {
             // At the tab limit Command-T still belongs to the pad, not the text.
-            return commandOnly && event.charactersIgnoringModifiers?.lowercased() == "t"
+            return commandOnly && !shift && event.charactersIgnoringModifiers?.lowercased() == "t"
         }
         switch action {
         case .createPad: pad.createPad(defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle)
         case .closeSelectedPad: scratchpadCloseSerial += 1
         case .hidePad: collapse()
+        case .find: requestScratchpadFind(.showFindInterface)
+        case .findNext: requestScratchpadFind(.nextMatch)
+        case .findPrevious: requestScratchpadFind(.previousMatch)
         }
         return true
+    }
+
+    /// The editor lives in the view, so the request goes out as a serial and
+    /// the view reads which of the finder's actions it was for.
+    private func requestScratchpadFind(_ action: NSTextFinder.Action) {
+        scratchpadFindAction = action
+        scratchpadFindSerial += 1
     }
 
     func activateQuickAction(_ action: NotchQuickAction) {
@@ -1903,9 +1919,11 @@ final class NotchService: ObservableObject {
             }
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53 {
                 // A level being typed in the mixer cancels on Escape by
-                // itself; the island collapses on the next one.
+                // itself, and the scratchpad's find bar closes on it; the
+                // island collapses on the next one.
                 if let editor = self.panel?.firstResponder as? NSTextView, editor.isFieldEditor,
                    (editor.delegate as AnyObject?) is MixerPercentNativeTextField { return event }
+                if PlainTextEditor.findBarHasKeyboard(in: self.panel) { return event }
                 self.collapse()
                 return nil
             }

@@ -2652,50 +2652,50 @@ enum ScreenshotFeatureTests {
                     ScratchpadDocument.initial(defaultName: "Scratchpad").pads[0]),
                "only closing a scratchpad with content needs destructive confirmation")
 
-        suite.expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "t",
+        suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "t",
                                                    commandOnly: true,
                                                    canCreatePad: true,
                                                    canClosePad: true) == .createPad,
                "Command-T creates a scratchpad tab while the pad is focused")
-        suite.expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "t",
+        suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "t",
                                                    commandOnly: true,
                                                    canCreatePad: false,
                                                    canClosePad: true) == nil,
                "Command-T is idle at the scratchpad tab limit")
-        suite.expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "w",
+        suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "w",
                                                    commandOnly: true,
                                                    canCreatePad: true,
                                                    canClosePad: true) == .closeSelectedPad,
                "Command-W closes the selected scratchpad tab when more than one remains")
-        suite.expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "w",
+        suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "w",
                                                    commandOnly: true,
                                                    canCreatePad: true,
                                                    canClosePad: false) == .hidePad,
                "Command-W on the last scratchpad tab hides the pad")
-        suite.expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "t",
+        suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "t",
                                                    commandOnly: false,
                                                    canCreatePad: true,
                                                    canClosePad: true) == nil
-                && ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "w",
+                && ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "w",
                                                        commandOnly: false,
                                                        canCreatePad: true,
                                                        canClosePad: true) == nil
-                && ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "a",
+                && ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "a",
                                                        commandOnly: true,
                                                        canCreatePad: true,
                                                        canClosePad: true) == nil,
                "scratchpad tab shortcuts need Command alone on T or W")
-        suite.expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "W",
+        suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "W",
                                                    commandOnly: true,
                                                    canCreatePad: true,
                                                    canClosePad: true) == .closeSelectedPad,
                "Caps Lock preserves the scratchpad close shortcut")
-        suite.expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "z",
+        suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "z",
                                                    commandOnly: true,
                                                    canCreatePad: true,
                                                    canClosePad: true) == nil,
                "the AZERTY Z at the US W position must not close a scratchpad")
-        suite.expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: nil,
+        suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: nil,
                                                    commandOnly: true,
                                                    canCreatePad: true,
                                                    canClosePad: true) == nil,

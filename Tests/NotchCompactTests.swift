@@ -27,6 +27,8 @@ enum NotchCompactTests {
     final class NotchService: ObservableObject {
         var presentationWindow: NSWindow?
         @Published var scratchpadCloseSerial = 0
+        @Published var scratchpadFindSerial = 0
+        var scratchpadFindAction = NSTextFinder.Action.showFindInterface
         var contentSize = CGSize(width: 304, height: 122)
         var selected = NotchModule.controls
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
@@ -58,6 +60,11 @@ enum NotchCompactTests {
         func renamePad(_ id: UUID, to name: String) {}
         func selectPad(_ id: UUID) {}
         func copyAll() {}
+        func apply(_ mark: ScratchpadMark, through editor: NSTextView? = nil) {}
+        @Published var marksExpanded = false
+        func toggleMarks() { marksExpanded.toggle() }
+        func performFind(_ action: NSTextFinder.Action, in editor: NSTextView? = nil) {}
+        func hideFindBar(in editor: NSTextView) {}
         func togglePreview() { isPreviewing.toggle() }
         func show(allowsIsland: Bool = true) {}
         func exportText(suggestedName: String, from window: NSWindow? = nil) {}
@@ -84,8 +91,15 @@ enum NotchCompactTests {
         let action: () -> Void
         var body: some View { Button(title, action: action) }
     }
+    struct ScratchpadFormatBar: View {
+        enum Style { case pad, island }
+        let style: Style
+        var editor: NSTextView?
+        var body: some View { Color.clear }
+    }
     struct MarkdownPreview: View {
         let blocks: [ScratchpadMarkdownBlock]
+        var baseSize: CGFloat = 13
         var body: some View { Color.clear }
     }
     struct Music { var playback: Bool? = true }
@@ -103,9 +117,15 @@ enum NotchCompactTests {
         func makeKey() { Self.key = self }
         func makeFirstResponder(_ view: TextView?) { responderChanges += 1 }
     }
+    /// Not named ScrollView: inside this namespace that would shadow SwiftUI's
+    /// own, which the notch views use for their rows.
+    final class EditorScrollView {
+        var isFindBarVisible = false
+    }
     final class TextView {
         var window: Window?
         var string = "note"
+        var enclosingScrollView: EditorScrollView? = EditorScrollView()
         func setSelectedRange(_ range: NSRange) {}
         func scrollRangeToVisible(_ range: NSRange) {}
     }

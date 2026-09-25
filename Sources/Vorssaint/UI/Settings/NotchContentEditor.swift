@@ -195,6 +195,7 @@ struct NotchPagePreview: View {
 private struct NotchScratchpadStill: View {
     @ObservedObject private var pad = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.scratchpadTextSize) private var storedTextSize = ScratchpadSupport.defaultTextSize
 
     var body: some View {
         let text = FeatureStrings.scratchpad(l10n.language)
@@ -211,7 +212,7 @@ private struct NotchScratchpadStill: View {
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 Spacer(minLength: 0)
-                ForEach(["plus", "eye", "doc.on.doc", "ellipsis"], id: \.self) { symbol in
+                ForEach(["textformat", "plus", "eye", "doc.on.doc", "ellipsis"], id: \.self) { symbol in
                     Image(systemName: symbol)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.55))
@@ -219,7 +220,7 @@ private struct NotchScratchpadStill: View {
                 }
             }
             Text(pad.text.isEmpty ? text.placeholder : pad.text)
-                .font(.system(size: PlainTextEditor.fontSize))
+                .font(.system(size: ScratchpadSupport.sanitizedTextSize(storedTextSize)))
                 .foregroundStyle(.white.opacity(pad.text.isEmpty ? 0.35 : 0.9))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(10)
