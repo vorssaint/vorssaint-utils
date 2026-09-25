@@ -30,6 +30,9 @@ final class AgentUsageService: ObservableObject {
     /// last half hour, or holding a turn, are checked this often instead.
     private static let poll: TimeInterval = 2
     private static let pollWindow: TimeInterval = 30 * 60
+    /// A live log may append many times per second; one summary per second
+    /// keeps the island current without repeatedly totaling 13 weeks of use.
+    private static let publishDelay: TimeInterval = 1
 
     private let queue = DispatchQueue(label: "com.vorssaint.agent-usage", qos: .utility, autoreleaseFrequency: .workItem)
     private let home = FileManager.default.homeDirectoryForCurrentUser
@@ -315,7 +318,7 @@ final class AgentUsageService: ObservableObject {
     private func schedulePublish() {
         guard !publishScheduled else { return }
         publishScheduled = true
-        queue.asyncAfter(deadline: .now() + 0.5) { [self] in
+        queue.asyncAfter(deadline: .now() + Self.publishDelay) { [self] in
             publishScheduled = false
             publish()
         }

@@ -233,6 +233,34 @@ final class FanControlService: ObservableObject {
         connection = nil
     }
 
+    /// Remember whether the attempted uninstall is removing a registration
+    /// that must be restored if the app remains installed.
+    static var hasRegisteredHelperForRemoval: Bool {
+        switch appService.status {
+        case .notRegistered, .notFound: return false
+        case .enabled, .requiresApproval: return true
+        @unknown default: return true
+        }
+    }
+
+    /// A failed permission reset leaves the app installed after the helper was
+    /// removed. Try to restore its registration and report whether it can run;
+    /// macOS may require approval again even when registration succeeds.
+    static func restoreRegistrationAfterFailedRemoval() -> Bool {
+        let service = appService
+        if service.status == .notRegistered || service.status == .notFound {
+            try? service.register()
+        }
+        let status = service.status
+        if status == .enabled || status == .requiresApproval {
+            UserDefaults.standard.set(helperVersion, forKey: DefaultsKey.fanControlHelperVersion)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlHelperVersion)
+        }
+        DispatchQueue.main.async { shared.refresh() }
+        return status == .enabled
+    }
+
     /// Used by the complete-uninstall path from its background queue. The
     /// daemon is removed only after it confirms automatic control, so teardown
     /// can never kill the recovery mechanism while a manual session remains.

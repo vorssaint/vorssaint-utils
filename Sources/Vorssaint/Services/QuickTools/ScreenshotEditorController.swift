@@ -140,7 +140,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var isDirty = false
 
     let scale: CGFloat
-    /// Mosaic twins of the base image, one per blur level in use.
+    /// Sampled mosaics of the base image, one per blur level in use.
     private(set) var pixelated: [Int: CGImage] = [:]
 
     private var undoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
@@ -1099,8 +1099,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         pixelated[level] = mosaic
     }
 
-    /// Keeps a mosaic for each level in use and drops the rest: each one is
-    /// as large as the capture.
+    /// Keeps a sampled mosaic for each level in use and drops the rest.
     private func ensurePixelatedForAnnotations() {
         let levels = ScreenshotSupport.mosaicLevels(for: annotations)
         pixelated = pixelated.filter { levels.contains($0.key) }

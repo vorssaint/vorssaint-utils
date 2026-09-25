@@ -5,6 +5,37 @@ import Foundation
 
 enum WallpaperContract {
     static func run(_ suite: TestSuite) {
+        let gallery = WallpaperGalleryLifecycle()
+        let firstViewer = UUID()
+        let secondViewer = UUID()
+        let beforeOpen = gallery.invalidate()
+        suite.expect(!gallery.isVisible && !gallery.accepts(beforeOpen),
+                     "wallpaper scanning stays unavailable before the gallery opens")
+        gallery.begin(firstViewer)
+        let firstScan = gallery.invalidate()
+        suite.expect(gallery.accepts(firstScan), "the open gallery accepts its current scan")
+        gallery.end(firstViewer)
+        suite.expect(!gallery.accepts(firstScan), "closing rejects a late scan result")
+        gallery.begin(firstViewer)
+        let reopenedScan = gallery.invalidate()
+        suite.expect(gallery.accepts(reopenedScan) && !gallery.accepts(firstScan),
+                     "reopening accepts only the new scan result")
+        let replacementScan = gallery.invalidate()
+        suite.expect(!gallery.accepts(reopenedScan) && gallery.accepts(replacementScan),
+                     "a newer refresh replaces an earlier one")
+        gallery.begin(secondViewer)
+        let overlappingScan = gallery.invalidate()
+        suite.expect(!gallery.end(firstViewer) && gallery.accepts(overlappingScan),
+                     "closing the old panel keeps the new panel's scan active")
+        suite.expect(gallery.end(secondViewer) && !gallery.accepts(overlappingScan),
+                     "closing the last panel cancels its scan")
+        gallery.begin(firstViewer)
+        gallery.endAll()
+        gallery.begin(secondViewer)
+        let scanAfterReset = gallery.invalidate()
+        suite.expect(!gallery.end(firstViewer) && gallery.accepts(scanAfterReset),
+                     "a delayed close from before feature reset cannot cancel a new panel")
+
         let appleRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("vorssaint-wallpaper-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: appleRoot) }

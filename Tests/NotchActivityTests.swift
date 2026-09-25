@@ -620,8 +620,8 @@ enum NotchActivityTests {
         }
     }
 
-    /// A download shows its arrow and its progress in wings no wider than
-    /// they need, not in a strip wide enough for a name it had to clip.
+    /// A crowded menu keeps the short arrow and progress; a wider wing names
+    /// the file again without reserving the same width for every filename.
     private static func compactDownloadContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         let font = NSFont.monospacedDigitSystemFont(ofSize: NotchDownloadSupport.percentSize, weight: .medium)
@@ -632,7 +632,7 @@ enum NotchActivityTests {
                         let geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
                                                      cameraWidth: notched ? 180 : 160, layout: layout,
                                                      menuBarHeight: barHeight, compactSideRoom: room)
-                        let download = geometry.compactDownloadGeometry
+                        let download = geometry.compactDownloadGeometry()
                         let size = download.compactActivitySize
                         if download.compactActivityUsesFooter {
                             suite.expect(notched && room < 44 && size.width == geometry.cameraWidth,
@@ -657,6 +657,34 @@ enum NotchActivityTests {
                     }
                 }
             }
+        }
+        let narrow = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180,
+                                   menuBarHeight: 32, compactSideRoom: 80)
+        suite.expect(NotchDownloadSupport.compactWing(for: "a.zip", in: narrow) == 56
+                     && !NotchDownloadSupport.showsCompactName(in: narrow.compactDownloadGeometry()),
+                     "crowded menus keep the short download indicator without a clipped file name")
+        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180,
+                                  menuBarHeight: 32, compactSideRoom: 200)
+        let short = NotchDownloadSupport.compactWing(for: "a.zip", in: roomy)
+        let long = NotchDownloadSupport.compactWing(for: "a much longer download filename.zip", in: roomy)
+        suite.expect(short >= 64 && short < NotchDownloadSupport.compactNameWingThreshold
+                     && short < long && long <= 160
+                     && NotchDownloadSupport.compactWing(for: nil, in: roomy) == 56,
+                     "short filenames do not reserve an empty 94-point wing; long names have a cap")
+        for layout in [NotchSize.compact, .spacious] {
+            let wideMenu = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180,
+                                         layout: layout, menuBarHeight: 32, compactSideRoom: 200)
+            suite.expect(wideMenu.compactDownloadGeometry(wing: short).compactActivityWingWidth == short
+                         && wideMenu.compactDownloadGeometry(wing: long).compactActivityWingWidth == long,
+                         "the 440/520-point music preference does not stretch a download beyond its measured name")
+        }
+        for room in [CGFloat(94), 110, 160, 200] {
+            var constrained = roomy
+            constrained.compactSideRoom = room
+            let download = constrained.compactDownloadGeometry(wing: long)
+            suite.expect(download.compactActivityWingWidth == min(room, long)
+                         && NotchDownloadSupport.showsCompactName(in: download),
+                         "a download name fits within measured menu room once 94 points are available")
         }
     }
 

@@ -22,6 +22,15 @@ enum KeepAwakeDimmingTests {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        let alreadyClosed = C.reset()
+        alreadyClosed.isActive = true
+        alreadyClosed.clamshellActive = true
+        C.LidDisplayDimmer.reading = 0.7
+        alreadyClosed.dimScreenOnLidClose = true
+        expect(C.LidDisplayDimmer.written == [0]
+               && alreadyClosed.savedDisplayBrightness == 0.7,
+               "enabling dimming with the lid already closed dims without waiting for another lid event")
+
         let closing = armed()
         C.BrightnessService.lid = true
         C.DimmingObserver.callback?()

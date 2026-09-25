@@ -144,12 +144,17 @@ struct NotchDownloadStrip: View {
         let item = downloads.items.first { $0.active && !$0.completed }
         Button { service.open(.downloads) } label: {
             HStack(spacing: 0) {
-                Group {
+                HStack(spacing: 6) {
                     if geometry.compactActivityWingWidth >= 40 {
                         Image(systemName: "arrow.down.circle.fill").font(.system(size: iconSize))
+                        if NotchDownloadSupport.showsCompactName(in: geometry) {
+                            Text(item?.name ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle)
+                                .font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                        }
                     }
                 }
                 .padding(.leading, geometry.compactActivityWingWidth >= 40 ? iconInset : 0)
+                .padding(.trailing, 4)
                 // Each wing anchors to its own edge, so the silhouette's curve
                 // decides the margin instead of the content's own width.
                 .frame(width: geometry.compactActivityWingWidth, alignment: .leading).clipped()

@@ -556,6 +556,7 @@ struct Strings {
     let homebrewCasks: String
     let homebrewNoPackages: String
     let homebrewDependencies: String
+    let homebrewGroupDependencies: String
     let homebrewNoSelection: String
     let homebrewDetailsTitle: String
     let homebrewInstall: String
@@ -1132,6 +1133,7 @@ struct Strings {
     let musicBlockReplacementNone: String
     let musicBlockReplacementBlocked: String
     let musicBlockChooseApp: String
+    let musicBlockPlayReplacement: String
 
     // MARK: Cleaner
     let cleanerName: String
@@ -1253,6 +1255,7 @@ struct Strings {
     let focusFollowsMouseCaption: String
     let focusFollowsMouseDelay: String
     let switcherMinimizedPlacementLabel: String
+    let switcherTreatHiddenAppsLikeMinimized: String
     let switcherMinimizedPlacementNormal: String
     let switcherMinimizedPlacementEnd: String
     let switcherMinimizedPlacementHidden: String
@@ -1662,6 +1665,7 @@ extension Strings {
         homebrewCasks: "Casks",
         homebrewNoPackages: "Nenhum pacote encontrado",
         homebrewDependencies: "Dependências",
+        homebrewGroupDependencies: "Agrupar dependências",
         homebrewNoSelection: "Selecione um pacote instalado ou pesquise um novo.",
         homebrewDetailsTitle: "Detalhes do pacote",
         homebrewInstall: "Instalar",
@@ -2208,6 +2212,7 @@ extension Strings {
         musicBlockReplacementNone: "Nenhum",
         musicBlockReplacementBlocked: "O Música e o iTunes são os apps bloqueados, então não podem abrir no lugar. Escolha outro app.",
         musicBlockChooseApp: "Escolher app…",
+        musicBlockPlayReplacement: "Reproduzir após abrir o app substituto",
         cleanerName: "Limpeza",
         cleanerIntroTitle: "Limpe o lixo do Mac",
         cleanerIntroCaption: "Procura restos de apps desinstalados, caches, registros e a Lixeira. Você revisa tudo antes e os itens removidos vão para a Lixeira.",
@@ -2326,7 +2331,8 @@ extension Strings {
         focusFollowsMouseName: "Foco ao passar o mouse",
         focusFollowsMouseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
         focusFollowsMouseDelay: "Atraso ao passar o mouse",
-        switcherMinimizedPlacementLabel: "Janelas minimizadas e apps ocultos",
+        switcherMinimizedPlacementLabel: "Janelas minimizadas",
+        switcherTreatHiddenAppsLikeMinimized: "Tratar apps ocultos como janelas minimizadas",
         switcherMinimizedPlacementNormal: "Ordem normal",
         switcherMinimizedPlacementEnd: "Colocar no final",
         switcherMinimizedPlacementHidden: "Ocultar",
@@ -2737,6 +2743,7 @@ extension Strings {
         homebrewCasks: "Casks",
         homebrewNoPackages: "No packages found",
         homebrewDependencies: "Dependencies",
+        homebrewGroupDependencies: "Group dependencies",
         homebrewNoSelection: "Select an installed package or search for a new one.",
         homebrewDetailsTitle: "Package details",
         homebrewInstall: "Install",
@@ -3283,6 +3290,7 @@ extension Strings {
         musicBlockReplacementNone: "None",
         musicBlockReplacementBlocked: "Music and iTunes are the apps being blocked, so they can’t open instead. Choose another app.",
         musicBlockChooseApp: "Choose app…",
+        musicBlockPlayReplacement: "Play after opening replacement",
         cleanerName: "Cleaner",
         cleanerIntroTitle: "Clean up your Mac",
         cleanerIntroCaption: "Scans for leftovers from uninstalled apps, caches, logs and the Trash. You review everything first and removed items go to the Trash.",
@@ -3401,7 +3409,8 @@ extension Strings {
         focusFollowsMouseName: "Focus follows mouse",
         focusFollowsMouseCaption: "Focuses and raises the window under the pointer after a short pause.",
         focusFollowsMouseDelay: "Hover delay",
-        switcherMinimizedPlacementLabel: "Minimized windows and hidden apps",
+        switcherMinimizedPlacementLabel: "Minimized windows",
+        switcherTreatHiddenAppsLikeMinimized: "Treat hidden apps like minimized windows",
         switcherMinimizedPlacementNormal: "Normal ordering",
         switcherMinimizedPlacementEnd: "Place at end",
         switcherMinimizedPlacementHidden: "Hide",

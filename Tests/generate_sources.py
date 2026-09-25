@@ -482,6 +482,8 @@ def main():
                                                 "playback?.isPlaying == true, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("captureControls: captureControls != nil)",
                                                 "captureControls: captureControls != nil, in: ReviewDefaults.current)")
+    music_visibility = music_visibility.replace(
+        "NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name", "downloadName")
     music_visibility = music_visibility.replace("AppFeature.monitorDisk.isAvailable",
                                                 "AppFeature.monitorDisk.isAvailable(in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("AppFeature.fanControl.isAvailable",
@@ -895,6 +897,7 @@ def main():
     keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"
     keep_awake_methods = [
         "    func refreshPasswordlessStatus(",
+        "    func resumeAfterFailedSystemTeardown(",
         "    private func activate(end:",
         "    func deactivate(reason:",
         "    private func applyClamshellPreference(",
@@ -970,11 +973,14 @@ def main():
     self_uninstall = "Sources/Vorssaint/Services/SelfUninstall.swift"
     write("SelfUninstallRemoval.swift", "import Foundation\n\nextension SelfUninstallContract {\nenum Host {\n"
           + "static let bundleID = \"test\"\n"
-          + "static func suspendInputInterceptors() -> Bool { events.append(\"suspend\"); return true }\n"
-          + "static func restoreSleepBeforeRemoval() -> Bool { events.append(\"sleep\"); return true }\n"
-          + "@discardableResult static func detachFromSystem() -> Bool { events.append(\"detach\"); return true }\n"
+          + "static func suspendInputInterceptors() -> Bool { events.append(\"suspend\"); return suspensionAllowed }\n"
+          + "static func restoreSleepBeforeRemoval() -> Bool { events.append(\"sleep\"); return sleepRestoreAllowed }\n"
+          + "static func detachFanControl() -> Bool { events.append(\"fan\"); return detachAllowed }\n"
+          + "static func detachLoginItem() { events.append(\"login\") }\n"
           + "static func removePreferences() { events.append(\"preferences\") }\n"
           + "static func trashOwnBundleAndQuit() { events.append(\"trash\") }\n"
+          + declaration(self_uninstall, "    private static func detachFromSystem()")
+            .replace("private static", "static", 1)
           + declaration(self_uninstall, "    static func clearPermissions(")
           + declaration(self_uninstall, "    static func uninstallCompletely(")
           + declaration(self_uninstall, "    private static func removeSudoersRuleIfPresent(")

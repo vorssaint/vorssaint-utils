@@ -142,6 +142,29 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    /// The uninstall path restored normal sleep directly but left this app
+    /// installed. Discard the old session state before acquiring the rule again.
+    func resumeAfterFailedSystemTeardown() {
+        let restorePending = clamshellRestorePending
+        if !restorePending { clamshellOperationGeneration &+= 1 }
+        // An installation prompt may already be open. Its existing reply can
+        // finish setup without showing a second authorization request.
+        clamshellEnablePending = false
+        lidSleepGeneration &+= 1
+        lidSleepAttemptsRemaining = 0
+        clamshellActive = false
+        passwordlessClamshell = false
+        UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+        // A prior restore can still finish with an authorized off. Its reply
+        // will re-enable this session in order after that operation completes.
+        if restorePending { return }
+        if clamshellPreferred, AppFeature.keepAwake.isAvailable {
+            applyClamshellPreference()
+        } else {
+            refreshPasswordlessStatus()
+        }
+    }
+
     // MARK: - Session
 
     func toggle() {
@@ -977,6 +1000,12 @@ final class KeepAwakeManager: ObservableObject {
         lidDimmingNotificationPort = port
         IONotificationPortSetDispatchQueue(port, DispatchQueue.main)
         lidClosedForDimming = BrightnessService.lidClosed()
+        // The option can be enabled from an external display while the lid is
+        // already shut. No transition follows registration in that case.
+        if armed, lidClosedForDimming == true, savedDisplayBrightness == nil {
+            applyDimmingAction(LidDimmingSupport.lidClosed(
+                currentBrightness: LidDisplayDimmer.currentBrightness()))
+        }
     }
 
     /// General interest fires on far more than lid transitions, so the

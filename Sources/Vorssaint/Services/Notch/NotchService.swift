@@ -53,6 +53,7 @@ struct NotchNotice: Equatable {
 /// their original owners, gates and privacy rules.
 final class NotchService: ObservableObject {
     static let shared = NotchService()
+    static let fullscreenVisibilityDidChange = Notification.Name("NotchFullscreenVisibilityDidChange")
 
     @Published private(set) var geometry = NotchGeometry(
         screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 0, cameraWidth: 0)
@@ -134,7 +135,13 @@ final class NotchService: ObservableObject {
     private var running = false
     private var session = NotchSessionState()
     private var suspended: Bool { !session.canPresent }
-    private var hiddenInFullscreen = false
+    private var hiddenInFullscreen = false {
+        didSet {
+            guard hiddenInFullscreen != oldValue else { return }
+            NotificationCenter.default.post(name: Self.fullscreenVisibilityDidChange, object: self,
+                                            userInfo: ["hidden": hiddenInFullscreen])
+        }
+    }
     private var settingsSignature = ""
     private var gesture = NotchGestureSupport()
     private var sectionScroll = NotchSectionScroll()
@@ -213,7 +220,9 @@ final class NotchService: ObservableObject {
         switch compactActivity {
         case .music: return geometry.compactMusicGeometry
         case .timer: return geometry.compactTimerGeometry(showsDownloads: hasDownloadActivity)
-        case .downloads: return geometry.compactDownloadGeometry
+        case .downloads:
+            let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
+            return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing)
         case .calendar: return geometry.compactCalendarGeometry(wing: calendarStripWing)
         default: return geometry

@@ -2455,6 +2455,7 @@ enum FeatureCatalogTests {
 enum MusicLaunchBlockerContract {
     enum Environment {
         static var enabled = true
+        static var playReplacement = true
         static var available = true
         static var trusted = true
         static var createsTap = true
@@ -2470,7 +2471,10 @@ enum MusicLaunchBlockerContract {
     enum UserDefaults {
         static let standard = Store()
         final class Store {
-            func bool(forKey key: String) -> Bool { Environment.enabled }
+            func bool(forKey key: String) -> Bool {
+                key == DefaultsKey.musicBlockPlayReplacement
+                    ? Environment.playReplacement : Environment.enabled
+            }
         }
     }
     static func AXIsProcessTrusted() -> Bool { Environment.trusted }
@@ -2557,6 +2561,7 @@ enum MusicLaunchBlockerContract {
             service.replacementCalls = 0
             service.replacementPlays = []
             Environment.enabled = true
+            Environment.playReplacement = true
             Environment.available = true
             Environment.trusted = true
             Environment.createsTap = true
@@ -2604,6 +2609,12 @@ enum MusicLaunchBlockerContract {
         launch(NSRunningApplication(50))
         suite.expect(service.replacementPlays == [true, false],
                      "only Play/Pause asks the replacement to play; the other media keys only open it")
+        Environment.playReplacement = false
+        key()
+        launch(NSRunningApplication(51))
+        suite.expect(service.replacementPlays == [true, false, false],
+                     "turning off replacement playback still opens it without sending play")
+        Environment.playReplacement = true
         let second = NSRunningApplication(3)
         launch(second)
         suite.expect(second.forceCalls == 0 && service.lastMediaKeyAt == nil,
