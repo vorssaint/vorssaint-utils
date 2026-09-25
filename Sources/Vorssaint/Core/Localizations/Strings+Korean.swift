@@ -392,6 +392,8 @@ extension Strings {
         homebrewCasks: "Cask",
         homebrewNoPackages: "패키지를 찾을 수 없습니다",
         homebrewDependencies: "종속성",
+        homebrewOrphans: "더 이상 필요 없음",
+        homebrewOrphansNote: "종속성으로 설치되었지만 지금은 설치된 어떤 패키지도 필요로 하지 않습니다.",
         homebrewNoSelection: "설치한 패키지를 선택하거나 새 패키지를 검색하세요.",
         homebrewDetailsTitle: "패키지 세부 정보",
         homebrewInstall: "설치",

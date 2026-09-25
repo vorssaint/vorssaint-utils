@@ -110,9 +110,13 @@ enum HomebrewDependencyGraph {
     /// become rows, so a filter never hides a dependency whose parent it hid.
     /// A dependency nothing visible reaches, or one with a pending update,
     /// stays a row of its own so every update keeps its place at the top.
+    /// A dependency no installed package needs any more is an orphan, listed
+    /// apart unless it has an update.
     static func fold(_ visible: [HomebrewPackage],
-                     installed: [HomebrewPackage]) -> (rows: [HomebrewPackage], dependencies: [String: [HomebrewPackage]]) {
-        guard installed.contains(where: { $0.installedOnRequest != nil }) else { return (visible, [:]) }
+                     installed: [HomebrewPackage]) -> (rows: [HomebrewPackage],
+                                                       dependencies: [String: [HomebrewPackage]],
+                                                       orphans: [HomebrewPackage]) {
+        guard installed.contains(where: { $0.installedOnRequest != nil }) else { return (visible, [:], []) }
         var byName: [String: HomebrewPackage] = [:]
         for package in installed where package.kind == .formula {
             byName[package.name] = package
@@ -121,9 +125,11 @@ enum HomebrewDependencyGraph {
             if byName[short] == nil { byName[short] = package }
         }
 
+        let visibleIDs = Set(visible.map(\.id))
         var dependencies: [String: [HomebrewPackage]] = [:]
         var reached: Set<String> = []
-        for root in visible where root.installedOnRequest != false {
+        var needed: Set<String> = []
+        for root in installed where root.installedOnRequest != false {
             var seen: Set<String> = [root.id]
             var found: [HomebrewPackage] = []
             var queue = root.requires
@@ -132,16 +138,21 @@ enum HomebrewDependencyGraph {
                 found.append(package)
                 queue += package.requires
             }
-            guard !found.isEmpty else { continue }
+            needed.formUnion(found.map(\.id))
+            guard visibleIDs.contains(root.id), !found.isEmpty else { continue }
             dependencies[root.id] = found.sorted {
                 $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
             reached.formUnion(found.map(\.id))
         }
         let rows = visible.filter {
-            $0.installedOnRequest != false || $0.hasUpdateAvailable || !reached.contains($0.id)
+            $0.installedOnRequest != false || $0.hasUpdateAvailable
+                || (needed.contains($0.id) && !reached.contains($0.id))
         }
-        return (rows, dependencies)
+        let orphans = visible.filter {
+            $0.installedOnRequest == false && !$0.hasUpdateAvailable && !needed.contains($0.id)
+        }
+        return (rows, dependencies, orphans)
     }
 }
 

@@ -693,8 +693,9 @@ enum RepositoryFeatureTests {
         """
         let dependencyPackages = (try? HomebrewParser.parseInfoJSON(Data(dependencyJSON.utf8))) ?? []
         let folded = HomebrewDependencyGraph.fold(dependencyPackages, installed: dependencyPackages)
-        suite.expect(folded.rows.map(\.name) == ["cask-app", "app-a", "example/tap/app-b", "orphan-lib"],
-                     "Homebrew keeps requested packages and unneeded dependencies as rows, found \(folded.rows.map(\.name))")
+        suite.expect(folded.rows.map(\.name) == ["cask-app", "app-a", "example/tap/app-b"]
+                     && folded.orphans.map(\.name) == ["orphan-lib"],
+                     "Homebrew keeps requested packages as rows and lists a dependency nothing needs as an orphan, found \(folded.rows.map(\.name)) and \(folded.orphans.map(\.name))")
         suite.expect(folded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
                      "Homebrew lists direct and transitive dependencies under a requested formula")
         suite.expect(folded.dependencies["formula:example/tap/app-b"]?.map(\.name)
@@ -711,17 +712,30 @@ enum RepositoryFeatureTests {
             return package
         })
         let updateFolded = HomebrewDependencyGraph.fold(withUpdate, installed: withUpdate)
-        suite.expect(updateFolded.rows.map(\.name) == ["shared-lib", "cask-app", "app-a", "example/tap/app-b", "orphan-lib"]
+        suite.expect(updateFolded.rows.map(\.name) == ["shared-lib", "cask-app", "app-a", "example/tap/app-b"]
                      && updateFolded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
                      "Homebrew keeps a reached dependency with an update as its own first row and under its parent, found \(updateFolded.rows.map(\.name))")
+        let orphanUpdate = HomebrewPackageOrdering.updatesFirst(dependencyPackages.map { package in
+            var package = package
+            if package.name == "orphan-lib" {
+                package.update = HomebrewPackageUpdate(kind: .formula, name: "orphan-lib",
+                                                       installedVersions: ["6"], currentVersion: "7", isPinned: false)
+            }
+            return package
+        })
+        let orphanUpdateFolded = HomebrewDependencyGraph.fold(orphanUpdate, installed: orphanUpdate)
+        suite.expect(orphanUpdateFolded.rows.first?.name == "orphan-lib" && orphanUpdateFolded.orphans.isEmpty,
+                     "Homebrew keeps an orphan with an update as the first row, found \(orphanUpdateFolded.rows.map(\.name))")
         let formulaOnly = dependencyPackages.filter { $0.kind == .formula }
-        suite.expect(HomebrewDependencyGraph.fold(formulaOnly, installed: dependencyPackages).rows.map(\.name).contains("cask-lib"),
-                     "Homebrew shows a cask's dependency as a row when the filter hides the cask")
+        let formulaOnlyFolded = HomebrewDependencyGraph.fold(formulaOnly, installed: dependencyPackages)
+        suite.expect(formulaOnlyFolded.rows.map(\.name).contains("cask-lib")
+                     && formulaOnlyFolded.orphans.map(\.name) == ["orphan-lib"],
+                     "Homebrew shows a cask's dependency as a row, not an orphan, when the filter hides the cask")
         let oldBrewPackages = (try? HomebrewParser.parseInfoJSON(Data(dependencyJSON
             .replacingOccurrences(of: "\"installed_on_request\": true,", with: "")
             .replacingOccurrences(of: "\"installed_on_request\": false,", with: "").utf8))) ?? []
         let oldBrewFolded = HomebrewDependencyGraph.fold(oldBrewPackages, installed: oldBrewPackages)
-        suite.expect(oldBrewFolded.rows.count == 8 && oldBrewFolded.dependencies.isEmpty,
+        suite.expect(oldBrewFolded.rows.count == 8 && oldBrewFolded.dependencies.isEmpty && oldBrewFolded.orphans.isEmpty,
                      "Homebrew keeps the flat list when brew does not report installed_on_request, found \(oldBrewFolded.rows.count)")
         let searchPackages = HomebrewParser.parseSearchOutput("sample-formula\nbad token\nsample-filter\nsample-tool\n",
                                                               kind: .formula,

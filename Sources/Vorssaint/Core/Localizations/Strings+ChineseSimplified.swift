@@ -391,6 +391,8 @@ extension Strings {
         homebrewCasks: "Cask",
         homebrewNoPackages: "未找到包",
         homebrewDependencies: "依赖项",
+        homebrewOrphans: "不再需要",
+        homebrewOrphansNote: "作为依赖装进来，但现在已安装的包都不需要它们。",
         homebrewNoSelection: "选择一个已安装的包，或搜索一个新的包。",
         homebrewDetailsTitle: "包详情",
         homebrewInstall: "安装",
