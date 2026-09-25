@@ -26,6 +26,7 @@ final class MenuPanelFocus: ObservableObject {
     @Published private(set) var request: MenuPanelFocusRequest?
     @Published private(set) var activeMetric: MetricDetailKind?
     @Published private(set) var isSwitchingMetricAnchor = false
+    @Published private(set) var popoverIsVisible = false
     private var serial = 0
 
     private init() {}
@@ -54,6 +55,11 @@ final class MenuPanelFocus: ObservableObject {
 
     func setSwitchingMetricAnchor(_ switching: Bool) {
         isSwitchingMetricAnchor = switching
+    }
+
+    func setPopoverVisible(_ visible: Bool) {
+        guard popoverIsVisible != visible else { return }
+        popoverIsVisible = visible
     }
 }
 
@@ -321,7 +327,12 @@ struct MenuPanelView: View {
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
-        case .fanControl: if showFanControl { FanControlSection(collapsible: collapsible) }
+        case .fanControl:
+            // The popover retains its host after closing; detach the curve editor
+            // so cooling heartbeats cannot keep laying out an unseen panel.
+            if showFanControl, notchSize != nil || panelFocus.popoverIsVisible {
+                FanControlSection(collapsible: collapsible)
+            }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)

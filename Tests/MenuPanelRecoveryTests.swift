@@ -92,7 +92,9 @@ enum MenuPanelRecoveryTests {
         static var shared = MenuPanelFocus()
         var activeMetric: String? = "network"
         var switching = false
+        var popoverIsVisible = false
         func setSwitchingMetricAnchor(_ value: Bool) { switching = value }
+        func setPopoverVisible(_ value: Bool) { popoverIsVisible = value }
         func clearMetricFocus() { activeMetric = nil }
     }
     enum Needs { case none, network }
@@ -182,6 +184,8 @@ enum MenuPanelRecoveryTests {
                 host.lastStatusClick = (700, Date())
             }
             host.showPopover(animate: false, activate: false)
+            expect(MenuPanelFocus.shared.popoverIsVisible == host.popover.isShown,
+                   "panel presentation follows the actual show result")
             NSApp.currentEvent = event()
             return host
         }
@@ -197,6 +201,8 @@ enum MenuPanelRecoveryTests {
             close(host)
             expect(host.popover.isShown && host.popoverLastFrame?.midX == 700,
                    "fresh panel click recovers at its existing anchor even after the opening click expires")
+            expect(MenuPanelFocus.shared.popoverIsVisible,
+                   "panel content stays active after a successful anchor recovery")
             expect(MenuPanelFocus.shared.activeMetric == "network" && SystemMonitor.shared.needs == .network,
                    "recovery preserves metric focus and sampling")
             DispatchQueue.main.drain()
@@ -204,6 +210,8 @@ enum MenuPanelRecoveryTests {
             close(host); DispatchQueue.main.drain()
             expect(!host.popover.isShown && SystemMonitor.shared.needs == .none && !host.statusController.held,
                    "immediate second close stays closed and releases resources")
+            expect(!MenuPanelFocus.shared.popoverIsVisible,
+                   "closed panel content stops observing live section updates")
         }
         for kind in ["requested", "missing event", "other window", "old click", "future click", "outside",
                      "movement", "escape", "key release", "modifier", "no frame", "no window number",
@@ -241,6 +249,8 @@ enum MenuPanelRecoveryTests {
             expect(!host.popover.isShown && !host.monitors && SystemMonitor.shared.needs == .none
                    && !host.statusController.held && host.popoverDriftObservers.isEmpty,
                    "failed presentation releases observers, sampling and held status badge")
+            expect(!MenuPanelFocus.shared.popoverIsVisible,
+                   "failed presentation leaves panel content inactive")
         }
         do {
             let host = setup(); close(host); close(host); DispatchQueue.main.drain()

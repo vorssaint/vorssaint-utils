@@ -66,6 +66,7 @@ Settings lists tools on shared pages by name in the sidebar, and keyboard bright
 - Dynamic Island stretches and shrinks with springs, like the island on iPhone. It grows a little past its size before settling and closes without passing the camera, its content comes into focus as it opens, and the floating quick action buttons follow the same motion. Opening and closing no longer flicker, shift by a pixel or leave the island blank for a frame.
 
 ### Fixed
+- Fan Control stops updating its curve editor after the menu panel closes, reducing background CPU use.
 - Dynamic Island finds lyrics for singles and EPs from Apple Music, which adds " - Single" or " - EP" to the album name, instead of saying no lyrics match the recording.
 - Settings search keeps focus while you type, instead of accepting only the first letter and beeping for the rest. Thanks to @overstock718.
 - Dynamic Island stays in place when you swipe between desktops or into a full-screen app, instead of sliding away with the desktop. Thanks to Pinea for the feedback.
@@ -121,6 +122,9 @@ Settings lists tools on shared pages by name in the sidebar, and keyboard bright
 - Window Layout shortcuts and timers such as the recorder's keep running while the Disk Image Installer's install prompt or result alert is open, instead of waiting until it closes. Thanks to @shlok1806.
 - Dynamic Island fades out in Mission Control and App Exposé instead of covering the desktop names, and comes back with its hover and clicks as they were. It stays on Show Desktop for file drops.
 - The AI section of Dynamic Island uses about a quarter of the CPU it did to refresh its totals while Claude Code or Codex is working, which it does every few seconds. The totals are the same. Thanks to Azelance for the feedback.
+
+### Contributors
+Thanks to @Frozen0wl.
 
 ## [3.4.0-beta.4] - 2026-09-23
 
