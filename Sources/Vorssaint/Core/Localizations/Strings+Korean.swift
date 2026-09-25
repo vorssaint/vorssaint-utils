@@ -812,6 +812,8 @@ extension Strings {
         memoryStyleDot: "점",
         memoryStylePercent: "%",
         memoryStyleBoth: "둘 다",
+        memoryTotalLabel: "전체",
+        memoryUsedLabel: "사용 중",
         systemUptime: "가동 시간",
         batteryCharge: "충전량",
         powerHealth: "배터리 상태",

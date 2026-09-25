@@ -811,6 +811,8 @@ extension Strings {
         memoryStyleDot: "Punto",
         memoryStylePercent: "%",
         memoryStyleBoth: "Entrambi",
+        memoryTotalLabel: "Totale",
+        memoryUsedLabel: "Usata",
         systemUptime: "Attivo da",
         batteryCharge: "Carica",
         powerHealth: "Stato batteria",

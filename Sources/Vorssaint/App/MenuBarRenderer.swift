@@ -141,10 +141,9 @@ enum MenuBarPreset: String, CaseIterable {
     }
 }
 
-/// How the Memory metric appears in the menu bar: a colored pressure dot, the
-/// percentage of RAM in use, or both.
+/// How the Memory metric appears in the menu bar.
 enum MemoryMenuBarStyle: String, CaseIterable {
-    case dot, percent, both
+    case dot, percent, both, totalAndUsed
 
     static var current: MemoryMenuBarStyle {
         let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMemoryStyle) ?? ""
@@ -154,6 +153,7 @@ enum MemoryMenuBarStyle: String, CaseIterable {
 
     var showsDot: Bool { self == .dot || self == .both }
     var showsPercent: Bool { self == .percent || self == .both }
+    var showsTotalAndUsed: Bool { self == .totalAndUsed }
 }
 
 /// Which memory figure the monitor displays across the menu bar and panel.
@@ -202,6 +202,7 @@ enum MenuBarSegment {
     case networkBlock(down: String, up: String, style: MenuBarBlockStyle)
     case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
     case batteryBlock(percent: Int, isCharging: Bool, style: MenuBarBlockStyle)
+    case memoryPairBlock(totalLabel: String, usedLabel: String, total: String, used: String, style: MenuBarBlockStyle)
     case dot(MemoryPressure)
     case separator
 }
@@ -361,6 +362,16 @@ enum MenuBarRenderer {
                 let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
                 var segments: [MenuBarSegment] = []
                 segments.append(.symbol(metric.symbolName))
+                if style.showsTotalAndUsed {
+                    segments.append(.memoryPairBlock(totalLabel: L10n.shared.s.memoryTotalLabel,
+                                                     usedLabel: L10n.shared.s.memoryUsedLabel,
+                                                     total: snapshot.memoryTotal.map(MetricFormat.memoryBytesTwoDecimals) ?? "—",
+                                                     used: memoryValue.map(MetricFormat.memoryBytesTwoDecimals) ?? "—",
+                                                     style: .dense))
+                    items.append(MetricItem(metric: metric, segments: segments,
+                                            width: reservedWidth(for: metric, preset: preset)))
+                    continue
+                }
                 if style.showsDot {
                     segments.append(.text(" "))
                     segments.append(.dot(snapshot.memoryPressure))
@@ -585,6 +596,14 @@ enum MenuBarRenderer {
             case .memory:
                 let memoryStyle = MemoryMenuBarStyle.current
                 let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
+                if memoryStyle.showsTotalAndUsed {
+                    groups.append([.memoryPairBlock(totalLabel: L10n.shared.s.memoryTotalLabel,
+                                                    usedLabel: L10n.shared.s.memoryUsedLabel,
+                                                    total: snapshot.memoryTotal.map(MetricFormat.memoryBytesTwoDecimals) ?? "—",
+                                                    used: memoryValue.map(MetricFormat.memoryBytesTwoDecimals) ?? "—",
+                                                    style: style)])
+                    break
+                }
                 if usesBars {
                     groups.append([.usageBarBlock(label: "RAM",
                                                   fraction: MenuBarUsageBarSupport.memoryFraction(used: memoryValue,
@@ -786,7 +805,7 @@ enum MenuBarRenderer {
         case (_, .cpu), (_, .gpu):
             return 11      // symbol + " CPU 100%"
         case (_, .memory):
-            return MemoryMenuBarStyle.current.showsDot ? 13 : 11
+            return MemoryMenuBarStyle.current.showsTotalAndUsed ? 20 : (MemoryMenuBarStyle.current.showsDot ? 13 : 11)
         case (_, .cpuTemperature), (_, .gpuTemperature), (_, .batteryTemperature):
             return 11      // symbol + " CPU 999°" / " GPU 999°" / " BAT 999°"
         case (_, .peripheralBattery):
@@ -874,6 +893,9 @@ enum MenuBarRenderer {
                 result.append(batteryBlockAttachment(percent: percent,
                                                      isCharging: isCharging,
                                                      style: style))
+            case let .memoryPairBlock(totalLabel, usedLabel, total, used, style):
+                result.append(memoryPairBlockAttachment(totalLabel: totalLabel, usedLabel: usedLabel,
+                                                        total: total, used: used, style: style))
             case let .dot(pressure):
                 result.append(NSAttributedString(string: "●", attributes: [.foregroundColor: nsColor(for: pressure)]))
             case .separator:
@@ -984,6 +1006,33 @@ enum MenuBarRenderer {
         attachment.image = image
         attachment.bounds = NSRect(x: 0,
                                    y: (style == .readable ? -5.7 : -5.5) + legacyBlockAttachmentNudge,
+                                   width: image.size.width,
+                                   height: image.size.height)
+        return NSAttributedString(attachment: attachment)
+    }
+
+    private static func memoryPairBlockAttachment(totalLabel: String,
+                                                  usedLabel: String,
+                                                  total: String,
+                                                  used: String,
+                                                  style: MenuBarBlockStyle) -> NSAttributedString {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 9.4 : 8.8, weight: .semibold)
+        let attributes = dynamicTextAttributes(font: font)
+        let first = totalLabel + " " + total
+        let second = usedLabel + " " + used
+        let width = ceil(max((first as NSString).size(withAttributes: attributes).width,
+                             (second as NSString).size(withAttributes: attributes).width) + 2)
+        let height: CGFloat = style == .readable ? 23 : 21
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
+            (first as NSString).draw(at: NSPoint(x: 0, y: style == .readable ? 10.8 : 10.3), withAttributes: attributes)
+            (second as NSString).draw(at: NSPoint(x: 0, y: style == .readable ? 0.0 : -0.2), withAttributes: attributes)
+            return true
+        }
+        image.isTemplate = false
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0,
+                                   y: (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)

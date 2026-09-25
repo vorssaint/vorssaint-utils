@@ -210,6 +210,16 @@ struct MenuBarMetricsPreview: View {
             }
             .foregroundStyle(.white)
             .fixedSize(horizontal: true, vertical: true)
+        case let .memoryPairBlock(totalLabel, usedLabel, total, used, style):
+            VStack(alignment: .leading, spacing: -1) {
+                Text(totalLabel + " " + total)
+                Text(usedLabel + " " + used)
+            }
+            .font(.system(size: style == .readable ? 9.4 : 8.8,
+                          weight: .semibold,
+                          design: .monospaced))
+            .foregroundStyle(.white)
+            .fixedSize(horizontal: true, vertical: true)
         case let .dot(pressure):
             Circle()
                 .fill(dotColor(pressure))

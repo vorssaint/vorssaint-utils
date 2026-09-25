@@ -811,6 +811,8 @@ extension Strings {
         memoryStyleDot: "圆点",
         memoryStylePercent: "%",
         memoryStyleBoth: "两者",
+        memoryTotalLabel: "总量",
+        memoryUsedLabel: "已用",
         systemUptime: "已运行",
         batteryCharge: "电量",
         powerHealth: "电池健康度",

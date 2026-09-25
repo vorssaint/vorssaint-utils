@@ -1030,7 +1030,7 @@ enum Defaults {
         "network", "diskUsage", "diskActivity", "connectedDevices", "power", "fanSpeed",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
-    static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
+    static let allowedMenuBarMemoryStyles = ["dot", "percent", "both", "totalAndUsed"]
     static let allowedMonitorMemoryMetrics = ["used", "app"]
     static let allowedPreviewSizes = ["small", "normal", "large", "xlarge"]
     static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000, 10_000, 0]

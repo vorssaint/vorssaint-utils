@@ -811,6 +811,8 @@ extension Strings {
         memoryStyleDot: "Nokta",
         memoryStylePercent: "%",
         memoryStyleBoth: "İkisi de",
+        memoryTotalLabel: "Toplam",
+        memoryUsedLabel: "Kullanılan",
         systemUptime: "Çalışma süresi",
         batteryCharge: "Şarj",
         powerHealth: "Pil sağlığı",
