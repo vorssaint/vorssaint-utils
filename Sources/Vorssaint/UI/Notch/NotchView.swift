@@ -124,6 +124,7 @@ struct NotchView: View {
             case .timer: NotchTimerStrip(service: service)
             case .downloads: NotchDownloadStrip(service: service)
             case .agents: NotchAgentStrip(service: service)
+            case .calendar: NotchCalendarStrip(service: service)
             case .music: NotchMusicStrip(service: service)
             }
         } else {

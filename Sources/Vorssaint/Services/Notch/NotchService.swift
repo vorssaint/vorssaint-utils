@@ -180,9 +180,17 @@ final class NotchService: ObservableObject {
         NotchAgentSupport.showsLiveActivity() && !AgentUsageService.shared.snapshot.live.isEmpty
     }
 
+    var hasCalendarActivity: Bool {
+        guard NotchCalendarSupport.showsCountdown(),
+              let event = NotchCalendarService.shared.countdownEvent else { return false }
+        let now = Date()
+        return event.start > now && event.start.timeIntervalSince(now) <= NotchCalendarSupport.countdownLeadTime
+    }
+
     var compactActivity: NotchCompactActivity? {
         NotchSupport.compactActivity(timer: hasTimerActivity, downloads: hasDownloadActivity,
-                                     agents: hasAgentActivity, music: hasMusicActivity)
+                                     agents: hasAgentActivity, calendar: hasCalendarActivity,
+                                     music: hasMusicActivity)
     }
 
     /// What shares the closed island with the timer, left of the camera.
@@ -204,8 +212,34 @@ final class NotchService: ObservableObject {
         case .timer: return geometry.compactTimerGeometry(showsDownloads: hasDownloadActivity)
         case .downloads: return geometry.compactDownloadGeometry
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing)
+        case .calendar: return geometry.compactCalendarGeometry(wing: calendarStripWing)
         default: return geometry
         }
+    }
+
+    /// The wider of the two sides, the event's title or its clock and start
+    /// time, measured with the strip's fonts and its clearance from the curve.
+    private var calendarStripWing: CGFloat {
+        guard let event = NotchCalendarService.shared.countdownEvent else {
+            return NotchGeometry.calendarWingRange.upperBound
+        }
+        let provisional = geometry.compactCalendarGeometry(wing: NotchGeometry.calendarWingRange.lowerBound)
+        let inset = provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0)
+        func width(_ text: String, _ font: NSFont) -> CGFloat {
+            (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+        }
+        let language = L10n.shared.language
+        let trimmed = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = trimmed.isEmpty ? FeatureStrings.notchCalendar(language).untitled : trimmed
+        let titleSide = NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripTitleSpacing
+            + width(title, .systemFont(ofSize: 11, weight: .semibold))
+        // The widest clock the hour can show, so the island keeps its size
+        // while the minutes count down.
+        let clockSide = width("00:00", .monospacedDigitSystemFont(ofSize: 13, weight: .medium))
+            + NotchCalendarSupport.stripClockSpacing
+            + width(NotchCalendarSupport.startText(event.start, locale: language.formattingLocale()),
+                    .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
+        return inset + max(titleSide, clockSide)
     }
 
     /// The wider of the two sides, the reading or the working agents' marks,
@@ -324,6 +358,7 @@ final class NotchService: ObservableObject {
     var presentationWindow: NSPanel? { panel }
     var acceptsSystemFeedback: Bool {
         running && !suspended && !hiddenInFullscreen && panel != nil
+            && windowHost?.isConcealedForMissionControl != true
     }
     var showsSystemFeedback: Bool {
         acceptsSystemFeedback && !hiddenUntilHover
@@ -589,6 +624,7 @@ final class NotchService: ObservableObject {
         let point = NSEvent.mouseLocation
         let wasInside = inside
         inside = hiddenUntilHover ? geometry.contains(point, in: geometry.collapsed)
+            && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true
         hoverState.update(pointerInside: inside)
         captureHover?(entered)
@@ -619,6 +655,7 @@ final class NotchService: ObservableObject {
                       !self.expanded, !self.peeking, !self.pinned, !self.heldDrag, !self.keepsWorkingSurface,
                       self.captureControls == nil, (self.notice == nil || self.hiddenUntilHover), !self.dragPlaceholder,
                       UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
+                      self.windowHost?.blocksHoverReveal() == false,
                       self.geometry.contains(NSEvent.mouseLocation, in: self.hiddenUntilHover ? self.geometry.collapsed : self.surfaceSize) else { return }
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
                     self.open(takeFocus: false)
@@ -1027,7 +1064,7 @@ final class NotchService: ObservableObject {
         // the compact target should own clicks while that space is released.
         let overControls = !captureSelectionInProgress && windowHost?.contains(point) == true
             && (!captureControlsCollapsed || windowHost?.containsHover(point) == true)
-        if panel.ignoresMouseEvents != !overControls { panel.ignoresMouseEvents = !overControls }
+        windowHost?.setMouseEventsIgnored(!overControls)
         // While the panel catches the mouse it is the window under the pointer
         // across its whole frame, transparent parts included, so it must be the
         // one reporting the move that leaves the controls; otherwise the next
@@ -1056,8 +1093,13 @@ final class NotchService: ObservableObject {
     private func removeCaptureControlsClickThrough() {
         captureControlsMonitors.forEach(NSEvent.removeMonitor)
         captureControlsMonitors.removeAll()
-        panel?.ignoresMouseEvents = false
+        windowHost?.setMouseEventsIgnored(false)
         panel?.acceptsMouseMovedEvents = false
+    }
+
+    private func missionControlDidRestore() {
+        if captureControls != nil { updateCaptureControlsClickThrough() }
+        else { hover(windowHost?.containsHover(NSEvent.mouseLocation) == true) }
     }
 
     func endCaptureControls() {
@@ -1589,6 +1631,7 @@ final class NotchService: ObservableObject {
             windowHost = NotchWindowHost(content: AnyView(NotchView(service: self)), geometry: geometry, size: surfaceSize,
                                         background: { AnyView(NotchWindowBackground(presentation: $0)) },
                                         quickAccess: { AnyView(NotchQuickAccessView(service: self, motion: $0)) })
+            windowHost?.missionControlDidRestore = { [weak self] in self?.missionControlDidRestore() }
             windowHost?.setHoverHandler { [weak self] in self?.hover($0) }
             panel?.title = FeatureStrings.notch(L10n.shared.language).title
         }
@@ -1957,6 +2000,15 @@ final class NotchService: ObservableObject {
             AgentUsageService.shared.$snapshot
                 .map { ($0.loaded, $0.live.isEmpty, $0.seen) }
                 .removeDuplicates(by: ==)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.syncMenuSpaceMonitoring()
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
+        if modules.contains(.calendar) {
+            NotchCalendarService.shared.$countdownEvent.removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()

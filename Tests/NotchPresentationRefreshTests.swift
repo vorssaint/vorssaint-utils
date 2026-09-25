@@ -9,7 +9,11 @@ import Combine
 /// they alter computed geometry without publishing a service property.
 enum NotchPresentationRefreshContract {
     typealias DispatchQueue = NotchScreenRefreshContract.DispatchQueue
-    enum NSEvent { static var mouseLocation = CGPoint.zero }
+    enum NSEvent {
+        static var mouseLocation = CGPoint.zero
+        static var monitorRemovals = 0
+        static func removeMonitor(_ token: Any) { monitorRemovals += 1 }
+    }
     enum NotchPanel { static let normalLevel = 0 }
     final class CaptureOptions {
         var hasFocusedControl = false
@@ -36,6 +40,7 @@ enum NotchPresentationRefreshContract {
     }
     final class Panel {
         var isVisible = true
+        var alphaValue: CGFloat = 1
         var ignoresMouseEvents = false, acceptsKeyFocus = true, acceptsMouseMovedEvents = false
         var attachedSheet: Bool?
         var level = 1, keyRequests = 0
@@ -46,6 +51,21 @@ enum NotchPresentationRefreshContract {
     }
     final class Host {
         let panel = Panel()
+        var concealedForMissionControl = false
+        var isConcealedForMissionControl: Bool { concealedForMissionControl }
+        var missionControlDidRestore: (() -> Void)?
+        var missionControlAlpha: CGFloat = 1
+        var missionControlMouseEvents = false
+        var desktopReadings = 0
+        var mouseEventsBeforeHide: Bool?
+        var hidesWhenSettled = false
+        var restoringFromMissionControl = false
+        var fadeCompletion: (() -> Void)?
+        func fadeMissionControl(to alpha: CGFloat, completion: (() -> Void)? = nil) {
+            panel.alphaValue = alpha
+            fadeCompletion = completion
+        }
+        func syncMissionControlMonitoring() {}
         var hideAnimations: [Bool] = []
         func hide(animated: Bool) {
             hideAnimations.append(animated)
@@ -56,8 +76,8 @@ enum NotchPresentationRefreshContract {
         var animatingFrame: CGRect?
         var activationRect = CGRect.zero
         var activate: (() -> Void)?
-        func containsHover(_ point: CGPoint) -> Bool { frame.contains(point) }
-        func contains(_ point: CGPoint) -> Bool { (animatingFrame ?? frame).contains(point) }
+        func containsHover(_ point: CGPoint) -> Bool { !concealedForMissionControl && frame.contains(point) }
+        func contains(_ point: CGPoint) -> Bool { !concealedForMissionControl && (animatingFrame ?? frame).contains(point) }
         var onPresent: ((CGSize) -> Void)?
         var usesGlass = false
         var revealFromHidden = false
@@ -103,8 +123,7 @@ enum NotchPresentationRefreshContract {
         var captureControlsWork: DispatchWorkItem?
         var captureControlsSubscription: AnyCancellable?
         var captureControlsCancel: (() -> Void)?
-        var monitorRemovals = 0
-        func removeCaptureControlsClickThrough() { monitorRemovals += 1 }
+        var captureControlsMonitors: [Any] = []
         func syncVisibleConsumers() {}
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
@@ -163,6 +182,13 @@ enum NotchPresentationRefreshContract {
         fullscreen.refreshPresentation()
         suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
                      "leaving fullscreen restores the island and feedback routing")
+        let missionControl = Service()
+        missionControl.windowHost?.concealedForMissionControl = true
+        suite.expect(!missionControl.acceptsSystemFeedback && !missionControl.showsSystemFeedback,
+                     "a concealed island leaves system feedback available to its other presenters")
+        missionControl.windowHost?.concealedForMissionControl = false
+        suite.expect(missionControl.acceptsSystemFeedback && missionControl.showsSystemFeedback,
+                     "leaving Mission Control restores island feedback routing")
 
         let material = Service()
         material.expanded = false
