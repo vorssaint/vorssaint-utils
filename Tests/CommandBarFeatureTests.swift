@@ -1197,6 +1197,39 @@ enum CommandBarFeatureTests {
                "a bare letter is never taken from every app on the Mac")
         suite.expect(CommandBarRowShortcuts.decode(CommandBarRowShortcuts.encode(bound)) == bound,
                "the bindings survive a round trip through storage")
+
+        // ⌃⌘D is Look Up (symbolic hotkey 70), which System Settings does not
+        // list: an app row must offer to take it over, as a window layout row
+        // does, instead of refusing it outright.
+        let lookUp = GlobalShortcut(keyCode: 2, modifiers: [.control, .command])
+        let lookUpLive = [LiveSystemShortcut(id: 70, shortcut: lookUp, enabled: true)]
+        let lookUpIsMacOS = SystemShortcutTakeoverSupport.conflictsWithMacOS(
+            lookUp, liveEntries: lookUpLive, symbolicHotKeys: nil, held: [])
+        let rowTakeOverKey = CommandBarRowShortcuts.takeOverKey(for: "app.bundle.a")
+        suite.expect(lookUpIsMacOS
+                && CommandBarRowShortcuts.takeOverDecision(lookUp, for: "app.bundle.a", in: [:],
+                                                           conflictsWithMacOS: lookUpIsMacOS,
+                                                           isTakenOver: { _ in false }) == .offer,
+               "an app shortcut macOS still answers is offered for take-over, not refused")
+        suite.expect(CommandBarRowShortcuts.takeOverDecision(lookUp, for: "app.bundle.a",
+                                                             in: ["app.bundle.a": lookUp],
+                                                             conflictsWithMacOS: true,
+                                                             isTakenOver: { $0 == rowTakeOverKey })
+                == .save(clearTakeOver: false)
+                && CommandBarRowShortcuts.takeOverDecision(lookUp, for: "app.bundle.b",
+                                                           in: ["app.bundle.a": lookUp],
+                                                           conflictsWithMacOS: true,
+                                                           isTakenOver: { $0 == rowTakeOverKey }) == .offer,
+               "an app row keeps the key it took over, and another row's take-over is not its own")
+        let lookUpOff = [LiveSystemShortcut(id: 70, shortcut: lookUp, enabled: false)]
+        suite.expect(CommandBarRowShortcuts.takeOverDecision(
+                    lookUp, for: "app.bundle.a", in: [:],
+                    conflictsWithMacOS: SystemShortcutTakeoverSupport.conflictsWithMacOS(
+                        lookUp, liveEntries: lookUpOff, symbolicHotKeys: nil, held: []),
+                    isTakenOver: { $0 == rowTakeOverKey }) == .save(clearTakeOver: true),
+               "a key macOS has switched off saves at once and drops a stale take-over")
+        suite.expect(rowTakeOverKey == "\(DefaultsKey.commandBarRowShortcuts).app.bundle.a",
+               "an app row's take-over is kept under the name its hotkey is claimed with")
         let emojiBinding = CommandBarRowShortcuts.setting(
             commandPeriod, for: CommandBarPreferences.emojiBrowserRowID, in: [:])
         suite.expect(CommandBarRowShortcuts.key(for: commandPeriod, in: emojiBinding)

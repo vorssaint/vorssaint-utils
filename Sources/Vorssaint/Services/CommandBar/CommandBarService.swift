@@ -586,18 +586,65 @@ final class CommandBarService: ObservableObject {
 
     /// Binds (or with nil clears) one row's own combination and registers it
     /// straight away, so the key works before the bar is even closed.
+    /// A combination macOS answers is refused here, since the bar has nowhere
+    /// to ask; Settings asks first through `rowShortcutTakeOverOffer`.
     @discardableResult
     func setRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) -> String? {
         guard AppFeature.commandBar.isAvailable else { return nil }
-        if let shortcut, let message = rowShortcutIssue(shortcut, for: entry) { return message }
+        let takeOverKey = CommandBarRowShortcuts.takeOverKey(for: entry.stableKey)
+        guard let shortcut else {
+            SystemShortcutTakeover.setTakeOver(takeOverKey, false)
+            storeRowShortcut(nil, for: entry)
+            return nil
+        }
+        if let message = rowShortcutIssue(shortcut, for: entry) { return message }
+        switch rowTakeOverDecision(shortcut, for: entry) {
+        case .offer:
+            return String(format: L10n.shared.s.shortcutConflictFormat, "macOS")
+        case .save(let clearTakeOver):
+            if clearTakeOver { SystemShortcutTakeover.setTakeOver(takeOverKey, false) }
+        }
+        storeRowShortcut(shortcut, for: entry)
+        return nil
+    }
+
+    /// Whether Settings should offer to take this combination over from macOS
+    /// instead of saving it: true only when nothing but macOS stands in its
+    /// way, the same point every other shortcut field makes the offer.
+    func rowShortcutTakeOverOffer(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) -> Bool {
+        guard AppFeature.commandBar.isAvailable,
+              rowShortcutIssue(shortcut, for: entry) == nil else { return false }
+        return rowTakeOverDecision(shortcut, for: entry) == .offer
+    }
+
+    /// The user accepted the offer: keep the take-over choice, then save
+    /// exactly what a save writes. Registering claims the key from macOS.
+    func takeOverRowShortcut(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) -> String? {
+        guard AppFeature.commandBar.isAvailable else { return nil }
+        if let message = rowShortcutIssue(shortcut, for: entry) { return message }
+        SystemShortcutTakeover.setTakeOver(CommandBarRowShortcuts.takeOverKey(for: entry.stableKey), true)
+        storeRowShortcut(shortcut, for: entry)
+        return nil
+    }
+
+    private func rowTakeOverDecision(_ shortcut: GlobalShortcut,
+                                     for entry: CommandBarEntry) -> RecorderTakeOverDecision {
+        CommandBarRowShortcuts.takeOverDecision(
+            shortcut, for: entry.stableKey, in: rowShortcuts,
+            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(shortcut),
+            isTakenOver: SystemShortcutTakeover.isTakenOver)
+    }
+
+    private func storeRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) {
         let next = CommandBarRowShortcuts.setting(shortcut, for: entry.stableKey, in: rowShortcuts)
         UserDefaults.standard.set(CommandBarRowShortcuts.encode(next),
                                   forKey: DefaultsKey.commandBarRowShortcuts)
         syncRowHotkeys()
         refreshAfterPreferenceChange()
-        return nil
     }
 
+    /// Every Vorssaint-side reason to refuse a combination. Whether macOS
+    /// answers it is asked afterwards, so a row can offer to take it over.
     private func rowShortcutIssue(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) -> String? {
         let strings = L10n.shared.s
         let text = FeatureStrings.commandBar(L10n.shared.language)
@@ -611,9 +658,6 @@ final class CommandBarService: ObservableObject {
         }
         if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
             return String(format: strings.shortcutConflictFormat, role.title(strings))
-        }
-        if shortcut.conflictsWithSystemShortcut {
-            return String(format: strings.shortcutConflictFormat, "macOS")
         }
         if AppFeature.windowLayout.isAvailable,
            let title = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
@@ -636,10 +680,8 @@ final class CommandBarService: ObservableObject {
             hotkey.onPress = { [weak self] in self?.runRow(withStableKey: key) }
             // A combination another app already holds is refused by the system.
             // Saying so beats a row that shows a key it will never answer to.
-            // Row combinations live inside one dictionary, so a claim is
-            // named by the row it belongs to.
             if !hotkey.sync(enabled: true, shortcut: shortcut,
-                            storageKey: "\(DefaultsKey.commandBarRowShortcuts).\(key)") {
+                            storageKey: CommandBarRowShortcuts.takeOverKey(for: key)) {
                 refused.insert(key)
             }
             rowHotkeys.append(hotkey)
