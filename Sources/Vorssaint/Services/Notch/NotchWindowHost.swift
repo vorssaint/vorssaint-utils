@@ -161,9 +161,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             || frame != previousFrame || (!isAnimating && panel.frame != appliedFrame)
         targetUsesGlass = usesGlass
         if canAnimate && changesFrame && (usesGlass || canvas.usesGlass) {
-            // Glass closing into a black strip darkens on the way there, so the
-            // material swap on arrival changes nothing on screen; opening out of
-            // one lets the glass in gradually.
+            // Glass closing into a black strip shuts as its page leaves, so the
+            // empty shell never shows the windows beneath it; opening out of one
+            // lets the glass in over the last stretch, as the page fades in.
             let start = revealing ? 0 : canvas.visiblePath?.boundingBoxOfPath.height ?? targetSize.height
             canvas.backdropPresentation.planFade(from: start, to: size.height, endsInGlass: usesGlass)
         }
