@@ -14,8 +14,6 @@ struct FeatureHubSettings: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var router = SettingsRouter.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
-        SuperKeySource.capsLock.rawValue
     @State private var tab: Tab = .features
     @State private var confirmingPreset: FeaturePreset?
     /// Tracks the feature-target request currently being revealed, so a
@@ -26,6 +24,9 @@ struct FeatureHubSettings: View {
     /// on it, mirroring the section highlight `SettingsSectionFocusModifier`
     /// gives an ordinary page anchor.
     @State private var highlightedFeature: AppFeature?
+    @State private var expandedGroups = Set(FeatureGroup.allCases)
+    @State private var islandExtensionsExpanded = true
+    @State private var presetsExpanded = true
 
     private enum Tab { case features, permissions }
 
@@ -62,9 +63,12 @@ struct FeatureHubSettings: View {
                 }
                 if tab == .features {
                     summaryCard
+                    dynamicIslandCard
                     presetsCard
-                    ForEach(FeatureGroup.allCases, id: \.self) { group in
-                        groupCard(group)
+                    LazyVStack(spacing: 20) {
+                        ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
+                            groupCard(group)
+                        }
                     }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(hub.footerNote)
@@ -108,12 +112,21 @@ struct FeatureHubSettings: View {
         router.consumeFeatureTarget(id: request.id)
         revealID = request.id
         if tab == .permissions { tab = .features }
+        if request.feature.group == .dynamicIsland {
+            if request.feature != .notch { islandExtensionsExpanded = true }
+        } else {
+            expandedGroups.insert(request.feature.group)
+        }
         DispatchQueue.main.async {
             guard self.revealID == request.id else { return }
-            reveal(request.feature, using: proxy)
+            proxy.scrollTo(request.feature.group, anchor: .top)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                 guard self.revealID == request.id else { return }
                 reveal(request.feature, using: proxy)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                    guard self.revealID == request.id else { return }
+                    reveal(request.feature, using: proxy)
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                     guard self.revealID == request.id else { return }
                     clearHighlight()
@@ -188,21 +201,25 @@ struct FeatureHubSettings: View {
     /// a preset shapes the app in one move and everything else stays one
     /// click away in the list below.
     private var presetsCard: some View {
-        SettingsCard(title: hub.presetsTitle) {
-            HStack(alignment: .top, spacing: 10) {
-                ForEach(FeaturePreset.allCases) { preset in
-                    PresetCard(preset: preset,
-                               name: presetName(preset),
-                               caption: presetDescription(preset),
-                               applyTitle: hub.presetApplyButton) {
-                        confirmingPreset = preset
+        SettingsCard {
+            DisclosureGroup(hub.presetsTitle, isExpanded: $presetsExpanded) {
+                if presetsExpanded {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(FeaturePreset.allCases) { preset in
+                            PresetCard(preset: preset,
+                                       name: presetName(preset),
+                                       caption: presetDescription(preset),
+                                       applyTitle: hub.presetApplyButton) {
+                                confirmingPreset = preset
+                            }
+                        }
                     }
+                    Text(hub.presetsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Text(hub.presetsCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -222,49 +239,95 @@ struct FeatureHubSettings: View {
         }
     }
 
-    /// One card per group: its icon and name, a small bar of how much of it
-    /// is installed, then a row per feature.
+    /// The island stays near the top, with its additions in a group the user
+    /// can close when they want a shorter catalog.
+    private var dynamicIslandCard: some View {
+        let members = AppFeature.features(in: .dynamicIsland)
+        let installed = members.filter(\.isAvailable).count
+        return SettingsCard {
+            groupHeader(.dynamicIsland, installed: installed, total: members.count)
+            FeatureHubRow(feature: .notch, hub: hub,
+                          isHighlighted: highlightedFeature == .notch)
+                .id(AppFeature.notch)
+            DisclosureGroup(
+                FeatureStrings.notch(l10n.language).modules,
+                isExpanded: $islandExtensionsExpanded
+            ) {
+                if islandExtensionsExpanded {
+                    VStack(spacing: 0) {
+                        ForEach(members.filter { $0 != .notch }, id: \.self) { feature in
+                            FeatureHubRow(feature: feature, hub: hub,
+                                          isHighlighted: highlightedFeature == feature)
+                                .id(feature)
+                            if feature != members.last {
+                                Divider().padding(.leading, 8)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .id(FeatureGroup.dynamicIsland)
+    }
+
+    /// Groups start open; LazyVStack builds distant groups as they enter view.
+    /// Closing a group removes its feature rows until the user reopens it.
     private func groupCard(_ group: FeatureGroup) -> some View {
         let members = AppFeature.features(in: group)
         let installed = members.filter(\.isAvailable).count
         return SettingsCard {
-            HStack(spacing: 10) {
-                Image(systemName: group.symbolName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 26, height: 26)
-                    .background(Color.accentColor.opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                Text(groupTitle(group)).font(.headline)
-                Spacer(minLength: 12)
-                InstalledShareBar(installed: installed, total: members.count)
-                    .controlSize(.small)
-                    .frame(width: 64)
-                    .help(String(format: hub.activeCountFormat, installed, members.count))
-            }
-            VStack(spacing: 0) {
-                ForEach(members, id: \.self) { feature in
-                    FeatureHubRow(
-                        feature: feature,
-                        hub: hub,
-                        symbolName: feature == .superKey
-                            ? SuperKeySource.sanitized(superKeySourceRaw).systemImage
-                            : feature.symbolName,
-                        isHighlighted: highlightedFeature == feature
-                    )
-                    .id(feature)
-                    if feature != members.last {
-                        Divider().padding(.leading, 50)
+            DisclosureGroup(isExpanded: Binding(
+                get: { expandedGroups.contains(group) },
+                set: { expanded in
+                    if expanded { expandedGroups.insert(group) }
+                    else { expandedGroups.remove(group) }
+                }
+            )) {
+                if expandedGroups.contains(group) {
+                    VStack(spacing: 0) {
+                        ForEach(members, id: \.self) { feature in
+                            FeatureHubRow(
+                                feature: feature,
+                                hub: hub,
+                                isHighlighted: highlightedFeature == feature
+                            )
+                            .id(feature)
+                            if feature != members.last {
+                                Divider().padding(.leading, 8)
+                            }
+                        }
+                    }
+                    if group == .monitor,
+                       !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
+                        Text(hub.monitorAllOffNote)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+            } label: {
+                groupHeader(group, installed: installed, total: members.count)
             }
-            if group == .monitor,
-               !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
-                Text(hub.monitorAllOffNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        }
+        .id(group)
+    }
+
+    private func groupHeader(_ group: FeatureGroup, installed: Int, total: Int) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: group.symbolName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 26, height: 26)
+                .background(Color.accentColor.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            Text(groupTitle(group)).font(.headline)
+            Spacer(minLength: 12)
+            Text("\(installed)/\(total)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            InstalledShareBar(installed: installed, total: total)
+                .controlSize(.small)
+                .frame(width: 64)
         }
     }
 
@@ -361,7 +424,6 @@ private struct FeatureHubRow: View {
     @State private var showingMetadata = false
     let feature: AppFeature
     let hub: FeatureHubStrings
-    let symbolName: String
     var isHighlighted: Bool = false
 
     private var installed: Bool { feature.isAvailable }
@@ -466,16 +528,6 @@ private struct FeatureHubRow: View {
 
     private func rowContent(showsChevron: Bool) -> some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(installed
-                        ? AnyShapeStyle(Theme.spaceGradient)
-                        : AnyShapeStyle(Color.secondary.opacity(0.18)))
-                .frame(width: 30, height: 30)
-                .overlay(
-                    Image(systemName: symbolName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(installed ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-                )
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(feature.hubTitle(l10n.s, hub: hub))
@@ -507,27 +559,16 @@ private struct FeatureHubRow: View {
         .contentShape(Rectangle())
     }
 
-    /// What the feature may ask for and what it keeps alive, as small icons
-    /// under one button: a tooltip on each bare 9-point glyph only fired with
-    /// the pointer exactly on it, and never reached keyboard or VoiceOver.
+    /// Use a readable label instead of a row of tiny, unexplained symbols.
     private var metadata: some View {
         let explanation = (feature.permissions.map { $0.name(hub) } + [energyLabel])
             .joined(separator: "\n")
-        return Button { showingMetadata.toggle() } label: {
-            HStack(spacing: 5) {
-                ForEach(feature.permissions, id: \.self) { permission in
-                    Image(systemName: permission.symbolName)
-                }
-                ForEach(energySymbols, id: \.self) { symbol in
-                    Image(systemName: symbol)
-                }
-            }
-            .font(.system(size: 9, weight: .medium))
-            .foregroundStyle(.tertiary)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
+        return Button(feature.permissions.isEmpty ? energyLabel : hub.tabPermissions) {
+            showingMetadata.toggle()
         }
         .buttonStyle(.plain)
+        .font(.caption)
+        .foregroundStyle(.secondary)
         .help(explanation)
         .accessibilityLabel(explanation)
         .popover(isPresented: $showingMetadata) {

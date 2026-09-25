@@ -10,6 +10,7 @@ struct NotchLayoutEditor: View {
     @Binding var height: Double
     var editContents: () -> Void
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var addingSide: NotchQuickAccessSide?
     @State private var editingID: UUID?
@@ -43,7 +44,13 @@ struct NotchLayoutEditor: View {
                     // silhouette, type and spacing keep the proportions on screen.
                     islandPreview
                         .background {
-                            NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: actualHeight)).fill(.black)
+                            let shape = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: actualHeight))
+                            shape.fill(.black)
+                                .overlay {
+                                    if outlineEnabled {
+                                        shape.stroke(.white.opacity(0.65), lineWidth: 2).clipShape(shape)
+                                    }
+                                }
                         }
                         .scaleEffect(scale)
                         .frame(width: frame.width, height: frame.height)

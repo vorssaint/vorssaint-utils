@@ -8,15 +8,27 @@ struct DisplayBrightnessShortcutControls: View {
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.displayBrightnessShortcutsEnabled) private var enabled = false
     var showsShortcutRows = true
+    var showsSettingsRow = false
 
     var body: some View {
         let strings = FeatureStrings.brightness(l10n.language)
-        Toggle(isOn: $enabled) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(strings.displayBrightnessShortcuts)
-                Text(strings.displayBrightnessShortcutCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        Group {
+            if showsSettingsRow {
+                SettingsRow(symbol: "keyboard", title: strings.displayBrightnessShortcuts,
+                            caption: strings.displayBrightnessShortcutCaption) {
+                    Toggle(strings.displayBrightnessShortcuts, isOn: $enabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+            } else {
+                Toggle(isOn: $enabled) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(strings.displayBrightnessShortcuts)
+                        Text(strings.displayBrightnessShortcutCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .onChange(of: enabled) { _, _ in brightness.syncWithPreferences() }
@@ -30,12 +42,14 @@ struct DisplayBrightnessShortcutControls: View {
                 }) {
                     brightness.syncWithPreferences()
                 }
+                .padding(.leading, showsSettingsRow ? settingsRowTextInset : 0)
             }
         }
         if enabled, brightness.displayBrightnessShortcutRegistrationFailed {
             Text(l10n.s.shortcutUnavailable)
                 .font(.caption)
                 .foregroundStyle(.red)
+                .padding(.leading, showsSettingsRow ? settingsRowTextInset : 0)
         }
     }
 }

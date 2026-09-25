@@ -23,6 +23,26 @@ enum SettingsBackupSupport {
         return keys
     }
 
+    /// Backups written before Dynamic Island existed have no island keys.
+    /// Importing one must not erase the receiving Mac's island preferences.
+    static func omitsDynamicIslandSettings(_ settings: [String: Any]) -> Bool {
+        dynamicIslandKeys(in: exportKeys()).isDisjoint(with: settings.keys)
+    }
+
+    static func keysToClear(whenImporting settings: [String: Any]) -> Set<String> {
+        let keys = exportKeys()
+        guard omitsDynamicIslandSettings(settings) else { return keys }
+        return keys.subtracting(dynamicIslandKeys(in: keys))
+    }
+
+    private static func dynamicIslandKeys(in keys: Set<String>) -> Set<String> {
+        let availability = Set(AppFeature.features(in: .dynamicIsland).map(\.availabilityKey))
+        return keys.filter {
+            $0.hasPrefix("notch") || $0 == DefaultsKey.panelControlNotch
+                || availability.contains($0)
+        }
+    }
+
     /// Preferences stored without a registered default (absence means "use
     /// the built-in behavior"), still part of how the user set the app up.
     static let unregisteredPreferenceKeys: Set<String> = [

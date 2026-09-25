@@ -780,6 +780,16 @@ enum RepositoryFeatureTests {
                "Homebrew search results sort by popularity first")
         suite.expect(rankedPackages.first?.popularity?.compactCount == "42K",
                "Homebrew search results keep compact popularity")
+        var newlyInstalled = rankedPackages[0]
+        newlyInstalled.installedVersion = "2.0"
+        let afterInstall = HomebrewSearchResults.reconciled(rankedPackages, installed: [newlyInstalled])
+        suite.expect(afterInstall.first?.isInstalled == true
+                     && afterInstall.first?.popularity == rankedPackages.first?.popularity,
+                     "Homebrew search shows an installed package without losing its popularity")
+        let afterUninstall = HomebrewSearchResults.reconciled(afterInstall, installed: [])
+        suite.expect(afterUninstall.first?.isInstalled == false
+                     && afterUninstall.map(\.id) == rankedPackages.map(\.id),
+                     "Homebrew search returns to an installable result after uninstall")
 
         // MARK: Repository-wide source contracts
 

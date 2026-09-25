@@ -127,6 +127,10 @@ struct NotchView: View {
             case .calendar: NotchCalendarStrip(service: service)
             case .music: NotchMusicStrip(service: service)
             }
+        } else if let departingMusic = service.departingMusic {
+            NotchMusicStrip(service: service, snapshot: departingMusic)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         } else {
             compact
                 .transition(.opacity)

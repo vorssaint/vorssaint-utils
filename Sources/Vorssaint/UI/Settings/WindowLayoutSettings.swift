@@ -240,7 +240,7 @@ struct WindowLayoutSettings: View {
             }
             WindowMaximizerExclusionsList()
         }
-        .settingsSectionAnchor(.windowMaximizer)
+        .settingsFormSectionAnchor(.windowMaximizer)
     }
 
     private var directionalShortcut: GlobalShortcut {

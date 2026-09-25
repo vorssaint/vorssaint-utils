@@ -332,6 +332,18 @@ enum UpdateFeatureTests {
                                                     in: toolRows, preferredID: .feature(.audioPriority))
                     == .feature(.audioPriority),
                "flat tool rows keep unique identities and select the clicked tool")
+        let menuBarDestination = FeatureSettingsDestination(
+            .general, sectionAnchor: .panelConfiguration)
+        let menuBarRow = SettingsSidebarItem(
+            id: .setting(.panelConfiguration), destination: menuBarDestination,
+            title: "Menu bar", icon: "menubar.rectangle")
+        suite.expect(SettingsSidebarSupport.selection(
+            for: FeatureSettingsDestination(.general),
+            in: generalRows + [menuBarRow]) == .page(.general)
+            && SettingsSidebarSupport.selection(
+                for: menuBarDestination,
+                in: generalRows + [menuBarRow]) == .setting(.panelConfiguration),
+            "General and its menu bar editor keep distinct sidebar selections")
         let scratchpadOnlyRows = SettingsSidebarSupport.items(
             page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
             preferredFeatures: quickToolFeatures, includePage: false,

@@ -79,6 +79,7 @@ final class NotchService: ObservableObject {
     @Published private(set) var noticeExpanded = false
     /// A compact notice stays drawn while the island closes around it.
     @Published private(set) var departingNotice: NotchNotice?
+    @Published private(set) var departingMusic: NotchCompactMusicSnapshot?
     @Published private(set) var captureActions: AnyView?
     @Published private(set) var captureContent: AnyView?
     /// Bumped when Command-W asks the Scratchpad page to close its selected
@@ -104,6 +105,8 @@ final class NotchService: ObservableObject {
     private var hoverWork: DispatchWorkItem?
     private var noticeWork: DispatchWorkItem?
     private var departureWork: DispatchWorkItem?
+    private var musicDepartureWork: DispatchWorkItem?
+    private var presentedMusic: NotchCompactMusicSnapshot?
     private var trackWork: DispatchWorkItem?
     private var powerSource: CFRunLoopSource?
     private var powerSampler: PowerSampler?
@@ -534,6 +537,8 @@ final class NotchService: ObservableObject {
         hoverWork?.cancel(); hoverWork = nil
         noticeWork?.cancel(); noticeWork = nil
         endDeparture()
+        finishMusicDeparture()
+        presentedMusic = nil
         trackWork?.cancel(); trackWork = nil
         subscriptions.removeAll()
         stopPower()
@@ -1418,8 +1423,45 @@ final class NotchService: ObservableObject {
         refreshPresentation(transitionContent: transitionContent)
     }
 
+    private func finishMusicDeparture() {
+        musicDepartureWork?.cancel(); musicDepartureWork = nil
+        guard departingMusic != nil else { return }
+        departingMusic = nil
+        if windowHost?.departsContent == true { windowHost?.finishDeparture() }
+    }
+
+    private func compactMusicTransition(_ requested: NotchContentTransition, animated: Bool) -> NotchContentTransition {
+        let musicVisible = compactMusicIsVisible
+        let canKeepDeparting = !musicVisible && compactActivity == nil && !expanded && !peeking
+            && notice == nil && !dragPlaceholder && captureControls == nil
+        if departingMusic != nil {
+            if canKeepDeparting && requested == .none && animated
+                && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { return .none }
+            musicDepartureWork?.cancel(); musicDepartureWork = nil
+            departingMusic = nil
+            // A new presentation must replace the departure's forward-filled mask.
+            return requested == .none ? (animated ? .reveal : .replace) : requested
+        }
+        guard requested == .none, animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+              panel?.isVisible == true, let presentedMusic, !musicVisible else { return requested }
+        if canKeepDeparting {
+            departingMusic = presentedMusic
+            return .depart
+        }
+        // Another compact activity took the same place as the disappearing track.
+        return !expanded && !peeking && compactActivity != nil && notice == nil ? .replace : requested
+    }
+
+    private func rememberPresentedMusic(playback: NotchPlayback?, artwork: NSImage?, tint: NotchArtworkTint?) {
+        guard compactMusicIsVisible, panel?.isVisible == true, let playback else { presentedMusic = nil; return }
+        presentedMusic = NotchCompactMusicSnapshot(playback: playback, artwork: artwork,
+                                                  tint: tint, geometry: compactActivityGeometry)
+    }
+
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
         if hiddenInFullscreen {
+            finishMusicDeparture()
+            presentedMusic = nil
             windowHost?.hide(animated: false)
             removeHiddenHoverMonitors()
             removeScreenEdgeClickMonitors()
@@ -1427,6 +1469,8 @@ final class NotchService: ObservableObject {
         }
         syncHiddenHoverMonitoring()
         if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
+            finishMusicDeparture()
+            presentedMusic = nil
             if hiddenUntilHover { windowHost?.hide(animated: animated, transitionContent: transitionContent) }
             else { panel?.orderOut(nil) }
             removeScreenEdgeClickMonitors()
@@ -1434,17 +1478,22 @@ final class NotchService: ObservableObject {
         }
         let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
         guard open || geometry.isNotched || geometry.compactSideRoom != nil else {
+            finishMusicDeparture()
+            presentedMusic = nil
             windowHost?.hide(animated: animated, transitionContent: transitionContent)
             removeScreenEdgeClickMonitors()
             return
         }
         let access = NotchQuickAccessConfiguration.current()
         let size = surfaceSize
+        let contentTransition = compactMusicTransition(transitionContent, animated: animated)
         // Preferences can change computed dimensions without publishing a
         // service property. Update SwiftUI's layout along with the native host.
         if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
+        windowHost?.setOutline(enabled: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
+                               color: compactActivityIsVisible && compactActivity == .timer ? .systemOrange : .white)
         windowHost?.present(size: size, geometry: expanded ? expandedGeometry : geometry, animated: animated,
-                            transitionContent: transitionContent,
+                            transitionContent: contentTransition,
                             quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil,
                             revealFromHidden: captureControls == nil
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
@@ -1474,6 +1523,15 @@ final class NotchService: ObservableObject {
                 else { self.toggle() }
             })
         if panel?.isVisible != true { panel?.orderFrontRegardless() }
+        let music = NotchMusicService.shared
+        rememberPresentedMusic(playback: music.playback, artwork: music.artwork, tint: music.artworkTint)
+        if contentTransition == .depart {
+            if windowHost?.departsContent == true {
+                let work = DispatchWorkItem { [weak self] in self?.finishMusicDeparture() }
+                musicDepartureWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + NotchMotion.departureHidden, execute: work)
+            } else { finishMusicDeparture() }
+        }
         syncScreenEdgeClicks()
     }
 
@@ -2013,7 +2071,15 @@ final class NotchService: ObservableObject {
                 }.store(in: &subscriptions)
         }
         if modules.contains(.music) {
-            NotchMusicService.shared.$playback.map { ($0 != nil, $0?.isPlaying == true) }
+            let music = NotchMusicService.shared
+            music.$playback.combineLatest(music.$artwork, music.$artworkTint)
+                .sink { [weak self] playback, artwork, tint in
+                    // @Published sends before storing the new value. Keep the last
+                    // visible track and cover before playback disappears.
+                    guard playback != nil else { return }
+                    self?.rememberPresentedMusic(playback: playback, artwork: artwork, tint: tint)
+                }.store(in: &subscriptions)
+            music.$playback.map { ($0 != nil, $0?.isPlaying == true) }
                 .removeDuplicates { $0 == $1 }.receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()

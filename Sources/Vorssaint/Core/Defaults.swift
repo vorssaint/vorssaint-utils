@@ -749,6 +749,7 @@ enum DefaultsKey {
     static let notchScratchpadControlHidden = "notchScratchpadControlHidden"
     static let notchControlOrder = "notchControlOrder"
     static let notchSize = "notchSize"
+    static let notchOutlineEnabled = "notchOutlineEnabled"
     static let notchCustomWidth = "notchCustomWidth"
     static let notchCustomHeight = "notchCustomHeight"
     static let notchHapticFeedback = "notchHapticFeedback"
@@ -1258,6 +1259,7 @@ enum Defaults {
         DefaultsKey.notchScratchpadControlHidden: false,
         DefaultsKey.notchControlOrder: "",
         DefaultsKey.notchSize: NotchSize.compact.rawValue,
+        DefaultsKey.notchOutlineEnabled: false,
         DefaultsKey.notchCustomWidth: NotchSize.defaultWidth,
         DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,
         DefaultsKey.notchHapticFeedback: true,
