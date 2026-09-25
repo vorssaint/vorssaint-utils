@@ -40,7 +40,7 @@ final class WallpaperService: ObservableObject {
     private var openPanel: NSOpenPanel?
     // Apple catalog barely changes; keep after first scan to avoid tab hitch
     private var cachedApple: [WallpaperSupport.Entry]?
-    private var refreshToken = UUID()
+    private let galleryLifecycle = WallpaperGalleryLifecycle()
     private var applyToken = UUID()
     // lock-backed copy so detached apply-all can bail if a newer apply won
     private let applyGenerationLock = NSLock()
@@ -50,7 +50,6 @@ final class WallpaperService: ObservableObject {
         loadBookmarks()
         loadExclusions()
         loadFilter()
-        rebuildOwnSources()
     }
 
     var isAvailable: Bool { AppFeature.wallpaper.isAvailable }
@@ -92,7 +91,7 @@ final class WallpaperService: ObservableObject {
 
     func syncWithPreferences() {
         if !isAvailable {
-            refreshToken = UUID()
+            galleryLifecycle.endAll()
             let cancelled = UUID()
             applyToken = cancelled
             setApplyGeneration(cancelled)
@@ -111,9 +110,8 @@ final class WallpaperService: ObservableObject {
             WallpaperStore.removeBackup()
             return
         }
-        // warm catalog before first open
         WallpaperStore.migrateLegacyBackupIfNeeded()
-        refresh(forceAppleRescan: false)
+        if galleryLifecycle.isVisible { refresh(forceAppleRescan: false) }
     }
 
     func suspend() {
@@ -139,7 +137,14 @@ final class WallpaperService: ObservableObject {
         prefetchNearbyPages(for: filter, around: page)
     }
 
-    func cancelThumbs() {
+    func beginViewing(_ viewer: UUID) {
+        galleryLifecycle.begin(viewer)
+        refresh(forceAppleRescan: false)
+    }
+
+    func endViewing(_ viewer: UUID) {
+        guard galleryLifecycle.end(viewer) else { return }
+        isLoading = false
         bumpThumbGeneration()
     }
 
@@ -155,6 +160,7 @@ final class WallpaperService: ObservableObject {
             isLoading = false
             return
         }
+        guard galleryLifecycle.isVisible else { return }
         // one resolve pass — startAccessing / own roots / sources share it
         let resolved = resolveOwnBookmarks()
         startAccessing(resolved)
@@ -162,8 +168,7 @@ final class WallpaperService: ObservableObject {
         let roots = resolved.map(\.url)
         let excluded = excludedOwnPaths
         let appleCache = forceAppleRescan ? nil : cachedApple
-        let token = UUID()
-        refreshToken = token
+        let token = galleryLifecycle.invalidate()
         bumpThumbGeneration()
         if entries.isEmpty {
             isLoading = true
@@ -171,20 +176,20 @@ final class WallpaperService: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let apple = appleCache ?? WallpaperSupport.enumerateAppleEntries()
-            guard self?.refreshToken == token else { return }
+            guard self?.galleryLifecycle.accepts(token) == true else { return }
 
             var imageURLs: [URL] = []
             for root in roots {
-                guard self?.refreshToken == token else { return }
+                guard self?.galleryLifecycle.accepts(token) == true else { return }
                 var isDir: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir) else {
                     continue
                 }
                 if isDir.boolValue {
                     let found = WallpaperSupport.images(inFolder: root) {
-                        self?.refreshToken == token
+                        self?.galleryLifecycle.accepts(token) == true
                     }
-                    guard self?.refreshToken == token else { return }
+                    guard self?.galleryLifecycle.accepts(token) == true else { return }
                     for url in found where !excluded.contains(url.standardizedFileURL.path) {
                         imageURLs.append(url)
                     }
@@ -195,12 +200,12 @@ final class WallpaperService: ObservableObject {
                     }
                 }
             }
-            guard self?.refreshToken == token else { return }
+            guard self?.galleryLifecycle.accepts(token) == true else { return }
 
             let own = WallpaperSupport.ownEntries(from: imageURLs)
             let merged = WallpaperSupport.merge(apple: apple, own: own)
             DispatchQueue.main.async {
-                guard let self, self.refreshToken == token else { return }
+                guard let self, self.galleryLifecycle.accepts(token) else { return }
                 if appleCache == nil {
                     self.cachedApple = apple
                 }
@@ -456,7 +461,7 @@ final class WallpaperService: ObservableObject {
         excludedOwnPaths.insert(path)
         persistExclusions()
         // drop in-flight scan so it cannot republish this path
-        refreshToken = UUID()
+        galleryLifecycle.invalidate()
         entries.removeAll { $0.id == path }
     }
 

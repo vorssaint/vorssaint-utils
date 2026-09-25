@@ -38,6 +38,40 @@ enum SettingsFeatureTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")
         suite.expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.musicBlockPlayReplacement] as? Bool == true
+                && backupKeys.contains(DefaultsKey.musicBlockPlayReplacement),
+               "replacement playback keeps the current default and its opt-out travels with settings backup")
+        let replacementOptOut = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.musicBlockPlayReplacement ? false : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: replacementOptOut)?[
+                    DefaultsKey.musicBlockPlayReplacement] as? Bool == false,
+               "restoring a backup preserves the choice to open the replacement without playing")
+        suite.expect(!backupKeys.contains(DefaultsKey.notchChosenDisplay)
+                && !backupKeys.contains(DefaultsKey.notchChosenDisplayName),
+               "a chosen display and its fallback name stay on the Mac that recorded them")
+        let chosenDisplayBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            switch key {
+            case DefaultsKey.notchDisplay: return NotchDisplay.chosen.rawValue
+            case DefaultsKey.notchChosenDisplay: return "source-screen"
+            default: return nil
+            }
+        }
+        let chosenDisplayExport = chosenDisplayBackup[SettingsBackupSupport.settingsKey] as? [String: Any]
+        suite.expect(chosenDisplayExport?[DefaultsKey.notchDisplay] as? String == NotchDisplay.automatic.rawValue
+                && chosenDisplayExport?[DefaultsKey.notchChosenDisplay] == nil,
+               "backing up a chosen display stores Automatic without its Mac-specific identity")
+        let legacyChosenDisplayBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [
+                DefaultsKey.notchDisplay: NotchDisplay.chosen.rawValue,
+                DefaultsKey.notchChosenDisplay: "source-screen",
+            ],
+        ]
+        let restoredChosenDisplay = SettingsBackupSupport.sanitizedSettings(from: legacyChosenDisplayBackup)
+        suite.expect(restoredChosenDisplay?[DefaultsKey.notchDisplay] as? String == NotchDisplay.automatic.rawValue
+                && restoredChosenDisplay?[DefaultsKey.notchChosenDisplay] == nil,
+               "an older backup cannot restore chosen mode with a missing or stale display identity")
         suite.expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
                "the cleaning mode keep screen visible choice travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.appearance),

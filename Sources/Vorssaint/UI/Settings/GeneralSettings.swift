@@ -19,6 +19,7 @@ struct GeneralSettings: View {
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
     @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
+    @AppStorage(DefaultsKey.musicBlockPlayReplacement) private var musicBlockPlayReplacement = true
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -218,6 +219,10 @@ struct GeneralSettings: View {
                     }
                 }
                 .padding(.leading, settingsRowTextInset)
+                if !musicBlockReplacementPath.isEmpty {
+                    Toggle(l10n.s.musicBlockPlayReplacement, isOn: $musicBlockPlayReplacement)
+                        .padding(.leading, settingsRowTextInset)
+                }
                 if musicBlockReplacementRejected {
                     Text(l10n.s.musicBlockReplacementBlocked)
                         .font(.caption)

@@ -1669,7 +1669,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard let self else { return }
             // A later choice to hide the icon cancels the explicit recovery.
             guard !UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
-                  !MenuBarSpacingSupport.islandHidesStatusIcon(in: .standard) else {
+                  !MenuBarSpacingSupport.islandHidesStatusIcon(
+                    in: .standard, hiddenInFullscreen: self.statusController?.islandHiddenInFullscreen == true) else {
                 self.isReshowingStatusItem = false
                 return
             }

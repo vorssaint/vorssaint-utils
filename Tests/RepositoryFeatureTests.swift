@@ -693,6 +693,19 @@ enum RepositoryFeatureTests {
         """
         let dependencyPackages = (try? HomebrewParser.parseInfoJSON(Data(dependencyJSON.utf8))) ?? []
         let folded = HomebrewDependencyGraph.fold(dependencyPackages, installed: dependencyPackages)
+        let flat = HomebrewDependencyGraph.display(dependencyPackages,
+                                                   installed: dependencyPackages,
+                                                   groupDependencies: false)
+        suite.expect(flat.rows.map(\.id) == dependencyPackages.map(\.id)
+                     && flat.rows.count == dependencyPackages.count
+                     && flat.dependencies.isEmpty,
+                     "Homebrew flat mode retains every installed row in its incoming order and shows no nested duplicates")
+        let grouped = HomebrewDependencyGraph.display(dependencyPackages,
+                                                      installed: dependencyPackages,
+                                                      groupDependencies: true)
+        suite.expect(grouped.rows.map(\.id) == folded.rows.map(\.id)
+                     && Set(grouped.dependencies.keys) == Set(folded.dependencies.keys),
+                     "Homebrew grouped mode preserves the existing dependency layout")
         suite.expect(folded.rows.map(\.name) == ["cask-app", "app-a", "example/tap/app-b", "orphan-lib"],
                      "Homebrew keeps requested packages and unneeded dependencies as rows, found \(folded.rows.map(\.name))")
         suite.expect(folded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
@@ -711,10 +724,22 @@ enum RepositoryFeatureTests {
             return package
         })
         let updateFolded = HomebrewDependencyGraph.fold(withUpdate, installed: withUpdate)
+        let flatWithUpdate = HomebrewDependencyGraph.display(withUpdate,
+                                                             installed: withUpdate,
+                                                             groupDependencies: false)
+        suite.expect(flatWithUpdate.rows.map(\.id) == withUpdate.map(\.id)
+                     && flatWithUpdate.rows.first?.name == "shared-lib",
+                     "Homebrew flat mode keeps update-first ordering and includes dependencies as top-level rows")
         suite.expect(updateFolded.rows.map(\.name) == ["shared-lib", "cask-app", "app-a", "example/tap/app-b", "orphan-lib"]
                      && updateFolded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
                      "Homebrew keeps a reached dependency with an update as its own first row and under its parent, found \(updateFolded.rows.map(\.name))")
         let formulaOnly = dependencyPackages.filter { $0.kind == .formula }
+        let flatFormulaOnly = HomebrewDependencyGraph.display(formulaOnly,
+                                                              installed: dependencyPackages,
+                                                              groupDependencies: false)
+        suite.expect(flatFormulaOnly.rows.count == formulaOnly.count
+                     && flatFormulaOnly.rows.allSatisfy { $0.kind == .formula },
+                     "Homebrew flat mode keeps the active filter and its displayed count")
         suite.expect(HomebrewDependencyGraph.fold(formulaOnly, installed: dependencyPackages).rows.map(\.name).contains("cask-lib"),
                      "Homebrew shows a cask's dependency as a row when the filter hides the cask")
         let oldBrewPackages = (try? HomebrewParser.parseInfoJSON(Data(dependencyJSON
@@ -723,6 +748,9 @@ enum RepositoryFeatureTests {
         let oldBrewFolded = HomebrewDependencyGraph.fold(oldBrewPackages, installed: oldBrewPackages)
         suite.expect(oldBrewFolded.rows.count == 8 && oldBrewFolded.dependencies.isEmpty,
                      "Homebrew keeps the flat list when brew does not report installed_on_request, found \(oldBrewFolded.rows.count)")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.homebrewGroupDependencies] as? Bool == true
+                     && SettingsBackupSupport.exportKeys().contains(DefaultsKey.homebrewGroupDependencies),
+                     "Homebrew grouping remains the default and the alternative layout travels with settings backups")
         let searchPackages = HomebrewParser.parseSearchOutput("sample-formula\nbad token\nsample-filter\nsample-tool\n",
                                                               kind: .formula,
                                                               installed: homebrewPackages)
@@ -1315,9 +1343,11 @@ enum RepositoryFeatureTests {
         suite.expect(!selfUninstallSource.contains("_ = Sudoers.pmsetDisableSleep")
                 && !uninstallerSource.contains("_ = Sudoers.pmsetDisableSleep"),
                "neither uninstall path discards the result of restoring sleep")
-        suite.expect(selfUninstallSource.contains("guard detachFromSystem() else")
+        suite.expect(selfUninstallSource.contains("guard restoreSleepBeforeRemoval() else")
+                && selfUninstallSource.contains("guard detachFromSystem() else")
                 && selfUninstallSource.contains("restoreSleepBeforeRemoval() -> Bool")
-                && selfUninstallSource.contains("guard FanControlService.restoreAndUnregisterForRemoval() else")
+                && selfUninstallSource.contains("guard detachFanControl() else")
+                && selfUninstallSource.contains("FanControlService.restoreAndUnregisterForRemoval()")
                 && selfUninstallSource.contains("adminPromptRecover")
                 && selfUninstallSource.contains("verification.status == 0"),
                "in-app uninstall aborts unless fans and normal sleep are restored before removal")

@@ -1154,13 +1154,11 @@ struct NotchGeometry: Equatable {
         compact.allowsActivityFooter = false
         return compact
     }
-    /// A download keeps its arrow and its progress beside the camera, like
-    /// the timer. The wide strip left a band of black between a clipped name
-    /// and the progress; the page and the finished notice name the file.
-    var compactDownloadGeometry: NotchGeometry {
+    /// A download keeps its arrow and progress beside the camera. Where the
+    /// menus leave room, its name can take a wider wing without a fixed band.
+    func compactDownloadGeometry(wing: CGFloat = 56) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        let wing: CGFloat = 56
         compact.compactSideRoom = room.isFinite && room >= 44 ? min(wing, room) : 0
         compact.minimumCompactWidth = cameraWidth + wing * 2
         return compact

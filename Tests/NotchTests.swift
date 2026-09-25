@@ -829,14 +829,14 @@ enum NotchTests {
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
-                                DefaultsKey.notchChosenDisplay, DefaultsKey.notchChosenDisplayName, DefaultsKey.notchSilhouette,
+                                DefaultsKey.notchSilhouette,
                                 DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
                                 DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
                                 DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow, DefaultsKey.notchCapture,
                                 DefaultsKey.notchTrackChange, DefaultsKey.notchMusicActivity, DefaultsKey.notchHideInCaptures, DefaultsKey.panelControlNotch,
                                 AppFeature.notch.availabilityKey]
-        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: keys), "every notch preference travels in backup")
+        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: keys), "every portable notch preference travels in backup")
         let restored = SettingsBackupSupport.sanitizedSettings(from: [
             SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
             SettingsBackupSupport.settingsKey: [DefaultsKey.notchEnabled: true,

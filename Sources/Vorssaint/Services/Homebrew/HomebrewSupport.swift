@@ -105,6 +105,13 @@ enum HomebrewOwnershipSupport {
 }
 
 enum HomebrewDependencyGraph {
+    static func display(_ visible: [HomebrewPackage],
+                        installed: [HomebrewPackage],
+                        groupDependencies: Bool) -> (rows: [HomebrewPackage], dependencies: [String: [HomebrewPackage]]) {
+        if groupDependencies { return fold(visible, installed: installed) }
+        return (visible, [:])
+    }
+
     /// Splits installed packages into rows the person asked for and, under
     /// each, the installed dependencies it reaches. Only packages in `visible`
     /// become rows, so a filter never hides a dependency whose parent it hid.

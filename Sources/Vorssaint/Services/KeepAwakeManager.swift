@@ -142,6 +142,49 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    /// Clearing permissions, or an uninstall that stopped, restored normal
+    /// sleep directly and left this app running. Discard the old session state
+    /// without asking for the rule again: a rule that is still installed rearms
+    /// the current session, and a removed one is requested by the next session.
+    func resumeAfterSystemTeardown() {
+        let restorePending = clamshellRestorePending
+        if !restorePending { clamshellOperationGeneration &+= 1 }
+        // An installation prompt may already be open. Its existing reply can
+        // finish setup without showing a second authorization request.
+        clamshellEnablePending = false
+        lidSleepGeneration &+= 1
+        lidSleepAttemptsRemaining = 0
+        clamshellActive = false
+        passwordlessClamshell = false
+        let generation = clamshellOperationGeneration
+        let checksSleep = UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag)
+        DispatchQueue.global(qos: .utility).async {
+            // A session can start while the removal waits for its password and
+            // turn sleep off again through the rule. Only a reading that answered
+            // "on" lets the recovery marker go.
+            var sleepRestored = true
+            if checksSleep {
+                let report = Shell.run("/usr/bin/pmset", ["-g"])
+                sleepRestored = report.status == 0
+                    && !SudoersSupport.sleepDisabled(inPmsetOutput: report.output)
+            }
+            let configured = !restorePending && Sudoers.isConfigured()
+            DispatchQueue.main.async {
+                guard !self.isTerminating, self.clamshellOperationGeneration == generation else { return }
+                if checksSleep, sleepRestored {
+                    UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+                }
+                // A prior restore can still finish with an authorized off. Its
+                // reply rearms this session in order after that operation.
+                guard !restorePending, !self.clamshellRestorePending else { return }
+                self.passwordlessClamshell = configured
+                if configured, self.clamshellPreferred, AppFeature.keepAwake.isAvailable {
+                    self.enableClamshell()
+                }
+            }
+        }
+    }
+
     // MARK: - Session
 
     func toggle() {
@@ -977,6 +1020,12 @@ final class KeepAwakeManager: ObservableObject {
         lidDimmingNotificationPort = port
         IONotificationPortSetDispatchQueue(port, DispatchQueue.main)
         lidClosedForDimming = BrightnessService.lidClosed()
+        // The option can be enabled from an external display while the lid is
+        // already shut. No transition follows registration in that case.
+        if armed, lidClosedForDimming == true, savedDisplayBrightness == nil {
+            applyDimmingAction(LidDimmingSupport.lidClosed(
+                currentBrightness: LidDisplayDimmer.currentBrightness()))
+        }
     }
 
     /// General interest fires on far more than lid transitions, so the

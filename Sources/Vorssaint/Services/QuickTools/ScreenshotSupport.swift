@@ -2142,8 +2142,8 @@ enum ScreenshotSupport {
         return max(2, Int((CGFloat(base) * BlurStrength.blockFactor(for: level)).rounded()))
     }
 
-    /// The blur levels the pixelate marks use. Each needs a mosaic as large as
-    /// the capture, so the editor keeps no other.
+    /// The blur levels the pixelate marks use. Keep only their sampled mosaics;
+    /// drawing expands each one to the capture size when needed.
     static func mosaicLevels(for annotations: [Annotation]) -> Set<Int> {
         Set(annotations.filter { $0.tool == .pixelate }.map(\.blurLevel))
     }
