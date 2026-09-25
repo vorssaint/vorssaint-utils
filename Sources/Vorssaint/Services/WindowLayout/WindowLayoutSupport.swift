@@ -35,6 +35,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
     case maximize, marginMaximize, fullScreen, center
+    case makeLarger, makeSmaller
     case previousDisplay, nextDisplay, restore
 
     var id: String { rawValue }
@@ -49,6 +50,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
         .maximize, .marginMaximize, .fullScreen, .center, .restore,
+        .makeLarger, .makeSmaller,
         .previousDisplay, .nextDisplay,
     ]
 
@@ -112,6 +114,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftMiddleQuarter: return 68
         case .rightMiddleQuarter: return 69
         case .rightQuarter: return 70
+        case .makeLarger: return 71
+        case .makeSmaller: return 72
         }
     }
 
@@ -163,6 +167,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeftSixth: return DefaultsKey.windowLayoutShortcutBottomLeftSixth
         case .bottomCenterSixth: return DefaultsKey.windowLayoutShortcutBottomCenterSixth
         case .bottomRightSixth: return DefaultsKey.windowLayoutShortcutBottomRightSixth
+        case .makeLarger: return DefaultsKey.windowLayoutShortcutMakeLarger
+        case .makeSmaller: return DefaultsKey.windowLayoutShortcutMakeSmaller
         }
     }
 
@@ -193,7 +199,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
                 .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
                 .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
                 .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
-                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds:
+                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds,
+                .makeLarger, .makeSmaller:
             // New actions must never claim a system-wide combination unasked.
             return nil
         }
@@ -278,6 +285,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomRightSixth: return text.bottomRightSixth
         case .previousDisplay: return text.previousDisplay
         case .nextDisplay: return text.nextDisplay
+        case .makeLarger: return text.makeLarger
+        case .makeSmaller: return text.makeSmaller
         }
     }
 
@@ -320,6 +329,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"
+        case .makeLarger: return "plus.rectangle"
+        case .makeSmaller: return "minus.rectangle"
         }
     }
 }
@@ -524,11 +535,13 @@ enum WindowLayoutGeometry {
                      screenGap: CGFloat = 0) -> CGRect {
         // Only placements that tile against the screen edge take the screen
         // gap. The exempt actions keep their own geometry: margin maximize's
-        // percentage margin, center's size clamp, and the pass-through
-        // actions that return the current frame.
+        // percentage margin, center's size clamp, the step resizes that grow
+        // or shrink the current frame, and the pass-through actions that
+        // return the current frame.
         let frame: CGRect
         switch action {
-        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen:
+        case .marginMaximize, .center, .makeLarger, .makeSmaller,
+                .restore, .previousDisplay, .nextDisplay, .fullScreen:
             frame = visibleFrame
         default:
             frame = screenGapFrame(visibleFrame, screenGap: screenGap)
@@ -560,7 +573,7 @@ enum WindowLayoutGeometry {
         guard windowGap > 0 else { return rect }
         switch action {
         case .maximize, .marginMaximize, .fullScreen, .center, .restore,
-                .previousDisplay, .nextDisplay:
+                .makeLarger, .makeSmaller, .previousDisplay, .nextDisplay:
             return rect
         default:
             break
@@ -712,6 +725,10 @@ enum WindowLayoutGeometry {
                           y: visibleFrame.midY - height / 2,
                           width: width,
                           height: height).integral
+        case .makeLarger:
+            return steppedRect(current, by: resizeStep, in: visibleFrame)
+        case .makeSmaller:
+            return steppedRect(current, by: -resizeStep, in: visibleFrame)
         case .previousDisplay, .nextDisplay:
             return current.integral
         case .restore:
@@ -720,6 +737,34 @@ enum WindowLayoutGeometry {
             // Handled by the system, not by a frame.
             return current.integral
         }
+    }
+
+    /// Points each edge moves for one Make Larger or Make Smaller press, so
+    /// both axes change by twice this per step.
+    static let resizeStep: CGFloat = 10
+
+    /// The smallest width or height Make Smaller shrinks a window to. It stays
+    /// clear of the 80pt floor below which a window is no longer a layout target.
+    static let resizeMinimumLength: CGFloat = 200
+
+    /// The current frame with every edge moved out (positive step) or in
+    /// (negative step), keeping its center. Growth stops at the visible frame
+    /// and a window against an edge grows away from it; shrinking stops at
+    /// the minimum length and never enlarges a window already below it.
+    static func steppedRect(_ current: CGRect, by step: CGFloat, in visibleFrame: CGRect) -> CGRect {
+        func length(_ value: CGFloat, limit: CGFloat) -> CGFloat {
+            if step >= 0 { return min(limit, max(value, value + step * 2)) }
+            return min(value, max(resizeMinimumLength, value + step * 2))
+        }
+        let width = length(current.width, limit: visibleFrame.width)
+        let height = length(current.height, limit: visibleFrame.height)
+        var x = current.midX - width / 2
+        var y = current.midY - height / 2
+        if step >= 0 {
+            x = min(max(x, visibleFrame.minX), visibleFrame.maxX - width)
+            y = min(max(y, visibleFrame.minY), visibleFrame.maxY - height)
+        }
+        return CGRect(x: x, y: y, width: width, height: height).integral
     }
 
     static func anchoredRect(for action: WindowLayoutAction,
@@ -789,7 +834,7 @@ enum WindowLayoutGeometry {
         case .bottomRight:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
-        case .marginMaximize, .center:
+        case .marginMaximize, .center, .makeLarger, .makeSmaller:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.midY - size.height / 2
         case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen:
@@ -905,6 +950,14 @@ enum WindowLayoutGeometry {
         case .center:
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
+        case .makeLarger, .makeSmaller:
+            // An app that sizes in fixed increments (a terminal's character
+            // grid) lands near the step rather than on it, and one already at
+            // its minimum size keeps it. Neither is a failure worth undoing.
+            return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
+                && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
+                && abs(actualRect.width - targetRect.width) <= anchorTolerance
+                && abs(actualRect.height - targetRect.height) <= anchorTolerance
         case .previousDisplay, .nextDisplay:
             return overlap > 0.72
         case .restore:

@@ -101,7 +101,9 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.windowGestureModifiers)
                 && backupKeys.contains(DefaultsKey.windowGestureRaiseWindow)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutPreviousDisplay)
-                && backupKeys.contains(DefaultsKey.windowLayoutShortcutMarginMaximize),
+                && backupKeys.contains(DefaultsKey.windowLayoutShortcutMarginMaximize)
+                && backupKeys.contains(DefaultsKey.windowLayoutShortcutMakeLarger)
+                && backupKeys.contains(DefaultsKey.windowLayoutShortcutMakeSmaller),
                "window layout choices travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.screenshotFreeze)
                 && backupKeys.contains(DefaultsKey.screenshotSaveFolder)
