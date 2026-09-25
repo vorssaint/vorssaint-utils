@@ -768,6 +768,20 @@ enum PointerInputFeatureTests {
         focusFollowsMouseState.reset()
         suite.expect(focusFollowsMouseState.point == nil && !focusFollowsMouseState.hasPendingEvaluation,
                "space and wake resets discard the old pointer target")
+        var dwellState = FocusFollowsMouseState()
+        dwellState.recordMovement(to: CGPoint(x: 10, y: 10), at: 20, windowID: 1)
+        dwellState.recordMovement(to: CGPoint(x: 30, y: 10), at: 20.2, windowID: 1)
+        let dwellFocus = dwellState.nextEvaluation(at: 20.25, delayMilliseconds: 250)
+        suite.expect(dwellFocus?.point == CGPoint(x: 30, y: 10),
+               "without a raise, moving within a window does not restart the delay")
+        dwellState.recordMovement(to: CGPoint(x: 50, y: 10), at: 20.3, windowID: 1)
+        suite.expect(!dwellState.hasPendingEvaluation && dwellFocus.map(dwellState.isCurrent) == true,
+               "without a raise, moving within a window neither asks again nor cancels the lookup")
+        dwellState.recordMovement(to: CGPoint(x: 70, y: 10), at: 20.4, windowID: 2)
+        suite.expect(dwellState.nextEvaluation(at: 20.6, delayMilliseconds: 250) == nil
+                && dwellState.nextEvaluation(at: 20.65, delayMilliseconds: 250)?.point
+                    == CGPoint(x: 70, y: 10),
+               "without a raise, entering another window restarts the delay")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseEnabled] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseDelay] as? Int
                     == FocusFollowsMouseSupport.defaultDelayMilliseconds,
@@ -775,8 +789,10 @@ enum PointerInputFeatureTests {
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseDelay),
                "focus follows mouse preferences follow settings backups")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseRaise] as? Bool == true
-                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseRaise),
-               "focus follows mouse keeps raising by default and backs up the choice")
+                && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseWaitForStop] as? Bool == true
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseRaise)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseWaitForStop),
+               "focus follows mouse keeps raising and waiting for the pointer to stop by default, and backs up both")
         let focusFollowsMouseServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseService.swift",
             encoding: .utf8)) ?? ""
