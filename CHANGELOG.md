@@ -14,7 +14,7 @@ Settings is easier to navigate, highlights linked sections together, and preserv
 
 ### Changed
 - The compact timer strip fits its wings to the reading and companion, places their content at the island's ends, and resizes when the reading or working agents change.
-- Settings groups the sidebar into sections, opens tool options in focused pages, and makes the Features catalog and navigation easier to use. Linked settings receive one outline around the whole section.
+- Settings groups the sidebar into sections, opens tool options in focused pages, and makes the Features catalog and navigation easier to use. Linked settings receive one outline around the whole section, and display brightness shortcuts show an icon.
 - Compact music stays visible while the island retracts, fades into another activity, and yields to new playback. Reduce Motion skips the animation.
 
 ### Fixed
