@@ -14,6 +14,7 @@ enum NotchPlaybackRoutingContract {
         var isRunning = true
         var itemIdentifier: String? = "fixture"
         var allowsDirectCommands = true
+        var requiresCurrentPlayer = false
         var applicationBundleIdentifier: String?
     }
     struct NSRunningApplication {
@@ -194,6 +195,15 @@ enum NotchPlaybackRoutingTests {
         unidentified.itemIdentifier = nil
         suite.expect(!Adapter.send(2, to: unidentified) && Adapter.command == nil,
                "native commands require the receiver's content identity")
+        unidentified.requiresCurrentPlayer = true
+        suite.expect(Adapter.send(2, to: unidentified) && Adapter.destination === musicPath
+                     && Adapter.options == nil,
+                     "the current video can receive play/pause without a content identifier")
+        Adapter.systemPID = 20
+        Adapter.command = nil
+        suite.expect(!Adapter.send(2, to: unidentified) && Adapter.command == nil,
+                     "a video that lost the system session cannot send to the new global player")
+        Adapter.systemPID = 10
         replyEncoding(suite)
         recordingContext(suite)
     }
@@ -343,7 +353,15 @@ enum NotchPlaybackRoutingTests {
         }
         _ = Adapter.select()
         let browser = NotchPlaybackSource.Selection(pid: 20, bundleIdentifier: "test.player.20")
+        Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
+        Adapter.systemPID = 20
+        suite.expect(Adapter.select()?.requiresCurrentPlayer == true && Adapter.select()?.allowsDirectCommands == true,
+                     "the active video exposes native controls without Automation")
+        Adapter.systemPID = 10
         Adapter.choose(browser)
+        suite.expect(Adapter.select()?.requiresCurrentPlayer == false && Adapter.select()?.allowsDirectCommands == false,
+                     "a chosen video outside the system session does not expose redirected native controls")
+        Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
         Adapter.selected = Adapter.select()
         Adapter.silentPIDs = [30]
         suite.expect(Adapter.select()?.pid == 20 && Adapter.selection == browser && Adapter.sources.count == 2,
