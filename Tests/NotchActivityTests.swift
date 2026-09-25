@@ -563,6 +563,15 @@ enum NotchActivityTests {
                 }
             }
         }
+        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 185, layout: .spacious,
+                                  compactSideRoom: 300)
+        suite.expect(roomy.compactTimerGeometry(showsDownloads: false, wing: 30).compactActivityWingWidth == 44
+                        && roomy.compactTimerGeometry(showsDownloads: false, wing: 30).compactActivitySize.width == 185 + 88,
+                     "a short reading beside the cover narrows the timer's wings, leaving no empty band at the ends")
+        suite.expect(roomy.compactTimerGeometry(showsDownloads: false, wing: 51.2).compactActivityWingWidth == 52
+                        && roomy.compactTimerGeometry(showsDownloads: false, wing: 300).compactActivityWingWidth == 64
+                        && roomy.compactTimerGeometry(showsDownloads: true, wing: 30).compactActivityWingWidth == 80,
+                     "timer wings take what the reading needs up to their old width; a download keeps its own")
     }
 
     /// Compact strips measure their margins from the silhouette rather than

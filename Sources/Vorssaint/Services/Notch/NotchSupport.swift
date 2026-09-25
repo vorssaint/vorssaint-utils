@@ -1085,10 +1085,15 @@ struct NotchGeometry: Equatable {
         // text must also clear the silhouette's shoulders and bottom corners.
         return max(4, shoulder + bottom + 4 - compactActivityWingWidth)
     }
-    func compactTimerGeometry(showsDownloads: Bool) -> NotchGeometry {
+    /// Both timer wings take the width the wider side needs, so a short
+    /// reading leaves no band of empty black at the ends. A download beside
+    /// the clock keeps room for its percentage.
+    func compactTimerGeometry(showsDownloads: Bool,
+                              wing fitted: CGFloat = NotchTimerSupport.stripWingRange.upperBound) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        let wing: CGFloat = showsDownloads ? 80 : 64
+        let range = NotchTimerSupport.stripWingRange
+        let wing = showsDownloads ? 80 : min(range.upperBound, max(range.lowerBound, fitted.isFinite ? fitted.rounded(.up) : 0))
         compact.compactSideRoom = room.isFinite && room >= 64 ? min(wing, room) : 0
         // A wider simulated camera must not consume the timer's text budget.
         compact.minimumCompactWidth = cameraWidth + wing * 2

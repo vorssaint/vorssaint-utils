@@ -219,7 +219,9 @@ final class NotchService: ObservableObject {
     var compactActivityGeometry: NotchGeometry {
         switch compactActivity {
         case .music: return geometry.compactMusicGeometry
-        case .timer: return geometry.compactTimerGeometry(showsDownloads: hasDownloadActivity)
+        case .timer:
+            return geometry.compactTimerGeometry(showsDownloads: hasDownloadActivity,
+                                                 wing: hasDownloadActivity ? 0 : timerStripWing)
         case .downloads:
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
@@ -252,6 +254,37 @@ final class NotchService: ObservableObject {
             + width(NotchCalendarSupport.startText(event.start, locale: language.formattingLocale()),
                     .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
         return inset + max(titleSide, clockSide)
+    }
+
+    /// The wider of the two sides, the timer's reading or what shares the
+    /// island with it, drawn as the strip draws them, with the clearance
+    /// from the silhouette's curve and air beside the camera.
+    private var timerStripWing: CGFloat {
+        let provisional = geometry.compactTimerGeometry(showsDownloads: false,
+                                                        wing: NotchTimerSupport.stripWingRange.lowerBound)
+        let height = provisional.compactActivityContentHeight
+        let timer = NotchTimerService.shared
+        let size = NotchTimerSupport.stripTextSize(height: height)
+        let text = NotchTimerSupport.compactText(for: timer.session, at: timer.now,
+                                                 locale: Locale(identifier: L10n.shared.language.rawValue))
+        let reading = (NotchAgentSupport.readingShape(text) as NSString).size(withAttributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+        ]).width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        let mark: CGFloat
+        switch compactCompanion {
+        case .music:
+            mark = provisional.compactMusicArtworkSide + provisional.compactMusicArtworkInset
+        case .agents:
+            let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
+            let side = NotchTimerSupport.stripAgentMarkSize(height: height, working: working)
+            mark = CGFloat(max(1, working)) * (side * 1.45 + 1) + CGFloat(max(0, working - 1))
+                + provisional.compactActivityEdgeInset(boxHeight: side + 4, radius: (side + 4) / 2)
+        default:
+            // Every mark the strip shows is about a square of its point size.
+            let side = NotchTimerSupport.stripIconSize(height: height)
+            mark = side + provisional.compactActivityEdgeInset(boxHeight: side, radius: side / 2)
+        }
+        return max(reading, mark) + NotchTimerSupport.stripCameraGap
     }
 
     /// The wider of the two sides, the reading or the working agents' marks,
@@ -2030,9 +2063,10 @@ final class NotchService: ObservableObject {
         }
         if modules.contains(.agents) {
             // Only what changes the island's size or strip: a turn starting or
-            // ending, the first read landing, and which agents have cards.
+            // ending, the first read landing, which agents have cards, and
+            // which are working, since each one's mark widens the strip.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

@@ -5,7 +5,8 @@ import SwiftUI
 
 /// The clock keeps the right of the camera. The left shows the timer's mark,
 /// or whatever shares the island with it: a download, working agents or the
-/// music playing, each opening its own page.
+/// music playing, each opening its own page. The wings are as wide as the
+/// wider side needs, and both sit at the ends, where the island shows.
 struct NotchTimerStrip: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var timer = NotchTimerService.shared
@@ -16,22 +17,24 @@ struct NotchTimerStrip: View {
 
     private var geometry: NotchGeometry { service.compactActivityGeometry }
     private var companion: NotchCompactActivity? { service.compactCompanion }
-    /// Height the strip can give away once both edges keep their gap.
-    private var budget: CGFloat { geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2 }
-    private var iconSize: CGFloat { min(companion == .downloads ? 13 : 20, budget) }
-    private var textSize: CGFloat { min(16, geometry.compactActivityContentHeight - 6) }
+    private var iconSize: CGFloat {
+        let size = NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight)
+        return companion == .downloads ? min(13, size) : size
+    }
+    private var textSize: CGFloat { NotchTimerSupport.stripTextSize(height: geometry.compactActivityContentHeight) }
     private var working: [AgentProvider] {
         AgentProvider.allCases.filter { provider in usage.snapshot.live.contains { $0.provider == provider } }
     }
-    private var agentMarkSize: CGFloat { min(working.count > 1 ? 11 : 14, max(8, budget - 4)) }
+    private var agentMarkSize: CGFloat {
+        NotchTimerSupport.stripAgentMarkSize(height: geometry.compactActivityContentHeight, working: working.count)
+    }
     private var iconInset: CGFloat {
         guard !geometry.compactActivityUsesFooter else { return 0 }
         switch companion {
         case .agents:
             return geometry.compactActivityEdgeInset(boxHeight: agentMarkSize + 4, radius: (agentMarkSize + 4) / 2)
         case .music:
-            return geometry.compactActivityEdgeInset(boxHeight: geometry.compactMusicArtworkSide,
-                                                     radius: geometry.compactMusicArtworkRadius)
+            return geometry.compactMusicArtworkInset
         default:
             return geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
         }
@@ -66,10 +69,8 @@ struct NotchTimerStrip: View {
                     }
                 }
                 .padding(.leading, iconInset)
-                // The camera already separates the wings; only the outside
-                // edge needs clearance from the silhouette.
                 .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
-                       alignment: .trailing)
+                       alignment: .leading)
                 .contentShape(Rectangle())
             }
             .accessibilityLabel(companionLabel)
@@ -113,11 +114,17 @@ struct NotchTimerStrip: View {
                         .font(.system(size: textSize, weight: .medium)).monospacedDigit()
                         .foregroundStyle(.orange)
                         .lineLimit(1).minimumScaleFactor(0.65)
+                        // A reading that gains or loses a character, like
+                        // 10m becoming 9m, resizes the wings; the service
+                        // measures the same reading.
+                        .onChange(of: NotchAgentSupport.readingShape(text)) { _, _ in
+                            DispatchQueue.main.async { service.refreshPresentation() }
+                        }
                 }
             }
             .padding(.trailing, textInset)
             .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
-                   alignment: .leading)
+                   alignment: .trailing)
             .contentShape(Rectangle())
         }
         .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))
