@@ -272,7 +272,7 @@ final class NotchBackdropPresentation: ObservableObject {
     /// Measured from the top edge, as the fade is planned: a floating
     /// capsule's contour starts below it.
     var openness: Double { Double(fade.openness(atHeight: contourBottom)) }
-    private var contourBottom: CGFloat { contour.boundingRect.isNull ? 0 : contour.boundingRect.maxY }
+    fileprivate var contourBottom: CGFloat { contour.boundingRect.isNull ? 0 : contour.boundingRect.maxY }
 
     /// How much of the resting black still lies beneath the glass. It lets go
     /// a stretch after the glass opens: the drawn gradient trails the island
@@ -346,7 +346,7 @@ struct NotchSurfaceBackground: View {
                     .overlay {
                         LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast),
                                        startPoint: .top, endPoint: .bottom)
-                            .frame(height: presentation.contour.boundingRect.height)
+                            .frame(height: presentation.contourBottom)
                             .frame(maxHeight: .infinity, alignment: .top)
                             .mask(shape)
                     }

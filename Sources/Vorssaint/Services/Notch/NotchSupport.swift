@@ -1591,7 +1591,7 @@ struct NotchGlassFade: Equatable {
                 return NotchGlassFade(solidHeight: end - range, range: max(1, range), end: end)
             }
             let range = travel / (1 - current)
-            return NotchGlassFade(solidHeight: start - current * range, range: max(1, range))
+            return NotchGlassFade(solidHeight: start - current * range, range: max(1, range), end: end)
         }
         return NotchGlassFade(solidHeight: max(start, end), range: 1)
     }
