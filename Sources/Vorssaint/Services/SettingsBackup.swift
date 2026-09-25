@@ -90,7 +90,7 @@ enum SettingsBackup {
         }
         let windowLayoutPaths = SettingsBackupSupport.pathIdentities(
             in: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [])
-        for key in SettingsBackupSupport.exportKeys() {
+        for key in SettingsBackupSupport.keysToClear(whenImporting: settings) {
             defaults.removeObject(forKey: key)
         }
         for (key, value) in settings {

@@ -408,6 +408,14 @@ enum NotchPresentationProbe {
         host.panel.ignoresMouseEvents = true
         host.panel.orderFrontRegardless()
         var failures = checkHiddenReveal(screen: screen)
+        host.setOutline(enabled: true, color: .systemOrange)
+        if host.outlineProbeOpacity != 1 || host.outlineProbeWidth != 2 {
+            failures.append("the optional outline is not visible around the compact island")
+        }
+        host.setOutline(enabled: false, color: .white)
+        if host.outlineProbeOpacity != 0 || host.outlineProbeWidth != 0.5 {
+            failures.append("turning off the outline did not restore the compact island")
+        }
         if host.panel.collectionBehavior.intersection([.managed, .transient, .stationary]) != .stationary
             || !host.panel.collectionBehavior.contains(.canJoinAllSpaces) {
             failures.append("the island must stay stationary when revealing the desktop, without a conflicting window motion policy")

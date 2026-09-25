@@ -17,6 +17,13 @@ struct SettingsSidebarItem: Identifiable {
     let icon: String
 }
 
+/// A stable category in the sidebar; its title follows the selected language.
+struct SettingsSidebarSection: Identifiable {
+    let id: Int
+    let title: String
+    let items: [SettingsSidebarItem]
+}
+
 /// Builds one row per tool, even when several tools share one Settings card.
 enum SettingsSidebarSupport {
     static func items(page: SettingsPage, title: String, icon: String,

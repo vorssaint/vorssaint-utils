@@ -114,7 +114,7 @@ struct ScreenshotCaptureSettings: View {
             } header: {
                 Text(strings.pageTitle)
             }
-            .settingsSectionAnchor(.screenshot)
+            .settingsFormSectionAnchor(.screenshot)
 
             Section {
                 Toggle(strings.freezeToggle, isOn: $freeze)

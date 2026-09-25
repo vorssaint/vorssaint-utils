@@ -548,6 +548,11 @@ enum FeatureCatalogTests {
         } else {
             suite.expect(false, "feature install defaults suite can be created")
         }
+        let runtimeSource = (try? String(contentsOfFile: "Sources/Vorssaint/App/FeatureRuntime.swift",
+                                         encoding: .utf8)) ?? ""
+        suite.expect(runtimeSource.contains(
+            "setAvailable(AppFeature.allCases, available, enablingFirstInstalls: false)"),
+               "install all makes features available without switching on their behavior")
 
         suite.expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
@@ -577,6 +582,9 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.dynamicIslandExtensions
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
                "the Dynamic Island's extensions are every other feature of its section")
+        suite.expect(AppFeature.notch.initialInstallGroup == AppFeature.features(in: .dynamicIsland)
+                     && AppFeature.mixer.initialInstallGroup == [.mixer],
+                     "choosing the island for the first time includes its extensions without changing other features")
         suite.expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
             "automationFinder", "automationTerminal", "automationPlayback", "audioCapture", "microphone", "camera",

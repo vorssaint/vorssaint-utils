@@ -741,12 +741,15 @@ enum DefaultsKey {
 
     // Optional top-of-screen workspace and activity presentations.
     static let notchShowPlayingMusic = "notchShowPlayingMusic"
+    static let notchDefaultProfileInitialized = "notchDefaultProfileInitialized" // local migration marker; never backed up
+    static let notchInitialExtensionsInstalled = "notchInitialExtensionsInstalled" // local first-install marker; never backed up
     static let notchIdleContent = "notchIdleContent"
     static let notchHiddenControls = "notchHiddenControls"
     // Travels with the controls so old backups migrate and later choices survive.
     static let notchScratchpadControlHidden = "notchScratchpadControlHidden"
     static let notchControlOrder = "notchControlOrder"
     static let notchSize = "notchSize"
+    static let notchOutlineEnabled = "notchOutlineEnabled"
     static let notchCustomWidth = "notchCustomWidth"
     static let notchCustomHeight = "notchCustomHeight"
     static let notchHapticFeedback = "notchHapticFeedback"
@@ -1255,7 +1258,8 @@ enum Defaults {
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
         DefaultsKey.notchScratchpadControlHidden: false,
         DefaultsKey.notchControlOrder: "",
-        DefaultsKey.notchSize: NotchSize.spacious.rawValue,
+        DefaultsKey.notchSize: NotchSize.compact.rawValue,
+        DefaultsKey.notchOutlineEnabled: false,
         DefaultsKey.notchCustomWidth: NotchSize.defaultWidth,
         DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,
         DefaultsKey.notchHapticFeedback: true,
@@ -1263,13 +1267,13 @@ enum Defaults {
         DefaultsKey.notchDragReveal: true,
         DefaultsKey.notchCaptureControls: true,
         DefaultsKey.notchQuickPanel: true,
-        DefaultsKey.notchAppPanel: true,
+        DefaultsKey.notchAppPanel: false,
         DefaultsKey.notchHidesMenuBarIcon: false,
         DefaultsKey.notchScratchpad: true,
         DefaultsKey.notchHoverExpands: true,
         DefaultsKey.notchGesturesEnabled: true,
-        DefaultsKey.notchKeyboardLight: false,
-        DefaultsKey.notchNotificationsEnabled: false,
+        DefaultsKey.notchKeyboardLight: true,
+        DefaultsKey.notchNotificationsEnabled: true,
         DefaultsKey.notchDismissNativeNotifications: false,
         DefaultsKey.notchTimerEnabled: true,
         DefaultsKey.notchTimerMode: NotchTimerMode.timer.rawValue,
@@ -1279,11 +1283,11 @@ enum Defaults {
         DefaultsKey.notchPomodoroLongBreakMinutes: 15,
         DefaultsKey.notchPomodoroLongBreakInterval: 4,
         DefaultsKey.notchPomodoroTotalSessions: 4,
-        DefaultsKey.notchCameraEnabled: false,
-        DefaultsKey.notchAccessoriesEnabled: false,
+        DefaultsKey.notchCameraEnabled: true,
+        DefaultsKey.notchAccessoriesEnabled: true,
         DefaultsKey.notchCalendarEnabled: true,
         DefaultsKey.notchCalendarCountdown: false,
-        DefaultsKey.notchAgentsEnabled: false,
+        DefaultsKey.notchAgentsEnabled: true,
         DefaultsKey.notchAgentsClaude: true,
         DefaultsKey.notchAgentsCodex: true,
         DefaultsKey.notchAgentsCardOrder: "",
@@ -1298,14 +1302,14 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
         DefaultsKey.notchAgentsPriceUpdates: true,
-        DefaultsKey.notchLyricsEnabled: false,
+        DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
-        DefaultsKey.notchLiveEqualizer: false,
-        DefaultsKey.notchQueueEnabled: false,
-        DefaultsKey.notchDownloadsEnabled: false,
+        DefaultsKey.notchLiveEqualizer: true,
+        DefaultsKey.notchQueueEnabled: true,
+        DefaultsKey.notchDownloadsEnabled: true,
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
-        DefaultsKey.notchOpenOnHover: true,
+        DefaultsKey.notchOpenOnHover: false,
         DefaultsKey.notchHideInFullscreen: false,
         DefaultsKey.notchHideUntilHover: false,
         DefaultsKey.notchCoversMenus: true,
@@ -1318,10 +1322,10 @@ enum Defaults {
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchBrightness: true,
         DefaultsKey.notchBattery: true,
-        DefaultsKey.notchClipboard: false,
+        DefaultsKey.notchClipboard: true,
         DefaultsKey.notchClipboardWindow: true,
-        DefaultsKey.notchCapture: false,
-        DefaultsKey.notchTrackChange: false,
+        DefaultsKey.notchCapture: true,
+        DefaultsKey.notchTrackChange: true,
         DefaultsKey.notchMusicActivity: false,
         DefaultsKey.notchShowInCaptures: true,
         DefaultsKey.notchHideInCaptures: false,
@@ -1729,6 +1733,7 @@ enum Defaults {
 
     static func register() {
         let defaults = UserDefaults.standard
+        migrateExistingNotchDefaults(in: defaults)
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
@@ -1750,6 +1755,46 @@ enum Defaults {
         migrateSwitcherWindowlessFinder(in: defaults)
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
         hideScratchpadControlOnce(in: defaults)
+    }
+
+    /// Keep the previous implicit choices for people who already configured
+    /// the island. A fresh setup gets the new registered defaults instead.
+    static func migrateExistingNotchDefaults(in defaults: UserDefaults,
+                                             domainName: String? = Bundle.main.bundleIdentifier) {
+        guard let domainName else { return }
+        let saved = defaults.persistentDomain(forName: domainName) ?? [:]
+        guard saved[DefaultsKey.notchDefaultProfileInitialized] == nil else { return }
+        let automaticKeys: Set<String> = [DefaultsKey.notchScratchpadControlHidden,
+                                          DefaultsKey.notchHidesMenuBarIcon]
+        let wasConfigured = saved.keys.contains {
+            $0.hasPrefix("notch") && !automaticKeys.contains($0)
+                && ($0 != DefaultsKey.notchHiddenControls
+                    || saved[$0] as? String != NotchControlItem.defaultHidden)
+        } || saved[DefaultsKey.notchHidesMenuBarIcon] as? Bool == true
+        if wasConfigured {
+            defaults.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
+            let previous: [String: Any] = [
+                DefaultsKey.notchSize: NotchSize.spacious.rawValue,
+                DefaultsKey.notchAppPanel: true,
+                DefaultsKey.notchKeyboardLight: false,
+                DefaultsKey.notchNotificationsEnabled: false,
+                DefaultsKey.notchCameraEnabled: false,
+                DefaultsKey.notchAccessoriesEnabled: false,
+                DefaultsKey.notchAgentsEnabled: false,
+                DefaultsKey.notchLyricsEnabled: false,
+                DefaultsKey.notchLiveEqualizer: false,
+                DefaultsKey.notchQueueEnabled: false,
+                DefaultsKey.notchDownloadsEnabled: false,
+                DefaultsKey.notchOpenOnHover: true,
+                DefaultsKey.notchClipboard: false,
+                DefaultsKey.notchCapture: false,
+                DefaultsKey.notchTrackChange: false,
+            ]
+            for (key, value) in previous where saved[key] == nil {
+                defaults.set(value, forKey: key)
+            }
+        }
+        defaults.set(true, forKey: DefaultsKey.notchDefaultProfileInitialized)
     }
 
     /// The Scratchpad tile joined the controls hidden by default after lists

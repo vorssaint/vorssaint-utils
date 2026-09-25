@@ -184,7 +184,7 @@ public func vorssaintNowPlayingGet() {
     if watching, let context = NotchNativePlayback.publish(selected, info: snapshot) {
         snapshot["playbackRevision"] = context.revision.uuidString
         snapshot["canSendCommandsDirectly"] = NotchNativePlayback.target.map {
-            $0.allowsDirectCommands && $0.itemIdentifier != nil
+            $0.allowsDirectCommands && ($0.itemIdentifier != nil || $0.requiresCurrentPlayer)
         } == true
     }
     if watching { snapshot.merge(NotchNativePlayback.sourceReply) { _, new in new } }

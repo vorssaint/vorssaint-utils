@@ -3,13 +3,25 @@
 
 import SwiftUI
 
+/// The last visible compact track stays intact while its island retracts.
+struct NotchCompactMusicSnapshot {
+    let playback: NotchPlayback
+    let artwork: NSImage?
+    let tint: NotchArtworkTint?
+    let geometry: NotchGeometry
+}
+
 /// Compact playback stays beside the camera and never grows a second row.
 struct NotchMusicStrip: View {
     @ObservedObject var service: NotchService
+    var snapshot: NotchCompactMusicSnapshot? = nil
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
 
-    private var geometry: NotchGeometry { service.compactActivityGeometry }
+    private var geometry: NotchGeometry { snapshot?.geometry ?? service.compactActivityGeometry }
+    private var playback: NotchPlayback? { snapshot?.playback ?? music.playback }
+    private var artwork: NSImage? { snapshot == nil ? music.artwork : snapshot?.artwork }
+    private var tint: NotchArtworkTint? { snapshot == nil ? music.artworkTint : snapshot?.tint }
     /// A physical camera's wings are fitted to the cover and the bars; a
     /// simulated one keeps a little air beside its drawn cutout.
     private var innerInset: CGFloat { geometry.isNotched ? 0 : 8 }
@@ -30,9 +42,9 @@ struct NotchMusicStrip: View {
                    geometry.compactActivityWingWidth - NotchLayout.compactMusicBarsWidth - innerInset))
     }
 
-    private var title: String { music.playback?.track.title ?? FeatureStrings.radialMenu(l10n.language).mediaNowPlaying }
+    private var title: String { playback?.track.title ?? FeatureStrings.radialMenu(l10n.language).mediaNowPlaying }
     private var artist: String? {
-        guard let artist = music.playback?.track.artist?.trimmingCharacters(in: .whitespaces), !artist.isEmpty else { return nil }
+        guard let artist = playback?.track.artist?.trimmingCharacters(in: .whitespaces), !artist.isEmpty else { return nil }
         return artist
     }
     /// A simulated camera has room for the track even when its wings disappear.
@@ -45,7 +57,7 @@ struct NotchMusicStrip: View {
                 HStack(spacing: 8) {
                     if geometry.compactActivityWingWidth > 0 {
                         // Circular corners, like the strip's, so the two stay parallel.
-                        NotchMusicCover(artwork: music.artwork, side: artworkSide, radius: artworkRadius)
+                        NotchMusicCover(artwork: artwork, side: artworkSide, radius: artworkRadius)
                     }
                 }
                 .padding(.leading, artworkInset)
@@ -59,11 +71,11 @@ struct NotchMusicStrip: View {
                 .clipped()
                 HStack {
                     if geometry.compactActivityWingWidth > 0 {
-                        NotchLiveEqualizerBars(isPlaying: music.playback?.isPlaying == true,
+                        NotchLiveEqualizerBars(isPlaying: playback?.isPlaying == true,
                                                bars: NotchLayout.compactMusicBarCount,
                                                barWidth: NotchLayout.compactMusicBarWidth,
                                                height: geometry.compactMusicBarHeight,
-                                               tint: music.artworkTint?.color ?? .white)
+                                               tint: tint?.color ?? .white)
                     }
                 }
                 .padding(.leading, innerInset)
@@ -74,7 +86,7 @@ struct NotchMusicStrip: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel([title, music.playback?.track.artist].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel([title, playback?.track.artist].compactMap { $0 }.joined(separator: ", "))
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
         .help(title)
     }

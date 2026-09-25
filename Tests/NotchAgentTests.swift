@@ -832,9 +832,11 @@ enum NotchAgentTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        suite.expect(NotchAgentSupport.isEnabled(in: defaults), "installed AI agents start enabled in the island")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(!NotchSupport.modules(in: defaults).contains(.agents) && !NotchAgentSupport.isEnabled(in: defaults)
                         && !NotchSupport.routes(.agents, in: defaults),
-                     "the AI page stays off until it is chosen")
+                     "turning AI agents off removes their page and notices")
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(NotchSupport.modules(in: defaults).last == .agents && NotchAgentSupport.isEnabled(in: defaults)
                         && NotchSupport.routes(.agents, in: defaults) && NotchAgentSupport.showsLiveActivity(in: defaults),
@@ -871,9 +873,9 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
-                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == true
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
-                     "every AI preference is registered and travels in backups, with the page off and prices kept current")
+                     "every AI preference is registered and travels in backups, with the page on and prices kept current")
         suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
         suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "turning price updates off stops the download")
