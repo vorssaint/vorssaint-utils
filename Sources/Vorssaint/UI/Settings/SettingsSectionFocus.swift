@@ -3,39 +3,35 @@
 
 import SwiftUI
 
-private struct FocusedSettingsSectionAnchorKey: EnvironmentKey {
-    static let defaultValue: SettingsSectionAnchor? = nil
+private struct SettingsSectionBounds {
+    let anchor: Anchor<CGRect>
+    let cornerRadius: CGFloat
+    let padding: CGFloat
 }
 
-private extension EnvironmentValues {
-    var focusedSettingsSectionAnchor: SettingsSectionAnchor? {
-        get { self[FocusedSettingsSectionAnchorKey.self] }
-        set { self[FocusedSettingsSectionAnchorKey.self] = newValue }
+private struct SettingsSectionBoundsKey: PreferenceKey {
+    static var defaultValue: [SettingsSectionAnchor: [SettingsSectionBounds]] = [:]
+
+    static func reduce(value: inout Value, nextValue: () -> Value) {
+        for (anchor, bounds) in nextValue() {
+            value[anchor, default: []].append(contentsOf: bounds)
+        }
     }
 }
 
-/// The landing highlight: a tinted fill, an accent outline and a soft glow
-/// around the section a search, a legend or the Command Bar just brought
-/// into view, so the eye finds it before it fades.
+/// A Form distributes modifiers on a Section to its rows. Collect their
+/// bounds so the landing highlight can frame the whole section once.
 private struct SettingsSectionAnchorModifier: ViewModifier {
     let anchor: SettingsSectionAnchor
     let cornerRadius: CGFloat
-    @Environment(\.focusedSettingsSectionAnchor) private var focusedAnchor
+    let padding: CGFloat
 
     func body(content: Content) -> some View {
-        let focused = focusedAnchor == anchor
         content
             .id(anchor)
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.accentColor.opacity(focused ? 0.10 : 0))
-                    .allowsHitTesting(false)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(focused ? 0.9 : 0), lineWidth: 2)
-                    .shadow(color: Color.accentColor.opacity(focused ? 0.5 : 0), radius: 14)
-                    .allowsHitTesting(false)
+            .anchorPreference(key: SettingsSectionBoundsKey.self, value: .bounds) { bounds in
+                [anchor: [SettingsSectionBounds(anchor: bounds, cornerRadius: cornerRadius,
+                                                padding: padding)]]
             }
     }
 }
@@ -46,12 +42,36 @@ private struct SettingsSectionFocusModifier: ViewModifier {
     @ObservedObject private var router = SettingsRouter.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var focusedAnchor: SettingsSectionAnchor?
+    @State private var lastFocusedAnchor: SettingsSectionAnchor?
     @State private var highlightID = UUID()
 
     func body(content: Content) -> some View {
         ScrollViewReader { proxy in
             content
-                .environment(\.focusedSettingsSectionAnchor, focusedAnchor)
+                .overlayPreferenceValue(SettingsSectionBoundsKey.self) { sections in
+                    GeometryReader { geometry in
+                        if let anchor = lastFocusedAnchor,
+                           let bounds = sections[anchor],
+                           let first = bounds.first {
+                            let boundsRect = bounds.dropFirst().reduce(geometry[first.anchor]) {
+                                $0.union(geometry[$1.anchor])
+                            }
+                            let rect = boundsRect.insetBy(dx: -first.padding, dy: -first.padding)
+                            RoundedRectangle(cornerRadius: first.cornerRadius, style: .continuous)
+                                .fill(Color.accentColor.opacity(0.10))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: first.cornerRadius, style: .continuous)
+                                        .strokeBorder(Color.accentColor.opacity(0.9), lineWidth: 2)
+                                        .shadow(color: Color.accentColor.opacity(0.5), radius: 14)
+                                }
+                                .frame(width: rect.width, height: rect.height)
+                                .position(x: rect.midX, y: rect.midY)
+                                .opacity(focusedAnchor == anchor ? 1 : 0)
+                        }
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
                 .onAppear {
                     consumePendingRequest(using: proxy)
                 }
@@ -71,6 +91,7 @@ private struct SettingsSectionFocusModifier: ViewModifier {
             focusedAnchor = nil
             return
         }
+        lastFocusedAnchor = anchor
 
         // A page-changing request publishes before the replacement Form has
         // completed layout. Retry once after the first run-loop turn because
@@ -114,7 +135,12 @@ extension View {
     /// Marks a stable destination inside a Settings page. The corner radius
     /// is the destination's own, so the landing outline hugs it.
     func settingsSectionAnchor(_ anchor: SettingsSectionAnchor, cornerRadius: CGFloat = 7) -> some View {
-        modifier(SettingsSectionAnchorModifier(anchor: anchor, cornerRadius: cornerRadius))
+        modifier(SettingsSectionAnchorModifier(anchor: anchor, cornerRadius: cornerRadius, padding: 0))
+    }
+
+    /// Grouped Forms inset their headers and rows from the section background.
+    func settingsFormSectionAnchor(_ anchor: SettingsSectionAnchor) -> some View {
+        modifier(SettingsSectionAnchorModifier(anchor: anchor, cornerRadius: 10, padding: 10))
     }
 
     /// Handles one-shot destination requests for one Settings page.

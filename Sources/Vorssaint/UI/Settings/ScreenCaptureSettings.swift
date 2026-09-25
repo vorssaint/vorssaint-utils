@@ -204,7 +204,7 @@ private struct ScreenTextCaptureSettings: View {
         } header: {
             Text(l10n.s.ocrName)
         }
-        .settingsSectionAnchor(.screenOCR)
+        .settingsFormSectionAnchor(.screenOCR)
     }
 }
 
@@ -235,6 +235,6 @@ private struct ColorCaptureSettings: View {
         } header: {
             Text(l10n.s.colorPickerName)
         }
-        .settingsSectionAnchor(.colorPicker)
+        .settingsFormSectionAnchor(.colorPicker)
     }
 }
