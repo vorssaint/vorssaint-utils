@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Disinstallare Vorssaint?",
         advancedUninstallConfirmBody: "Vorssaint cancellerà le autorizzazioni, rimuoverà le preferenze e si sposterà nel Cestino, poi si chiuderà. Questa azione non può essere annullata dall’app, ma resta nel Cestino finché non lo svuoti.",
         advancedUninstallFailedTitle: "Disinstallazione interrotta",
-        advancedUninstallFailedBody: "Vorssaint non è riuscito a ripristinare un’impostazione di sistema che aveva cambiato: lo stop, la velocità delle ventole o l’accelerazione del mouse. Non è stato rimosso nulla. Riprova e consenti la richiesta della password, se compare.",
+        advancedUninstallFailedBody: "Vorssaint non è riuscito a ripristinare un’impostazione di sistema che aveva cambiato: lo stop, la velocità delle ventole, l’accelerazione del mouse o l’ordine degli Spazi. Non è stato rimosso nulla. Riprova e consenti la richiesta della password, se compare.",
 
         launchAtLogin: "Apri al login",
         languageLabel: "Lingua",
@@ -1072,6 +1072,8 @@ extension Strings {
         mouseAccelerationName: "Disattiva l’accelerazione del mouse",
         mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
         shelfClearOnClose: "Svuota alla chiusura",
-        shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano."
+        shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano.",
+        spacesOrderName: "Mantieni gli Spazi in ordine fisso",
+        spacesOrderCaption: "Impedisce a macOS di riordinare gli Spazi in base all’uso più recente, così restano nell’ordine che hai scelto. L’impostazione precedente torna quando disattivi questa opzione. Il Dock potrebbe riavviarsi una volta per applicare la modifica."
     )
 }

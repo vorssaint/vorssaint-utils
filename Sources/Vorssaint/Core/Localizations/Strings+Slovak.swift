@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Odinštalovať Vorssaint?",
         advancedUninstallConfirmBody: "Vorssaint vymaže svoje povolenia, odstráni predvoľby, presunie sa do Koša a ukončí sa. Z aplikácie sa to už nedá vrátiť späť, ale ostane v Koši, kým ho nevyprázdnite.",
         advancedUninstallFailedTitle: "Odinštalovanie sa zastavilo",
-        advancedUninstallFailedBody: "Vorssaint nedokázal vrátiť systémové nastavenie, ktoré zmenil: spánok, otáčky ventilátora alebo akceleráciu myši. Nič sa neodstránilo. Skúste to znova a potvrďte požiadavku na heslo, ak sa objaví.",
+        advancedUninstallFailedBody: "Vorssaint nedokázal vrátiť systémové nastavenie, ktoré zmenil: spánok, otáčky ventilátora, akceleráciu myši alebo poradie plôch. Nič sa neodstránilo. Skúste to znova a potvrďte požiadavku na heslo, ak sa objaví.",
 
         launchAtLogin: "Spustiť po prihlásení",
         languageLabel: "Jazyk",
@@ -1072,6 +1072,8 @@ extension Strings {
         mouseAccelerationName: "Vypnúť akceleráciu myši",
         mouseAccelerationCaption: "Odstráni akceleráciu kurzora pre pripojené myši. Predchádzajúce nastavenie sa vráti po vypnutí tejto funkcie alebo po ukončení Vorssaintu.",
         shelfClearOnClose: "Vymazať pri zatvorení",
-        shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú."
+        shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú.",
+        spacesOrderName: "Udržať plochy v pevnom poradí",
+        spacesOrderCaption: "Zabráni systému macOS meniť poradie plôch podľa posledného použitia, takže zostanú v poradí, ktoré ste nastavili. Po vypnutí sa vráti predchádzajúce nastavenie. Dock sa môže raz reštartovať, aby sa zmena použila."
     )
 }

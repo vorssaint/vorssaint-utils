@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Vorssaint를 제거할까요?",
         advancedUninstallConfirmBody: "Vorssaint가 권한과 설정을 지우고 휴지통으로 이동한 뒤 종료됩니다. 이 작업은 앱에서 되돌릴 수 없지만 휴지통을 비우기 전까지는 복원할 수 있습니다.",
         advancedUninstallFailedTitle: "제거를 중단했습니다",
-        advancedUninstallFailedBody: "Vorssaint가 변경한 시스템 설정을 되돌리지 못했습니다. 잠자기, 팬 속도 또는 마우스 가속입니다. 아무것도 삭제되지 않았습니다. 다시 시도하고 암호를 요청하면 허용하세요.",
+        advancedUninstallFailedBody: "Vorssaint가 변경한 시스템 설정을 되돌리지 못했습니다. 잠자기, 팬 속도, 마우스 가속 또는 공간 순서입니다. 아무것도 삭제되지 않았습니다. 다시 시도하고 암호를 요청하면 허용하세요.",
 
         launchAtLogin: "로그인 시 실행",
         languageLabel: "언어",
@@ -1073,6 +1073,8 @@ extension Strings {
         mouseAccelerationName: "마우스 가속 끄기",
         mouseAccelerationCaption: "연결된 마우스의 포인터 가속을 끕니다. 옵션을 끄거나 Vorssaint를 종료하면 이전 설정으로 복원됩니다.",
         shelfClearOnClose: "닫을 때 항목 지우기",
-        shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다."
+        shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다.",
+        spacesOrderName: "공간 순서 고정",
+        spacesOrderCaption: "macOS가 최근 사용 순서에 따라 공간을 재정렬하지 않도록 해 정한 순서를 유지합니다. 끄면 이전 설정으로 돌아갑니다. 변경 사항을 적용하려고 Dock이 한 번 다시 시작될 수 있습니다."
     )
 }

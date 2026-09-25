@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "卸载 Vorssaint？",
         advancedUninstallConfirmBody: "Vorssaint 将清除其权限、移除偏好设置并移到废纸篓，然后退出。此操作无法从 App 内撤销，但在你清倒废纸篓之前它仍会留在其中。",
         advancedUninstallFailedTitle: "已停止卸载",
-        advancedUninstallFailedBody: "Vorssaint 无法还原它更改过的系统设置：睡眠、风扇转速或鼠标加速。没有移除任何内容。请重试，并在出现密码请求时允许。",
+        advancedUninstallFailedBody: "Vorssaint 无法还原它更改过的系统设置：睡眠、风扇转速、鼠标加速或空间顺序。没有移除任何内容。请重试，并在出现密码请求时允许。",
 
         launchAtLogin: "登录时启动",
         languageLabel: "语言",
@@ -1072,6 +1072,8 @@ extension Strings {
         mouseAccelerationName: "关闭鼠标加速",
         mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。",
         shelfClearOnClose: "关闭时清空",
-        shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。"
+        shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。",
+        spacesOrderName: "固定空间顺序",
+        spacesOrderCaption: "阻止 macOS 按最近使用情况重新排列空间，让它们保持你设定的顺序。关闭此选项后会恢复之前的设置。为应用更改，Dock 可能会重新启动一次。"
     )
 }

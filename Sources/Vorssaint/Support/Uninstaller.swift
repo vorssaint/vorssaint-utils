@@ -7,7 +7,8 @@ import ServiceManagement
 /// `Vorssaint --uninstall`: cleanly detaches the app from the system
 /// before its bundle is removed. It unregisters the fan helper daemon and the
 /// login item — so no dead entry lingers in System Settings › General › Login
-/// Items — and restores normal sleep if a closed-lid session left it disabled.
+/// Items — restores normal sleep if a closed-lid session left it disabled, and
+/// puts back the Space rearranging setting.
 ///
 /// Used by `Tools/uninstall.sh`. Must run from the installed bundle, since
 /// `SMAppService.mainApp` is scoped to the running app's bundle identifier.
@@ -36,6 +37,11 @@ enum Uninstaller {
                   ? "UNINSTALL: normal sleep restored"
                   : "UNINSTALL: sleep is still disabled")
         }
+        if SpacesOrderHold.hasPendingRestore {
+            print(SpacesOrderHold.restoreForRemoval()
+                  ? "UNINSTALL: Space rearranging restored"
+                  : "UNINSTALL: Space rearranging is still off")
+        }
         do {
             try SMAppService.mainApp.unregister()
             print("UNINSTALL: login item unregistered")
@@ -43,9 +49,9 @@ enum Uninstaller {
             print("UNINSTALL: login item was not registered")
         }
         // Only the daemon decides the status. A login item that was never
-        // registered is not a failure, and sleep is a setting the caller can
-        // read back for itself; a daemon left behind is the one thing it
-        // cannot.
+        // registered is not a failure, and sleep and Space rearranging are
+        // settings the caller can read back for itself; a daemon left behind
+        // is the one thing it cannot.
         exit(detached ? EXIT_SUCCESS : EXIT_FAILURE)
     }
 }

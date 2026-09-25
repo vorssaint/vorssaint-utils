@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Vorssaint kaldırılsın mı?",
         advancedUninstallConfirmBody: "Vorssaint izinlerini temizleyecek, tercihlerini kaldıracak ve Çöp Sepeti’ne taşınıp kapanacak. Bu işlem uygulama içinden geri alınamaz, ama Çöp Sepeti’ni boşaltana kadar orada kalır.",
         advancedUninstallFailedTitle: "Kaldırma durduruldu",
-        advancedUninstallFailedBody: "Vorssaint değiştirdiği bir sistem ayarını geri alamadı: uyku, fan hızı veya fare hızlandırması. Hiçbir şey silinmedi. Yeniden deneyin ve parola istenirse izin verin.",
+        advancedUninstallFailedBody: "Vorssaint değiştirdiği bir sistem ayarını geri alamadı: uyku, fan hızı, fare hızlandırması veya Space sırası. Hiçbir şey silinmedi. Yeniden deneyin ve parola istenirse izin verin.",
 
         launchAtLogin: "Oturum açınca başlat",
         languageLabel: "Dil",
@@ -1072,6 +1072,8 @@ extension Strings {
         mouseAccelerationName: "Fare hızlandırmasını kapat",
         mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir.",
         shelfClearOnClose: "Kapatınca temizle",
-        shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur."
+        shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur.",
+        spacesOrderName: "Space sırasını sabit tut",
+        spacesOrderCaption: "macOS’un Space’leri son kullanıma göre yeniden sıralamasını engeller, böylece belirlediğiniz sırada kalırlar. Seçenek kapatıldığında önceki ayar geri yüklenir. Değişikliği uygulamak için Dock bir kez yeniden başlayabilir."
     )
 }

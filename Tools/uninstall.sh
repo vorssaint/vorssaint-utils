@@ -19,14 +19,15 @@ pkill -x VorssaintUtils 2>/dev/null || true
 sleep 0.5
 
 # Detach from the system from inside whichever bundle still exists: unregisters
-# the login item (no BTM tombstone) and restores normal sleep.
+# the login item (no BTM tombstone), restores normal sleep and puts back Space
+# rearranging.
 # The fan helper's registration lives in the system, not in the bundle, so
 # deleting the app below cannot reach it. Only the binary can drop it, and the
 # check after the loop settles what its absence or failure left behind.
 detached=1
 for candidate in "$APP/Contents/MacOS/Vorssaint" "$LEGACY_APP/Contents/MacOS/VorssaintUtils"; do
     if [[ -x "$candidate" ]]; then
-        echo "▸ Detaching the fan helper and login item, restoring sleep…"
+        echo "▸ Detaching the fan helper and login item, restoring sleep and Space rearranging…"
         if "$candidate" --uninstall; then detached=0; fi
         break
     fi
@@ -50,6 +51,13 @@ fi
 # that somebody else, or the user, had set.
 sleep_was_ours=0
 [[ "$(defaults read "$BUNDLE" vorssDisabledSleep 2>/dev/null)" == "1" ]] && sleep_was_ours=1
+
+# Whether Space rearranging is still owed back. `--uninstall` clears this
+# marker once the setting is back, so one still here means that restore failed
+# or never ran (an app trashed by hand). It is read here for the same reason
+# as the sleep flag above.
+spaces_owed=0
+[[ -n "$(defaults read "$BUNDLE" spacesOrderRestore 2>/dev/null)" ]] && spaces_owed=1
 
 echo "▸ Resetting permissions (Accessibility, Screen Recording)…"
 tccutil reset All "$BUNDLE" >/dev/null 2>&1 || true
@@ -97,7 +105,16 @@ if (( sleep_was_ours )); then
     fi
 fi
 
-if (( detached == 0 && sleep_stuck == 0 && sleep_unknown == 0 )); then
+# With the marker gone, nothing will ever put Space rearranging back, so this
+# is the only warning anyone will get. Only a 0 proves it is still off: a
+# missing key is the system default, which rearranges. This only reads the
+# Dock's preference; changing it is left to the user.
+spaces_stuck=0
+if (( spaces_owed )) && [[ "$(defaults read com.apple.dock mru-spaces 2>/dev/null)" == "0" ]]; then
+    spaces_stuck=1
+fi
+
+if (( detached == 0 && sleep_stuck == 0 && sleep_unknown == 0 && spaces_stuck == 0 )); then
     echo "✓ Vorssaint fully removed."
     exit 0
 fi
@@ -114,5 +131,11 @@ if (( sleep_unknown )); then
     echo "⚠ Vorssaint removed, but whether sleep came back could not be read." >&2
     echo "  Closed-lid mode had switched it off. Check with: pmset -g | grep SleepDisabled" >&2
     echo "  If that reads 1, put it back with: sudo pmset disablesleep 0" >&2
+fi
+if (( spaces_stuck )); then
+    echo "⚠ Vorssaint removed, but Spaces are still kept in a fixed order." >&2
+    echo "  Fixed Space order had turned rearranging off, and it was not put back." >&2
+    echo "  Turn it back on in System Settings › Desktop & Dock with" >&2
+    echo "  \"Automatically rearrange Spaces based on most recent use\"." >&2
 fi
 exit 1

@@ -43,6 +43,10 @@ enum SelfUninstallContract {
         static let shared = BrightnessService()
         func resumeInputTaps() { events.append("resume brightness") }
     }
+    enum SpacesOrderHold {
+        static var restores = true
+        static func restoreForRemoval() -> Bool { events.append("spaces"); return restores }
+    }
     enum AppFeature: CaseIterable { case any }
     struct FeatureRuntime {
         static let shared = FeatureRuntime()
@@ -58,8 +62,8 @@ enum SelfUninstallContract {
     }
 
     static func run(_ suite: TestSuite) {
-        func reset(allowRule: Bool) {
-            events = []; ruleRemovalAllowed = allowRule
+        func reset(allowRule: Bool, spacesRestore: Bool = true) {
+            events = []; ruleRemovalAllowed = allowRule; SpacesOrderHold.restores = spacesRestore
         }
 
         reset(allowRule: false)
@@ -79,13 +83,20 @@ enum SelfUninstallContract {
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
         suite.expect(failure == "rule kept"
-                        && events == ["suspend", "sleep", "rule", "resume features", "resume brightness"],
+                        && events == ["suspend", "spaces", "sleep", "rule", "resume features", "resume brightness"],
                      "a refused password request stops a full uninstall before anything is removed, found \(events)")
 
         reset(allowRule: true)
         Host.uninstallCompletely { failure = $0 }
         DispatchQueue.main.flush()
-        suite.expect(events == ["suspend", "sleep", "rule", "detach", "tccutil", "preferences", "trash"],
+        suite.expect(events == ["suspend", "spaces", "sleep", "rule", "detach", "tccutil", "preferences", "trash"],
                      "a full uninstall restores sleep and removes the rule before detaching, found \(events)")
+
+        reset(allowRule: true, spacesRestore: false)
+        Host.uninstallCompletely { failure = $0 }
+        DispatchQueue.main.flush()
+        suite.expect(failure == "stopped"
+                        && events == ["suspend", "spaces", "resume features", "resume brightness"],
+                     "a failed Space restore stops a full uninstall before sleep, the rule or anything else is touched, found \(events)")
     }
 }
