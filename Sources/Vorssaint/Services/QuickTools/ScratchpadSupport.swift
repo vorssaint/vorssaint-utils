@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
 
 /// How long each scratchpad keeps text that nobody edits. The check runs only
 /// when the panel opens, against the stored edit dates, so the feature needs
@@ -180,6 +180,23 @@ enum ScratchpadFocusedTabShortcut {
             return canClosePad ? .closeSelectedPad : .hidePad
         default:
             return nil
+        }
+    }
+}
+
+/// The pad has no Find menu to carry these (it runs without activating the
+/// app), so its key monitor maps the standard find keys itself: Command-F
+/// opens the text view's find bar, Command-G and Shift-Command-G step through
+/// the matches, the way TextEdit and Stickies do.
+enum ScratchpadFindShortcut {
+    static func action(charactersIgnoringModifiers: String?,
+                       modifierFlags: NSEvent.ModifierFlags) -> NSTextFinder.Action? {
+        let modifiers = modifierFlags.intersection([.command, .option, .shift, .control])
+        switch (charactersIgnoringModifiers?.lowercased(), modifiers) {
+        case ("f", .command): return .showFindInterface
+        case ("g", .command): return .nextMatch
+        case ("g", [.command, .shift]): return .previousMatch
+        default: return nil
         }
     }
 }
