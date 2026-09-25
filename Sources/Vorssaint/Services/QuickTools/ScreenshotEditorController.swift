@@ -1429,6 +1429,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
         do {
             try data.write(to: url, options: .atomic)
+            ScreenshotSupport.markAsScreenCapture(url)
             model.markExported()
             QuickToolHUD.show(icon: "camera.viewfinder",
                               message: String(format: strings.savedHUDFormat,

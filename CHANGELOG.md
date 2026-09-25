@@ -44,6 +44,7 @@ Settings lists tools on shared pages by name in the sidebar, and keyboard bright
 - Repeat Left or Right to cycle sizes, off by default, makes pressing Left Half or Right Half again cycle the window through half, two thirds and one third on the same display instead of moving it to the next display. Thanks to @MakhBeth and @iva-zhu.
 - Keep going with the lid closed can dim the built-in screen to zero while the lid is closed and bring its level back when the lid opens, with Dim the screen to zero. It is off by default and leaves external displays alone. Thanks to @root800080.
 - A Keyboard light slider sits in the menu panel's display card and in Settings › Quick tools, and turns the light off at zero. Thanks to @sarat03.
+- The Cleaner lists forgotten screenshots in its optional section, unchecked and with their total size. Only files macOS marked as screen captures count, at the top of the screenshot folder and under the name they were saved with, and only after 30 days without being opened, an age you can change or turn off on the Cleaner's start screen. Renamed or moved screenshots never appear, scheduled cleanups skip the search, and captures saved by Vorssaint's Screenshot tool are now marked the same way. Thanks to @georgebnov.
 
 ### Changed
 - The menu panel opens and closes with the native macOS popover animation. Thanks to @archieamas11.

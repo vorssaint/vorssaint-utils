@@ -887,10 +887,15 @@ enum AppManagementFeatureTests {
                && !CleanerPolicy.isExcludedCacheEntry("ms-playwright"),
                "ordinary and downloadable sensitive caches remain available for review")
         suite.expect(CleanerSupport.Category.deviceBackups.rawValue == 6
-               && CleanerSupport.Category.allCases.count == 7,
-               "device backups joined the cleaner with a stable category id")
+               && CleanerSupport.Category.screenshots.rawValue == 7
+               && CleanerSupport.Category.allCases.count == 8,
+               "device backups and screenshots joined the cleaner with stable category ids")
         suite.expect(!CleanerPolicy.precheckDeviceBackups,
                "device backups never start checked, they are the user's safety net")
+        suite.expect(!CleanerPolicy.precheckScreenshots
+               && registeredDefaults[DefaultsKey.cleanerScreenshotAgeDays] as? Int == 30
+               && CleanerPolicy.sanitizedScreenshotAgeDays(-3) == 0,
+               "forgotten screenshots start unchecked after a 30 day default")
         // CleanerScheduler and CleanerView are outside this test binary, so
         // pin escalation at the call sites: the unattended pass must never
         // reach Finder's administrator prompt, and no default lets a later
@@ -909,6 +914,9 @@ enum AppManagementFeatureTests {
                && cleanerViewCode.components(separatedBy: "cleanSelected(").count == 2
                && cleanerViewCode.contains("cleanSelected(escalate:true)"),
                "cleanSelected has no default escalation and the manual clean still asks")
+        suite.expect(schedulerCode.contains("cleaner.scan(attended:false)")
+               && cleanerViewCode.contains("cleaner.scan(attended:true)"),
+               "only a scan someone started reads the screenshot folders")
         suite.expect(CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/iOS DeviceSupport")
                && CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/watchOS DeviceSupport"),
                "stale DeviceSupport symbol caches count as developer junk")

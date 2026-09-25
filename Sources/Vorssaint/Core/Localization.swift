@@ -1151,6 +1151,10 @@ struct Strings {
     let cleanerTrashNote: String
     let cleanerCatDeviceBackups: String
     let cleanerDeviceBackupsCaption: String
+    let cleanerCatScreenshots: String
+    let cleanerScreenshotsCaptionFormat: String
+    let cleanerScreenshotsSettingCaption: String
+    let cleanerScreenshotsAfterFormat: String
     let cleanerNothingFound: String
     let cleanerClean: String
     let cleanerDoneNote: String
@@ -2221,6 +2225,10 @@ extension Strings {
         cleanerTrashNote: "Esvaziar a Lixeira é permanente.",
         cleanerCatDeviceBackups: "Backups de iPhone",
         cleanerDeviceBackupsCaption: "Backups antigos de iPhone e iPad ocupam boa parte do que o macOS chama de Outros. Remova só os que você não precisa mais; um novo backup é feito quando o aparelho for conectado de novo.",
+        cleanerCatScreenshots: "Capturas de tela esquecidas",
+        cleanerScreenshotsCaptionFormat: "Capturas de tela que você não abre há %d dias e que ainda têm o nome e a pasta que o macOS deu. As que você renomeou ou moveu nunca aparecem aqui.",
+        cleanerScreenshotsSettingCaption: "A varredura lista, desmarcadas e com o tamanho total, as capturas de tela que você não abre há esse tempo.",
+        cleanerScreenshotsAfterFormat: "Após %d dias",
         cleanerNothingFound: "Nada para limpar. Seu Mac está em ordem.",
         cleanerClean: "Limpar",
         cleanerDoneNote: "Os itens foram para a Lixeira e podem ser recuperados de lá.",
@@ -3292,6 +3300,10 @@ extension Strings {
         cleanerTrashNote: "Emptying the Trash is permanent.",
         cleanerCatDeviceBackups: "iPhone backups",
         cleanerDeviceBackupsCaption: "Old iPhone and iPad backups take a big slice of the storage macOS calls Other. Remove only the ones you no longer need; a new backup is made when you plug the device in again.",
+        cleanerCatScreenshots: "Forgotten screenshots",
+        cleanerScreenshotsCaptionFormat: "Screenshots you have not opened in %d days that still have the name and folder macOS gave them. Ones you renamed or moved never show up here.",
+        cleanerScreenshotsSettingCaption: "The scan lists the screenshots you have not opened for this long, unchecked, with their total size.",
+        cleanerScreenshotsAfterFormat: "After %d days",
         cleanerNothingFound: "Nothing to clean. Your Mac is tidy.",
         cleanerClean: "Clean",
         cleanerDoneNote: "Items went to the Trash and can be recovered from there.",

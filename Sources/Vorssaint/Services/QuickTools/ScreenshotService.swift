@@ -657,6 +657,7 @@ final class ScreenshotService: ObservableObject {
         let (url, consumedNumber) = Self.saveDestination(strings: strings)
         do {
             try data.write(to: url, options: .atomic)
+            ScreenshotSupport.markAsScreenCapture(url)
             QuickToolHUD.show(icon: "camera.viewfinder",
                               message: String(format: strings.savedHUDFormat,
                                               url.deletingLastPathComponent().lastPathComponent))
@@ -681,6 +682,7 @@ final class ScreenshotService: ObservableObject {
         let (url, consumedNumber) = Self.saveDestination(strings: strings)
         do {
             try data.write(to: url, options: .atomic)
+            ScreenshotSupport.markAsScreenCapture(url)
         } catch {
             if let consumedNumber {
                 Self.rewindNumberSequence(toReuse: consumedNumber)

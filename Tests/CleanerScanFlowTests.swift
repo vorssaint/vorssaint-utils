@@ -41,6 +41,8 @@ enum CleanerScanFlowTests {
         static func scanDeveloperJunk() -> [Item] { record(.developer) }
         static func scanTrash() -> [Item] { record(.trash) }
         static func scanDeviceBackups() -> [Item] { record(.deviceBackups) }
+        static func screenshotSearch() -> (folders: [URL], days: Int)? { ([], 30) }
+        static func scanScreenshots(in folders: [URL], days: Int) -> [Item] { record(.screenshots) }
     }
 
     static func run(_ suite: TestSuite) {
@@ -53,14 +55,14 @@ enum CleanerScanFlowTests {
             cleaner.reset()
         }
 
-        cleaner.scan()
+        cleaner.scan(attended: true)
         Queue.drain()
         suite.expect(Scanner.scanned == all && cleaner.phase == .results && cleaner.items.count == all.count,
                      "an uninterrupted scan visits every category and delivers its results")
 
         cleaner.reset()
         Scanner.scanned = []
-        cleaner.scan()
+        cleaner.scan(attended: true)
         cleaner.reset()
         Queue.drain()
         suite.expect(Scanner.scanned.isEmpty && cleaner.phase == .idle,
@@ -68,7 +70,7 @@ enum CleanerScanFlowTests {
 
         Scanner.scanned = []
         Scanner.onScan = { if $0 == .caches { cleaner.reset() } }
-        cleaner.scan()
+        cleaner.scan(attended: true)
         Queue.drain()
         Scanner.onScan = nil
         suite.expect(Scanner.scanned == [.leftovers, .loginItems, .caches]
@@ -76,11 +78,18 @@ enum CleanerScanFlowTests {
                      "canceling mid-scan stops at the next category and delivers nothing")
 
         Scanner.scanned = []
-        cleaner.scan()
+        cleaner.scan(attended: true)
         cleaner.reset()
-        cleaner.scan()
+        cleaner.scan(attended: true)
         Queue.drain()
         suite.expect(Scanner.scanned == all && cleaner.phase == .results && cleaner.items.count == all.count,
                      "a scan started right after a cancel runs alone, without the canceled one")
+
+        cleaner.reset()
+        Scanner.scanned = []
+        cleaner.scan(attended: false)
+        Queue.drain()
+        suite.expect(Scanner.scanned == all.filter { $0 != .screenshots } && cleaner.phase == .results,
+                     "an unattended scan never reads the screenshot folders")
     }
 }

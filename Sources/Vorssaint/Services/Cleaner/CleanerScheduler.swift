@@ -155,7 +155,7 @@ final class CleanerScheduler: ObservableObject {
                     break
                 }
             }
-        cleaner.scan()
+        cleaner.scan(attended: false)
     }
 
     private func finishRun(freed: Int64, failed: Int) {

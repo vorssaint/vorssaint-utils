@@ -927,6 +927,22 @@ enum ScreenshotSupport {
         return "\(prefix) \(formatter.string(from: date)).\(fileExtension)"
     }
 
+    /// Marks a saved capture the way macOS marks its own screenshots, so
+    /// Spotlight and the Cleaner's forgotten screenshots treat both alike.
+    /// Best effort: an unmarked file is only never offered for cleaning.
+    static func markAsScreenCapture(_ url: URL) {
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: true,
+                                                             format: .binary,
+                                                             options: 0) else { return }
+        url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return }
+            _ = data.withUnsafeBytes {
+                setxattr(path, "com.apple.metadata:kMDItemIsScreenCapture",
+                         $0.baseAddress, data.count, 0, XATTR_NOFOLLOW)
+            }
+        }
+    }
+
     /// Writes one drag payload into its own temporary directory. Separate
     /// directories keep captures made in the same second from replacing each
     /// other while either drag is still in flight.

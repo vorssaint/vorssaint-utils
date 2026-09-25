@@ -299,7 +299,8 @@ def main():
           + "".join(declaration(cleaner, "    private static func " + name)
                     .replace("private static func", "static func", 1)
                     for name in ["appendLeftovers(", "scanCaches(", "scanLogs(",
-                                 "directorySize(", "fileSize(", "sorted("])
+                                 "directorySize(", "fileSize(", "sorted(",
+                                 "scanScreenshots(", "isScreenCapture(", "extendedAttribute("])
           + declaration(cleaner, "    private static func leftoverOwner(")
           + declaration(cleaner, "    private static func containerOwner(")
           + declaration(cleaner, "    private static func mayRemove(")
@@ -310,7 +311,7 @@ def main():
     write("CleanerScanFlow.swift", "import Foundation\nextension CleanerScanFlowTests {\n"
           + declaration(cleaner, "    enum Phase:")
           + "final class Scanner: ScannerState {\nstatic let shared = Scanner()\n"
-          + "".join(declaration(cleaner, prefix) for prefix in ["    func reset()", "    func scan()"])
+          + "".join(declaration(cleaner, prefix) for prefix in ["    func reset()", "    func scan("])
           + "}\n}\n")
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"

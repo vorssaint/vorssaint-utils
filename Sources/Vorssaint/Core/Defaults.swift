@@ -228,6 +228,7 @@ enum DefaultsKey {
     static let cleanerLastAutoRun = "cleanerLastAutoRun"                // Double, epoch seconds
     static let cleanerLastAutoFreed = "cleanerLastAutoFreed"            // Int bytes
     static let cleanerLastAutoFailed = "cleanerLastAutoFailed"          // Int items left in place
+    static let cleanerScreenshotAgeDays = "cleanerScreenshotAgeDays"    // Int, 0 = off
     // Confirmed WhatsApp downloads in the top level of ~/Downloads.
     static let whatsAppDownloadsEnabled = "whatsAppDownloadsEnabled"
     static let whatsAppDownloadsAutomaticEnabled = "whatsAppDownloadsAutomaticEnabled"
@@ -1207,6 +1208,7 @@ enum Defaults {
         DefaultsKey.cleanerLastAutoRun: 0.0,
         DefaultsKey.cleanerLastAutoFreed: 0,
         DefaultsKey.cleanerLastAutoFailed: 0,
+        DefaultsKey.cleanerScreenshotAgeDays: CleanerPolicy.defaultScreenshotAgeDays,
         DefaultsKey.whatsAppDownloadsEnabled: false,
         DefaultsKey.whatsAppDownloadsAutomaticEnabled: false,
         DefaultsKey.whatsAppDownloadsCategories: "image,video,audio",

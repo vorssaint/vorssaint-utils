@@ -42,6 +42,19 @@ enum CleanerPolicy {
     /// to delete. Every find waits unchecked for the user's eye.
     static let precheckDeviceBackups = false
 
+    /// Forgotten screenshots sit in the user's own folders, so they are
+    /// only ever offered, never pre checked: the size is the useful part.
+    static let precheckScreenshots = false
+
+    /// How long a screenshot must go untouched to count as forgotten. Zero
+    /// turns the search off.
+    static let screenshotAgeChoices = [7, 14, 30, 60, 90]
+    static let defaultScreenshotAgeDays = 30
+
+    static func sanitizedScreenshotAgeDays(_ raw: Int) -> Int {
+        raw <= 0 ? 0 : min(raw, 3650)
+    }
+
     /// Cache folders that never appear in the list at all: this app's own
     /// data and entries known to break things when removed (audio output
     /// loss, blank Settings panels, service sign outs, plugin licensing),

@@ -15,7 +15,7 @@ enum CleanerSupport {
     /// What the cleaner can find, in display order. New cases append at the
     /// end: the raw value is a stable identity.
     enum Category: Int, CaseIterable, Identifiable {
-        case leftovers, loginItems, caches, logs, developer, trash, deviceBackups
+        case leftovers, loginItems, caches, logs, developer, trash, deviceBackups, screenshots
 
         var id: Int { rawValue }
     }
@@ -256,6 +256,73 @@ enum CleanerSupport {
         if let label, isProtectedBundleID(label) { return false }
         guard !executables.isEmpty else { return false }
         return !executables.contains(where: executableExists)
+    }
+
+    // MARK: - Forgotten screenshots
+
+    /// Written by macOS on every capture it saves (a binary property list
+    /// holding true). A file proves it is a screenshot with this, so nothing
+    /// is ever guessed from a name, and a random image beside it never counts.
+    static let screenCaptureAttribute = "com.apple.metadata:kMDItemIsScreenCapture"
+
+    /// Where macOS keeps a file's last opened date (the Spotlight
+    /// kMDItemLastUsedDate): a timespec, seconds then nanoseconds.
+    static let lastUsedDateAttribute = "com.apple.lastuseddate#PS"
+
+    /// The folder macOS saves screenshots to: the location picked in the
+    /// Screenshot app, which may start with a tilde, or the Desktop when it
+    /// was never changed.
+    static func screenshotFolder(location: String?, home: String) -> String {
+        let trimmed = location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return home + "/Desktop" }
+        if trimmed == "~" { return home }
+        if trimmed.hasPrefix("~/") { return home + trimmed.dropFirst() }
+        guard trimmed.hasPrefix("/") else { return home + "/Desktop" }
+        return trimmed
+    }
+
+    static func isScreenCaptureFlag(_ data: Data) -> Bool {
+        guard let value = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
+            return false
+        }
+        if let flag = value as? Bool { return flag }
+        if let number = value as? NSNumber { return number.intValue == 1 }
+        return false
+    }
+
+    static func lastUsedDate(fromAttribute data: Data) -> Date? {
+        guard data.count >= 16 else { return nil }
+        var seconds: Int64 = 0
+        var nanoseconds: Int64 = 0
+        for index in 0..<8 {
+            seconds |= Int64(data[data.startIndex + index]) << (8 * index)
+            nanoseconds |= Int64(data[data.startIndex + 8 + index]) << (8 * index)
+        }
+        guard seconds > 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(seconds) + TimeInterval(nanoseconds) / 1e9)
+    }
+
+    /// Whether a capture still carries the name macOS gave it, which always
+    /// holds the capture day. A renamed file is a decision the user made
+    /// about it, so it never counts as forgotten. The check is deliberately
+    /// narrow: a capture saved without a date in its name is simply skipped.
+    static func screenshotKeepsDefaultName(_ name: String, created: Date,
+                                           timeZone: TimeZone = .current) -> Bool {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return name.contains(formatter.string(from: created))
+    }
+
+    /// A capture is forgotten when nothing happened to it for `days`: not
+    /// taken, changed or opened since then.
+    static func isForgottenScreenshot(created: Date, modified: Date?, lastUsed: Date?,
+                                      now: Date, days: Int) -> Bool {
+        guard days > 0 else { return false }
+        let latest = [created, modified, lastUsed].compactMap { $0 }.max() ?? created
+        return now.timeIntervalSince(latest) >= TimeInterval(days) * 86_400
     }
 
 }
