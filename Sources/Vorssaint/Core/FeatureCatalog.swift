@@ -10,8 +10,8 @@ import Foundation
 /// Availability is a layer ABOVE each feature's own enable key: an unavailable
 /// feature disappears from Settings, the menu panel and the menu bar, and its
 /// service tears down (and never instantiates on the next launch). Turning a
-/// feature back on restores whatever enabled state it had, because the enable
-/// keys are never touched.
+/// feature back on restores saved enable choices. A first install turns on its
+/// primary control when no enable choice was saved before.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
@@ -280,6 +280,31 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices, .fanControl:
             return []
+        }
+    }
+
+    /// Turn on the feature's main behavior at install time. Features with
+    /// several independent controls start with one useful behavior, except
+    /// audio priority, whose output and input controls work together.
+    private var initialEnableKeys: [String] {
+        switch self {
+        case .windowLayout: return [DefaultsKey.windowLayoutShortcutsEnabled]
+        case .audioPriority: return enabledKeys
+        default: return enabledKeys.first.map { [$0] } ?? []
+        }
+    }
+
+    /// Registered defaults are visible through `object(forKey:)`, so only the
+    /// persistent domain can tell a fresh install from a saved off choice.
+    func enableOnFirstInstall(in defaults: UserDefaults, savedValues: [String: Any]) {
+        let choices = self == .windowLayout
+            ? [DefaultsKey.windowLayoutShortcutsEnabled, DefaultsKey.windowDirectionalEnabled,
+               DefaultsKey.pointerDisplayEnabled, DefaultsKey.windowEdgeSnapEnabled,
+               DefaultsKey.windowGestureEnabled]
+            : enabledKeys
+        guard !choices.contains(where: { savedValues[$0] != nil }) else { return }
+        for key in initialEnableKeys {
+            defaults.set(true, forKey: key)
         }
     }
 
