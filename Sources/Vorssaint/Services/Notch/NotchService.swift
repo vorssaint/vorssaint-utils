@@ -1631,7 +1631,10 @@ final class NotchService: ObservableObject {
             preference: NotchDisplay(rawValue: UserDefaults.standard.string(
                 forKey: DefaultsKey.notchDisplay) ?? "") ?? .automatic,
             builtIn: builtIn, notched: screens.map { $0.safeAreaInsets.top > 0 },
-            main: screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0)
+            main: screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0,
+            chosen: UserDefaults.standard.string(forKey: DefaultsKey.notchChosenDisplay).flatMap { chosen in
+                screens.firstIndex { $0.notchDisplayUUID == chosen }
+            })
         guard let index else { tearDownPresentation(); return }
         let screen = screens[index]
         let cameraWidth: CGFloat
@@ -2236,5 +2239,11 @@ final class NotchService: ObservableObject {
 extension NSScreen {
     var notchDisplayID: CGDirectDisplayID {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+    }
+
+    /// Survives reconnecting and restarting, unlike the display number.
+    var notchDisplayUUID: String? {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(notchDisplayID)?.takeRetainedValue() else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String?
     }
 }

@@ -18,8 +18,8 @@ final class NotchQuickAccessMotion: ObservableObject {
     func configure(_ configuration: NotchQuickAccessConfiguration, body: CGRect, headerTop: CGFloat, animated: Bool) {
         let values = NotchQuickAccessLayout.placements(configuration, body: body, headerTop: headerTop)
         guard self.configuration != configuration || placements != values else { return }
-        let animation: Animation? = animated && visible
-            ? .spring(duration: NotchMotion.duration(from: bodyFrame.size, to: body.size), bounce: 0) : nil
+        let spring = NotchMotion.sideSpring(from: bodyFrame.size, to: body.size)
+        let animation: Animation? = animated && visible ? .spring(duration: spring.duration, bounce: spring.bounce) : nil
         bodyFrame = body
         withAnimation(animation) {
             self.configuration = configuration

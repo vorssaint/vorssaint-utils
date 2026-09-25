@@ -80,7 +80,23 @@ enum NotchModule: String, CaseIterable, Identifiable {
 }
 
 enum NotchDisplay: String, CaseIterable {
-    case automatic, builtIn, main
+    /// `chosen` is one display the person picked by name, kept by its stable
+    /// identifier; while it is not connected the island falls back to automatic.
+    case automatic, builtIn, main, chosen
+}
+
+/// The island's outline: hanging from the top edge around the camera, or a
+/// capsule floating just below it, as on the phone.
+enum NotchSilhouette: String, CaseIterable {
+    case notch, capsule
+
+    static func current(in defaults: UserDefaults = .standard) -> NotchSilhouette {
+        NotchSilhouette(rawValue: defaults.string(forKey: DefaultsKey.notchSilhouette) ?? "") ?? .notch
+    }
+
+    /// Free space above a floating capsule. The window keeps the strip, so
+    /// the pointer at the screen's top edge still reaches the island.
+    var gap: CGFloat { self == .capsule ? NotchLayout.capsuleGap : 0 }
 }
 
 enum NotchSize: String, CaseIterable {
@@ -178,6 +194,45 @@ enum NotchLayout {
     /// rounder one; the open island reaches the full radius and shoulder.
     static func surfaceRadius(height: CGFloat) -> CGFloat { min(28, height * 0.34) }
     static func shoulder(height: CGFloat) -> CGFloat { min(shoulder, height * 0.19) }
+    static let capsuleGap: CGFloat = 5
+    /// A closed capsule is fully round at its ends; an open one keeps large,
+    /// soft corners.
+    static func capsuleRadius(height: CGFloat) -> CGFloat { min(height / 2, 38) }
+    /// How far a capsule's sides sit inside the attached island's, on whole points.
+    static func capsuleSide(height: CGFloat) -> CGFloat { shoulder(height: height).rounded() }
+
+    /// A capsule `gap` below the top of `rect`, as wide as the attached
+    /// island's body between its shoulders, which the content and floating
+    /// controls are laid out around. It has the same elements at every size,
+    /// even collapsed to a line, so any two frames of a resize blend.
+    static func capsulePath(in rect: CGRect, gap: CGFloat) -> CGPath {
+        // Its sides fall on whole points: a fractional edge is drawn a little
+        // differently in each reserved area and seemed to move a pixel as
+        // the window returned to the island's size.
+        let side = min(capsuleSide(height: rect.height), (rect.width / 2).rounded(.down))
+        let end = max(rect.minX + side, (rect.maxX - side).rounded(.down))
+        let body = CGRect(x: rect.minX + side, y: rect.minY + min(gap, rect.height), width: end - rect.minX - side,
+                          height: max(0, rect.height - gap))
+        let corner = min(capsuleRadius(height: body.height), body.width / 2)
+        let handle = corner * (1 - 0.55228475)
+        let (left, right, top, bottom) = (body.minX, body.maxX, body.minY, body.maxY)
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: left + corner, y: top))
+        path.addLine(to: CGPoint(x: right - corner, y: top))
+        path.addCurve(to: CGPoint(x: right, y: top + corner), control1: CGPoint(x: right - handle, y: top),
+                      control2: CGPoint(x: right, y: top + handle))
+        path.addLine(to: CGPoint(x: right, y: bottom - corner))
+        path.addCurve(to: CGPoint(x: right - corner, y: bottom), control1: CGPoint(x: right, y: bottom - handle),
+                      control2: CGPoint(x: right - handle, y: bottom))
+        path.addLine(to: CGPoint(x: left + corner, y: bottom))
+        path.addCurve(to: CGPoint(x: left, y: bottom - corner), control1: CGPoint(x: left + handle, y: bottom),
+                      control2: CGPoint(x: left, y: bottom - handle))
+        path.addLine(to: CGPoint(x: left, y: top + corner))
+        path.addCurve(to: CGPoint(x: left + corner, y: top), control1: CGPoint(x: left, y: top + handle),
+                      control2: CGPoint(x: left + handle, y: top))
+        path.closeSubpath()
+        return path
+    }
     /// Content clearance under a camera of the usual height.
     static let nominalContentTop: CGFloat = 42
 
@@ -901,13 +956,15 @@ enum NotchSupport {
         return min(1, max(0, current + Double(direction.signum()) / (fine ? 64 : 16)))
     }
 
-    static func screenIndex(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int) -> Int? {
+    static func screenIndex(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int,
+                            chosen: Int? = nil) -> Int? {
         guard !builtIn.isEmpty, builtIn.count == notched.count else { return nil }
         let fallback = builtIn.indices.contains(main) ? main : 0
         switch preference {
         case .main: return fallback
         case .builtIn: return builtIn.firstIndex(of: true) ?? fallback
-        case .automatic:
+        case .chosen where chosen.map(builtIn.indices.contains) == true: return chosen
+        case .automatic, .chosen:
             return builtIn.indices.first { builtIn[$0] && notched[$0] }
                 ?? notched.firstIndex(of: true) ?? fallback
         }
@@ -1360,18 +1417,136 @@ struct NotchSessionState {
 
 /// Reserve enough backing space for both ends. The visible silhouette moves
 /// inside it; the native window only shrinks after the transition finishes.
+///
+/// Each side follows its own spring, as the phone's island does. Growing, the
+/// island drops a little ahead of widening and passes its size before it
+/// settles; shrinking, it pulls up ahead of narrowing and never passes its
+/// target, which for a resting island is the camera it hugs.
 enum NotchMotion {
     /// Departing content has faded out by 0.16 s; the view then swaps it for
     /// the next content, which fades in once the swap is on screen.
     static let departureHidden: TimeInterval = 0.2
 
+    struct Spring: Equatable {
+        /// Perceptual duration and bounce, as SwiftUI and Core Animation define them.
+        var duration: TimeInterval
+        var bounce: Double
+
+        /// Progress from rest at 0 toward 1.
+        func progress(at time: TimeInterval) -> Double {
+            guard time > 0 else { return 0 }
+            let natural = 2 * Double.pi / duration
+            let damping = 1 - bounce
+            if damping >= 1 { return 1 - exp(-natural * time) * (1 + natural * time) }
+            let damped = natural * (1 - damping * damping).squareRoot()
+            return 1 - exp(-damping * natural * time)
+                * (cos(damped * time) + damping * natural / damped * sin(damped * time))
+        }
+
+        /// How far past the target the spring swings, as a share of its travel.
+        var overshoot: Double {
+            guard bounce > 0 else { return 0 }
+            let damping = 1 - bounce
+            return exp(-Double.pi * damping / (1 - damping * damping).squareRoot())
+        }
+
+        /// This spring, with only as much bounce as keeps the swing within `limit` points.
+        func limited(travel: CGFloat, limit: CGFloat) -> Spring {
+            guard bounce > 0, travel > 0, Double(travel) * overshoot > Double(limit) else { return self }
+            let share = log(Double(max(limit, 0.01) / travel))
+            return Spring(duration: duration, bounce: 1 + share / (Double.pi * Double.pi + share * share).squareRoot())
+        }
+    }
+
+    static let growingWidth = Spring(duration: 0.44, bounce: 0.25)
+    static let growingHeight = Spring(duration: 0.38, bounce: 0.22)
+    static let shrinkingWidth = Spring(duration: 0.30, bounce: 0)
+    static let shrinkingHeight = Spring(duration: 0.26, bounce: 0)
+    /// The farthest a side may pass its target. The display always keeps at
+    /// least this much free around the island and its floating controls.
+    static let overshootLimit: CGFloat = 12
+    /// Sides closer than this to their targets read as settled.
+    static let settledDistance: CGFloat = 0.5
+
+    static func spring(from: CGFloat, to: CGFloat, width: Bool) -> Spring {
+        let spring = to > from ? (width ? growingWidth : growingHeight) : (width ? shrinkingWidth : shrinkingHeight)
+        return spring.limited(travel: abs(to - from), limit: overshootLimit)
+    }
+
+    /// The spring carrying the island's sides, for controls that ride along them.
+    static func sideSpring(from: CGSize, to: CGSize) -> Spring {
+        from.width != to.width ? spring(from: from.width, to: to.width, width: true)
+            : spring(from: from.height, to: to.height, width: false)
+    }
+
+    /// The perceptual duration of the slower side that moves.
     static func duration(from: CGSize, to: CGSize) -> TimeInterval {
-        let grows = to.height > from.height || (to.height == from.height && to.width > from.width)
-        return grows ? 0.34 : 0.26
+        var durations: [TimeInterval] = []
+        if from.width != to.width { durations.append(spring(from: from.width, to: to.width, width: true).duration) }
+        if from.height != to.height { durations.append(spring(from: from.height, to: to.height, width: false).duration) }
+        return durations.max() ?? growingWidth.duration
+    }
+
+    static func size(at time: TimeInterval, from: CGSize, to: CGSize) -> CGSize {
+        func side(_ start: CGFloat, _ end: CGFloat, width: Bool) -> CGFloat {
+            guard start != end else { return end }
+            return max(0, start + (end - start) * CGFloat(spring(from: start, to: end, width: width).progress(at: time)))
+        }
+        return CGSize(width: side(from.width, to.width, width: true), height: side(from.height, to.height, width: false))
+    }
+
+    /// When every side that moves first comes within 1% of its travel from
+    /// its target: the island has arrived, though it may still swing.
+    static func arrivalTime(from: CGSize, to: CGSize) -> TimeInterval {
+        let sides = [(from.width, to.width, true), (from.height, to.height, false)].filter { $0.0 != $0.1 }
+        let step = 1.0 / 240
+        var time = step
+        while time < 2, !sides.allSatisfy({ spring(from: $0.0, to: $0.1, width: $0.2).progress(at: time) >= 0.99 }) {
+            time += step
+        }
+        return sides.isEmpty ? 0 : time
+    }
+
+    /// When both sides stay within `settledDistance` of their targets for good.
+    static func settlingTime(from: CGSize, to: CGSize) -> TimeInterval {
+        let step = 1.0 / 240
+        var settled = step
+        var time = step
+        while time < 2 {
+            let size = size(at: time, from: from, to: to)
+            if abs(size.width - to.width) > settledDistance || abs(size.height - to.height) > settledDistance {
+                settled = time + step
+            }
+            time += step
+        }
+        return settled
+    }
+
+    /// Sizes at a steady rate, ending exactly at `to`, and where each falls
+    /// within the duration.
+    static func frames(from: CGSize, to: CGSize) -> (sizes: [CGSize], keyTimes: [Double], duration: TimeInterval) {
+        let duration = settlingTime(from: from, to: to)
+        let count = max(1, Int((duration * 120).rounded(.up)))
+        let keyTimes = (0...count).map { Double($0) / Double(count) }
+        let sizes = keyTimes.map { $0 == 1 ? to : size(at: duration * $0, from: from, to: to) }
+        return (sizes, keyTimes, duration)
+    }
+
+    /// Whole, equal margins around `size`, so the island keeps its exact
+    /// pixels when the window returns to that size; half a point would round
+    /// to a one-pixel jump on a standard-resolution display.
+    static func reservation(_ reserved: CGSize, centring size: CGSize) -> CGSize {
+        CGSize(width: size.width + 2 * max(0, (reserved.width - size.width) / 2).rounded(.up),
+               height: max(reserved.height, size.height))
     }
 
     static func envelope(from: CGSize, to: CGSize) -> CGSize {
-        CGSize(width: max(from.width, to.width), height: max(from.height, to.height))
+        func side(_ start: CGFloat, _ end: CGFloat, width: Bool) -> CGFloat {
+            let swing = end > start ? spring(from: start, to: end, width: width).overshoot : 0
+            guard swing > 0 else { return max(start, end) }
+            return (end + (end - start) * CGFloat(swing)).rounded(.up)
+        }
+        return CGSize(width: side(from.width, to.width, width: true), height: side(from.height, to.height, width: false))
     }
 }
 
@@ -1385,6 +1560,9 @@ struct NotchGlassFade: Equatable {
     /// Where the lip is shut, and the height over which it opens from there.
     var solidHeight: CGFloat = 0
     var range: CGFloat = 1
+    /// Where an opening out of black ends; the black beneath the glass must
+    /// have let go by then.
+    var end: CGFloat?
 
     static let open = NotchGlassFade()
     static let stretch: CGFloat = 48
@@ -1392,6 +1570,13 @@ struct NotchGlassFade: Equatable {
     func openness(atHeight height: CGFloat) -> CGFloat {
         guard height.isFinite, range > 0 else { return 1 }
         return min(1, max(0, (height - solidHeight) / range))
+    }
+
+    /// How far the resting black trails the glass: a stretch, or less when
+    /// the opening ends before the glass could open that far behind it.
+    var blackLag: CGFloat {
+        guard let end, end.isFinite else { return Self.stretch }
+        return min(Self.stretch, max(0, end - solidHeight - range))
     }
 
     /// `current` is the openness on screen at `start`: zero while black.
@@ -1403,7 +1588,7 @@ struct NotchGlassFade: Equatable {
             guard end > start, current < 1 else { return .open }
             if current == 0 {
                 let range = min(stretch, travel)
-                return NotchGlassFade(solidHeight: end - range, range: max(1, range))
+                return NotchGlassFade(solidHeight: end - range, range: max(1, range), end: end)
             }
             let range = travel / (1 - current)
             return NotchGlassFade(solidHeight: start - current * range, range: max(1, range))

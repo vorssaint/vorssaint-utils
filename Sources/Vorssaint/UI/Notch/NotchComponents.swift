@@ -269,7 +269,17 @@ final class NotchBackdropPresentation: ObservableObject {
     @Published var usesGlass = false
     @Published private(set) var fade = NotchGlassFade.open
 
-    var openness: Double { Double(fade.openness(atHeight: contour.boundingRect.height)) }
+    /// Measured from the top edge, as the fade is planned: a floating
+    /// capsule's contour starts below it.
+    var openness: Double { Double(fade.openness(atHeight: contourBottom)) }
+    private var contourBottom: CGFloat { contour.boundingRect.isNull ? 0 : contour.boundingRect.maxY }
+
+    /// How much of the resting black still lies beneath the glass. It lets go
+    /// a stretch after the glass opens: the drawn gradient trails the island
+    /// by a frame as it grows, and uncovered clear glass read as a grey flash.
+    var restingBlack: Double {
+        1 - Double(fade.openness(atHeight: contourBottom - fade.blackLag))
+    }
 
     /// Plans a resize from `start` to `end` from what is on screen now.
     func planFade(from start: CGFloat, to end: CGFloat, endsInGlass: Bool) {
@@ -310,10 +320,24 @@ struct NotchSurfaceBackground: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    var body: some View {
-        Group {
+    private var offersGlass: Bool {
 #if compiler(>=6.2)
-            if #available(macOS 26, *), glass, presentation.usesGlass, !reduceTransparency {
+        if #available(macOS 26, *) { return glass && !reduceTransparency }
+#endif
+        return false
+    }
+
+    private var showsGlass: Bool { offersGlass && presentation.usesGlass }
+
+    var body: some View {
+        ZStack {
+            // The black the island rests in stays beneath the glass until
+            // the glass has opened, and the glass exists only while that
+            // black lets it show, so the window's resizes at either end of a
+            // transition happen in plain black.
+            Color.black.opacity(showsGlass ? presentation.restingBlack : 1)
+#if compiler(>=6.2)
+            if #available(macOS 26, *), showsGlass, presentation.restingBlack < 1 {
                 let shape = NotchBackdropShape(contour: presentation.contour)
                 Color.clear
                     .glassEffect(.clear, in: shape)
@@ -326,11 +350,7 @@ struct NotchSurfaceBackground: View {
                             .frame(maxHeight: .infinity, alignment: .top)
                             .mask(shape)
                     }
-            } else {
-                Color.black
             }
-#else
-            Color.black
 #endif
         }
         .environment(\.colorScheme, .dark)

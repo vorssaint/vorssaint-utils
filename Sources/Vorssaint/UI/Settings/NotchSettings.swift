@@ -27,6 +27,10 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLiveEqualizer) private var liveEqualizer = false
     @AppStorage(DefaultsKey.notchEnabled) private var enabled = false
     @AppStorage(DefaultsKey.notchDisplay) private var display = NotchDisplay.automatic.rawValue
+    @AppStorage(DefaultsKey.notchChosenDisplay) private var chosenDisplay = ""
+    @AppStorage(DefaultsKey.notchChosenDisplayName) private var chosenDisplayName = ""
+    @AppStorage(DefaultsKey.notchSilhouette) private var silhouette = NotchSilhouette.notch.rawValue
+    @State private var connectedDisplays = NotchSettings.displays()
     @AppStorage(DefaultsKey.notchOpenOnHover) private var hover = true
     @AppStorage(DefaultsKey.notchHideInFullscreen) private var hideInFullscreen = false
     @AppStorage(DefaultsKey.notchHideUntilHover) private var hideUntilHover = false
@@ -74,7 +78,7 @@ struct NotchSettings: View {
 
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(calendarCountdown), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
-         String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, String(hover), hidden, order, String(volume),
+         String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, chosenDisplay, silhouette, String(hover), hidden, order, String(volume),
          String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(scratchpad), String(agentsEnabled)]
     }
 
@@ -441,6 +445,14 @@ struct NotchSettings: View {
                     .labelsHidden()
                 }
             }
+            SettingsCard(title: text.silhouette) {
+                HStack(spacing: 8) {
+                    choice(text.notchSilhouette, symbol: "rectangle.topthird.inset.filled",
+                           selected: silhouette != NotchSilhouette.capsule.rawValue) { silhouette = NotchSilhouette.notch.rawValue }
+                    choice(text.capsuleSilhouette, symbol: "capsule.fill",
+                           selected: silhouette == NotchSilhouette.capsule.rawValue) { silhouette = NotchSilhouette.capsule.rawValue }
+                }
+            }
             SettingsCard(title: text.display) {
                 switchRow("arrow.up.left.and.arrow.down.right", text.hideInFullscreen, isOn: $hideInFullscreen)
                 HStack(spacing: 8) {
@@ -448,6 +460,10 @@ struct NotchSettings: View {
                     choice(text.builtIn, symbol: "laptopcomputer", selected: display == NotchDisplay.builtIn.rawValue) { display = NotchDisplay.builtIn.rawValue }
                     choice(text.mainDisplay, symbol: "display", selected: display == NotchDisplay.main.rawValue) { display = NotchDisplay.main.rawValue }
                 }
+                if connectedDisplays.count > 1 || display == NotchDisplay.chosen.rawValue { chosenDisplayRow }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
+                connectedDisplays = NotchSettings.displays()
             }
             SettingsCard(title: editor.destinations) {
                 destination(text.panel, symbol: "bubble.middle.top", value: $appPanel)
@@ -481,6 +497,44 @@ struct NotchSettings: View {
             }.labelsHidden().accessibilityValue(formatted)
             Text(editor.activationTimeHint).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private struct DisplayOption: Identifiable, Equatable {
+        let id: String
+        let name: String
+    }
+
+    private static func displays() -> [DisplayOption] {
+        NSScreen.screens.compactMap { screen in
+            screen.notchDisplayUUID.map { DisplayOption(id: $0, name: screen.localizedName) }
+        }
+    }
+
+    /// Any connected display by name, without making it the main one. A
+    /// chosen display that is not connected stays listed while the island
+    /// waits on the automatic choice.
+    private var chosenDisplayRow: some View {
+        SettingsRow(symbol: "display.2", title: text.chosenDisplay) {
+            Picker(text.chosenDisplay, selection: Binding(get: {
+                display == NotchDisplay.chosen.rawValue ? chosenDisplay : ""
+            }, set: { id in
+                guard !id.isEmpty else { display = NotchDisplay.automatic.rawValue; return }
+                if let option = connectedDisplays.first(where: { $0.id == id }) { chosenDisplayName = option.name }
+                chosenDisplay = id
+                display = NotchDisplay.chosen.rawValue
+            })) {
+                Text(text.noChosenDisplay).tag("")
+                ForEach(connectedDisplays) { Text($0.name).tag($0.id) }
+                if display == NotchDisplay.chosen.rawValue, !chosenDisplay.isEmpty,
+                   !connectedDisplays.contains(where: { $0.id == chosenDisplay }) {
+                    Text("\(chosenDisplayName.isEmpty ? text.chosenDisplay : chosenDisplayName) (\(text.displayNotConnected))")
+                        .tag(chosenDisplay)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .fixedSize()
         }
     }
 

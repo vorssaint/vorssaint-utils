@@ -795,6 +795,9 @@ enum DefaultsKey {
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
+    static let notchChosenDisplay = "notchChosenDisplay"
+    static let notchChosenDisplayName = "notchChosenDisplayName"
+    static let notchSilhouette = "notchSilhouette"
     static let notchOpenOnHover = "notchOpenOnHover"
     static let notchHideInFullscreen = "notchHideInFullscreen"
     static let notchHideUntilHover = "notchHideUntilHover"
@@ -1300,6 +1303,9 @@ enum Defaults {
         DefaultsKey.notchDownloadsEnabled: false,
         DefaultsKey.notchEnabled: false,
         DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
+        DefaultsKey.notchChosenDisplay: "",
+        DefaultsKey.notchChosenDisplayName: "",
+        DefaultsKey.notchSilhouette: NotchSilhouette.notch.rawValue,
         DefaultsKey.notchOpenOnHover: true,
         DefaultsKey.notchHideInFullscreen: false,
         DefaultsKey.notchHideUntilHover: false,
