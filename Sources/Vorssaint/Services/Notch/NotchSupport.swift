@@ -1547,3 +1547,30 @@ enum NotchMenuBarLayout {
         return max(0, min(camera.minX - left, right - camera.maxX))
     }
 }
+
+/// The black tint over the open island's translucent background, measured in
+/// points from the top: fully black over the camera strip at every island
+/// height (the hover preview is only the strip plus 62 points), then easing
+/// toward the translucent body.
+enum NotchTranslucentTint {
+    static let rampLength: CGFloat = 36
+
+    static func opacity(atDepth depth: CGFloat, stripHeight: CGFloat,
+                        openness: Double, increasedContrast: Bool) -> Double {
+        guard depth > stripHeight else { return 1 }
+        let ramp = Double(min(1, (depth - stripHeight) / rampLength))
+        let eased = ramp * ramp * (3 - 2 * ramp)
+        return 1 - min(1, max(0, openness)) * (increasedContrast ? 0.3 : 0.62) * eased
+    }
+
+    /// Gradient stops over an island `height` points tall, top to bottom.
+    static func stops(height: CGFloat, stripHeight: CGFloat, openness: Double,
+                      increasedContrast: Bool) -> [(location: Double, opacity: Double)] {
+        guard height > 0 else { return [(0, 1), (1, 1)] }
+        let depths = [0, stripHeight] + (1...8).map { stripHeight + rampLength * CGFloat($0) / 8 } + [height]
+        return depths.filter { $0 >= 0 && $0 <= height }.map {
+            (Double($0 / height), opacity(atDepth: $0, stripHeight: stripHeight,
+                                          openness: openness, increasedContrast: increasedContrast))
+        }
+    }
+}

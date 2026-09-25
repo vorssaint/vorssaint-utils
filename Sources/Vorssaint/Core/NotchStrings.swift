@@ -74,6 +74,9 @@ struct NotchStrings {
     let sectionKeyboardHint: String
     let quickAccessLeft: String
     let quickAccessRight: String
+    let translucentBackground: String
+    let translucentBackgroundHint: String
+    let translucentBackgroundGlassHint: String
 }
 
 extension FeatureStrings {
@@ -169,7 +172,10 @@ extension NotchStrings {
         searchSections: "Find a section",
         sectionKeyboardHint: "Use the arrow keys, then press Return",
         quickAccessLeft: "Left",
-        quickAccessRight: "Right"
+        quickAccessRight: "Right",
+        translucentBackground: "Translucent background",
+        translucentBackgroundHint: "When open, Dynamic Island blurs what is behind it with the system’s own material.",
+        translucentBackgroundGlassHint: "Liquid Glass is on, so Dynamic Island uses it instead."
     )
 
     static let ptBR = NotchStrings(
@@ -242,7 +248,10 @@ extension NotchStrings {
         searchSections: "Encontrar uma seção",
         sectionKeyboardHint: "Use as setas e pressione Return",
         quickAccessLeft: "Esquerdo",
-        quickAccessRight: "Direito"
+        quickAccessRight: "Direito",
+        translucentBackground: "Fundo translúcido",
+        translucentBackgroundHint: "Quando aberta, a Dynamic Island desfoca o que está atrás dela com o material do próprio sistema.",
+        translucentBackgroundGlassHint: "O Liquid Glass está ativado, então a Dynamic Island o usa no lugar."
     )
 
     static let es = NotchStrings(
@@ -315,7 +324,10 @@ extension NotchStrings {
         searchSections: "Buscar una sección",
         sectionKeyboardHint: "Usa las flechas y pulsa Intro",
         quickAccessLeft: "Izquierdo",
-        quickAccessRight: "Derecho"
+        quickAccessRight: "Derecho",
+        translucentBackground: "Fondo translúcido",
+        translucentBackgroundHint: "Al abrirse, Dynamic Island desenfoca lo que hay detrás con el material del propio sistema.",
+        translucentBackgroundGlassHint: "Liquid Glass está activado, así que Dynamic Island lo usa en su lugar."
     )
 
     static let sk = NotchStrings(
@@ -388,7 +400,10 @@ extension NotchStrings {
         searchSections: "Nájsť sekciu",
         sectionKeyboardHint: "Použite šípky a stlačte Return",
         quickAccessLeft: "Vľavo",
-        quickAccessRight: "Vpravo"
+        quickAccessRight: "Vpravo",
+        translucentBackground: "Priesvitné pozadie",
+        translucentBackgroundHint: "Otvorený Dynamic Island rozmazáva obsah za sebou pomocou systémového materiálu.",
+        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto priesvitného pozadia."
     )
 
     static let de = NotchStrings(
@@ -461,7 +476,10 @@ extension NotchStrings {
         searchSections: "Bereich finden",
         sectionKeyboardHint: "Mit den Pfeiltasten wählen, mit Eingabe öffnen",
         quickAccessLeft: "Links",
-        quickAccessRight: "Rechts"
+        quickAccessRight: "Rechts",
+        translucentBackground: "Durchscheinender Hintergrund",
+        translucentBackgroundHint: "Geöffnet zeichnet Dynamic Island den Hintergrund mit dem Material des Systems unscharf.",
+        translucentBackgroundGlassHint: "Liquid Glass ist aktiv, daher verwendet Dynamic Island stattdessen Liquid Glass."
     )
 
     static let fr = NotchStrings(
@@ -534,7 +552,10 @@ extension NotchStrings {
         searchSections: "Rechercher une section",
         sectionKeyboardHint: "Utilisez les flèches, puis appuyez sur Retour",
         quickAccessLeft: "Gauche",
-        quickAccessRight: "Droite"
+        quickAccessRight: "Droite",
+        translucentBackground: "Fond translucide",
+        translucentBackgroundHint: "Ouverte, Dynamic Island floute ce qui se trouve derrière avec le matériau du système.",
+        translucentBackgroundGlassHint: "Liquid Glass est activé, Dynamic Island l’utilise donc à la place."
     )
 
     static let it = NotchStrings(
@@ -607,7 +628,10 @@ extension NotchStrings {
         searchSections: "Trova una sezione",
         sectionKeyboardHint: "Usa le frecce, poi premi Invio",
         quickAccessLeft: "Sinistra",
-        quickAccessRight: "Destra"
+        quickAccessRight: "Destra",
+        translucentBackground: "Sfondo traslucido",
+        translucentBackgroundHint: "Quando è aperta, Dynamic Island sfoca ciò che si trova dietro con il materiale del sistema.",
+        translucentBackgroundGlassHint: "Liquid Glass è attivo, quindi Dynamic Island usa quello."
     )
 
     static let ru = NotchStrings(
@@ -680,7 +704,10 @@ extension NotchStrings {
         searchSections: "Найти раздел",
         sectionKeyboardHint: "Выберите стрелками и нажмите Return",
         quickAccessLeft: "Слева",
-        quickAccessRight: "Справа"
+        quickAccessRight: "Справа",
+        translucentBackground: "Полупрозрачный фон",
+        translucentBackgroundHint: "Открытый Dynamic Island размывает то, что под ним, системным материалом.",
+        translucentBackgroundGlassHint: "Включено Liquid Glass, поэтому Dynamic Island использует его."
     )
 
     static let tr = NotchStrings(
@@ -753,7 +780,10 @@ extension NotchStrings {
         searchSections: "Bölüm bul",
         sectionKeyboardHint: "Ok tuşlarıyla seçin, Return ile açın",
         quickAccessLeft: "Sol",
-        quickAccessRight: "Sağ"
+        quickAccessRight: "Sağ",
+        translucentBackground: "Yarı saydam arka plan",
+        translucentBackgroundHint: "Dynamic Island açıkken arkasındakini sistemin kendi malzemesiyle bulanıklaştırır.",
+        translucentBackgroundGlassHint: "Liquid Glass açık olduğundan Dynamic Island onu kullanır."
     )
 
     static let ja = NotchStrings(
@@ -826,7 +856,10 @@ extension NotchStrings {
         searchSections: "セクションを検索",
         sectionKeyboardHint: "矢印キーで選び、Returnキーで開きます",
         quickAccessLeft: "左",
-        quickAccessRight: "右"
+        quickAccessRight: "右",
+        translucentBackground: "半透明の背景",
+        translucentBackgroundHint: "開いた Dynamic Island の背後をシステムの素材でぼかします。",
+        translucentBackgroundGlassHint: "Liquid Glass がオンのため、Dynamic Island はそちらを使います。"
     )
 
     static let ko = NotchStrings(
@@ -899,7 +932,10 @@ extension NotchStrings {
         searchSections: "섹션 찾기",
         sectionKeyboardHint: "방향키로 선택하고 Return 키로 열기",
         quickAccessLeft: "왼쪽",
-        quickAccessRight: "오른쪽"
+        quickAccessRight: "오른쪽",
+        translucentBackground: "반투명 배경",
+        translucentBackgroundHint: "열린 Dynamic Island가 시스템 재질로 뒤쪽을 흐리게 표시합니다.",
+        translucentBackgroundGlassHint: "Liquid Glass가 켜져 있어 Dynamic Island가 대신 사용합니다."
     )
 
     static let zhHans = NotchStrings(
@@ -972,7 +1008,10 @@ extension NotchStrings {
         searchSections: "查找分区",
         sectionKeyboardHint: "使用方向键选择，然后按回车键打开",
         quickAccessLeft: "左侧",
-        quickAccessRight: "右侧"
+        quickAccessRight: "右侧",
+        translucentBackground: "半透明背景",
+        translucentBackgroundHint: "展开的 Dynamic Island 会用系统材质模糊其背后的内容。",
+        translucentBackgroundGlassHint: "Liquid Glass 已开启，Dynamic Island 将改用 Liquid Glass。"
     )
 
     static let zhTW = NotchStrings(
@@ -1045,7 +1084,10 @@ extension NotchStrings {
         searchSections: "尋找區域",
         sectionKeyboardHint: "使用方向鍵選取，再按 Return 鍵開啟",
         quickAccessLeft: "左側",
-        quickAccessRight: "右側"
+        quickAccessRight: "右側",
+        translucentBackground: "半透明背景",
+        translucentBackgroundHint: "展開的 Dynamic Island 會以系統材質模糊背後的內容。",
+        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。"
     )
 
     static let zhHK = NotchStrings(
@@ -1118,7 +1160,10 @@ extension NotchStrings {
         searchSections: "尋找區域",
         sectionKeyboardHint: "使用方向鍵選取，再按 Return 鍵開啟",
         quickAccessLeft: "左側",
-        quickAccessRight: "右側"
+        quickAccessRight: "右側",
+        translucentBackground: "半透明背景",
+        translucentBackgroundHint: "展開的 Dynamic Island 會以系統材質模糊背後的內容。",
+        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。"
     )
 
     static let uk = NotchStrings(
@@ -1191,7 +1236,10 @@ extension NotchStrings {
         searchSections: "Знайти розділ",
         sectionKeyboardHint: "Використовуйте стрілки, потім натисніть Return",
         quickAccessLeft: "Ліворуч",
-        quickAccessRight: "Праворуч"
+        quickAccessRight: "Праворуч",
+        translucentBackground: "Напівпрозоре тло",
+        translucentBackgroundHint: "Відкритий Dynamic Island розмиває вміст позаду за допомогою системного матеріалу.",
+        translucentBackgroundGlassHint: "Liquid Glass увімкнено, тому Dynamic Island використовує його."
     )
 
 }
