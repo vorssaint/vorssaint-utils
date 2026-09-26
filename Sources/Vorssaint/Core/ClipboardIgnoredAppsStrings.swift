@@ -18,6 +18,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -26,6 +27,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -66,6 +68,13 @@ extension ClipboardIgnoredAppsStrings {
         caption: "Nada de lo que copies en estas apps se guarda en el historial."
     )
 
+    static let sk = ClipboardIgnoredAppsStrings(
+        listTitle: "Apky, ktoré preskočiť",
+        addButton: "Pridať aplikáciu…",
+        removeButton: "Odstrániť",
+        caption: "Nič, čo skopírujete v týchto aplikáciách, sa neukladá do histórie."
+    )
+
     static let de = ClipboardIgnoredAppsStrings(
         listTitle: "Apps, die übersprungen werden",
         addButton: "App hinzufügen…",
@@ -77,7 +86,7 @@ extension ClipboardIgnoredAppsStrings {
         listTitle: "Apps à ignorer",
         addButton: "Ajouter une app…",
         removeButton: "Retirer",
-        caption: "Rien de ce que vous copiez dans ces apps n'est gardé dans l'historique."
+        caption: "Rien de ce que vous copiez dans ces apps n’est gardé dans l’historique."
     )
 
     static let it = ClipboardIgnoredAppsStrings(
@@ -105,7 +114,7 @@ extension ClipboardIgnoredAppsStrings {
         listTitle: "不记录的 App",
         addButton: "添加 App…",
         removeButton: "移除",
-        caption: "在这些 App 里复制的内容都不会存进历史。"
+        caption: "在这些 App 里拷贝的内容都不会存进历史。"
     )
 
     static let zhTW = ClipboardIgnoredAppsStrings(
@@ -120,5 +129,11 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         caption: "在這些 App 裡複製的內容都不會存進歷史。"
+    )
+    static let uk = ClipboardIgnoredAppsStrings(
+        listTitle: "Програми для пропуску",
+        addButton: "Додати програму…",
+        removeButton: "Видалити",
+        caption: "Все, що ви копіюєте в цих програмах, не зберігається в історії."
     )
 }

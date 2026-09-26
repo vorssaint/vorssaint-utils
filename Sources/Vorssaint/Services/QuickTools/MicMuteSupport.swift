@@ -7,17 +7,19 @@ import Foundation
 /// calls so they can be pinned down by tests: which devices the mute has to
 /// reach, which ones it must never touch, and how a device gets its level back.
 enum MicMuteSupport {
-    /// The app's own private mixing device. It carries a tapped app's audio,
-    /// not a microphone, and muting it would silence the very thing the mixer
-    /// is rendering.
-    static let ownDeviceName = "Vorssaint Mixer"
+    /// The app's own private aggregate devices: the mixer's, the island's
+    /// level reader's and the recorder's. Each carries a tapped app's audio,
+    /// not a microphone, and muting one would silence the very thing it is
+    /// rendering or reading; a private aggregate is still listed to the
+    /// process that created it, so every device list skips them by name.
+    static let ownDeviceNames: Set<String> = ["Vorssaint Mixer", "Vorssaint Island Levels", "Vorssaint Recorder"]
 
     /// The level a device falls back to when nothing was ever saved for it:
     /// loud enough to be usable, quiet enough not to startle.
     static let fallbackVolume: Float = 0.75
 
     static func isOwnDevice(name: String) -> Bool {
-        name == ownDeviceName
+        ownDeviceNames.contains(name)
     }
 
     /// A level worth remembering. Saving a zero would make the unmute restore
@@ -47,5 +49,14 @@ enum MicMuteSupport {
         guard let recorded else { return present }
         let wanted = Set(recorded)
         return present.filter { wanted.contains($0) }
+    }
+
+    /// The claims a sweep carries forward untouched: the devices this app
+    /// silenced that are not here right now. A headset unplugged while muted
+    /// comes back still silenced, and it is still this app's to release;
+    /// dropping the claim would leave it muted with nothing left to unmute it.
+    static func absentClaims(recorded: [String]?, present: [String]) -> [String] {
+        let here = Set(present)
+        return (recorded ?? []).filter { !here.contains($0) }
     }
 }

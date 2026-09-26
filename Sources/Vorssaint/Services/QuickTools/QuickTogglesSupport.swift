@@ -48,12 +48,56 @@ enum QuickTogglesSupport {
     /// is what most desk drives are, answers no to both, so asking for
     /// removable media hid them all. The bus decides, and media that comes out
     /// of an internal reader still counts. Network shares, the volume the Mac
-    /// booted from and internal fixed drives never qualify.
+    /// booted from, internal fixed drives and drives in the user's exclusion list
+    /// never qualify.
     static func shouldOfferEject(isInternal: Bool,
                                  isRemovable: Bool,
                                  isEjectable: Bool,
                                  isLocal: Bool,
-                                 isRootFileSystem: Bool) -> Bool {
-        isLocal && !isRootFileSystem && (!isInternal || isRemovable || isEjectable)
+                                 isRootFileSystem: Bool,
+                                 volumeName: String? = nil,
+                                 volumeUUID: String? = nil,
+                                 mountPath: String? = nil,
+                                 excludedVolumes: Set<String> = []) -> Bool {
+        guard isLocal && !isRootFileSystem && (!isInternal || isRemovable || isEjectable) else {
+            return false
+        }
+        guard !excludedVolumes.isEmpty else { return true }
+        return !isExcluded(volumeName: volumeName,
+                           volumeUUID: volumeUUID,
+                           mountPath: mountPath,
+                           excludedVolumes: excludedVolumes)
+    }
+
+    /// Whether a volume matches any entry in the user's exclusion list by
+    /// name (case-insensitive), volume UUID, full mount path or mount directory name.
+    /// None of the four forms is optional to pass: an entry the user typed is
+    /// honoured or ignored depending on which identifiers the caller happened
+    /// to hand over, so a caller that has none says so with an explicit nil.
+    static func isExcluded(volumeName: String?,
+                           volumeUUID: String?,
+                           mountPath: String?,
+                           excludedVolumes: Set<String>) -> Bool {
+        guard !excludedVolumes.isEmpty else { return false }
+        if let name = volumeName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            if excludedVolumes.contains(name) || excludedVolumes.contains(name.lowercased()) {
+                return true
+            }
+        }
+        if let uuid = volumeUUID?.trimmingCharacters(in: .whitespacesAndNewlines), !uuid.isEmpty {
+            if excludedVolumes.contains(uuid) || excludedVolumes.contains(uuid.lowercased()) {
+                return true
+            }
+        }
+        if let mountPath = mountPath?.trimmingCharacters(in: .whitespacesAndNewlines), !mountPath.isEmpty {
+            if excludedVolumes.contains(mountPath) || excludedVolumes.contains(mountPath.lowercased()) {
+                return true
+            }
+            let lastComponent = (mountPath as NSString).lastPathComponent
+            if !lastComponent.isEmpty && (excludedVolumes.contains(lastComponent) || excludedVolumes.contains(lastComponent.lowercased())) {
+                return true
+            }
+        }
+        return false
     }
 }

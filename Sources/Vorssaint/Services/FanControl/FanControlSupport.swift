@@ -188,6 +188,12 @@ enum FanControlPolicy {
             && abs(target - expected) <= max(2, expected * 0.001)
     }
 
+    /// Not every Mac exposes `Ftst`. Where it is present the unlock write has to
+    /// succeed; where it is absent there is nothing to force and nothing to fail.
+    static func forceTestSatisfied(keyExists: Bool, writeSucceeded: Bool) -> Bool {
+        !keyExists || writeSucceeded
+    }
+
     static func coolingTargetRPM(minimum: Double, maximum: Double,
                                  level: Int) -> Double? {
         guard validBounds(minimum: minimum, maximum: maximum),

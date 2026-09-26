@@ -111,7 +111,10 @@ struct KeepAwakeIconPicker: View {
                     Circle()
                         .strokeBorder(Color.secondary, lineWidth: 1.2)
                         .frame(width: compact ? 12 : 14, height: compact ? 12 : 14)
-                    Image(systemName: "slash")
+                    // "slash" is not a symbol the system has, so the bar
+                    // across the circle was never drawn: the choice for no
+                    // icon showed an empty ring.
+                    Image(systemName: "line.diagonal")
                         .font(.system(size: compact ? 8 : 9, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }

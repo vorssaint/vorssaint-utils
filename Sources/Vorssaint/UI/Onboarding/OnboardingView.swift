@@ -342,8 +342,11 @@ private struct PurposeStep: View {
             selectedPreset = nil
             if selected {
                 selectedFeatures.remove(feature)
+                if feature == .notch {
+                    selectedFeatures.subtract(AppFeature.dynamicIslandExtensions)
+                }
             } else {
-                selectedFeatures.insert(feature)
+                selectedFeatures.formUnion(feature.initialInstallGroup)
             }
         } label: {
             HStack(spacing: 10) {
@@ -402,6 +405,7 @@ private struct PurposeStep: View {
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
         }
     }
@@ -494,7 +498,10 @@ private struct SelectedPermissionsStep: View {
         features
             .filter { $0.onboardingPermissions.contains(permission) }
             .map { $0.hubTitle(l10n.s, hub: hub) }
-            .sorted()
+            // Localized: a plain sort orders by Unicode scalar, which throws
+            // every accented name past Z. On the first screen someone sees,
+            // in a language with accents, that reads as a list in no order.
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
             .joined(separator: ", ")
     }
 }

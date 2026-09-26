@@ -54,13 +54,22 @@ enum SelfTest {
             warnings.append("AppleSMC unavailable")
         }
 
+        // The recorder's macOS-conflict check reads the WindowServer's live
+        // shortcut table through private calls; when they are gone it falls
+        // back to the preferences plist and loses factory keys such as ⌘⇧4.
+        if SymbolicHotKeys.liveEntries()?.isEmpty != false {
+            warnings.append("symbolic hotkey table unavailable; shortcut conflicts fall back to the plist")
+        }
+
         // Network counters should be readable and never run backwards.
         let net1 = NetworkSampler.readCounters()
         let net2 = NetworkSampler.readCounters()
-        if net1 == NetworkCounters(), net2 == NetworkCounters() {
+        if let net1, let net2 {
+            if net2.received < net1.received || net2.sent < net1.sent {
+                failures.append("network counters decreased")
+            }
+        } else {
             warnings.append("network counters unavailable")
-        } else if net2.received < net1.received || net2.sent < net1.sent {
-            failures.append("network counters decreased")
         }
 
         let diskCounters = DiskSampler.readCounters()
@@ -182,7 +191,10 @@ enum SensorDump {
             } else {
                 component = "cpu"
             }
+            // Diagnostic output, read by whoever ran the self-test and by
+            // scripts, so it stays on a decimal point wherever it runs.
             print(String(format: "%-11@  %@  %@  %6.2f",
+                         locale: Locale(identifier: "en_US_POSIX"),
                          component as NSString, key.name, key.dataType, value))
         }
         exit(0)

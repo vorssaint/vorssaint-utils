@@ -1,8 +1,8 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "Vorssaint는 Finder에서 파일을 이동하고 항목을 휴지통으로 보내며, Homebrew 작업을 요청할 때 Terminal 명령을 열기 위해 자동화를 사용합니다.";
+"NSAppleEventsUsageDescription" = "Vorssaint는 파일 이동, 항목을 휴지통으로 보내기, 요청한 명령 열기 및 미디어 앱의 재생 제어에 자동화를 사용합니다.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint는 믹서에서 앱별 볼륨을 조절하기 위해 각 앱의 오디오에만 접근합니다. 어떤 오디오도 녹음되거나 Mac 밖으로 전송되지 않습니다.";
+"NSAudioCaptureUsageDescription" = "Vorssaint는 믹서에서 앱별 볼륨을 조절하고 Dynamic Island의 음악 막대를 움직이며 시작한 화면 기록에 Mac의 소리를 담기 위해 각 앱의 오디오를 사용합니다. 어떤 것도 Mac 밖으로 나가지 않습니다.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint는 연결된 주변 기기의 배터리 잔량을 읽는 데만 Bluetooth를 사용합니다. 어떤 데이터도 Mac 밖으로 전송되지 않습니다.";
@@ -14,10 +14,11 @@
 "NSCameraUsageDescription" = "Vorssaint는 사용자가 연 미리보기 윈도우에만 카메라를 표시하여 통화 전에 모습을 확인할 수 있도록 합니다. 아무것도 녹화되지 않으며 Mac 밖으로 전송되지 않습니다.";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "Vorssaint는 다운로드 폴더의 로컬 메타데이터를 확인하여 사용자가 선택한 확인된 WhatsApp 파일만 검토, 정리 또는 휴지통으로 이동합니다.";
+"NSDownloadsFolderUsageDescription" = "Vorssaint는 다운로드 폴더의 로컬 메타데이터를 확인하여 사용자가 선택한 확인된 WhatsApp 파일만 검토, 정리 또는 휴지통으로 이동합니다. 스크린샷을 이곳에 저장하는 경우 정리 기능이 잊힌 스크린샷도 찾습니다.";
 
 /* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
-"NSDocumentsFolderUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
-"NSNetworkVolumesUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
-"NSRemovableVolumesUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
+"NSDesktopFolderUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다. 스크린샷을 이곳에 저장하는 경우 정리 기능이 잊힌 스크린샷도 찾습니다.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다. 스크린샷을 이곳에 저장하는 경우 정리 기능이 잊힌 스크린샷도 찾습니다.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다. 스크린샷을 이곳에 저장하는 경우 정리 기능이 잊힌 스크린샷도 찾습니다.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다. 스크린샷을 이곳에 저장하는 경우 정리 기능이 잊힌 스크린샷도 찾습니다.";
+"NSCalendarsFullAccessUsageDescription" = "화면 상단에 예정된 일정을 표시합니다. 캘린더 일정은 이 Mac에만 보관됩니다.";

@@ -3,6 +3,7 @@
 
 import AppKit
 import AVFoundation
+import Darwin
 import ImageIO
 import UniformTypeIdentifiers
 import Vision
@@ -125,6 +126,17 @@ private final class MediaCancellationToken {
     }
 }
 
+/// A workspace can outlive its visible panel while its requested export runs.
+final class MediaWorkspaceSelection: ObservableObject {
+    @Published var inputURLs: [URL] = []
+    @Published var inputImageSize: CGSize?
+    @Published var outputURL: URL?
+    @Published var outputWasChosenManually = false
+    @Published var tool: MediaTool?
+    var loadedInitialInputs = false
+    var durationLoading = MediaDurationLoading()
+}
+
 final class MediaService: ObservableObject {
     static let shared = MediaService()
 
@@ -137,17 +149,24 @@ final class MediaService: ObservableObject {
     private var activeProcess: Process?
     private var activeVisionRequest: VNRequest?
 
-    private init() {}
+    private let replacesExistingOutputs: Bool
+
+    init(replacesExistingOutputs: Bool = true) {
+        self.replacesExistingOutputs = replacesExistingOutputs
+    }
 
     func reset() {
         cancel()
         publish(.idle)
     }
 
-    func cancel() {
+    func cancel(immediately: Bool = false) {
         lock.lock()
         token?.cancel()
-        activeProcess?.terminate()
+        if let activeProcess, activeProcess.isRunning {
+            if immediately { kill(activeProcess.processIdentifier, SIGKILL) }
+            else { activeProcess.terminate() }
+        }
         activeVisionRequest?.cancel()
         operationID = nil
         activeProcess = nil
@@ -295,8 +314,11 @@ final class MediaService: ObservableObject {
             "--output", stagedOutputURL.path,
             "--replace",
             "--progress",
-            "--start", String(format: "%.3f", trim.start),
-            "--duration", String(format: "%.3f", trim.duration),
+            // Deliberately not the reader's region: these are arguments for
+            // a tool that reads a decimal point, and a comma would break the
+            // trim in every country that writes numbers that way.
+            "--start", String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), trim.start),
+            "--duration", String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), trim.duration),
         ]
         if options.quality >= 0.82 {
             process.arguments?.append("--multiPass")
@@ -739,7 +761,8 @@ final class MediaService: ObservableObject {
         guard self.operationID == operationID, !token.isCancelled else {
             throw MediaFailureBox(.cancelled)
         }
-        try MediaSupport.installStagedOutput(stagedURL, at: outputURL)
+        try MediaSupport.installStagedOutput(stagedURL, at: outputURL,
+                                             replacingExisting: replacesExistingOutputs)
     }
 
     private func resize(_ image: CGImage, maxDimension: Int) -> CGImage? {
@@ -844,7 +867,8 @@ final class MediaService: ObservableObject {
     private func drawWatermark(_ watermark: MediaImageWatermark,
                                logo: CGImage?,
                                canvasSize: NSSize) {
-        guard watermark.isEnabled, let context = NSGraphicsContext.current else { return }
+        guard watermark.isEnabled, NSGraphicsContext.current != nil else { return }
+        let opacity = CGFloat(MediaSupport.sanitizedOpacity(watermark.opacity))
         let side = max(1, min(canvasSize.width, canvasSize.height))
         let margin = CGFloat(watermark.margin)
         let gap = max(6, side * 0.015)
@@ -867,10 +891,10 @@ final class MediaService: ObservableObject {
             let shadow = NSShadow()
             shadow.shadowBlurRadius = max(2, fontSize * 0.14)
             shadow.shadowOffset = NSSize(width: 0, height: -1)
-            shadow.shadowColor = NSColor.black.withAlphaComponent(0.45)
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.45 * opacity)
             attributedText = NSAttributedString(string: text, attributes: [
                 .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
-                .foregroundColor: NSColor.white,
+                .foregroundColor: NSColor.white.withAlphaComponent(opacity),
                 .shadow: shadow,
             ])
             textSize = attributedText?.size() ?? .zero
@@ -888,10 +912,10 @@ final class MediaService: ObservableObject {
                 let shadow = NSShadow()
                 shadow.shadowBlurRadius = max(1, fontSize * shrink * 0.14)
                 shadow.shadowOffset = NSSize(width: 0, height: -1)
-                shadow.shadowColor = NSColor.black.withAlphaComponent(0.45)
+                shadow.shadowColor = NSColor.black.withAlphaComponent(0.45 * opacity)
                 let scaled = NSAttributedString(string: attributedText.string, attributes: [
                     .font: NSFont.systemFont(ofSize: max(8, fontSize * shrink), weight: .semibold),
-                    .foregroundColor: NSColor.white,
+                    .foregroundColor: NSColor.white.withAlphaComponent(opacity),
                     .shadow: shadow,
                 ])
                 resolvedText = scaled
@@ -905,22 +929,19 @@ final class MediaService: ObservableObject {
                                      canvasSize: canvasSize,
                                      margin: margin)
 
-        context.saveGraphicsState()
-        context.cgContext.setAlpha(CGFloat(watermark.opacity))
         var cursorX = origin.x
         if let logoImage {
             let y = origin.y + (contentHeight - logoSize.height) / 2
             logoImage.draw(in: NSRect(x: cursorX, y: y, width: logoSize.width, height: logoSize.height),
                            from: .zero,
                            operation: .sourceOver,
-                           fraction: 1)
+                           fraction: opacity)
             cursorX += logoSize.width + (resolvedText != nil ? gap : 0)
         }
         if let attributedText = resolvedText {
             let y = origin.y + (contentHeight - textSize.height) / 2
             attributedText.draw(at: NSPoint(x: cursorX, y: y))
         }
-        context.restoreGraphicsState()
     }
 
     private func watermarkOrigin(position: MediaImageWatermarkPosition,

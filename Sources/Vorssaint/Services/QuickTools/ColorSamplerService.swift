@@ -35,19 +35,37 @@ final class ColorSamplerService: ObservableObject {
         copy(color)
     }
 
-    private func copy(_ color: NSColor) {
-        guard let srgb = color.usingColorSpace(.sRGB) else { return }
+    /// The string the configured copy format would produce for this color,
+    /// so a preview (the capture loupe's readout bar) can show exactly what
+    /// a copy will put on the pasteboard.
+    func formattedValue(_ color: NSColor) -> String? {
+        guard let srgb = color.usingColorSpace(.sRGB) else { return nil }
         let format = ColorCopyFormat.sanitized(
             UserDefaults.standard.string(forKey: DefaultsKey.colorPickerFormat) ?? "hex"
         )
-        let value = QuickToolsSupport.colorString(red: srgb.redComponent,
-                                                  green: srgb.greenComponent,
-                                                  blue: srgb.blueComponent,
-                                                  format: format,
-                                                  bareHex: UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerBareHex))
+        return QuickToolsSupport.colorString(red: srgb.redComponent,
+                                             green: srgb.greenComponent,
+                                             blue: srgb.blueComponent,
+                                             format: format,
+                                             bareHex: UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerBareHex))
+    }
+
+    /// Copies without the HUD. The capture surface calls this while its
+    /// shielding-level panels are still up, where the HUD would be invisible,
+    /// and shows its own confirmation instead.
+    @discardableResult
+    func copyQuietly(_ color: NSColor) -> String? {
+        guard let value = formattedValue(color) else { return nil }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(value, forType: .string)
+        return value
+    }
+
+    private func copy(_ color: NSColor) {
+        guard let srgb = color.usingColorSpace(.sRGB),
+              let value = copyQuietly(color)
+        else { return }
         QuickToolHUD.show(icon: "eyedropper", message: value, swatch: srgb)
     }
 }

@@ -4,7 +4,7 @@
 import SwiftUI
 
 /// One Settings destination for every tool that starts from the screen. The
-/// segmented control at the top changes the feature-specific options shown
+/// tool picker at the top changes the feature-specific options shown
 /// below it, and the top section also carries the selected tool's own
 /// shortcut where the old shared shortcut lived.
 struct ScreenCaptureSettings: View {
@@ -30,19 +30,16 @@ struct ScreenCaptureSettings: View {
             if !availableTools.isEmpty {
                 Section {
                     if availableTools.count > 1 {
-                        Picker(strings.screenCaptureTitle, selection: toolSelection) {
-                            ForEach(availableTools, id: \.self) { tool in
-                                Label(tool.settingsTitle(l10n.s, language: l10n.language),
-                                      systemImage: tool.systemImageName)
-                                    .tag(tool)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .controlSize(.large)
+                        ScreenCaptureToolPicker(tools: availableTools,
+                                                strings: l10n.s,
+                                                language: l10n.language,
+                                                selection: toolSelection)
                     }
                     ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
                         .id(currentTool)
+                    if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
+                        RecentCapturesShortcutRows()
+                    }
                 } header: {
                     Text(strings.screenCaptureTitle)
                 }
@@ -61,7 +58,11 @@ struct ScreenCaptureSettings: View {
     }
 
     private var toolSelection: Binding<ScreenCaptureTool> {
-        Binding(get: { currentTool }, set: { selectedTool = $0 })
+        Binding(get: { currentTool }, set: { tool in
+            guard availableTools.contains(tool), tool != currentTool else { return }
+            selectedTool = tool
+            router.request(tool.feature.settingsDestination, sidebarFeature: tool.feature)
+        })
     }
 
     @ViewBuilder
@@ -83,15 +84,43 @@ struct ScreenCaptureSettings: View {
     }
 
     private func reconcileSelection(withDestination: Bool) {
-        if withDestination,
-           let anchor = router.destination.sectionAnchor,
-           let requestedTool = anchor.screenCaptureTool,
-           availableTools.contains(requestedTool) {
-            selectedTool = requestedTool
+        if withDestination {
+            if let anchor = router.destination.sectionAnchor,
+               let requestedTool = anchor.screenCaptureTool,
+               availableTools.contains(requestedTool) {
+                selectedTool = requestedTool
+            } else if router.destination.sectionAnchor == nil,
+                      let first = availableTools.first {
+                selectedTool = first
+            }
             return
         }
         if !availableTools.contains(selectedTool), let first = availableTools.first {
             selectedTool = first
+        }
+    }
+}
+
+/// Capture history belongs to screenshots and recordings together, so its
+/// shortcut stays visible whichever of those tools is selected.
+private struct RecentCapturesShortcutRows: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = RecentCaptureService.shared
+    @AppStorage(DefaultsKey.recentCapturesShortcutEnabled) private var enabled = false
+
+    var body: some View {
+        let role = GlobalShortcutRole.recentCaptures
+        Toggle(role.title(l10n.s), isOn: $enabled)
+            .onChange(of: enabled) { _, _ in
+                service.syncWithPreferences()
+            }
+        ShortcutPreferenceRow(role: role, isEnabled: enabled) {
+            service.syncWithPreferences()
+        }
+        if enabled, service.shortcutRegistrationFailed {
+            Text(l10n.s.shortcutUnavailable)
+                .font(.caption)
+                .foregroundStyle(.orange)
         }
     }
 }
@@ -114,6 +143,7 @@ private struct ToolShortcutRows: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ScreenCaptureService.shared
     @AppStorage private var enabled: Bool
+    @AppStorage private var showsCaptureMenu: Bool
 
     private let tool: ScreenCaptureTool
     private let keys: ScreenCaptureTool.DedicatedShortcut
@@ -122,6 +152,7 @@ private struct ToolShortcutRows: View {
         self.tool = tool
         self.keys = keys
         _enabled = AppStorage(wrappedValue: false, keys.enabledKey)
+        _showsCaptureMenu = AppStorage(wrappedValue: true, tool.showCaptureMenuOnShortcutKey)
     }
 
     var body: some View {
@@ -132,6 +163,9 @@ private struct ToolShortcutRows: View {
         ShortcutPreferenceRow(role: keys.role, isEnabled: enabled) {
             service.syncWithPreferences()
         }
+        Toggle(FeatureStrings.screenshot(l10n.language).showCaptureMenuOnShortcut,
+               isOn: $showsCaptureMenu)
+            .disabled(!enabled)
         if enabled, service.toolShortcutRegistrationFailures.contains(tool) {
             Text(l10n.s.shortcutUnavailable)
                 .font(.caption)
@@ -143,6 +177,7 @@ private struct ToolShortcutRows: View {
 private struct ScreenTextCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.screenOCRRemoveLineBreaks) private var removesLineBreaks = false
     @AppStorage(DefaultsKey.screenOCRDetectQRCodes) private var detectsQRCodes = true
 
     var body: some View {
@@ -155,6 +190,10 @@ private struct ScreenTextCaptureSettings: View {
             Text(l10n.s.ocrCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Toggle(l10n.s.ocrRemoveLineBreaksToggle, isOn: $removesLineBreaks)
+            Text(l10n.s.ocrRemoveLineBreaksCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Toggle(l10n.s.ocrQRToggle, isOn: $detectsQRCodes)
             Text(l10n.s.ocrQRCaption)
                 .font(.caption)
@@ -165,7 +204,7 @@ private struct ScreenTextCaptureSettings: View {
         } header: {
             Text(l10n.s.ocrName)
         }
-        .settingsSectionAnchor(.screenOCR)
+        .settingsFormSectionAnchor(.screenOCR)
     }
 }
 
@@ -196,6 +235,6 @@ private struct ColorCaptureSettings: View {
         } header: {
             Text(l10n.s.colorPickerName)
         }
-        .settingsSectionAnchor(.colorPicker)
+        .settingsFormSectionAnchor(.colorPicker)
     }
 }

@@ -12,6 +12,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     /// sentence explaining what to do lives in the caption under the row, so
     /// the field never has to grow to fit it.
     let waitingTitle: String
+    var requiresModifier = true
     /// When set, the button shows this instead of the shortcut, meaning "no
     /// shortcut assigned"; clicking still records a new one.
     var emptyTitle: String? = nil
@@ -22,6 +23,9 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     var notCapturedAction: (() -> Void)? = nil
     /// Lets the row show its caption exactly while the field is listening.
     var recordingChanged: ((Bool) -> Void)? = nil
+    /// For local shortcuts whose typed character also depends on Caps Lock.
+    /// When supplied, this handles capture instead of the ordinary callback.
+    var captureWithFlagsAction: ((GlobalShortcut, CGEventFlags) -> Void)? = nil
     let invalidAction: () -> Void
     let captureAction: (GlobalShortcut) -> Void
 
@@ -66,12 +70,14 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     }
 
     private func apply(to button: RecorderButton) {
+        button.requiresModifier = requiresModifier
         button.shortcut = shortcut
         button.waitingTitle = waitingTitle
         button.emptyTitle = emptyTitle
         button.clearAction = clearAction
         button.notCapturedAction = notCapturedAction
         button.recordingChanged = recordingChanged
+        button.captureWithFlagsAction = captureWithFlagsAction
         button.invalidAction = invalidAction
         button.captureAction = captureAction
         button.isEnabled = isEnabled
@@ -80,12 +86,14 @@ struct ShortcutRecorderButton: NSViewRepresentable {
 }
 
 final class RecorderButton: NSButton {
+    var requiresModifier = true
     var shortcut = GlobalShortcut.keepAwakeDefault
     var waitingTitle = ""
     var emptyTitle: String?
     var clearAction: (() -> Void)?
     var notCapturedAction: (() -> Void)?
     var recordingChanged: ((Bool) -> Void)?
+    var captureWithFlagsAction: ((GlobalShortcut, CGEventFlags) -> Void)?
     var invalidAction: (() -> Void)?
     var captureAction: ((GlobalShortcut) -> Void)?
     private var isRecording = false
@@ -130,9 +138,9 @@ final class RecorderButton: NSButton {
         // combination the system or another app answers to performs that
         // action while being recorded. When the tap cannot exist (no
         // Accessibility), the view events below still record as before.
-        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers in
+        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers, flags in
             guard let self, self.isRecording else { return }
-            self.handleRecordingKey(keyCode: keyCode, modifiers: modifiers)
+            self.handleRecordingKey(keyCode: keyCode, modifiers: modifiers, flags: flags)
         }
         observeExits()
         refreshTitle()
@@ -202,12 +210,14 @@ final class RecorderButton: NSButton {
 
     private func handleRecordingKey(_ event: NSEvent) {
         handleRecordingKey(keyCode: Int64(event.keyCode),
-                           modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags))
+                           modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags),
+                           flags: CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue)))
     }
 
     /// The one recording path, fed by the swallowing tap or, without it, by
     /// the view events above.
-    private func handleRecordingKey(keyCode: Int64, modifiers: GlobalShortcutModifiers) {
+    private func handleRecordingKey(keyCode: Int64, modifiers: GlobalShortcutModifiers,
+                                    flags: CGEventFlags) {
         // A key arrived, so the modifiers being held did produce something.
         awaitingKeyForHeldModifiers = false
 
@@ -222,14 +232,26 @@ final class RecorderButton: NSButton {
             return
         }
         let captured = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
-        guard captured.isValid else {
+        // Fn on a letter cannot be represented by the saved shortcut. Do not
+        // silently record N when the user pressed Fn-N. Function/navigation
+        // keys carry this flag intrinsically and remain recordable.
+        if !requiresModifier, flags.contains(.maskSecondaryFn),
+           !captured.syntheticEventFlags.contains(.maskSecondaryFn) {
+            invalidAction?()
+            return
+        }
+        guard requiresModifier ? captured.isValid : captured.hasPrintableKey else {
             NSSound.beep()
             invalidAction?()
             return
         }
         shortcut = captured
         stopRecording()
-        captureAction?(captured)
+        if let captureWithFlagsAction {
+            captureWithFlagsAction(captured, flags)
+        } else {
+            captureAction?(captured)
+        }
     }
 
     /// Watchers that exist only while the field is listening. Each one is a
@@ -271,11 +293,13 @@ struct ShortcutPreferenceRow: View {
     private let showsSuperKeyAlternative: Bool
     private let superKeyModifiers: GlobalShortcutModifiers
     private let includeInactiveConflicts: Bool
+    private let reservesClearButtonSpace: Bool
     private let onChange: () -> Void
     private let additionalConflict: (GlobalShortcut) -> String?
     @AppStorage private var rawValue: String
     @State private var errorText: String?
     @State private var isRecording = false
+    @State private var pendingTakeOver: GlobalShortcut?
 
     init(role: GlobalShortcutRole,
          isEnabled: Bool = true,
@@ -287,6 +311,7 @@ struct ShortcutPreferenceRow: View {
          showsSuperKeyAlternative: Bool = false,
          superKeyModifiers: GlobalShortcutModifiers = .validMask,
          includeInactiveConflicts: Bool = false,
+         reservesClearButtonSpace: Bool = false,
          additionalConflict: @escaping (GlobalShortcut) -> String? = { _ in nil },
          onChange: @escaping () -> Void) {
         self.role = role
@@ -299,6 +324,7 @@ struct ShortcutPreferenceRow: View {
         self.showsSuperKeyAlternative = showsSuperKeyAlternative
         self.superKeyModifiers = superKeyModifiers
         self.includeInactiveConflicts = includeInactiveConflicts
+        self.reservesClearButtonSpace = reservesClearButtonSpace
         self.additionalConflict = additionalConflict
         self.onChange = onChange
         _rawValue = AppStorage(wrappedValue: role.defaultShortcut.storageValue, role.storageKey)
@@ -315,13 +341,16 @@ struct ShortcutPreferenceRow: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 8) {
-                        ShortcutRecorderButton(shortcut: shortcut,
+                        ShortcutRecorderButton(shortcut: pendingTakeOver ?? shortcut,
                                                isEnabled: isEnabled,
                                                waitingTitle: l10n.s.shortcutPressKeys,
                                                notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
                                                recordingChanged: { recording in
                                                    isRecording = recording
-                                                   if recording { errorText = nil }
+                                                   if recording {
+                                                       errorText = nil
+                                                       pendingTakeOver = nil
+                                                   }
                                                },
                                                invalidAction: {
                                                    errorText = l10n.s.shortcutInvalid
@@ -329,9 +358,18 @@ struct ShortcutPreferenceRow: View {
                                                captureAction: save)
                             .frame(width: 108)
                             .disabled(!isEnabled)
+                        if reservesClearButtonSpace {
+                            // Rows beside it have a clear button here; keep the
+                            // recorders in one column.
+                            Image(systemName: "xmark.circle.fill")
+                                .hidden()
+                                .accessibilityHidden(true)
+                        }
                         Button(l10n.s.shortcutReset) {
                             rawValue = role.defaultShortcut.storageValue
                             errorText = nil
+                            pendingTakeOver = nil
+                            SystemShortcutTakeover.setTakeOver(role.storageKey, false)
                             onChange()
                         }
                         .disabled(!isEnabled || shortcut == role.defaultShortcut)
@@ -355,6 +393,19 @@ struct ShortcutPreferenceRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if let pendingTakeOver {
+                SystemShortcutTakeOverOffer(shortcut: pendingTakeOver,
+                                            onAccept: {
+                                                rawValue = pendingTakeOver.storageValue
+                                                SystemShortcutTakeover.setTakeOver(role.storageKey, true)
+                                                self.pendingTakeOver = nil
+                                                onChange()
+                                            },
+                                            onDismiss: {
+                                                self.pendingTakeOver = nil
+                                                errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
+                                            })
+            }
         }
         .onChange(of: l10n.language) { _, _ in errorText = nil }
     }
@@ -377,16 +428,37 @@ struct ShortcutPreferenceRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
-        if shortcut.conflictsWithSystemShortcut {
-            errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
-            return
-        }
         if let conflict = additionalConflict(shortcut) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }
-        rawValue = shortcut.storageValue
-        errorText = nil
+        // Nothing claims this row's key, so accepting an offer would write an
+        // opt-in no feature ever resolves: refuse the combination the way the
+        // row did before the take-over existed. The live table alone is the
+        // right question here, and its blindness to a key already switched off
+        // is what still lets the switcher's rows record the ids its own
+        // take-over toggle is holding.
+        if !role.supportsTakeOver, shortcut.conflictsWithSystemShortcut(for: role) {
+            errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
+            return
+        }
+        // The offer is the last word on a combination: every other check has
+        // already passed, so accepting it writes exactly what a save writes.
+        switch SystemShortcutTakeoverSupport.recorderDecision(
+            shortcut: shortcut,
+            conflictsWithMacOS: role.supportsTakeOver
+                && SystemShortcutTakeover.conflictsWithMacOS(shortcut, for: role),
+            takenOver: SystemShortcutTakeover.isTakenOver(role.storageKey),
+            current: GlobalShortcut(storageValue: rawValue)) {
+        case .offer:
+            pendingTakeOver = shortcut
+            errorText = nil
+            return
+        case .save(let clearTakeOver):
+            rawValue = shortcut.storageValue
+            errorText = nil
+            if clearTakeOver { SystemShortcutTakeover.setTakeOver(role.storageKey, false) }
+        }
         onChange()
     }
 }

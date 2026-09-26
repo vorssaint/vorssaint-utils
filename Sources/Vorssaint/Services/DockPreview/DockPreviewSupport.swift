@@ -5,6 +5,28 @@ import AppKit
 import CoreGraphics
 import Foundation
 
+enum DockPreviewFrameSupport {
+    /// Accept only the two ways a work-area reduction constrains a window:
+    /// clipping its bounds, or moving it inward while preserving its size.
+    static func wasConstrained(_ current: CGRect, original: CGRect, visibleFrame: CGRect) -> Bool {
+        guard !original.isEmpty, !visibleFrame.isEmpty,
+              !visibleFrame.contains(original), !current.isEmpty else { return false }
+        let size = CGSize(width: min(original.width, visibleFrame.width),
+                          height: min(original.height, visibleFrame.height))
+        let moved = CGRect(x: min(max(original.minX, visibleFrame.minX), visibleFrame.maxX - size.width),
+                           y: min(max(original.minY, visibleFrame.minY), visibleFrame.maxY - size.height),
+                           width: size.width, height: size.height)
+        return [original.intersection(visibleFrame), moved].contains { expected in
+            guard !expected.isEmpty, current != original else { return false }
+            let matchesX = abs(current.minX - expected.minX) <= 2
+            let matchesY = abs(current.minY - expected.minY) <= 2
+            let matchesWidth = abs(current.width - expected.width) <= 2
+            let matchesHeight = abs(current.height - expected.height) <= 2
+            return matchesX && matchesY && matchesWidth && matchesHeight
+        }
+    }
+}
+
 enum DockPreviewOrientation: String, Equatable {
     case bottom
     case left
@@ -69,6 +91,11 @@ struct DockPreviewCloseState: Equatable {
     let shouldEndSession: Bool
 }
 
+enum DockPreviewCloseAction: Equatable {
+    case closeWindow
+    case quitApp
+}
+
 struct DockPreviewMouseDownDecision: Equatable {
     let shouldEndSession: Bool
 }
@@ -89,7 +116,52 @@ struct HoverCorridor: Equatable {
     }
 }
 
+
+enum DockPreviewWindowOrder: Equatable {
+    case lastUse
+    case creation
+
+    static func fromDefaults(orderByCreation: Bool) -> DockPreviewWindowOrder {
+        orderByCreation ? .creation : .lastUse
+    }
+}
+
 enum DockPreviewSupport {
+    static func handlesMiddleClick(eventType: NSEvent.EventType, buttonNumber: Int,
+                                   point: CGPoint, visibleRect: CGRect, isHidden: Bool) -> Bool {
+        (eventType == .otherMouseDown || eventType == .otherMouseUp)
+            && buttonNumber == 2 && !isHidden && visibleRect.contains(point)
+    }
+
+    static func closeAction(quitAppOnClose: Bool) -> DockPreviewCloseAction {
+        quitAppOnClose ? .quitApp : .closeWindow
+    }
+
+    /// Reorders Dock Preview cards. Last-use keeps the enumerator’s MRU order;
+    /// creation sorts by ascending window ID (a stable creation-time proxy).
+    static func orderedWindows(_ windows: [SwitcherItem],
+                               order: DockPreviewWindowOrder) -> [SwitcherItem] {
+        switch order {
+        case .lastUse:
+            return windows
+        case .creation:
+            return windows.sorted { lhs, rhs in
+                (lhs.windowID ?? 0) < (rhs.windowID ?? 0)
+            }
+        }
+    }
+
+
+    static func performCloseAction(quitAppOnClose: Bool,
+                                   requestQuit: () -> Bool,
+                                   closeWindow: () -> Void) {
+        if closeAction(quitAppOnClose: quitAppOnClose) == .quitApp,
+           requestQuit() {
+            return
+        }
+        closeWindow()
+    }
+
     /// How long the cursor must rest on an icon before its panel opens. Long
     /// enough that the Dock can be crossed on the way somewhere else, short
     /// enough that a cursor which stopped is answered. Adjustable: that line
@@ -127,6 +199,11 @@ enum DockPreviewSupport {
     /// A little slack around the panel so the cursor grazing its edge doesn't
     /// flicker the session between "inside" and "leaving".
     static let panelStayMargin: CGFloat = 6
+    /// How far the pointer may drift and still count as the one the panel moved
+    /// out from under when an auto-hidden Dock leaves. Wide enough for the jitter
+    /// of a hand resting on a mouse, far short of a deliberate move away — tune
+    /// here if a real desk proves either end of that wrong.
+    static let reattachGraceTravel: CGFloat = 24
     static let edgePadding: CGFloat = 8
     static let panelGap: CGFloat = 6
     static let autohidePanelGap: CGFloat = 0
@@ -197,11 +274,13 @@ enum DockPreviewSupport {
         CGSize(width: 210 * scale, height: 135 * scale)
     }
 
-    static func cardSize(scale: CGFloat) -> CGSize {
+    /// Minimal previews have no title band, so the card drops its height
+    /// instead of padding the width-bound picture with space it cannot fill.
+    static func cardSize(scale: CGFloat, minimal: Bool = false) -> CGSize {
         let thumbnail = cardThumbnailSize(scale: scale)
         let padding = 10 * scale
         return CGSize(width: thumbnail.width + padding * 2,
-                      height: thumbnail.height + padding * 2 + 7 * scale + cardTitleHeight)
+                      height: thumbnail.height + padding * 2 + (minimal ? 0 : 7 * scale + cardTitleHeight))
     }
 
     /// The picture's inset inside the thumbnail well. It scales with the well,
@@ -230,7 +309,10 @@ enum DockPreviewSupport {
     static var cardThumbnailWidth: CGFloat { cardThumbnailSize(scale: PreviewSizing.scale).width }
     static var cardThumbnailHeight: CGFloat { cardThumbnailSize(scale: PreviewSizing.scale).height }
     static var cardWidth: CGFloat { cardSize(scale: PreviewSizing.scale).width }
-    static var cardHeight: CGFloat { cardSize(scale: PreviewSizing.scale).height }
+    static var cardHeight: CGFloat {
+        cardSize(scale: PreviewSizing.scale,
+                 minimal: UserDefaults.standard.bool(forKey: DefaultsKey.minimalWindowPreviews)).height
+    }
     static var cardFallbackIconSize: CGFloat { cardFallbackIconSize(scale: PreviewSizing.scale) }
 
     /// How solid the panel's frosted background is drawn, as a fraction. The
@@ -319,6 +401,48 @@ enum DockPreviewSupport {
         }
 
         return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    /// Pulls a preview back to the screen edge after an auto-hidden Dock slides
+    /// away. The other axis stays put so the panel does not jump away from the
+    /// app icon the user chose.
+    static func panelFrameWhenDockHidden(_ panelFrame: CGRect,
+                                         screenVisibleFrame: CGRect,
+                                         orientation: DockPreviewOrientation,
+                                         padding: CGFloat = edgePadding) -> CGRect {
+        var frame = panelFrame
+        switch orientation {
+        case .bottom:
+            frame.origin.y = screenVisibleFrame.minY + padding
+        case .left:
+            frame.origin.x = screenVisibleFrame.minX + padding
+        case .right:
+            frame.origin.x = screenVisibleFrame.maxX - panelFrame.width - padding
+        }
+        return frame
+    }
+
+    /// A panel already pulled into the space an auto-hidden Dock left keeps
+    /// that attachment when its cards change size. Rebuilding from the icon is
+    /// still useful for the new dimensions; only its Dock-facing axis is put
+    /// back at the screen edge.
+    static func resizedPanelFrame(_ dockAnchoredFrame: CGRect,
+                                  didReattachForSession: Bool,
+                                  screenVisibleFrame: CGRect,
+                                  orientation: DockPreviewOrientation) -> CGRect {
+        guard didReattachForSession else { return dockAnchoredFrame }
+        return panelFrameWhenDockHidden(dockAnchoredFrame,
+                                        screenVisibleFrame: screenVisibleFrame,
+                                        orientation: orientation)
+    }
+
+    /// The Dock window only needs watching until it disappears once. The
+    /// timer itself covers repeated mouse moves before that happens; the
+    /// session flag covers the moves after it has.
+    static func shouldStartDockVisibilityTimer(hasActiveTimer: Bool,
+                                               didReattachForSession: Bool,
+                                               autohide: Bool) -> Bool {
+        !hasActiveTimer && !didReattachForSession && autohide
     }
 
     /// Whether the panel draws a header row. A hovered panel has no use for

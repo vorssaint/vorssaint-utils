@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import AppKit
+import QuartzCore
+
+/// Small, non-activating feedback panel. It is intentionally independent from
+/// Settings so showing a confirmation never changes the target application.
+final class QuitProtectionHUD {
+    private static let minimumSize = CGSize(width: 300, height: 48)
+    private static let textInset: CGFloat = 12
+    private var size = QuitProtectionHUD.minimumSize
+    private var panel: NSPanel?
+
+    /// The confirmation lines are localized and formatted with the shortcut
+    /// symbol, so their rendered width is only known at show time. The widest
+    /// translations need more than the fixed 300pt panel left for text. The
+    /// labels are asked rather than the strings measured, so whatever inset
+    /// their cells add is inside the answer.
+    private static func fittingSize(_ content: ContentView) -> CGSize {
+        CGSize(width: max(minimumSize.width, (content.textWidth + textInset * 2).rounded(.up)),
+               height: minimumSize.height + (content.showsProgress ? 8 : 0))
+    }
+
+    /// `screen` is for callers that already place a panel of their own, so the
+    /// confirmation cannot land on a different display than what it confirms.
+    func show(title: String, detail: String, on screen: NSScreen? = nil,
+              holdDeadline: Date? = nil) {
+        if panel == nil {
+            let panel = OverlayPanel(contentRect: CGRect(origin: .zero, size: size),
+                                     styleMask: [.borderless, .nonactivatingPanel],
+                                     backing: .buffered,
+                                     defer: false)
+            panel.contentView = ContentView(frame: CGRect(origin: .zero, size: size))
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = true
+            panel.level = .statusBar
+            panel.isReleasedWhenClosed = false
+            panel.hidesOnDeactivate = false
+            panel.becomesKeyOnlyIfNeeded = true
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
+                                        .stationary, .ignoresCycle]
+            self.panel = panel
+        }
+
+        guard let content = panel?.contentView as? ContentView else { return }
+        // Fill the labels first: the width comes out of them, not out of a
+        // separate measurement of the same strings.
+        content.update(title: title, detail: detail, showsProgress: holdDeadline != nil)
+        size = Self.fittingSize(content)
+        panel?.setContentSize(size)
+        positionPanel(on: screen)
+        panel?.alphaValue = 1
+        panel?.orderFrontRegardless()
+        content.layoutSubtreeIfNeeded()
+        content.animateProgress(until: holdDeadline)
+        // Event taps can arrive between normal AppKit drawing passes. Draw now
+        // so a short confirmation never waits for another app event to appear.
+        panel?.display()
+    }
+
+    func hide() {
+        (panel?.contentView as? ContentView)?.stopProgress()
+        panel?.orderOut(nil)
+    }
+
+    private func positionPanel(on preferredScreen: NSScreen?) {
+        guard let panel,
+              let screen = preferredScreen
+                ?? NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) })
+                ?? NSScreen.main
+                ?? NSScreen.screens.first
+        else { return }
+        let frame = screen.visibleFrame
+        panel.setFrameOrigin(CGPoint(x: (frame.midX - size.width / 2).rounded(),
+                                     y: (frame.minY + 18).rounded()))
+    }
+
+    private final class ContentView: NSView {
+        private let title = NSTextField(labelWithString: "")
+        private let detail = NSTextField(labelWithString: "")
+        private let progressTrack = CALayer()
+        private let progressFill = CALayer()
+
+        var showsProgress: Bool { !progressTrack.isHidden }
+
+        /// Width the two labels need for what they currently hold, straight
+        /// from the cells that draw them.
+        var textWidth: CGFloat {
+            max(title.fittingSize.width, detail.fittingSize.width)
+        }
+
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            wantsLayer = true
+            title.font = .systemFont(ofSize: 13, weight: .semibold)
+            title.textColor = .white
+            title.alignment = .center
+            detail.font = .systemFont(ofSize: 10.5)
+            detail.textColor = .white.withAlphaComponent(0.68)
+            detail.alignment = .center
+            addSubview(title)
+            addSubview(detail)
+            progressTrack.backgroundColor = NSColor.white.withAlphaComponent(0.16).cgColor
+            progressTrack.cornerRadius = 1.5
+            progressTrack.masksToBounds = true
+            // Visibility must change with the labels, even for a 250 ms hold.
+            progressTrack.actions = ["hidden": NSNull()]
+            progressTrack.isHidden = true
+            progressFill.backgroundColor = NSColor.white.withAlphaComponent(0.8).cgColor
+            progressFill.anchorPoint = CGPoint(x: 0, y: 0.5)
+            progressTrack.addSublayer(progressFill)
+            layer?.addSublayer(progressTrack)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { nil }
+
+        override func layout() {
+            super.layout()
+            let inset = QuitProtectionHUD.textInset
+            let offset: CGFloat = showsProgress ? 8 : 0
+            title.frame = CGRect(x: inset, y: 23 + offset, width: bounds.width - inset * 2, height: 17)
+            detail.frame = CGRect(x: inset, y: 7 + offset, width: bounds.width - inset * 2, height: 14)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            progressTrack.frame = CGRect(x: 24, y: 7, width: bounds.width - 48, height: 3)
+            progressFill.frame = progressTrack.bounds
+            CATransaction.commit()
+        }
+
+        func update(title: String, detail: String, showsProgress: Bool) {
+            stopProgress()
+            progressTrack.isHidden = !showsProgress
+            self.title.stringValue = title
+            self.detail.stringValue = detail
+            setAccessibilityLabel([title, detail].filter { !$0.isEmpty }.joined(separator: ". "))
+            needsLayout = true
+            // The pill is drawn from bounds, so a width change has to repaint.
+            needsDisplay = true
+        }
+
+        func animateProgress(until deadline: Date?) {
+            guard let deadline else { return }
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else { return }
+            let animation = CABasicAnimation(keyPath: "transform.scale.x")
+            animation.fromValue = 0
+            animation.toValue = 1
+            animation.duration = remaining
+            animation.timingFunction = CAMediaTimingFunction(name: .linear)
+            progressFill.add(animation, forKey: "holdProgress")
+        }
+
+        func stopProgress() {
+            progressFill.removeAnimation(forKey: "holdProgress")
+            progressTrack.isHidden = true
+        }
+
+        override func draw(_ dirtyRect: NSRect) {
+            let body = bounds.insetBy(dx: 0.5, dy: 0.5)
+            let path = NSBezierPath(roundedRect: body,
+                                    xRadius: body.height / 2,
+                                    yRadius: body.height / 2)
+            NSColor(calibratedWhite: 0.09, alpha: 0.95).setFill()
+            path.fill()
+            NSColor.white.withAlphaComponent(0.16).setStroke()
+            path.lineWidth = 1
+            path.stroke()
+        }
+    }
+}

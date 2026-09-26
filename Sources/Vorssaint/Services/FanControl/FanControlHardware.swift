@@ -119,7 +119,10 @@ final class FanControlHardware {
         }
 
         if !directSucceeded {
-            guard let forceTest = forceTestKey(), setByte(1, for: forceTest, attempts: 20) else {
+            let forceTest = forceTestKey()
+            let forced = forceTest.map { setByte(1, for: $0, attempts: 20) } ?? false
+            guard FanControlPolicy.forceTestSatisfied(keyExists: forceTest != nil,
+                                                      writeSucceeded: forced) else {
                 throw FanControlHardwareError.operationFailed
             }
             // A stopped Apple Silicon fan can reject manual mode until the

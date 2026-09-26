@@ -21,11 +21,33 @@ struct HomebrewPackage: Identifiable, Hashable {
     var homepage: String?
     var popularity: HomebrewPopularity?
     var update: HomebrewPackageUpdate?
+    /// nil when brew does not report it (older brew, casks, search results).
+    var installedOnRequest: Bool?
+    /// Installed formulae this package needs, as brew names them: the runtime
+    /// closure for a formula, the declared formulae for a cask.
+    var requires: [String] = []
 
     var id: String { "\(kind.rawValue):\(name)" }
     var isInstalled: Bool { installedVersion != nil }
     var hasUpdateAvailable: Bool { update != nil }
     var versionText: String? { installedVersion ?? stableVersion }
+}
+
+enum HomebrewSearchResults {
+    static func reconciled(_ results: [HomebrewPackage],
+                           installed: [HomebrewPackage]) -> [HomebrewPackage] {
+        let installedByID = Dictionary(uniqueKeysWithValues: installed.map { ($0.id, $0) })
+        return results.map { result in
+            if var current = installedByID[result.id] {
+                current.popularity = result.popularity ?? current.popularity
+                return current
+            }
+            var current = result
+            current.installedVersion = nil
+            current.update = nil
+            return current
+        }
+    }
 }
 
 struct HomebrewPackageUpdate: Hashable {
@@ -96,6 +118,54 @@ enum HomebrewOwnershipSupport {
                         installedVersion: record.installedVersion,
                         stableVersion: nil,
                         homepage: nil)
+    }
+}
+
+enum HomebrewDependencyGraph {
+    static func display(_ visible: [HomebrewPackage],
+                        installed: [HomebrewPackage],
+                        groupDependencies: Bool) -> (rows: [HomebrewPackage], dependencies: [String: [HomebrewPackage]]) {
+        if groupDependencies { return fold(visible, installed: installed) }
+        return (visible, [:])
+    }
+
+    /// Splits installed packages into rows the person asked for and, under
+    /// each, the installed dependencies it reaches. Only packages in `visible`
+    /// become rows, so a filter never hides a dependency whose parent it hid.
+    /// A dependency nothing visible reaches, or one with a pending update,
+    /// stays a row of its own so every update keeps its place at the top.
+    static func fold(_ visible: [HomebrewPackage],
+                     installed: [HomebrewPackage]) -> (rows: [HomebrewPackage], dependencies: [String: [HomebrewPackage]]) {
+        guard installed.contains(where: { $0.installedOnRequest != nil }) else { return (visible, [:]) }
+        var byName: [String: HomebrewPackage] = [:]
+        for package in installed where package.kind == .formula {
+            byName[package.name] = package
+            // Dependency lists name core formulae by their short token.
+            let short = (package.name as NSString).lastPathComponent
+            if byName[short] == nil { byName[short] = package }
+        }
+
+        var dependencies: [String: [HomebrewPackage]] = [:]
+        var reached: Set<String> = []
+        for root in visible where root.installedOnRequest != false {
+            var seen: Set<String> = [root.id]
+            var found: [HomebrewPackage] = []
+            var queue = root.requires
+            while let next = queue.popLast() {
+                guard let package = byName[next], seen.insert(package.id).inserted else { continue }
+                found.append(package)
+                queue += package.requires
+            }
+            guard !found.isEmpty else { continue }
+            dependencies[root.id] = found.sorted {
+                $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+            }
+            reached.formUnion(found.map(\.id))
+        }
+        let rows = visible.filter {
+            $0.installedOnRequest != false || $0.hasUpdateAvailable || !reached.contains($0.id)
+        }
+        return (rows, dependencies)
     }
 }
 
@@ -436,11 +506,11 @@ enum HomebrewAnalytics {
     static func compactCount(_ count: Int) -> String {
         if count >= 1_000_000 {
             let value = Double(count) / 1_000_000
-            return value >= 10 ? "\(Int(value.rounded()))M" : String(format: "%.1fM", value)
+            return value >= 10 ? "\(Int(value.rounded()))M" : String(format: "%.1fM", locale: MetricFormat.locale, value)
         }
         if count >= 1_000 {
             let value = Double(count) / 1_000
-            return value >= 10 ? "\(Int(value.rounded()))K" : String(format: "%.1fK", value)
+            return value >= 10 ? "\(Int(value.rounded()))K" : String(format: "%.1fK", locale: MetricFormat.locale, value)
         }
         return "\(max(count, 0))"
     }
@@ -496,10 +566,12 @@ enum HomebrewAnalytics {
 }
 
 enum HomebrewProgressParser {
+    private static let percentageRegex = try? NSRegularExpression(pattern: #"([0-9]{1,3}(?:\.[0-9]+)?)%"#)
+    private static let ansiRegex = try? NSRegularExpression(pattern: #"\u001B\[[0-9;?]*[ -/]*[@-~]"#)
+
     static func progressFraction(in output: String) -> Double? {
         var latest: Double?
-        let pattern = #"([0-9]{1,3}(?:\.[0-9]+)?)%"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        guard let regex = percentageRegex else { return nil }
         let range = NSRange(output.startIndex..<output.endIndex, in: output)
         regex.enumerateMatches(in: output, range: range) { match, _, _ in
             guard let match,
@@ -601,7 +673,7 @@ enum HomebrewProgressParser {
     }
 
     private static func stripANSI(_ value: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\u001B\[[0-9;?]*[ -/]*[@-~]"#) else {
+        guard let regex = ansiRegex else {
             return value
         }
         let range = NSRange(value.startIndex..<value.endIndex, in: value)
@@ -761,13 +833,19 @@ enum HomebrewParser {
         let installed = item["installed"] as? [[String: Any]] ?? []
         let installedVersions = installed.compactMap { $0["version"] as? String }
         let stable = (item["versions"] as? [String: Any])?["stable"] as? String
+        let onRequestFlags = installed.compactMap { $0["installed_on_request"] as? Bool }
+        let requires = installed
+            .flatMap { $0["runtime_dependencies"] as? [[String: Any]] ?? [] }
+            .compactMap { $0["full_name"] as? String }
         return HomebrewPackage(kind: .formula,
                                name: identifier,
                                displayName: fullName ?? name,
                                desc: item["desc"] as? String,
                                installedVersion: installedVersions.isEmpty ? nil : installedVersions.joined(separator: ", "),
                                stableVersion: stable,
-                               homepage: item["homepage"] as? String)
+                               homepage: item["homepage"] as? String,
+                               installedOnRequest: onRequestFlags.isEmpty ? nil : onRequestFlags.contains(true),
+                               requires: requires)
     }
 
     private static func parseCask(_ item: [String: Any]) -> HomebrewPackage? {
@@ -780,13 +858,15 @@ enum HomebrewParser {
             displayName = token
         }
         let installed = item["installed"] as? String
+        let dependsOn = item["depends_on"] as? [String: Any]
         return HomebrewPackage(kind: .cask,
                                name: token,
                                displayName: displayName,
                                desc: item["desc"] as? String,
                                installedVersion: installed?.isEmpty == false ? installed : nil,
                                stableVersion: item["version"] as? String,
-                               homepage: item["homepage"] as? String)
+                               homepage: item["homepage"] as? String,
+                               requires: dependsOn?["formula"] as? [String] ?? [])
     }
 
     private static func parseOutdatedItem(_ item: [String: Any],

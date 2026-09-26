@@ -93,4 +93,12 @@ enum MiddleClickSupport {
         if tapFingers == 3, systemDragGestureEnabled { return false }
         return true
     }
+
+    /// The finger count whose tap opens the radial menu, or 0 for none. Only
+    /// four fingers: macOS keeps no gesture of its own there, while three
+    /// belong to Look Up and three-finger drag. A middle click already set to
+    /// four fingers keeps them, so turning this on never changes it.
+    static func radialMenuTapFingers(radialMenuWantsTap: Bool, middleClickTapFingers: Int) -> Int {
+        radialMenuWantsTap && middleClickTapFingers != 4 ? 4 : 0
+    }
 }

@@ -10,13 +10,19 @@ struct ShortcutsSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var superKey = SuperKeyService.shared
-    @State private var expandedFeatures: Set<AppFeature> = [.screenshot]
+    @ObservedObject private var router = SettingsRouter.shared
+    @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
+    /// Keyed by group too: brightness has a row in two groups, and each opens on its own.
+    @State private var expandedFeatures: [FeatureGroup: Set<AppFeature>] = [.tools: [.screenshot]]
+    @State private var showsAppShortcuts = false
 
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
     private var availableRoles: [GlobalShortcutRole] {
-        GlobalShortcutRole.availableRoles(isAvailable: { $0.isAvailable })
+        GlobalShortcutRole.availableRoles(isAvailable: { $0.isAvailable }).filter {
+            !$0.isKeyboardBrightness || BrightnessService.keyboardLightIsSupported
+        }
     }
 
     private var captureRoles: [GlobalShortcutRole] {
@@ -25,7 +31,7 @@ struct ShortcutsSettings: View {
 
     private var visibleGroups: [FeatureGroup] {
         FeatureGroup.allCases.filter { group in
-            availableRoles.contains { $0.feature.group == group }
+            availableRoles.contains { $0.group == group }
                 || (group == .windowsDock && AppFeature.windowLayout.isAvailable)
         }
     }
@@ -43,27 +49,45 @@ struct ShortcutsSettings: View {
                     ForEach(featuresWithShortcuts(in: group), id: \.self) { feature in
                         if feature == .screenshot {
                             captureGroupRows
-                        } else if feature == .soundOutputSwitcher {
-                            featureRows(feature)
-                                .settingsSectionAnchor(.soundOutputSwitcher)
                         } else {
-                            featureRows(feature)
+                            featureRows(feature, in: group)
                         }
                     }
                 }
             }
+
+            if AppFeature.commandBar.isAvailable {
+                Section {
+                    Button {
+                        showsAppShortcuts = true
+                    } label: {
+                        Label(FeatureStrings.commandBar(l10n.language).appCenterTitle,
+                              systemImage: "app.badge")
+                    }
+                    Text(FeatureStrings.commandBar(l10n.language).appCenterCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
+        .onAppear { revealKeyboardBrightnessShortcuts() }
+        .onChange(of: router.requestID) { _, _ in revealKeyboardBrightnessShortcuts() }
+        .sheet(isPresented: $showsAppShortcuts) {
+            CommandBarAppShortcutsView()
+        }
     }
 
     private func featuresWithShortcuts(in group: FeatureGroup) -> [AppFeature] {
-        AppFeature.features(in: group).filter { feature in
+        AppFeature.allCases.filter { feature in
             // The screenshot slot anchors the combined capture group; the
             // other capture tools render inside it instead of on their own.
-            if feature == .screenshot { return !captureRoles.isEmpty }
+            if feature == .screenshot { return group == .tools && !captureRoles.isEmpty }
             if GlobalShortcutRole.captureFeatures.contains(feature) { return false }
-            return (feature.isAvailable || availableRoles.contains { $0.feature == feature })
-                && (feature == .windowLayout || availableRoles.contains { $0.feature == feature })
+            if feature == .windowLayout {
+                return group == .windowsDock && feature.isAvailable
+            }
+            return availableRoles.contains { $0.feature == feature && $0.group == group }
         }
     }
 
@@ -77,8 +101,8 @@ struct ShortcutsSettings: View {
             symbolName: AppFeature.screenshot.symbolName,
             isActive: featureHasActiveShortcut(.screenshot, roles: roles),
             count: roles.count,
-            isExpanded: expansionBinding(for: .screenshot))
-        if expandedFeatures.contains(.screenshot) {
+            isExpanded: expansionBinding(for: .screenshot, in: .tools))
+        if expandedFeatures[.tools, default: []].contains(.screenshot) {
             ForEach(roles) { role in
                 roleRow(role, showsFeatureContext: false)
                     .disclosureIndent()
@@ -87,17 +111,14 @@ struct ShortcutsSettings: View {
     }
 
     @ViewBuilder
-    private func featureRows(_ feature: AppFeature) -> some View {
-        let roles = availableRoles.filter { $0.feature == feature }
-        let count = feature == .windowLayout ? WindowLayoutAction.shortcutActions.count : roles.count
+    private func featureRows(_ feature: AppFeature, in group: FeatureGroup) -> some View {
+        let roles = availableRoles.filter { $0.feature == feature && $0.group == group }
+        let count = feature == .windowLayout
+            ? WindowLayoutAction.shortcutActions.count + roles.count
+            : roles.count
         if count > 1 {
-            disclosureHeader(
-                title: feature.hubTitle(l10n.s, hub: hub),
-                symbolName: feature.symbolName,
-                isActive: featureHasActiveShortcut(feature, roles: roles),
-                count: count,
-                isExpanded: expansionBinding(for: feature))
-            if expandedFeatures.contains(feature) {
+            featureHeader(feature, roles: roles, count: count, in: group)
+            if expandedFeatures[group, default: []].contains(feature) {
                 if feature == .windowLayout {
                     ForEach(WindowLayoutAction.shortcutActions) { action in
                         CentralWindowLayoutShortcutRow(
@@ -110,7 +131,19 @@ struct ShortcutsSettings: View {
                         )
                         .disclosureIndent()
                     }
+                    ForEach(roles) { role in
+                        roleRow(role, showsFeatureContext: false, reservesClearButtonSpace: true)
+                            .disclosureIndent()
+                    }
                 } else {
+                    if feature == .brightness, roles.allSatisfy(\.isKeyboardBrightness) {
+                        KeyboardBrightnessShortcutToggle(isEnabled: $keyboardBrightnessShortcutsEnabled)
+                            .disclosureIndent()
+                    }
+                    if feature == .brightness, !roles.contains(where: \.isKeyboardBrightness) {
+                        DisplayBrightnessShortcutControls(showsShortcutRows: false)
+                            .disclosureIndent()
+                    }
                     ForEach(roles) { role in
                         roleRow(role, showsFeatureContext: false)
                             .disclosureIndent()
@@ -120,6 +153,40 @@ struct ShortcutsSettings: View {
         } else if let role = roles.first {
             roleRow(role)
         }
+    }
+
+    @ViewBuilder
+    private func featureHeader(_ feature: AppFeature, roles: [GlobalShortcutRole],
+                               count: Int, in group: FeatureGroup) -> some View {
+        let header = disclosureHeader(
+            title: featureTitle(feature, roles: roles),
+            symbolName: featureSymbol(feature, roles: roles),
+            isActive: featureHasActiveShortcut(feature, roles: roles),
+            count: count,
+            isExpanded: expansionBinding(for: feature, in: group))
+        if feature == .brightness, roles.allSatisfy(\.isKeyboardBrightness) {
+            header.settingsSectionAnchor(.keyboardBrightnessShortcuts)
+        } else {
+            header
+        }
+    }
+
+    private func revealKeyboardBrightnessShortcuts() {
+        guard router.destination == FeatureSettingsDestination(
+            .shortcuts, sectionAnchor: .keyboardBrightnessShortcuts) else { return }
+        expandedFeatures[.mouseKeyboard, default: []].insert(.brightness)
+    }
+
+    private func featureTitle(_ feature: AppFeature, roles: [GlobalShortcutRole]) -> String {
+        if !roles.isEmpty, roles.allSatisfy(\.isKeyboardBrightness) {
+            return FeatureStrings.brightness(l10n.language).keyboardLight
+        }
+        return feature.hubTitle(l10n.s, hub: hub)
+    }
+
+    private func featureSymbol(_ feature: AppFeature, roles: [GlobalShortcutRole]) -> String {
+        !roles.isEmpty && roles.allSatisfy(\.isKeyboardBrightness)
+            ? "keyboard" : feature.symbolName
     }
 
     private func disclosureHeader(title: String,
@@ -146,7 +213,8 @@ struct ShortcutsSettings: View {
     }
 
     private func roleRow(_ role: GlobalShortcutRole,
-                         showsFeatureContext: Bool = true) -> some View {
+                         showsFeatureContext: Bool = true,
+                         reservesClearButtonSpace: Bool = false) -> some View {
         let title = role.title(l10n.s)
         let featureTitle = role.feature.hubTitle(l10n.s, hub: hub)
         let active = role.requiredEnableKeys.allSatisfy {
@@ -154,41 +222,44 @@ struct ShortcutsSettings: View {
         }
         return ShortcutPreferenceRow(
             role: role,
+            isEnabled: !role.isKeyboardBrightness || keyboardBrightnessShortcutsEnabled,
             label: title,
-            symbolName: role.feature.symbolName,
+            symbolName: role.isKeyboardBrightness ? "keyboard" : role.feature.symbolName,
             contextLabel: showsFeatureContext && title != featureTitle ? featureTitle : nil,
             statusText: active ? text.active : text.inactive,
             statusIsActive: active,
             showsSuperKeyAlternative: superKey.isRunning,
             superKeyModifiers: superKey.modifiers,
             includeInactiveConflicts: true,
+            reservesClearButtonSpace: reservesClearButtonSpace,
             additionalConflict: { shortcut in
                 guard AppFeature.windowLayout.isAvailable else { return nil }
                 return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
             },
             onChange: {
-                FeatureRuntime.shared.sync([role.feature])
+                FeatureRuntime.shared.sync(role.availabilityFeatures)
             }
         )
     }
 
-    private func expansionBinding(for feature: AppFeature) -> Binding<Bool> {
+    private func expansionBinding(for feature: AppFeature, in group: FeatureGroup) -> Binding<Bool> {
         Binding {
-            expandedFeatures.contains(feature)
+            expandedFeatures[group, default: []].contains(feature)
         } set: { expanded in
             if expanded {
-                expandedFeatures.insert(feature)
+                expandedFeatures[group, default: []].insert(feature)
             } else {
-                expandedFeatures.remove(feature)
+                expandedFeatures[group, default: []].remove(feature)
             }
         }
     }
 
     private func featureHasActiveShortcut(_ feature: AppFeature,
                                           roles: [GlobalShortcutRole]) -> Bool {
-        if feature == .windowLayout {
-            return UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
-                && WindowLayoutAction.shortcutActions.contains { $0.savedShortcut != nil }
+        if feature == .windowLayout,
+           UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled),
+           WindowLayoutAction.shortcutActions.contains(where: { $0.savedShortcut != nil }) {
+            return true
         }
         return roles.contains { role in
             role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }
@@ -203,7 +274,27 @@ struct ShortcutsSettings: View {
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
+        }
+    }
+}
+
+private struct KeyboardBrightnessShortcutToggle: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var brightness = BrightnessService.shared
+    @Binding var isEnabled: Bool
+
+    var body: some View {
+        Toggle(FeatureStrings.brightness(l10n.language).keyboardBrightnessShortcuts,
+               isOn: $isEnabled)
+            .onChange(of: isEnabled) { _, _ in
+                brightness.syncWithPreferences()
+            }
+        if isEnabled, brightness.keyboardBrightnessShortcutRegistrationFailed {
+            Text(l10n.s.shortcutUnavailable)
+                .font(.caption)
+                .foregroundStyle(.orange)
         }
     }
 }
@@ -219,6 +310,7 @@ private struct CentralWindowLayoutShortcutRow: View {
     @AppStorage private var rawValue: String
     @State private var errorText: String?
     @State private var isRecording = false
+    @State private var pendingTakeOver: GlobalShortcut?
 
     init(action: WindowLayoutAction,
          shortcutsEnabled: Bool,
@@ -255,15 +347,18 @@ private struct CentralWindowLayoutShortcutRow: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 8) {
                         ShortcutRecorderButton(
-                            shortcut: shortcut ?? action.defaultShortcut ?? .windowLayoutLeftDefault,
+                            shortcut: pendingTakeOver ?? shortcut ?? action.defaultShortcut ?? .windowLayoutLeftDefault,
                             isEnabled: true,
                             waitingTitle: l10n.s.shortcutPressKeys,
-                            emptyTitle: shortcut == nil ? l10n.s.shortcutNone : nil,
+                            emptyTitle: pendingTakeOver == nil && shortcut == nil ? l10n.s.shortcutNone : nil,
                             clearAction: clear,
                             notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
                             recordingChanged: { recording in
                                 isRecording = recording
-                                if recording { errorText = nil }
+                                if recording {
+                                    errorText = nil
+                                    pendingTakeOver = nil
+                                }
                             },
                             invalidAction: { errorText = l10n.s.shortcutInvalid },
                             captureAction: save
@@ -284,6 +379,8 @@ private struct CentralWindowLayoutShortcutRow: View {
                             rawValue = action.defaultShortcut?.storageValue
                                 ?? WindowLayoutAction.clearedShortcutStorageValue
                             errorText = nil
+                            pendingTakeOver = nil
+                            SystemShortcutTakeover.setTakeOver(action.shortcutKey, false)
                             WindowLayoutService.shared.syncWithPreferences()
                         }
                         .disabled(shortcut == action.defaultShortcut)
@@ -304,6 +401,21 @@ private struct CentralWindowLayoutShortcutRow: View {
                 Text(ShortcutRecordingCaption.text(l10n.s, canClear: true))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            if let pendingTakeOver {
+                SystemShortcutTakeOverOffer(
+                    shortcut: pendingTakeOver,
+                    onAccept: {
+                        rawValue = pendingTakeOver.storageValue
+                        SystemShortcutTakeover.setTakeOver(action.shortcutKey, true)
+                        self.pendingTakeOver = nil
+                        WindowLayoutService.shared.syncWithPreferences()
+                    },
+                    onDismiss: {
+                        self.pendingTakeOver = nil
+                        errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
+                    }
+                )
             }
         }
         .onChange(of: l10n.language) { _, _ in errorText = nil }
@@ -328,6 +440,8 @@ private struct CentralWindowLayoutShortcutRow: View {
     private func clear() {
         rawValue = WindowLayoutAction.clearedShortcutStorageValue
         errorText = nil
+        pendingTakeOver = nil
+        SystemShortcutTakeover.setTakeOver(action.shortcutKey, false)
         WindowLayoutService.shared.syncWithPreferences()
     }
 
@@ -338,17 +452,27 @@ private struct CentralWindowLayoutShortcutRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
-        if shortcut.conflictsWithSystemShortcut {
-            errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
-            return
-        }
         if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut,
                                                                            excluding: action) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }
-        rawValue = shortcut.storageValue
-        errorText = nil
+        // The offer is the last word on a combination: every other check has
+        // already passed, so accepting it writes exactly what a save writes.
+        switch SystemShortcutTakeoverSupport.recorderDecision(
+            shortcut: shortcut,
+            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(shortcut),
+            takenOver: SystemShortcutTakeover.isTakenOver(action.shortcutKey),
+            current: GlobalShortcut(storageValue: rawValue)) {
+        case .offer:
+            pendingTakeOver = shortcut
+            errorText = nil
+            return
+        case .save(let clearTakeOver):
+            rawValue = shortcut.storageValue
+            errorText = nil
+            if clearTakeOver { SystemShortcutTakeover.setTakeOver(action.shortcutKey, false) }
+        }
         WindowLayoutService.shared.syncWithPreferences()
     }
 }

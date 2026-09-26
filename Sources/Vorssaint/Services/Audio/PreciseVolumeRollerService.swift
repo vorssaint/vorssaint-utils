@@ -14,13 +14,24 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var gate = PreciseVolumeRollerGate()
+    private var notchKeyGate = NotchVolumeKeyGate()
+    private static let forwardedVolumeEvent: Int64 = 0x564F4C4E
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let wanted = AppFeature.mixer.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
-        wanted ? start() : stop()
+            && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+                || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback))
+        if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
+                                               accessibilityGranted: AXIsProcessTrusted(),
+                                               sessionIsActive: SessionActivity.shared.isActive) {
+            start()
+        } else {
+            stop()
+        }
     }
 
     func suspend() {
@@ -37,9 +48,11 @@ final class PreciseVolumeRollerService: ObservableObject {
         if let source {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
         }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         source = nil
         gate.reset()
+        notchKeyGate = NotchVolumeKeyGate()
     }
 
     private func start() {
@@ -84,14 +97,21 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if AXIsProcessTrusted(), let tap {
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
             }
             return Unmanaged.passUnretained(event)
         }
         guard type.rawValue == CleaningSystemKeyEvent.systemDefinedEventTypeRawValue,
               let nsEvent = NSEvent(cgEvent: event),
-              nsEvent.subtype.rawValue == 8,
+              nsEvent.subtype.rawValue == 8 else { return Unmanaged.passUnretained(event) }
+        if event.getIntegerValueField(.eventSourceUserData) == Self.forwardedVolumeEvent {
+            return Unmanaged.passUnretained(event)
+        }
+        if routeNotchVolume(nsEvent, event: event) { return nil }
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
               let volumePress = Self.volumePress(fromData1: nsEvent.data1) else {
             return Unmanaged.passUnretained(event)
         }
@@ -106,6 +126,56 @@ final class PreciseVolumeRollerService: ObservableObject {
         }
         Self.postVolumeKey(volumePress.keyCode, optionShift: true)
         return nil
+    }
+
+    private func routeNotchVolume(_ nsEvent: NSEvent, event: CGEvent) -> Bool {
+        let code = Int32((nsEvent.data1 >> 16) & 0xffff)
+        let state = (nsEvent.data1 >> 8) & 0xff
+        guard let key = PreciseVolumeMediaKey(rawValue: code), key != .play else { return false }
+        let mixer = AppVolumeMixer.shared
+        let action = notchKeyGate.handle(
+            keyCode: code, state: state, isRepeat: nsEvent.data1 & 1 != 0,
+            enabled: NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback,
+            acceptsNewPress: NotchService.shared.showsSystemFeedback,
+            hasVolume: mixer.systemOutputVolume != nil, hasMute: mixer.systemOutputMuted != nil,
+            option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift),
+            commandOrControl: event.flags.contains(.maskCommand) || event.flags.contains(.maskControl))
+        if action == .passThrough { return false }
+        if action == .consume { return true }
+        let precise = UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+        if precise, let direction = key.rollerDirection,
+           !gate.accepts(direction, at: ProcessInfo.processInfo.systemUptime) { return true }
+        let fine = precise || (event.flags.contains(.maskAlternate) && event.flags.contains(.maskShift))
+        let fallback = event.copy()
+        // CoreAudio can wait for a reconnecting device. Never hold the event
+        // tap's reply while reading or writing the audio driver.
+        DispatchQueue.main.async {
+            let completion: (Bool) -> Void = { applied in
+                if !applied, let fallback {
+                    fallback.setIntegerValueField(.eventSourceUserData, value: Self.forwardedVolumeEvent)
+                    fallback.post(tap: .cgSessionEventTap)
+                    Self.postForwardedRelease(code)
+                }
+            }
+            if key == .mute, let muted = mixer.systemOutputMuted {
+                mixer.requestOutputAdjustment(muted: !muted, completion: completion)
+            } else if let current = mixer.systemOutputVolume {
+                mixer.requestOutputAdjustment(volume: NotchSupport.volumeLevel(
+                    current: mixer.systemOutputMuted == true ? 0 : current,
+                    direction: key == .volumeUp ? 1 : -1, fine: fine), completion: completion)
+            } else { completion(false) }
+            NotchService.shared.showCurrentVolume()
+        }
+        return true
+    }
+
+    private static func postForwardedRelease(_ code: Int32) {
+        let event = NSEvent.otherEvent(with: .systemDefined, location: .zero,
+                                      modifierFlags: NSEvent.ModifierFlags(rawValue: 0xB00),
+                                      timestamp: 0, windowNumber: 0, context: nil,
+                                      subtype: 8, data1: Int(code << 16) | 0xB00, data2: -1)?.cgEvent
+        event?.setIntegerValueField(.eventSourceUserData, value: forwardedVolumeEvent)
+        event?.post(tap: .cgSessionEventTap)
     }
 
     private static func volumePress(fromData1 data1: Int) -> (keyCode: Int32,

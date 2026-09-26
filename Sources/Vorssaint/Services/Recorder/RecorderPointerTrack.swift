@@ -69,6 +69,7 @@ struct RecorderPointerTrack: Equatable {
     private static let headerSize = 28
     private static let sampleSize = 16
     private static let clickSize = 8
+    private static let shapeHeaderSize = 20
 
     func encoded() -> Data {
         var data = Data(capacity: Self.headerSize
@@ -151,15 +152,16 @@ struct RecorderPointerTrack: Equatable {
         }
 
         var shapes: [CursorShape] = []
-        shapes.reserveCapacity(max(0, declaredShapes))
-        for _ in 0..<max(0, declaredShapes) {
+        let shapeLimit = min(declaredShapes, max(0, (data.count - offset) / shapeHeaderSize))
+        shapes.reserveCapacity(shapeLimit)
+        for _ in 0..<shapeLimit {
             guard let hotX = data.readFloat(at: offset),
                   let hotY = data.readFloat(at: offset + 4),
                   let width = data.readFloat(at: offset + 8),
                   let height = data.readFloat(at: offset + 12),
                   let length = data.readUInt32(at: offset + 16)
             else { break }
-            let start = offset + 20
+            let start = offset + shapeHeaderSize
             let end = start + Int(length)
             guard length > 0, end <= data.count else { break }
             let png = data.subdata(in: (data.startIndex + start)..<(data.startIndex + end))

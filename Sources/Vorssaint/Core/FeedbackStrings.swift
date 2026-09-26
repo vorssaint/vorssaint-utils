@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -51,6 +52,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -216,6 +218,38 @@ extension FeedbackStrings {
         diagnosticsChannelLabel: "Canal de actualización"
     )
 
+    static let sk = FeedbackStrings(
+        sectionTitle: "Spätná väzba",
+        sectionCaption: "Pošlite hlásenie o chybe alebo nápad na funkciu priamo osobe, ktorá udržiava Vorssaint.",
+        openButton: "Poslať spätnú väzbu",
+        windowTitle: "Poslať spätnú väzbu",
+        bugTitle: "Chyba",
+        featureTitle: "Nápad na funkciu",
+        messageLabel: "Čo by ste chceli zdieľať?",
+        bugPlaceholder: "Napíšte, čo sa stalo a čo ste očakávali.",
+        featurePlaceholder: "Opíšte nápad a ako by pomohol.",
+        charactersFormat: "%d z 2000 znakov",
+        includeDiagnostics: "Zahrnúť technické detaily",
+        includeDiagnosticsCaption: "Pridá iba technické detaily zobrazené nižšie. Neobsahuje záznamy.",
+        whatSentTitle: "Čo sa odošle",
+        whatSentBasic: "Vybraná kategória a text vyššie.",
+        whatSentDiagnostics: "Technické detaily uvedené nižšie.",
+        privacyNote: "Meno, účet, e-mail, identifikátor zariadenia, záznamy, snímky obrazovky, súbory ani obsah schránky sa neodosielajú. Vaša verejná IP adresa sa dočasne spracúva na ochranu pred zneužitím a k spätnej väzbe sa nepripája.",
+        retentionNote: "Po doručení zostáva text v súkromných podporných kanáloch, kým ho vlastník služby nevymaže. Nedoručená kópia sa natrvalo vymaže po 7 dňoch.",
+        sendButton: "Poslať spätnú väzbu",
+        sending: "Odosiela sa…",
+        sentTitle: "Spätná väzba odoslaná",
+        sentCaption: "Ďakujeme. Kontaktné údaje sa neposlali, takže priamu odpoveď nedostanete.",
+        unavailableError: "Nepodarilo sa pripojiť. Skontrolujte internetové pripojenie a skúste to znova.",
+        rateLimitError: "Príliš veľa odoslaní z tejto siete. Skúste to neskôr.",
+        genericError: "Spätnú väzbu sa teraz nepodarilo odoslať.",
+        done: "Hotovo",
+        commandBug: "Nahlásiť chybu",
+        commandFeature: "Navrhnúť funkciu",
+        commandSubtitle: "Poslať spätnú väzbu",
+        diagnosticsChannelLabel: "Kanál aktualizácií"
+    )
+
     static let de = FeedbackStrings(
         sectionTitle: "Feedback",
         sectionCaption: "Sende einen Fehlerbericht oder eine Funktionsidee direkt an den Vorssaint-Entwickler.",
@@ -255,24 +289,24 @@ extension FeedbackStrings {
         windowTitle: "Envoyer un avis",
         bugTitle: "Bug",
         featureTitle: "Idée de fonction",
-        messageLabel: "Que souhaitez-vous partager ?",
-        bugPlaceholder: "Décrivez ce qui s'est passé et ce que vous attendiez.",
-        featurePlaceholder: "Décrivez l'idée et son utilité.",
+        messageLabel: "Que souhaitez-vous partager\u{00A0}?",
+        bugPlaceholder: "Décrivez ce qui s’est passé et ce que vous attendiez.",
+        featurePlaceholder: "Décrivez l’idée et son utilité.",
         charactersFormat: "%d caractères sur 2000",
         includeDiagnostics: "Inclure les données techniques",
         includeDiagnosticsCaption: "Ajoute uniquement les données techniques affichées ci-dessous. Aucun journal.",
         whatSentTitle: "Ce qui sera envoyé",
         whatSentBasic: "La catégorie choisie et le texte ci-dessus.",
         whatSentDiagnostics: "Les données techniques listées ci-dessous.",
-        privacyNote: "Aucun nom, compte, e-mail, identifiant d'appareil, journal, capture, fichier ou presse-papiers n'est inclus. Votre IP publique est traitée temporairement contre les abus et n'est pas jointe à l'avis.",
-        retentionNote: "Après livraison, le texte reste dans des canaux privés jusqu'à sa suppression par le responsable. Une copie non livrée est définitivement supprimée après 7 jours.",
-        sendButton: "Envoyer l'avis",
+        privacyNote: "Aucun nom, compte, e-mail, identifiant d’appareil, journal, capture, fichier ou presse-papiers n’est inclus. Votre IP publique est traitée temporairement contre les abus et n’est pas jointe à l’avis.",
+        retentionNote: "Après livraison, le texte reste dans des canaux privés jusqu’à sa suppression par le responsable. Une copie non livrée est définitivement supprimée après 7 jours.",
+        sendButton: "Envoyer l’avis",
         sending: "Envoi…",
         sentTitle: "Avis envoyé",
-        sentCaption: "Merci. Aucune coordonnée n'a été envoyée, vous ne recevrez donc pas de réponse directe.",
+        sentCaption: "Merci. Aucune coordonnée n’a été envoyée, vous ne recevrez donc pas de réponse directe.",
         unavailableError: "Connexion impossible. Vérifiez Internet et réessayez.",
-        rateLimitError: "Trop d'envois depuis ce réseau. Réessayez plus tard.",
-        genericError: "Impossible d'envoyer l'avis maintenant.",
+        rateLimitError: "Trop d’envois depuis ce réseau. Réessayez plus tard.",
+        genericError: "Impossible d’envoyer l’avis maintenant.",
         done: "Terminé",
         commandBug: "Signaler un bug",
         commandFeature: "Suggérer une fonction",
@@ -282,21 +316,21 @@ extension FeedbackStrings {
 
     static let it = FeedbackStrings(
         sectionTitle: "Feedback",
-        sectionCaption: "Invia una segnalazione o un'idea direttamente a chi mantiene Vorssaint.",
+        sectionCaption: "Invia una segnalazione o un’idea direttamente a chi mantiene Vorssaint.",
         openButton: "Invia feedback",
         windowTitle: "Invia feedback",
         bugTitle: "Bug",
         featureTitle: "Idea per una funzione",
         messageLabel: "Cosa vuoi condividere?",
         bugPlaceholder: "Descrivi cosa è successo e cosa ti aspettavi.",
-        featurePlaceholder: "Descrivi l'idea e come potrebbe aiutare.",
+        featurePlaceholder: "Descrivi l’idea e come potrebbe aiutare.",
         charactersFormat: "%d di 2000 caratteri",
         includeDiagnostics: "Includi dati tecnici",
         includeDiagnosticsCaption: "Aggiunge solo i dati tecnici mostrati sotto. Non include registri.",
         whatSentTitle: "Cosa verrà inviato",
         whatSentBasic: "La categoria scelta e il testo qui sopra.",
         whatSentDiagnostics: "I dati tecnici elencati qui sotto.",
-        privacyNote: "Non vengono inclusi nome, account, e-mail, identificatore del dispositivo, registri, schermate, file o appunti. L'IP pubblico viene elaborato temporaneamente contro gli abusi e non è allegato al feedback.",
+        privacyNote: "Non vengono inclusi nome, account, e-mail, identificatore del dispositivo, registri, schermate, file o appunti. L’IP pubblico viene elaborato temporaneamente contro gli abusi e non è allegato al feedback.",
         retentionNote: "Dopo la consegna, il testo resta in canali privati finché il responsabile non lo elimina. Una copia non consegnata viene eliminata definitivamente dopo 7 giorni.",
         sendButton: "Invia feedback",
         sending: "Invio…",
@@ -470,5 +504,36 @@ extension FeedbackStrings {
         commandFeature: "建議功能",
         commandSubtitle: "傳送意見",
         diagnosticsChannelLabel: "更新頻道"
+    )
+    static let uk = FeedbackStrings(
+        sectionTitle: "Відгук",
+        sectionCaption: "Надішліть звіт про помилку або ідею функції безпосередньо розробнику Vorssaint.",
+        openButton: "Надіслати відгук",
+        windowTitle: "Надіслати відгук",
+        bugTitle: "Помилка",
+        featureTitle: "Ідея функції",
+        messageLabel: "Чим би ви хотіли поділитися?",
+        bugPlaceholder: "Розкажіть, що сталося та що ви очікували.",
+        featurePlaceholder: "Опишіть ідею та як вона допоможе.",
+        charactersFormat: "%d з 2000 символів",
+        includeDiagnostics: "Включити технічні деталі",
+        includeDiagnosticsCaption: "Додає лише технічні деталі, показані нижче. Вони не включають журнали.",
+        whatSentTitle: "Що буде надіслано",
+        whatSentBasic: "Ваша обрана категорія та текст вище.",
+        whatSentDiagnostics: "Технічні деталі, перелічені нижче.",
+        privacyNote: "Не включає ім’я, обліковий запис, email, ідентифікатор пристрою, журнали, знімки екрана, файли чи вміст буфера обміну. Ваша публічна IP-адреса нетривало обробляється для захисту від зловживань і не прив’язується до відгуку.",
+        retentionNote: "Після доставки текст залишається в приватних каналах підтримки, поки власник сервісу не видалить його. Недоставлена копія безповоротно видаляється через 7 днів.",
+        sendButton: "Надіслати відгук",
+        sending: "Надсилання…",
+        sentTitle: "Відгук надіслано",
+        sentCaption: "Дякуємо. Контактна інформація не надсилалася, тому ви не отримаєте прямої відповіді.",
+        unavailableError: "Не вдалося з’єднатися. Перевірте інтернет-з’єднання та спробуйте знову.",
+        rateLimitError: "Забагато надсилань з цієї мережі. Спробуйте пізніше.",
+        genericError: "Не вдалося надіслати відгук зараз.",
+        done: "Готово",
+        commandBug: "Повідомити про помилку",
+        commandFeature: "Запропонувати функцію",
+        commandSubtitle: "Надіслати відгук",
+        diagnosticsChannelLabel: "Канал оновлення"
     )
 }

@@ -66,7 +66,7 @@ enum RadialMenuColor: String, Codable, CaseIterable, Identifiable {
 }
 
 /// A complete configuration of the radial menu wheel: its items, color theme,
-/// keyboard shortcut, and mouse button trigger.
+/// keyboard shortcut, mouse button and trackpad tap triggers.
 struct RadialMenuProfile: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
     var name: String = ""
@@ -74,15 +74,33 @@ struct RadialMenuProfile: Codable, Identifiable, Equatable {
     var shortcut: String = ""
     var mouseButton: String = RadialMenuMouseTrigger.off.rawValue
     var items: [RadialMenuItem] = []
+    /// The starter set this wheel was created from, so restoring its actions
+    /// brings back that one. Kept as the raw value because it is persisted;
+    /// nil for a wheel whose origin is not known.
+    var preset: String?
+    /// A four-finger tap on the trackpad opens this wheel. Settings keeps it
+    /// on one profile at most; the first one wins otherwise.
+    var trackpadTap = false
 
     func displayName(_ text: RadialMenuFeatureStrings) -> String {
         name.isEmpty ? text.presetGeneral : name
+    }
+
+    /// The copy Duplicate adds. The shortcut and the trackpad tap each open
+    /// one wheel, so the copy starts without them and leaves the original's.
+    func duplicate(named name: String) -> RadialMenuProfile {
+        var copy = self
+        copy.id = UUID()
+        copy.name = name
+        copy.shortcut = ""
+        copy.trackpadTap = false
+        return copy
     }
 }
 
 extension RadialMenuProfile {
     private enum CodingKeys: String, CodingKey {
-        case id, name, color, shortcut, mouseButton, items
+        case id, name, color, shortcut, mouseButton, items, preset, trackpadTap
     }
 
     init(from decoder: Decoder) throws {
@@ -93,7 +111,9 @@ extension RadialMenuProfile {
                   shortcut: try container.decodeIfPresent(String.self, forKey: .shortcut) ?? "",
                   mouseButton: try container.decodeIfPresent(String.self, forKey: .mouseButton) ?? RadialMenuMouseTrigger.off.rawValue,
                   items: try container.decodeIfPresent([FailableRadialMenuItem].self, forKey: .items)?
-                      .compactMap(\.value) ?? [])
+                      .compactMap(\.value) ?? [],
+                  preset: try container.decodeIfPresent(String.self, forKey: .preset),
+                  trackpadTap: try container.decodeIfPresent(Bool.self, forKey: .trackpadTap) ?? false)
     }
 }
 
@@ -102,6 +122,22 @@ private struct FailableRadialMenuProfile: Decodable {
 
     init(from decoder: Decoder) throws {
         value = try? RadialMenuProfile(from: decoder)
+    }
+}
+
+/// A profile read for its mouse button and trackpad tap alone: the questions
+/// the event taps and the Features hub ask, answered without walking the
+/// items or decoding the icons they carry.
+private struct RadialMenuProfileTriggers: Decodable {
+    let mouseButton: String?
+    let trackpadTap: Bool
+
+    private enum CodingKeys: String, CodingKey { case mouseButton, trackpadTap }
+
+    init(from decoder: Decoder) throws {
+        let container = try? decoder.container(keyedBy: CodingKeys.self)
+        mouseButton = (try? container?.decodeIfPresent(String.self, forKey: .mouseButton)) ?? nil
+        trackpadTap = (try? container?.decodeIfPresent(Bool.self, forKey: .trackpadTap)) ?? false
     }
 }
 
@@ -183,7 +219,8 @@ enum RadialMenuProfilePreset: String, CaseIterable, Identifiable {
                            color: color ?? defaultColor,
                            shortcut: shortcut,
                            mouseButton: mouseButton,
-                           items: makeItems())
+                           items: makeItems(),
+                           preset: rawValue)
     }
 }
 
@@ -422,9 +459,11 @@ extension RadialMenuSupport {
     }
 
     /// Whether the radial menu currently owns this extra button as its
-    /// summoner. Mouse navigation asks this from its own tap and lets a
-    /// claimed button through; pure defaults reads, so asking never wakes
-    /// the radial menu service.
+    /// summoner. Mouse navigation and the mouse button shortcuts both ask
+    /// this from inside their own tap callbacks, on every event of a
+    /// side-button gesture, so it reads defaults and the stored buttons only:
+    /// never the items, and never `decodeProfiles`, which decodes their
+    /// custom icons. Asking never wakes the radial menu service.
     static func claimsMouseButton(_ button: Int64) -> Bool {
         claimsMouseButton(button, defaults: .standard)
     }
@@ -432,10 +471,8 @@ extension RadialMenuSupport {
     static func claimsMouseButton(_ button: Int64, defaults: UserDefaults) -> Bool {
         guard defaults.bool(forKey: AppFeature.radialMenu.availabilityKey),
               defaults.bool(forKey: DefaultsKey.radialMenuEnabled) else { return false }
-        let profiles = decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles), defaults: defaults)
-        return profiles.contains {
-            RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber == button
-        }
+        return claimedMouseButtons(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
+                                   defaults: defaults).contains(button)
     }
 }
 
@@ -485,11 +522,61 @@ enum RadialNowPlayingSupport {
     static let playbackRateKey = "kMRMediaRemoteNowPlayingInfoPlaybackRate"
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
-    private static let maximumArtworkBytes = 12 * 1_024 * 1_024
+    /// The one artwork cap. The adapter (`Sources/NowPlayingAdapter`) drops
+    /// artwork above it before encoding, and the bridge's pipe cap is
+    /// `maximumAdapterReplyBytes`, sized so the base64 line (4/3 of the bytes,
+    /// so 16 MB) plus the other keys fits.
+    static let maximumArtworkBytes = 12 * 1_024 * 1_024
+    static let maximumAdapterReplyBytes = maximumArtworkBytes / 3 * 4 + 1_024 * 1_024
 
     static func playbackIsActive(remoteIsPlaying: Bool?, info: [String: Any]) -> Bool {
         if let remoteIsPlaying { return remoteIsPlaying }
         return (info[playbackRateKey] as? NSNumber)?.doubleValue ?? 0 > 0
+    }
+
+    /// One reply from the Now Playing adapter (`Resources/now-playing.pl`):
+    /// the MediaRemote metadata keys it forwards, plus the owning app and the
+    /// remote's own playing flag, in the shape `snapshot(info:...)` reads.
+    struct AdapterReply {
+        let info: [String: Any]
+        let pid: Int32
+        let displayID: String?
+        let isPlaying: Bool?
+    }
+
+    /// Parses the adapter's JSON line, the last non-blank line of the run's
+    /// output: stderr shares the pipe, so a perl warning (a locale it cannot
+    /// set, say) can precede it. Artwork arrives base64-encoded under
+    /// `artworkBase64` and is handed on as `artworkDataKey` bytes. An `error`
+    /// key, a non-object or unreadable bytes read as no reply.
+    static func adapterReply(from data: Data) -> AdapterReply? {
+        let blank: Set<UInt8> = [0x20, 0x09, 0x0D]
+        guard let line = data.split(separator: 0x0A).last(where: { $0.contains { !blank.contains($0) } }),
+              let object = try? JSONSerialization.jsonObject(with: line),
+              let fields = object as? [String: Any],
+              fields["error"] == nil else { return nil }
+        var info: [String: Any] = [:]
+        for key in [titleKey, artistKey, albumKey] {
+            if let value = fields[key] as? String { info[key] = value }
+        }
+        for key in [playbackRateKey, "kMRMediaRemoteNowPlayingInfoDuration",
+                    "kMRMediaRemoteNowPlayingInfoElapsedTime"] {
+            if let value = fields[key] as? NSNumber { info[key] = value }
+        }
+        if fields["artworkUnchanged"] as? Bool == true { info["artworkUnchanged"] = true }
+        for key in ["canSeek", "canSkipNext", "canSkipPrevious"] {
+            if let value = fields[key] as? Bool { info[key] = value }
+        }
+        if let identifier = fields["itemIdentifier"] as? String, !identifier.isEmpty,
+           identifier.utf8.count <= 512, !identifier.contains("\0") { info["itemIdentifier"] = identifier }
+        if let artwork = fields["artworkBase64"] as? String,
+           let bytes = Data(base64Encoded: artwork), !bytes.isEmpty {
+            info[artworkDataKey] = bytes
+        }
+        return AdapterReply(info: info,
+                            pid: (fields["pid"] as? NSNumber)?.int32Value ?? 0,
+                            displayID: fields["displayID"] as? String,
+                            isPlaying: fields["isPlaying"] as? Bool)
     }
 
     static func snapshot(info: [String: Any],
@@ -691,17 +778,55 @@ enum RadialMenuSupport {
     }
 
     /// True when any profile, at any level, controls keyboard input or windows,
-    /// or claims a mouse button, and therefore needs the Accessibility permission.
+    /// or claims a mouse button or the trackpad tap, and therefore needs the
+    /// Accessibility permission.
     static func needsAccessibility(_ profiles: [RadialMenuProfile]) -> Bool {
         profiles.contains { profile in
             RadialMenuMouseTrigger.sanitized(profile.mouseButton) != .off
+                || profile.trackpadTap
                 || needsAccessibility(profile.items)
         }
+    }
+
+    /// The mouse buttons the wheel is bound to right now, decoded from the
+    /// stored buttons alone.
+    ///
+    /// This is the question the event taps ask, so it must stay cheap:
+    /// `decodeProfiles` answers it too, but only by paying for every item on
+    /// every wheel. The legacy fallback is the same one it migrates from, so
+    /// the two answers cannot drift apart for a user who has not saved a
+    /// profile yet.
+    static func claimedMouseButtons(_ data: Data?, defaults: UserDefaults = .standard) -> [Int64] {
+        if let data, let decoded = try? JSONDecoder().decode([RadialMenuProfileTriggers].self, from: data) {
+            return decoded.compactMap { RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber }
+        }
+        let legacy = RadialMenuMouseTrigger.sanitized(
+            defaults.string(forKey: DefaultsKey.radialMenuMouseButton))
+        return legacy.buttonNumber.map { [$0] } ?? []
+    }
+
+    /// Whether any wheel opens from a mouse button or the trackpad tap, the
+    /// triggers that keep an input tap running while the menu is on. Read
+    /// like `claimedMouseButtons`, from the stored triggers alone and with
+    /// the same legacy fallback, so the Features hub never decodes icons.
+    static func opensFromMouseOrTrackpad(_ data: Data?, defaults: UserDefaults = .standard) -> Bool {
+        if let data, let decoded = try? JSONDecoder().decode([RadialMenuProfileTriggers].self, from: data) {
+            return decoded.contains {
+                RadialMenuMouseTrigger.sanitized($0.mouseButton) != .off || $0.trackpadTap
+            }
+        }
+        return RadialMenuMouseTrigger.sanitized(
+            defaults.string(forKey: DefaultsKey.radialMenuMouseButton)) != .off
     }
 
     /// Decodes profiles from JSON blob. If missing, checks for legacy
     /// items / shortcut / mouse button to migrate existing users, or creates
     /// the starter profile.
+    ///
+    /// Walks every item on every wheel and decodes each custom icon (up to
+    /// `RadialMenuFaviconFetcher.maxStoredIconBytes` of PNG apiece), so it
+    /// belongs to settings and session start, never to an event-tap callback.
+    /// A callback that only needs the summoner wants `claimedMouseButtons`.
     static func decodeProfiles(_ data: Data?, defaults: UserDefaults = .standard) -> [RadialMenuProfile] {
         if let data, let decoded = try? JSONDecoder().decode([FailableRadialMenuProfile].self, from: data) {
             let sanitized = sanitizedProfiles(decoded.compactMap(\.value))
@@ -721,7 +846,10 @@ enum RadialMenuSupport {
             color: .accent,
             shortcut: legacyShortcut,
             mouseButton: legacyMouseButton,
-            items: items
+            items: items,
+            // The single wheel that came before profiles started from the
+            // general starter set, whatever it was edited into since.
+            preset: RadialMenuProfilePreset.general.rawValue
         )
         return [initialProfile]
     }

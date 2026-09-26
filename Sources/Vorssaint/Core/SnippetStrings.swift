@@ -68,6 +68,10 @@ struct SnippetFeatureStrings {
     let dateTimePreviewLabel: String
     let dateTimeConfirmInsert: String
     let dateTimeConfirmUpdate: String
+    let soundToggle: String
+    let soundCaption: String
+    let soundPickerLabel: String
+    let soundUnavailable: String
 }
 
 extension FeatureStrings {
@@ -78,6 +82,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -86,6 +91,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -122,7 +128,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "단축키를 누르면 검색 가능한 메뉴가 열립니다. 선택한 스니펫은 커서 위치에 바로 입력됩니다.",
         librarySearchPlaceholder: "스니펫 검색",
         libraryNoResults: "검색과 일치하는 스니펫이 없습니다.",
-        libraryEmpty: "아직 표시할 스니펫이 없습니다. 스니펫을 추가하거나 자주 쓰는 스니펫에서 '빠른 메뉴에 표시'를 켜세요.",
+        libraryEmpty: "아직 표시할 스니펫이 없습니다. 스니펫을 추가하거나 자주 쓰는 스니펫에서 “빠른 메뉴에 표시”를 켜세요.",
         libraryFooterHint: "↩ 입력 · esc 닫기",
         folderLabel: "폴더",
         folderPlaceholder: "업무",
@@ -152,7 +158,78 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "패턴",
         dateTimePreviewLabel: "미리보기",
         dateTimeConfirmInsert: "삽입",
-        dateTimeConfirmUpdate: "업데이트"
+        dateTimeConfirmUpdate: "업데이트",
+        soundToggle: "입력한 트리거가 확장될 때 소리 재생",
+        soundCaption: "입력한 트리거가 확장될 때마다 짧은 시스템 소리가 재생됩니다.",
+        soundPickerLabel: "소리",
+        soundUnavailable: "사용할 수 없는 소리"
+    )
+    static let uk = SnippetFeatureStrings(
+        pageTitle: "Текстові сніпети",
+        hubDescription: "Короткі тригери розгортаються в повний текст",
+        enable: "Розгортати сніпети під час набору",
+        enableCaption: "Введіть тригер будь-де, і він стане своїм текстом. Все залишається на цьому Mac.",
+        addButton: "Додати сніпет",
+        newTitle: "Новий сніпет",
+        editTitle: "Редагувати сніпет",
+        nameLabel: "Назва",
+        namePlaceholder: "Особистий email",
+        triggerLabel: "Тригер",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Текст",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "Розгорнути",
+        expansionImmediate: "Одразу",
+        expansionDelimiter: "Після пробілу, Tab або Return",
+        variablesHint: "Змінні: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Вони стають датою, часом та скопійованим текстом у момент розгортання.",
+        emptyList: "Ще немає сніпетів. Додайте перший.",
+        duplicateTrigger: "Інший сніпет уже використовує цей тригер.",
+        triggerTooShort: "Тригер має містити щонайменше 2 символи.",
+        deleteButton: "Видалити",
+        saveButton: "Зберегти",
+        manageButton: "Керувати сніпетами",
+        ignoreCaseLabel: "Ігнорувати регістр",
+        libraryTitle: "Швидке меню сніпетів",
+        libraryToggle: "Відкривати сніпети з меню",
+        libraryCaption: "Клавіатурне скорочення відкриває меню з пошуком. Вибір сніпета друкує його прямо там, де ваш курсор.",
+        librarySearchPlaceholder: "Шукати сніпети",
+        libraryNoResults: "Жоден сніпет не відповідає пошуку.",
+        libraryEmpty: "Поки нічого показувати. Додайте сніпети або увімкніть «Показувати в швидкому меню» для тих, що використовуєте найчастіше.",
+        libraryFooterHint: "↩ вставляє · esc закриває",
+        folderLabel: "Папка",
+        folderPlaceholder: "Робота",
+        showInLibraryLabel: "Показувати в швидкому меню",
+        variablesFormatCaption: "Формат після двокрапки визначає, як вони виглядають, наприклад {{date:yyyy-MM-dd}}. Частина -tz(...) задає часовий пояс, наприклад {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Формат після двокрапки визначає, як вони виглядають, наприклад {{date:yyyy-MM-dd}}, або використовуйте кнопку дати/часу вище. Частина -tz(...) задає часовий пояс, наприклад {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Вставити дату/час",
+        dateTimeEditButton: "Редагувати дату/час",
+        dateTimeTypeLabel: "Тип",
+        dateTimeKindDate: "Дата",
+        dateTimeKindTime: "Час",
+        dateTimeKindDateTime: "Дата та час",
+        dateTimeStyleLabel: "Стиль",
+        dateTimeStyleShort: "Короткий",
+        dateTimeStyleMedium: "Середній",
+        dateTimeStyleLong: "Довгий",
+        dateTimeStyleFull: "Повний",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Власний",
+        dateTimeStyleLocaleNote: "Іменований стиль зберігає формат, який зараз використовує регіон вашого Mac.",
+        dateTimeTimezoneLabel: "Часовий пояс",
+        dateTimeTimezoneDeviceDefault: "Типове для пристрою",
+        dateTimeTimezoneValid: "Дійсний часовий пояс",
+        dateTimeTimezoneInvalid: "Невідомий часовий пояс",
+        dateTimeTimezoneClear: "Очистити часовий пояс",
+        dateTimeTimezoneSearchPlaceholder: "Шукати часові пояси",
+        dateTimePatternLabel: "Шаблон",
+        dateTimePreviewLabel: "Попередній перегляд",
+        dateTimeConfirmInsert: "Вставити",
+        dateTimeConfirmUpdate: "Оновити",
+        soundToggle: "Відтворювати звук, коли тригер розгортається",
+        soundCaption: "Щоразу, коли введений тригер розгортається, лунає короткий системний звук.",
+        soundPickerLabel: "Звук",
+        soundUnavailable: "Звук недоступний"
     )
 }
 
@@ -188,7 +265,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "The shortcut opens a searchable menu. Picking a snippet types it right where your cursor is.",
         librarySearchPlaceholder: "Search snippets",
         libraryNoResults: "No snippet matches the search.",
-        libraryEmpty: "Nothing to show yet. Add snippets, or turn on 'Show in the quick menu' for the ones you use most.",
+        libraryEmpty: "Nothing to show yet. Add snippets, or turn on “Show in the quick menu” for the ones you use most.",
         libraryFooterHint: "↩ inserts · esc closes",
         folderLabel: "Folder",
         folderPlaceholder: "Work",
@@ -208,7 +285,7 @@ extension SnippetFeatureStrings {
         dateTimeStyleFull: "Full",
         dateTimeStyleISO8601: "ISO 8601",
         dateTimeStyleCustom: "Custom",
-        dateTimeStyleLocaleNote: "A named style saves the format your Mac's region uses right now.",
+        dateTimeStyleLocaleNote: "A named style saves the format your Mac’s region uses right now.",
         dateTimeTimezoneLabel: "Timezone",
         dateTimeTimezoneDeviceDefault: "Device default",
         dateTimeTimezoneValid: "Valid timezone",
@@ -218,7 +295,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Pattern",
         dateTimePreviewLabel: "Preview",
         dateTimeConfirmInsert: "Insert",
-        dateTimeConfirmUpdate: "Update"
+        dateTimeConfirmUpdate: "Update",
+        soundToggle: "Play a sound when a typed trigger expands",
+        soundCaption: "A short system sound plays each time a typed trigger expands.",
+        soundPickerLabel: "Sound",
+        soundUnavailable: "Sound unavailable"
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -252,7 +333,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "O atalho abre um menu com busca. Escolher um snippet digita o texto onde o cursor está.",
         librarySearchPlaceholder: "Buscar snippets",
         libraryNoResults: "Nenhum snippet corresponde à busca.",
-        libraryEmpty: "Nada para mostrar ainda. Adicione snippets ou ative 'Mostrar no menu rápido' nos que você mais usa.",
+        libraryEmpty: "Nada para mostrar ainda. Adicione snippets ou ative “Mostrar no menu rápido” nos que você mais usa.",
         libraryFooterHint: "↩ insere · esc fecha",
         folderLabel: "Pasta",
         folderPlaceholder: "Trabalho",
@@ -282,14 +363,18 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Padrão",
         dateTimePreviewLabel: "Pré-visualização",
         dateTimeConfirmInsert: "Inserir",
-        dateTimeConfirmUpdate: "Atualizar"
+        dateTimeConfirmUpdate: "Atualizar",
+        soundToggle: "Tocar um som quando um gatilho digitado expandir",
+        soundCaption: "Um som curto do sistema toca sempre que um gatilho digitado se expande.",
+        soundPickerLabel: "Som",
+        soundUnavailable: "Som indisponível"
     )
 
     static let tr = SnippetFeatureStrings(
         pageTitle: "Metin parçacıkları",
         hubDescription: "Kısa tetikleyiciler tam metne dönüşür",
         enable: "Yazarken parçacıkları genişlet",
-        enableCaption: "Herhangi bir yerde bir tetikleyici yazın, metnine dönüşsün. Her şey bu Mac'te kalır.",
+        enableCaption: "Herhangi bir yerde bir tetikleyici yazın, metnine dönüşsün. Her şey bu Mac’te kalır.",
         addButton: "Parçacık ekle",
         newTitle: "Yeni parçacık",
         editTitle: "Parçacığı düzenle",
@@ -301,7 +386,7 @@ extension SnippetFeatureStrings {
         replacementPlaceholder: "epostam@ornek.com",
         expansionLabel: "Genişletme",
         expansionImmediate: "Hemen",
-        expansionDelimiter: "Boşluk, Tab veya Enter'dan sonra",
+        expansionDelimiter: "Boşluk, Tab veya Enter’dan sonra",
         variablesHint: "Değişkenler: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
         variablesCaption: "Genişletme anında tarihe, saate ve kopyalanan metne dönüşürler.",
         emptyList: "Henüz parçacık yok. İlkini ekleyin.",
@@ -316,7 +401,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "Kısayol aranabilir bir menü açar. Seçilen parçacık imlecin olduğu yere yazılır.",
         librarySearchPlaceholder: "Parçacık ara",
         libraryNoResults: "Aramayla eşleşen parçacık yok.",
-        libraryEmpty: "Henüz gösterilecek bir şey yok. Parçacık ekleyin veya en çok kullandıklarınızda 'Hızlı menüde göster'i açın.",
+        libraryEmpty: "Henüz gösterilecek bir şey yok. Parçacık ekleyin veya en çok kullandıklarınızda “Hızlı menüde göster”i açın.",
         libraryFooterHint: "↩ yazar · esc kapatır",
         folderLabel: "Klasör",
         folderPlaceholder: "İş",
@@ -336,7 +421,7 @@ extension SnippetFeatureStrings {
         dateTimeStyleFull: "Tam",
         dateTimeStyleISO8601: "ISO 8601",
         dateTimeStyleCustom: "Özel",
-        dateTimeStyleLocaleNote: "Adlandırılmış bir biçem, Mac'inizin bölge gösterimini şu anki haliyle kaydeder.",
+        dateTimeStyleLocaleNote: "Adlandırılmış bir biçem, Mac’inizin bölge gösterimini şu anki haliyle kaydeder.",
         dateTimeTimezoneLabel: "Saat dilimi",
         dateTimeTimezoneDeviceDefault: "Cihaz varsayılanı",
         dateTimeTimezoneValid: "Geçerli saat dilimi",
@@ -346,7 +431,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Desen",
         dateTimePreviewLabel: "Önizleme",
         dateTimeConfirmInsert: "Ekle",
-        dateTimeConfirmUpdate: "Güncelle"
+        dateTimeConfirmUpdate: "Güncelle",
+        soundToggle: "Yazılan bir tetikleyici genişlediğinde ses çal",
+        soundCaption: "Yazılan bir tetikleyici genişlediğinde kısa bir sistem sesi çalar.",
+        soundPickerLabel: "Ses",
+        soundUnavailable: "Ses kullanılamıyor"
     )
 
     static let ru = SnippetFeatureStrings(
@@ -380,7 +469,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "Сочетание клавиш открывает меню с поиском. Выбранный сниппет печатается там, где стоит курсор.",
         librarySearchPlaceholder: "Поиск сниппетов",
         libraryNoResults: "Ни один сниппет не подходит под запрос.",
-        libraryEmpty: "Пока нечего показывать. Добавьте сниппеты или включите 'Показывать в быстром меню' для самых нужных.",
+        libraryEmpty: "Пока нечего показывать. Добавьте сниппеты или включите «Показывать в быстром меню» для самых нужных.",
         libraryFooterHint: "↩ вставить · esc закрыть",
         folderLabel: "Папка",
         folderPlaceholder: "Работа",
@@ -410,7 +499,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Шаблон",
         dateTimePreviewLabel: "Предпросмотр",
         dateTimeConfirmInsert: "Вставить",
-        dateTimeConfirmUpdate: "Обновить"
+        dateTimeConfirmUpdate: "Обновить",
+        soundToggle: "Воспроизводить звук при развёртывании введённого триггера",
+        soundCaption: "Короткий системный звук воспроизводится каждый раз, когда введённый триггер разворачивается.",
+        soundPickerLabel: "Звук",
+        soundUnavailable: "Звук недоступен"
     )
 
     static let es = SnippetFeatureStrings(
@@ -444,7 +537,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "El atajo abre un menú con búsqueda. Elegir un fragmento lo escribe justo donde está el cursor.",
         librarySearchPlaceholder: "Buscar fragmentos",
         libraryNoResults: "Ningún fragmento coincide con la búsqueda.",
-        libraryEmpty: "Nada que mostrar todavía. Añade fragmentos o activa 'Mostrar en el menú rápido' en los que más usas.",
+        libraryEmpty: "Nada que mostrar todavía. Añade fragmentos o activa “Mostrar en el menú rápido” en los que más usas.",
         libraryFooterHint: "↩ inserta · esc cierra",
         folderLabel: "Carpeta",
         folderPlaceholder: "Trabajo",
@@ -474,7 +567,79 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Patrón",
         dateTimePreviewLabel: "Vista previa",
         dateTimeConfirmInsert: "Insertar",
-        dateTimeConfirmUpdate: "Actualizar"
+        dateTimeConfirmUpdate: "Actualizar",
+        soundToggle: "Reproducir un sonido al expandir un disparador escrito",
+        soundCaption: "Se reproduce un sonido corto del sistema cada vez que un disparador escrito se expande.",
+        soundPickerLabel: "Sonido",
+        soundUnavailable: "Sonido no disponible"
+    )
+
+    static let sk = SnippetFeatureStrings(
+        pageTitle: "Textové fragmenty",
+        hubDescription: "Krátke spúšťače sa rozbalia na celý text",
+        enable: "Rozbaľovať fragmenty počas písania",
+        enableCaption: "Napíšte spúšťač kdekoľvek a zmení sa na svoj text. Všetko zostáva v tomto Macu.",
+        addButton: "Pridať fragment",
+        newTitle: "Nový fragment",
+        editTitle: "Upraviť fragment",
+        nameLabel: "Názov",
+        namePlaceholder: "Osobný e-mail",
+        triggerLabel: "Spúšťač",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Text",
+        replacementPlaceholder: "mojemail@priklad.sk",
+        expansionLabel: "Rozbaliť",
+        expansionImmediate: "Ihneď",
+        expansionDelimiter: "Po medzere, Tab alebo Return",
+        variablesHint: "Premenné: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "V okamihu rozbalenia sa zmenia na dátum, čas a skopírovaný text.",
+        emptyList: "Zatiaľ žiadne fragmenty. Pridajte prvý.",
+        duplicateTrigger: "Tento spúšťač už používa iný fragment.",
+        triggerTooShort: "Spúšťač potrebuje aspoň 2 znaky.",
+        deleteButton: "Vymazať",
+        saveButton: "Uložiť",
+        manageButton: "Spravovať fragmenty",
+        ignoreCaseLabel: "Nerozlišovať veľké a malé písmená",
+        libraryTitle: "Rýchla ponuka fragmentov",
+        libraryToggle: "Otvárať fragmenty z ponuky",
+        libraryCaption: "Skratka otvorí ponuku s vyhľadávaním. Výberom fragmentu ho vložíte presne tam, kde je kurzor.",
+        librarySearchPlaceholder: "Hľadať fragmenty",
+        libraryNoResults: "Vyhľadávaniu nezodpovedá žiadny fragment.",
+        libraryEmpty: "Zatiaľ nie je čo zobraziť. Pridajte fragmenty alebo pri tých, ktoré používate najčastejšie, zapnite „Zobraziť v rýchlej ponuke“.",
+        libraryFooterHint: "↩ vloží · esc zavrie",
+        folderLabel: "Priečinok",
+        folderPlaceholder: "Práca",
+        showInLibraryLabel: "Zobraziť v rýchlej ponuke",
+        variablesFormatCaption: "Formát za dvojbodkou určí, ako budú vyzerať, napríklad {{date:yyyy-MM-dd}}. Časové pásmo nastavíte časťou -tz(...), napríklad {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Formát za dvojbodkou určí, ako budú vyzerať, napríklad {{date:yyyy-MM-dd}}, alebo použite tlačidlo dátumu a času vyššie. Časové pásmo nastavíte časťou -tz(...), napríklad {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Vložiť dátum/čas",
+        dateTimeEditButton: "Upraviť dátum/čas",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Dátum",
+        dateTimeKindTime: "Čas",
+        dateTimeKindDateTime: "Dátum a čas",
+        dateTimeStyleLabel: "Štýl",
+        dateTimeStyleShort: "Krátky",
+        dateTimeStyleMedium: "Stredný",
+        dateTimeStyleLong: "Dlhý",
+        dateTimeStyleFull: "Úplný",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Vlastný",
+        dateTimeStyleLocaleNote: "Pomenovaný štýl uloží formát, ktorý región vášho Macu používa práve teraz.",
+        dateTimeTimezoneLabel: "Časové pásmo",
+        dateTimeTimezoneDeviceDefault: "Predvolené zariadenia",
+        dateTimeTimezoneValid: "Platné časové pásmo",
+        dateTimeTimezoneInvalid: "Nerozpoznané časové pásmo",
+        dateTimeTimezoneClear: "Vymazať časové pásmo",
+        dateTimeTimezoneSearchPlaceholder: "Hľadať časové pásma",
+        dateTimePatternLabel: "Vzor",
+        dateTimePreviewLabel: "Ukážka",
+        dateTimeConfirmInsert: "Vložiť",
+        dateTimeConfirmUpdate: "Aktualizovať",
+        soundToggle: "Prehrať zvuk pri rozbalení napísaného spúšťača",
+        soundCaption: "Krátky systémový zvuk zaznie vždy, keď sa napísaný spúšťač rozbalí.",
+        soundPickerLabel: "Zvuk",
+        soundUnavailable: "Zvuk nie je k dispozícii"
     )
 
     static let de = SnippetFeatureStrings(
@@ -508,7 +673,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "Das Tastenkürzel öffnet ein durchsuchbares Menü. Ein gewählter Schnipsel wird direkt an der Cursorposition getippt.",
         librarySearchPlaceholder: "Schnipsel suchen",
         libraryNoResults: "Kein Schnipsel passt zur Suche.",
-        libraryEmpty: "Noch nichts anzuzeigen. Füge Schnipsel hinzu oder aktiviere 'Im Schnellmenü zeigen' bei deinen wichtigsten.",
+        libraryEmpty: "Noch nichts anzuzeigen. Füge Schnipsel hinzu oder aktiviere „Im Schnellmenü zeigen“ bei deinen wichtigsten.",
         libraryFooterHint: "↩ einfügen · esc schließen",
         folderLabel: "Ordner",
         folderPlaceholder: "Arbeit",
@@ -538,17 +703,21 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Muster",
         dateTimePreviewLabel: "Vorschau",
         dateTimeConfirmInsert: "Einfügen",
-        dateTimeConfirmUpdate: "Aktualisieren"
+        dateTimeConfirmUpdate: "Aktualisieren",
+        soundToggle: "Ton abspielen, wenn ein getipptes Kürzel ausgeschrieben wird",
+        soundCaption: "Ein kurzer Systemton wird jedes Mal abgespielt, wenn ein getipptes Kürzel ausgeschrieben wird.",
+        soundPickerLabel: "Ton",
+        soundUnavailable: "Ton nicht verfügbar"
     )
 
     static let fr = SnippetFeatureStrings(
         pageTitle: "Extraits de texte",
         hubDescription: "Des déclencheurs courts deviennent du texte complet",
         enable: "Développer les extraits pendant la frappe",
-        enableCaption: "Tapez un déclencheur n'importe où et il devient son texte. Tout reste sur ce Mac.",
+        enableCaption: "Tapez un déclencheur n’importe où et il devient son texte. Tout reste sur ce Mac.",
         addButton: "Ajouter un extrait",
         newTitle: "Nouvel extrait",
-        editTitle: "Modifier l'extrait",
+        editTitle: "Modifier l’extrait",
         nameLabel: "Nom",
         namePlaceholder: "E-mail personnel",
         triggerLabel: "Déclencheur",
@@ -558,9 +727,9 @@ extension SnippetFeatureStrings {
         expansionLabel: "Développer",
         expansionImmediate: "Immédiatement",
         expansionDelimiter: "Après espace, Tab ou Entrée",
-        variablesHint: "Variables : {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
-        variablesCaption: "Elles deviennent la date, l'heure et le texte copié au moment du développement.",
-        emptyList: "Aucun extrait pour l'instant. Ajoutez le premier.",
+        variablesHint: "Variables\u{00A0}: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Elles deviennent la date, l’heure et le texte copié au moment du développement.",
+        emptyList: "Aucun extrait pour l’instant. Ajoutez le premier.",
         duplicateTrigger: "Un autre extrait utilise déjà ce déclencheur.",
         triggerTooShort: "Le déclencheur doit faire au moins 2 caractères.",
         deleteButton: "Supprimer",
@@ -572,13 +741,13 @@ extension SnippetFeatureStrings {
         libraryCaption: "Le raccourci ouvre un menu avec recherche. Choisir un extrait le tape là où se trouve le curseur.",
         librarySearchPlaceholder: "Rechercher un extrait",
         libraryNoResults: "Aucun extrait ne correspond à la recherche.",
-        libraryEmpty: "Rien à afficher pour l'instant. Ajoutez des extraits ou activez 'Afficher dans le menu rapide' pour vos favoris.",
+        libraryEmpty: "Rien à afficher pour l’instant. Ajoutez des extraits ou activez «\u{00A0}Afficher dans le menu rapide\u{00A0}» pour vos favoris.",
         libraryFooterHint: "↩ insère · esc ferme",
         folderLabel: "Dossier",
         folderPlaceholder: "Travail",
         showInLibraryLabel: "Afficher dans le menu rapide",
-        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}. Une partie -tz(...) définit le fuseau horaire, par exemple {{date-tz(America/New_York):yyyy-MM-dd}}.",
-        editorFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}, ou utilisez le bouton date/heure ci-dessus. Une partie -tz(...) définit le fuseau horaire, par exemple {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        variablesFormatCaption: "Un format après deux-points choisit l’apparence, par exemple {{date:yyyy-MM-dd}}. Une partie -tz(...) définit le fuseau horaire, par exemple {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Un format après deux-points choisit l’apparence, par exemple {{date:yyyy-MM-dd}}, ou utilisez le bouton date/heure ci-dessus. Une partie -tz(...) définit le fuseau horaire, par exemple {{date-tz(America/New_York):yyyy-MM-dd}}.",
         dateTimeInsertButton: "Insérer date/heure",
         dateTimeEditButton: "Modifier date/heure",
         dateTimeTypeLabel: "Type",
@@ -594,7 +763,7 @@ extension SnippetFeatureStrings {
         dateTimeStyleCustom: "Personnalisé",
         dateTimeStyleLocaleNote: "Un style nommé enregistre le format utilisé par la région de votre Mac.",
         dateTimeTimezoneLabel: "Fuseau horaire",
-        dateTimeTimezoneDeviceDefault: "Par défaut de l'appareil",
+        dateTimeTimezoneDeviceDefault: "Par défaut de l’appareil",
         dateTimeTimezoneValid: "Fuseau horaire valide",
         dateTimeTimezoneInvalid: "Fuseau horaire non reconnu",
         dateTimeTimezoneClear: "Effacer le fuseau horaire",
@@ -602,7 +771,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Motif",
         dateTimePreviewLabel: "Aperçu",
         dateTimeConfirmInsert: "Insérer",
-        dateTimeConfirmUpdate: "Mettre à jour"
+        dateTimeConfirmUpdate: "Mettre à jour",
+        soundToggle: "Jouer un son au développement d’un déclencheur tapé",
+        soundCaption: "Un court son système est joué chaque fois qu’un déclencheur tapé se développe.",
+        soundPickerLabel: "Son",
+        soundUnavailable: "Son indisponible"
     )
 
     static let it = SnippetFeatureStrings(
@@ -623,7 +796,7 @@ extension SnippetFeatureStrings {
         expansionImmediate: "Subito",
         expansionDelimiter: "Dopo spazio, Tab o Invio",
         variablesHint: "Variabili: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
-        variablesCaption: "Diventano la data, l'ora e il testo copiato al momento dell'espansione.",
+        variablesCaption: "Diventano la data, l’ora e il testo copiato al momento dell’espansione.",
         emptyList: "Ancora nessun frammento. Aggiungi il primo.",
         duplicateTrigger: "Un altro frammento usa già questo trigger.",
         triggerTooShort: "Il trigger richiede almeno 2 caratteri.",
@@ -636,13 +809,13 @@ extension SnippetFeatureStrings {
         libraryCaption: "La scorciatoia apre un menu con ricerca. Scegliere uno snippet lo digita dove si trova il cursore.",
         librarySearchPlaceholder: "Cerca snippet",
         libraryNoResults: "Nessuno snippet corrisponde alla ricerca.",
-        libraryEmpty: "Ancora niente da mostrare. Aggiungi snippet o attiva 'Mostra nel menu rapido' per quelli che usi di più.",
+        libraryEmpty: "Ancora niente da mostrare. Aggiungi snippet o attiva “Mostra nel menu rapido” per quelli che usi di più.",
         libraryFooterHint: "↩ inserisce · esc chiude",
         folderLabel: "Cartella",
         folderPlaceholder: "Lavoro",
         showInLibraryLabel: "Mostra nel menu rapido",
-        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}. Una parte -tz(...) imposta il fuso orario, ad esempio {{date-tz(America/New_York):yyyy-MM-dd}}.",
-        editorFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}, oppure usa il pulsante data/ora qui sopra. Una parte -tz(...) imposta il fuso orario, ad esempio {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        variablesFormatCaption: "Un formato dopo i due punti sceglie l’aspetto, ad esempio {{date:yyyy-MM-dd}}. Una parte -tz(...) imposta il fuso orario, ad esempio {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Un formato dopo i due punti sceglie l’aspetto, ad esempio {{date:yyyy-MM-dd}}, oppure usa il pulsante data/ora qui sopra. Una parte -tz(...) imposta il fuso orario, ad esempio {{date-tz(America/New_York):yyyy-MM-dd}}.",
         dateTimeInsertButton: "Inserisci data/ora",
         dateTimeEditButton: "Modifica data/ora",
         dateTimeTypeLabel: "Tipo",
@@ -666,7 +839,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Modello",
         dateTimePreviewLabel: "Anteprima",
         dateTimeConfirmInsert: "Inserisci",
-        dateTimeConfirmUpdate: "Aggiorna"
+        dateTimeConfirmUpdate: "Aggiorna",
+        soundToggle: "Riproduci un suono quando un trigger digitato si espande",
+        soundCaption: "Un breve suono di sistema viene riprodotto ogni volta che un trigger digitato si espande.",
+        soundPickerLabel: "Suono",
+        soundUnavailable: "Suono non disponibile"
     )
 
     static let ja = SnippetFeatureStrings(
@@ -700,7 +877,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "ショートカットで検索できるメニューが開きます。選んだスニペットはカーソル位置にそのまま入力されます。",
         librarySearchPlaceholder: "スニペットを検索",
         libraryNoResults: "検索に一致するスニペットがありません。",
-        libraryEmpty: "まだ表示するものがありません。スニペットを追加するか、よく使うものの'クイックメニューに表示'をオンにしてください。",
+        libraryEmpty: "まだ表示するものがありません。スニペットを追加するか、よく使うものの「クイックメニューに表示」をオンにしてください。",
         libraryFooterHint: "↩ 入力 · esc 閉じる",
         folderLabel: "フォルダ",
         folderPlaceholder: "仕事",
@@ -730,7 +907,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "パターン",
         dateTimePreviewLabel: "プレビュー",
         dateTimeConfirmInsert: "挿入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "入力したトリガーが展開されたときに音を再生",
+        soundCaption: "入力したトリガーが展開されるたびに、短いシステム音が再生されます。",
+        soundPickerLabel: "サウンド",
+        soundUnavailable: "利用できないサウンド"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -751,12 +932,12 @@ extension SnippetFeatureStrings {
         expansionImmediate: "立即",
         expansionDelimiter: "空格、Tab 或回车后",
         variablesHint: "变量：{{date}}、{{time}}、{{datetime}}、{{clipboard}}",
-        variablesCaption: "展开那一刻，它们会变成日期、时间和已复制的文本。",
+        variablesCaption: "展开那一刻，它们会变成日期、时间和已拷贝的文本。",
         emptyList: "还没有片段。添加第一个吧。",
         duplicateTrigger: "另一个片段已在使用该触发词。",
         triggerTooShort: "触发词至少需要 2 个字符。",
         deleteButton: "删除",
-        saveButton: "存储",
+        saveButton: "保存",
         manageButton: "管理文本片段",
         ignoreCaseLabel: "忽略大小写",
         libraryTitle: "片段快捷菜单",
@@ -764,7 +945,7 @@ extension SnippetFeatureStrings {
         libraryCaption: "按下快捷键会打开一个可搜索的菜单。选中的片段会直接输入到光标所在位置。",
         librarySearchPlaceholder: "搜索片段",
         libraryNoResults: "没有匹配搜索的片段。",
-        libraryEmpty: "暂时没有可显示的内容。添加片段，或为常用片段开启'在快捷菜单中显示'。",
+        libraryEmpty: "暂时没有可显示的内容。添加片段，或为常用片段开启“在快捷菜单中显示”。",
         libraryFooterHint: "↩ 输入 · esc 关闭",
         folderLabel: "文件夹",
         folderPlaceholder: "工作",
@@ -794,7 +975,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "预览",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "输入的触发词展开时播放声音",
+        soundCaption: "每次输入的触发词展开时都会播放一个简短的系统声音。",
+        soundPickerLabel: "声音",
+        soundUnavailable: "声音不可用"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -858,7 +1043,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "輸入的觸發詞展開時播放聲音",
+        soundCaption: "每次輸入的觸發詞展開時都會播放一個簡短的系統聲音。",
+        soundPickerLabel: "聲音",
+        soundUnavailable: "聲音無法使用"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -922,6 +1111,10 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "輸入嘅觸發詞展開時播放聲音",
+        soundCaption: "每次輸入嘅觸發詞展開時都會播放一個簡短嘅系統聲音。",
+        soundPickerLabel: "聲音",
+        soundUnavailable: "聲音無法使用"
     )
 }

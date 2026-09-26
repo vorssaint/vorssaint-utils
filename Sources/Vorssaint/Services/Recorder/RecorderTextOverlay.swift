@@ -9,7 +9,7 @@ import Foundation
 /// Placed on a corner or an edge rather than dragged to an arbitrary spot:
 /// nine places cover what people actually do with a caption, they read at a
 /// glance, and they keep working when the shape of the video changes.
-struct RecorderTextOverlay: Codable, Equatable, Identifiable {
+struct RecorderTextOverlay: Codable, Equatable, Identifiable, RecorderTimelineBlock {
 
     enum Anchor: String, Codable, CaseIterable {
         case topLeading, top, topTrailing
@@ -30,6 +30,19 @@ struct RecorderTextOverlay: Codable, Equatable, Identifiable {
             case .bottom: return CGPoint(x: 0.5, y: 1)
             case .bottomTrailing: return CGPoint(x: 1, y: 1)
             }
+        }
+
+        /// Where something of `contentSize` sits on the canvas, in Core
+        /// Image's bottom-left space, with a margin off every edge it touches.
+        /// Captions and pictures place the same way, so the nine places mean
+        /// the same thing whatever is put in them.
+        func origin(of contentSize: CGSize, in canvas: CGSize) -> CGPoint {
+            let margin = min(canvas.width, canvas.height) * 0.05
+            let point = unitPoint
+            let x = margin + (canvas.width - contentSize.width - margin * 2) * point.x
+            // The anchor counts down from the top, the way the screen does.
+            let topY = margin + (canvas.height - contentSize.height - margin * 2) * point.y
+            return CGPoint(x: x, y: canvas.height - topY - contentSize.height)
         }
     }
 
@@ -85,17 +98,7 @@ struct RecorderTextOverlay: Codable, Equatable, Identifiable {
     /// How solid the text is at a moment, eased at both ends so it never
     /// appears or vanishes on a single frame.
     func opacity(at time: Double) -> Double {
-        guard duration > 0 else { return 0 }
-        let ramp = min(Self.fade, duration / 2)
-        if time < start || time > end { return 0 }
-        if ramp <= 0 { return 1 }
-        if time < start + ramp {
-            return RecorderMotion.smoothstep((time - start) / ramp)
-        }
-        if time > end - ramp {
-            return RecorderMotion.smoothstep((end - time) / ramp)
-        }
-        return 1
+        RecorderMotion.overlayOpacity(at: time, start: start, end: end, fade: Self.fade)
     }
 
     func sanitized(duration recordingDuration: Double) -> RecorderTextOverlay? {

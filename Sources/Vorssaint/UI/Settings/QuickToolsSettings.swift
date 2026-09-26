@@ -21,6 +21,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var scratchpadBackgroundOpacity = 0.0
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
+    @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
 
     var body: some View {
         Form {
@@ -53,7 +54,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.launcherName)
                 }
-                .settingsSectionAnchor(.quickLauncher)
+                .settingsFormSectionAnchor(.quickLauncher)
             }
 
             if AppFeature.quickToggles.isAvailable {
@@ -74,14 +75,27 @@ struct QuickToolsSettings: View {
                             Label(FeatureStrings.brightness(l10n.language).keyboardLight,
                                   systemImage: "keyboard")
                         }
+                        HStack(spacing: 8) {
+                            Slider(value: Binding(
+                                get: { Double(brightness.keyboardLightLevel ?? 0) },
+                                set: { brightness.setKeyboardLightLevel(Float($0)) }
+                            ), in: 0...1, onEditingChanged: brightness.keyboardLightDragChanged)
+                            .accessibilityLabel(
+                                FeatureStrings.brightness(l10n.language).keyboardLight)
+                            Text("\(Int(((brightness.keyboardLightLevel ?? 0) * 100).rounded()))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 34, alignment: .trailing)
+                        }
                     }
+                    DiskExclusionsList()
                     Text(FeatureStrings.quickToggles(l10n.language).panelCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
                     Text(FeatureStrings.quickToggles(l10n.language).pageTitle)
                 }
-                .settingsSectionAnchor(.quickToggles)
+                .settingsFormSectionAnchor(.quickToggles)
                 .onAppear { brightness.refreshKeyboardLight() }
             }
 
@@ -121,7 +135,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.micMuteName)
                 }
-                .settingsSectionAnchor(.micMute)
+                .settingsFormSectionAnchor(.micMute)
             }
 
             if AppFeature.cameraPreview.isAvailable {
@@ -154,7 +168,26 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.cameraPreview(l10n.language).pageTitle)
                 }
-                .settingsSectionAnchor(.cameraPreview)
+                .settingsFormSectionAnchor(.cameraPreview)
+            }
+
+            if AppFeature.wallpaper.isAvailable {
+                Section {
+                    Toggle(FeatureStrings.wallpaper(l10n.language).applyAllDisplays,
+                           isOn: Binding(
+                            get: { WallpaperService.shared.applyAllDisplays },
+                            set: { WallpaperService.shared.applyAllDisplays = $0 }
+                           ))
+                    Button {
+                        WallpaperService.shared.openSystemWallpaperSettings()
+                    } label: {
+                        Label(FeatureStrings.wallpaper(l10n.language).openSystemSettings,
+                              systemImage: "gearshape")
+                    }
+                } header: {
+                    Text(FeatureStrings.wallpaper(l10n.language).pageTitle)
+                }
+                .settingsFormSectionAnchor(.wallpaper)
             }
 
             if AppFeature.scratchpad.isAvailable {
@@ -216,7 +249,27 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.scratchpad(l10n.language).pageTitle)
                 }
-                .settingsSectionAnchor(.scratchpad)
+                .settingsFormSectionAnchor(.scratchpad)
+            }
+
+            if AppFeature.cleaningMode.isAvailable {
+                Section {
+                    Button {
+                        CleaningModeManager.shared.activate()
+                    } label: {
+                        Label(l10n.s.cleaningStartNow, systemImage: "bubbles.and.sparkles")
+                    }
+                    Text(l10n.s.cleaningPanelCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.cleaningKeepScreenVisibleToggle, isOn: $cleaningModeKeepScreenVisible)
+                    Text(l10n.s.cleaningKeepScreenVisibleCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(l10n.s.cleaningMenuItem)
+                }
+                .settingsFormSectionAnchor(.cleaningMode)
             }
         }
         .formStyle(.grouped)

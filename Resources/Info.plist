@@ -23,6 +23,7 @@
 		<string>en</string>
 		<string>pt-BR</string>
 		<string>es</string>
+		<string>sk</string>
 		<string>de</string>
 		<string>fr</string>
 		<string>it</string>
@@ -31,6 +32,7 @@
 		<string>zh-Hans</string>
 		<string>tr</string>
 		<string>ru</string>
+		<string>uk</string>
 		<string>zh-TW</string>
 		<string>zh-HK</string>
 	</array>
@@ -39,13 +41,13 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>3.3.3-beta.3</string>
+	<string>3.4.0-beta.6</string>
 	<key>CFBundleSupportedPlatforms</key>
 	<array>
 		<string>MacOSX</string>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>82</string>
+	<string>93</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
@@ -53,25 +55,27 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Vorssaint uses Automation to move files in Finder, send items to the Trash and open Terminal commands when you ask for Homebrew actions.</string>
+	<string>Vorssaint uses Automation to move files, send items to the Trash, open requested commands and control playback in your media apps.</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Vorssaint taps individual app audio only to adjust each app's volume in the mixer. Nothing is recorded or leaves your Mac.</string>
+	<string>Vorssaint uses each app's audio to adjust its volume in the mixer, to move Dynamic Island's music bars and to include the Mac's sound in the screen recordings you start. Nothing leaves your Mac.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Vorssaint uses Bluetooth only to read the battery level of connected peripherals. Nothing leaves your Mac.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Vorssaint records your microphone only when you turn it on for a screen recording. The audio stays on your Mac unless you choose to create a temporary link.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Show your upcoming appointments in the notch. Calendar events stay on this Mac.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Vorssaint shows your camera only in the preview window you open, so you can check how you look before a call. Nothing is recorded or leaves your Mac.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
-	<string>Vorssaint checks local metadata in Downloads to review, organize or trash only confirmed WhatsApp files you choose.</string>
+	<string>Vorssaint checks local metadata in Downloads to review, organize or trash only confirmed WhatsApp files you choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
 	<key>NSDesktopFolderUsageDescription</key>
-	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose.</string>
+	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
-	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose.</string>
+	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
 	<key>NSNetworkVolumesUsageDescription</key>
-	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose.</string>
+	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
 	<key>NSRemovableVolumesUsageDescription</key>
-	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose.</string>
+	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
 	<key>NSCameraUseContinuityCameraDeviceType</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

@@ -17,6 +17,8 @@ struct RecorderEditDocument: Codable, Equatable {
     var trimStart: Double
     var trimEnd: Double
     var quality: String
+    /// Export only: editing, cuts and overlays stay on their original clock.
+    var exportSpeed: Double
     var keepsSystemAudio: Bool
     var gifSize: String
     var gifFrameRate: Int
@@ -43,6 +45,10 @@ struct RecorderEditDocument: Codable, Equatable {
     var zoomsGenerated: Bool
     /// Lines of text laid over the recording, in the recording's own time.
     var texts: [RecorderTextOverlay]
+    /// Pictures laid over the recording, in the recording's own time.
+    var images: [RecorderImageOverlay]
+    /// Parts of the picture kept unreadable, in the recording's own time.
+    var blurs: [RecorderBlurRegion]
     var keepsMicrophone: Bool
     var systemAudioGain: Double
     var microphoneGain: Double
@@ -50,6 +56,7 @@ struct RecorderEditDocument: Codable, Equatable {
     init(trimStart: Double = 0,
          trimEnd: Double = 0,
          quality: String = RecorderSupport.Quality.balanced.rawValue,
+         exportSpeed: Double = 1,
          keepsSystemAudio: Bool = true,
          gifSize: String = RecorderSupport.GIFSize.medium.rawValue,
          gifFrameRate: Int = 12,
@@ -66,12 +73,15 @@ struct RecorderEditDocument: Codable, Equatable {
          zoomSegments: [RecorderTimeline.ZoomSegment] = [],
          zoomsGenerated: Bool = false,
          texts: [RecorderTextOverlay] = [],
+         images: [RecorderImageOverlay] = [],
+         blurs: [RecorderBlurRegion] = [],
          keepsMicrophone: Bool = true,
          systemAudioGain: Double = 1,
          microphoneGain: Double = 1) {
         self.trimStart = trimStart
         self.trimEnd = trimEnd
         self.quality = quality
+        self.exportSpeed = exportSpeed
         self.keepsSystemAudio = keepsSystemAudio
         self.gifSize = gifSize
         self.gifFrameRate = gifFrameRate
@@ -88,6 +98,8 @@ struct RecorderEditDocument: Codable, Equatable {
         self.zoomSegments = zoomSegments
         self.zoomsGenerated = zoomsGenerated
         self.texts = texts
+        self.images = images
+        self.blurs = blurs
         self.keepsMicrophone = keepsMicrophone
         self.systemAudioGain = systemAudioGain
         self.microphoneGain = microphoneGain
@@ -101,6 +113,7 @@ struct RecorderEditDocument: Codable, Equatable {
         trimEnd = try container.decodeIfPresent(Double.self, forKey: .trimEnd) ?? 0
         quality = try container.decodeIfPresent(String.self, forKey: .quality)
             ?? RecorderSupport.Quality.balanced.rawValue
+        exportSpeed = try container.decodeIfPresent(Double.self, forKey: .exportSpeed) ?? 1
         keepsSystemAudio = try container.decodeIfPresent(Bool.self, forKey: .keepsSystemAudio) ?? true
         gifSize = try container.decodeIfPresent(String.self, forKey: .gifSize)
             ?? RecorderSupport.GIFSize.medium.rawValue
@@ -121,6 +134,8 @@ struct RecorderEditDocument: Codable, Equatable {
                                                      forKey: .zoomSegments) ?? []
         zoomsGenerated = try container.decodeIfPresent(Bool.self, forKey: .zoomsGenerated) ?? false
         texts = try container.decodeIfPresent([RecorderTextOverlay].self, forKey: .texts) ?? []
+        images = try container.decodeIfPresent([RecorderImageOverlay].self, forKey: .images) ?? []
+        blurs = try container.decodeIfPresent([RecorderBlurRegion].self, forKey: .blurs) ?? []
         keepsMicrophone = try container.decodeIfPresent(Bool.self, forKey: .keepsMicrophone) ?? true
         systemAudioGain = try container.decodeIfPresent(Double.self, forKey: .systemAudioGain) ?? 1
         microphoneGain = try container.decodeIfPresent(Double.self, forKey: .microphoneGain) ?? 1
@@ -142,6 +157,16 @@ struct RecorderEditDocument: Codable, Equatable {
         RecorderTimeline.outputDuration(trim: trim(duration: duration),
                                         cuts: RecorderTimeline.normalized(cuts: cuts,
                                                                           duration: duration))
+    }
+
+    var exportTiming: RecorderExportTiming {
+        RecorderExportTiming(speed: exportSpeed)
+    }
+
+    /// Separate from the editor's duration so seeking and undo retain their
+    /// source-time meaning. Speed is applied after trimming and cutting.
+    func exportDuration(duration: Double) -> Double {
+        exportTiming.outputTime(forSourceTime: outputDuration(duration: duration))
     }
 
     /// The zooms as they will actually be applied: normalized, and empty when
@@ -262,11 +287,13 @@ struct RecorderEditDocument: Codable, Equatable {
             || zoomSegments != other.zoomSegments
             || cuts != other.cuts
             || texts != other.texts
+            || images != other.images
+            || blurs != other.blurs
     }
 
     /// Whether the finished video would run differently, which is what forces
     /// the preview to be rebuilt from a new composition rather than just
-    /// redrawn.
+    /// redrawn. Export speed deliberately does not change preview timing.
     func affectsTiming(_ other: RecorderEditDocument) -> Bool {
         cuts != other.cuts || trimStart != other.trimStart || trimEnd != other.trimEnd
     }
@@ -284,7 +311,8 @@ struct RecorderEditDocument: Codable, Equatable {
         let trim = trim(duration: duration)
         return trim.start > 0.01 || trim.end < duration - 0.01 || !keepsSystemAudio
             || !keepsMicrophone || systemAudioGain != 1 || microphoneGain != 1
-            || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty
+            || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty || !blurs.isEmpty
+            || !images.isEmpty || exportTiming.speed != 1
     }
 
     /// A damaged or hand-edited document can never wedge the editor: every
@@ -295,6 +323,7 @@ struct RecorderEditDocument: Codable, Equatable {
         document.trimStart = trim.start
         document.trimEnd = trim.end
         document.quality = resolvedQuality.rawValue
+        document.exportSpeed = exportTiming.speed
         document.gifSize = resolvedGIFSize.rawValue
         document.gifFrameRate = resolvedGIFFrameRate
         document.aspect = resolvedAspect.rawValue
@@ -309,6 +338,8 @@ struct RecorderEditDocument: Codable, Equatable {
         document.zoomSegments = RecorderTimeline.normalized(segments: zoomSegments,
                                                             duration: duration)
         document.texts = RecorderTextOverlay.normalized(texts, duration: duration)
+        document.images = RecorderImageOverlay.normalized(images, duration: duration)
+        document.blurs = RecorderBlurRegion.normalized(blurs, duration: duration)
         return document
     }
 
@@ -323,8 +354,30 @@ struct RecorderEditDocument: Codable, Equatable {
     }
 }
 
-/// A named visual starting point. Timeline edits, captions and sound are never
-/// part of a preset, so applying one cannot undo real editing work.
+/// A bounded conversion between the edited timeline and the exported clock.
+/// The source clock here is after cuts, not the original recording's clock.
+struct RecorderExportTiming {
+    static let speedRange = 0.25...4.0
+    static let presets: [Double] = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4]
+    let speed: Double
+
+    init(speed: Double) {
+        self.speed = speed.isFinite && speed > 0
+            ? min(Self.speedRange.upperBound, max(Self.speedRange.lowerBound, speed))
+            : 1
+    }
+
+    func outputTime(forSourceTime seconds: Double) -> Double {
+        seconds / speed
+    }
+
+    func sourceTime(forOutputTime seconds: Double) -> Double {
+        seconds * speed
+    }
+}
+
+/// A named visual starting point, including reusable pictures. Cuts, captions
+/// and sound stay with the recording.
 struct RecorderEditPreset: Codable, Equatable, Identifiable {
     let id: UUID
     var name: String
@@ -336,6 +389,8 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
     let showsClickRing: Bool
     let zoomEnabled: Bool
     let zoomAmount: Double
+    /// Absent in older presets, which leave the recording's pictures alone.
+    var images: [RecorderImageOverlay]?
 
     init(id: UUID = UUID(), name: String, document: RecorderEditDocument) {
         self.id = id
@@ -348,6 +403,7 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
         showsClickRing = document.showsClickRing
         zoomEnabled = document.zoomEnabled
         zoomAmount = document.zoomAmount
+        images = document.images
     }
 
     func applying(to document: RecorderEditDocument) -> RecorderEditDocument {
@@ -360,6 +416,7 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
         next.showsClickRing = showsClickRing
         next.zoomEnabled = zoomEnabled
         next.zoomAmount = zoomAmount
+        if let images { next.images = images }
         return next
     }
 }

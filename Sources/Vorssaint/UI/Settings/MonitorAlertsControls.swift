@@ -26,9 +26,98 @@ struct MonitorAlertsControls: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 7 : 8) {
+        // The panel keeps its compact checkbox list; Settings draws one tile
+        // per alert, with its limit inside the tile once it is on.
+        Group {
+            if compact {
+                checklist
+            } else {
+                tiles
+            }
+        }
+        .onAppear {
+            sanitizeAlertValues()
+            refreshNotificationStatus()
+        }
+        .onChange(of: alertCPU) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertCPUTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertBatteryTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertCPUThreshold) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertCPUTemperatureThreshold) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertBatteryTemperatureThreshold) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertDiskFreePercent) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertBatteryPercent) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertCooldown) { _, _ in sanitizeAlertValues() }
+    }
+
+    private var tiles: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 156), spacing: 10)], spacing: 10) {
+                if AppFeature.monitorCPU.isAvailable {
+                    AlertTile(title: text.cpu, symbol: "cpu", isOn: $alertCPU,
+                              limit: .init(label: text.cpuThreshold, value: $alertCPUThreshold,
+                                           range: 50...100, step: 5, unit: "%"))
+                    AlertTile(title: text.cpuTemperature, symbol: "thermometer.medium", isOn: $alertCPUTemperature,
+                              limit: .init(label: text.cpuTemperatureThreshold, value: $alertCPUTemperatureThreshold,
+                                           range: 70...105, step: 5, unit: " °C"))
+                }
+                if AppFeature.monitorMemory.isAvailable {
+                    AlertTile(title: text.memory, symbol: "memorychip", isOn: $alertMemory, limit: nil)
+                }
+                if AppFeature.monitorDisk.isAvailable {
+                    AlertTile(title: text.disk, symbol: "internaldrive", isOn: $alertDisk,
+                              limit: .init(label: text.diskThreshold, value: $alertDiskFreePercent,
+                                           range: 5...30, step: 5, unit: "%"))
+                }
+                if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
+                    AlertTile(title: text.batteryTemperature, symbol: "thermometer.high", isOn: $alertBatteryTemperature,
+                              limit: .init(label: text.batteryTemperatureThreshold,
+                                           value: $alertBatteryTemperatureThreshold,
+                                           range: 30...50, step: 5, unit: " °C"))
+                    AlertTile(title: text.battery, symbol: "battery.25percent", isOn: $alertBattery,
+                              limit: .init(label: text.batteryThreshold, value: $alertBatteryPercent,
+                                           range: 5...50, step: 5, unit: "%"))
+                }
+            }
+            if anyAlertEnabled {
+                HStack {
+                    Text(text.cooldown)
+                    Spacer(minLength: 12)
+                    cooldownPicker
+                        .labelsHidden()
+                }
+            }
+            if notificationsDenied, anyAlertEnabled {
+                Text(text.notificationsDenied)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text(text.caption)
-                .font(compact ? .system(size: 9.5) : .caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var cooldownPicker: some View {
+        Picker(text.cooldown, selection: $alertCooldown) {
+            Text(text.cooldown2).tag(2)
+            Text(text.cooldown5).tag(5)
+            Text(text.cooldown15).tag(15)
+            Text(text.cooldown30).tag(30)
+            Text(text.cooldown60).tag(60)
+        }
+        .pickerStyle(.menu)
+    }
+
+    private var checklist: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(text.caption)
+                .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if AppFeature.monitorCPU.isAvailable {
@@ -76,44 +165,21 @@ struct MonitorAlertsControls: View {
                 }
             }
             if anyAlertEnabled {
-                Picker(text.cooldown, selection: $alertCooldown) {
-                    Text(text.cooldown2).tag(2)
-                    Text(text.cooldown5).tag(5)
-                    Text(text.cooldown15).tag(15)
-                    Text(text.cooldown30).tag(30)
-                    Text(text.cooldown60).tag(60)
-                }
-                .pickerStyle(.menu)
+                cooldownPicker
             }
             // Alerts silently cannot fire when macOS notifications are denied
             // for the app; without this line that state is invisible (the
             // user just never hears anything).
             if notificationsDenied, anyAlertEnabled {
                 Text(text.notificationsDenied)
-                    .font(compact ? .system(size: 9.5) : .caption)
+                    .font(.system(size: 9.5))
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .toggleStyle(.checkbox)
-        .controlSize(compact ? .small : .regular)
-        .font(compact ? .system(size: 10.5) : .body)
-        .onAppear {
-            sanitizeAlertValues()
-            refreshNotificationStatus()
-        }
-        .onChange(of: alertCPU) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertCPUTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertBatteryTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertCPUThreshold) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertCPUTemperatureThreshold) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertBatteryTemperatureThreshold) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertDiskFreePercent) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertBatteryPercent) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertCooldown) { _, _ in sanitizeAlertValues() }
+        .controlSize(.small)
+        .font(.system(size: 10.5))
     }
 
     private var anyAlertEnabled: Bool {
@@ -142,5 +208,74 @@ struct MonitorAlertsControls: View {
         alertDiskFreePercent = Defaults.sanitizedPercent(alertDiskFreePercent, fallback: 10, range: 5...30)
         alertBatteryPercent = Defaults.sanitizedPercent(alertBatteryPercent, fallback: 15, range: 5...50)
         alertCooldown = Defaults.sanitizedMonitorAlertCooldown(alertCooldown)
+    }
+}
+
+/// One alert as a tile: its icon and name, ticked when it is on, with the
+/// limit it fires at shown inside once it is.
+private struct AlertTile: View {
+    struct Limit {
+        let label: String
+        let value: Binding<Int>
+        let range: ClosedRange<Int>
+        let step: Int
+        let unit: String
+    }
+
+    let title: String
+    let symbol: String
+    @Binding var isOn: Bool
+    let limit: Limit?
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    isOn.toggle()
+                } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(systemName: symbol)
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                        Text(title)
+                            .font(.system(size: 11, weight: .medium))
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, 22)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(title)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+                if isOn, let limit {
+                    HStack(spacing: 6) {
+                        Text("\(limit.label) \(limit.value.wrappedValue)\(limit.unit)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        Spacer(minLength: 0)
+                        Stepper(limit.label, value: limit.value, in: limit.range, step: limit.step)
+                            .labelsHidden()
+                            .controlSize(.mini)
+                    }
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+            .background(isOn ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.05),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(isOn ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1)
+            }
+            Image(systemName: isOn ? "checkmark.circle.fill" : "plus.circle")
+                .font(.system(size: 15))
+                .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+        }
     }
 }

@@ -10,39 +10,42 @@ import Foundation
 /// Availability is a layer ABOVE each feature's own enable key: an unavailable
 /// feature disappears from Settings, the menu panel and the menu bar, and its
 /// service tears down (and never instantiates on the next launch). Turning a
-/// feature back on restores whatever enabled state it had, because the enable
-/// keys are never touched.
+/// feature back on restores saved enable choices. A first install turns on its
+/// primary control when no enable choice was saved before.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
-    case scrollInverter, focusFollowsMouse, smoothScroll, mouseNavigation, mouseButtonShortcuts, middleClick,
-         keyboardDebounce, textSnippets, superKey
+    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
+         mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
          diskImageInstaller
     // Sound
-    case mixer, soundOutputSwitcher, micMute, musicBlock
+    case mixer, soundOutputSwitcher, audioPriority, micMute, musicBlock
     // Energy and display
     case keepAwake, brightness, extraBrightness, bluetoothSleep
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, killProcess
+         commandBar, screenRecorder, wallpaper, killProcess, portManager
+    // Dynamic Island, then its extensions
+    case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
+         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
-    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
+    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
 }
 
 /// Hub sections, in display order.
 enum FeatureGroup: String, CaseIterable {
-    case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, monitor
+    case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, dynamicIsland, monitor
 }
 
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
     case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
-         automationFinder, automationTerminal, audioCapture, microphone, camera, appManagement
+         automationFinder, automationTerminal, automationPlayback, audioCapture, microphone, camera, appManagement, calendar
 }
 
 enum PermissionPollingSupport {
@@ -67,13 +70,17 @@ extension AppFeature {
     /// Whether an engaged feature needs permission changes while it sits in
     /// the background. One-shot tools ask and refresh at the moment they run;
     /// polling for those just because their tile is installed wastes wakeups.
-    func monitorsPermissionChanges(boolFor: (String) -> Bool) -> Bool {
+    func monitorsPermissionChanges(edgeSnapDisabledZones: String? = nil,
+                                   boolFor: (String) -> Bool) -> Bool {
         switch self {
         case .windowLayout:
             return boolFor(DefaultsKey.windowLayoutShortcutsEnabled)
                 || boolFor(DefaultsKey.windowGestureEnabled)
-                || boolFor(DefaultsKey.windowEdgeSnapEnabled)
-        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder:
+                || (boolFor(DefaultsKey.windowEdgeSnapEnabled)
+                    && !WindowEdgeSnapZone.enabledZones(
+                        from: edgeSnapDisabledZones
+                    ).isEmpty)
+        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper:
             return false
         default:
             return true
@@ -81,29 +88,37 @@ extension AppFeature {
     }
 
     var monitorsPermissionChanges: Bool {
-        monitorsPermissionChanges(boolFor: UserDefaults.standard.bool(forKey:))
+        monitorsPermissionChanges(
+            edgeSnapDisabledZones: UserDefaults.standard.string(
+                forKey: DefaultsKey.windowEdgeSnapDisabledZones
+            ),
+            boolFor: UserDefaults.standard.bool(forKey:)
+        )
     }
 
     var group: FeatureGroup {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
-        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-             .keyboardDebounce, .textSnippets, .superKey:
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+             .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
              .diskImageInstaller:
             return .clipboardFiles
-        case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
+        case .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock:
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .killProcess:
+             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
+        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
+             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents:
+            return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .fanControl:
+             .connectedDevices, .fanControl:
             return .monitor
         }
     }
@@ -117,17 +132,21 @@ extension AppFeature {
         case .windowLayout: return "rectangle.3.group"
         case .autoQuit: return "xmark.rectangle"
         case .scrollInverter: return "arrow.up.arrow.down"
+        case .scrollHorizontal: return "arrow.triangle.swap"
         case .focusFollowsMouse: return "cursorarrow.and.square.on.square.dashed"
         case .smoothScroll: return "cursorarrow.motionlines"
+        case .mouseAcceleration: return "cursorarrow.rays"
         case .mouseNavigation: return "arrow.left.arrow.right"
         case .mouseButtonShortcuts: return "button.programmable"
-        case .middleClick: return "computermouse"
+        case .middleClick: return "hand.tap"
         case .keyboardDebounce: return "keyboard"
         case .textSnippets: return "text.append"
         case .superKey:
             return SuperKeySource.sanitized(
                 UserDefaults.standard.string(forKey: DefaultsKey.superKeySource)
             ).systemImage
+        case .mouseClickDebounce: return "cursorarrow.click"
+        case .quitWindowProtection: return "shield.lefthalf.filled"
         case .clipboardHistory: return "doc.on.clipboard"
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
@@ -137,6 +156,7 @@ extension AppFeature {
         case .diskImageInstaller: return "externaldrive.badge.plus"
         case .mixer: return "slider.horizontal.3"
         case .soundOutputSwitcher: return "hifispeaker"
+        case .audioPriority: return "list.number"
         case .micMute: return "mic.slash"
         case .musicBlock: return "music.note"
         case .keepAwake: return "moon.zzz.fill"
@@ -156,16 +176,30 @@ extension AppFeature {
         case .screenshot: return "camera.viewfinder"
         case .screenRecorder: return "record.circle"
         case .cameraPreview: return "web.camera"
+        case .wallpaper: return "photo.on.rectangle"
+        case .notchGestures: return "hand.draw"
+        case .notchTimer: return "timer"
+        case .notchAccessories: return "battery.25percent"
+        case .notchLyrics: return "quote.bubble"
+        case .notchQueue: return "list.bullet"
+        case .notchLiveEqualizer: return "waveform"
+        case .notchDownloads: return "arrow.down.circle"
+        case .notchNotifications: return "bell"
+        case .notchCalendar: return "calendar"
+        case .notchAgents: return "sparkles"
+        case .notch: return "macbook"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
         case .commandBar: return "command"
         case .killProcess: return "xmark.octagon"
+        case .portManager: return "network"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
         case .monitorNetwork: return "network"
         case .monitorDisk: return "internaldrive"
         case .monitorPower: return "bolt.fill"
+        case .connectedDevices: return "cable.connector"
         case .fanControl: return "fanblades.fill"
         }
     }
@@ -177,7 +211,11 @@ extension AppFeature {
     /// Availability read straight from defaults. Existing features stay
     /// available on update; explicit beta opt-ins may start unavailable.
     var isAvailable: Bool {
-        UserDefaults.standard.bool(forKey: availabilityKey)
+        isAvailable(in: .standard)
+    }
+
+    func isAvailable(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: availabilityKey)
     }
 
     /// The feature's own enable keys; any one being true means the feature is
@@ -195,14 +233,31 @@ extension AppFeature {
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
                                       DefaultsKey.scrollInverterHorizontalEnabled]
+        case .scrollHorizontal: return [DefaultsKey.scrollHorizontalEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
+        case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
-        case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled]
+        case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled,
+                                            DefaultsKey.mouseSpacesGestureEnabled]
         case .middleClick: return [DefaultsKey.middleClickEnabled]
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
+        case .quitWindowProtection:
+            return [DefaultsKey.quitProtectionQuitEnabled, DefaultsKey.quitProtectionCloseEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]
         case .superKey: return [DefaultsKey.superKeyEnabled]
+        case .mouseClickDebounce: return [DefaultsKey.mouseClickDebounceEnabled]
+        case .notchGestures: return [DefaultsKey.notchGesturesEnabled]
+        case .notchTimer: return [DefaultsKey.notchTimerEnabled]
+        case .notchAccessories: return [DefaultsKey.notchAccessoriesEnabled]
+        case .notchLyrics: return [DefaultsKey.notchLyricsEnabled]
+        case .notchQueue: return [DefaultsKey.notchQueueEnabled]
+        case .notchLiveEqualizer: return [DefaultsKey.notchLiveEqualizer]
+        case .notchDownloads: return [DefaultsKey.notchDownloadsEnabled]
+        case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
+        case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
+        case .notchAgents: return [DefaultsKey.notchAgentsEnabled]
+        case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
@@ -212,6 +267,8 @@ extension AppFeature {
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
+        case .audioPriority: return [DefaultsKey.audioPriorityOutputEnabled,
+                                     DefaultsKey.audioPriorityInputEnabled]
         case .musicBlock: return [DefaultsKey.musicBlockEnabled]
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
@@ -219,10 +276,38 @@ extension AppFeature {
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
-             .commandBar, .screenRecorder, .killProcess,
+             .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .fanControl:
+             .connectedDevices, .fanControl:
             return []
+        }
+    }
+
+    /// Turn on the feature's main behavior at install time. Features with
+    /// several independent controls start with one useful behavior, except
+    /// audio priority, whose output and input controls work together. The
+    /// live equalizer stays off: it asks for system audio recording on the
+    /// first song, so only the user's own switch turns it on.
+    private var initialEnableKeys: [String] {
+        switch self {
+        case .windowLayout: return [DefaultsKey.windowLayoutShortcutsEnabled]
+        case .audioPriority: return enabledKeys
+        case .notchLiveEqualizer: return []
+        default: return enabledKeys.first.map { [$0] } ?? []
+        }
+    }
+
+    /// Registered defaults are visible through `object(forKey:)`, so only the
+    /// persistent domain can tell a fresh install from a saved off choice.
+    func enableOnFirstInstall(in defaults: UserDefaults, savedValues: [String: Any]) {
+        let choices = self == .windowLayout
+            ? [DefaultsKey.windowLayoutShortcutsEnabled, DefaultsKey.windowDirectionalEnabled,
+               DefaultsKey.pointerDisplayEnabled, DefaultsKey.windowEdgeSnapEnabled,
+               DefaultsKey.windowGestureEnabled]
+            : enabledKeys
+        guard !choices.contains(where: { savedValues[$0] != nil }) else { return }
+        for key in initialEnableKeys {
+            defaults.set(true, forKey: key)
         }
     }
 
@@ -232,9 +317,25 @@ extension AppFeature {
     /// monitor only notifies when an alert is on, and so on).
     var permissions: [AppPermission] {
         switch self {
-        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-             .keyboardDebounce, .textSnippets, .superKey, .dockClick, .windowMaximizer, .windowLayout,
-             .autoQuit, .cleaningMode, .pastePlain, .radialMenu,
+        case .notchGestures: return []
+        case .notchTimer, .notchAccessories: return []
+        case .notchLyrics, .notchQueue: return []
+        // Session logs and the saved limits sit in the home folder, outside
+        // every protected location, and no sign-in or keychain item is used.
+        case .notchAgents: return []
+        // The bars read the player's own audio output, which macOS gates
+        // behind the same permission the mixer and the recorder ask for.
+        case .notchLiveEqualizer: return [.audioCapture]
+        case .notchDownloads: return [.filesAndFolders]
+        case .notchNotifications: return [.accessibility]
+        case .notchCalendar: return [.calendar]
+        case .notch: return [.accessibility, .automationPlayback]
+        case .mouseAcceleration:
+            return []
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+             .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
+             .dockClick, .windowMaximizer, .windowLayout,
+             .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
              .commandBar:
@@ -248,9 +349,10 @@ extension AppFeature {
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
-        // The sound of the Mac rides the same grant the pixels do. Microphone
-        // access stays contextual, and Accessibility only keeps typing timing.
-        case .screenRecorder: return [.screenRecording, .accessibility, .microphone]
+        // The sound of the Mac is read through an audio grant of its own.
+        // Microphone access stays contextual, and Accessibility only keeps
+        // typing timing.
+        case .screenRecorder: return [.screenRecording, .accessibility, .audioCapture, .microphone]
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
@@ -260,11 +362,13 @@ extension AppFeature {
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]
+        case .musicBlock: return [.accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
-             .soundOutputSwitcher, .musicBlock,
+             .soundOutputSwitcher, .audioPriority,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .scratchpad, .monitorGPU, .monitorNetwork, .fanControl, .killProcess:
+             .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
+             .portManager:
             return []
         }
     }
@@ -276,7 +380,7 @@ extension AppFeature {
         switch self {
         case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
              .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
-             .micMute:
+             .micMute, .musicBlock:
             return []
         default:
             return permissions.filter { $0 == .accessibility || $0 == .screenRecording }
@@ -287,13 +391,25 @@ extension AppFeature {
         allCases.filter { $0.group == group }
     }
 
+    /// The Dynamic Island's extensions: everything else in its group. They
+    /// do nothing without the island, so uninstalling it offers to take them
+    /// along.
+    static var dynamicIslandExtensions: [AppFeature] {
+        features(in: .dynamicIsland).filter { $0 != .notch }
+    }
+
+    var initialInstallGroup: [AppFeature] {
+        self == .notch ? [self] + Self.dynamicIslandExtensions : [self]
+    }
+
     /// Registered defaults preserve existing features on update. New opt-in
     /// features and explicit betas ship uninstalled.
     static var availabilityDefaults: [String: Any] {
         Dictionary(uniqueKeysWithValues: allCases.map {
             ($0.availabilityKey,
              $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                && $0 != .killProcess)
+                && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager && $0 != .wallpaper
+                && $0 != .audioPriority)
         })
     }
 
@@ -310,9 +426,30 @@ extension AppFeature {
             let keys = feature.enabledKeys
             guard keys.isEmpty || keys.contains(where: boolFor) else { return false }
             switch (feature, permission) {
+            case (.notch, .automationPlayback):
+                return !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
             case (.switcher, .screenRecording):
                 return !boolFor(DefaultsKey.switcherSimpleMode)
+            case (.notchNotifications, .accessibility):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("notifications")
+            case (.notchDownloads, .filesAndFolders):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && dataFor(DefaultsKey.notchDownloadsFolderBookmark) != nil
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("downloads")
+            case (.notchCalendar, .calendar):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("calendar")
+            case (.notch, .accessibility):
+                return (boolFor(DefaultsKey.notchVolume) && isAvailable(.mixer))
+                    || (boolFor(DefaultsKey.notchKeyboardLight) && isAvailable(.brightness))
+                    || (boolFor(DefaultsKey.notchBrightness) && isAvailable(.brightness)
+                        && boolFor(DefaultsKey.brightnessControlEnabled))
+                    || (boolFor(DefaultsKey.notchClipboardWindow) && isAvailable(.clipboardHistory))
             case (.radialMenu, .accessibility):
+                if let profiles = dataFor(DefaultsKey.radialMenuProfiles) {
+                    return RadialMenuSupport.needsAccessibility(RadialMenuSupport.decodeProfiles(profiles))
+                }
                 return RadialMenuSupport.needsAccessibility(
                     RadialMenuSupport.decode(dataFor(DefaultsKey.radialMenuItems)))
                     || RadialMenuMouseTrigger.sanitized(
@@ -347,6 +484,11 @@ extension AppFeature {
                         || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
                     && boolFor(DefaultsKey.whatsAppDownloadsNotify)
                 return cleanerNotifies || whatsAppNotifies
+            case (.notchLiveEqualizer, .audioCapture):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
+            case (.screenRecorder, .audioCapture):
+                return boolFor(DefaultsKey.recorderSystemAudio)
             case (.screenRecorder, .microphone):
                 return boolFor(DefaultsKey.recorderMicrophone)
             default:
@@ -390,9 +532,10 @@ extension AppPermission {
         case .fullDiskAccess: return "externaldrive.badge.person.crop"
         case .filesAndFolders: return "folder.badge.person.crop"
         case .notifications: return "bell.badge"
-        case .automationFinder, .automationTerminal: return "gearshape.2"
+        case .automationFinder, .automationTerminal, .automationPlayback: return "gearshape.2"
         case .audioCapture: return "waveform"
         case .microphone: return "mic"
+        case .calendar: return "calendar"
         case .camera: return "camera"
         case .appManagement: return "app.badge"
         }

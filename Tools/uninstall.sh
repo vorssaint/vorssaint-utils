@@ -44,6 +44,13 @@ if (( detached )); then
     (( $? == 113 )) && detached=0
 fi
 
+# Whether the closed-lid feature is the reason sleep is off. Read here because
+# the preferences that hold it are deleted a few lines below, and without it a
+# check on the setting alone would blame Vorssaint for a `pmset disablesleep 1`
+# that somebody else, or the user, had set.
+sleep_was_ours=0
+[[ "$(defaults read "$BUNDLE" vorssDisabledSleep 2>/dev/null)" == "1" ]] && sleep_was_ours=1
+
 echo "▸ Resetting permissions (Accessibility, Screen Recording)…"
 tccutil reset All "$BUNDLE" >/dev/null 2>&1 || true
 
@@ -70,10 +77,42 @@ if ls $RULES >/dev/null 2>&1; then
     osascript -e "do shell script \"rm -f $RULES\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
 fi
 
-if (( detached == 0 )); then
+# `--uninstall` restores sleep, but it runs before the app has an
+# NSApplication and so cannot raise the password dialog the in-app uninstall
+# falls back to. A restore that needed one therefore reaches here as a setting
+# still switched on. `pmset -g` reads it without sudo, and this is the only
+# warning anyone will get: the app that knew the setting was its doing has
+# just been removed.
+sleep_stuck=0
+sleep_unknown=0
+if (( sleep_was_ours )); then
+    sleep_state="$(pmset -g 2>/dev/null | awk '/SleepDisabled/ { print $2 }')"
+    # "0" is the only answer that proves sleep came back, and "1" the only one
+    # that proves it did not. Anything else is pmset not answering: it must not
+    # pass as success, and it must not be reported as a failed restore either.
+    if [[ "$sleep_state" == "1" ]]; then
+        sleep_stuck=1
+    elif [[ "$sleep_state" != "0" ]]; then
+        sleep_unknown=1
+    fi
+fi
+
+if (( detached == 0 && sleep_stuck == 0 && sleep_unknown == 0 )); then
     echo "✓ Vorssaint fully removed."
-else
+    exit 0
+fi
+if (( detached )); then
     echo "⚠ Vorssaint removed, but its fan helper is still registered with the system." >&2
     echo "  Reinstall Vorssaint, then use Settings › Advanced to uninstall from inside the app." >&2
-    exit 1
 fi
+if (( sleep_stuck )); then
+    echo "⚠ Vorssaint removed, but this Mac still has sleep switched off." >&2
+    echo "  Closed-lid mode disabled it, and restoring it needed a password this script could not ask for." >&2
+    echo "  Put it back with: sudo pmset disablesleep 0" >&2
+fi
+if (( sleep_unknown )); then
+    echo "⚠ Vorssaint removed, but whether sleep came back could not be read." >&2
+    echo "  Closed-lid mode had switched it off. Check with: pmset -g | grep SleepDisabled" >&2
+    echo "  If that reads 1, put it back with: sudo pmset disablesleep 0" >&2
+fi
+exit 1

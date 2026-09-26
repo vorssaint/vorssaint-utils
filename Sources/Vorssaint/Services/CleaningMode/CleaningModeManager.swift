@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Combine
 import CoreGraphics
 import SwiftUI
@@ -25,6 +26,22 @@ final class CleaningModeManager: ObservableObject {
     private static let systemDefinedEventType = CGEventType(rawValue: CleaningSystemKeyEvent.systemDefinedEventTypeRawValue)!
     private static let gestureEventType = CGEventType(rawValue: UInt32(NSEvent.EventType.gesture.rawValue))!
     private static let escapeKeyCode: Int64 = 53
+    private static let eventMask: CGEventMask = [
+        CGEventType.keyDown,
+        .keyUp,
+        .flagsChanged,
+        .scrollWheel,
+        .leftMouseDown,
+        .leftMouseUp,
+        .rightMouseDown,
+        .rightMouseUp,
+        .otherMouseDown,
+        .otherMouseUp,
+        systemDefinedEventType,
+        gestureEventType,
+    ].reduce(CGEventMask(0)) { mask, type in
+        mask | (CGEventMask(1) << type.rawValue)
+    }
 
     @Published private(set) var isActive = false
     /// Consecutive Escape presses so far (0...unlockThreshold). The
@@ -39,13 +56,41 @@ final class CleaningModeManager: ObservableObject {
     private var runLoopSource: CFRunLoopSource?
     private var overlays: [NSPanel] = []
     private var screenObserver: NSObjectProtocol?
+    private var shouldRestoreSuspendedFeaturesOnSessionReturn = false
+    // Mouse events still pass through Cleaning Mode. We only remember the
+    // down/up lifecycle so teardown never cuts a click in half.
+    private var mouseReleaseGate = CleaningMouseReleaseGate()
+    /// Ends a user unlock's wait for a release this tap never sees.
+    private var releaseDeadline: DispatchWorkItem?
 
     /// The unlock-gesture state machine (pure, unit-tested separately).
+    /// The 6s press window forgives hesitant, deliberate presses — at 2s a user
+    /// pressing Escape slower than once per two seconds could never unlock
+    /// (progress restarted at 1 on every press). The window's one remaining job
+    /// is rejecting five isolated Esc-only contacts spread across a long wipe:
+    /// every other key resets the count — modifiers included, they reach the
+    /// counter as flags-changed events — and auto-repeat never counts, but a
+    /// cloth can strike Escape alone. Widening to 6s weakens that guard on
+    /// purpose — a gesture a deliberate user cannot complete protects nothing.
     private lazy var unlock = CleaningUnlockCounter(requiredKeyCode: Self.escapeKeyCode,
                                                     threshold: unlockThreshold,
-                                                    pressWindow: 2.0)
+                                                    pressWindow: 6.0)
 
-    private init() {}
+    private init() {
+        // A switched-away login session cannot keep a filter tap in the input
+        // chain. Cleaning is a temporary local state, so leaving the session
+        // ends it; suspended features resume only after this session returns.
+        SessionActivity.shared.onChange { [weak self] active in
+            guard let self else { return }
+            if active {
+                guard self.shouldRestoreSuspendedFeaturesOnSessionReturn else { return }
+                self.shouldRestoreSuspendedFeaturesOnSessionReturn = false
+                self.resumeSuspendedFeatures()
+            } else if self.isActive {
+                self.deactivate(restoreSuspendedFeatures: false)
+            }
+        }
+    }
 
     func toggle() { isActive ? deactivate() : activate() }
 
@@ -59,11 +104,13 @@ final class CleaningModeManager: ObservableObject {
             promptForAccessibility()
             return
         }
+        mouseReleaseGate.reset()
         guard installTap() else { return }
         // Debounce must not filter while the lock is up: its tap can run ahead
         // of ours (head-insert order depends on creation order) and would eat
         // the repeated same-key presses the unlock gesture counts on.
         KeyboardDebounceService.shared.suspend()
+        MouseClickDebounceService.shared.suspend()
         // Wiping the trackpad is nothing but stray three-finger contacts;
         // middle-click emulation must not fire from them.
         MiddleClickService.shared.suspend()
@@ -83,14 +130,75 @@ final class CleaningModeManager: ObservableObject {
 
     func deactivate() {
         guard isActive else { return }
+        // If a click began while the overlay was up, keep the overlay and tap
+        // alive until its real mouse-up passes through. Never manufacture a
+        // release: the physical event is the only event that completes the click.
+        armReleaseDeadline()
+        guard mouseReleaseGate.requestDeactivation() else { return }
+        scheduleUserDeactivation()
+    }
+
+    /// Every unlock path waits on the gate, and the overlay can cover the menu
+    /// bar, so the wait is bounded. Nothing is posted; it only stops waiting.
+    private func armReleaseDeadline() {
+        guard releaseDeadline == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.releaseDeadline = nil
+            guard self.isActive, self.mouseReleaseGate.releaseWaitExpired() else { return }
+            self.scheduleUserDeactivation()
+        }
+        releaseDeadline = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + CleaningMouseReleaseGate.releaseWaitLimit, execute: work)
+    }
+
+    /// Permission teardown must remove the tap before Accessibility is reset.
+    func deactivateForSystemTeardown() {
+        deactivate(restoreSuspendedFeatures: true)
+    }
+
+    private func deactivate(restoreSuspendedFeatures: Bool) {
+        guard isActive else { return }
+        // Session/tap failure paths cannot wait for another input event. They
+        // retain the existing fail-open behaviour and tear down immediately.
+        finishDeactivation(restoreSuspendedFeatures: restoreSuspendedFeatures)
+    }
+
+    private func scheduleUserDeactivation() {
+        // Even when no button is currently held, leave the AppKit control action
+        // before unmapping its non-activating panel. A new press may arrive before
+        // this block runs, so keep the request pending until teardown completes.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isActive, self.mouseReleaseGate.deactivationPending,
+                  self.mouseReleaseGate.pressedButtons.isEmpty else { return }
+            self.finishDeactivation(restoreSuspendedFeatures: true)
+        }
+    }
+
+    private func finishDeactivation(restoreSuspendedFeatures: Bool) {
+        guard isActive else { return }
+        releaseDeadline?.cancel()
+        releaseDeadline = nil
+        mouseReleaseGate.reset()
         removeTap()
         removeScreenObserver()
         hideOverlays()
         unlock.reset()
         unlockProgress = 0
         isActive = false
-        // Restore debounce and middle click if the user still has them enabled.
+        guard restoreSuspendedFeatures else {
+            shouldRestoreSuspendedFeaturesOnSessionReturn = true
+            return
+        }
+        shouldRestoreSuspendedFeaturesOnSessionReturn = false
+        resumeSuspendedFeatures()
+    }
+
+    private func resumeSuspendedFeatures() {
+        // Each owner reads its current availability, preference and permission,
+        // so a feature changed while Cleaning Mode was active stays changed.
         KeyboardDebounceService.shared.syncWithPreferences()
+        MouseClickDebounceService.shared.syncWithPreferences()
         MiddleClickService.shared.syncWithPreferences()
         MouseNavigationService.shared.syncWithPreferences()
         MouseButtonShortcutService.shared.syncWithPreferences()
@@ -100,12 +208,7 @@ final class CleaningModeManager: ObservableObject {
     // MARK: - Event tap
 
     private func installTap() -> Bool {
-        let mask = (1 << CGEventType.keyDown.rawValue)
-            | (1 << CGEventType.keyUp.rawValue)
-            | (1 << CGEventType.flagsChanged.rawValue)
-            | (1 << CGEventType.scrollWheel.rawValue)
-            | (1 << Self.systemDefinedEventType.rawValue)
-            | (1 << Self.gestureEventType.rawValue)
+        let mask = Self.eventMask
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
@@ -131,6 +234,7 @@ final class CleaningModeManager: ObservableObject {
     private func removeTap() {
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         runLoopSource = nil
     }
@@ -141,8 +245,31 @@ final class CleaningModeManager: ObservableObject {
         // The system disables taps that stall or when the session locks; re-arm so
         // the keyboard stays locked instead of silently coming back.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-            return nil
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
+                // A disabled tap creates an observation gap: any tracked mouseDown
+                // may already have received its real mouseUp while we were blind.
+                // Invalidate that incomplete sequence so no later unlock can wait
+                // forever for a release that already happened. If the user had
+                // already requested deactivation, fail open after the callback.
+                let shouldFinishUserDeactivation = mouseReleaseGate.deactivationPending
+                mouseReleaseGate.invalidateTrackedPresses()
+                CGEvent.tapEnable(tap: tap, enable: true)
+                if shouldFinishUserDeactivation {
+                    scheduleUserDeactivation()
+                }
+                return nil
+            }
+            let restoreSuspendedFeatures = SessionActivity.shared.isActive
+            DispatchQueue.main.async { [weak self] in
+                self?.deactivate(restoreSuspendedFeatures: restoreSuspendedFeatures)
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
+        // Mouse clicks are never locked. Observe only their boundaries so a
+        // user-requested teardown can wait for a matching real release.
+        if handleMouseButton(type: type, event: event) {
+            return Unmanaged.passUnretained(event)
         }
 
         // Feed key-downs to the unlock state machine. Auto-repeat (holding a key)
@@ -151,6 +278,15 @@ final class CleaningModeManager: ObservableObject {
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             registerUnlockKeyDown(code: code, isRepeat: isRepeat)
+        } else if type == .flagsChanged {
+            // Shift, control, option, command, fn and caps lock arrive here rather
+            // than as key-downs, and they are the keys nearest Escape — a cloth
+            // resting on them must reset the count like any other key. Both the
+            // press and the release report the same key code and neither is
+            // Escape, so each one resets and the pair is idempotent. Modifiers
+            // never auto-repeat.
+            registerUnlockKeyDown(code: event.getIntegerValueField(.keyboardEventKeycode),
+                                  isRepeat: false)
         } else if type == Self.systemDefinedEventType,
                   let systemKey = systemKeyEvent(from: event),
                   systemKey.isKeyDown {
@@ -160,6 +296,43 @@ final class CleaningModeManager: ObservableObject {
         // Swallow keys, scrolling and trackpad gestures while the lock is on.
         // Pointer movement and clicks remain available for the Unlock button.
         return nil
+    }
+
+    private func handleMouseButton(type: CGEventType, event: CGEvent) -> Bool {
+        let button: Int64
+        let isDown: Bool
+        switch type {
+        case .leftMouseDown:
+            button = 0
+            isDown = true
+        case .leftMouseUp:
+            button = 0
+            isDown = false
+        case .rightMouseDown:
+            button = 1
+            isDown = true
+        case .rightMouseUp:
+            button = 1
+            isDown = false
+        case .otherMouseDown:
+            button = event.getIntegerValueField(.mouseEventButtonNumber)
+            isDown = true
+        case .otherMouseUp:
+            button = event.getIntegerValueField(.mouseEventButtonNumber)
+            isDown = false
+        default:
+            return false
+        }
+
+        if isDown {
+            mouseReleaseGate.buttonDown(button)
+        } else if mouseReleaseGate.buttonUp(button) {
+            // The callback is running on this tap's run loop. Removing the tap
+            // here would invalidate it from its own callback stack, so finish on
+            // the next main-loop turn after the real release has propagated.
+            scheduleUserDeactivation()
+        }
+        return true
     }
 
     private func systemKeyEvent(from event: CGEvent) -> CleaningSystemKeyEvent? {
@@ -174,8 +347,9 @@ final class CleaningModeManager: ObservableObject {
                                               isRepeat: isRepeat)
         unlockProgress = unlock.progress
         if unlocked {
-            // Defer so we don't tear down the tap from inside its own callback.
-            DispatchQueue.main.async { [weak self] in self?.deactivate() }
+            // deactivate() only records the request here; actual teardown is
+            // scheduled after this tap callback has returned.
+            deactivate()
         }
     }
 
@@ -199,9 +373,9 @@ final class CleaningModeManager: ObservableObject {
     }
 
     private func makeOverlay(frame: NSRect) -> NSPanel {
-        let panel = NSPanel(contentRect: frame,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
+        let panel = OverlayPanel(contentRect: frame,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered, defer: false)
         panel.isFloatingPanel = true
         // Above the menu bar and full-screen apps — the shielding level macOS uses
         // for its own lock-style windows.

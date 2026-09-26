@@ -159,6 +159,31 @@ struct ScratchpadDocument: Codable, Equatable {
     }
 }
 
+/// Focused-pad tab shortcuts mirror the browser: Command-T opens a tab and
+/// Command-W closes one, or hides the pad when only the last tab remains.
+enum ScratchpadFocusedTabShortcut {
+    enum Action: Equatable {
+        case createPad
+        case closeSelectedPad
+        case hidePad
+    }
+
+    static func action(charactersIgnoringModifiers: String?,
+                       commandOnly: Bool,
+                       canCreatePad: Bool,
+                       canClosePad: Bool) -> Action? {
+        guard commandOnly else { return nil }
+        switch charactersIgnoringModifiers?.lowercased() {
+        case "t":
+            return canCreatePad ? .createPad : nil
+        case "w":
+            return canClosePad ? .closeSelectedPad : .hidePad
+        default:
+            return nil
+        }
+    }
+}
+
 enum ScratchpadSupport {
     /// The fill sits over the existing material: zero preserves the familiar
     /// frosted pad, while one fully covers what is behind the window.
@@ -289,20 +314,6 @@ enum ScratchpadSupport {
             return "\(safeBase) \(number)"
         }
         return "\(safeBase) \(existingNames.count + 1)"
-    }
-
-    static func migratedLegacyDocument(text: String,
-                                       lastEdited: Date?,
-                                       defaultName: String,
-                                       retention: ScratchpadRetention,
-                                       now: Date,
-                                       id: UUID = UUID()) -> ScratchpadDocument {
-        var document = ScratchpadDocument.initial(defaultName: defaultName,
-                                                  id: id,
-                                                  text: text,
-                                                  modifiedAt: lastEdited)
-        document.applyRetention(retention, now: now)
-        return document
     }
 
     static func requiresCloseConfirmation(_ pad: ScratchpadPad) -> Bool {

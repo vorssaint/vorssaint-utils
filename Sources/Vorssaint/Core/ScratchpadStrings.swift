@@ -13,6 +13,8 @@ struct ScratchpadFeatureStrings {
     let copyAll: String
     let copied: String
     let exportAction: String
+    let exportFailed: String
+    let loadFailed: String
     let clearAction: String
     let retentionTitle: String
     let retentionNever: String
@@ -45,6 +47,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -53,6 +56,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -67,6 +71,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "Copy all",
         copied: "Copied",
         exportAction: "Save as file",
+        exportFailed: "The file could not be saved",
+        loadFailed: "Your notes could not be opened. They were left unchanged.",
         clearAction: "Clear",
         retentionTitle: "Clear on its own",
         retentionNever: "Never",
@@ -100,6 +106,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "Copiar tudo",
         copied: "Copiado",
         exportAction: "Salvar como arquivo",
+        exportFailed: "Não foi possível salvar o arquivo",
+        loadFailed: "Não foi possível abrir as notas. O conteúdo foi preservado.",
         clearAction: "Limpar",
         retentionTitle: "Limpar sozinho",
         retentionNever: "Nunca",
@@ -133,6 +141,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "Tümünü kopyala",
         copied: "Kopyalandı",
         exportAction: "Dosya olarak kaydet",
+        exportFailed: "Dosya kaydedilemedi",
+        loadFailed: "Notlar açılamadı. İçerik değiştirilmeden korundu.",
         clearAction: "Temizle",
         retentionTitle: "Kendiliğinden temizle",
         retentionNever: "Hiçbir zaman",
@@ -166,6 +176,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "Скопировать всё",
         copied: "Скопировано",
         exportAction: "Сохранить как файл",
+        exportFailed: "Не удалось сохранить файл",
+        loadFailed: "Не удалось открыть заметки. Они сохранены без изменений.",
         clearAction: "Очистить",
         retentionTitle: "Очищать автоматически",
         retentionNever: "Никогда",
@@ -199,6 +211,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "Copiar todo",
         copied: "Copiado",
         exportAction: "Guardar como archivo",
+        exportFailed: "No se pudo guardar el archivo",
+        loadFailed: "No se pudieron abrir las notas. Se conservaron sin cambios.",
         clearAction: "Limpiar",
         retentionTitle: "Limpiar solo",
         retentionNever: "Nunca",
@@ -217,10 +231,45 @@ extension ScratchpadFeatureStrings {
         closePad: "Cerrar borrador",
         saveName: "Guardar",
         cancel: "Cancelar",
-        deletePadMessageFormat: "¿Eliminar «%@» y todo su contenido?",
+        deletePadMessageFormat: "¿Eliminar “%@” y todo su contenido?",
         padLimitFormat: "Puedes guardar hasta %d borradores",
         previewFormatting: "Ver formato",
         editText: "Editar texto"
+    )
+
+    static let sk = ScratchpadFeatureStrings(
+        pageTitle: "Poznámkový blok",
+        hubDescription: "Plávajúce bloky pre krátkodobé poznámky",
+        panelCaption: "Rýchle poznámky v samostatných kartách",
+        openButton: "Otvoriť poznámkový blok",
+        placeholder: "Napíšte čokoľvek. Ukladá sa samo.",
+        copyAll: "Kopírovať všetko",
+        copied: "Skopírované",
+        exportAction: "Uložiť ako súbor",
+        exportFailed: "Súbor sa nepodarilo uložiť",
+        loadFailed: "Poznámky sa nepodarilo otvoriť. Zostali bez zmeny.",
+        clearAction: "Vymazať",
+        retentionTitle: "Vymazať automaticky",
+        retentionNever: "Nikdy",
+        retentionDay: "Po dni bez použitia",
+        retentionWeek: "Po týždni bez použitia",
+        retentionMonth: "Po mesiaci bez použitia",
+        retentionCaption: "Blok sa sám vyprázdni, keď text zostane taký dlho bez úprav.",
+        closeOnClickOutside: "Zavrieť pri kliknutí mimo",
+        keepOpen: "Nechať otvorené",
+        backgroundOpacity: "Pozadie bloku",
+        backgroundTranslucent: "Priesvitné",
+        backgroundOpaque: "Nepriehľadné",
+        newPad: "Nový poznámkový blok",
+        padActions: "Akcie poznámkového bloku",
+        renamePad: "Premenovať poznámkový blok",
+        closePad: "Zavrieť poznámkový blok",
+        saveName: "Uložiť",
+        cancel: "Zrušiť",
+        deletePadMessageFormat: "Vymazať „%@“ a celý jeho obsah?",
+        padLimitFormat: "Maximálny počet poznámkových blokov: %d",
+        previewFormatting: "Zobraziť formátovanie",
+        editText: "Upraviť text"
     )
 
     static let de = ScratchpadFeatureStrings(
@@ -232,6 +281,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "Alles kopieren",
         copied: "Kopiert",
         exportAction: "Als Datei sichern",
+        exportFailed: "Die Datei konnte nicht gesichert werden",
+        loadFailed: "Die Notizen konnten nicht geöffnet werden. Sie bleiben unverändert.",
         clearAction: "Leeren",
         retentionTitle: "Automatisch leeren",
         retentionNever: "Nie",
@@ -261,10 +312,12 @@ extension ScratchpadFeatureStrings {
         hubDescription: "Des blocs flottants à onglets pour les notes éphémères",
         panelCaption: "Des notes rapides dans des onglets séparés",
         openButton: "Ouvrir le brouillon",
-        placeholder: "Écrivez ce que vous voulez. Tout s'enregistre tout seul.",
+        placeholder: "Écrivez ce que vous voulez. Tout s’enregistre tout seul.",
         copyAll: "Tout copier",
         copied: "Copié",
         exportAction: "Enregistrer dans un fichier",
+        exportFailed: "Impossible d’enregistrer le fichier",
+        loadFailed: "Impossible d’ouvrir les notes. Elles restent inchangées.",
         clearAction: "Effacer",
         retentionTitle: "Effacer automatiquement",
         retentionNever: "Jamais",
@@ -283,7 +336,7 @@ extension ScratchpadFeatureStrings {
         closePad: "Fermer le brouillon",
         saveName: "Enregistrer",
         cancel: "Annuler",
-        deletePadMessageFormat: "Supprimer « %@ » et tout son contenu ?",
+        deletePadMessageFormat: "Supprimer «\u{00A0}%@\u{00A0}» et tout son contenu\u{00A0}?",
         padLimitFormat: "Vous pouvez conserver jusqu’à %d brouillons",
         previewFormatting: "Afficher la mise en forme",
         editText: "Modifier le texte"
@@ -298,6 +351,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "Copia tutto",
         copied: "Copiato",
         exportAction: "Salva come file",
+        exportFailed: "Impossibile salvare il file",
+        loadFailed: "Impossibile aprire le note. Sono state conservate senza modifiche.",
         clearAction: "Svuota",
         retentionTitle: "Svuota automaticamente",
         retentionNever: "Mai",
@@ -331,6 +386,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "すべてコピー",
         copied: "コピーしました",
         exportAction: "ファイルとして保存",
+        exportFailed: "ファイルを保存できませんでした",
+        loadFailed: "メモを開けませんでした。内容は変更されていません。",
         clearAction: "消去",
         retentionTitle: "自動で消去",
         retentionNever: "しない",
@@ -364,6 +421,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "전체 복사",
         copied: "복사됨",
         exportAction: "파일로 저장",
+        exportFailed: "파일을 저장할 수 없습니다",
+        loadFailed: "메모를 열 수 없습니다. 내용은 변경되지 않았습니다.",
         clearAction: "지우기",
         retentionTitle: "자동으로 지우기",
         retentionNever: "안 함",
@@ -397,6 +456,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "全部拷贝",
         copied: "已拷贝",
         exportAction: "存储为文件",
+        exportFailed: "无法存储文件",
+        loadFailed: "无法打开笔记。内容已保留，未作更改。",
         clearAction: "清空",
         retentionTitle: "自动清空",
         retentionNever: "从不",
@@ -413,7 +474,7 @@ extension ScratchpadFeatureStrings {
         padActions: "草稿板操作",
         renamePad: "重命名草稿板",
         closePad: "关闭草稿板",
-        saveName: "存储",
+        saveName: "保存",
         cancel: "取消",
         deletePadMessageFormat: "删除“%@”及其中的全部内容？",
         padLimitFormat: "最多可保留 %d 个草稿板",
@@ -430,6 +491,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "全部拷貝",
         copied: "已拷貝",
         exportAction: "儲存為檔案",
+        exportFailed: "無法儲存檔案",
+        loadFailed: "無法開啟筆記。內容已保留，未作更改。",
         clearAction: "清空",
         retentionTitle: "自動清空",
         retentionNever: "永不",
@@ -463,6 +526,8 @@ extension ScratchpadFeatureStrings {
         copyAll: "全部拷貝",
         copied: "已拷貝",
         exportAction: "儲存為檔案",
+        exportFailed: "無法儲存檔案",
+        loadFailed: "無法開啟筆記。內容已保留，未有更改。",
         clearAction: "清空",
         retentionTitle: "自動清空",
         retentionNever: "永不",
@@ -485,5 +550,39 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "最多可保留 %d 個草稿板",
         previewFormatting: "顯示格式",
         editText: "編輯文字"
+    )
+    static let uk = ScratchpadFeatureStrings(
+        pageTitle: "Нотатник",
+        hubDescription: "Плаваючі блокноти для короткочасних нотаток",
+        panelCaption: "Швидкі нотатки в окремих вкладках",
+        openButton: "Відкрити нотатник",
+        placeholder: "Пишіть будь-що. Зберігається сам.",
+        copyAll: "Скопіювати все",
+        copied: "Скопійовано",
+        exportAction: "Зберегти як файл",
+        exportFailed: "Не вдалося зберегти файл.",
+        loadFailed: "Не вдалося відкрити нотатку. Вміст збережено і не змінено.",
+        clearAction: "Очистити",
+        retentionTitle: "Очищати сам",
+        retentionNever: "Ніколи",
+        retentionDay: "Через день без використання",
+        retentionWeek: "Через тиждень без використання",
+        retentionMonth: "Через місяць без використання",
+        retentionCaption: "Блокнот очищається сам, коли текст залишається без редагувань стільки часу.",
+        closeOnClickOutside: "Закривати при клаці зовні",
+        keepOpen: "Тримати відкритою",
+        backgroundOpacity: "Фон панелі",
+        backgroundTranslucent: "Напівпрозорий",
+        backgroundOpaque: "Непрозорий",
+        newPad: "Новий нотатник",
+        padActions: "Дії нотатника",
+        renamePad: "Перейменувати нотатник",
+        closePad: "Закрити нотатник",
+        saveName: "Зберегти",
+        cancel: "Скасувати",
+        deletePadMessageFormat: "Видалити «%@» та все в ньому?",
+        padLimitFormat: "Ви можете зберігати до %d нотатників",
+        previewFormatting: "Показувати форматування",
+        editText: "Редагувати текст"
     )
 }

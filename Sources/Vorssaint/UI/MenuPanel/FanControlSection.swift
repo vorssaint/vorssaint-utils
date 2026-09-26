@@ -11,6 +11,7 @@ struct FanControlSection: View {
         FanControlPolicy.defaultCoolingLevel
     @AppStorage(DefaultsKey.fanControlCurves) private var curvesStorage =
         FanControlConfiguration.defaultCurvesStorage
+    @AppStorage(DefaultsKey.fanControlResume) private var resume = false
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit =
         TemperatureUnit.celsius.rawValue
     var collapsible = true
@@ -30,13 +31,15 @@ struct FanControlSection: View {
                                   mode: modeBinding,
                                   coolingLevel: $coolingLevel,
                                   curves: curvesBinding,
+                                  resume: $resume,
                                   temperatureUnit: displayTemperatureUnit,
                                   authorize: service.authorize,
                                   applyConfiguration: service.applyConfiguration,
-                                  stopCooling: service.restoreAutomatic)
+                                  stopCooling: service.returnToSystem)
                 .panelCard()
                 .onAppear { service.panelDidAppear() }
                 .onDisappear { service.panelDidDisappear() }
+                .onChange(of: resume) { _, _ in service.resumePreferenceDidChange() }
         }
     }
 
@@ -76,6 +79,7 @@ struct FanControlCardContent: View {
     @Binding var mode: FanControlMode
     @Binding var coolingLevel: Int
     @Binding var curves: [FanControlCurve]
+    @Binding var resume: Bool
     let temperatureUnit: TemperatureUnit
     let authorize: () -> Void
     let applyConfiguration: (FanControlConfiguration) -> Void
@@ -117,6 +121,13 @@ struct FanControlCardContent: View {
             }
 
             action
+
+            if canConfigure, mode != .system {
+                Toggle(strings.resumeAfterRestart, isOn: $resume)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
 
             if controlsCanAppear {
                 Text(strings.safetyCaption)

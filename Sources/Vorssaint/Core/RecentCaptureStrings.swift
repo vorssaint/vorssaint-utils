@@ -22,6 +22,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -30,6 +31,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -90,6 +92,17 @@ extension RecentCaptureStrings {
         clear: "Borrar historial"
     )
 
+    static let sk = RecentCaptureStrings(
+        title: "Nedávne zábery",
+        empty: "Vytvorte snímku obrazovky alebo uložte nahrávku a nájdete ju tu.",
+        screenshot: "Snímka obrazovky",
+        recording: "Nahrávka",
+        restore: "Obnoviť",
+        open: "Otvoriť",
+        remove: "Odstrániť z histórie",
+        clear: "Vymazať históriu"
+    )
+
     static let de = RecentCaptureStrings(
         title: "Letzte Aufnahmen",
         empty: "Erstelle ein Bildschirmfoto oder speichere eine Aufnahme, um sie hier zu sehen.",
@@ -147,7 +160,7 @@ extension RecentCaptureStrings {
 
     static let zhHans = RecentCaptureStrings(
         title: "最近捕捉",
-        empty: "截取屏幕或保存录屏后，就会显示在这里。",
+        empty: "截取屏幕或存储录屏后，就会显示在这里。",
         screenshot: "截图",
         recording: "录屏",
         restore: "恢复",
@@ -176,5 +189,15 @@ extension RecentCaptureStrings {
         open: "開啟",
         remove: "從記錄移除",
         clear: "清除記錄"
+    )
+    static let uk = RecentCaptureStrings(
+        title: "Недавні знімки",
+        empty: "Зробіть знімок екрана або збережіть запис, щоб знайти його тут.",
+        screenshot: "Знімок екрана",
+        recording: "Запис",
+        restore: "Відновити",
+        open: "Відкрити",
+        remove: "Видалити з історії",
+        clear: "Очистити історію"
     )
 }

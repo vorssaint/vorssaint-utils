@@ -8,11 +8,13 @@ struct HomebrewSettings: View {
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @AppStorage(DefaultsKey.homebrewGroupDependencies) private var homebrewGroupDependencies = true
     @State private var query = ""
     @State private var searchKind: HomebrewPackageKind = .cask
     @State private var installedFilter = HomebrewInstalledFilter.all
     @State private var pendingAction: HomebrewPendingAction?
     @State private var showOperationDetails = false
+    @State private var expandedPackageIDs: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -125,6 +127,12 @@ struct HomebrewSettings: View {
                 .pickerStyle(.segmented)
                 .frame(width: 300)
                 outdatedSummary
+            }
+            HStack {
+                Spacer(minLength: 0)
+                Toggle(l10n.s.homebrewGroupDependencies, isOn: $homebrewGroupDependencies)
+                    .font(.caption)
+                    .controlSize(.small)
             }
         }
     }
@@ -278,15 +286,49 @@ struct HomebrewSettings: View {
     }
 
     private var installedPackagesSection: some View {
-        packageSection(l10n.s.homebrewInstalled, count: filteredInstalled.count) {
+        let visible = filteredInstalled
+        let folded = HomebrewDependencyGraph.display(visible,
+                                                      installed: homebrew.installed,
+                                                      groupDependencies: homebrewGroupDependencies)
+        return packageSection(l10n.s.homebrewInstalled, count: visible.count) {
             if homebrew.isLoadingInstalled {
                 loadingRow(l10n.s.homebrewLoading)
-            } else if filteredInstalled.isEmpty {
+            } else if folded.rows.isEmpty {
                 packageMessage(l10n.s.homebrewNoPackages)
             } else {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(filteredInstalled) { package in
-                        packageRow(package)
+                    ForEach(folded.rows) { package in
+                        let dependencies = folded.dependencies[package.id] ?? []
+                        let isExpanded = expandedPackageIDs.contains(package.id)
+                        HStack(spacing: 2) {
+                            Button {
+                                if isExpanded {
+                                    expandedPackageIDs.remove(package.id)
+                                } else {
+                                    expandedPackageIDs.insert(package.id)
+                                }
+                            } label: {
+                                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 12, height: 20)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .opacity(dependencies.isEmpty ? 0 : 1)
+                            .disabled(dependencies.isEmpty)
+                            .help("\(l10n.s.homebrewDependencies): \(dependencies.count)")
+                            .accessibilityLabel("\(l10n.s.homebrewDependencies): \(package.displayName)")
+                            .accessibilityValue(isExpanded ? l10n.s.disclosureExpanded : l10n.s.disclosureCollapsed)
+                            .accessibilityHidden(dependencies.isEmpty)
+                            packageRow(package)
+                        }
+                        if isExpanded {
+                            ForEach(dependencies) { dependency in
+                                packageRow(dependency)
+                                    .padding(.leading, 28)
+                            }
+                        }
                     }
                 }
             }

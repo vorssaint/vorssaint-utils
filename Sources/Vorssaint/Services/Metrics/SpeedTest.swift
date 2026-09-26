@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Combine
 import Foundation
 
 /// A user-triggered internet speed test: latency, then download, then upload,
@@ -12,6 +13,9 @@ import Foundation
 /// published values are pushed to the main thread.
 final class SpeedTest: NSObject, ObservableObject {
     static let shared = SpeedTest()
+
+    typealias Clock = () -> TimeInterval
+    typealias TimeBoxScheduler = (OperationQueue, TimeInterval, @escaping () -> Void) -> () -> Void
 
     enum Phase: Equatable {
         case idle, latency, download, upload, done
@@ -30,7 +34,9 @@ final class SpeedTest: NSObject, ObservableObject {
     private enum Kind { case none, download, upload }
 
     private let host = "https://speed.cloudflare.com"
-    private let sampleSeconds: Double = 5
+    private let sampleSeconds: TimeInterval
+    private let clock: Clock
+    private let scheduleTimeBox: TimeBoxScheduler
     // Cloudflare's __down caps the size just under 100 MB (100 MB+ returns ~nothing),
     // so request under that and loop chunks back-to-back until the time box — that
     // keeps a fast link's pipe full for a full measurement window.
@@ -42,17 +48,26 @@ final class SpeedTest: NSObject, ObservableObject {
     private var task: URLSessionTask?
     private var kind: Kind = .none           // touched only on `queue`
     private var transferred: Int64 = 0       // touched only on `queue`
-    private var startedAt: CFAbsoluteTime = 0
+    private var startedAt: TimeInterval = 0
     private var finished = false
-    private var stopWork: DispatchWorkItem?
+    private var generation = 0
+    private var cancelTimeBox: (() -> Void)?
 
-    private override init() {
+    init(configuration: URLSessionConfiguration = .ephemeral, sampleSeconds: TimeInterval = 5,
+         clock: @escaping Clock = { ProcessInfo.processInfo.systemUptime },
+         scheduleTimeBox: @escaping TimeBoxScheduler = { queue, delay, action in
+             let work = DispatchWorkItem { queue.addOperation(action) }
+             DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: work)
+             return { work.cancel() }
+         }) {
+        self.sampleSeconds = sampleSeconds
+        self.clock = clock
+        self.scheduleTimeBox = scheduleTimeBox
         super.init()
         queue.maxConcurrentOperationCount = 1
-        let config = URLSessionConfiguration.ephemeral
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.timeoutIntervalForRequest = 20
-        session = URLSession(configuration: config, delegate: self, delegateQueue: queue)
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.timeoutIntervalForRequest = 20
+        session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
     }
 
     func start() {
@@ -60,14 +75,17 @@ final class SpeedTest: NSObject, ObservableObject {
         latencyMs = nil; downloadMbps = nil; uploadMbps = nil
         setPhase(.latency)
         queue.addOperation { [weak self] in
-            self?.measureLatency(remaining: 5, best: .greatestFiniteMagnitude)
+            guard let self else { return }
+            self.generation += 1
+            self.measureLatency(remaining: 5, best: .greatestFiniteMagnitude)
         }
     }
 
     func cancel() {
         queue.addOperation { [weak self] in
             guard let self else { return }
-            self.stopWork?.cancel(); self.stopWork = nil
+            self.generation += 1
+            self.cancelTimeBox?(); self.cancelTimeBox = nil
             self.task?.cancel(); self.task = nil
             self.kind = .none
             self.finished = true
@@ -89,38 +107,42 @@ final class SpeedTest: NSObject, ObservableObject {
             return
         }
         let url = URL(string: "\(host)/__down?bytes=0")!
-        let started = CFAbsoluteTimeGetCurrent()
-        session.dataTask(with: url) { [weak self] _, response, error in
+        let started = clock()
+        let generation = self.generation
+        task = session.dataTask(with: url) { [weak self] _, response, error in
             guard let self else { return }
-            let ok = error == nil && response is HTTPURLResponse
-            let rtt = (CFAbsoluteTimeGetCurrent() - started) * 1000
+            let rtt = (self.clock() - started) * 1000
             // Continue on the delegate queue so the transfer phase's `kind` is set
             // there too — otherwise the byte-counting delegate could miss it.
             self.queue.addOperation {
-                self.measureLatency(remaining: remaining - 1, best: ok ? min(best, rtt) : best)
+                guard self.generation == generation else { return }
+                guard error == nil, Self.isSuccessful(response) else {
+                    self.fail(error ?? URLError(.badServerResponse))
+                    return
+                }
+                self.measureLatency(remaining: remaining - 1, best: min(best, rtt))
             }
-        }.resume()
+        }
+        task?.resume()
     }
 
     // MARK: - Download / upload (delegate tasks), time-boxed
 
     private func startTransfer(_ transfer: Kind) {
-        queue.addOperation { [weak self] in
-            guard let self else { return }
-            self.kind = transfer
-            self.transferred = 0
-            self.finished = false
-            self.setPhase(transfer == .download ? .download : .upload)
-            self.startedAt = CFAbsoluteTimeGetCurrent()
+        generation += 1
+        kind = transfer
+        transferred = 0
+        finished = false
+        setPhase(transfer == .download ? .download : .upload)
+        startedAt = clock()
 
-            let work = DispatchWorkItem { [weak self] in
-                self?.queue.addOperation { self?.finishTransfer(timedOut: true) }
-            }
-            self.stopWork?.cancel()   // defensive: never leave a previous time box armed
-            self.stopWork = work
-            DispatchQueue.global().asyncAfter(deadline: .now() + self.sampleSeconds, execute: work)
-            self.beginChunk()
+        let generation = self.generation
+        cancelTimeBox?()   // defensive: never leave a previous time box armed
+        cancelTimeBox = scheduleTimeBox(queue, sampleSeconds) { [weak self] in
+            guard let self, self.generation == generation else { return }
+            self.finishTransfer(timedOut: true)
         }
+        beginChunk()
     }
 
     /// Starts one transfer. Download loops these (each capped under Cloudflare's
@@ -143,9 +165,9 @@ final class SpeedTest: NSObject, ObservableObject {
     private func finishTransfer(timedOut: Bool) {
         guard !finished else { return }
         finished = true
-        stopWork?.cancel(); stopWork = nil
+        cancelTimeBox?(); cancelTimeBox = nil
 
-        let elapsed = CFAbsoluteTimeGetCurrent() - startedAt
+        let elapsed = clock() - startedAt
         let bytes = transferred
         if timedOut { task?.cancel() }
         task = nil
@@ -163,17 +185,46 @@ final class SpeedTest: NSObject, ObservableObject {
             setPhase(.done)
         }
     }
+
+    private static func isSuccessful(_ response: URLResponse?) -> Bool {
+        guard let response = response as? HTTPURLResponse else { return false }
+        return (200...299).contains(response.statusCode)
+    }
+
+    private func fail(_ error: Error) {
+        generation += 1
+        finished = true
+        cancelTimeBox?(); cancelTimeBox = nil
+        task?.cancel(); task = nil
+        kind = .none
+        setPhase(.failed(error.localizedDescription))
+    }
 }
 
 extension SpeedTest: URLSessionDataDelegate {
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
+                    didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard dataTask === task, kind != .none, !finished else {
+            completionHandler(.cancel)
+            return
+        }
+        guard Self.isSuccessful(response) else {
+            fail(URLError(.badServerResponse))
+            completionHandler(.cancel)
+            return
+        }
+        completionHandler(.allow)
+    }
+
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        if kind == .download { transferred += Int64(data.count) }
+        if dataTask === task, kind == .download { transferred += Int64(data.count) }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     didSendBodyData bytesSent: Int64, totalBytesSent: Int64,
                     totalBytesExpectedToSend: Int64) {
-        if kind == .upload { transferred = totalBytesSent }
+        if task === self.task, kind == .upload { transferred = totalBytesSent }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -181,11 +232,7 @@ extension SpeedTest: URLSessionDataDelegate {
         // download chunk the time box just cancelled, arriving after upload began).
         guard task === self.task, kind != .none else { return }
         if let error = error as NSError?, error.code != NSURLErrorCancelled, transferred == 0 {
-            finished = true
-            stopWork?.cancel(); stopWork = nil
-            self.task = nil
-            kind = .none
-            setPhase(.failed(error.localizedDescription))
+            fail(error)
             return
         }
         if kind == .download, !finished {

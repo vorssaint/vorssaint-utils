@@ -9,6 +9,7 @@ struct PanelWindowLayoutView: View {
     @ObservedObject private var service = WindowLayoutService.shared
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
+    @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowLayoutHiddenActions) private var hiddenActionsRaw = ""
@@ -30,8 +31,17 @@ struct PanelWindowLayoutView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             intro
-            actionGroup(title: text.halves, actions: [.leftHalf, .rightHalf, .topHalf, .bottomHalf])
-            actionGroup(title: text.thirds, actions: [.leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds])
+            actionGroup(title: text.halves, actions: [.leftHalf, .rightHalf, .topHalf, .bottomHalf, .centerHalf])
+            actionGroup(title: text.thirds, actions: [
+                .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
+                .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
+            ])
+            actionGroup(title: text.quarterRows, actions: [
+                .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
+            ])
+            actionGroup(title: text.quarterColumns, actions: [
+                .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
+            ])
             actionGroup(title: text.sixths, actions: [
                 .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
@@ -112,6 +122,16 @@ struct PanelWindowLayoutView: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
+            if edgeSnapEnabled {
+                WindowEdgeSnapZonePicker(disabledZonesStorage: $edgeSnapDisabledZones,
+                                         text: text,
+                                         resetTitle: l10n.s.shortcutReset,
+                                         compact: true)
+                    .onChange(of: edgeSnapDisabledZones) { _, _ in
+                        WindowLayoutService.shared.syncWithPreferences()
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
             if systemTilingEnabled {
                 Label(text.edgeSnapSystemConflict, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 9.5))

@@ -26,7 +26,9 @@ final class FinderRenameService {
     private var shouldStopTapThread = false
     private var pendingStartAfterStop = false
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.finderRenameShortcut,
@@ -34,7 +36,13 @@ final class FinderRenameService {
         routeLock.withLock { routeShortcut = shortcut }
         let enabled = AppFeature.finderRename.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderRenameEnabled)
-        if enabled, Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(featureWanted: enabled,
+                                               accessibilityGranted: AXIsProcessTrusted(),
+                                               sessionIsActive: SessionActivity.shared.isActive) {
+            // This tap is tail-append, so the WindowServer answers a symbolic
+            // hotkey long before the key reaches it: on a taken-over key the
+            // claim is what makes the key arrive at all.
+            SystemShortcutTakeover.claim(DefaultsKey.finderRenameShortcut, shortcut: shortcut)
             installTap()
         } else {
             removeTap()
@@ -63,6 +71,10 @@ final class FinderRenameService {
     }
 
     private func removeTap() {
+        // The claim goes with the tap, so a key held for a rename that is no
+        // longer listening — switched off, or suspended for an uninstall —
+        // goes back to macOS.
+        SystemShortcutTakeover.release(DefaultsKey.finderRenameShortcut)
         let snapshot = lifecycleLock.withLock {
             () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
             shouldStopTapThread = true
@@ -112,6 +124,9 @@ final class FinderRenameService {
                 userInfo: Unmanaged.passUnretained(self).toOpaque()
             ) else {
                 _ = clearEventTapThread()
+                // Without a tap nobody answers a taken-over key, so give it
+                // back rather than leaving the shortcut dead.
+                DispatchQueue.main.async { SystemShortcutTakeover.release(DefaultsKey.finderRenameShortcut) }
                 return
             }
 
@@ -131,6 +146,7 @@ final class FinderRenameService {
 
             CGEvent.tapEnable(tap: tap, enable: false)
             CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            CFMachPortInvalidate(tap)
             if clearEventTapThread() { installTap() }
         }
     }
@@ -154,7 +170,11 @@ final class FinderRenameService {
     private func route(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             let currentTap = lifecycleLock.withLock { shouldStopTapThread ? nil : tap }
-            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let currentTap {
+                CGEvent.tapEnable(tap: currentTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             return Unmanaged.passUnretained(event)
         }
         guard type == .keyDown else { return Unmanaged.passUnretained(event) }

@@ -26,12 +26,16 @@ struct DiskDeviceReading: Identifiable, Equatable {
     var id: String
     var name: String
     var mountPath: String
+    /// Stable across renames and remounts, so the eject exclusion list matches
+    /// on it as well as on the name and the mount path.
+    var volumeUUID: String?
     var bsdName: String?
     var wholeDisk: String?
     var ioCounterID: String?
     var fileSystem: String?
     var totalBytes: UInt64
     var freeBytes: UInt64
+    var purgeableBytes: UInt64?
     var usedBytes: UInt64
     var isInternal: Bool
     var isRemovable: Bool
@@ -53,6 +57,28 @@ struct DiskDeviceReading: Identifiable, Equatable {
 
     var ejectBSDName: String? {
         wholeDisk ?? bsdName
+    }
+}
+
+enum DiskMenuBarStyle: String, CaseIterable {
+    case percent, free, used
+
+    static let defaultsKey = DefaultsKey.menuBarDiskStyle
+
+    static var current: DiskMenuBarStyle {
+        DiskMenuBarStyle(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .percent
+    }
+
+    var showsPercentage: Bool { self == .percent }
+
+    var minimumValue: String { showsPercentage ? "100%" : "1000 GB" }
+
+    func value(for disk: DiskDeviceReading) -> String {
+        switch self {
+        case .percent: return MetricFormat.percent(disk.usedFraction)
+        case .free: return MetricFormat.diskBytes(disk.freeBytes)
+        case .used: return MetricFormat.diskBytes(disk.usedBytes)
+        }
     }
 }
 

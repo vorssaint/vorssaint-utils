@@ -20,6 +20,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -28,6 +29,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -56,7 +58,7 @@ extension FinderRenameFeatureStrings {
         hubTitle: "Yeniden adlandırma kısayolu",
         hubDescription: "Seçili dosya veya klasörü seçtiğiniz bir kısayolla yeniden adlandırın.",
         enableLabel: "Yeniden adlandırmak için kısayol kullan",
-        caption: "Kısayol yalnızca Finder'da çalışır ve metin alanlarına dokunmaz. F2 normal tuş olarak çalışır; parlaklığı denetliyorsa Fn-F2 kullanın veya başka bir kısayol seçin.",
+        caption: "Kısayol yalnızca Finder’da çalışır ve metin alanlarına dokunmaz. F2 normal tuş olarak çalışır; parlaklığı denetliyorsa Fn-F2 kullanın veya başka bir kısayol seçin.",
         shortcutLabel: "Yeniden adlandır"
     )
 
@@ -78,6 +80,15 @@ extension FinderRenameFeatureStrings {
         shortcutLabel: "Renombrar"
     )
 
+    static let sk = FinderRenameFeatureStrings(
+        pageTitle: "Skratky Finderu",
+        hubTitle: "Skratka na premenovanie",
+        hubDescription: "Premenujte vybraný súbor alebo priečinok skratkou, ktorú si zvolíte.",
+        enableLabel: "Použiť skratku na premenovanie",
+        caption: "Skratka funguje iba vo Finderi a nezasahuje do textových polí. F2 funguje ako bežný kláves, na klávesniciach, kde ovláda jas, použite Fn-F2 alebo zvoľte inú skratku.",
+        shortcutLabel: "Premenovať"
+    )
+
     static let de = FinderRenameFeatureStrings(
         pageTitle: "Finder-Kurzbefehle",
         hubTitle: "Kurzbefehl zum Umbenennen",
@@ -92,16 +103,16 @@ extension FinderRenameFeatureStrings {
         hubTitle: "Raccourci pour renommer",
         hubDescription: "Renommez le fichier ou le dossier sélectionné avec le raccourci de votre choix.",
         enableLabel: "Utiliser un raccourci pour renommer",
-        caption: "Le raccourci agit uniquement dans le Finder et laisse les champs de texte intacts. F2 fonctionne comme une touche normale ; si elle règle la luminosité, utilisez Fn-F2 ou choisissez un autre raccourci.",
+        caption: "Le raccourci agit uniquement dans le Finder et laisse les champs de texte intacts. F2 fonctionne comme une touche normale\u{00A0}; si elle règle la luminosité, utilisez Fn-F2 ou choisissez un autre raccourci.",
         shortcutLabel: "Renommer"
     )
 
     static let it = FinderRenameFeatureStrings(
         pageTitle: "Abbreviazioni del Finder",
         hubTitle: "Abbreviazione per rinominare",
-        hubDescription: "Rinomina il file o la cartella selezionata con un'abbreviazione a tua scelta.",
-        enableLabel: "Usa un'abbreviazione per rinominare",
-        caption: "L'abbreviazione funziona solo nel Finder e non interferisce con i campi di testo. F2 funziona come tasto normale; se regola la luminosità, usa Fn-F2 o scegli un'altra abbreviazione.",
+        hubDescription: "Rinomina il file o la cartella selezionata con un’abbreviazione a tua scelta.",
+        enableLabel: "Usa un’abbreviazione per rinominare",
+        caption: "L’abbreviazione funziona solo nel Finder e non interferisce con i campi di testo. F2 funziona come tasto normale; se regola la luminosità, usa Fn-F2 o scegli un’altra abbreviazione.",
         shortcutLabel: "Rinomina"
     )
 
@@ -148,5 +159,13 @@ extension FinderRenameFeatureStrings {
         enableLabel: "使用快捷鍵重新命名",
         caption: "快捷鍵只會在 Finder 生效，不會影響文字欄位。F2 會當作一般按鍵使用；如果它用來調校亮度，請按 Fn-F2 或選擇其他快捷鍵。",
         shortcutLabel: "重新命名"
+    )
+    static let uk = FinderRenameFeatureStrings(
+        pageTitle: "Клавіатурні скорочення Finder",
+        hubTitle: "Клавіатурне скорочення для перейменування",
+        hubDescription: "Перейменуйте обраний файл або папку за обраним поєднанням клавіш.",
+        enableLabel: "Використовувати клавіатурне скорочення для перейменування",
+        caption: "Клавіатурне скорочення діє лише у Finder та не чіпає текстові поля. F2 працює як звичайна клавіша; на клавіатурах, де вона керує яскравістю, використовуйте Fn-F2 або оберіть інше клавіатурне скорочення.",
+        shortcutLabel: "Перейменувати"
     )
 }

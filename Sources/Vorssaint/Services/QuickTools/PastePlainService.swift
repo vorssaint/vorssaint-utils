@@ -28,7 +28,8 @@ final class PastePlainService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.pastePlainEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.pastePlainShortcut,
                                             fallback: .pastePlainDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.pastePlainShortcut)
     }
 
     func suspend() {
@@ -48,9 +49,15 @@ final class PastePlainService: ObservableObject {
             }
             return
         }
-        let pasteboard = NSPasteboard.general
-        guard let plain = Self.plainText(from: pasteboard), !plain.isEmpty else { return }
+        // Promised content renders when read, so a busy source app would hold
+        // the main thread here; the lane answers back on main when it can.
+        GeneralPasteboardAccess.shared.async({ Self.plainText(from: .general) }) { [weak self] plain in
+            guard let self, let plain, !plain.isEmpty else { return }
+            self.pastePlain(plain)
+        }
+    }
 
+    private func pastePlain(_ plain: String) {
         // An app that ships its own matching-style paste does this better
         // than any synthesized ⌘V: the destination decides the typing
         // attributes (a stripped string pasted normally can leave the

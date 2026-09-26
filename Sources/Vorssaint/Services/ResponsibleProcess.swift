@@ -36,11 +36,19 @@ enum ResponsibleProcess {
     /// itself (browser audio helpers, issue #256). Nil when no ancestor is
     /// a regular app — daemons and login items stay unlisted.
     static func regularAppOwner(of pid: pid_t) -> NSRunningApplication? {
-        MixerRoutingSupport.owningRegularAppPid(
-            responsiblePid: owner(of: pid),
-            isRegularApp: { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular },
-            parentPid: parent(of:)
-        ).flatMap(NSRunningApplication.init(processIdentifier:))
+        let responsible = owner(of: pid)
+        let isRegular: (pid_t) -> Bool = { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular }
+        let parent: (pid_t) -> pid_t = parent(of:)
+        let resolved = MixerRoutingSupport.owningRegularAppPid(
+            responsiblePid: responsible,
+            isRegularApp: isRegular,
+            parentPid: parent
+        ) ?? (responsible != pid ? MixerRoutingSupport.owningRegularAppPid(
+            responsiblePid: pid,
+            isRegularApp: isRegular,
+            parentPid: parent
+        ) : nil)
+        return resolved.flatMap(NSRunningApplication.init(processIdentifier:))
     }
 
     private static func parent(of pid: pid_t) -> pid_t {
@@ -60,6 +68,14 @@ enum ResponsibleProcess {
         var buffer = [CChar](repeating: 0, count: 256)
         if proc_name(pid, &buffer, UInt32(buffer.count)) > 0 {
             let name = String(cString: buffer)
+            if !name.isEmpty { return name }
+        }
+        // macOS 27 refuses proc_name for another user's process, such as
+        // WindowServer or a daemon, and the GPU list showed "pid 100" for
+        // them. Their executable path stays readable.
+        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        if proc_pidpath(pid, &path, UInt32(path.count)) > 0 {
+            let name = (String(cString: path) as NSString).lastPathComponent
             if !name.isEmpty { return name }
         }
         return fallback.trimmingCharacters(in: .whitespaces)

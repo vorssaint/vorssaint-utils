@@ -97,8 +97,13 @@ struct CommandBarQueryMemory: Equatable {
     /// What this row is worth for exactly these letters. Nothing at all for a
     /// row that was never chosen after them.
     func boost(query: String, id: String) -> Int {
-        let prefix = CommandBarSearch.normalized(query)
-        guard !prefix.isEmpty, let pick = picks[prefix]?[id] else { return 0 }
+        boost(normalizedQuery: CommandBarSearch.normalized(query), id: id)
+    }
+
+    /// The same answer for letters the caller has already folded, so a pass
+    /// over the pool folds the query once instead of once per row.
+    func boost(normalizedQuery: String, id: String) -> Int {
+        guard !normalizedQuery.isEmpty, let pick = picks[normalizedQuery]?[id] else { return 0 }
         return min(pick.count, 3) * (Self.maximumBoost / 3)
     }
 

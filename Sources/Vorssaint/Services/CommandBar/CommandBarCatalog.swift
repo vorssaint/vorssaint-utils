@@ -50,6 +50,7 @@ struct CommandBarEntry: Identifiable {
     let answerValue: String?
     /// The calculator's row: pinned above everything and styled as a result.
     let isAnswer: Bool
+    /// Only durable identities may retain habits; window IDs and PIDs are reused.
     let countsUsage: Bool
     /// The text the ranking reads instead of the title, for the rows whose
     /// title carries something that is not a word. An emoji row shows the
@@ -71,6 +72,8 @@ struct CommandBarEntry: Identifiable {
     /// rows the bar makes up have no such place, and saying so here is what
     /// keeps ⌘Return and the actions list from ever disagreeing about it.
     let revealPath: String?
+    /// Selection must succeed before the bar replaces search with a review.
+    let uninstallAppURL: URL?
     let run: (Int?) -> Void
 
     /// Whether this row can be shown where it lives. One rule, read by the
@@ -84,6 +87,7 @@ struct CommandBarEntry: Identifiable {
         if confirmationPrompt != nil { return true }
         if numericRange != nil, !numericIsOptional { return true }
         if case .needsSetup = trouble { return true }
+        if uninstallAppURL != nil { return true }
         return false
     }
 
@@ -97,7 +101,8 @@ struct CommandBarEntry: Identifiable {
                         confirmationPrompt: confirmationPrompt, answerValue: answerValue,
                         isAnswer: isAnswer, countsUsage: countsUsage,
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
-                        takesArgument: takesArgument, revealPath: revealPath, run: run)
+                        takesArgument: takesArgument, revealPath: revealPath,
+                        uninstallAppURL: uninstallAppURL, run: run)
     }
 
     /// Glyph rows get a tinted plate behind the icon; real app, file and
@@ -128,6 +133,7 @@ struct CommandBarEntry: Identifiable {
          keepsBarOpen: Bool = false,
          takesArgument: Bool = false,
          revealPath: String? = nil,
+         uninstallAppURL: URL? = nil,
          run: @escaping (Int?) -> Void) {
         self.id = id
         self.stableKey = stableKey ?? id
@@ -149,6 +155,7 @@ struct CommandBarEntry: Identifiable {
         self.keepsBarOpen = keepsBarOpen
         self.takesArgument = takesArgument
         self.revealPath = revealPath
+        self.uninstallAppURL = uninstallAppURL
         self.run = run
     }
 }
@@ -192,6 +199,7 @@ enum CommandBarCatalog {
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(L10n.shared.language).title
         case .monitor: return hub.groupMonitor
         }
     }
@@ -239,6 +247,19 @@ enum CommandBarCatalog {
                           key: DefaultsKey.scrollInverterHorizontalEnabled,
                           name: s.invertHorizontalScroll,
                           id: "toggle.scrollInverter.horizontal"),
+                ]
+            }
+            if feature == .mouseButtonShortcuts {
+                let buttons = FeatureStrings.mouseButtons(language)
+                return [
+                    entry(for: feature,
+                          key: DefaultsKey.mouseButtonShortcutsEnabled,
+                          name: feature.hubTitle(s, hub: hub),
+                          id: "toggle.mouseButtonShortcuts"),
+                    entry(for: feature,
+                          key: DefaultsKey.mouseSpacesGestureEnabled,
+                          name: buttons.spacesEnableLabel,
+                          id: "toggle.mouseButtonShortcuts.spacesGesture"),
                 ]
             }
             // Two keys means two different switches; which one a single row
@@ -347,20 +368,31 @@ enum CommandBarCatalog {
                 run: { _ in afterBeat { ColorSamplerService.shared.pick() } }))
         }
         if AppFeature.clipboardHistory.isAvailable {
-            let clipboardTitle = FeatureStrings.clipboard(language).title
+            let clipboard = FeatureStrings.clipboard(language)
             let keepsHistory = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
             let canUseHistory = CommandBarClipboardAccess.canUseHistory(
                 captureEnabled: keepsHistory,
                 hasSavedItems: !ClipboardHistoryService.shared.entries.isEmpty)
             entries.append(CommandBarEntry(
                 id: "action.clipboardWindow",
-                title: clipboardTitle,
-                subtitle: area(.clipboardHistory, under: clipboardTitle),
+                title: clipboard.title,
+                subtitle: area(.clipboardHistory, under: clipboard.title),
                 icon: .symbol("doc.on.clipboard"),
                 shortcut: keepsHistory ? roleShortcut(.clipboard) : nil,
                 trouble: canUseHistory ? nil
-                    : .needsSetup(featureTitle: clipboardTitle, page: .clipboard),
+                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
                 run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
+            entries.append(CommandBarEntry(
+                id: "action.clipboardClearRecent",
+                title: clipboard.clearRecent,
+                subtitle: area(.clipboardHistory),
+                keywords: [clipboard.title, ClipboardFeatureStrings.enUS.title,
+                           ClipboardFeatureStrings.enUS.clearRecent].joined(separator: " "),
+                icon: .symbol("trash"),
+                trouble: canUseHistory ? nil
+                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
+                confirmationPrompt: clipboard.clearRecent,
+                run: { _ in ClipboardHistoryService.shared.clearRecent() }))
         }
         if AppFeature.textSnippets.isAvailable {
             entries.append(CommandBarEntry(
@@ -431,21 +463,17 @@ enum CommandBarCatalog {
                 icon: .symbol(awake.isActive ? "bolt.fill" : "bolt"),
                 shortcut: roleShortcut(.keepAwake),
                 isActive: awake.isActive,
-                // A typed number is a duration in minutes; without one the row
-                // is the plain on and off switch.
-                numericRange: 1...480,
-                numericIsOptional: true,
-                run: { minutes in
-                    if let minutes {
-                        KeepAwakeManager.shared.activate(minutes: minutes)
-                    } else {
-                        KeepAwakeManager.shared.toggle()
-                    }
-                }))
+                // Keep awake only honours the preset durations and turns any
+                // other number into an indefinite session, so the plain row
+                // takes no number and each preset has a row of its own.
+                run: { _ in KeepAwakeManager.shared.toggle() }))
             let durations: [(String, String, Int)] = [
+                ("action.keepAwake.15", s.minutes15, 15),
                 ("action.keepAwake.30", s.minutes30, 30),
                 ("action.keepAwake.60", s.hour1, 60),
                 ("action.keepAwake.120", s.hours2, 120),
+                ("action.keepAwake.240", s.hours4, 240),
+                ("action.keepAwake.480", s.hours8, 480),
             ]
             for (id, label, minutes) in durations {
                 entries.append(CommandBarEntry(
@@ -659,6 +687,32 @@ enum CommandBarCatalog {
                 subtitle: area(.uninstaller, under: s.uninstallerName),
                 icon: .symbol("trash"),
                 run: { _ in openSettings(at: .uninstaller) }))
+            if UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled) {
+                entries.append(CommandBarEntry(
+                    id: "uninstall.browse",
+                    title: s.uninstallerCommandBarBrowseTitle,
+                    subtitle: s.uninstallerName,
+                    icon: .symbol("trash"),
+                    // A habit boost on this row could otherwise outweigh the
+                    // Finder selection's fixed rank bias after enough clicks,
+                    // putting the wrong "Uninstall" row first; a plain
+                    // navigation entry has no business competing on habit.
+                    countsUsage: false,
+                    keepsBarOpen: true,
+                    run: { _ in
+                        let service = CommandBarService.shared
+                        service.query = ""
+                        service.setCategory(.uninstallApps)
+                    }))
+                entries.append(CommandBarEntry(
+                    id: "uninstall.finder",
+                    title: s.uninstallerCommandBarFinderTitle,
+                    subtitle: s.uninstallerName,
+                    icon: .symbol("app.badge"),
+                    countsUsage: false,
+                    keepsBarOpen: true,
+                    run: { _ in CommandBarService.shared.uninstallFinderSelection() }))
+            }
         }
         if AppFeature.quickLauncher.isAvailable {
             entries.append(CommandBarEntry(
@@ -704,6 +758,12 @@ enum CommandBarCatalog {
             subtitle: feedback.commandSubtitle,
             icon: .symbol("lightbulb"),
             run: { _ in afterBeat { appDelegate()?.openFeedbackWindow(kind: .feature) } }))
+        entries.append(CommandBarEntry(
+            id: "action.restartApp",
+            title: String(format: bar.restartAppFormat, AppInfo.name),
+            subtitle: bar.sourceActions,
+            icon: .symbol("arrow.clockwise"),
+            run: { _ in FeatureRuntime.shared.relaunchApp() }))
         // What people try on day one: put the Mac to sleep, restart it, turn
         // Wi-Fi off. Everything but sleep confirms on the row first.
         for action in CommandBarExtras.PowerAction.allCases {
@@ -732,9 +792,7 @@ enum CommandBarCatalog {
                 keywords: "wifi wi-fi",
                 icon: .symbol(wifiOn ? "wifi.slash" : "wifi"),
                 isActive: wifiOn,
-                run: { _ in
-                    if !CommandBarExtras.setWiFiPower(!wifiOn) { NSSound.beep() }
-                }))
+                run: { _ in CommandBarExtras.setWiFiPower(!wifiOn) }))
         }
 
         // The folders every Mac has. A fixed set of destinations, never a
@@ -773,21 +831,39 @@ enum CommandBarCatalog {
     private static func settingsEntries(_ s: Strings,
                                         language: AppLanguage,
                                         bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
-        SettingsDirectory.sections(s, language: language)
-            .flatMap(\.items)
-            .filter { item in
-                !pagesCoveredByActions.contains(item.page)
-                    && FeatureVisibilitySupport.isPageVisible(item.page) { $0.isAvailable }
+        SettingsDirectory.searchItems(s, language: language).compactMap { item in
+            let id: String
+            switch item.id {
+            case .page(let page):
+                guard !pagesCoveredByActions.contains(page),
+                      FeatureVisibilitySupport.isPageVisible(page, isAvailable: { $0.isAvailable })
+                else { return nil }
+                id = "settings.\(page)"
+            case .feature(let feature):
+                guard feature.isAvailable,
+                      FeatureVisibilitySupport.isPageVisible(
+                        item.destination.page, isAvailable: { $0.isAvailable })
+                else { return nil }
+                id = "settings.feature.\(feature.rawValue)"
+            case .setting(let anchor):
+                guard item.feature.map(\.isAvailable) ?? true,
+                      FeatureVisibilitySupport.isPageVisible(
+                        item.destination.page, isAvailable: { $0.isAvailable })
+                else { return nil }
+                id = "settings.setting.\(anchor.rawValue)"
             }
-            .map { item in
-                CommandBarEntry(
-                    id: "settings.\(item.page)",
-                    title: item.title,
-                    subtitle: s.settingsTitle,
-                    keywords: item.keywords.joined(separator: " "),
-                    icon: .symbol(item.icon),
-                    run: { _ in openSettings(at: item.page) })
-            }
+            return CommandBarEntry(
+                id: id,
+                title: item.title,
+                subtitle: s.settingsTitle,
+                keywords: item.keywords.joined(separator: " "),
+                icon: .symbol(item.icon),
+                run: { _ in
+                    let routed = SettingsSearchSupport.route(for: item)
+                    openSettings(at: routed.destination, targetFeature: routed.targetFeature,
+                                 sidebarFeature: item.feature)
+                })
+        }
     }
 
     // MARK: - Files
@@ -930,7 +1006,7 @@ enum CommandBarCatalog {
             return CommandBarEntry(
                 id: "menu.\(index).\(item.title)",
                 title: item.title,
-                subtitle: path.isEmpty ? appName : "\(appName) › \(path)",
+                subtitle: CommandBarMenuPath.crumb(appName: appName, path: item.path),
                 keywords: bar.kindMenu + " " + appName + " " + path,
                 icon: .symbol("filemenu.and.selection"),
                 menuShortcut: item.shortcut,
@@ -962,6 +1038,7 @@ enum CommandBarCatalog {
                 keywords: name,
                 icon: app.bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("xmark.circle"),
                 confirmationPrompt: String(format: bar.quitConfirmFormat, name),
+                countsUsage: app.bundleIdentifier != nil,
                 run: { _ in
                     guard let running = NSRunningApplication(processIdentifier: pid),
                           !running.isTerminated else {
@@ -992,10 +1069,61 @@ enum CommandBarCatalog {
                 keywords: process.path,
                 icon: process.bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("xmark.octagon"),
                 confirmationPrompt: String(format: killStrings.confirmKillFormat, process.name),
+                countsUsage: false,
                 run: { _ in
                     KillProcessService.shared.kill(process, force: false)
                 })
         }
+    }
+
+    /// One row per installed app, offered only inside the "Uninstall
+    /// Application" category browse - never in the flat search pool, since a
+    /// few hundred destructive rows have no business sitting in a list
+    /// someone might arrow through by accident. Selecting one opens the full
+    /// leftover-files review, the same as picking the app straight from
+    /// Finder does.
+    static func uninstallEntries(_ apps: [InstalledApps.InstalledApp],
+                                 bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        guard AppFeature.uninstaller.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
+        else { return [] }
+        let ownBundleID = Bundle.main.bundleIdentifier
+        return apps.filter { !$0.isSystem && $0.bundleID != ownBundleID }.map { app in
+            CommandBarEntry(
+                id: "uninstall.\(app.id)",
+                stableKey: app.bundleID.map { "uninstall.bundle.\($0)" } ?? "uninstall.\(app.id)",
+                title: app.name,
+                subtitle: bar.kindApp,
+                keywords: app.alternateNames.joined(separator: " "),
+                icon: .appIcon(path: app.url.path),
+                revealPath: app.url.path,
+                uninstallAppURL: app.url,
+                run: { _ in })
+        }
+    }
+
+    /// One row for whatever single app is selected in Finder's Applications
+    /// folder, so uninstalling it never needs the bar's own picker first.
+    static func uninstallSelectionEntries(urls: [URL], automationDenied: Bool) -> [CommandBarEntry] {
+        guard AppFeature.uninstaller.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
+              urls.count == 1, let url = urls.first,
+              url.pathExtension.lowercased() == "app",
+              InstalledApps.isInApplicationsFolder(url),
+              !InstalledApps.isSystemApplication(at: url)
+        else { return [] }
+        let bar = FeatureStrings.commandBar(L10n.shared.language)
+        var name = FileManager.default.displayName(atPath: url.path)
+        if name.hasSuffix(".app") { name.removeLast(4) }
+        return [CommandBarEntry(
+            id: "selection.uninstall",
+            title: String(format: bar.uninstallAppFormat, name),
+            subtitle: L10n.shared.s.uninstallerName,
+            icon: .appIcon(path: url.path),
+            trouble: automationDenied ? .needsPermission : nil,
+            revealPath: url.path,
+            uninstallAppURL: url,
+            run: { _ in })]
     }
 
     /// One row per open window, so a person with six windows of the same app
@@ -1019,9 +1147,17 @@ enum CommandBarCatalog {
                 keywords: bar.kindWindow + " " + appName,
                 icon: NSRunningApplication(processIdentifier: pid)?.bundleURL
                     .map { .appIcon(path: $0.path) } ?? .symbol("macwindow"),
+                countsUsage: false,
                 run: { _ in
+                    // Capture before the beat: the bar never activates, so this
+                    // is still the app in front, and a switch during the delay
+                    // must not become the handoff source for a later reclaim.
+                    let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
                     afterBeat(0.1) {
-                        WindowActivator.activate(pid: pid, windowID: windowID, appName: appName)
+                        WindowActivator.activate(pid: pid,
+                                                 windowID: windowID,
+                                                 appName: appName,
+                                                 handoffSourcePID: handoffSourcePID)
                     }
                 })
         }
@@ -1035,7 +1171,7 @@ enum CommandBarCatalog {
                                     bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
         var entries: [CommandBarEntry] = []
 
-        if let battery = SystemInfo.batterySnapshot() {
+        if let battery = cachedBattery {
             let value = "\(battery.percent)%"
             let detail = battery.isCharging
                 ? bar.answerBatteryCharging
@@ -1051,7 +1187,7 @@ enum CommandBarCatalog {
         }
 
         if AppFeature.monitorMemory.isAvailable,
-           let memory = SystemInfo.memoryUsage(), memory.total > 0 {
+           let memory = cachedMemory, memory.total > 0 {
             let metric = Defaults.sanitizedMonitorMemoryMetric(
                 UserDefaults.standard.string(forKey: DefaultsKey.monitorMemoryMetric) ?? "")
             let selected = MetricFormat.selectedMemory(used: memory.used,
@@ -1127,6 +1263,13 @@ enum CommandBarCatalog {
     /// one lands, which simply means the row is not offered yet.
     static var cachedBootVolumeSpace: (free: UInt64, total: UInt64)?
 
+    /// The battery and the memory pressure are read the same way and for the
+    /// same reason: both cross into the kernel (IOKit power sources, the mach
+    /// VM statistics), and the bar opens on a keystroke.
+    static var cachedBattery: BatteryInfo?
+    static var cachedMemory: (used: UInt64, appUsed: UInt64, total: UInt64,
+                              compressed: UInt64, cached: UInt64, swapUsed: UInt64?)?
+
     static func readBootVolumeSpace() -> (free: UInt64, total: UInt64)? {
         let url = URL(fileURLWithPath: "/")
         guard let values = try? url.resourceValues(forKeys: [
@@ -1147,27 +1290,33 @@ enum CommandBarCatalog {
     private static func copyAnswer(_ value: String) {
         GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(value, forType: .string)
-        }, then: {
-            QuickToolHUD.show(icon: "doc.on.doc", message: value)
+            return NSPasteboard.general.setString(value, forType: .string)
+        }, then: { copied in
+            QuickToolHUD.show(icon: copied ? "doc.on.doc" : "exclamationmark.circle",
+                              message: copied ? value : FeatureStrings.commandBar(L10n.shared.language).copyFailed)
         })
     }
 
     // MARK: - Emoji
 
     /// Emoji rows, which type themselves at the caret the way a snippet does.
-    /// Built once and reused: the names come from Unicode and never change.
+    /// The names come from Unicode and never change.
+    /// The tone is read here, because the bar has to rebuild this on every
+    /// opening and a chosen tone has to arrive with it.
     static func emojiEntries(bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
-        CommandBarEmoji.emoji.map { emoji in
-            CommandBarEntry(
-                id: "emoji.\(emoji.character)",
-                title: emoji.character + "  " + emoji.name,
+        let tone = CommandBarPreferences.skinTone(
+            from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "")
+        return CommandBarEmoji.emoji.map { emoji in
+            let character = CommandBarEmoji.applying(tone, to: emoji.character)
+            return CommandBarEntry(
+                id: CommandBarPreferences.emojiRowID(identity: emoji.identity),
+                title: character + "  " + emoji.name,
                 subtitle: bar.kindEmoji,
-                keywords: emoji.name + " " + bar.kindEmoji,
+                keywords: emoji.name + " " + emoji.keywords + " " + bar.kindEmoji,
                 icon: .symbol("face.smiling"),
                 trouble: Permissions.shared.accessibility ? nil : .needsPermission,
                 matchTitle: emoji.name,
-                run: { _ in typeAtCursor(emoji.character) })
+                run: { _ in typeAtCursor(character) })
         }
     }
 
@@ -1272,6 +1421,18 @@ enum CommandBarCatalog {
         GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.string(forType: .string) ?? ""
         }, then: body)
+    }
+
+    /// A global shortcut pressed on a script marked as running directly: the
+    /// file runs for its side effects, with no argument and nothing on
+    /// screen — not the bar, not a result to copy. A failure beeps, the way
+    /// an app shortcut that would not open does.
+    static func runScriptDirectly(_ link: CommandBarLink) {
+        let path = (link.destination as NSString).expandingTildeInPath
+        DispatchQueue.global(qos: .userInitiated).async {
+            let (status, _) = Shell.run(path, [], maxOutputBytes: 64 * 1024)
+            if status != 0 { DispatchQueue.main.async { NSSound.beep() } }
+        }
     }
 
     /// Return pressed before a script's debounced run has answered yet: runs
@@ -1427,10 +1588,14 @@ enum CommandBarCatalog {
     /// Enter copies it.
     static func answerEntry(for query: String, bar: CommandBarFeatureStrings) -> CommandBarEntry? {
         if let result = CommandBarMath.evaluate(query) {
+            var expression = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if expression.hasSuffix("=") { expression.removeLast() }
+            let completed = result.closingBrackets.isEmpty ? ""
+                : expression.trimmingCharacters(in: .whitespaces) + result.closingBrackets + " · "
             return CommandBarEntry(
                 id: "math.result",
                 title: result.formatted,
-                subtitle: bar.copyHint,
+                subtitle: completed + bar.copyHint,
                 icon: .symbol("equal.square"),
                 isAnswer: true,
                 countsUsage: false,
@@ -1548,7 +1713,14 @@ enum CommandBarCatalog {
     }
 
     private static func openSettings(at page: SettingsPage) {
-        SettingsRouter.shared.page = page
+        openSettings(at: FeatureSettingsDestination(page))
+    }
+
+    private static func openSettings(at destination: FeatureSettingsDestination,
+                                     targetFeature: AppFeature? = nil,
+                                     sidebarFeature: AppFeature? = nil) {
+        SettingsRouter.shared.request(destination, targetFeature: targetFeature,
+                                      sidebarFeature: sidebarFeature)
         appDelegate()?.openSettingsWindow()
     }
 
@@ -1584,32 +1756,26 @@ enum CommandBarCatalog {
     }
 
     /// Brightness lands on the display under the pointer, the screen where
-    /// the bar was just used. The routes may need one refresh when the panel
-    /// or Settings never opened this session.
-    private static func applyBrightness(percent: Int, retried: Bool = false) {
+    /// the bar was just used, and never on another one. The routes may need
+    /// one refresh when the panel or Settings never opened this session, and
+    /// the retry looks for that same display wherever the pointer went since.
+    private static func applyBrightness(percent: Int, display: CGDirectDisplayID? = nil) {
         let service = BrightnessService.shared
         let value = Double(percent) / 100
-        if let display = pointerDisplay(in: service.displays) {
-            service.setBrightness(value, for: display.id, showOSD: true)
+        let pointer = NSEvent.mouseLocation
+        let target = display ?? NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+            .flatMap { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }
+        if let id = target, service.displays.contains(where: { $0.id == id }) {
+            service.setBrightness(value, for: id, showOSD: true)
             return
         }
-        guard !retried else {
+        guard display == nil, let target else {
             NSSound.beep()
             return
         }
         service.refresh()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            applyBrightness(percent: percent, retried: true)
+            applyBrightness(percent: percent, display: target)
         }
-    }
-
-    private static func pointerDisplay(in displays: [BrightnessDisplay]) -> BrightnessDisplay? {
-        guard !displays.isEmpty else { return nil }
-        let pointerScreen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
-        if let number = pointerScreen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
-           let match = displays.first(where: { $0.id == number.uint32Value }) {
-            return match
-        }
-        return displays.first
     }
 }

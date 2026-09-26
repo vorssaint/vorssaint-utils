@@ -328,6 +328,13 @@ enum PeripheralBatterySupport {
     }
 }
 
+/// A cache keeps the time of its observation, including per-device sources:
+/// refreshing HID does not make a cached Bluetooth percentage current.
+struct PeripheralBatterySample: Equatable {
+    var devices: [PeripheralBatteryDevice] = []
+    var observedAt: [String: TimeInterval] = [:]
+}
+
 enum PeripheralBatteryRefreshPolicy {
     static func shouldStartBluetoothRefresh(now: TimeInterval,
                                             lastStartedAt: TimeInterval,

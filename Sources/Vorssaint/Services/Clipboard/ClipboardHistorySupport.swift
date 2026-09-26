@@ -1,7 +1,70 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
+
+/// Main-thread capture admission. Expiring a result does not release the
+/// actual queued read; stop/start must not release it either.
+struct ClipboardHistoryCaptureState {
+    private(set) var generation = 0
+    private(set) var inFlight = false
+    private(set) var needsBaseline = true
+
+    mutating func restart() {
+        generation &+= 1
+        needsBaseline = true
+    }
+
+    mutating func invalidate() {
+        generation &+= 1
+    }
+
+    mutating func begin() -> Int? {
+        guard !inFlight else { return nil }
+        inFlight = true
+        generation &+= 1
+        return generation
+    }
+
+    func accepts(_ token: Int) -> Bool {
+        token == generation
+    }
+
+    mutating func expire(_ token: Int) {
+        if accepts(token) { invalidate() }
+    }
+
+    mutating func finish() {
+        inFlight = false
+    }
+
+    mutating func didBaseline() {
+        needsBaseline = false
+    }
+}
+
+/// Decides whether a polled pasteboard change count is a new copy.
+///
+/// The count normally only grows, but it lives in the pasteboard server
+/// (pboard): when that process crashes or is restarted, launchd starts a new
+/// one whose count begins again near zero. A plain `read > last` check then
+/// rejects every later copy until the new count climbs past the old one,
+/// which can take days, so history silently stops recording.
+enum ClipboardHistoryChangeCount {
+    /// The count to adopt, or nil when the read carries nothing new.
+    /// - Parameters:
+    ///   - read: the count observed by this poll.
+    ///   - since: the last known count when this poll was scheduled. Every
+    ///     count known then came from the same server before the read was
+    ///     queued, so only a server restart can make `read` lower than it.
+    ///   - last: the last known count now, which a write finishing while the
+    ///     read was in flight (history copy, paste as plain text, auto-clear)
+    ///     may have raised past `read`. That stale read stays rejected.
+    static func accepted(read: Int, since: Int, last: Int) -> Int? {
+        if read < since { return read }
+        return read > last ? read : nil
+    }
+}
 
 enum ClipboardHistoryEntryKind: String, Codable {
     case text
@@ -79,6 +142,30 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         }
     }
 
+    /// The color a text entry spells out, if that is all it holds.
+    var color: ClipboardHistoryColor? {
+        kind == .text ? ClipboardHistoryColor(text: text) : nil
+    }
+
+    /// `preview` collapsed further to a menu bar sized excerpt, for the
+    /// optional "show latest copy" status item. `preview` itself renders an
+    /// image as bare dimensions (nothing else displays it raw — every other
+    /// image row builds its own labeled string instead), so this adds the
+    /// same localized "Image" label those rows show next to the dimensions.
+    func menuBarText(maxCharacters: Int) -> String {
+        let base: String
+        if kind == .image {
+            let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
+            base = "\(imageLabel) · \(imageDimensionsLabel)"
+        } else {
+            // The preview folds line feeds and tabs; a single-line menu bar
+            // title also cannot carry a carriage return or a Unicode line break.
+            base = preview.components(separatedBy: .newlines).joined(separator: " ")
+        }
+        guard base.count > maxCharacters else { return base }
+        return String(base.prefix(maxCharacters)) + "…"
+    }
+
     /// Same clipboard content, regardless of when it was copied: re-copying
     /// refreshes the existing entry instead of duplicating it.
     func matchesContent(of other: ClipboardHistoryEntry) -> Bool {
@@ -123,6 +210,129 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     }
 }
 
+/// A text entry that is only a color value, so the history can show a swatch
+/// beside it. The accepted forms are the CSS ones designers copy and the ones
+/// the color picker writes: `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, `rgb()`,
+/// `rgba()`, `hsl()` and `hsla()`. The value must be the whole entry; a color
+/// inside a longer text is not one, and a bare `RRGGBB` would also match plain
+/// numbers and hashes.
+struct ClipboardHistoryColor: Equatable {
+    let red: Double
+    let green: Double
+    let blue: Double
+    let alpha: Double
+
+    /// Longer than any accepted form with generous spacing; the cap keeps a
+    /// render from trimming or scanning a large entry.
+    static let maxLength = 64
+
+    init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
+    }
+
+    init?(text: String) {
+        guard text.utf8.count <= Self.maxLength else { return nil }
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if value.hasPrefix("#") {
+            self.init(hexDigits: value.dropFirst())
+        } else if let arguments = Self.arguments(of: value, names: ["rgba", "rgb"]) {
+            self.init(rgbArguments: arguments)
+        } else if let arguments = Self.arguments(of: value, names: ["hsla", "hsl"]) {
+            self.init(hslArguments: arguments)
+        } else {
+            return nil
+        }
+    }
+
+    private init?(hexDigits: Substring) {
+        guard [3, 4, 6, 8].contains(hexDigits.count),
+              hexDigits.allSatisfy(\.isHexDigit)
+        else { return nil }
+        let expanded = hexDigits.count <= 4
+            ? String(hexDigits.flatMap { [$0, $0] })
+            : String(hexDigits)
+        guard let value = UInt64(expanded, radix: 16) else { return nil }
+        let hasAlpha = expanded.count == 8
+        let rgb = hasAlpha ? value >> 8 : value
+        self.init(red: Double((rgb >> 16) & 0xFF) / 255,
+                  green: Double((rgb >> 8) & 0xFF) / 255,
+                  blue: Double(rgb & 0xFF) / 255,
+                  alpha: hasAlpha ? Double(value & 0xFF) / 255 : 1)
+    }
+
+    private init?(rgbArguments: [String]) {
+        guard (3...4).contains(rgbArguments.count) else { return nil }
+        var channels: [Double] = []
+        for argument in rgbArguments.prefix(3) {
+            if let percent = Self.percentage(argument) {
+                channels.append(percent)
+            } else if let number = Self.number(argument), (0...255).contains(number) {
+                channels.append(number / 255)
+            } else {
+                return nil
+            }
+        }
+        guard let alpha = Self.alpha(rgbArguments.dropFirst(3).first) else { return nil }
+        self.init(red: channels[0], green: channels[1], blue: channels[2], alpha: alpha)
+    }
+
+    private init?(hslArguments: [String]) {
+        guard (3...4).contains(hslArguments.count) else { return nil }
+        let hueText = hslArguments[0].hasSuffix("deg")
+            ? String(hslArguments[0].dropLast(3))
+            : hslArguments[0]
+        guard let hue = Self.number(hueText),
+              let saturation = Self.percentage(hslArguments[1]),
+              let lightness = Self.percentage(hslArguments[2]),
+              let alpha = Self.alpha(hslArguments.dropFirst(3).first)
+        else { return nil }
+        let h = (hue.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 360
+        let chroma = (1 - abs(2 * lightness - 1)) * saturation
+        func channel(_ offset: Double) -> Double {
+            let k = (offset + h * 12).truncatingRemainder(dividingBy: 12)
+            return lightness - chroma / 2 * max(-1, min(k - 3, 9 - k, 1))
+        }
+        self.init(red: channel(0), green: channel(8), blue: channel(4), alpha: alpha)
+    }
+
+    /// The arguments of `name(...)`, split on commas, spaces and the slash
+    /// that CSS puts before the alpha value.
+    private static func arguments(of value: String, names: [String]) -> [String]? {
+        guard value.hasSuffix(")"),
+              let name = names.first(where: { value.hasPrefix($0 + "(") })
+        else { return nil }
+        let inner = value.dropFirst(name.count + 1).dropLast()
+        return inner
+            .split(whereSeparator: { $0 == "," || $0 == "/" || $0.isWhitespace })
+            .map(String.init)
+    }
+
+    private static func number(_ text: String) -> Double? {
+        guard let value = Double(text), value.isFinite else { return nil }
+        return value
+    }
+
+    /// A `0%`...`100%` value as a fraction.
+    private static func percentage(_ text: String) -> Double? {
+        guard text.hasSuffix("%"),
+              let value = number(String(text.dropLast())),
+              (0...100).contains(value)
+        else { return nil }
+        return value / 100
+    }
+
+    /// Opaque when absent; otherwise a `0`...`1` number or a percentage.
+    private static func alpha(_ text: String?) -> Double? {
+        guard let text else { return 1 }
+        if let percent = percentage(text) { return percent }
+        guard let value = number(text), (0...1).contains(value) else { return nil }
+        return value
+    }
+}
+
 enum ClipboardHistoryEditing {
     /// A copied document should stay available, while a pathological
     /// pasteboard payload still has a firm in-memory and on-disk bound.
@@ -133,6 +343,9 @@ enum ClipboardHistoryEditing {
     /// this bounded prevents a very large saved document from being copied
     /// again merely to draw its list preview.
     static let previewCharacters = 2_000
+    /// A hover tooltip is a transient popup, not a list row: previewCharacters
+    /// would let a whole page of prose through and read as a wall of text.
+    static let tooltipCharacters = 200
 
     struct EncodedHistory {
         let entries: [ClipboardHistoryEntry]
@@ -181,6 +394,30 @@ enum ClipboardHistoryEditing {
     static func canLoadEncodedHistory(byteCount: Int?) -> Bool {
         guard let byteCount else { return false }
         return byteCount >= 0 && byteCount <= maxEncodedHistoryBytes
+    }
+
+    /// Whether the pinned entries alone still fit the saved file. The encoder
+    /// below keeps pinned entries first and drops whatever no longer fits, so
+    /// a pin or an edit that fails this check would lose a pinned entry.
+    static func pinnedEntriesFit(_ entries: [ClipboardHistoryEntry],
+                                 byteLimit: Int = maxEncodedHistoryBytes) -> Bool {
+        let pinned = entries.filter(\.isPinned)
+        // JSON escaping turns one UTF-8 byte into at most six, and an entry's
+        // other fields stay well under 512 bytes, so a small pinned set is
+        // never encoded on the main thread just to be measured.
+        let rawBound = pinned.reduce(0) { total, entry in
+            total + 512 + entry.text.utf8.count + (entry.imageFile?.utf8.count ?? 0)
+                + entry.filePaths.reduce(0) { $0 + $1.utf8.count + 3 }
+        }
+        guard rawBound > (byteLimit - 2) / 6 else { return true }
+        let encoder = JSONEncoder()
+        var encodedSize = 2 // Opening and closing brackets.
+        for (offset, entry) in pinned.enumerated() {
+            guard let encoded = try? encoder.encode(entry) else { return false }
+            encodedSize += encoded.count + (offset == 0 ? 0 : 1)
+            if encodedSize > byteLimit { return false }
+        }
+        return true
     }
 
     /// Encodes a readable snapshot without ever writing a file the next
@@ -286,8 +523,11 @@ enum ClipboardHistorySearch {
 
     private static func normalized(_ value: String) -> String {
         value
+            // No locale: Turkish folds a dotted I to a dotless one, and a
+            // search that inherited the Mac's locale would stop finding
+            // "ISTANBUL" for someone who typed "istanbul".
             .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                     locale: .current)
+                     locale: nil)
             .lowercased()
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\t", with: " ")
@@ -333,6 +573,19 @@ enum ClipboardHistoryEscape {
     /// it first.
     static func action(batchCount: Int) -> Action {
         batchCount > 0 ? .clearBatchSelection : .hideWindow
+    }
+}
+
+enum ClipboardHistoryFocus {
+    /// Which side owns an ordinary key press while a text view holds focus in
+    /// the quick panel. A composing input method always wins: Return confirms
+    /// the candidate, the arrows walk it and Esc drops it, so claiming those
+    /// keys leaves the search field unusable in Chinese, Japanese and Korean.
+    /// Outside composition the multiline editor keeps its editing keys, while
+    /// the search field (a field editor) and the read-only preview leave the
+    /// list's shortcuts intact.
+    static func textViewOwnsKeys(isComposing: Bool, isFieldEditor: Bool, isEditable: Bool) -> Bool {
+        isComposing || (isEditable && !isFieldEditor)
     }
 }
 
@@ -406,6 +659,10 @@ enum ClipboardHistoryBatch {
 
     static func listOwnsSelectAllShortcut(batchCount: Int, queryIsEmpty: Bool) -> Bool {
         batchCount > 0 || queryIsEmpty
+    }
+
+    static func listOwnsDeleteShortcut(batchCount: Int) -> Bool {
+        batchCount > 0
     }
 
     /// The plain-text side of a rich batch, for targets that only take text.
@@ -534,6 +791,13 @@ enum ClipboardHistorySensitiveText {
 }
 
 enum ClipboardHistoryImageSupport {
+    static func editorImage(for entry: ClipboardHistoryEntry, directory: URL) -> NSImage? {
+        guard entry.kind == .image, let name = entry.imageFile,
+              !name.isEmpty, (name as NSString).lastPathComponent == name
+        else { return nil }
+        return NSImage(contentsOf: directory.appendingPathComponent(name))
+    }
+
     static let imageExtensions: Set<String> = [
         "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "webp", "bmp", "ico", "icns", "svg", "avif"
     ]

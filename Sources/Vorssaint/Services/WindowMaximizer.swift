@@ -25,12 +25,16 @@ final class WindowMaximizer: ObservableObject {
     private let frameTolerance: CGFloat = 4
     private let zoomAnimationDuration: TimeInterval = 0.22
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let wanted = AppFeature.windowMaximizer.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowMaximizeEnabled)
-        if wanted, Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
+                                               accessibilityGranted: AXIsProcessTrusted(),
+                                               sessionIsActive: SessionActivity.shared.isActive) {
             start()
         } else {
             stop()
@@ -42,6 +46,7 @@ final class WindowMaximizer: ObservableObject {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         runLoopSource = nil
         pendingClick = nil
@@ -87,7 +92,11 @@ final class WindowMaximizer: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             return Unmanaged.passUnretained(event)
         }
 
@@ -129,6 +138,7 @@ final class WindowMaximizer: ObservableObject {
 
     private func target(at point: CGPoint) -> ClickTarget? {
         guard let candidate = WindowServerTrafficLightHitTest.candidate(at: point, button: .zoom),
+              !isExcluded(pid: candidate.pid),
               let element = elementAt(point: point),
               let window = topLevelWindow(from: element),
               role(of: window) == (kAXWindowRole as String),
@@ -145,6 +155,16 @@ final class WindowMaximizer: ObservableObject {
                            frame: frame,
                            buttonFrame: buttonFrame.frame,
                            allowsNativeFallback: buttonFrame.allowsNativeFallback)
+    }
+
+    /// The list is read here rather than cached: this only runs for a press on
+    /// a green button, and a restored backup needs no reload to take effect.
+    private func isExcluded(pid: pid_t) -> Bool {
+        let excluded = UserDefaults.standard.stringArray(forKey: DefaultsKey.windowMaximizeExcludedApps) ?? []
+        guard !excluded.isEmpty else { return false }
+        return WindowMaximizerSupport.excludes(
+            bundleIdentifier: NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
+            excludedBundleIdentifiers: excluded)
     }
 
     @discardableResult
@@ -239,10 +259,8 @@ final class WindowMaximizer: ObservableObject {
 
     private func elementAt(point: CGPoint) -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
-        // Bounded AX inside the mouse tap: a hung app under the cursor must
-        // not stall the main thread (and with it every event tap) for the
-        // 6 second default timeout.
-        AXUIElementSetMessagingTimeout(system, 0.35)
+        // No cap here: on the system-wide element a timeout is the default for
+        // every question this process asks, whoever asks it (#938).
         var element: AXUIElement?
         guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success,
               let element

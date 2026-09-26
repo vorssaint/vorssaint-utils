@@ -11,9 +11,10 @@ struct UninstallerView: View {
     @ObservedObject private var uninstaller = AppUninstaller.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
     @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.uninstallerCommandBarEnabled) private var commandBarEnabled = false
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
-    @State private var pendingHomebrewRemoval: HomebrewPackage?
+    @State private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
     @State private var showHomebrewDetails = false
 
     var body: some View {
@@ -22,14 +23,14 @@ struct UninstallerView: View {
             .alert(l10n.s.homebrewConfirmUninstallTitle,
                    isPresented: Binding(get: { pendingHomebrewRemoval != nil },
                                         set: { if !$0 { pendingHomebrewRemoval = nil } }),
-                   presenting: pendingHomebrewRemoval) { package in
+                   presenting: pendingHomebrewRemoval) { confirmation in
                 Button(l10n.s.uninstallerCancel, role: .cancel) {}
                 Button(l10n.s.homebrewUninstall, role: .destructive) {
                     pendingHomebrewRemoval = nil
-                    uninstaller.removeSelectedWithHomebrew()
+                    uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
                 }
-            } message: { package in
-                Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, package.displayName))
+            } message: { confirmation in
+                Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, confirmation.package.displayName))
             }
     }
 
@@ -45,6 +46,20 @@ struct UninstallerView: View {
     }
 
     // MARK: Empty / drop
+
+    private var commandBarToggle: some View {
+        Form {
+            Section {
+                Toggle(l10n.s.uninstallerCommandBarToggle, isOn: $commandBarEnabled)
+                Text(l10n.s.uninstallerCommandBarCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 360)
+    }
 
     private var emptyState: some View {
         VStack(spacing: 20) {
@@ -77,6 +92,8 @@ struct UninstallerView: View {
             Text(l10n.s.uninstallerEmptyNote)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+
+            commandBarToggle
 
             if !permissions.fullDiskAccess {
                 FullDiskAccessNote().frame(width: 360)
@@ -111,6 +128,10 @@ struct UninstallerView: View {
                     Image(nsImage: target.icon).resizable().frame(width: 18, height: 18)
                     Text(target.name).font(.callout)
                 }
+            }
+            if uninstaller.phase == .scanning {
+                Button(l10n.s.uninstallerCancel) { uninstaller.reset() }
+                    .controlSize(.large)
             }
             Spacer()
         }
@@ -213,8 +234,8 @@ struct UninstallerView: View {
             Button(l10n.s.uninstallerCancel) { uninstaller.reset() }
                 .disabled(uninstaller.isRemovingWithHomebrew)
             Button(removeButtonTitle) {
-                if let package = uninstaller.selectedHomebrewPackage {
-                    pendingHomebrewRemoval = package
+                if let confirmation = uninstaller.homebrewRemovalConfirmation {
+                    pendingHomebrewRemoval = confirmation
                 } else {
                     uninstaller.removeSelected()
                 }

@@ -113,6 +113,8 @@ final class WindowPreviewProvider {
                     // Never show the tilted strip artwork. When nothing better
                     // is cached, an upright rectified version stands in until
                     // the window becomes active and a clean capture replaces it.
+                    let needsPreview = await MainActor.run { !Task.isCancelled && self.cache[target.id] == nil }
+                    guard needsPreview else { continue }
                     if let rectified = Self.rectifiedStripCapture(image) {
                         let copy = Self.bitmapCopy(rectified)
                         await MainActor.run {
@@ -186,6 +188,8 @@ final class WindowPreviewProvider {
                 // it; rectify it as a stand-in when nothing better is cached.
                 if let grid = SwitcherSupport.alphaGrid(of: image),
                    SwitcherSupport.captureLooksTransformed(alphaGrid: grid) {
+                    let needsPreview = await MainActor.run { !Task.isCancelled && self.cache[target.id] == nil }
+                    guard needsPreview else { continue }
                     if let rectified = Self.rectifiedStripCapture(image) {
                         let copy = Self.bitmapCopy(rectified)
                         await MainActor.run {
@@ -438,10 +442,12 @@ final class WindowPreviewProvider {
                     guard let image = Self.captureViaWindowServer(id) else { continue }
                     if let grid = SwitcherSupport.alphaGrid(of: image),
                        SwitcherSupport.captureLooksTransformed(alphaGrid: grid) {
+                        let needsPreview = await MainActor.run { !Task.isCancelled && self.cache[id] == nil }
+                        guard needsPreview else { continue }
                         if let rectified = Self.rectifiedStripCapture(image) {
                             let copy = Self.bitmapCopy(rectified)
                             await MainActor.run {
-                                guard self.cache[id] == nil else { return }
+                                guard !Task.isCancelled, self.cache[id] == nil else { return }
                                 self.store(copy, for: id)
                             }
                         }

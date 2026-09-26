@@ -47,6 +47,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -55,6 +56,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -75,7 +77,7 @@ extension KillProcessFeatureStrings {
         commandBarCaption: "Adds running processes to the Command Bar, so you can find and kill them without opening Settings.",
         refreshTooltip: "Refresh",
         pidLabelFormat: "PID %d",
-        processCountFormat: "%d processes",
+        processCountFormat: "Processes: %d",
         killButton: "Kill",
         forceKillButton: "Force Kill",
         killAllFormat: "Kill All “%@”",
@@ -108,7 +110,7 @@ extension KillProcessFeatureStrings {
         commandBarCaption: "Adiciona os processos em execução à Barra de Comandos, para encontrá-los e encerrá-los sem abrir os Ajustes.",
         refreshTooltip: "Atualizar",
         pidLabelFormat: "PID %d",
-        processCountFormat: "%d processos",
+        processCountFormat: "Processos: %d",
         killButton: "Encerrar",
         forceKillButton: "Forçar encerramento",
         killAllFormat: "Encerrar todos “%@”",
@@ -174,7 +176,7 @@ extension KillProcessFeatureStrings {
         commandBarCaption: "Добавляет запущенные процессы в панель команд, чтобы находить и завершать их без открытия настроек.",
         refreshTooltip: "Обновить",
         pidLabelFormat: "PID %d",
-        processCountFormat: "%d процессов",
+        processCountFormat: "Процессов: %d",
         killButton: "Завершить",
         forceKillButton: "Завершить принудительно",
         killAllFormat: "Завершить все «%@»",
@@ -207,7 +209,7 @@ extension KillProcessFeatureStrings {
         commandBarCaption: "Añade los procesos en ejecución a la Barra de Comandos, para encontrarlos y finalizarlos sin abrir los Ajustes.",
         refreshTooltip: "Actualizar",
         pidLabelFormat: "PID %d",
-        processCountFormat: "%d procesos",
+        processCountFormat: "Procesos: %d",
         killButton: "Finalizar",
         forceKillButton: "Forzar finalización",
         killAllFormat: "Finalizar todos “%@”",
@@ -225,6 +227,39 @@ extension KillProcessFeatureStrings {
         adminPromptFormat: "Vorssaint necesita acceso de administrador para finalizar “%@”."
     )
 
+    static let sk = KillProcessFeatureStrings(
+        pageTitle: "Ukončiť proces",
+        browseSubtitle: "Prehľadávať a ukončiť",
+        hubDescription: "Hľadajte bežiace procesy a vynútene ich ukončite, reštartujte alebo ukončite celé stromy procesov",
+        searchPlaceholder: "Filtrovať podľa názvu",
+        columnProcess: "Proces",
+        columnCPU: "CPU",
+        columnMemory: "Pamäť",
+        columnPID: "PID",
+        groupToggle: "Zoskupiť súvisiace procesy",
+        groupCaption: "Zoskupí pomocné procesy pod aplikáciu, ktorá je za ne zodpovedná.",
+        commandBarToggle: "Zobraziť v príkazovej lište",
+        commandBarCaption: "Pridá bežiace procesy do príkazovej lišty, aby ste ich mohli nájsť a ukončiť bez otvárania Nastavení.",
+        refreshTooltip: "Obnoviť",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Procesy: %d",
+        killButton: "Ukončiť",
+        forceKillButton: "Vynútene ukončiť",
+        killAllFormat: "Ukončiť všetky „%@“",
+        killTreeButton: "Ukončiť strom procesu",
+        restartButton: "Reštartovať",
+        copyPID: "Kopírovať PID",
+        copyPath: "Kopírovať cestu",
+        emptyStateTitle: "Nenašli sa žiadne procesy",
+        confirmKillFormat: "Ukončiť %@?",
+        confirmForceKillFormat: "Vynútene ukončiť %@?",
+        confirmKillAllFormat: "Ukončiť všetky procesy „%@“?",
+        confirmKillTreeFormat: "Ukončiť %@ a všetky jeho podradené procesy?",
+        killFailedTitle: "Proces sa nepodarilo ukončiť",
+        killFailedMessage: "Proces už možno skončil alebo vyžaduje ďalšie oprávnenia.",
+        adminPromptFormat: "Vorssaint potrebuje prístup správcu na ukončenie „%@“."
+    )
+
     static let de = KillProcessFeatureStrings(
         pageTitle: "Prozess beenden",
         browseSubtitle: "Anzeigen & Beenden",
@@ -240,7 +275,7 @@ extension KillProcessFeatureStrings {
         commandBarCaption: "Fügt laufende Prozesse der Befehlsleiste hinzu, sodass du sie finden und beenden kannst, ohne die Einstellungen zu öffnen.",
         refreshTooltip: "Aktualisieren",
         pidLabelFormat: "PID %d",
-        processCountFormat: "%d Prozesse",
+        processCountFormat: "Prozesse: %d",
         killButton: "Beenden",
         forceKillButton: "Beenden erzwingen",
         killAllFormat: "Alle „%@“ beenden",
@@ -268,45 +303,45 @@ extension KillProcessFeatureStrings {
         columnMemory: "Mémoire",
         columnPID: "PID",
         groupToggle: "Regrouper les processus liés",
-        groupCaption: "Regroupe les processus auxiliaires sous l'app qui en est responsable.",
+        groupCaption: "Regroupe les processus auxiliaires sous l’app qui en est responsable.",
         commandBarToggle: "Afficher dans la Barre de Commandes",
         commandBarCaption: "Ajoute les processus en cours à la Barre de Commandes, pour les trouver et les arrêter sans ouvrir les Réglages.",
         refreshTooltip: "Actualiser",
         pidLabelFormat: "PID %d",
-        processCountFormat: "%d processus",
+        processCountFormat: "Processus\u{00A0}: %d",
         killButton: "Arrêter",
-        forceKillButton: "Forcer l'arrêt",
-        killAllFormat: "Arrêter tous les « %@ »",
-        killTreeButton: "Arrêter l'arborescence du processus",
+        forceKillButton: "Forcer l’arrêt",
+        killAllFormat: "Arrêter tous les «\u{00A0}%@\u{00A0}»",
+        killTreeButton: "Arrêter l’arborescence du processus",
         restartButton: "Redémarrer",
         copyPID: "Copier le PID",
         copyPath: "Copier le chemin",
         emptyStateTitle: "Aucun processus trouvé",
-        confirmKillFormat: "Arrêter %@ ?",
-        confirmForceKillFormat: "Forcer l'arrêt de %@ ?",
-        confirmKillAllFormat: "Arrêter tous les processus « %@ » ?",
-        confirmKillTreeFormat: "Arrêter %@ et tous ses processus enfants ?",
-        killFailedTitle: "Impossible d'arrêter le processus",
+        confirmKillFormat: "Arrêter %@\u{00A0}?",
+        confirmForceKillFormat: "Forcer l’arrêt de %@\u{00A0}?",
+        confirmKillAllFormat: "Arrêter tous les processus «\u{00A0}%@\u{00A0}»\u{00A0}?",
+        confirmKillTreeFormat: "Arrêter %@ et tous ses processus enfants\u{00A0}?",
+        killFailedTitle: "Impossible d’arrêter le processus",
         killFailedMessage: "Le processus a peut-être déjà quitté ou nécessite des privilèges supplémentaires.",
-        adminPromptFormat: "Vorssaint a besoin d'un accès administrateur pour arrêter « %@ »."
+        adminPromptFormat: "Vorssaint a besoin d’un accès administrateur pour arrêter «\u{00A0}%@\u{00A0}»."
     )
 
     static let it = KillProcessFeatureStrings(
         pageTitle: "Termina Processo",
         browseSubtitle: "Sfoglia e Termina",
-        hubDescription: "Cerca i processi in esecuzione e forzane l'uscita, riavviali o termina intere alberature di processi",
+        hubDescription: "Cerca i processi in esecuzione e forzane l’uscita, riavviali o termina intere alberature di processi",
         searchPlaceholder: "Filtra per nome",
         columnProcess: "Processo",
         columnCPU: "CPU",
         columnMemory: "Memoria",
         columnPID: "PID",
         groupToggle: "Raggruppa processi correlati",
-        groupCaption: "Raggruppa i processi ausiliari sotto l'app responsabile.",
+        groupCaption: "Raggruppa i processi ausiliari sotto l’app responsabile.",
         commandBarToggle: "Mostra nella Barra dei Comandi",
         commandBarCaption: "Aggiunge i processi in esecuzione alla Barra dei Comandi, per trovarli e terminarli senza aprire le Impostazioni.",
         refreshTooltip: "Aggiorna",
         pidLabelFormat: "PID %d",
-        processCountFormat: "%d processi",
+        processCountFormat: "Processi: %d",
         killButton: "Termina",
         forceKillButton: "Forza terminazione",
         killAllFormat: "Termina tutti “%@”",
@@ -321,7 +356,7 @@ extension KillProcessFeatureStrings {
         confirmKillTreeFormat: "Terminare %@ e tutti i suoi processi figli?",
         killFailedTitle: "Impossibile terminare il processo",
         killFailedMessage: "Il processo potrebbe essere già uscito o richiedere privilegi aggiuntivi.",
-        adminPromptFormat: "Vorssaint richiede l'accesso da amministratore per terminare “%@”."
+        adminPromptFormat: "Vorssaint richiede l’accesso da amministratore per terminare “%@”."
     )
 
     static let ja = KillProcessFeatureStrings(
@@ -400,7 +435,7 @@ extension KillProcessFeatureStrings {
         columnMemory: "内存",
         columnPID: "PID",
         groupToggle: "合并相关进程",
-        groupCaption: "将辅助进程归并到负责它们的应用下面。",
+        groupCaption: "将辅助进程归并到负责它们的 App 下面。",
         commandBarToggle: "在命令栏中显示",
         commandBarCaption: "将正在运行的进程加入命令栏，无需打开设置即可查找并结束它们。",
         refreshTooltip: "刷新",
@@ -420,7 +455,7 @@ extension KillProcessFeatureStrings {
         confirmKillTreeFormat: "要结束“%@”及其所有子进程吗？",
         killFailedTitle: "无法结束进程",
         killFailedMessage: "该进程可能已经退出，或需要额外的权限。",
-        adminPromptFormat: "Vorssaint 需要管理员权限才能结束“%@”。"
+        adminPromptFormat: "Vorssaint 需要您的管理员密码才能结束“%@”。"
     )
 
     static let zhTW = KillProcessFeatureStrings(
@@ -487,5 +522,37 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "無法結束處理程序",
         killFailedMessage: "該處理程序可能已經結束，或需要額外的權限。",
         adminPromptFormat: "Vorssaint 需要管理員權限才能結束「%@」。"
+    )
+    static let uk = KillProcessFeatureStrings(
+        pageTitle: "Завершити процес",
+        browseSubtitle: "Огляд та завершення",
+        hubDescription: "Шукайте запущені процеси та примусово завершуйте, перезапускайте або вбивайте дерева процесів",
+        searchPlaceholder: "Фільтр за ім’ям",
+        columnProcess: "Процес",
+        columnCPU: "CPU",
+        columnMemory: "Пам’ять",
+        columnPID: "PID",
+        groupToggle: "Групувати пов’язані процеси",
+        groupCaption: "Групує допоміжні процеси під програмою, яка відповідає за них.",
+        commandBarToggle: "Показувати в Панелі команд",
+        commandBarCaption: "Додає запущені процеси в Панель команд, щоб ви могли знаходити та завершувати їх без відкриття Налаштувань.",
+        refreshTooltip: "Оновити",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Процесів: %d",
+        killButton: "Завершити",
+        forceKillButton: "Примусово завершити",
+        killAllFormat: "Завершити всі «%@»",
+        killTreeButton: "Завершити дерево процесів",
+        restartButton: "Почати заново",
+        copyPID: "Скопіювати PID",
+        copyPath: "Скопіювати шлях",
+        emptyStateTitle: "Процеси не знайдені",
+        confirmKillFormat: "Завершити %@?",
+        confirmForceKillFormat: "Примусово завершити %@?",
+        confirmKillAllFormat: "Завершити всі процеси «%@»?",
+        confirmKillTreeFormat: "Завершити %@ та всі його дочірні процеси?",
+        killFailedTitle: "Не вдалося завершити процес",
+        killFailedMessage: "Процес, можливо, вже завершився або потребує додаткових привілеїв.",
+        adminPromptFormat: "Vorssaint потрібен адміністративний доступ для завершення «%@»."
     )
 }

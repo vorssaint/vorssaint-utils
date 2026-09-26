@@ -82,6 +82,8 @@ enum SuperKeyMappingFailure: Equatable, CaseIterable {
     case foreignMapping
     /// hidutil refused the read, the write, or the readback.
     case systemRefused
+    /// The keyboard event tap could not be created, so the key cannot add modifiers.
+    case keyboardTapRefused
 }
 
 /// The pure half of the super key: which keys are involved, how the mapping
@@ -127,6 +129,30 @@ enum SuperKeySupport {
 
     /// Virtual key code of the destination key, as it arrives in key events.
     static let triggerKeyCode: Int64 = 79
+
+    /// What the held-key watchdog does when its deadline fires.
+    enum HeldKeyWatchdogOutcome {
+        /// The key is still physically down: the hold is real, so watch again.
+        case reArm
+        /// The key is up (its release was missed) or the hold is already gone:
+        /// let the modifiers go.
+        case forget
+    }
+
+    /// Decides whether a hold that reached its deadline survives, from three
+    /// independent facts that must ALL be true to keep it:
+    ///   - `physicalKeyDown`: the real hardware key state (ground truth)
+    ///   - `stateThinksHeld`: what our state machine currently believes
+    ///   - `tapAlive`: whether the tap can still stamp the modifiers
+    /// Any disagreement means let go: a stale belief, a lost key-up, or a dead
+    /// tap each end the hold. A held F18 never autorepeats, so the deadline
+    /// alone cannot tell a steady hold from a lost release — only the physical
+    /// key state can.
+    static func heldKeyWatchdogOutcome(physicalKeyDown: Bool,
+                                       stateThinksHeld: Bool,
+                                       tapAlive: Bool) -> HeldKeyWatchdogOutcome {
+        (physicalKeyDown && stateThinksHeld && tapAlive) ? .reArm : .forget
+    }
 
     // MARK: - Key mapping table
 

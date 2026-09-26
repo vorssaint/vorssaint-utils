@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -67,6 +68,19 @@ enum ScreenCaptureTool: String, CaseIterable {
         }
     }
 
+    var showCaptureMenuOnShortcutKey: String {
+        switch self {
+        case .screenshot: return DefaultsKey.screenshotShowCaptureMenuOnShortcut
+        case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
+        case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
+        case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
+        }
+    }
+
+    func showsCaptureMenu(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
+        !fromShortcut || (defaults.object(forKey: showCaptureMenuOnShortcutKey) as? Bool ?? true)
+    }
+
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
@@ -75,6 +89,11 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .color: return "eyedropper"
         }
     }
+
+    /// Only the recorder writes sound, so its microphone and system-audio
+    /// choices are the only tool controls that belong under the chooser.
+    /// Every other mode leaves them out entirely, reserving no space for them.
+    var capturesAudio: Bool { self == .recording }
 
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
@@ -101,7 +120,21 @@ enum ScreenshotSupport {
         let freeze: Bool
         let includePointer: Bool
         let hideVorssaintWindows: Bool
+        /// Whether editors and pinned captures stay out of the picture and the
+        /// pickable windows. Recording keeps them out even while "Hide
+        /// Vorssaint windows" is off, which that flag alone cannot tell apart.
+        let keepsContentWindowsOut: Bool
         let usesGeometry: Bool
+
+        /// Two tools can want the same photograph and still do different
+        /// things with it, so only the fields that decide which pixels are
+        /// taken, and which windows can be picked, force a new one.
+        func sharesSource(with other: UnifiedCapturePolicy) -> Bool {
+            freeze == other.freeze
+                && includePointer == other.includePointer
+                && hideVorssaintWindows == other.hideVorssaintWindows
+                && keepsContentWindowsOut == other.keepsContentWindowsOut
+        }
     }
 
     static func unifiedCapturePolicy(for tool: ScreenCaptureTool,
@@ -113,6 +146,7 @@ enum ScreenshotSupport {
             freeze: tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
+            keepsContentWindowsOut: tool == .recording || screenshotHideVorssaintWindows,
             usesGeometry: tool == .recording)
     }
 
@@ -128,10 +162,24 @@ enum ScreenshotSupport {
         isAvailable(selected.feature)
     }
 
+    static func selectionDimAlpha(notchControls: Bool, isFrozen: Bool, isDragging: Bool) -> CGFloat {
+        if notchControls { return isDragging ? 0.18 : 0 }
+        return isFrozen ? 0.22 : 0.18
+    }
+
     static func captureGuideIsVisible(pointerOnDisplay: Bool,
                                       selectionInProgress: Bool,
                                       capturePending: Bool) -> Bool {
         pointerOnDisplay && !selectionInProgress && !capturePending
+    }
+
+    /// Whether the guide should advertise repeating the last capture region.
+    /// The region is remembered for this app session only and belongs to one
+    /// display, so the hint stays hidden until pressing the key would really
+    /// capture something.
+    static func offersRepeatLastRegion(isPickingColor: Bool,
+                                       storedRegionDisplayIsAvailable: Bool) -> Bool {
+        !isPickingColor && storedRegionDisplayIsAvailable
     }
 
     // MARK: - Preferences
@@ -608,6 +656,37 @@ enum ScreenshotSupport {
             && (draft.standardized == bounds.standardized || !draft.contains(point))
     }
 
+    /// A captured image's alpha, top row first.
+    struct AlphaCoverage {
+        let alpha: [UInt8]
+        let width: Int
+        let height: Int
+
+        /// Total alpha inside `rect`, in image pixels from the top left.
+        func sum(in rect: CGRect) -> Int {
+            let area = rect.integral.intersection(CGRect(x: 0, y: 0, width: width, height: height))
+            guard !area.isNull, !area.isEmpty else { return 0 }
+            var total = 0
+            for row in Int(area.minY)..<Int(area.maxY) {
+                let start = row * width
+                for column in Int(area.minX)..<Int(area.maxX) { total += Int(alpha[start + column]) }
+            }
+            return total
+        }
+    }
+
+    /// Where a display capture of only some windows put them. Older systems
+    /// draw each window where it sits on the display. macOS 27 packs the
+    /// included windows into the image's top-left corner, keeping their
+    /// relative layout, so cropping at the window's place on screen kept only
+    /// its lower-right part beside empty space. Everything but those windows
+    /// is transparent, so
+    /// the placement that holds more of them is the one the system used.
+    static func attachedCaptureCrop(placed: CGRect, packed: CGRect,
+                                    coverage: AlphaCoverage) -> CGRect {
+        coverage.sum(in: packed) > coverage.sum(in: placed) ? packed : placed
+    }
+
     static func clamp(_ rect: CGRect, to bounds: CGRect) -> CGRect {
         var result = rect.intersection(bounds)
         if result.isNull { result = .zero }
@@ -716,15 +795,15 @@ enum ScreenshotSupport {
             let area = overlap.isNull ? 0 : max(0, overlap.width) * max(0, overlap.height)
             let winsTie = area == selectedArea
                 && area > 0
-                && screen.frame.contains(pointer)
-                && !(selected?.frame.contains(pointer) ?? false)
+                && NSMouseInRect(pointer, screen.frame, false)
+                && !(selected.map { NSMouseInRect(pointer, $0.frame, false) } ?? false)
             if area > selectedArea || winsTie {
                 selected = screen
                 selectedArea = area
             }
         }
         if let selected { return selected.visibleFrame }
-        return screens.first { $0.frame.contains(pointer) }?.visibleFrame ?? fallback
+        return screens.first { NSMouseInRect(pointer, $0.frame, false) }?.visibleFrame ?? fallback
     }
 
     /// Places the capture preview beside the selection in automatic mode, or
@@ -846,6 +925,22 @@ enum ScreenshotSupport {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
         return "\(prefix) \(formatter.string(from: date)).\(fileExtension)"
+    }
+
+    /// Marks a saved capture the way macOS marks its own screenshots, so
+    /// Spotlight and the Cleaner's forgotten screenshots treat both alike.
+    /// Best effort: an unmarked file is only never offered for cleaning.
+    static func markAsScreenCapture(_ url: URL) {
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: true,
+                                                             format: .binary,
+                                                             options: 0) else { return }
+        url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return }
+            _ = data.withUnsafeBytes {
+                setxattr(path, "com.apple.metadata:kMDItemIsScreenCapture",
+                         $0.baseAddress, data.count, 0, XATTR_NOFOLLOW)
+            }
+        }
     }
 
     /// Writes one drag payload into its own temporary directory. Separate
@@ -1174,6 +1269,141 @@ enum ScreenshotSupport {
             return index + 1
         }
 
+        static func bindings(from raw: String?) -> [Tool: GlobalShortcut] {
+            var result: [Tool: GlobalShortcut] = [:]
+            for entry in (raw ?? "").split(separator: ",") {
+                let pair = entry.split(separator: "=", maxSplits: 1)
+                guard pair.count == 2, let tool = Tool(rawValue: String(pair[0])),
+                      let shortcut = GlobalShortcut(storageValue: String(pair[1]), requiringModifier: false),
+                      !isReservedEditorKey(shortcut) else { continue }
+                result[tool] = shortcut
+            }
+            // Edited backups can contain duplicate bindings. Keep one owner,
+            // in rail-default order, so routing and the displayed keys agree.
+            var seen = Set<GlobalShortcut>()
+            for tool in allCases {
+                if let shortcut = result[tool], !seen.insert(shortcut).inserted {
+                    result[tool] = nil
+                }
+            }
+            return result
+        }
+
+        /// A layout or Caps Lock change can make a saved symbol type a rail
+        /// digit. Suspend it in that context without erasing the saved choice.
+        static func activeBindings(from raw: String?, capsLockOn: Bool = false) -> [Tool: GlobalShortcut] {
+            bindings(from: raw).filter { shortcutDigit($0.value, capsLockOn: capsLockOn) == nil }
+        }
+
+        static func bindingsStorage(_ bindings: [Tool: GlobalShortcut]) -> String {
+            allCases.compactMap { tool in
+                bindings[tool].map { "\(tool.rawValue)=\($0.storageValue)" }
+            }.joined(separator: ",")
+        }
+
+        static func isReservedEditorKey(_ shortcut: GlobalShortcut) -> Bool {
+            let key = Int(shortcut.keyCode)
+            if shortcut.modifiers.contains(.command) {
+                // The editor's Command branch also accepts extra modifiers.
+                return [kVK_ANSI_C, kVK_ANSI_S, kVK_ANSI_Z, kVK_ANSI_P,
+                        kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_Equal, kVK_ANSI_Minus,
+                        kVK_Delete, kVK_ForwardDelete, kVK_ANSI_W, kVK_ANSI_Q].contains(key)
+            }
+            return !shortcut.modifiers.hasPrimaryModifier
+                && [kVK_Escape, kVK_Return, kVK_ANSI_KeypadEnter,
+                    kVK_Delete, kVK_ForwardDelete].contains(key)
+        }
+
+        static func shortcutTool(keyCode: Int64, modifiers: GlobalShortcutModifiers,
+                                 number: Int? = nil, orderRaw: String?,
+                                 bindingsRaw: String?, enabled: Bool, capsLockOn: Bool = false) -> Tool? {
+            guard enabled else { return nil }
+            let bindings = activeBindings(from: bindingsRaw, capsLockOn: capsLockOn)
+            // The event's printed digit is authoritative, including input
+            // methods whose output differs from the underlying keycap table.
+            if !modifiers.hasPrimaryModifier, let number, (1...shortcutLimit).contains(number) {
+                guard let tool = shortcutTool(number: number, orderRaw: orderRaw, enabled: true),
+                      bindings[tool] == nil else { return nil }
+                return tool
+            }
+            let shortcut = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
+            return allCases.first(where: { bindings[$0] == shortcut })
+        }
+
+        /// The rail slot a recorded key names, read from what the key types
+        /// on the active layout rather than from its position: AZERTY's 1 is
+        /// Shift on the & key, and the numerical variant also reaches it
+        /// through Caps Lock. Recording carries the actual lock state rather
+        /// than trying to recover it from the stored shortcut's modifiers.
+        static func shortcutDigit(_ shortcut: GlobalShortcut, capsLockOn: Bool = false) -> Int? {
+            guard !shortcut.modifiers.hasPrimaryModifier else { return nil }
+            let shifted = shortcut.modifiers.contains(.shift)
+            let typed = GlobalShortcut.layoutKeyLabel(for: shortcut.keyCode, usesCommand: false,
+                                                      usesShift: shifted, capsLockOn: capsLockOn)
+                ?? (shifted || capsLockOn ? nil : shortcut.displayString)
+            guard let typed, let digit = Int(typed), (1...shortcutLimit).contains(digit)
+            else { return nil }
+            return digit
+        }
+
+        /// What the rail badge and the recorder show for a tool: its own
+        /// binding's caps, or the position digit of an unbound tool in the
+        /// first nine.
+        static func shortcutLabel(for tool: Tool, orderRaw: String?,
+                                  bindingsRaw: String?, enabled: Bool, capsLockOn: Bool = false) -> String? {
+            guard enabled else { return nil }
+            if let binding = activeBindings(from: bindingsRaw, capsLockOn: capsLockOn)[tool] {
+                return binding.displayString
+            }
+            return shortcutNumber(for: tool, orderRaw: orderRaw, enabled: true).map(String.init)
+        }
+
+        /// Why a recorded key cannot become a binding, or nil when it can.
+        /// Digits never get here: they move the tool instead. The outside
+        /// checks are the same three every shortcut field runs, passed in by
+        /// the field so the order and the early return are testable without
+        /// defaults or the WindowServer. Recording silences those owners, so
+        /// the key records fine and then fires them once the field lets go:
+        /// macOS and the app's global taps answer before the editor's window
+        /// monitor ever sees the press. The system table is asked last
+        /// because it is the one read that leaves the process.
+        enum BindingRejection: Equatable {
+            case reserved
+            case tool(Tool)
+            case role(GlobalShortcutRole)
+            case windowLayout(String)
+            case system
+        }
+
+        static func bindingRejection(
+            for shortcut: GlobalShortcut, excluding tool: Tool, bindingsRaw: String?,
+            roleConflict: (GlobalShortcut) -> GlobalShortcutRole?,
+            windowLayoutConflict: (GlobalShortcut) -> String?,
+            systemConflict: (GlobalShortcut) -> Bool
+        ) -> BindingRejection? {
+            if isReservedEditorKey(shortcut) { return .reserved }
+            let bindings = bindings(from: bindingsRaw)
+            if let other = allCases.first(where: { $0 != tool && bindings[$0] == shortcut }) {
+                return .tool(other)
+            }
+            if let role = roleConflict(shortcut) { return .role(role) }
+            if let title = windowLayoutConflict(shortcut) { return .windowLayout(title) }
+            return systemConflict(shortcut) ? .system : nil
+        }
+
+        /// A recorded digit moves the tool; clearing moves it below the first
+        /// nine. Other bindings stay attached to their tools through reorders.
+        static func assigningBinding(_ shortcut: GlobalShortcut?, digit: Int? = nil,
+                                     to tool: Tool, orderRaw: String?, bindingsRaw: String?)
+            -> (orderRaw: String, bindingsRaw: String) {
+            var bindings = bindings(from: bindingsRaw)
+            bindings[tool] = digit == nil ? shortcut : nil
+            let order = shortcut == nil || digit != nil
+                ? assigningShortcut(digit, to: tool, orderRaw: orderRaw)
+                : ordered(from: orderRaw)
+            return (order.map(\.rawValue).joined(separator: ","), bindingsStorage(bindings))
+        }
+
         /// Assigning a number is the same operation as moving the tool into
         /// that numbered rail slot. Choosing no shortcut moves it just below
         /// the first nine, where it remains available without a key.
@@ -1235,6 +1465,66 @@ enum ScreenshotSupport {
         }
     }
 
+    /// Text point sizes at 1x, offered as presets. Text has its own size
+    /// instead of borrowing the shape thickness, so a thin arrow can sit
+    /// beside a large label.
+    static let textSizes: [Int] = [10, 12, 14, 16, 19, 24, 28, 36, 48, 64, 72, 96]
+    static let defaultTextSize = 19
+
+    static func sanitizedTextSize(_ size: Int) -> Int {
+        guard let first = textSizes.first, let last = textSizes.last else { return defaultTextSize }
+        return size == 0 ? defaultTextSize : min(max(size, first), last)
+    }
+
+    /// The preset one step away from `size`, or nil at either end.
+    static func steppedTextSize(from size: Int, up: Bool) -> Int? {
+        up ? textSizes.first(where: { $0 > size }) : textSizes.last(where: { $0 < size })
+    }
+
+    /// How hard a blur hides what is under it, from 1 (lightest) to 5
+    /// (heaviest). Level 3 is the strength blurs always had. The screenshot
+    /// pixelate tool and video blurs share the scale so a level means the
+    /// same thing in both editors.
+    enum BlurStrength {
+        static let levels = 1...5
+        static let defaultLevel = 3
+
+        static func sanitized(_ level: Int) -> Int {
+            min(max(level, levels.lowerBound), levels.upperBound)
+        }
+
+        /// Where a new capture's pixelate tool starts: the remembered level,
+        /// but never a light one. Levels 1 and 2 make blocks smaller than a
+        /// line of text, which can stay readable, so they are picked area by
+        /// area instead of carried into the next redaction.
+        static func startingLevel(remembered: Int) -> Int {
+            max(sanitized(remembered), defaultLevel)
+        }
+
+        /// What the level does to the mosaic block, relative to level 3.
+        static func blockFactor(for level: Int) -> CGFloat {
+            switch sanitized(level) {
+            case 1: return 0.4
+            case 2: return 0.65
+            case 4: return 1.5
+            case 5: return 2.2
+            default: return 1
+            }
+        }
+    }
+
+    enum ArrowStyleID: String, CaseIterable {
+        case filled, outline, open, doubleEnded, scribbly
+
+        static func sanitized(_ raw: String?) -> ArrowStyleID {
+            ArrowStyleID(rawValue: raw ?? "") ?? .filled
+        }
+    }
+
+    static func randomScribbleSeed() -> UInt64 {
+        UInt64.random(in: UInt64.min...UInt64.max)
+    }
+
     enum StickerID: String, CaseIterable {
         case check, cross, star, heart, thumbsUp, thumbsDown,
              smile, laugh, party, fire, warning, eyes
@@ -1289,6 +1579,10 @@ enum ScreenshotSupport {
         var text: String
         var color: ColorID
         var stroke: StrokeID
+        var textSize: Int
+        var blurLevel: Int
+        var arrowStyle: ArrowStyleID
+        var scribbleSeed: UInt64
         var number: Int
 
         init(id: UUID = UUID(),
@@ -1298,6 +1592,10 @@ enum ScreenshotSupport {
              text: String = "",
              color: ColorID = .red,
              stroke: StrokeID = .medium,
+             textSize: Int = ScreenshotSupport.defaultTextSize,
+             blurLevel: Int = BlurStrength.defaultLevel,
+             arrowStyle: ArrowStyleID = .filled,
+             scribbleSeed: UInt64? = nil,
              number: Int = 0) {
             self.id = id
             self.tool = tool
@@ -1306,7 +1604,54 @@ enum ScreenshotSupport {
             self.text = text
             self.color = color
             self.stroke = stroke
+            self.textSize = textSize
+            self.blurLevel = blurLevel
+            self.arrowStyle = arrowStyle
+            self.scribbleSeed = scribbleSeed
+                ?? (arrowStyle == .scribbly
+                    ? ScreenshotSupport.randomScribbleSeed()
+                    : 0)
             self.number = number
+        }
+    }
+
+    /// The style values the editor controls should show for a picked mark.
+    struct SelectionStyle: Equatable {
+        let color: ColorID?
+        let stroke: StrokeID?
+        let arrowStyle: ArrowStyleID?
+        var textSize: Int? = nil
+        var blurLevel: Int? = nil
+    }
+
+    static func selectionStyle(for annotation: Annotation) -> SelectionStyle {
+        switch annotation.tool {
+        case .arrow:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: annotation.stroke,
+                                  arrowStyle: annotation.arrowStyle)
+        case .line, .rect, .ellipse, .freehand:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: annotation.stroke,
+                                  arrowStyle: nil)
+        case .text:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: nil,
+                                  arrowStyle: nil,
+                                  textSize: annotation.textSize)
+        case .highlight, .counter, .redact:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: nil,
+                                  arrowStyle: nil)
+        case .pixelate:
+            return SelectionStyle(color: nil,
+                                  stroke: nil,
+                                  arrowStyle: nil,
+                                  blurLevel: annotation.blurLevel)
+        case .sticker, .select, .crop:
+            return SelectionStyle(color: nil,
+                                  stroke: nil,
+                                  arrowStyle: nil)
         }
     }
 
@@ -1433,20 +1778,100 @@ enum ScreenshotSupport {
     /// edge the sample slides inward instead of shrinking, and the loupe's
     /// reticle still marks the exact adjusted pixel.
     static let captureLoupeBaseSampleSide: CGFloat = 13
+    static let captureLoupeMinSampleSide: CGFloat = 3
     static let captureLoupeMinZoom: CGFloat = 0.5
-    static let captureLoupeMaxZoom: CGFloat = 4
+    static var captureLoupeMaxZoom: CGFloat {
+        captureLoupeBaseSampleSide / captureLoupeMinSampleSide
+    }
+    static let captureLoupeDefaultZooms: [Double] = [0.5, 1, 2, 4]
+    /// The magnifier square on screen, in view points. Big enough that each
+    /// sampled pixel becomes a readable grid cell at every zoom level.
+    static let captureLoupeFrameSide: CGFloat = 132
 
-    static func captureLoupeZoom(_ zoom: CGFloat, adjustedBy scrollDelta: CGFloat) -> CGFloat {
-        guard scrollDelta != 0 else {
+    static func captureLoupeInitialZoom(rememberLast: Bool,
+                                        defaultZoom: CGFloat,
+                                        lastZoom: CGFloat) -> CGFloat {
+        let requested = rememberLast ? lastZoom : defaultZoom
+        guard requested.isFinite else { return 1 }
+        return min(max(requested, captureLoupeMinZoom), captureLoupeMaxZoom)
+    }
+
+    static func captureLoupeUsesSteppedZoom(steppedByDefault: Bool,
+                                             optionPressed: Bool) -> Bool {
+        steppedByDefault != optionPressed
+    }
+
+    /// A few high-resolution mouse drivers put sub-notch movement only in
+    /// the fixed-point wheel field. `NSEvent.scrollingDeltaY` rounds those
+    /// packets to zero, which would make apparently random notches disappear.
+    static func captureLoupeWheelDelta(scrollingDelta: CGFloat,
+                                       lineDelta: Int64,
+                                       fixedPointDelta: Double) -> CGFloat {
+        if fixedPointDelta.isFinite, fixedPointDelta != 0 {
+            return CGFloat(fixedPointDelta)
+        }
+        if lineDelta != 0 { return CGFloat(lineDelta) }
+        return scrollingDelta.isFinite ? scrollingDelta : 0
+    }
+
+    /// Fast mode preserves the original one-step-per-event behavior.
+    static func captureLoupeZoom(_ zoom: CGFloat,
+                                 adjustedBy scrollDelta: CGFloat) -> CGFloat {
+        guard scrollDelta.isFinite, scrollDelta != 0 else {
             return min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
         }
         let factor: CGFloat = scrollDelta > 0 ? 1.15 : 1 / 1.15
         return min(max(zoom * factor, captureLoupeMinZoom), captureLoupeMaxZoom)
     }
 
+    /// Step mode advances by exactly one drawable pixel-grid level. A fixed
+    /// percentage cannot promise that: at the wide end it can skip two odd
+    /// sample sizes, while at the narrow end it can round back to the same
+    /// size and appear to do nothing.
+    static func captureLoupeSteppedZoom(_ zoom: CGFloat,
+                                        adjustedBy scrollDelta: CGFloat) -> CGFloat {
+        let clamped = min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
+        guard scrollDelta.isFinite, scrollDelta != 0 else { return clamped }
+
+        let currentSide = captureLoupeSampleSide(zoom: clamped)
+        let widestSide = captureLoupeSampleSide(zoom: captureLoupeMinZoom)
+        let targetSide = scrollDelta > 0
+            ? max(captureLoupeMinSampleSide, currentSide - 2)
+            : min(widestSide, currentSide + 2)
+        guard targetSide != currentSide else { return clamped }
+
+        // The widest level lies just below the numeric minimum when expressed
+        // as base / side, so it deliberately resolves to the public boundary.
+        if targetSide == widestSide { return captureLoupeMinZoom }
+        return min(max(captureLoupeBaseSampleSide / targetSide,
+                       captureLoupeMinZoom), captureLoupeMaxZoom)
+    }
+
+    /// Sampled source pixels per side. Always an odd whole number, never
+    /// below three, so the pixel under the pointer is a real middle cell
+    /// that the grid can outline instead of a boundary between two cells.
     static func captureLoupeSampleSide(zoom: CGFloat) -> CGFloat {
         let clamped = min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
-        return captureLoupeBaseSampleSide / clamped
+        let raw = captureLoupeBaseSampleSide / clamped
+        let odd = 2 * (raw / 2).rounded(.down) + 1
+        return max(captureLoupeMinSampleSide, odd)
+    }
+
+    /// The pixel grid earns its ink only once a cell is big enough that the
+    /// lines separate pixels instead of shading the whole image.
+    static func captureLoupeGridVisible(frameSide: CGFloat, sampleSide: CGFloat) -> Bool {
+        sampleSide > 0 && frameSide / sampleSide >= 6
+    }
+
+    /// Arrow keys move the pointer by whole device pixels of the screen it is
+    /// on, in points, so one press always lands on the neighbouring pixel
+    /// even on Retina displays. Shift covers ten pixels per press.
+    static func captureLoupeNudge(dx: CGFloat,
+                                  dy: CGFloat,
+                                  fast: Bool,
+                                  scale: CGFloat) -> CGPoint {
+        let step = (fast ? 10 : 1) / max(scale, 1)
+        return CGPoint(x: dx * step, y: dy * step)
     }
 
     /// The square of source pixels a loupe magnifies. The two loupes centre on
@@ -1559,6 +1984,139 @@ enum ScreenshotSupport {
         return path
     }
 
+    /// Shaft and heads of a stroked arrow style as one path, so a single
+    /// stroke draws the whole arrow and casts one shadow. The solid style is a
+    /// filled silhouette rather than a stroke and answers nil.
+    static func arrowStrokePath(from tail: CGPoint,
+                                to tip: CGPoint,
+                                strokeWidth: CGFloat,
+                                style: ArrowStyleID,
+                                seed: UInt64) -> CGPath? {
+        let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
+        let path = CGMutablePath()
+        switch style {
+        case .filled:
+            return nil
+        case .outline:
+            path.addLines(between: [tail, CGPoint(x: (head.left.x + head.right.x) / 2,
+                                                  y: (head.left.y + head.right.y) / 2)])
+            path.addLines(between: [head.left, tip, head.right])
+            path.closeSubpath()
+        case .open:
+            path.addLines(between: [tail, tip])
+            path.addLines(between: [head.left, tip, head.right])
+        case .doubleEnded:
+            let tailHead = arrowHead(from: tip, to: tail, strokeWidth: strokeWidth)
+            path.addLines(between: [tail, tip])
+            path.addLines(between: [head.left, tip, head.right])
+            path.addLines(between: [tailHead.left, tail, tailHead.right])
+        case .scribbly:
+            let geometry = scribblyArrowGeometry(from: tail,
+                                                 to: tip,
+                                                 strokeWidth: strokeWidth,
+                                                 seed: seed)
+            path.addLines(between: geometry.shaft)
+            path.addLines(between: geometry.leftWing)
+            path.addLines(between: geometry.rightWing)
+        }
+        return path
+    }
+
+    /// A lightly hand-drawn arrow made from stable, seeded wobble. The seed
+    /// belongs to the annotation so a redraw or export keeps the same sketch,
+    /// while each newly created scribbly arrow gets its own variation.
+    struct ScribblyArrowGeometry: Equatable {
+        let shaft: [CGPoint]
+        let leftWing: [CGPoint]
+        let rightWing: [CGPoint]
+    }
+
+    static func scribblyArrowGeometry(from tail: CGPoint,
+                                      to tip: CGPoint,
+                                      strokeWidth: CGFloat,
+                                      seed: UInt64) -> ScribblyArrowGeometry {
+        let dx = tip.x - tail.x
+        let dy = tip.y - tail.y
+        let distance = hypot(dx, dy)
+        let angle = atan2(dy, dx)
+        let direction = CGPoint(x: cos(angle), y: sin(angle))
+        let perpendicular = CGPoint(x: -direction.y, y: direction.x)
+        let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
+        let base = CGPoint(x: (head.left.x + head.right.x) / 2,
+                           y: (head.left.y + head.right.y) / 2)
+        var randomizer = ScribbleRandomizer(seed: seed)
+        let shaftSegments = max(4, min(24, Int(ceil(distance / max(10, strokeWidth * 3)))))
+        let shaftWobble = min(max(1, strokeWidth * 0.35), distance * 0.025)
+        let shaft = roughPath(from: tail,
+                              to: base,
+                              segments: shaftSegments,
+                              direction: direction,
+                              perpendicular: perpendicular,
+                              wobble: shaftWobble,
+                              randomizer: &randomizer)
+        let wingWobble = min(max(0.8, strokeWidth * 0.22), distance * 0.035)
+        let leftWing = roughPath(from: head.left,
+                                 to: tip,
+                                 segments: 3,
+                                 wobble: wingWobble,
+                                 randomizer: &randomizer)
+        let rightWing = roughPath(from: head.right,
+                                  to: tip,
+                                  segments: 3,
+                                  wobble: wingWobble,
+                                  randomizer: &randomizer)
+        return ScribblyArrowGeometry(shaft: shaft,
+                                     leftWing: leftWing,
+                                     rightWing: rightWing)
+    }
+
+    private struct ScribbleRandomizer {
+        private var state: UInt64
+
+        init(seed: UInt64) {
+            state = seed == 0 ? 0x9E3779B97F4A7C15 : seed
+        }
+
+        mutating func signedUnit() -> CGFloat {
+            state = state &* 2862933555777941757 &+ 3037000493
+            let normalized = Double(state) / Double(UInt64.max)
+            return CGFloat(normalized * 2 - 1)
+        }
+    }
+
+    private static func roughPath(from start: CGPoint,
+                                  to end: CGPoint,
+                                  segments: Int,
+                                  direction: CGPoint? = nil,
+                                  perpendicular: CGPoint? = nil,
+                                  wobble: CGFloat,
+                                  randomizer: inout ScribbleRandomizer) -> [CGPoint] {
+        let lineX = end.x - start.x
+        let lineY = end.y - start.y
+        let length = hypot(lineX, lineY)
+        let pathDirection = direction
+            ?? CGPoint(x: lineX / max(length, 0.001), y: lineY / max(length, 0.001))
+        let pathPerpendicular = perpendicular
+            ?? CGPoint(x: -pathDirection.y, y: pathDirection.x)
+        let count = max(1, segments)
+        return (0...count).map { index in
+            let progress = CGFloat(index) / CGFloat(count)
+            guard index != 0, index != count else {
+                return CGPoint(x: start.x + lineX * progress,
+                               y: start.y + lineY * progress)
+            }
+            let envelope = CGFloat(sin(Double.pi * Double(progress)))
+            let sideOffset = randomizer.signedUnit() * wobble * envelope
+            let forwardOffset = randomizer.signedUnit() * wobble * 0.28 * envelope
+            return CGPoint(x: start.x + lineX * progress
+                                + pathPerpendicular.x * sideOffset
+                                + pathDirection.x * forwardOffset,
+                           y: start.y + lineY * progress
+                                + pathPerpendicular.y * sideOffset
+                                + pathDirection.y * forwardOffset)
+        }
+    }
+
     /// Distance from a point to a segment, for hit-testing lines and arrows.
     static func distance(from point: CGPoint, toSegment start: CGPoint, _ end: CGPoint) -> CGFloat {
         let dx = end.x - start.x
@@ -1574,11 +2132,20 @@ enum ScreenshotSupport {
 
     // MARK: - Redaction
 
-    /// Pixelation block size in image pixels: coarse enough that the mosaic
-    /// carries no legible detail, scaled to the capture so small crops and
-    /// full screens redact equally well.
-    static func pixelBlockSize(for imageSize: CGSize) -> Int {
-        max(10, Int(min(imageSize.width, imageSize.height) / 55))
+    /// Pixelation block size in image pixels, scaled to the capture so small
+    /// crops and full screens redact equally well. From the default level up
+    /// the mosaic carries no legible detail; levels 1 and 2 are lighter and
+    /// can leave large text readable.
+    static func pixelBlockSize(for imageSize: CGSize,
+                               level: Int = BlurStrength.defaultLevel) -> Int {
+        let base = max(10, Int(min(imageSize.width, imageSize.height) / 55))
+        return max(2, Int((CGFloat(base) * BlurStrength.blockFactor(for: level)).rounded()))
+    }
+
+    /// The blur levels the pixelate marks use. Keep only their sampled mosaics;
+    /// drawing expands each one to the capture size when needed.
+    static func mosaicLevels(for annotations: [Annotation]) -> Set<Int> {
+        Set(annotations.filter { $0.tool == .pixelate }.map(\.blurLevel))
     }
 
     // MARK: - Export
@@ -1809,6 +2376,181 @@ enum ScreenshotSupport {
         guard let data = try? JSONEncoder().encode(Array(presets.suffix(backdropPresetLimit)))
         else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    // MARK: - Watermark
+
+    /// A mark of your own on every capture that leaves the editor: a line of
+    /// text or a picture from disk, faded, tilted if you like and set on one
+    /// of nine places. Persisted as JSON like the backdrop, so the next
+    /// capture opens with it already on.
+    struct WatermarkStyle: Codable, Equatable {
+        enum Kind: String, Codable {
+            case none, text, image
+        }
+
+        /// The same nine places the recorder's captions and pictures take:
+        /// one grid to learn across both editors.
+        typealias Anchor = RecorderTextOverlay.Anchor
+
+        var kind: Kind
+        var text: String
+        /// Absolute path when kind == .image.
+        var imagePath: String?
+        /// ColorID raw value the text is drawn in.
+        var color: String
+        var anchor: Anchor
+        /// Sliders 0…1; `watermarkFontSize` and `watermarkImageWidth` turn
+        /// them into pixels for a given capture.
+        var size: Double
+        var opacity: Double
+        /// Degrees, -90…90: positive tilts the mark up to the right, the way
+        /// a diagonal document watermark runs.
+        var rotation: Double
+
+        init(kind: Kind = .none,
+             text: String = "",
+             imagePath: String? = nil,
+             color: String = ColorID.white.rawValue,
+             anchor: Anchor = .bottomTrailing,
+             size: Double = 0.3,
+             opacity: Double = 0.4,
+             rotation: Double = 0) {
+            self.kind = kind
+            self.text = text
+            self.imagePath = imagePath
+            self.color = color
+            self.anchor = anchor
+            self.size = size
+            self.opacity = opacity
+            self.rotation = rotation
+        }
+
+        static let opacityRange: ClosedRange<Double> = 0.05...1
+        static let rotationRange: ClosedRange<Double> = -90...90
+        static let textLimit = 120
+
+        /// Clamps the sliders, trims the text and drops a configuration
+        /// missing its content back to .none, so a damaged persisted value
+        /// can never wedge the editor.
+        func sanitized() -> WatermarkStyle {
+            var style = self
+            style.text = String(text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(Self.textLimit))
+            style.color = ColorID(rawValue: color)?.rawValue ?? ColorID.white.rawValue
+            style.size = size.isFinite ? max(0, min(1, size)) : 0.3
+            style.opacity = opacity.isFinite
+                ? max(Self.opacityRange.lowerBound, min(Self.opacityRange.upperBound, opacity))
+                : 0.4
+            style.rotation = rotation.isFinite
+                ? max(Self.rotationRange.lowerBound, min(Self.rotationRange.upperBound, rotation))
+                : 0
+            switch style.kind {
+            case .none:
+                break
+            case .text:
+                guard !style.text.isEmpty else { return style.demoted() }
+            case .image:
+                guard let path = style.imagePath, !path.isEmpty else { return style.demoted() }
+            }
+            return style
+        }
+
+        private func demoted() -> WatermarkStyle {
+            var style = self
+            style.kind = .none
+            return style
+        }
+
+        func encoded() -> String {
+            guard let data = try? JSONEncoder().encode(self) else { return "" }
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+
+        static func decoded(_ raw: String?) -> WatermarkStyle {
+            guard let raw, !raw.isEmpty,
+                  let data = raw.data(using: .utf8),
+                  let style = try? JSONDecoder().decode(WatermarkStyle.self, from: data)
+            else { return WatermarkStyle() }
+            return style.sanitized()
+        }
+    }
+
+    /// Saved watermarks, capped like the backdrops.
+    static func decodedWatermarkPresets(_ raw: String?) -> [WatermarkStyle] {
+        guard let raw, !raw.isEmpty,
+              let data = raw.data(using: .utf8),
+              let presets = try? JSONDecoder().decode([WatermarkStyle].self, from: data)
+        else { return [] }
+        return presets.map { $0.sanitized() }
+            .filter { $0.kind != .none }
+            .suffix(backdropPresetLimit)
+            .map { $0 }
+    }
+
+    static func encodedWatermarkPresets(_ presets: [WatermarkStyle]) -> String {
+        guard let data = try? JSONEncoder().encode(Array(presets.suffix(backdropPresetLimit)))
+        else { return "[]" }
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    /// Point size of watermark text in image pixels: factor 0 is a discreet
+    /// 2% of the short side, 1 a bold 16%, the recorder's caption ceiling.
+    static func watermarkFontSize(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return max(8, (min(imageSize.width, imageSize.height) * (0.02 + 0.14 * clamped)).rounded())
+    }
+
+    /// Width of a watermark picture in image pixels, from a corner mark of
+    /// 5% of the capture's width up to half of it. The picture's own
+    /// proportions decide the height.
+    static func watermarkImageWidth(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return max(1, (imageSize.width * (0.05 + 0.45 * clamped)).rounded())
+    }
+
+    struct WatermarkPlacement {
+        /// Where the mark's center goes, in image pixels with a top-left origin.
+        let center: CGPoint
+        /// How much the content shrinks so its tilted bounds stay inside the
+        /// margins; 1 when it already fits.
+        let fit: CGFloat
+    }
+
+    /// Where a mark of `contentSize`, turned by `rotation` degrees, sits on a
+    /// capture: its tilted bounding box is what the nine places position, so
+    /// a diagonal mark in a corner touches the margin instead of leaving it.
+    /// The margin is the recorder's, 5% of the short side.
+    static func watermarkPlacement(contentSize: CGSize,
+                                   rotation: Double,
+                                   anchor: WatermarkStyle.Anchor,
+                                   in imageSize: CGSize,
+                                   cornerRadius: CGFloat = 0) -> WatermarkPlacement? {
+        guard contentSize.width.isFinite, contentSize.height.isFinite,
+              contentSize.width > 0, contentSize.height > 0,
+              imageSize.width > 0, imageSize.height > 0, rotation.isFinite
+        else { return nil }
+        let radians = rotation * .pi / 180
+        let bounds = CGSize(
+            width: abs(contentSize.width * cos(radians)) + abs(contentSize.height * sin(radians)),
+            height: abs(contentSize.width * sin(radians)) + abs(contentSize.height * cos(radians)))
+        let shortSide = min(imageSize.width, imageSize.height)
+        // The inset rectangle must lie entirely inside the rounded capture.
+        // At the diagonal of a quarter circle the inset is r * (1 - sqrt(0.5)).
+        // A pixel of breathing room avoids clipping antialiased edges. Keep
+        // positive space even after cropping down to only a few pixels.
+        let radius = cornerRadius.isFinite ? max(0, min(shortSide / 2, cornerRadius)) : 0
+        let roundedInset = radius > 0 ? ceil(radius * (1 - sqrt(0.5))) + 1 : 0
+        let margin = min(shortSide * 0.45, max(shortSide * 0.05, roundedInset))
+        let available = CGSize(width: imageSize.width - margin * 2,
+                               height: imageSize.height - margin * 2)
+        let fit = min(1, min(available.width / bounds.width, available.height / bounds.height))
+        let fitted = CGSize(width: bounds.width * fit, height: bounds.height * fit)
+        let point = anchor.unitPoint
+        return WatermarkPlacement(
+            center: CGPoint(x: margin + (available.width - fitted.width) * point.x + fitted.width / 2,
+                            y: margin + (available.height - fitted.height) * point.y + fitted.height / 2),
+            fit: fit)
     }
 }
 

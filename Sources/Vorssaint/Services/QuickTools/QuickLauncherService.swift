@@ -82,7 +82,8 @@ final class QuickLauncherService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.quickLauncherShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.quickLauncherShortcut,
                                             fallback: .quickLauncherDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.quickLauncherShortcut)
     }
 
     func suspend() {
@@ -138,6 +139,7 @@ final class QuickLauncherService: ObservableObject {
     // MARK: - Presentation
 
     func toggle() {
+        if NotchService.shared.openQuickPanel(toggle: true) { return }
         if isVisible {
             hide()
         } else {
@@ -146,12 +148,9 @@ final class QuickLauncherService: ObservableObject {
     }
 
     func show() {
+        if NotchService.shared.openQuickPanel() { return }
         let panel = ensurePanel()
-        presentationID = UUID()
-        isEditing = false
-        editingOptionsItem = nil
-        activeUtility = nil
-        selectedIndex = visibleItems.isEmpty ? nil : 0
+        prepareForPresentation()
         position(panel)
         installMonitors(for: panel)
         panel.alphaValue = 0
@@ -163,7 +162,24 @@ final class QuickLauncherService: ObservableObject {
         }
     }
 
+    /// Both destinations start with usable keyboard navigation. A utility that
+    /// is still installed keeps its working state when the island is reopened.
+    func prepareForPresentation() {
+        refreshAvailability()
+        presentationID = UUID()
+        isEditing = false
+        editingOptionsItem = nil
+        selectedIndex = visibleItems.isEmpty ? nil : 0
+    }
+
+    func refreshAvailability() {
+        if let activeUtility, !activeUtility.feature.isAvailable { self.activeUtility = nil }
+        if let editingOptionsItem, !editingOptionsItem.feature.isAvailable { self.editingOptionsItem = nil }
+        clampSelection()
+    }
+
     func hide() {
+        if NotchService.shared.expanded, NotchService.shared.selected == .tools { NotchService.shared.collapse() }
         removeMonitors()
         isEditing = false
         editingOptionsItem = nil
@@ -179,6 +195,9 @@ final class QuickLauncherService: ObservableObject {
     /// (choosing a file in Media, for example), so Esc and the keyboard
     /// shortcuts keep working without an extra click.
     func refocusAfterModal() {
+        if NotchService.shared.expanded, NotchService.shared.selected == .tools {
+            NotchService.shared.presentationWindow?.makeKey(); return
+        }
         guard let panel, panel.isVisible else { return }
         panel.makeKey()
     }
@@ -226,12 +245,13 @@ final class QuickLauncherService: ObservableObject {
         run(visibleItems[index])
     }
 
-    func moveSelection(_ direction: QuickToolsSupport.GridDirection) {
+    func moveSelection(_ direction: QuickToolsSupport.GridDirection,
+                       flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns)) {
         let count = visibleItems.count
         guard count > 0 else { return }
         selectedIndex = QuickToolsSupport.gridIndex(after: selectedIndex ?? 0,
                                                     count: count,
-                                                    columns: Self.columns,
+                                                    flow: flow,
                                                     direction: direction)
     }
 
@@ -240,7 +260,7 @@ final class QuickLauncherService: ObservableObject {
     }
 
     func run(_ item: QuickLauncherItem) {
-        guard !isEditing else { return }
+        guard !isEditing, item.feature.isAvailable else { return }
         switch item {
         case .keepAwake:
             KeepAwakeManager.shared.toggle()
@@ -267,9 +287,12 @@ final class QuickLauncherService: ObservableObject {
                 ColorSamplerService.shared.pick()
             }
         case .cameraPreview:
+            let embedded = CameraPreviewService.shared.showInNotchIfEnabled()
             hide()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                CameraPreviewService.shared.show()
+            if !embedded {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    CameraPreviewService.shared.show()
+                }
             }
         case .scratchpad:
             hide()
@@ -305,7 +328,7 @@ final class QuickLauncherService: ObservableObject {
     /// Borderless panels refuse key status by default, and the launcher needs
     /// it for arrows, digits and Esc. Borderless also removes the invisible
     /// title-bar strip that would swallow clicks on the header controls.
-    private final class KeyableLauncherPanel: NSPanel {
+    private final class KeyableLauncherPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 
@@ -350,48 +373,54 @@ final class QuickLauncherService: ObservableObject {
 
     // MARK: - Monitors
 
+    func handlePanelKey(_ event: NSEvent,
+                        flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns)) -> NSEvent? {
+        if event.keyCode == UInt16(kVK_Escape) {
+            if activeUtility != nil {
+                activeUtility = nil
+            } else if editingOptionsItem != nil {
+                // An open options card closes first; a second Esc then
+                // leaves edit mode, and a third hides the panel.
+                editingOptionsItem = nil
+            } else if isEditing {
+                isEditing = false
+            } else {
+                hide()
+            }
+            return nil
+        }
+        guard !isEditing, activeUtility == nil,
+              event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
+        switch Int(event.keyCode) {
+        case kVK_Return, kVK_ANSI_KeypadEnter:
+            activateSelection()
+            return nil
+        case kVK_LeftArrow:
+            moveSelection(.left, flow: flow)
+            return nil
+        case kVK_RightArrow:
+            moveSelection(.right, flow: flow)
+            return nil
+        case kVK_UpArrow:
+            moveSelection(.up, flow: flow)
+            return nil
+        case kVK_DownArrow:
+            moveSelection(.down, flow: flow)
+            return nil
+        default:
+            if let index = Self.digitIndex(for: event.keyCode) {
+                activate(at: index)
+                return nil
+            }
+            return event
+        }
+    }
+
     private func installMonitors(for panel: NSPanel) {
         removeMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             guard let self, let panel, event.window === panel else { return event }
-            if event.keyCode == UInt16(kVK_Escape) {
-                if self.activeUtility != nil {
-                    self.activeUtility = nil
-                } else if self.editingOptionsItem != nil {
-                    // An open options card closes first; a second Esc then
-                    // leaves edit mode, and a third hides the panel.
-                    self.editingOptionsItem = nil
-                } else if self.isEditing {
-                    self.isEditing = false
-                } else {
-                    self.hide()
-                }
-                return nil
-            }
-            guard !self.isEditing, self.activeUtility == nil else { return event }
-            switch Int(event.keyCode) {
-            case kVK_Return, kVK_ANSI_KeypadEnter:
-                self.activateSelection()
-                return nil
-            case kVK_LeftArrow:
-                self.moveSelection(.left)
-                return nil
-            case kVK_RightArrow:
-                self.moveSelection(.right)
-                return nil
-            case kVK_UpArrow:
-                self.moveSelection(.up)
-                return nil
-            case kVK_DownArrow:
-                self.moveSelection(.down)
-                return nil
-            default:
-                if let index = Self.digitIndex(for: event.keyCode) {
-                    self.activate(at: index)
-                    return nil
-                }
-                return event
-            }
+            return self.handlePanelKey(event)
         }
         // With a utility hosted inside (Media, Homebrew, Uninstaller…) the
         // launcher is a small working window, not a transient HUD: it must
@@ -408,7 +437,10 @@ final class QuickLauncherService: ObservableObject {
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible, self.dismissesOnOutsideInteraction else { return }
-            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel) {
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
+               // Every key on the Accessibility Keyboard is a click outside this
+               // panel. Dismissing on those makes the panel impossible to type into.
+               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) {
                 self.hide()
             }
         }
@@ -420,7 +452,8 @@ final class QuickLauncherService: ObservableObject {
             guard let self,
                   self.dismissesOnOutsideInteraction,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  app.bundleIdentifier != Bundle.main.bundleIdentifier
+                  app.bundleIdentifier != Bundle.main.bundleIdentifier,
+                  app.bundleIdentifier != AssistiveKeyboard.bundleID
             else { return }
             self.hide()
         }

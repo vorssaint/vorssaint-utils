@@ -161,6 +161,12 @@ struct MixerRefreshCoordinator {
 }
 
 enum MixerRoutingSupport {
+    static func observationNeeds(isAvailable: (AppFeature) -> Bool)
+        -> (devices: Bool, processes: Bool) {
+        let mixer = isAvailable(.mixer)
+        return (mixer || isAvailable(.audioPriority) || isAvailable(.soundOutputSwitcher), mixer)
+    }
+
     static let systemDefaultSelectionID = "__system_default__"
     static let finderBundleIdentifier = "com.apple.finder"
 
@@ -541,9 +547,107 @@ enum MixerRoutingSupport {
         return displayOrderedBefore(name: name, id: uid, otherName: otherName, otherID: otherUID)
     }
 
+    /// Returns the first UID from the ordered priority list that is
+    /// currently available. Nil if none are available or the list is empty.
+    /// Duplicates are skipped (first occurrence wins) and invalid UIDs are
+    /// filtered out — the policy is pure and testable without mocking audio
+    /// hardware.
+    static func firstAvailablePriorityDeviceUID(
+        orderedUIDs: [String],
+        availableUIDs: Set<String>
+    ) -> String? {
+        var seen = Set<String>()
+        for rawUID in orderedUIDs {
+            guard let uid = sanitizedDeviceUID(rawUID),
+                  seen.insert(uid).inserted,
+                  availableUIDs.contains(uid) else { continue }
+            return uid
+        }
+        return nil
+    }
+
+    /// Where a device goes in a priority list that has not ranked it yet.
+    /// Virtual and aggregate devices play or record nothing on their own, so
+    /// they never take the place of hardware.
+    enum PriorityTier: Int {
+        case builtIn, hardware, virtual
+
+        init(transportType: UInt32) {
+            switch transportType {
+            case kAudioDeviceTransportTypeBuiltIn: self = .builtIn
+            case kAudioDeviceTransportTypeVirtual, kAudioDeviceTransportTypeAggregate,
+                 kAudioDeviceTransportTypeAutoAggregate: self = .virtual
+            default: self = .hardware
+            }
+        }
+    }
+
+    /// The order a first-time list starts in: the device in use, then built-in
+    /// devices, where macOS itself falls back, then other hardware, and virtual
+    /// or aggregate devices last. Within a tier the available order is kept.
+    static func initialPriorityList(availableUIDs: [String],
+                                    currentUID: String?,
+                                    tier: (String) -> PriorityTier) -> [String] {
+        var seen = Set<String>()
+        let unique = availableUIDs.compactMap { sanitizedDeviceUID($0) }.filter { seen.insert($0).inserted }
+        let lead = unique.filter { $0 == currentUID }
+        let rest = unique.enumerated()
+            .filter { $0.element != currentUID }
+            .sorted { lhs, rhs in
+                let (a, b) = (tier(lhs.element).rawValue, tier(rhs.element).rawValue)
+                return a == b ? lhs.offset < rhs.offset : a < b
+            }
+            .map(\.element)
+        return lead + rest
+    }
+
+    /// Where a device the list has never seen joins it once macOS has settled
+    /// on it. The device in use goes first, since macOS or the user just picked
+    /// it; any other device goes above the virtual and aggregate entries, or
+    /// last when it is one itself. Stored entries keep their order.
+    static func placingNewPriorityDevice(_ rawUID: String,
+                                         in list: [String],
+                                         isCurrent: Bool,
+                                         tier: (String) -> PriorityTier) -> [String] {
+        guard let uid = sanitizedDeviceUID(rawUID), !list.contains(uid) else { return list }
+        if isCurrent { return [uid] + list }
+        guard tier(uid) != .virtual,
+              let firstVirtual = list.firstIndex(where: { tier($0) == .virtual }) else {
+            return list + [uid]
+        }
+        var placed = list
+        placed.insert(uid, at: firstVirtual)
+        return placed
+    }
+
+    /// Whether a CoreAudio write should be requested: only when the target
+    /// exists and differs from the current default. Avoids redundant writes
+    /// when the desired device is already active.
+    static func shouldSwitchToDevice(targetUID: String?, currentUID: String?) -> Bool {
+        guard let targetUID else { return false }
+        guard targetUID != currentUID else { return false }
+        return true
+    }
+
+    /// The first observed set establishes a baseline. Afterwards only an
+    /// eligible UID entering or leaving is a priority event; changing the
+    /// system default merely changes device metadata and must not count.
+    static func deviceAvailabilityChanged(previousUIDs: Set<String>?,
+                                          currentUIDs: Set<String>) -> Bool {
+        guard let previousUIDs else { return false }
+        return previousUIDs != currentUIDs
+    }
+
     static func resolveInputDevice(preferredUID: String?,
                                    availableUIDs: Set<String>,
-                                   currentUID: String?) -> MixerInputRouteResolution {
+                                   currentUID: String?,
+                                   priorityIsActive: Bool = false,
+                                   preferredInputIsActive: Bool = true) -> MixerInputRouteResolution {
+        if priorityIsActive || !preferredInputIsActive {
+            return MixerInputRouteResolution(effectiveUID: currentUID,
+                                             selectedUnavailable: false,
+                                             shouldApplyPreferred: false)
+        }
         guard let preferredUID else {
             return MixerInputRouteResolution(effectiveUID: currentUID,
                                              selectedUnavailable: false,
@@ -559,6 +663,12 @@ enum MixerRoutingSupport {
                                          shouldApplyPreferred: preferredUID != currentUID)
     }
 
+    static func selectedInputDeviceUID(preferredUID: String?,
+                                       currentUID: String?,
+                                       priorityIsActive: Bool) -> String? {
+        priorityIsActive ? currentUID : preferredUID
+    }
+
     private static func sanitizedAppID(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 512 else { return nil }
@@ -566,5 +676,75 @@ enum MixerRoutingSupport {
             return nil
         }
         return trimmed
+    }
+}
+
+/// Presentation preferences use the same lasting identity as saved volumes.
+/// Missing apps retain their slots; refreshing audio never rewrites this list.
+struct MixerAppArrangement: Codable, Equatable {
+    private(set) var order: [String] = []
+    private(set) var pinned: [String] = []
+
+    init(rawValue: String = "") {
+        if let decoded = try? JSONDecoder().decode(Self.self, from: Data(rawValue.utf8)) {
+            order = Self.unique(decoded.order)
+            pinned = Self.unique(decoded.pinned)
+        }
+    }
+
+    var rawValue: String {
+        guard let data = try? JSONEncoder().encode(self) else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    func isPinned(_ id: String?) -> Bool {
+        id.map { pinned.contains($0) } ?? false
+    }
+
+    func ordered<T>(_ items: [T], identity: (T) -> String?) -> [T] {
+        let ranks = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($0.element, $0.offset) })
+        return items.enumerated().sorted { lhs, rhs in
+            let left = identity(lhs.element), right = identity(rhs.element)
+            if isPinned(left) != isPinned(right) { return isPinned(left) }
+            let leftRank = left.flatMap { ranks[$0] } ?? Int.max
+            let rightRank = right.flatMap { ranks[$0] } ?? Int.max
+            return leftRank == rightRank ? lhs.offset < rhs.offset : leftRank < rightRank
+        }.map(\.element)
+    }
+
+    mutating func togglePin(_ id: String) {
+        guard !id.isEmpty else { return }
+        if isPinned(id) { pinned.removeAll { $0 == id } }
+        else { pinned.append(id) }
+    }
+
+    func neighbor(of id: String, offset: Int, visibleIDs: [String]) -> String? {
+        let group = visibleIDs.filter { isPinned($0) == isPinned(id) }
+        guard let index = group.firstIndex(of: id), group.indices.contains(index + offset) else { return nil }
+        return group[index + offset]
+    }
+
+    mutating func move(_ id: String, offset: Int, visibleIDs: [String]) {
+        guard let neighbor = neighbor(of: id, offset: offset, visibleIDs: visibleIDs) else { return }
+        move(id, to: neighbor, after: offset > 0, visibleIDs: visibleIDs)
+    }
+
+    mutating func move(_ id: String, to target: String, after: Bool, visibleIDs: [String]) {
+        guard id != target, visibleIDs.contains(id), visibleIDs.contains(target),
+              isPinned(id) == isPinned(target) else { return }
+        var group = Self.unique(visibleIDs.filter { isPinned($0) == isPinned(id) })
+        group.removeAll { $0 == id }
+        guard let index = group.firstIndex(of: target) else { return }
+        group.insert(id, at: index + (after ? 1 : 0))
+        let moving = Set(group)
+        var reordered = group.makeIterator()
+        // Replace only this group's visible slots. Closed and hidden apps,
+        // and the other pin group, keep their remembered positions.
+        order = Self.unique(order + visibleIDs).map { moving.contains($0) ? reordered.next()! : $0 }
+    }
+
+    private static func unique(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        return ids.filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 }

@@ -11,6 +11,11 @@ final class PanelInteractionState {
     /// apps. This is one input to the close policy, not the policy itself.
     var viewKeepsPopoverOpen = false
 
+    /// The Settings page of the utility the panel is currently hosting, so the
+    /// footer's Settings button lands on it instead of on the general page.
+    /// Nil while the panel shows its own lists.
+    var hostedSettingsPage: SettingsPage?
+
     /// A SwiftUI alert or confirmation dialog is presented from the popover.
     /// Closing its parent window underneath the presentation can leave AppKit's
     /// modal state orphaned and make the next panel unresponsive.

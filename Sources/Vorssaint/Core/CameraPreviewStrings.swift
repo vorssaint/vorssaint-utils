@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -32,6 +33,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -67,10 +69,10 @@ extension CameraPreviewFeatureStrings {
         panelCaption: "Aramadan önce nasıl göründüğünüzü kontrol edin",
         openButton: "Önizlemeyi aç",
         cameraMenuLabel: "Kamera",
-        deniedMessage: "Vorssaint için kamera erişimi Sistem Ayarları'nda kapalı.",
+        deniedMessage: "Vorssaint için kamera erişimi Sistem Ayarları’nda kapalı.",
         noCameraMessage: "Kamera bulunamadı",
         permName: "Kamera",
-        permExplain: "Kameranızı yalnızca önizleme penceresinde gösterir; böylece aramadan önce nasıl göründüğünüzü kontrol edebilirsiniz. Hiçbir şey kaydedilmez ve Mac'inizden çıkmaz."
+        permExplain: "Kameranızı yalnızca önizleme penceresinde gösterir; böylece aramadan önce nasıl göründüğünüzü kontrol edebilirsiniz. Hiçbir şey kaydedilmez ve Mac’inizden çıkmaz."
     )
 
     static let ru = CameraPreviewFeatureStrings(
@@ -97,6 +99,18 @@ extension CameraPreviewFeatureStrings {
         permExplain: "Muestra tu cámara solo en la ventana de vista previa, para que compruebes cómo te ves antes de una llamada. No se graba nada y nada sale de tu Mac."
     )
 
+    static let sk = CameraPreviewFeatureStrings(
+        pageTitle: "Náhľad kamery",
+        hubDescription: "Otvorí plávajúce zrkadlo s vašou kamerou",
+        panelCaption: "Pred hovorom si skontrolujte, ako vyzeráte",
+        openButton: "Otvoriť náhľad",
+        cameraMenuLabel: "Kamera",
+        deniedMessage: "Prístup ku kamere pre Vorssaint je v Systémových nastaveniach vypnutý.",
+        noCameraMessage: "Kamera nebola zistená",
+        permName: "Kamera",
+        permExplain: "Zobrazuje vašu kameru iba v okne náhľadu, aby ste si pred hovorom mohli skontrolovať, ako vyzeráte. Nič sa nenahráva ani neopúšťa váš Mac."
+    )
+
     static let de = CameraPreviewFeatureStrings(
         pageTitle: "Kameravorschau",
         hubDescription: "Öffnet einen schwebenden Spiegel mit deiner Kamera",
@@ -113,12 +127,12 @@ extension CameraPreviewFeatureStrings {
         pageTitle: "Aperçu de la caméra",
         hubDescription: "Ouvre un miroir flottant avec votre caméra",
         panelCaption: "Vérifiez votre apparence avant un appel",
-        openButton: "Ouvrir l'aperçu",
+        openButton: "Ouvrir l’aperçu",
         cameraMenuLabel: "Caméra",
-        deniedMessage: "L'accès à la caméra pour Vorssaint est désactivé dans Réglages Système.",
+        deniedMessage: "L’accès à la caméra pour Vorssaint est désactivé dans Réglages Système.",
         noCameraMessage: "Aucune caméra détectée",
         permName: "Caméra",
-        permExplain: "Affiche votre caméra uniquement dans la fenêtre d'aperçu, pour vérifier votre apparence avant un appel. Rien n'est enregistré et rien ne quitte votre Mac."
+        permExplain: "Affiche votre caméra uniquement dans la fenêtre d’aperçu, pour vérifier votre apparence avant un appel. Rien n’est enregistré et rien ne quitte votre Mac."
     )
 
     static let it = CameraPreviewFeatureStrings(
@@ -127,7 +141,7 @@ extension CameraPreviewFeatureStrings {
         panelCaption: "Controlla il tuo aspetto prima di una chiamata",
         openButton: "Apri anteprima",
         cameraMenuLabel: "Fotocamera",
-        deniedMessage: "L'accesso alla fotocamera per Vorssaint è disattivato in Impostazioni di Sistema.",
+        deniedMessage: "L’accesso alla fotocamera per Vorssaint è disattivato in Impostazioni di Sistema.",
         noCameraMessage: "Nessuna fotocamera rilevata",
         permName: "Fotocamera",
         permExplain: "Mostra la tua fotocamera solo nella finestra di anteprima, così controlli il tuo aspetto prima di una chiamata. Nulla viene registrato e nulla lascia il tuo Mac."
@@ -191,5 +205,16 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "未偵測到相機",
         permName: "相機",
         permExplain: "只在預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會離開你的 Mac。"
+    )
+    static let uk = CameraPreviewFeatureStrings(
+        pageTitle: "Попередній перегляд камери",
+        hubDescription: "Відкриває плаваюче дзеркало з вашою камерою",
+        panelCaption: "Перевірте, як ви виглядаєте перед дзвінком",
+        openButton: "Відкрити попередній перегляд",
+        cameraMenuLabel: "Камера",
+        deniedMessage: "Доступ до камери для Vorssaint вимкнено в Системних параметрах.",
+        noCameraMessage: "Камеру не виявлено",
+        permName: "Камера",
+        permExplain: "Показує вашу камеру лише у вікні попереднього перегляду, щоб ви могли перевірити, як виглядаєте перед дзвінком. Нічого не записується та не залишає ваш Mac."
     )
 }

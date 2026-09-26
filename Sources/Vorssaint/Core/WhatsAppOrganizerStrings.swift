@@ -40,6 +40,7 @@ struct WhatsAppOrganizerStrings {
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
+        case .sk: return .sk
         case .tr: return .tr
         case .ru: return .ru
         case .de: return .de
@@ -50,6 +51,7 @@ struct WhatsAppOrganizerStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -119,6 +121,39 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "Organización de WhatsApp",
         notificationFormat: "%1$d archivos organizados. %2$d descargas duplicadas gestionadas. %3$d fallidos.",
         privacyNote: "Para reconocer duplicados exactos, los bytes del archivo solo se leen localmente mientras se calcula una huella criptográfica. El contenido y los chats nunca se guardan ni se envían."
+    )
+
+    static let sk = WhatsAppOrganizerStrings(
+        title: "Automatická organizácia",
+        experimental: "Experimentálne",
+        description: "Presúva stabilné stiahnuté súbory z WhatsAppu do vyhradeného priečinka a rozpoznáva presne opakované sťahovania.",
+        enabled: "Organizovať automaticky",
+        enabledCaption: "WhatsApp môže presunutý súbor stiahnuť znova. Vorssaint nedokáže zabrániť sieťovému sťahovaniu, ale dokáže rozpoznať a odstrániť identickú ďalšiu kópiu.",
+        destination: "Cieľový priečinok",
+        chooseFolder: "Vybrať…",
+        useDefault: "Použiť Stiahnuté/WhatsApp",
+        invalidDestination: "Vyberte iný priečinok než samotné Stiahnuté.",
+        organization: "Štruktúra priečinkov",
+        flat: "Bez podpriečinkov",
+        byType: "Podľa typu súboru",
+        byMonth: "Podľa roka a mesiaca",
+        delay: "Počkať pred presunutím",
+        minutesFormat: "%d min",
+        duplicateAction: "Keď sa ten istý súbor stiahne znova",
+        trashDuplicate: "Presunúť novú kópiu do Koša",
+        keepBoth: "Ponechať obe kópie",
+        replaceExisting: "Nahradiť usporiadanú kópiu",
+        duplicateCaption: "Duplikáty sa overujú súkromným odtlačkom SHA-256. Usporiadaná kópia sa pred odstránením ďalšej kópie znova skontroluje.",
+        organizeNow: "Usporiadať vhodné súbory teraz",
+        undo: "Vrátiť poslednú organizáciu",
+        waiting: "Sledovanie Stiahnutých",
+        working: "Organizovanie súborov WhatsApp…",
+        resultFormat: "Presunuté: %1$d · Duplikáty: %2$d · Zlyhalo: %3$d",
+        lastRunFormat: "Posledná organizácia %@ · presunuté: %d · duplikáty: %d · zlyhalo: %d",
+        neverRun: "Zatiaľ neprebehla žiadna organizácia.",
+        notificationTitle: "Organizácia WhatsAppu",
+        notificationFormat: "Usporiadané súbory: %1$d. Vybavené duplicitné stiahnutia: %2$d. Zlyhalo: %3$d.",
+        privacyNote: "Na rozpoznanie presných duplikátov sa bajty súboru čítajú iba lokálne počas výpočtu kryptografického odtlačku. Obsah a konverzácie sa nikdy neukladajú ani neodosielajú."
     )
 
     static let ptBR = WhatsAppOrganizerStrings(
@@ -207,17 +242,17 @@ extension WhatsAppOrganizerStrings {
         trashDuplicate: "Placer la nouvelle copie dans la Corbeille",
         keepBoth: "Conserver les deux copies",
         replaceExisting: "Remplacer la copie organisée",
-        duplicateCaption: "Les doublons sont confirmés par une empreinte SHA-256 privée. La copie organisée est revérifiée avant qu'une autre copie soit écartée.",
+        duplicateCaption: "Les doublons sont confirmés par une empreinte SHA-256 privée. La copie organisée est revérifiée avant qu’une autre copie soit écartée.",
         organizeNow: "Organiser les fichiers éligibles maintenant",
         undo: "Annuler la dernière organisation",
         waiting: "Surveillance de Téléchargements",
         working: "Organisation des fichiers WhatsApp…",
         resultFormat: "%1$d déplacés · %2$d doublons · %3$d échecs",
-        lastRunFormat: "Dernière organisation %@ : %d déplacés · %d doublons · %d échecs",
+        lastRunFormat: "Dernière organisation %@\u{00A0}: %d déplacés · %d doublons · %d échecs",
         neverRun: "Aucune organisation effectuée pour le moment.",
         notificationTitle: "Organisation WhatsApp",
         notificationFormat: "%1$d fichiers organisés. %2$d téléchargements en double traités. %3$d échecs.",
-        privacyNote: "Pour identifier les doublons exacts, les octets des fichiers sont lus localement uniquement pendant le calcul d'une empreinte cryptographique. Les contenus et les discussions ne sont jamais stockés ni envoyés."
+        privacyNote: "Pour identifier les doublons exacts, les octets des fichiers sont lus localement uniquement pendant le calcul d’une empreinte cryptographique. Les contenus et les discussions ne sont jamais stockés ni envoyés."
     )
 
     static let it = WhatsAppOrganizerStrings(
@@ -240,9 +275,9 @@ extension WhatsAppOrganizerStrings {
         trashDuplicate: "Sposta la nuova copia nel Cestino",
         keepBoth: "Conserva entrambe le copie",
         replaceExisting: "Sostituisci la copia organizzata",
-        duplicateCaption: "I duplicati sono confermati con un'impronta SHA-256 privata. La copia organizzata viene ricontrollata prima di scartare un'altra copia.",
+        duplicateCaption: "I duplicati sono confermati con un’impronta SHA-256 privata. La copia organizzata viene ricontrollata prima di scartare un’altra copia.",
         organizeNow: "Organizza ora i file idonei",
-        undo: "Annulla l'ultima organizzazione",
+        undo: "Annulla l’ultima organizzazione",
         waiting: "Download sotto osservazione",
         working: "Organizzazione dei file WhatsApp…",
         resultFormat: "%1$d spostati · %2$d duplicati · %3$d falliti",
@@ -250,7 +285,7 @@ extension WhatsAppOrganizerStrings {
         neverRun: "Nessuna organizzazione ancora eseguita.",
         notificationTitle: "Organizzazione WhatsApp",
         notificationFormat: "%1$d file organizzati. %2$d download duplicati gestiti. %3$d falliti.",
-        privacyNote: "Per individuare i duplicati esatti, i byte dei file vengono letti solo localmente durante il calcolo di un'impronta crittografica. Contenuti e chat non vengono mai salvati né inviati."
+        privacyNote: "Per individuare i duplicati esatti, i byte dei file vengono letti solo localmente durante il calcolo di un’impronta crittografica. Contenuti e chat non vengono mai salvati né inviati."
     )
 
     static let tr = WhatsAppOrganizerStrings(
@@ -262,7 +297,7 @@ extension WhatsAppOrganizerStrings {
         destination: "Hedef klasör",
         chooseFolder: "Seç…",
         useDefault: "İndirilenler/WhatsApp kullan",
-        invalidDestination: "İndirilenler'in kendisi dışında bir klasör seçin.",
+        invalidDestination: "İndirilenler’in kendisi dışında bir klasör seçin.",
         organization: "Klasör yapısı",
         flat: "Alt klasörsüz",
         byType: "Dosya türüne göre",
@@ -270,7 +305,7 @@ extension WhatsAppOrganizerStrings {
         delay: "Taşımadan önce bekle",
         minutesFormat: "%d dakika",
         duplicateAction: "Aynı dosya yeniden indirildiğinde",
-        trashDuplicate: "Yeni kopyayı Çöp Sepeti'ne taşı",
+        trashDuplicate: "Yeni kopyayı Çöp Sepeti’ne taşı",
         keepBoth: "İki kopyayı da tut",
         replaceExisting: "Düzenlenen kopyayı değiştir",
         duplicateCaption: "Kopyalar özel bir SHA-256 özetiyle doğrulanır. Bir kopya ayıklanmadan önce düzenlenen kopya yeniden denetlenir.",
@@ -482,5 +517,37 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "WhatsApp 整理",
         notificationFormat: "已整理 %1$d 個檔案。處理了 %2$d 個重複下載。%3$d 個失敗。",
         privacyNote: "為辨識完全相同的重複檔案，檔案內容僅在本機計算加密摘要時被讀取。內容與聊天絕不會被儲存或上傳。"
+    )
+    static let uk = WhatsAppOrganizerStrings(
+        title: "Автоматичне впорядкування",
+        experimental: "Експериментальне",
+        description: "Переміщує повністю завантажені файли WhatsApp у спеціальну папку та виявляє точні дублікати повторно завантажених файлів.",
+        enabled: "Впорядкувати автоматично",
+        enabledCaption: "WhatsApp може завантажити переміщений файл знову. Vorssaint не може запобігти завантаженню з мережі, але може виявити та відкинути ідентичну зайву копію.",
+        destination: "Папка призначення",
+        chooseFolder: "Вибрати…",
+        useDefault: "Використовувати Викачане/WhatsApp",
+        invalidDestination: "Виберіть папку, відмінну від самої папки «Викачане».",
+        organization: "Структура папок",
+        flat: "Без підпапок",
+        byType: "За типом файлу",
+        byMonth: "За роком і місяцем",
+        delay: "Зачекати перед переміщенням",
+        minutesFormat: "%d хв",
+        duplicateAction: "Коли той самий файл завантажується знову",
+        trashDuplicate: "Перемістити нову копію в Смітник",
+        keepBoth: "Зберегти обидві копії",
+        replaceExisting: "Замінити впорядковану копію",
+        duplicateCaption: "Дублікати підтверджуються приватним дайджестом SHA-256. Впорядкована копія перепровіряється перед тим, як інша копія відкидається.",
+        organizeNow: "Впорядкувати відповідні файли зараз",
+        undo: "Скасувати останнє впорядкування",
+        waiting: "Спостереження за папкою «Викачане»",
+        working: "Впорядкування файлів WhatsApp…",
+        resultFormat: "Переміщено: %1$d · дублікатів: %2$d · не вдалося: %3$d",
+        lastRunFormat: "Останнє впорядкування %@: переміщено: %d · дублікатів: %d · не вдалося: %d",
+        neverRun: "Впорядкування ще не запускалося.",
+        notificationTitle: "Впорядкування WhatsApp",
+        notificationFormat: "Впорядковано файлів: %1$d. Оброблено дублікатів: %2$d. Не вдалося: %3$d.",
+        privacyNote: "Для точного виявлення дублікатів байти файлів читаються локально лише під час обчислення криптографічного дайджесту. Вміст та чати ніколи не зберігаються та не завантажуються."
     )
 }

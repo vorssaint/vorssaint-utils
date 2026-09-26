@@ -89,35 +89,46 @@ enum FeatureEnergyProfile: String {
 extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
-        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .windowMaximizer, .middleClick,
-             .mouseNavigation, .mouseButtonShortcuts, .dockPreview, .dockClick, .shelf:
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .windowMaximizer, .middleClick,
+             .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
+             .dockPreview, .dockClick, .shelf:
             return .mouse
-        case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey:
+        case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey, .quitWindowProtection:
             return .keyboard
         case .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
+            let edgeSnapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+                && !WindowEdgeSnapZone.enabledZones(
+                    from: UserDefaults.standard.string(
+                        forKey: DefaultsKey.windowEdgeSnapDisabledZones)
+                ).isEmpty
             return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
-                || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+                || edgeSnapRuns
                 ? .pointer : .idle
         case .radialMenu:
-            // With a side button configured the trigger is a mouse tap;
-            // shortcut-only costs nothing at rest.
-            return RadialMenuMouseTrigger.sanitized(
-                UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) == .off
-                ? .idle : .mouse
+            // A side button or the trackpad tap on any wheel keeps an input
+            // tap running; shortcut-only costs nothing at rest.
+            return RadialMenuSupport.opensFromMouseOrTrackpad(
+                UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
+                ? .mouse : .idle
+        case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
+        case .notchAccessories: return .periodic
+        // Log changes arrive as file events; a timer keeps countdowns and
+        // limits current while the section is on.
+        case .notch, .notchCalendar, .notchLyrics, .notchLiveEqualizer, .notchAgents: return .periodic
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
-             .monitorNetwork, .monitorDisk, .monitorPower:
+             .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return .periodic
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle
-        case .pastePlain, .soundOutputSwitcher, .micMute,
+        case .mouseAcceleration, .pastePlain, .soundOutputSwitcher, .audioPriority, .micMute,
              .musicBlock, .bluetoothSleep, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
-             .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .fanControl,
-             .diskImageInstaller, .killProcess:
+             .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .wallpaper, .fanControl,
+             .diskImageInstaller, .killProcess, .portManager:
             return .idle
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.

@@ -69,6 +69,7 @@ final class HotkeyManager: ObservableObject {
             hotKeyRef = ref
             registeredShortcut = shortcut
             registrationFailed = false
+            SystemShortcutTakeover.claim(DefaultsKey.keepAwakeShortcut, shortcut: shortcut)
         } else {
             hotKeyRef = nil
             registeredShortcut = nil
@@ -80,6 +81,7 @@ final class HotkeyManager: ObservableObject {
         if let ref = hotKeyRef {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
+            SystemShortcutTakeover.release(DefaultsKey.keepAwakeShortcut)
         }
         registeredShortcut = nil
         registrationFailed = false

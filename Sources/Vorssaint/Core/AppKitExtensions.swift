@@ -12,8 +12,10 @@ extension NSScreen {
     /// must treat nil as "there is nothing to show onto" and skip, never force
     /// a screen: reading `screens[0]` in that state traps the whole app.
     static var withMouse: NSScreen? {
+        // The pointer on a screen's top row reports y == frame.maxY, which
+        // `contains` excludes and NSMouseInRect keeps.
         let mouse = NSEvent.mouseLocation
-        return screens.first { $0.frame.contains(mouse) } ?? main
+        return screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? main
     }
 
     /// Whether this display is still plugged in. Compared by display id rather

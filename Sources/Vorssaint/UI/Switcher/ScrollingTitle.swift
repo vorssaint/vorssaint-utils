@@ -12,6 +12,12 @@ struct ScrollingTitle: View {
     let text: String
     let weight: Font.Weight
     let width: CGFloat
+    /// Where a name short enough to fit sits in its band: centred under a grid
+    /// thumbnail, like every other label in the switcher, and on the leading
+    /// edge in a column that carries controls beside it. A name too long to fit
+    /// fills the band either way, and a scrolling one always starts from the
+    /// leading edge.
+    let alignment: Alignment
     let scrolls: Bool
 
     @State private var began: Date?
@@ -41,7 +47,7 @@ struct ScrollingTitle: View {
             }
         }
         .font(.system(size: Self.size, weight: weight))
-        .frame(width: width, alignment: .leading)
+        .frame(width: width, alignment: alignment)
     }
 
     /// Two copies a gap apart, slid left and wrapped, so the name reads
