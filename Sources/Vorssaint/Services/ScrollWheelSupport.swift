@@ -21,14 +21,91 @@ enum ScrollHorizontalModifier: String, CaseIterable {
     }
 }
 
+enum ScrollZoomMode: String, CaseIterable {
+    case keyboard, pinch
+}
+
+enum ScrollZoomModifier: String, CaseIterable {
+    case none, shift, option, control, command
+
+    init(storageValue: String?) {
+        self = storageValue.flatMap(Self.init(rawValue:)) ?? .none
+    }
+
+    var modifier: ScrollHorizontalModifier? {
+        ScrollHorizontalModifier(rawValue: rawValue)
+    }
+}
+
+enum ScrollWheelAxis {
+    case vertical, horizontal
+}
+
+enum ScrollZoomEffect {
+    case zoom, pinch
+}
+
+struct ScrollZoomAction {
+    let effect: ScrollZoomEffect
+    let axis: ScrollWheelAxis
+    let modifier: ScrollHorizontalModifier
+    let delta: Double
+}
+
+struct ScrollZoomPreferences {
+    let verticalZoom: ScrollHorizontalModifier?
+    let horizontalZoom: ScrollHorizontalModifier?
+    let pinchZoom: ScrollHorizontalModifier?
+
+    var isEnabled: Bool {
+        verticalZoom != nil || horizontalZoom != nil || pinchZoom != nil
+    }
+
+    init(isAvailable: Bool, boolFor: (String) -> Bool, stringFor: (String) -> String?) {
+        func modifier(_ enabled: String, _ key: String) -> ScrollHorizontalModifier? {
+            isAvailable && boolFor(enabled) ? ScrollZoomModifier(storageValue: stringFor(key)).modifier : nil
+        }
+        let candidates = [
+            modifier(DefaultsKey.verticalZoomEnabled, DefaultsKey.verticalZoomModifier),
+            modifier(DefaultsKey.horizontalZoomEnabled, DefaultsKey.horizontalZoomModifier),
+            modifier(DefaultsKey.pinchZoomEnabled, DefaultsKey.pinchZoomModifier),
+        ]
+        var assigned: [ScrollHorizontalModifier] = []
+        let unique = candidates.map { candidate -> ScrollHorizontalModifier? in
+            guard let candidate, !assigned.contains(candidate) else { return nil }
+            assigned.append(candidate)
+            return candidate
+        }
+        verticalZoom = unique[0]
+        horizontalZoom = unique[1]
+        pinchZoom = unique[2]
+    }
+
+    func action(for event: CGEvent) -> ScrollZoomAction? {
+        let choices: [(ScrollZoomEffect, ScrollWheelAxis, ScrollHorizontalModifier?)] = [
+            (.zoom, .vertical, verticalZoom), (.zoom, .horizontal, horizontalZoom),
+            (.pinch, .vertical, pinchZoom), (.pinch, .horizontal, pinchZoom),
+        ]
+        for (effect, axis, modifier) in choices {
+            if let modifier, let delta = ScrollWheelSupport.zoomDelta(event, modifier: modifier, axis: axis) {
+                return ScrollZoomAction(effect: effect, axis: axis, modifier: modifier, delta: delta)
+            }
+        }
+        return nil
+    }
+}
+
 /// Both independently installed direction features share one tap. Resolve their
 /// effective settings once so raw and smoothed wheels honor removal identically.
 struct ScrollDirectionPreferences {
     let invertVertical: Bool
     let invertHorizontal: Bool
     let horizontalModifier: ScrollHorizontalModifier?
+    let zoom: ScrollZoomPreferences
 
-    var isEnabled: Bool { invertVertical || invertHorizontal || horizontalModifier != nil }
+    var isEnabled: Bool {
+        invertVertical || invertHorizontal || horizontalModifier != nil || zoom.isEnabled
+    }
 
     init(isAvailable: (AppFeature) -> Bool,
          boolFor: (String) -> Bool,
@@ -37,6 +114,8 @@ struct ScrollDirectionPreferences {
         invertHorizontal = isAvailable(.scrollInverter) && boolFor(DefaultsKey.scrollInverterHorizontalEnabled)
         horizontalModifier = isAvailable(.scrollHorizontal) && boolFor(DefaultsKey.scrollHorizontalEnabled)
             ? ScrollHorizontalModifier(storageValue: stringFor(DefaultsKey.scrollHorizontalModifier)) : nil
+        zoom = ScrollZoomPreferences(isAvailable: isAvailable(.scrollInverter),
+                                     boolFor: boolFor, stringFor: stringFor)
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -112,6 +191,36 @@ enum ScrollWheelSupport {
             && event.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 0
             && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == 0
             && event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2) == 0
+    }
+
+    /// The signed distance from either wheel axis, but only while the selected
+    /// modifier is the sole shortcut modifier. This keeps ordinary app
+    /// shortcuts and native two-axis scrolling intact.
+    static func zoomDelta(_ event: CGEvent, modifier: ScrollHorizontalModifier,
+                          axis: ScrollWheelAxis) -> Double? {
+        let shortcutFlags: CGEventFlags = [.maskShift, .maskAlternate, .maskControl, .maskCommand]
+        guard event.flags.intersection(shortcutFlags) == modifier.flag else { return nil }
+        let fields: (CGEventField, CGEventField, CGEventField) = axis == .vertical
+            ? (.scrollWheelEventDeltaAxis1, .scrollWheelEventPointDeltaAxis1, .scrollWheelEventFixedPtDeltaAxis1)
+            : (.scrollWheelEventDeltaAxis2, .scrollWheelEventPointDeltaAxis2, .scrollWheelEventFixedPtDeltaAxis2)
+        let line = event.getIntegerValueField(fields.0)
+        let point = event.getDoubleValueField(fields.1)
+        let fixed = event.getDoubleValueField(fields.2)
+        return zoomDelta(point: point, fixed: fixed, line: line)
+    }
+
+    static func zoomDelta(point: Double, fixed: Double, line: Int64) -> Double? {
+        if point != 0 { return point }
+        if fixed != 0 { return fixed }
+        return line == 0 ? nil : Double(line)
+    }
+
+    static func zoomDelta(_ delta: Double, axis: ScrollWheelAxis,
+                          invertVertical: Bool, invertHorizontal: Bool) -> Double {
+        switch axis {
+        case .vertical: return invertVertical ? -delta : delta
+        case .horizontal: return invertHorizontal ? -delta : delta
+        }
     }
 
     /// Moves a vertical-only event to the horizontal axis, keeping its sign
