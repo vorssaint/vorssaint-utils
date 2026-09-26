@@ -221,6 +221,7 @@ final class ShelfService: ObservableObject {
     private var dragBeganInDock = false
     private var dragSourceBundleIdentifier: String?
     private var activeInternalDragIDs: [UUID] = []
+    private var internalDragHoldsPackageContent = false
     private weak var internalDragWindow: NSWindow?
     private var internalDragWasMerged = false
     /// The edge (and screen) a drag is currently dwelling near, before it has
@@ -1337,11 +1338,24 @@ final class ShelfService: ObservableObject {
         }
         activeInternalDragIDs = ids
         internalDragWasMerged = false
+        // Checked once here: AppKit asks for the operation mask repeatedly
+        // while the drag moves, and each check walks the file's ancestors.
+        internalDragHoldsPackageContent = holdsPackageContent(ids)
+    }
+
+    private func holdsPackageContent(_ ids: [UUID]) -> Bool {
+        items(withIDs: Set(ids), in: items).contains { item in
+            guard case let .file(url) = item.payload else { return false }
+            return ShelfInteractionSupport.isInsidePackage(url) {
+                (try? $0.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
+            }
+        }
     }
 
     func finishInternalDrag(dropAccepted: Bool) -> [UUID] {
         defer {
             activeInternalDragIDs = []
+            internalDragHoldsPackageContent = false
             internalDragWasMerged = false
             if let window = internalDragWindow, window === NotchService.shared.presentationWindow {
                 NotchService.shared.fileDragChanged(false, internalDrag: true)
@@ -1395,7 +1409,8 @@ final class ShelfService: ObservableObject {
         let protected = protectedIDs
         return ShelfInteractionSupport.offersMoveOutside(
             removeAfterDrop: UserDefaults.standard.bool(forKey: DefaultsKey.shelfRemoveAfterDrop),
-            dragIncludesPinned: activeInternalDragIDs.contains(where: protected.contains))
+            dragIncludesPinned: activeInternalDragIDs.contains(where: protected.contains),
+            dragIncludesPackageContent: internalDragHoldsPackageContent)
             ? [.copy, .move]
             : .copy
     }
