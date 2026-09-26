@@ -358,6 +358,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// only ever aims focus and the undoable clear at it.
     func registerTextView(_ view: NSTextView) {
         textView = view
+        view.usesFindBar = true
+        view.isIncrementalSearchingEnabled = true
     }
 
     /// Document actions keep focus in their host. Only an explicit show may
@@ -466,14 +468,23 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             guard let self, let panel, event.window === panel else { return event }
             if event.keyCode == UInt16(kVK_Escape) {
-                // Mid-composition Esc belongs to the input method, not the pad.
-                if let textView = self.textView, textView.hasMarkedText() {
+                // Mid-composition Esc belongs to the input method, not the pad,
+                // whether it composes in the text or in the find field.
+                if let editor = panel.firstResponder as? NSTextView, editor.hasMarkedText() {
                     return event
                 }
-                self.hide()
+                // An open find bar closes first, the way it does in TextEdit.
+                if !self.closeFindBar() { self.hide() }
                 return nil
             }
             guard !self.modalInteractionActive else { return event }
+            if let action = ScratchpadFindShortcut.action(
+                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+                modifierFlags: event.modifierFlags
+            ) {
+                self.performFind(action)
+                return nil
+            }
             let commandOnly = event.modifierFlags
                 .intersection([.command, .option, .shift, .control]) == .command
             if let action = ScratchpadFocusedTabShortcut.action(
@@ -508,6 +519,29 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                 self.hide()
             }
         }
+    }
+
+    /// The editor on screen in the floating pad, if any; the preview hides it.
+    private var visibleTextView: NSTextView? {
+        guard !isPreviewing, let panel, let textView, textView.window === panel else { return nil }
+        return textView
+    }
+
+    /// NSTextFinder reads the action from the sender's tag, as it would from
+    /// a Find menu item.
+    private func performFind(_ action: NSTextFinder.Action) {
+        guard let textView = visibleTextView else { return }
+        let sender = NSMenuItem()
+        sender.tag = action.rawValue
+        textView.performTextFinderAction(sender)
+    }
+
+    private func closeFindBar() -> Bool {
+        guard let textView = visibleTextView,
+              textView.enclosingScrollView?.isFindBarVisible == true else { return false }
+        performFind(.hideFindInterface)
+        panel?.makeFirstResponder(textView)
+        return true
     }
 
     /// A click on the pad's own edge (its resize border) still belongs to it.

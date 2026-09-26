@@ -2700,6 +2700,31 @@ enum ScreenshotFeatureTests {
                                                    canCreatePad: true,
                                                    canClosePad: true) == nil,
                "events without a character do not trigger scratchpad tab shortcuts")
+        suite.expect(ScratchpadFindShortcut.action(charactersIgnoringModifiers: "f",
+                                                   modifierFlags: .command) == .showFindInterface
+                && ScratchpadFindShortcut.action(charactersIgnoringModifiers: "g",
+                                                 modifierFlags: .command) == .nextMatch
+                && ScratchpadFindShortcut.action(charactersIgnoringModifiers: "G",
+                                                 modifierFlags: [.command, .shift]) == .previousMatch,
+               "Command-F opens the scratchpad find bar and Command-G steps through matches both ways")
+        suite.expect(ScratchpadFindShortcut.action(charactersIgnoringModifiers: "F",
+                                                   modifierFlags: [.command, .capsLock]) == .showFindInterface
+                && ScratchpadFindShortcut.action(charactersIgnoringModifiers: "g",
+                                                 modifierFlags: [.command, .numericPad]) == .nextMatch,
+               "Caps Lock and device flags do not break the scratchpad find keys")
+        suite.expect(ScratchpadFindShortcut.action(charactersIgnoringModifiers: "f",
+                                                   modifierFlags: []) == nil
+                && ScratchpadFindShortcut.action(charactersIgnoringModifiers: "f",
+                                                 modifierFlags: [.command, .option]) == nil
+                && ScratchpadFindShortcut.action(charactersIgnoringModifiers: "F",
+                                                 modifierFlags: [.command, .shift]) == nil
+                && ScratchpadFindShortcut.action(charactersIgnoringModifiers: "g",
+                                                 modifierFlags: [.command, .control]) == nil
+                && ScratchpadFindShortcut.action(charactersIgnoringModifiers: "t",
+                                                 modifierFlags: .command) == nil
+                && ScratchpadFindShortcut.action(charactersIgnoringModifiers: nil,
+                                                 modifierFlags: .command) == nil,
+               "typing F or G and other Command chords stay with the scratchpad text")
         var limitedScratchpads = migratedScratchpad
         for _ in 2...ScratchpadDocument.maximumPadCount {
             limitedScratchpads = limitedScratchpads.addingPad(defaultName: "Scratchpad")!
