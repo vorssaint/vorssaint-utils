@@ -91,6 +91,7 @@ enum WindowLayoutFeatureTests {
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
+                    && !layoutStrings.marginPerEdge.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
                     && !layoutStrings.centerTwoThirds.isEmpty
                     && !layoutStrings.quarterRows.isEmpty
@@ -807,6 +808,39 @@ enum WindowLayoutFeatureTests {
                                                               visibleFrame: visibleFrame)
         suite.expect(marginMaximizeTarget == CGRect(x: 72, y: 83, width: 1296, height: 774),
                "window layout margin maximize keeps five percent on every usable edge")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutMarginPercent] as? Double == 5,
+               "existing installations retain the five percent maximize margin")
+        suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                              visibleFrame: visibleFrame, marginPercent: 10)
+                == CGRect(x: 144, y: 126, width: 1152, height: 688),
+               "custom maximize margin uses each visible dimension independently")
+        suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                              visibleFrame: visibleFrame, marginPercent: 0) == visibleFrame,
+               "zero maximize margin fills the usable display")
+        let marginPortraitFrame = CGRect(x: -1000, y: -300, width: 1000, height: 1600)
+        suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                              visibleFrame: marginPortraitFrame, marginPercent: 25)
+                == CGRect(x: -750, y: 100, width: 500, height: 800),
+               "maximum margin stays centered on a portrait display with a negative origin")
+        suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                              visibleFrame: visibleFrame, windowGap: 64,
+                                              screenGap: 32, marginPercent: 10)
+                == CGRect(x: 144, y: 126, width: 1152, height: 688),
+               "custom maximize margin is independent of tiling gaps")
+        for action in WindowLayoutAction.allCases where action != .marginMaximize {
+            suite.expect(WindowLayoutGeometry.rect(for: action, current: currentWindow,
+                                                  visibleFrame: visibleFrame, marginPercent: 25)
+                    == WindowLayoutGeometry.rect(for: action, current: currentWindow,
+                                                 visibleFrame: visibleFrame),
+                   "custom maximize margin leaves \(action.rawValue) unchanged")
+        }
+        for (input, expected) in [(-10.0, 0.0), (80.0, 25.0), (.nan, 5.0), (.infinity, 5.0)] {
+            suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                                  visibleFrame: visibleFrame, marginPercent: input)
+                    == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                                 visibleFrame: visibleFrame, marginPercent: expected),
+                   "invalid stored maximize margin \(input) uses a supported size")
+        }
         suite.expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 320, y: 220, width: 800, height: 500),
                "window layout center preserves current size and centers inside the visible frame")
