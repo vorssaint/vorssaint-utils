@@ -366,9 +366,10 @@ final class NotchService: ObservableObject {
         let usage = AgentUsageService.shared.snapshot
         guard usage.loaded else { return nil }
         let providers = NotchAgentSupport.providers().filter(usage.seen.contains)
-        guard !providers.isEmpty else { return 0 }
+        guard !providers.isEmpty || !usage.accounts.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers), width: width))
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, accounts: usage.accounts),
+            width: width))
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -2143,10 +2144,11 @@ final class NotchService: ObservableObject {
         }
         if modules.contains(.agents) {
             // Only what changes the island's size or strip: a turn starting or
-            // ending, the first read landing, which agents have cards, and
-            // which are working, since each one's mark widens the strip.
+            // ending, the first read landing, which agents and hub accounts
+            // have cards, and which agents are working, since each one's mark
+            // widens the strip.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider)), $0.accounts.map(\.id)) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -2207,19 +2209,22 @@ final class NotchService: ObservableObject {
                 ?? text.readoutLimit
             }
         }
+        func agentName(_ provider: AgentProvider, _ account: String?) -> String {
+            account.map { AgentUsageService.shared.accountLabel(id: $0, provider: provider) } ?? provider.displayName
+        }
         switch event {
         case .finished(let provider, let duration, let cost, _, _):
             show(NotchNotice(event: .agents, title: text.finished(provider.displayName),
                              detail: [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]
                                 .filter { !$0.isEmpty }.joined(separator: " · "),
                              symbol: provider.symbol, agent: provider))
-        case .limitWarning(let provider, let limit):
+        case .limitWarning(let provider, let limit, let account):
             let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
-            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
+            show(NotchNotice(event: .agents, title: "\(agentName(provider, account)) · \(window(limit))",
                              detail: remaining ? text.left(share) : text.usedShare(share),
                              symbol: "exclamationmark.triangle.fill", agent: provider))
-        case .limitReset(let provider, let limit):
-            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
+        case .limitReset(let provider, let limit, let account):
+            show(NotchNotice(event: .agents, title: "\(agentName(provider, account)) · \(window(limit))",
                              detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider))
         case .budgetReached(let spent, _):
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),

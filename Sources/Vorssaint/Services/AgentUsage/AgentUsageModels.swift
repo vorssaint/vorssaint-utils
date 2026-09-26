@@ -96,6 +96,8 @@ struct AgentLimits: Equatable {
         case claudeApp
         /// Copied by the agent into its session log with each response.
         case sessionLog
+        /// Asked of the provider by a CLIProxyAPI hub the person added.
+        case hub
     }
 
     let provider: AgentProvider
@@ -126,7 +128,8 @@ struct AgentLiveSession: Equatable, Identifiable {
 /// Something worth a moment in the closed island.
 enum AgentUsageEvent: Equatable {
     case finished(provider: AgentProvider, duration: TimeInterval, cost: Double, tokens: Int, project: String)
-    case limitWarning(provider: AgentProvider, window: AgentLimitWindow)
-    case limitReset(provider: AgentProvider, window: AgentLimitWindow)
+    /// `account` is a hub account's id. It is nil for the one signed in on this Mac.
+    case limitWarning(provider: AgentProvider, window: AgentLimitWindow, account: String?)
+    case limitReset(provider: AgentProvider, window: AgentLimitWindow, account: String?)
     case budgetReached(spent: Double, budget: Double)
 }

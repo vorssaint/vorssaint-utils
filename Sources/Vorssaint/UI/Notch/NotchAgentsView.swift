@@ -14,6 +14,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
+    @AppStorage(DefaultsKey.notchAgentsHideAccountNames) private var hidesNames = false
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -27,7 +28,8 @@ struct NotchAgentsView: View {
     private var rows: [[NotchAgentTile]] {
         // The strings are read here so a change in Settings redraws the page.
         _ = (cardOrder, hiddenCards)
-        return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers),
+        return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
+                                                              accounts: usage.snapshot.accounts),
                                       width: size.width)
     }
 
@@ -39,7 +41,7 @@ struct NotchAgentsView: View {
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if providers.isEmpty {
+            } else if providers.isEmpty && usage.snapshot.accounts.isEmpty {
                 NotchEmptyView(symbol: "sparkles", message: text.empty)
             } else if rows.isEmpty {
                 NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
@@ -78,7 +80,11 @@ struct NotchAgentsView: View {
         switch tile.card {
         case .limits:
             if let provider = tile.provider {
-                NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
+                let account = snapshot.accounts.first { $0.id == tile.account }
+                // A name the person gave an account is theirs to show.
+                let given = account.flatMap { account in usage.hubs.first { $0.id == account.hub }?.names[account.index] }
+                NotchAgentLimitsCard(provider: provider, account: account, title: given ?? account?.name,
+                                     hidesTitle: hidesNames && given == nil, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text)
             }
         case .spend:
@@ -118,6 +124,10 @@ private struct NotchAgentChip: View {
 
 private struct NotchAgentLimitsCard: View {
     let provider: AgentProvider
+    /// A hub account. Nil for the account signed in on this Mac.
+    let account: AgentHubAccount?
+    let title: String?
+    let hidesTitle: Bool
     let snapshot: AgentUsageSnapshot
     let now: Date
     let display: NotchAgentLimitDisplay
@@ -127,13 +137,16 @@ private struct NotchAgentLimitsCard: View {
     /// A reading the Claude app saved a while ago: still the latest known,
     /// shown quieter until the app checks again.
     private var stale: Bool {
-        guard let limits = snapshot.limits[provider], limits.source == .claudeApp else { return false }
+        if let account { return account.failed }
+        guard let limits, limits.source == .claudeApp else { return false }
         return now.timeIntervalSince(limits.observedAt) >= AgentClaudeAppUsage.freshness
     }
 
+    private var limits: AgentLimits? { account == nil ? snapshot.limits[provider] : account?.limits }
+
     /// Two rows fit: the session and whichever longer window binds first.
     private var windows: [AgentLimitWindow] {
-        let all = (snapshot.limits[provider]?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
+        let all = (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
         let session = all.first { $0.kind == .session }
         let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
         return [session, longer].compactMap { $0 }
@@ -143,14 +156,24 @@ private struct NotchAgentLimitsCard: View {
         let windows = windows
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: provider.displayName, symbol: provider.symbol, tint: provider.tint,
-                                     provider: provider) {
+                NotchAgentCardHeader(title: title ?? provider.displayName, symbol: provider.symbol,
+                                     tint: provider.tint, provider: provider, hidesTitle: hidesTitle) {
                     HStack(spacing: 4) {
-                        if let plan = snapshot.plans[provider] { NotchAgentChip(text: plan.name, tint: provider.tint) }
-                        if !snapshot.working(provider).isEmpty { NotchAgentPulse(tint: provider.tint, size: 5) }
+                        if let plan = account == nil ? snapshot.plans[provider] : account?.plan {
+                            NotchAgentChip(text: plan.name, tint: provider.tint)
+                        }
+                        if account == nil, !snapshot.working(provider).isEmpty {
+                            NotchAgentPulse(tint: provider.tint, size: 5)
+                        }
                     }
                 }
-                if windows.isEmpty {
+                .help(account.map { account in
+                    [hidesTitle ? nil : title, text.hubAccount(account.hubName)].compactMap { $0 }.joined(separator: " · ")
+                } ?? "")
+                if windows.isEmpty, let account {
+                    Text(account.failed ? text.proxyHubAccountFailed : text.waitingForLimits)
+                        .font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
+                } else if windows.isEmpty {
                     estimate
                 } else {
                     VStack(spacing: 5) {
@@ -166,7 +189,7 @@ private struct NotchAgentLimitsCard: View {
 
     /// How old a reading is, once it is old enough to have missed use elsewhere.
     @ViewBuilder private var caption: some View {
-        if let observed = snapshot.limits[provider]?.observedAt, now.timeIntervalSince(observed) > 600 {
+        if let observed = limits?.observedAt, now.timeIntervalSince(observed) > 600 {
             Text(text.updated(observed.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)
                 .locale(locale))))
                 .font(.system(size: 9.5))
@@ -237,7 +260,8 @@ private struct NotchAgentLimitsCard: View {
         if let resets = window.resetsAt {
             parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)))
         }
-        if let observed = snapshot.limits[provider]?.observedAt, now.timeIntervalSince(observed) > 600 {
+        if let account { parts.append(text.hubAccount(account.hubName)) }
+        if let observed = limits?.observedAt, now.timeIntervalSince(observed) > 600 {
             parts.append(text.updated(observed.formatted(.relative(presentation: .named).locale(locale))))
         }
         return parts.joined(separator: " · ")

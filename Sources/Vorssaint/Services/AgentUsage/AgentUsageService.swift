@@ -7,8 +7,9 @@ import Foundation
 /// Reads Claude Code and Codex usage from their local session logs while the
 /// AI section is on, along with the plan limits the Claude app saves. The
 /// files are read where they are, incrementally, and nothing is copied,
-/// stored or sent: only counters stay in memory. The one request it makes
-/// fetches the public price list, when the person keeps prices up to date.
+/// stored or sent: only counters stay in memory. It fetches the public price
+/// list when the person keeps prices up to date, and asks the CLIProxyAPI
+/// hubs the person added for the limits of the accounts they pool.
 ///
 /// Reading happens on a private queue; the main thread and that queue only
 /// ever hand work to each other asynchronously.
@@ -20,6 +21,10 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
+    /// The CLIProxyAPI hubs the person added, in the order they added them.
+    @Published private(set) var hubs: [AgentHub] = AgentHubStore.load()
+    /// How each hub answered last. Nil until Vorssaint first asks it.
+    @Published private(set) var hubStates: [String: AgentHubState] = [:]
     let events = PassthroughSubject<AgentUsageEvent, Never>()
 
     /// The history the island can show: thirteen weeks for the activity map.
@@ -33,6 +38,9 @@ final class AgentUsageService: ObservableObject {
     /// A live log may append many times per second; one summary per second
     /// keeps the island current without repeatedly totaling 13 weeks of use.
     private static let publishDelay: TimeInterval = 1
+    /// How often Vorssaint asks each hub. The island keeps the last answer
+    /// in between.
+    static let hubInterval: TimeInterval = 5 * 60
 
     private let queue = DispatchQueue(label: "com.vorssaint.agent-usage", qos: .utility, autoreleaseFrequency: .workItem)
     private let home = FileManager.default.homeDirectoryForCurrentUser
@@ -58,6 +66,12 @@ final class AgentUsageService: ObservableObject {
     private var pricesFailed = false
     /// When the list on disk was downloaded; nil until the queue has looked.
     private var pricesSaved: Date?
+    private var hubAsked: [String: Date] = [:]
+    private var hubsInFlight: Set<String> = []
+    /// Hubs not to ask again before a time. A wrong key waits for a new one,
+    /// since every attempt counts toward the hub's ban. This outlives a
+    /// stop for the same reason.
+    private var hubHolds: [String: Date] = [:]
 
     // Confined to `queue`.
     private var readerSession = -1
@@ -77,9 +91,15 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var shippedPrices: AgentPriceList?
-    private var previousLimits: [AgentProvider: AgentLimits] = [:]
+    /// The last limits of each account, keyed like `limitKeys` makes them.
+    private var previousLimits: [String: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
-    private var warned: [String: (provider: AgentProvider, window: AgentLimitWindow)] = [:]
+    private var warned: [String: (provider: AgentProvider, window: AgentLimitWindow, account: String?)] = [:]
+    /// The email Claude Code signs in with, to spot the same account in a hub.
+    private var claudeEmail: String?
+    /// Every hub's accounts as last read, in the order of `hubOrder`.
+    private var hubAccounts: [String: [AgentHubAccount]] = [:]
+    private var hubOrder: [String] = []
     private var budgetDay: Date?
     private var lastRootCheck = Date.distantPast
 
@@ -101,6 +121,7 @@ final class AgentUsageService: ObservableObject {
             resume()
         }
         syncPrices()
+        askHubs()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -130,6 +151,7 @@ final class AgentUsageService: ObservableObject {
             // Time went by meanwhile: a window or the day may have moved on.
             schedulePublish()
         }
+        askHubs()
     }
 
     func stop() {
@@ -145,6 +167,11 @@ final class AgentUsageService: ObservableObject {
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
         claudeAppChecked = nil
+        // A held hub keeps showing why, so the person fixes the key before Vorssaint tries it again.
+        let now = Date()
+        hubStates = hubStates.filter { (hubHolds[$0.key] ?? .distantPast) > now }
+        hubAsked = [:]
+        hubsInFlight = []
         queue.async { [self] in
             readerSession = -1
             poller?.cancel()
@@ -160,6 +187,8 @@ final class AgentUsageService: ObservableObject {
             budgetDay = nil
             claudePlan = nil
             claudeOrganization = nil
+            claudeEmail = nil
+            hubAccounts = [:]
             claudeProfileModified = nil
             claudeAppModified = nil
             claudeAppSamples = []
@@ -188,9 +217,11 @@ final class AgentUsageService: ObservableObject {
 
     private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation) {
         startTimer()
+        let hubIDs = hubs.map(\.id)
         queue.async { [self] in
             readerSession = session
             enabled = providers
+            hubOrder = hubIDs
             store = AgentUsageStore()
             cursors.removeAll()
             // Prices first, so the first read is already priced.
@@ -209,7 +240,7 @@ final class AgentUsageService: ObservableObject {
             readClaudePlan()
             readClaudeApp(now: now)
             store.reportsTransitions = true
-            previousLimits = store.limits
+            previousLimits = currentLimits().mapValues(\.limits)
             // A budget already passed before launch is history, not news.
             let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
             if let budget = NotchAgentSupport.dailyBudget(),
@@ -327,6 +358,7 @@ final class AgentUsageService: ObservableObject {
     private func tickTimer() {
         guard running else { return }
         syncPrices()
+        askHubs()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -384,8 +416,17 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = AgentUsageSummary.snapshot(records: store.records, limits: store.limits, live: store.live,
+        var next = AgentUsageSummary.snapshot(records: store.records, limits: store.limits, live: store.live,
                                               plans: plans, providers: enabled, now: Date())
+        let merged = mergedAccounts
+        for account in orderedAccounts where merged.contains(account.id) {
+            // The account signed in here keeps one tile, with the newer reading.
+            if next.seen.contains(.claude), let limits = account.limits,
+               limits.observedAt > next.limits[.claude]?.observedAt ?? .distantPast {
+                next.limits[.claude] = limits
+            }
+        }
+        next.accounts = orderedAccounts.filter { !merged.contains($0.id) || !next.seen.contains(.claude) }
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
@@ -411,8 +452,10 @@ final class AgentUsageService: ObservableObject {
             case .finished(let provider, let duration, _, _, _):
                 guard self.providers.contains(provider), let minimum = NotchAgentSupport.finishMinimum(),
                       duration >= minimum else { return }
-            case .limitWarning(let provider, _), .limitReset(let provider, _):
-                guard self.providers.contains(provider), NotchAgentSupport.limitThreshold() != nil else { return }
+            case .limitWarning(let provider, _, let account), .limitReset(let provider, _, let account):
+                // Hub accounts follow the hubs, not the switches for this Mac's agents.
+                guard account != nil || self.providers.contains(provider),
+                      NotchAgentSupport.limitThreshold() != nil else { return }
             case .budgetReached:
                 guard NotchAgentSupport.dailyBudget() != nil else { return }
             }
@@ -424,14 +467,29 @@ final class AgentUsageService: ObservableObject {
     private func checkLimits() {
         guard store.reportsTransitions else { return }
         let threshold = NotchAgentSupport.limitThreshold() ?? NotchAgentSupport.defaultLimitThreshold
-        for (provider, limits) in store.limits {
-            for window in AgentLimitSupport.crossings(previous: previousLimits[provider], current: limits,
+        let current = currentLimits()
+        for (key, entry) in current {
+            for window in AgentLimitSupport.crossings(previous: previousLimits[key], current: entry.limits,
                                                       threshold: threshold) {
-                warned[window.id] = (provider, window)
-                report(.limitWarning(provider: provider, window: window))
+                warned[key + "|" + window.id] = (entry.limits.provider, window, entry.account)
+                report(.limitWarning(provider: entry.limits.provider, window: window, account: entry.account))
             }
         }
-        previousLimits = store.limits
+        previousLimits = current.mapValues(\.limits)
+    }
+
+    /// Every account's limits. This Mac's agents go under their names and
+    /// hub accounts under their ids. A hub account that is the one signed in
+    /// here stays out while this Mac has limits of its own, so a crossing
+    /// warns once.
+    private func currentLimits() -> [String: (limits: AgentLimits, account: String?)] {
+        var current: [String: (limits: AgentLimits, account: String?)] = [:]
+        for (provider, limits) in store.limits { current[provider.rawValue] = (limits, nil) }
+        let merged = store.limits[.claude] == nil ? [] : mergedAccounts
+        for account in orderedAccounts where !merged.contains(account.id) {
+            if let limits = account.limits { current[account.id] = (limits, account.id) }
+        }
+        return current
     }
 
     /// A warned window that renews brings its agent back: worth a word.
@@ -439,7 +497,7 @@ final class AgentUsageService: ObservableObject {
         for (id, entry) in warned {
             guard let resets = entry.window.resetsAt, resets <= now else { continue }
             warned[id] = nil
-            report(.limitReset(provider: entry.provider, window: entry.window))
+            report(.limitReset(provider: entry.provider, window: entry.window, account: entry.account))
         }
     }
 
@@ -467,9 +525,11 @@ final class AgentUsageService: ObservableObject {
               let account = json["oauthAccount"] as? [String: Any] else {
             claudePlan = nil
             claudeOrganization = nil
+            claudeEmail = nil
             return
         }
         claudeOrganization = account["organizationUuid"] as? String
+        claudeEmail = (account["emailAddress"] as? String)?.lowercased()
         claudePlan = AgentPlans.claude(organizationType: account["organizationType"] as? String,
                                        rateLimitTier: account["organizationRateLimitTier"] as? String
                                         ?? account["userRateLimitTier"] as? String)
@@ -503,6 +563,134 @@ final class AgentUsageService: ObservableObject {
         } else if store.limits[.claude]?.source == .claudeApp {
             store.clearLimits(.claude)
         }
+    }
+
+    // MARK: Hubs
+
+    /// Adds a hub, or replaces the one at the same address. False when the
+    /// address is not a web address or the file cannot be written.
+    @discardableResult
+    func addHub(url: String, key: String, label: String) -> Bool {
+        let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let address = AgentHub.normalizedURL(url), !key.isEmpty else { return false }
+        // Adding the same address again keeps the names given to its accounts.
+        let hub = AgentHub(url: address, label: label.trimmingCharacters(in: .whitespacesAndNewlines), key: key,
+                           names: hubs.first { $0.id == address }?.names ?? [:])
+        var next = hubs.filter { $0.id != hub.id }
+        next.append(hub)
+        guard AgentHubStore.save(next) else { return false }
+        forgetHub(hub.id)
+        hubs = next
+        hubsChanged()
+        return true
+    }
+
+    func removeHub(_ id: String) {
+        let next = hubs.filter { $0.id != id }
+        guard next != hubs, AgentHubStore.save(next) else { return }
+        forgetHub(id)
+        hubs = next
+        hubsChanged()
+    }
+
+    /// Gives a hub account a name of its own. An empty name brings back the
+    /// one the hub reports.
+    func renameAccount(hub id: String, index: String, to name: String) {
+        guard let position = hubs.firstIndex(where: { $0.id == id }) else { return }
+        var next = hubs
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        next[position].names[index] = trimmed.isEmpty ? nil : trimmed
+        guard next != hubs, AgentHubStore.save(next) else { return }
+        hubs = next
+    }
+
+    /// What the island calls an account. That is the name the person gave
+    /// it, else the hub's name unless names are hidden, else the agent's name.
+    func accountLabel(_ account: AgentHubAccount) -> String {
+        if let given = hubs.first(where: { $0.id == account.hub })?.names[account.index] { return given }
+        return NotchAgentSupport.hidesAccountNames() ? account.provider.displayName : account.name
+    }
+
+    /// The same for an alert, which carries only the account's id.
+    func accountLabel(id: String, provider: AgentProvider) -> String {
+        snapshot.accounts.first { $0.id == id }.map(accountLabel) ?? provider.displayName
+    }
+
+    private func forgetHub(_ id: String) {
+        hubStates[id] = nil
+        hubAsked[id] = nil
+        hubHolds[id] = nil
+    }
+
+    private func hubsChanged() {
+        guard running else { return }
+        let ids = hubs.map(\.id)
+        let session = self.session
+        queue.async { [self] in
+            guard readerSession == session else { return }
+            hubOrder = ids
+            hubAccounts = hubAccounts.filter { ids.contains($0.key) }
+            checkLimits()
+            publish()
+        }
+        askHubs()
+    }
+
+    /// Asks every hub that is due, one request at a time per hub.
+    private func askHubs() {
+        guard running, !paused else { return }
+        let now = Date()
+        for hub in hubs where !hubsInFlight.contains(hub.id) {
+            if let hold = hubHolds[hub.id], hold > now { continue }
+            if let asked = hubAsked[hub.id], now.timeIntervalSince(asked) < Self.hubInterval { continue }
+            hubsInFlight.insert(hub.id)
+            hubAsked[hub.id] = now
+            if hubStates[hub.id] == nil { hubStates[hub.id] = .checking }
+            let session = self.session
+            Task.detached(priority: .utility) {
+                let reading = await AgentHubClient.read(hub)
+                DispatchQueue.main.async { AgentUsageService.shared.hubAnswered(hub, reading, session: session) }
+            }
+        }
+    }
+
+    private func hubAnswered(_ hub: AgentHub, _ reading: AgentHubClient.Reading, session: Int) {
+        hubsInFlight.remove(hub.id)
+        // A hub removed or given a new key meanwhile keeps nothing from before.
+        guard running, self.session == session, hubs.contains(where: { $0.sameConnection(as: hub) }) else { return }
+        hubStates[hub.id] = reading.state
+        switch reading.state {
+        case .wrongKey: hubHolds[hub.id] = .distantFuture
+        case .blocked: hubHolds[hub.id] = Date().addingTimeInterval(AgentHubParser.banLength)
+        default: hubHolds[hub.id] = nil
+        }
+        guard let accounts = reading.accounts else { return }
+        queue.async { [self] in
+            guard readerSession == session else { return }
+            let previous = Dictionary(hubAccounts[hub.id, default: []].map { ($0.id, $0) }) { first, _ in first }
+            hubAccounts[hub.id] = accounts.map { account in
+                // A failed read keeps the last good one, shown as older.
+                guard account.failed, let before = previous[account.id] else { return account }
+                var kept = account
+                kept.limits = before.limits
+                kept.plan = account.plan ?? before.plan
+                return kept
+            }
+            checkLimits()
+            publish()
+        }
+    }
+
+    /// Runs on `queue`.
+    private var orderedAccounts: [AgentHubAccount] {
+        hubOrder.flatMap { hubAccounts[$0] ?? [] }
+    }
+
+    /// Hub accounts that are the Claude account signed in on this Mac.
+    /// Runs on `queue`.
+    private var mergedAccounts: Set<String> {
+        guard enabled.contains(.claude), let claudeEmail else { return [] }
+        return Set(orderedAccounts.filter { $0.provider == .claude && $0.email?.lowercased() == claudeEmail }.map(\.id))
     }
 
     // MARK: Prices

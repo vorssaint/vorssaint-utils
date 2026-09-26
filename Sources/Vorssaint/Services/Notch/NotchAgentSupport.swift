@@ -42,7 +42,9 @@ struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
     let provider: AgentProvider?
-    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") }
+    /// A hub account's id. Nil for the account signed in on this Mac.
+    var account: String?
+    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (account.map { "." + $0 } ?? "") }
 }
 
 enum NotchAgentSupport {
@@ -123,6 +125,26 @@ enum NotchAgentSupport {
         return value.isFinite && value > 0 ? value : nil
     }
 
+    /// Whether hub account names stay scrambled and blurred on the island.
+    static func hidesAccountNames(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchAgentsHideAccountNames)
+    }
+
+    /// A stand-in as long as `name`, the same every time for the same name,
+    /// that keeps the marks that give an email its shape. Blurred, it reads
+    /// as an address without giving one away.
+    static func scrambled(_ name: String) -> String {
+        let alphabet = Array("abcdefghjkmnpqrstuvwxyz23456789")
+        var state: UInt32 = 0x811c9dc5
+        for byte in name.utf8 { state = (state ^ UInt32(byte)) &* 0x01000193 }
+        return String(name.map { character -> Character in
+            if "@.-_".contains(character) { return character }
+            state = (state ^ (state >> 13)) &* 0x85ebca6b
+            state = (state ^ (state >> 16)) &* 0xc2b2ae35
+            return alphabet[Int(state % UInt32(alphabet.count))]
+        })
+    }
+
     /// Whether the public price list may be downloaded once a day.
     static func updatesPrices(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchAgentsPriceUpdates) as? Bool ?? true
@@ -174,9 +196,13 @@ enum NotchAgentSupport {
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
-    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider]) -> [NotchAgentTile] {
+    /// The limits card becomes one tile per account. This Mac's agents come
+    /// first, then every hub account.
+    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
+                      accounts: [AgentHubAccount] = []) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             card == .limits ? providers.map { NotchAgentTile(card: .limits, provider: $0) }
+                + accounts.map { NotchAgentTile(card: .limits, provider: $0.provider, account: $0.id) }
                 : [NotchAgentTile(card: card, provider: nil)]
         }
     }

@@ -100,6 +100,9 @@ struct AgentUsageSnapshot: Equatable {
     var lastActivity: [AgentProvider: Date] = [:]
     /// Providers with anything on disk: usage, limits or a turn.
     var seen: Set<AgentProvider> = []
+    /// Accounts pooled by the CLIProxyAPI hubs the person added, apart from
+    /// the one signed in on this Mac, which keeps its own tile.
+    var accounts: [AgentHubAccount] = []
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }

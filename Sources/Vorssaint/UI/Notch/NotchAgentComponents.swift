@@ -41,7 +41,10 @@ struct NotchAgentCardHeader<Accessory: View>: View {
     var tint: Color = .secondary
     /// A card about one agent wears its mark instead of the symbol.
     var provider: AgentProvider? = nil
+    /// Scrambles and blurs the title until the pointer rests on it.
+    var hidesTitle = false
     @ViewBuilder var accessory: Accessory
+    @State private var revealed = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -55,10 +58,16 @@ struct NotchAgentCardHeader<Accessory: View>: View {
                     .foregroundStyle(tint)
                     .frame(width: 13)
             }
-            Text(title)
+            let hidden = hidesTitle && !revealed
+            Text(hidden ? NotchAgentSupport.scrambled(title) : title)
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(1)
+                // A hub account's title is an email, and both ends tell accounts apart.
+                .truncationMode(.middle)
+                .blur(radius: hidden ? 3.5 : 0)
+                .onHover { inside in if hidesTitle { revealed = inside } }
+                .animation(.easeOut(duration: 0.15), value: revealed)
             Spacer(minLength: 4)
             accessory
         }

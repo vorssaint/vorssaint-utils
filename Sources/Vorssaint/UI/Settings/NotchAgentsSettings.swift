@@ -21,11 +21,13 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
     @AppStorage(DefaultsKey.notchAgentsDailyBudget) private var dailyBudget = 0.0
     @AppStorage(DefaultsKey.notchAgentsPriceUpdates) private var priceUpdates = true
+    @AppStorage(DefaultsKey.notchAgentsHideAccountNames) private var hidesAccountNames = false
     @State private var dragging: NotchAgentCard?
     @State private var roots: [AgentProvider: Bool] = [:]
     @State private var claudeApp: URL?
     /// Read from the file while the section is off and the service is idle.
     @State private var claudeAppFileCheck: Date?
+    @State private var addingHub = false
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
@@ -44,6 +46,9 @@ struct NotchAgentsSettingsControls: View {
                 .fixedSize(horizontal: false, vertical: true)
             providerRow(.claude, isOn: $claude)
             providerRow(.codex, isOn: $codex)
+
+            Divider()
+            hubs
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -126,6 +131,7 @@ struct NotchAgentsSettingsControls: View {
             }
         }
         .toggleStyle(.switch)
+        .sheet(isPresented: $addingHub) { NotchAgentHubSheet(text: text) }
         .onAppear {
             findRoots()
             // An agent turned off is not read at all, not even for its status.
@@ -137,6 +143,82 @@ struct NotchAgentsSettingsControls: View {
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex),
                        String(liveActivity), readout, limitDisplay]) { _, _ in
             NotchService.shared.syncWithPreferences()
+        }
+    }
+
+    /// The CLIProxyAPI hubs whose accounts join the limits card.
+    @ViewBuilder private var hubs: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(text.proxyHubsTitle).font(.subheadline.weight(.medium))
+            Spacer(minLength: 8)
+            Button(text.proxyAddHub) { addingHub = true }
+        }
+        Text(text.proxyHubsDescription).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        ForEach(usage.hubs) { hub in
+            hubRow(hub)
+            let accounts = usage.snapshot.accounts.filter { $0.hub == hub.id }
+            if !accounts.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(accounts) { account in
+                        NotchAgentAccountNameRow(account: account, given: hub.names[account.index] ?? "",
+                                                 hidesName: hidesAccountNames, text: text)
+                    }
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
+        }
+        if !usage.hubs.isEmpty {
+            SettingsRow(symbol: "eye.slash", title: text.proxyHideNames, caption: text.proxyHideNamesHint) {
+                Toggle(text.proxyHideNames, isOn: $hidesAccountNames).labelsHidden().toggleStyle(.switch)
+            }
+        }
+    }
+
+    private func hubRow(_ hub: AgentHub) -> some View {
+        let status = hubStatus(usage.hubStates[hub.id])
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "server.rack")
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 26, height: 26)
+                .background(Color.secondary.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(hub.name)
+                if hub.name != hub.url {
+                    Text(hub.url).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                }
+                Label {
+                    Text(status.text).fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: status.symbol).foregroundStyle(status.tint)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            Button(text.proxyRemoveHub) {
+                usage.removeHub(hub.id)
+                // Without a hub, the page needs one of this Mac's agents again.
+                if usage.hubs.isEmpty, !claude, !codex { claude = true }
+            }
+        }
+    }
+
+    private func hubStatus(_ state: AgentHubState?) -> (text: String, symbol: String, tint: Color) {
+        let warning = "exclamationmark.circle.fill"
+        switch state {
+        case nil: return (text.proxyHubOff, "pause.circle.fill", .secondary)
+        case .checking: return (text.proxyHubChecking, "ellipsis.circle.fill", .secondary)
+        case .ready(let count):
+            return (text.proxyHubReady(count.formatted(.number.locale(locale))), "checkmark.circle.fill", .green)
+        case .remoteDisabled: return (text.proxyHubRemoteDisabled, warning, .orange)
+        case .wrongKey: return (text.proxyHubWrongKey, "xmark.circle.fill", .red)
+        case .blocked: return (text.proxyHubBlocked, "xmark.circle.fill", .red)
+        case .managementOff: return (text.proxyHubManagementOff, warning, .orange)
+        case .insecure: return (text.proxyHubInsecure, warning, .orange)
+        case .unreachable: return (text.proxyHubUnreachable, warning, .orange)
+        case .failed(let status): return (text.proxyHubFailed(String(status)), warning, .orange)
         }
     }
 
@@ -205,9 +287,10 @@ struct NotchAgentsSettingsControls: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
-            // One agent stays on; turning the section off stops both.
+            // One agent stays on unless a hub fills the page. Turning the
+            // section off stops both.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && !(claude && codex))
+                .disabled(isOn.wrappedValue && !(claude && codex) && usage.hubs.isEmpty)
         }
     }
 
@@ -288,3 +371,100 @@ private struct NotchAgentStripSample: View {
     }
 }
 
+
+/// A hub account and the name the person gives it. The name saves when
+/// they press Return or leave the field, so a space typed mid-name stays.
+private struct NotchAgentAccountNameRow: View {
+    let account: AgentHubAccount
+    let given: String
+    let hidesName: Bool
+    let text: NotchAgentStrings
+    @ObservedObject private var usage = AgentUsageService.shared
+    @State private var name = ""
+    @State private var revealed = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            NotchAgentMark(provider: account.provider, size: 11)
+                .frame(width: 18, height: 18)
+                .accessibilityHidden(true)
+            let hidden = hidesName && !revealed
+            Text(hidden ? NotchAgentSupport.scrambled(account.name) : account.name)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .blur(radius: hidden ? 3.5 : 0)
+                .onHover { inside in if hidesName { revealed = inside } }
+            Spacer(minLength: 8)
+            TextField(text.proxyCustomName, text: $name, prompt: Text(text.proxyCustomName))
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 180)
+                .focused($focused)
+                .onSubmit(save)
+                .onChange(of: focused) { _, now in if !now { save() } }
+        }
+        .onAppear { name = given }
+        .onChange(of: given) { _, value in if !focused { name = value } }
+    }
+
+    private func save() {
+        usage.renameAccount(hub: account.hub, index: account.index, to: name)
+    }
+}
+
+/// The address, key and name of a new hub. The key field hides what the person types.
+private struct NotchAgentHubSheet: View {
+    let text: NotchAgentStrings
+    @ObservedObject private var usage = AgentUsageService.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var url = ""
+    @State private var key = ""
+    @State private var label = ""
+    @State private var problem: String?
+
+    private var complete: Bool {
+        !url.trimmingCharacters(in: .whitespaces).isEmpty && !key.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(text.proxyAddHubTitle).font(.headline)
+            Text(text.proxyAddHubDescription).font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Form {
+                TextField(text.proxyHubURL, text: $url, prompt: Text(verbatim: "https://hub.example.net:8310"))
+                SecureField(text.proxyHubKey, text: $key)
+                TextField(text.proxyHubLabel, text: $label, prompt: Text(text.proxyHubLabelPrompt))
+            }
+            .formStyle(.grouped)
+            .autocorrectionDisabled()
+            Text(problem ?? text.proxyHubKeyNote).font(.caption)
+                .foregroundStyle(problem == nil ? Color.secondary : Color.red)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button(text.proxyCancel, role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(text.proxyAddHubButton, action: add)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!complete)
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
+    }
+
+    private func add() {
+        guard AgentHub.normalizedURL(url) != nil else {
+            problem = text.proxyHubInvalidURL
+            return
+        }
+        guard usage.addHub(url: url, key: key, label: label) else {
+            problem = text.proxyHubSaveFailed
+            return
+        }
+        dismiss()
+    }
+}
