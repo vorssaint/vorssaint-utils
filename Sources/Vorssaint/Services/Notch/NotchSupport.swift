@@ -1560,6 +1560,16 @@ struct NotchGlassFade: Equatable {
 /// Free room on both sides of the camera, in Cocoa screen coordinates.
 /// Unknown/occupied camera space is distinct from a known zero-width wing.
 enum NotchMenuBarLayout {
+    /// A successful AX read can contain menu items from another display.
+    /// Without an item on this display, its menu space remains unknown.
+    static func measuredSideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
+                                 menuItems: [CGRect], statusItems: [CGRect]) -> CGFloat? {
+        let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
+        guard menuItems.contains(where: { $0.intersects(bar) }) else { return nil }
+        return sideRoom(screen: screen, cameraWidth: cameraWidth, barHeight: barHeight,
+                        occupied: menuItems + statusItems)
+    }
+
     static func sideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
                          occupied: [CGRect]) -> CGFloat? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)

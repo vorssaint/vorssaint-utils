@@ -74,7 +74,6 @@ enum NotchScreenRefreshContract {
         var compactActivity: Bool?
         var accessibilityGranted = true
         var coversMenus = false
-        var menuBarHidden = false
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
         var screenRefreshWork: DispatchWorkItem?
@@ -300,31 +299,31 @@ enum NotchScreenRefreshContract {
         idleSimulated.accessibilityGranted = false
         idleSimulated.coversMenus = true
         idleSimulated.syncMenuSpaceMonitoring()
-        suite.expect(idleSimulated.appliedRooms.isEmpty && idleSimulated.geometry.compactSideRoom == nil,
-               "a simulated cutout with nothing to show still gives way to the menus")
+        let idleEmptyBar = NotchMenuBarLayout.sideRoom(screen: idleSimulated.geometry.screen,
+                                                      cameraWidth: idleSimulated.geometry.cameraWidth,
+                                                      barHeight: idleSimulated.geometry.menuBarHeight, occupied: [])
+        suite.expect(idleSimulated.menuSpaceTimer == nil && idleSimulated.appliedRooms == [idleEmptyBar]
+               && idleSimulated.geometry.compactSideRoom == idleEmptyBar,
+               "an external display keeps the idle island visible when menu coverage is enabled")
         idleSimulated.compactActivity = true
         idleSimulated.syncMenuSpaceMonitoring()
         suite.expect(idleSimulated.geometry.compactSideRoom.map { $0 > 0 } == true,
                "compact activity on a simulated cutout covers the menus")
 
-        let hiddenBar = Service()
-        hiddenBar.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
-                                           safeAreaTop: 0, cameraWidth: 0)
-        hiddenBar.idleContent = .none
-        hiddenBar.coversMenus = true
-        hiddenBar.menuBarHidden = true
-        hiddenBar.syncMenuSpaceMonitoring()
-        let hiddenEmptyBar = NotchMenuBarLayout.sideRoom(screen: hiddenBar.geometry.screen,
-                                                         cameraWidth: hiddenBar.geometry.cameraWidth,
-                                                         barHeight: hiddenBar.geometry.menuBarHeight, occupied: [])
-        suite.expect(hiddenBar.menuSpaceTimer == nil && hiddenBar.reads == 0
-               && hiddenBar.geometry.compactSideRoom == hiddenEmptyBar && (hiddenEmptyBar ?? 0) > 0,
-               "a simulated cutout under a hidden menu bar has no menus to give way to, "
-               + "so an app whose menus report no frame cannot take it away")
-        hiddenBar.coversMenus = false
-        hiddenBar.syncMenuSpaceMonitoring()
-        suite.expect(hiddenBar.menuSpaceTimer != nil && hiddenBar.reads == 1,
-               "choosing to leave the menus uncovered still gives way to a hidden bar's menus")
+        let roomsBeforeFocusChange = idleSimulated.appliedRooms
+        NSWorkspace.shared.frontmostApplication = Bundle.main
+        idleSimulated.applicationDidActivate()
+        NSWorkspace.shared.frontmostApplication = RunningApplication(bundleIdentifier: "com.example.editor")
+        idleSimulated.applicationDidActivate()
+        suite.expect(idleSimulated.menuSpaceTimer == nil && idleSimulated.appliedRooms == roomsBeforeFocusChange
+               && idleSimulated.geometry.compactSideRoom == idleEmptyBar,
+               "the external island remains visible when focus moves between Settings and another app")
+        let readsBeforePolicyChange = idleSimulated.reads
+        idleSimulated.accessibilityGranted = true
+        idleSimulated.coversMenus = false
+        idleSimulated.syncMenuSpaceMonitoring()
+        suite.expect(idleSimulated.menuSpaceTimer != nil && idleSimulated.reads == readsBeforePolicyChange + 1,
+               "turning off menu coverage restores the measured-space policy")
 
         let physical = Service()
         physical.idleContent = .none

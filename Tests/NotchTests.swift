@@ -1222,6 +1222,21 @@ enum NotchTests {
         suite.expect(NotchMenuBarLayout.sideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
             occupied: [CGRect(x: 630, y: 924, width: 60, height: 32)]) == nil,
                "occupied camera space cannot be treated as a free menu gap")
+        let secondaryMenu = CGRect(x: 1480, y: 924, width: 420, height: 32)
+        let primaryStatus = CGRect(x: 950, y: 924, width: 520, height: 32)
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [secondaryMenu], statusItems: [primaryStatus]) == nil,
+               "menus measured only on another display do not prove room on the selected display")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [CGRect(x: 0, y: 924, width: 610, height: 32), secondaryMenu],
+            statusItems: [primaryStatus]) == 27,
+               "menus on another display do not affect a measured gap on the selected display")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [], statusItems: [primaryStatus]) == nil,
+               "missing menu geometry is not mistaken for an empty menu bar")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [CGRect(x: 690, y: 924, width: 80, height: 32)], statusItems: []) == nil,
+               "a menu occupying the island's center still hides it")
         let constrained = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
                                         menuBarHeight: 24, compactSideRoom: freeRoom)
         suite.expect(constrained.collapsed.height == 32 && constrained.musicStrip.height == 32,
@@ -1485,6 +1500,11 @@ enum NotchTests {
                "automatic uses the notched built-in screen even with external main display")
         suite.expect(NotchSupport.screenIndex(preference: .builtIn, builtIn: [false],
                                        notched: [false], main: 0) == 0, "closed-lid mode falls back to an attached screen")
+        suite.expect(NotchSupport.screenIndex(preference: .automatic, builtIn: [false, false],
+                                       notched: [false, false], main: 1) == 1
+                     && NotchSupport.screenIndex(preference: .builtIn, builtIn: [false, false],
+                                       notched: [false, false], main: 1) == 1,
+               "external-only setups keep the primary display in automatic and built-in modes")
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [], notched: [], main: 0) == nil,
                "no connected displays means no panel")
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [true, false, false],

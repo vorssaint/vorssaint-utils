@@ -166,9 +166,6 @@ final class NotchService: ObservableObject {
     private var menuSpaceReading = false
     private var menuSpaceGeneration = 0
     private var menuBarMeasurements = NotchMenuBarMeasurements()
-    /// The island's display keeps no menu bar on screen: it hides until the
-    /// pointer reveals it, or it belongs to another display.
-    private var menuBarHidden = false
     private var screenRefreshWork: DispatchWorkItem?
     private let menuSpaceQueue = DispatchQueue(label: "com.vorssaint.notch-menu-space", qos: .utility)
 
@@ -1661,11 +1658,10 @@ final class NotchService: ObservableObject {
 
     private func syncMenuSpaceMonitoring() {
         guard !hiddenInFullscreen else { stopMenuSpaceMonitoring(); return }
-        // Covering keeps activity on screen; a simulated cutout with nothing
-        // to show still gives way to the menus beneath it. A hidden bar has
-        // none on screen, and its menus may not even report a frame.
-        if running, !suspended, NotchSupport.coversMenus(),
-           geometry.isNotched || compactActivity != nil || idleContent != .none || menuBarHidden {
+        // The explicit cover-menus choice also keeps a simulated island at
+        // rest. Otherwise its visibility follows AX menu measurements, which
+        // can change just because focus moves to another app or display.
+        if running, !suspended, NotchSupport.coversMenus() {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
             stopMenuSpaceMonitoring()
@@ -1717,15 +1713,16 @@ final class NotchService: ObservableObject {
     private func readMenuSpace() {
         // The displayed menus belong to the menu bar's owner, which is not the
         // frontmost application while an accessory app such as a launcher has
-        // focus; that app's own menu geometry was never laid out.
+        // focus; that app's own menu geometry was never laid out. When our own
+        // Settings has focus, the menu owner can briefly be nil.
         guard menuSpaceTimer != nil, !menuSpaceReading,
-              let app = NSWorkspace.shared.menuBarOwningApplication else { return }
+              let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
+                ?? (NSApp.isActive ? getpid() : nil) else { return }
         menuSpaceReading = true
         let generation = menuSpaceGeneration
         let geometry = geometry
         let primaryTop = NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY
         let window = panel?.windowNumber ?? -1
-        let pid = app.processIdentifier
         menuSpaceQueue.async { [weak self] in
             let room = NotchMenuBarSpace.measure(pid: pid, geometry: geometry,
                                                 primaryTop: primaryTop, ownWindow: window)
@@ -1734,7 +1731,8 @@ final class NotchService: ObservableObject {
                 self.menuSpaceReading = false
                 guard self.menuSpaceTimer != nil else { return }
                 guard self.menuSpaceGeneration == generation,
-                      NSWorkspace.shared.menuBarOwningApplication?.processIdentifier == pid else {
+                      (NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
+                        ?? (NSApp.isActive ? getpid() : nil)) == pid else {
                     self.readMenuSpace(); return
                 }
                 self.applyMenuSpace(room)
@@ -1777,7 +1775,6 @@ final class NotchService: ObservableObject {
                                     statusBarThickness: NSStatusBar.system.thickness),
                                  customWidth: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomWidth),
                                  customHeight: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomHeight))
-        menuBarHidden = !NotchMenuBarMeasurements.showsBar(frame: screen.frame, visibleTop: screen.visibleFrame.maxY)
         if next.hasSameMenuBar(as: geometry) { next.compactSideRoom = geometry.compactSideRoom }
         next.quickAccessBottomInset = NotchQuickAccessConfiguration.current().hasBottom ? NotchQuickAccessLayout.gutter : 0
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
