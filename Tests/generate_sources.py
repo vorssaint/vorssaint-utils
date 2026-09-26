@@ -47,6 +47,12 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("ScrollingCaptureLoop.swift", "import AppKit\nimport CoreGraphics\n"
+          + "extension ScreenshotScrollingCaptureTests {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotScrollingCapture.swift",
+                        "enum ScreenshotScrollingCapture {").replace(
+                            "    private static func stitch(", "    static func stitch(")
+          + "}\n")
     write("ClipboardHistoryImageEditor.swift", "import AppKit\n"
           + "extension ClipboardHistoryImageEditorTests {\nfinal class Host: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
@@ -730,7 +736,8 @@ def main():
     write("ScreenshotPreviewHover.swift", "import Foundation\n"
           + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"
           + "".join(declaration(preview, prefix).replace("private func", "func", 1)
-                    for prefix in ["    private func hoverChanged(", "    private func scheduleAutoDismiss("])
+                    for prefix in ["    private func hoverChanged(", "    private func scheduleAutoDismiss(",
+                                   "    private func perform("])
           + "}\nstruct Preview {\nlet embedded: Bool\nlet hoverChanged: (Bool) -> Void\n"
           + declaration(preview, "    private func previewHoverChanged(").replace("private func", "func", 1)
           + "}\n}\n")

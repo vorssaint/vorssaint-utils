@@ -1167,10 +1167,14 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
         self.window = window
         installKeyMonitor()
-        model.recognizeText()
-        model.recognizeQRCodes()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        // Let the window appear before starting competing Vision workloads.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.window?.isVisible == true else { return }
+            self.model.recognizeText()
+            self.model.recognizeQRCodes()
+        }
     }
 
     func close() {

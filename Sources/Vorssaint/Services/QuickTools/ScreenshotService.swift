@@ -193,6 +193,7 @@ final class ScreenshotService: ObservableObject {
         // Repeating the same action finishes a long capture at the current
         // point. It can never open a second selection or capture task.
         if scrollingTask != nil {
+            QuickToolHUD.markScrollingCaptureFinishing()
             scrollingFinishSignal?.request()
             return
         }
