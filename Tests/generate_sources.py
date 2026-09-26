@@ -155,6 +155,14 @@ def main():
                         "    func restoreBorrowedInputSource(",
                         "    var hasBorrowedInputSource:"])
           + "}\n}\n")
+    write("CommandBarKillProcessOrder.swift", "import Foundation\n"
+          + "extension CommandBarKillProcessOrderContract {\nfinal class Service: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+                        "    private func loadKillProcessEntries(").replace("private func", "func", 1)
+          + "}\n}\nextension CommandBarKillProcessOrderContract.Processes {\n"
+          + declaration("Sources/Vorssaint/Services/KillProcess/KillProcessService.swift",
+                        "    var sortedEntries:")
+          + "}\n")
     write("CommandBarTermination.swift", "import AppKit\nimport Foundation\n"
           + "extension CommandBarTerminationContract {\nfinal class Host: Fixture {\n"
           + declaration("Sources/Vorssaint/App/AppDelegate.swift", "    func applicationShouldTerminate(")
