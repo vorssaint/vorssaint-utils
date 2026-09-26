@@ -32,6 +32,7 @@ External monitors can dim below their hardware minimum, and the Clipboard Histor
 - With inactive apps hidden, the volume mixer shows an app as soon as it starts playing.
 - Clipboard History no longer refreshes the whole list when the pointer moves between entries.
 - Turning off automatic copy for screenshots also stops the after-capture Copy action, so captures no longer reach the clipboard. Save and copy becomes Save.
+- Screenshot, text and color shortcuts work during a recording when their capture menu is turned off, and leave the recording running. With the menu on, they still wait for the recording to end.
 
 ### Contributors
 Thanks to @1119350264, @EugeneCarldotme, @loburets, @ranak8811, @ruvelro, @Samuel61904 and @stephansann.

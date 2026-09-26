@@ -720,9 +720,18 @@ enum ScreenshotFeatureTests {
                 suite.expect(tool.showsCaptureMenu(fromShortcut: false, defaults: reopenedDefaults),
                        "buttons still open the capture menu even when a shortcut hides it")
             }
+            for tool in ScreenCaptureTool.allCases {
+                suite.expect(tool.opensDuringRecording(fromShortcut: true, defaults: reopenedDefaults)
+                        == (tool == hiddenTool && tool != .recording),
+                       "only \(hiddenTool)'s menu-free shortcut may run over a recording, checked for \(tool)")
+                suite.expect(!tool.opensDuringRecording(fromShortcut: false, defaults: reopenedDefaults),
+                       "buttons open the capture menu, so they never run over a recording")
+            }
             captureMenuDefaults.set(true, forKey: hiddenTool.showCaptureMenuOnShortcutKey)
             suite.expect(hiddenTool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
                    "turning the setting back on restores the shortcut menu")
+            suite.expect(!hiddenTool.opensDuringRecording(fromShortcut: true, defaults: captureMenuDefaults),
+                   "turning the setting back on blocks the shortcut during a recording again")
         }
         let recordingOnly: Set<AppFeature> = [.screenRecorder]
         suite.expect(ScreenCaptureTool.available(isAvailable: recordingOnly.contains) == [.recording],

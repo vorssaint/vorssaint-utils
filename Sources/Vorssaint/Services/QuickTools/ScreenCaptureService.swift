@@ -119,17 +119,24 @@ final class ScreenCaptureService: ObservableObject {
            recorder.stopOrCancelActiveCapture() {
             return
         }
-        guard !recorder.hasActiveCapture else { return }
+        let duringRecording = recorder.hasActiveCapture
+        if duringRecording {
+            guard let preferred, preferred.opensDuringRecording(fromShortcut: fromShortcut) else { return }
+        }
         if countdown != nil {
             cancelSelection()
             return
         }
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
 
-        let tools = ScreenCaptureTool.available()
-        guard !tools.isEmpty else { return }
-        let selected = preferred.flatMap { tools.contains($0) ? $0 : nil }
-            ?? (tools.contains(.screenshot) ? .screenshot : tools[0])
+        let available = ScreenCaptureTool.available()
+        guard !available.isEmpty else { return }
+        let selected = preferred.flatMap { available.contains($0) ? $0 : nil }
+            ?? (available.contains(.screenshot) ? .screenshot : available[0])
+        if duringRecording, selected != preferred { return }
+        // The digit keys switch tools even with the menu hidden, so a
+        // selection that runs over a recording offers only its own tool.
+        let tools = duringRecording ? [selected] : available
 
         guard Permissions.shared.screenRecording else {
             // Color sampling itself needs no capture permission, so its
