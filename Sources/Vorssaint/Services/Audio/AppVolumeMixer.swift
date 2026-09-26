@@ -178,6 +178,7 @@ final class AppVolumeMixer: ObservableObject {
     /// System device observation is shared with Audio device priority and the
     /// output switcher. The per-app portion still follows only Volume mixer.
     func syncWithPreferences() {
+        OutputDeviceFeedback.syncWithPreferences()
         let needs = MixerRoutingSupport.observationNeeds(isAvailable: { $0.isAvailable })
         guard needs.devices else {
             stop()
@@ -582,8 +583,8 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     @discardableResult
-    func setUniversalOutputDeviceUID(_ uid: String) -> Bool {
-        setDefaultOutputDeviceUID(uid)
+    func setUniversalOutputDeviceUID(_ uid: String, playConfirmationSound: Bool = false) -> Bool {
+        setDefaultOutputDeviceUID(uid, playConfirmationSound: playConfirmationSound)
     }
 
     /// Priority changes only the normal system default. Unlike the manual
@@ -621,7 +622,7 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     @discardableResult
-    private func setDefaultOutputDeviceUID(_ uid: String) -> Bool {
+    private func setDefaultOutputDeviceUID(_ uid: String, playConfirmationSound: Bool) -> Bool {
         guard let sanitized = Defaults.sanitizedAppOutputDeviceUID(uid),
               let device = outputDevices.first(where: { $0.uid == sanitized && $0.canBeDefaultOutput }) else {
             outputSwitchError = L10n.shared.s.mixerOutputUnavailable
@@ -629,6 +630,7 @@ final class AppVolumeMixer: ObservableObject {
             return false
         }
 
+        let previousUID = Self.defaultOutputDeviceUID()
         let status = Self.setDefaultDevice(device.audioObjectID,
                                            selector: kAudioHardwarePropertyDefaultOutputDevice)
         guard status == noErr else {
@@ -649,6 +651,14 @@ final class AppVolumeMixer: ObservableObject {
             switchSucceeded: true)
         persistOutputDeviceUIDs(preferences.outputDeviceUIDs)
 
+        // Publish the new output's own level together with its identity. The
+        // island treats the first reading after a switch as its baseline. If
+        // the old output's level stayed here until the next refresh, the new
+        // device's reading would look like a volume change and replace the
+        // device name notice.
+        let volume = Self.hasSettableOutputVolume(for: device.audioObjectID)
+            ? Self.outputVolume(for: device.audioObjectID).map(Double.init) : nil
+        applyOutputControls(volume: volume, muted: Self.outputMuted(for: device.audioObjectID))
         currentOutputDeviceUID = device.uid
         outputDevices = outputDevices.map { outputDevice in
             MixerOutputDevice(id: outputDevice.id,
@@ -680,6 +690,9 @@ final class AppVolumeMixer: ObservableObject {
         reconcileEngines(with: apps)
         clearPermissionIfNoActiveAdjustments()
         refreshApps()
+        if previousUID != device.uid, Self.defaultOutputDeviceUID() == device.uid {
+            OutputDeviceFeedback.show(device: device, playConfirmationSound: playConfirmationSound)
+        }
         return true
     }
 
@@ -712,9 +725,12 @@ final class AppVolumeMixer: ObservableObject {
 
     @discardableResult
     func switchToNextSoundOutput(in selectedUIDs: [String]) -> Bool {
+        // The published snapshot may still describe the output before the last
+        // shortcut press or a change made by another application.
+        guard let currentUID = Self.defaultOutputDeviceUID() else { return false }
         let availableUIDs = Set(outputDevices.filter(\.canBeDefaultOutput).map(\.uid))
         guard let nextUID = MixerRoutingSupport.nextSelectedOutputDeviceUID(
-            currentUID: currentOutputDeviceUID,
+            currentUID: currentUID,
             selectedUIDs: selectedUIDs,
             availableUIDs: availableUIDs) else {
             // With an available selection, no next output means the only one is already playing.
@@ -722,7 +738,7 @@ final class AppVolumeMixer: ObservableObject {
                 MixerRoutingSupport.sanitizedDeviceUID(rawUID).map { availableUIDs.contains($0) } ?? false
             }
         }
-        return setUniversalOutputDeviceUID(nextUID)
+        return setUniversalOutputDeviceUID(nextUID, playConfirmationSound: true)
     }
 
     func toggleMute(_ app: MixerApp) {

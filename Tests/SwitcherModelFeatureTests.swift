@@ -1662,6 +1662,14 @@ enum SwitcherModelFeatureTests {
                "Finder returns to the mixer by default")
         suite.expect(registeredDefaults[DefaultsKey.mixerHideInactiveApps] as? Bool == false,
                "inactive mixer apps remain visible by default")
+        for key in [DefaultsKey.soundOutputOSDEnabled, DefaultsKey.soundOutputConfirmationSoundEnabled] {
+            suite.expect(registeredDefaults[key] as? Bool == false,
+                   "output device feedback is opt-in: \(key)")
+            suite.expect(SettingsBackupSupport.exportKeys().contains(key)
+                   && SettingsBackupSupport.valueLooksRight(key, true)
+                   && !SettingsBackupSupport.valueLooksRight(key, "Glass.aiff"),
+                   "output feedback backup accepts toggles and rejects the former sound filename: \(key)")
+        }
         suite.expect(registeredDefaults[DefaultsKey.soundOutputSwitcherEnabled] as? Bool == false,
                "sound output switcher is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.soundOutputSwitcherShortcut] as? String

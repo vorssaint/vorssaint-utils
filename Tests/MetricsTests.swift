@@ -38,6 +38,8 @@ struct MetricsTests {
                 SoundOutputSwitchContract.run(suite)
                 MixerInputVolumeContract.run(suite)
                 MixerFeatureTests.run(suite)
+                OutputDeviceCycleTests.run { suite.expect($0, $1) }
+                OutputDeviceSoundTests.run { suite.expect($0, $1) }
             }),
             ("audio-priority", { AudioPriorityTests.run(suite) }),
             ("shelf", { ShelfFeatureTests.run(suite) }),

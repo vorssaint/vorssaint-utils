@@ -601,6 +601,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Ses tekerleklerini ve tuşlarını daha küçük sistem adımlarına dönüştürür.",
         preciseVolumeRollerTapFailed: "Ses tuşları dinlenemedi.",
         soundOutputSwitcherTitle: "Çıkış değiştirici",
+        soundOutputOSDEnable: "Çıkış aygıtını göster",
+        soundOutputConfirmationSound: "Kısayolla çıkış değiştirirken ses çal",
         soundOutputSwitcherEnable: "Çıkışları kısayolla değiştir",
         soundOutputSwitcherCaption: "Çıkışları seç ve kısayolla bir sonraki kullanılabilir çıkışa geç.",
         soundOutputSwitcherDevices: "Döngüdeki çıkışlar",

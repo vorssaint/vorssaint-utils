@@ -583,6 +583,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Перетворює колесики та клавіші гучності на менші системні кроки.",
         preciseVolumeRollerTapFailed: "Не вдалося відстежувати клавіші гучності.",
         soundOutputSwitcherTitle: "Перемикач виходу",
+        soundOutputOSDEnable: "Показувати пристрій виводу",
+        soundOutputConfirmationSound: "Звук під час перемикання виходів клавіатурним скороченням",
         soundOutputSwitcherEnable: "Перемикати виходи клавіатурним скороченням",
         soundOutputSwitcherCaption: "Виберіть виходи та використовуйте клавіатурне скорочення, щоб перейти до наступного доступного.",
         soundOutputSwitcherDevices: "Пристрої в циклі перемикання",

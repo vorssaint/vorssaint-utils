@@ -601,6 +601,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Convierte ruedas y teclas de volumen en pasos más pequeños del sistema.",
         preciseVolumeRollerTapFailed: "No se pudo escuchar las teclas de volumen.",
         soundOutputSwitcherTitle: "Selector de salida",
+        soundOutputOSDEnable: "Mostrar dispositivo de salida",
+        soundOutputConfirmationSound: "Sonido al cambiar de salida con el atajo",
         soundOutputSwitcherEnable: "Cambiar salidas con atajo",
         soundOutputSwitcherCaption: "Elige salidas y usa el atajo para pasar a la siguiente disponible.",
         soundOutputSwitcherDevices: "Salidas en el ciclo",

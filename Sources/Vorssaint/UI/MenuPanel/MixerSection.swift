@@ -784,6 +784,10 @@ struct SoundOutputSwitcherControls: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            OutputDeviceFeedbackControls()
+                .font(.system(size: 11.5, weight: .medium))
+                .toggleStyle(.checkbox)
+
             if enabled {
                 ShortcutPreferenceRow(role: .soundOutputSwitcher,
                                       isEnabled: enabled,

@@ -601,6 +601,8 @@ extension Strings {
         preciseVolumeRollerCaption: "音量ホイールやキーを、より小さなシステム音量ステップに変換します。",
         preciseVolumeRollerTapFailed: "音量キーを監視できませんでした。",
         soundOutputSwitcherTitle: "出力切り替え",
+        soundOutputOSDEnable: "出力デバイスを表示",
+        soundOutputConfirmationSound: "ショートカットで出力を切り替えるときに音を鳴らす",
         soundOutputSwitcherEnable: "ショートカットで出力を切り替える",
         soundOutputSwitcherCaption: "出力を選び、ショートカットで次に利用可能な出力へ切り替えます。",
         soundOutputSwitcherDevices: "切り替える出力",

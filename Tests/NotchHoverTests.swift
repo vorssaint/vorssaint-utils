@@ -81,7 +81,10 @@ enum NotchHoverTests {
         var compactActivityGeometry: NotchGeometry { geometry.compactMusicGeometry }
         var surfaceSize: CGSize {
             if let notice {
-                guard noticeExpanded else { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }
+                guard noticeExpanded else {
+                    return notice.isOutputDeviceChange ? notice.outputDeviceSize(in: geometry)
+                        : geometry.noticeSize(wingWidth: notice.preferredWingWidth)
+                }
                 return geometry.notificationPreviewSize(
                     contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
             }
@@ -104,7 +107,10 @@ enum NotchHoverTests {
             hoverWork?.cancel(); hoverWork = nil
             updateBounds()
         }
-        func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
+        var transitions: [NotchContentTransition] = []
+        func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) {
+            transitions.append(transitionContent); change(); updateBounds()
+        }
         func refreshPresentation() { updateBounds() }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
@@ -415,6 +421,26 @@ enum NotchHoverTests {
         AssistiveKeyboard.active = true
         DispatchQueue.main.advance(1)
         expect(keyboard.closures == 0, "moving to the Accessibility Keyboard preserves the working panel")
+        let cycling = fixture(physical: true)
+        func output(_ name: String) -> NotchNotice {
+            NotchNotice(event: .volume, title: name, detail: "", symbol: "headphones", isOutputDeviceChange: true)
+        }
+        _ = cycling.show(output("AirPods"))
+        let firstDevice = cycling.windowHost?.rect ?? .zero
+        expect(cycling.transitions == [.reveal] && firstDevice.height == cycling.geometry.safeContentTop + NotchNotice.outputDeviceRowHeight,
+               "the first output device name reveals one text row below the camera")
+        _ = cycling.show(output("Steam Streaming Speakers"))
+        let longerDevice = cycling.windowHost?.rect ?? .zero
+        expect(cycling.transitions.last == .replace && longerDevice.width > firstDevice.width
+               && longerDevice.height == firstDevice.height,
+               "cycling to a longer name crossfades and widens the island without making it taller")
+        _ = cycling.show(volume)
+        expect(cycling.transitions.last == .replace
+               && cycling.windowHost?.rect.height == cycling.geometry.menuBarHeight,
+               "a volume key after a switch crossfades back to the compact row beside the camera")
+        _ = cycling.show(volume)
+        expect(cycling.transitions.last == NotchContentTransition.none,
+               "repeated volume keys still replace only the displayed value")
         notificationContracts(fixture: fixture, leave: leave, expect: expect)
     }
 

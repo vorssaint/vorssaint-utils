@@ -228,6 +228,29 @@ enum NotchTests {
         let size = narrow.noticeSize(wingWidth: long.preferredWingWidth)
         suite.expect(size.width <= narrow.screen.width - 24 && size.height == narrow.menuBarHeight,
                "long device names cannot push a notice past a narrow display")
+        for physical in [false, true] {
+            let geometry = NotchGeometry(screen: screen, safeAreaTop: physical ? 32 : 0,
+                                         cameraWidth: physical ? 180 : 0)
+            let short = NotchNotice(event: .volume, title: "AirPods", detail: "", symbol: "headphones",
+                                    isOutputDeviceChange: true)
+            let longer = NotchNotice(event: .volume, title: "Steam Streaming Speakers", detail: "",
+                                     symbol: "speaker.wave.2.fill", isOutputDeviceChange: true)
+            let oversized = NotchNotice(event: .volume, title: String(repeating: "Output ", count: 100), detail: "",
+                                        symbol: "speaker.wave.2.fill", isOutputDeviceChange: true)
+            let smallSize = short.outputDeviceSize(in: geometry)
+            let largeSize = longer.outputDeviceSize(in: geometry)
+            suite.expect(smallSize.width < largeSize.width && largeSize.width <= 420,
+                   "output device notice grows with the name without filling the expanded island")
+            let measured = (longer.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium)]).width
+            suite.expect(largeSize.width >= measured + NotchNotice.outputDevicePadding * 2 + 18 + 8
+                   && NotchNotice.outputDevicePadding >= 28,
+                   "output device width keeps a roomy inset on both sides, plus the icon and its gap")
+            suite.expect(largeSize.height == geometry.safeContentTop + NotchNotice.outputDeviceRowHeight && screen.contains(geometry.frame(for: largeSize)),
+                   "output device text has one compact row below the camera and stays on screen")
+            suite.expect(oversized.outputDeviceSize(in: geometry).width <= 420
+                   && oversized.accessibilityText == oversized.title,
+                   "very long output names stay bounded and retain the full accessible name")
+        }
         let notification = NotchNotice(event: .systemNotification, title: "Notice", detail: "Body", symbol: "bell",
             notification: NotchNotificationContent(app: "App", title: "Notice", subtitle: "", body: "Body"))
         suite.expect(notification.preferredWingWidth == 190, "mirrored notifications keep their existing text layout")
@@ -588,6 +611,26 @@ enum NotchTests {
                "disabled notch cannot consume any existing presentation")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         suite.expect(NotchSupport.isEnabled(in: defaults), "master switch enables notch")
+        let outputNotice = NotchNotice(event: .volume, title: "Steam Streaming Speakers", detail: "",
+                                       symbol: "speaker.wave.2.fill", isOutputDeviceChange: true)
+        let volumeNotice = NotchNotice(event: .volume, title: "Volume", detail: "50%",
+                                       symbol: "speaker.wave.2.fill", level: 0.5)
+        defaults.set(true, forKey: DefaultsKey.soundOutputOSDEnabled)
+        defaults.set(false, forKey: DefaultsKey.notchVolume)
+        suite.expect(outputNotice.isEnabled(in: defaults) && !volumeNotice.isEnabled(in: defaults),
+               "output device confirmation uses the island independently of volume percentage feedback")
+        defaults.set(false, forKey: DefaultsKey.soundOutputOSDEnabled)
+        suite.expect(!outputNotice.isEnabled(in: defaults), "output device confirmation still respects its own opt-out")
+        defaults.set(true, forKey: DefaultsKey.soundOutputOSDEnabled)
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(!outputNotice.isEnabled(in: defaults), "disabled island cannot receive output device confirmation")
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(false, forKey: AppFeature.mixer.availabilityKey)
+        suite.expect(!outputNotice.isEnabled(in: defaults), "unavailable mixer cannot emit output device confirmation")
+        defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
+        defaults.removeObject(forKey: DefaultsKey.soundOutputOSDEnabled)
+        defaults.removeObject(forKey: DefaultsKey.notchVolume)
+
         suite.expect(NotchSupport.usesHapticFeedback(in: defaults), "the enabled island starts with tactile feedback")
         defaults.set(false, forKey: DefaultsKey.notchHapticFeedback)
         suite.expect(!NotchSupport.usesHapticFeedback(in: defaults), "tactile feedback can still be turned off independently")

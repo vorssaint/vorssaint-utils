@@ -601,6 +601,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Zmení kolieska a klávesy hlasitosti na menšie kroky systémovej hlasitosti.",
         preciseVolumeRollerTapFailed: "Klávesy hlasitosti sa nepodarilo sledovať.",
         soundOutputSwitcherTitle: "Prepínač výstupov",
+        soundOutputOSDEnable: "Zobraziť výstupné zariadenie",
+        soundOutputConfirmationSound: "Zvuk pri prepínaní výstupov skratkou",
         soundOutputSwitcherEnable: "Prepínať výstupy skratkou",
         soundOutputSwitcherCaption: "Vyberte výstupy a skratkou prejdete na ďalší dostupný.",
         soundOutputSwitcherDevices: "Výstupy v cykle",

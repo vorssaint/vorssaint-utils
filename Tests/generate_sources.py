@@ -263,8 +263,12 @@ def main():
     mixer = "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift"
     write("SoundOutputSwitch.swift", "import Foundation\n"
           + "extension SoundOutputSwitchContract {\nfinal class Mixer {\n"
-          + "var outputDevices: [Device] = []\nvar currentOutputDeviceUID: String?\nvar switchedTo: [String] = []\n"
-          + "func setUniversalOutputDeviceUID(_ uid: String) -> Bool { switchedTo.append(uid); return true }\n"
+          + "var outputDevices: [Device] = []\nvar switchedTo: [String] = []\n"
+          + "static var hardwareUID: String?\n"
+          + "var currentOutputDeviceUID: String? { get { Self.hardwareUID } set { Self.hardwareUID = newValue } }\n"
+          + "static func defaultOutputDeviceUID() -> String? { hardwareUID }\n"
+          + "func setUniversalOutputDeviceUID(_ uid: String, playConfirmationSound: Bool = false) -> Bool {\n"
+          + "switchedTo.append(uid); return true }\n"
           + declaration(mixer, "    func switchToNextSoundOutput(") + "}\n}\n")
     write("MixerOutputAdjustment.swift", "import CoreAudio\nimport Foundation\n"
           + "extension MixerOutputAdjustmentContract {\nfinal class Mixer {\n"
@@ -388,6 +392,13 @@ def main():
           + declaration(shelf, "    func finishInternalDrag(")
           + declaration(shelf, "    func completeInternalDrag(")
           + "}\n}\n")
+    write("OutputDeviceCycle.swift", "import Foundation\nextension OutputDeviceCycleTests {\nfinal class Mixer: State {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift", "    func switchToNextSoundOutput(")
+          + "}\n}\n")
+    write("OutputDeviceSound.swift", "import Foundation\nextension OutputDeviceSoundTests {\nfinal class Player: State {\n"
+          + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    private static func playSound(").replace("private ", "", 1)
+          + declaration("Sources/Vorssaint/UI/OutputDeviceFeedback.swift", "    static func stopSound(")
+          + "}\n}\n")
     notch = "Sources/Vorssaint/Services/Notch/NotchService.swift"
     write("NotchFullscreen.swift", "import CoreGraphics\nimport Foundation\nextension NotchFullscreenTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
@@ -459,7 +470,7 @@ def main():
           + "}\n}\n")
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
-          + declaration(notch, "    func show(_ incoming:").replace("NotchSupport.routes(incoming.event)", "true")
+          + declaration(notch, "    func show(_ incoming:").replace("incoming.isEnabled()", "true")
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private var hiddenUntilHover:", "    func hover(", "    private func missionControlDidRestore()",
               "    private var holdsNotification:", "    private func holdNotification(",
@@ -467,7 +478,7 @@ def main():
               "    private func releaseNotification(", "    private func scheduleNoticeDismissal(",
               "    private func dismissNotice(", "    private func endDeparture(", "    private var noticeCanPresent:",
               "    private func syncHiddenHoverMonitoring(", "    private func removeHiddenHoverMonitors("])
-          .replace("NotchSupport.routes(notice.event)", "routesNotices")
+          .replace("notice.isEnabled()", "routesNotices")
           + "}\n}\n")
     music_visibility = "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
         "    private var hiddenUntilHover:", "    var idleContent:", "    var hasMusicActivity:", "    var compactActivity:",

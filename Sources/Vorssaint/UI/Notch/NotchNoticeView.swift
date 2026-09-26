@@ -20,7 +20,37 @@ struct NotchNoticeView: View {
         }
     }
 
-    var body: some View {
+    @ViewBuilder var body: some View {
+        if notice.isOutputDeviceChange {
+            outputDevice
+        } else {
+            standardNotice
+        }
+    }
+
+    private var outputDevice: some View {
+        let size = notice.outputDeviceSize(in: geometry)
+        return HStack(spacing: NotchNotice.outputDeviceSpacing) {
+            Image(systemName: notice.symbol)
+                .font(.system(size: 15, weight: .medium))
+                .frame(width: NotchNotice.outputDeviceSymbolWidth)
+                .contentTransition(.symbolEffect(.replace))
+            Text(notice.title)
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .contentTransition(.opacity)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, NotchNotice.outputDevicePadding)
+        .frame(width: size.width, height: NotchNotice.outputDeviceRowHeight)
+        .padding(.top, geometry.safeContentTop)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: notice.title)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(notice.title)
+    }
+
+    private var standardNotice: some View {
         HStack(spacing: 0) {
             leading
                 .padding(.leading, inset)
