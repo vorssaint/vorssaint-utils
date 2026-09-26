@@ -237,9 +237,25 @@ final class WindowPreviewProvider {
     /// other-Space windows come back as their real, untransformed content.
     private static let windowServerCaptureOptions: UInt32 = (1 << 8) | (1 << 11)
 
+    /// Two of these captures in flight at once, from two threads, held the
+    /// window server's main thread until the system watchdog killed it and
+    /// logged the user out (#1863). Cancelling a warm or refresh task does not
+    /// stop a capture already inside the call, so a new task could start a
+    /// second one beside it; this keeps them one at a time.
+    private static let windowServerCaptureLock = NSLock()
+
     /// Internal so the screenshot tool can reuse the existing window capture.
-    static func captureViaWindowServer(_ windowID: CGWindowID) -> CGImage? {
+    /// Background warming passes `waitingForOtherCaptures: false`: it is
+    /// optional work and skips a window rather than queue behind a slow capture.
+    static func captureViaWindowServer(_ windowID: CGWindowID,
+                                       waitingForOtherCaptures: Bool = true) -> CGImage? {
         guard windowServerConnection != 0, let capture = windowServerCapture else { return nil }
+        if waitingForOtherCaptures {
+            windowServerCaptureLock.lock()
+        } else if !windowServerCaptureLock.try() {
+            return nil
+        }
+        defer { windowServerCaptureLock.unlock() }
         var id = UInt32(windowID)
         guard let array = capture(windowServerConnection, &id, 1, windowServerCaptureOptions)?
             .takeRetainedValue(),
@@ -439,7 +455,8 @@ final class WindowPreviewProvider {
                     guard !Task.isCancelled, let id = item.previewWindowID else { continue }
                     let captureIsPaused = await MainActor.run { Self.captureIsPaused }
                     guard !captureIsPaused else { return }
-                    guard let image = Self.captureViaWindowServer(id) else { continue }
+                    guard let image = Self.captureViaWindowServer(id, waitingForOtherCaptures: false)
+                    else { continue }
                     if let grid = SwitcherSupport.alphaGrid(of: image),
                        SwitcherSupport.captureLooksTransformed(alphaGrid: grid) {
                         let needsPreview = await MainActor.run { !Task.isCancelled && self.cache[id] == nil }
