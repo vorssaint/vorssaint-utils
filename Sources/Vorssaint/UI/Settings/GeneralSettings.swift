@@ -88,8 +88,10 @@ struct GeneralSettings: View {
                             caption: text.liquidGlassCaption) { EmptyView() }
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle(text.liquidGlassOtherWindows, isOn: $appearance.liquidGlassEnabled)
+                        .accessibilityLabel("\(appearanceStrings.liquidGlass), \(text.liquidGlassOtherWindows)")
                     Toggle(FeatureStrings.notch(l10n.language).title,
                            isOn: $appearance.notchLiquidGlassEnabled)
+                        .accessibilityLabel("\(appearanceStrings.liquidGlass), \(FeatureStrings.notch(l10n.language).title)")
                 }
                 .toggleStyle(TrailingSwitchToggleStyle())
                 .padding(.leading, settingsRowTextInset)

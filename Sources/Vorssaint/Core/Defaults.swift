@@ -1760,15 +1760,16 @@ enum Defaults {
         hideScratchpadControlOnce(in: defaults)
     }
 
-    /// Existing users keep the island's previous glass choice. After the
-    /// first copy, changing the windows setting leaves the island alone.
+    /// Existing users keep the island's previous glass choice. The island
+    /// value is saved once, even when off, so turning on glass for other
+    /// windows later never reaches the island on the next launch.
     static func migrateLiquidGlassIsland(in defaults: UserDefaults,
                                          domainName: String? = Bundle.main.bundleIdentifier) {
         guard let domainName else { return }
         let saved = defaults.persistentDomain(forName: domainName) ?? [:]
-        guard saved[DefaultsKey.notchLiquidGlassEnabled] == nil,
-              let legacy = saved[DefaultsKey.liquidGlassEnabled] as? Bool else { return }
-        defaults.set(legacy, forKey: DefaultsKey.notchLiquidGlassEnabled)
+        guard saved[DefaultsKey.notchLiquidGlassEnabled] == nil else { return }
+        defaults.set(saved[DefaultsKey.liquidGlassEnabled] as? Bool ?? false,
+                     forKey: DefaultsKey.notchLiquidGlassEnabled)
     }
 
     /// Keep the previous implicit choices for people who already configured

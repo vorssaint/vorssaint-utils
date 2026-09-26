@@ -45,9 +45,13 @@ enum PreferencesFeatureTests {
         defer { glassDefaults.removePersistentDomain(forName: glassDomain) }
         Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
         suite.expect(glassDefaults.persistentDomain(forName: glassDomain)?[
-            DefaultsKey.notchLiquidGlassEnabled] == nil,
-               "a new installation starts with independent glass defaults")
+            DefaultsKey.notchLiquidGlassEnabled] as? Bool == false,
+               "a new installation saves the island glass choice as off")
         glassDefaults.set(true, forKey: DefaultsKey.liquidGlassEnabled)
+        Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
+        suite.expect(!glassDefaults.bool(forKey: DefaultsKey.notchLiquidGlassEnabled),
+               "turning on glass for other windows after the first launch leaves the island off")
+        glassDefaults.removeObject(forKey: DefaultsKey.notchLiquidGlassEnabled)
         Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
         suite.expect(glassDefaults.bool(forKey: DefaultsKey.notchLiquidGlassEnabled),
                "an existing glass preference is copied to Dynamic Island")
