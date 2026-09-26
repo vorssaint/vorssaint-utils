@@ -1024,7 +1024,7 @@ enum Defaults {
     /// without changing the stored range (issue #1551).
     static let keyboardDebounceWindowStep = 1
     static let defaultMouseClickDebounceWindowMs = 25
-    static let allowedMouseClickDebounceWindowRange = 1...100
+    static let allowedMouseClickDebounceWindowRange = 5...100
     static let allowedMenuBarPresets = ["dense"]
     static let allowedMenuBarMetricSpacings = ["standard", "compact"]
     static let allowedMenuBarMetricAppearances = ["values", "bars"]

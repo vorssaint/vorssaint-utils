@@ -223,20 +223,22 @@ enum PointerInputFeatureTests {
                 && !click(0, .up, at: 301, config: disabledClickConfig)
                 && !click(0, .down, at: 302, config: disabledClickConfig),
                "disabled click debounce is a complete pass-through")
-        let preciseClickConfig = MouseClickDebounceConfig(enabled: true, windowMilliseconds: 1)
+        let preciseClickConfig = MouseClickDebounceConfig(enabled: true, windowMilliseconds: 6)
         clickState.reset()
         suite.expect(!click(0, .down, at: 400, config: preciseClickConfig)
                 && !click(0, .up, at: 401, config: preciseClickConfig)
-                && !click(0, .down, at: 402, config: preciseClickConfig)
-                && !click(0, .up, at: 403, config: preciseClickConfig),
-               "a 1 ms click window keeps quick intentional clicks")
-        suite.expect(Defaults.sanitizedMouseClickDebounceWindow(1) == 1
-                && Defaults.sanitizedMouseClickDebounceWindow(4) == 4
-                && Defaults.sanitizedMouseClickDebounceWindow(5) == 5
+                && !click(0, .down, at: 407, config: preciseClickConfig)
+                && !click(0, .up, at: 408, config: preciseClickConfig)
+                && click(0, .down, at: 413, config: preciseClickConfig),
+               "a 6 ms window keeps a click 6 ms after release and filters one 5 ms after")
+        suite.expect(Defaults.sanitizedMouseClickDebounceWindow(5) == 5
+                && Defaults.sanitizedMouseClickDebounceWindow(6) == 6
                 && Defaults.sanitizedMouseClickDebounceWindow(100) == 100
+                && Defaults.sanitizedMouseClickDebounceWindow(4)
+                    == Defaults.defaultMouseClickDebounceWindowMs
                 && Defaults.sanitizedMouseClickDebounceWindow(0)
                     == Defaults.defaultMouseClickDebounceWindowMs,
-               "mouse click debounce accepts millisecond windows down to 1 ms")
+               "mouse click debounce accepts any millisecond window from 5 to 100 ms")
         let clickDebounceServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceService.swift",
             encoding: .utf8)) ?? ""
