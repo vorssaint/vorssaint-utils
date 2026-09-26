@@ -497,26 +497,14 @@ enum NotchActivityTests {
     }
 
     private static func compactTimerContracts(_ suite: TestSuite) {
-        suite.expect(NotchSupport.compactCompanion(timer: true, running: true, downloads: true, agents: true, music: true) == .downloads
-               && NotchSupport.compactCompanion(timer: true, running: true, downloads: false, agents: true, music: true) == .agents
-               && NotchSupport.compactCompanion(timer: true, running: true, downloads: false, agents: false, music: true) == .music
-               && NotchSupport.compactCompanion(timer: true, running: true, downloads: false, agents: false, music: false) == nil,
-               "a running timer shares the island with the next live activity, in the island's own order")
-        suite.expect(NotchSupport.compactCompanion(timer: true, running: false, downloads: false, agents: true, music: true) == nil
-               && NotchSupport.compactCompanion(timer: true, running: false, downloads: false, agents: false, music: true) == nil
-               && NotchSupport.compactCompanion(timer: true, running: false, downloads: true, agents: true, music: true) == .downloads,
-               "a paused or finished timer keeps its mark beside music or agents, and a download still takes the wing")
-        for running in [false, true] {
-            for downloads in [false, true] {
-                for agents in [false, true] {
-                    for music in [false, true] {
-                        suite.expect(NotchSupport.compactCompanion(timer: false, running: running, downloads: downloads,
-                                                                   agents: agents, music: music) == nil,
-                               "without a timer, one activity keeps both wings of the island")
-                    }
-                }
-            }
-        }
+        suite.expect(NotchSupport.compactCompanions(timer: true, running: true, downloads: true, agents: true, music: true)
+                        == [.downloads, .agents, .music],
+                     "a running timer offers every supported pair instead of silently choosing one")
+        suite.expect(NotchSupport.compactCompanions(timer: true, running: false, downloads: true, agents: true, music: true)
+                        == [.downloads],
+                     "a paused or finished timer keeps its status mark beside music or agents")
+        suite.expect(NotchSupport.compactCompanions(timer: false, running: true, downloads: true, agents: true, music: true).isEmpty,
+                     "other activities need both wings and cannot be combined")
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         for barHeight: CGFloat in [16, 22, 24, 32, 40, 64] {
             for notched in [false, true] {

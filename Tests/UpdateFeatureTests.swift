@@ -13,6 +13,30 @@ import VMStatisticsCompat
 
 enum UpdateFeatureTests {
     static func run(_ suite: TestSuite) {
+        suite.expect(BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0-beta.7",
+                                                          previousVersion: "3.4.0-beta.6")
+                    && BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0",
+                                                            previousVersion: "3.4.0-beta.6"),
+                    "the display setup invitation recognizes a newer release")
+        for previous in [nil, "", "dev", "3.4.0-beta.7", "3.4.0"] as [String?] {
+            suite.expect(!BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0-beta.7",
+                                                               previousVersion: previous),
+                         "a first install, unknown version, unchanged release or downgrade does not invite: \(previous ?? "nil")")
+        }
+        suite.expect(BrightnessUpdatePromptInfo.needsSetup(
+            notchAvailable: true, brightnessAvailable: true, notchEnabled: true,
+            notchBrightness: true, brightnessEnabled: false),
+            "the invitation targets an enabled island with brightness waiting for display controls")
+        for (notchAvailable, brightnessAvailable, notchEnabled, notchBrightness, brightnessEnabled)
+            in [(false, true, true, true, false), (true, false, true, true, false),
+                (true, true, false, true, false), (true, true, true, false, false),
+                (true, true, true, true, true)] {
+            suite.expect(!BrightnessUpdatePromptInfo.needsSetup(
+                notchAvailable: notchAvailable, brightnessAvailable: brightnessAvailable,
+                notchEnabled: notchEnabled, notchBrightness: notchBrightness,
+                brightnessEnabled: brightnessEnabled),
+                "the invitation skips unavailable, unused or already configured display controls")
+        }
         func activeSet(_ permission: AppPermission,
                        available: Set<AppFeature> = Set(AppFeature.allCases),
                        on: Set<String> = [],

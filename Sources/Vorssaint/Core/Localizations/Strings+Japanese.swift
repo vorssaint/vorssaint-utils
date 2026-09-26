@@ -301,6 +301,7 @@ extension Strings {
         autoQuitStep1: "アプリの最後のウインドウを閉じます（⌘W または赤いボタン）。",
         autoQuitStep2: "アプリは自動的に終了します。「変更を保存しますか？」のダイアログは引き続き表示されます。",
         autoQuitPredictableNote: "通常ウインドウなしで動作するアプリは、終了されることはありません。",
+        autoQuitOngoingWorkNote: "収録が始まったあとの画面収録アプリのように、最後のウインドウを閉じても動作を続けるアプリがあります。例外リストになければ、これらも終了されます。",
         autoQuitExceptionsTitle: "例外",
         autoQuitExceptionsCaption: "このリストのアプリは、ウインドウがなくても開いたままになります。",
         autoQuitExceptionsEmpty: "例外はありません",

@@ -319,7 +319,8 @@ enum SettingsFeatureTests {
                "the backup never carries a note about a start that did not finish")
         suite.expect(backupKeys.contains(DefaultsKey.hasOnboarded)
                 && backupKeys.contains(DefaultsKey.featuresOnboardingVersion)
-                && backupKeys.contains(DefaultsKey.lastUpdateIntroVersion),
+                && backupKeys.contains(DefaultsKey.lastUpdateIntroVersion)
+                && backupKeys.contains(DefaultsKey.brightnessUpdatePromptState),
                "a restored Mac does not replay onboarding or the intros already seen")
         let backupPayload = SettingsBackupSupport.payload(appVersion: "test") { key in
             key == DefaultsKey.switcherEnabled ? true : nil

@@ -301,6 +301,7 @@ extension Strings {
         autoQuitStep1: "Fermez la dernière fenêtre d’une app (⌘W ou le bouton rouge).",
         autoQuitStep2: "L’app quitte d’elle-même. Les fenêtres «\u{00A0}Enregistrer les modifications\u{00A0}?\u{00A0}» s’affichent toujours.",
         autoQuitPredictableNote: "Les apps qui fonctionnent normalement sans fenêtre ne quittent jamais.",
+        autoQuitOngoingWorkNote: "Certaines apps ferment leur dernière fenêtre tout en continuant à travailler, comme un enregistreur d’écran une fois la capture lancée. Elles sont également quittées, sauf si elles figurent dans les exceptions.",
         autoQuitExceptionsTitle: "Exceptions",
         autoQuitExceptionsCaption: "Les apps de cette liste restent ouvertes même sans aucune fenêtre.",
         autoQuitExceptionsEmpty: "Aucune exception",

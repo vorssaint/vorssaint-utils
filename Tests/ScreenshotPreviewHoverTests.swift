@@ -8,7 +8,10 @@ import Foundation
 enum ScreenshotPreviewHoverTests {
     typealias DispatchQueue = NotchScreenRefreshContract.DispatchQueue
 
+    enum Action: Hashable { case edit, copy, save }
+
     final class Model {
+        var disabledActions: Set<Action> = []
         var sharing = false
         var deletingShare = false
     }
@@ -20,11 +23,33 @@ enum ScreenshotPreviewHoverTests {
         var autoDismissDuration: TimeInterval = 12
         var closed = false
         let model = Model()
+        var action: (Action) -> Set<Action> = { [$0] }
         func close() { closed = true }
     }
 
     static func run(_ suite: TestSuite) {
         defer { DispatchQueue.main = NotchScreenRefreshContract.Scheduler() }
+        DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
+        let editorPreview = Controller()
+        var editorOpened = false
+        editorPreview.action = { action in
+            suite.expect(editorPreview.closed, "Edit releases preview focus before opening the editor")
+            editorOpened = true
+            return [action]
+        }
+        editorPreview.perform(.edit)
+        suite.expect(editorPreview.closed && !editorOpened,
+                     "Edit dismisses immediately and defers window creation beyond the button update")
+        editorPreview.perform(.edit)
+        DispatchQueue.main.advance(0)
+        suite.expect(editorOpened && DispatchQueue.main.pending == 0,
+                     "Edit opens exactly once on the next main-queue turn")
+        let failedCopy = Controller()
+        failedCopy.action = { _ in [] }
+        failedCopy.perform(.copy)
+        suite.expect(!failedCopy.closed, "failed Copy still leaves the preview available for retry")
+        DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
+
         for duration in [3.0, 12.0] {
             DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
             let controller = Controller()
@@ -85,5 +110,11 @@ enum ScreenshotPreviewHoverTests {
             DispatchQueue.main.advance(duration)
             suite.expect(sharingController.closed, "a cancelled share sheet resumes the dismissal delay")
         }
+    }
+}
+
+extension NotchScreenRefreshContract.Scheduler {
+    func async(execute work: @escaping () -> Void) {
+        asyncAfter(deadline: .init(seconds: now), execute: DispatchWorkItem(block: work))
     }
 }

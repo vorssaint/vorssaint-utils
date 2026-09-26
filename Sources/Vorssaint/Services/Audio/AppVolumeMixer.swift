@@ -131,9 +131,8 @@ final class AppVolumeMixer: ObservableObject {
     private var outputControlListenerAddresses: [AudioObjectPropertyAddress] = []
     private var outputControlRefreshGeneration = 0
     private var stopped = false
-    /// Waking is the one moment the render path of a live tap can die with no
-    /// audio notification left to reveal it, so the wake itself asks for a
-    /// refresh and reconciliation verifies every engine is still rendering.
+    /// Waking can invalidate a live tap without an audio notification, so it
+    /// requests a fresh snapshot and restarts the render observations.
     private var wakeObserver: NSObjectProtocol?
     private var lastAutomaticLoweredOutputUID: String?
     /// The output volume as it was before the headphone disconnect protection
@@ -570,6 +569,9 @@ final class AppVolumeMixer: ObservableObject {
         } else {
             applyRouting(for: app)
         }
+        // Changing gain alone cannot revive a stalled aggregate. Check the
+        // render path as well, including when the HAL snapshot did not change.
+        reconcileEngines(with: apps)
     }
 
     func setOutputDeviceUID(_ uid: String?, for app: MixerApp) {
@@ -1362,13 +1364,12 @@ final class AppVolumeMixer: ObservableObject {
                                                            isPlaying: app.isPlaying,
                                                            now: now) {
             case .note(let observation, let recheckAfter):
-                engineRenderProgress[id] = observation
-                if recheckAfter == nil {
+                if let previous = engineRenderProgress[id],
+                   observation.cycles != previous.cycles {
                     engineRecovery.clear(id)
                 }
-                if let recheckAfter {
-                    nextPassDelay = min(nextPassDelay ?? recheckAfter, recheckAfter)
-                }
+                engineRenderProgress[id] = observation
+                nextPassDelay = min(nextPassDelay ?? recheckAfter, recheckAfter)
             case .stalled(let recheckAfter):
                 nextPassDelay = min(nextPassDelay ?? recheckAfter, recheckAfter)
             case .wedged:
@@ -1416,9 +1417,9 @@ final class AppVolumeMixer: ObservableObject {
         }
     }
 
-    /// One trailing pass for rows whose rebuild was coalesced. A single
-    /// scheduled block, never a repeating timer: with nothing left to
-    /// reconcile the mixer goes back to being purely event driven.
+    /// One shared trailing pass for pending rebuilds and render checks.
+    /// Playing engines keep checking their atomic counters; once all apps
+    /// are idle and no rebuild is pending, no further pass is scheduled.
     private func scheduleEngineReconcile(after delay: Double) {
         guard !engineReconcilePending else { return }
         engineReconcilePending = true

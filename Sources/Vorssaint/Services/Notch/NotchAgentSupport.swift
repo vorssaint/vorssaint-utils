@@ -31,6 +31,10 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
 enum NotchAgentReadout: String, CaseIterable, Identifiable {
     case elapsed, tokens, cost, limit
     var id: String { rawValue }
+
+    /// Tokens and cost change only with a new snapshot. Limits still need
+    /// the clock: an allowance can renew, or show elapsed time while unknown.
+    var advancesWithClock: Bool { self == .elapsed || self == .limit }
 }
 
 enum NotchAgentLimitDisplay: String, CaseIterable, Identifiable {
@@ -143,10 +147,10 @@ enum NotchAgentSupport {
     static func stripReading(_ snapshot: AgentUsageSnapshot, readout: NotchAgentReadout,
                              display: NotchAgentLimitDisplay, now: Date) -> String {
         let live = snapshot.live
-        let elapsed = AgentFormat.clock(now.timeIntervalSince(live.map(\.started).min() ?? now))
+        func elapsed() -> String { AgentFormat.clock(now.timeIntervalSince(live.map(\.started).min() ?? now)) }
         switch readout {
         case .elapsed:
-            return elapsed
+            return elapsed()
         case .tokens:
             // What the agent wrote, the count its own window shows; the
             // context it reads again on every call is in the cost.
@@ -155,7 +159,7 @@ enum NotchAgentSupport {
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = AgentLimitSupport.binding(snapshot.limits[provider], now: now) else { return elapsed }
+                  let window = AgentLimitSupport.binding(snapshot.limits[provider], now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
     }

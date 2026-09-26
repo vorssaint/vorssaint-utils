@@ -61,6 +61,7 @@ final class AgentUsageService: ObservableObject {
 
     // Confined to `queue`.
     private var readerSession = -1
+    private var readerCancellation: Cancellation?
     private var enabled: Set<AgentProvider> = []
     private var store = AgentUsageStore()
     private var cursors: [String: AgentLogCursor] = [:]
@@ -147,6 +148,7 @@ final class AgentUsageService: ObservableObject {
         claudeAppChecked = nil
         queue.async { [self] in
             readerSession = -1
+            readerCancellation = nil
             poller?.cancel()
             poller = nil
             watcher?.stop()
@@ -190,6 +192,7 @@ final class AgentUsageService: ObservableObject {
         startTimer()
         queue.async { [self] in
             readerSession = session
+            readerCancellation = cancellation
             enabled = providers
             store = AgentUsageStore()
             cursors.removeAll()
@@ -261,25 +264,30 @@ final class AgentUsageService: ObservableObject {
     /// working turn with it.
     @discardableResult
     private func read(_ path: String, provider: AgentProvider) -> Bool {
+        guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
             return store.forget(file: path)
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
-        var entries: [AgentLogEntry] = []
+        var changed = false
         let now = Date()
-        AgentLogReader.readAppended(cursor) { line in
+        AgentLogReader.readAppended(cursor, shouldContinue: { !cancellation.isCancelled }) { line in
+            // Apply in log order while the chunk is alive instead of retaining
+            // every parsed entry until a potentially multi-gigabyte file ends.
+            let entries: [AgentLogEntry]
             switch provider {
-            case .claude: entries += AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
-            case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
+            case .claude: entries = AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
+            case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
             }
+            guard !entries.isEmpty else { return }
+            changed = true
+            let finished = store.apply(entries, file: path, provider: provider, tracksTurns: cursor.tracksTurns,
+                                       parent: cursor.parent, modified: cursor.modified, now: now)
+            finished.forEach(report)
         }
-        guard !entries.isEmpty else { return false }
-        let finished = store.apply(entries, file: path, provider: provider, tracksTurns: cursor.tracksTurns,
-                                   parent: cursor.parent, modified: cursor.modified, now: now)
-        finished.forEach(report)
-        return true
+        return changed
     }
 
     private func watch(_ roots: [AgentLogRoot]) {
@@ -405,8 +413,9 @@ final class AgentUsageService: ObservableObject {
 
     /// Filters by the person's choices on the main thread, where they live.
     private func report(_ event: AgentUsageEvent) {
+        let session = readerSession
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.running else { return }
+            guard let self, self.running, self.session == session else { return }
             switch event {
             case .finished(let provider, let duration, _, _, _):
                 guard self.providers.contains(provider), let minimum = NotchAgentSupport.finishMinimum(),

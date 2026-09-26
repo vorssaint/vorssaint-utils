@@ -1320,7 +1320,16 @@ final class BrightnessService: ObservableObject {
         workQueue.async { [weak self] in
             guard let self else { return }
             let probe = self.ddcProbeLuminance(for: displayID, service: service)
-            if case .replied = probe {
+            if case let .replied(value, _) = probe {
+                // Writes share this queue with the read. Remember the hardware
+                // answer before the step is queued, so an external adjustment
+                // cannot make a necessary write look like a duplicate.
+                self.stateLock.lock()
+                if self.routes[displayID]?.ddcPathKey == route.ddcPathKey,
+                   self.routes[displayID]?.extendedDimming == route.extendedDimming {
+                    self.routes[displayID]?.lastDDCValue = value
+                }
+                self.stateLock.unlock()
                 self.forgetWriteOnlyDDCPath(route.ddcPathKey)
             } else {
                 if case .writeOnly = probe {
@@ -1329,6 +1338,7 @@ final class BrightnessService: ObservableObject {
                 self.stateLock.lock()
                 if self.routes[displayID]?.ddcPathKey == route.ddcPathKey {
                     self.routes[displayID]?.ddcReadable = false
+                    self.routes[displayID]?.lastDDCValue = nil
                 }
                 self.stateLock.unlock()
                 Self.log.log("ddc reads stopped answering for display \(displayID); future steps will write only")

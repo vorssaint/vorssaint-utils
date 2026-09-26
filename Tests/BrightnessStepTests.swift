@@ -30,6 +30,13 @@ enum BrightnessStepTests {
         var reply: (current: UInt16, maximum: UInt16) = (0, 100)
         var routes: [UInt32: Route] = [:]
         var committed: [Double] = []
+        var dimmedDisplays = Set<UInt32>()
+        var writes: [UInt16] = []
+        func applySoftwareDim(_ id: UInt32, value: Double) -> Bool { true }
+        func ddcSend(to id: UInt32, service: CFTypeRef, packet: [UInt8]) -> Bool {
+            writes.append(UInt16(packet[3]) << 8 | UInt16(packet[4]))
+            return true
+        }
         func currentSystemBrightness(for id: UInt32, fallback: Double?) -> Double? { fallback }
         func commitStep(from current: Double, delta: Double, to displayID: UInt32,
                         method: BrightnessDisplay.Method, showOSD: Bool) {
@@ -80,5 +87,17 @@ enum BrightnessStepTests {
         DispatchQueue.main.drain()
         suite.expect(service.committed.last.map { abs($0 - 0.95) < 0.0001 } == true,
                      "a stale hardware-range step maps the monitor's actual DDC level")
+
+        service.routes[2]?.lastDDCValue = 50
+        service.levelKnownAt[2] = nil
+        service.displays[0].brightness = 0.625
+        service.reply = (58, 100)
+        service.step(2, method: .ddc, delta: -BrightnessSupport.brightnessKeyStep, showOSD: false)
+        service.workQueue.drain()
+        DispatchQueue.main.drain()
+        let written = service.writeExtendedBrightness(service.committed.last!, to: 2,
+                                                       route: service.routes[2]!, service: "monitor" as CFString)
+        suite.expect(written && service.writes == [50],
+                     "a physical monitor adjustment cannot suppress a step back to the app's previous value")
     }
 }
