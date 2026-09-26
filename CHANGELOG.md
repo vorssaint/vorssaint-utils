@@ -11,6 +11,12 @@ Dynamic Island gives a small spring response when the pointer reaches its closed
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+- A Plan limit reading beside the camera turns orange and then red as the allowance runs low, and the Settings preview shows how it looks at the warning share.
+- With a CLIProxyAPI hub added, Spending, Now, Trend, Models, Projects and Activity count every installed agent, even one switched off. The switches then only choose which of this Mac's sign-ins get a limits card.
+- Spending, Trend and Models count a turn through a hub under the kind of account that served it: Claude models under Claude, other models under Codex, whichever agent asked. The plan multiple counts only spending on the plan itself, and every response is counted once.
+
+### Fixed
+- A turn that goes through a CLIProxyAPI hub no longer shows the agent's own plan limit beside the camera. The reading now shows the account with the least left among every account the working turns draw on.
 
 ## [3.4.0-beta.6] - 2026-09-25
 

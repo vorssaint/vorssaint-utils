@@ -19,10 +19,18 @@ struct NotchAgentsView: View {
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
-    /// Only agents that left something on this Mac get cards.
+    /// This Mac's sign-ins that get a limits tile. Each has its switch on
+    /// and has left something on this Mac.
     private var providers: [AgentProvider] {
         [claude ? AgentProvider.claude : nil, codex ? .codex : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
+    }
+
+    /// Every agent read, for the cards about use rather than one sign-in.
+    /// With a hub added that includes an agent switched off, since its
+    /// turns may go through the hub.
+    private var active: [AgentProvider] {
+        AgentProvider.allCases.filter(usage.snapshot.seen.contains)
     }
 
     private var rows: [[NotchAgentTile]] {
@@ -41,7 +49,7 @@ struct NotchAgentsView: View {
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if providers.isEmpty && usage.snapshot.accounts.isEmpty {
+            } else if active.isEmpty && usage.snapshot.accounts.isEmpty {
                 NotchEmptyView(symbol: "sparkles", message: text.empty)
             } else if rows.isEmpty {
                 NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
@@ -88,11 +96,13 @@ struct NotchAgentsView: View {
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text)
             }
         case .spend:
-            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: $period, text: text)
+            NotchAgentSpendCard(snapshot: snapshot, providers: active, period: $period, text: text)
         case .live:
-            NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
+            NotchAgentLiveCard(snapshot: snapshot, providers: active, text: text)
         case .trend:
-            NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
+            // Bars follow whose account paid, which can be an agent this Mac
+            // never ran, as with Claude Code on a ChatGPT account.
+            NotchAgentTrendCard(snapshot: snapshot, providers: AgentProvider.allCases, period: shown, text: text)
         case .models:
             NotchAgentShareCard(title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
                                 shares: snapshot.usage(shown).models, byCost: snapshot.usage(shown).fullyPriced, text: text)
@@ -388,12 +398,13 @@ private struct NotchAgentSpendCard: View {
         }
     }
 
-    /// Thirty days of API value against a plan's monthly price.
+    /// Thirty days of API value on an agent's own sign-in against its plan's
+    /// monthly price. Turns through a hub spend other accounts, not the plan.
     @ViewBuilder private func multiples(_ usage: AgentPeriodUsage) -> some View {
         HStack(spacing: 3) {
             ForEach(providers) { provider in
-                if let plan = snapshot.plans[provider], let price = plan.monthlyPrice, price > 0,
-                   let spent = usage.byProvider[provider]?.cost, spent > 0 {
+                let spent = usage.own(provider).cost
+                if let plan = snapshot.plans[provider], let price = plan.monthlyPrice, price > 0, spent > 0 {
                     let multiple = (spent / price).formatted(.number.precision(.fractionLength(spent / price < 10 ? 1 : 0))) + "×"
                     NotchAgentChip(text: multiple, tint: provider.tint)
                         .help(text.planMultiple(multiple, plan: "\(provider.displayName) \(plan.name)"))
@@ -402,29 +413,43 @@ private struct NotchAgentSpendCard: View {
         }
     }
 
+    /// Claude, then Codex, by whose account paid. A turn through a hub counts
+    /// under the account that served it, and every response sits in one log,
+    /// so the parts add up to the total without counting any twice. An
+    /// account kind appears even when only the other agent used it.
+    private func parts(_ usage: AgentPeriodUsage) -> [(name: String, tint: Color, totals: AgentTotals)] {
+        AgentProvider.allCases.filter { providers.contains($0) || usage.byProvider[$0] != nil }
+            .map { ($0.displayName, $0.tint, usage.byProvider[$0] ?? AgentTotals()) }
+    }
+
     @ViewBuilder private func split(_ usage: AgentPeriodUsage) -> some View {
         let byCost = usage.fullyPriced
-        let parts = providers.map { usage.byProvider[$0]?.weight(byCost: byCost) ?? 0 }
-        let total = parts.reduce(0, +)
-        let shown = parts.filter { $0 > 0 }.count
+        let parts = parts(usage)
+        let weights = parts.map { $0.totals.weight(byCost: byCost) }
+        let total = weights.reduce(0, +)
+        let shown = weights.filter { $0 > 0 }.count
         GeometryReader { proxy in
             let gap: CGFloat = 2
-            // Every agent keeps a visible sliver; the rest shares what is left.
+            // Every part keeps a visible sliver. The rest shares what is left.
             let room = max(0, proxy.size.width - gap * CGFloat(max(0, shown - 1)) - 4 * CGFloat(shown))
             HStack(spacing: gap) {
                 if total <= 0 {
                     Capsule().fill(.white.opacity(0.13))
                 } else {
-                    ForEach(providers.indices, id: \.self) { index in
-                        if parts[index] > 0 {
-                            Capsule(style: .continuous).fill(providers[index].tint.opacity(0.9))
-                                .frame(width: 4 + room * parts[index] / total)
+                    ForEach(parts.indices, id: \.self) { index in
+                        if weights[index] > 0 {
+                            Capsule(style: .continuous).fill(parts[index].tint.opacity(0.9))
+                                .frame(width: 4 + room * weights[index] / total)
                         }
                     }
                 }
             }
         }
         .frame(height: 4)
+        .contentShape(Rectangle())
+        .help(parts.filter { $0.totals.requests > 0 }.map { part in
+            part.name + " · " + (byCost ? AgentFormat.cost(part.totals.cost) : text.tokens(AgentFormat.tokens(part.totals.tokens.total)))
+        }.joined(separator: "\n"))
         .accessibilityHidden(true)
     }
 

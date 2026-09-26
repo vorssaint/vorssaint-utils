@@ -57,6 +57,55 @@ struct AgentHub: Codable, Equatable, Identifiable {
     }
 }
 
+/// Which Codex sessions go through a hub. Codex names the model provider a
+/// session uses in its log, and the provider's address lives in Codex's
+/// config. A hub serves its API at the same address as its management.
+enum AgentHubRoutes {
+    private static let loopback: Set<String> = ["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"]
+    private static let maximumSize = 1 << 20
+
+    static func codex(home: URL = FileManager.default.homeDirectoryForCurrentUser, hubs: [String]) -> Set<String> {
+        let url = home.appending(path: ".codex/config.toml", directoryHint: .notDirectory)
+        guard !hubs.isEmpty,
+              let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= maximumSize,
+              let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return [] }
+        return codex(config: text, hubs: hubs)
+    }
+
+    /// The `[model_providers.NAME]` sections whose `base_url` reaches one of
+    /// `hubs`, by host and port. Every loopback name counts as the same host.
+    static func codex(config: String, hubs: [String]) -> Set<String> {
+        let targets = Set(hubs.compactMap { URLComponents(string: $0).flatMap(endpoint) })
+        var routes: Set<String> = []
+        var section: String?
+        for raw in config.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("[") {
+                let name = line.trimmingCharacters(in: CharacterSet(charactersIn: "[] "))
+                let prefix = "model_providers."
+                section = name.hasPrefix(prefix)
+                    ? String(name.dropFirst(prefix.count)).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                    : nil
+                continue
+            }
+            guard let section, line.hasPrefix("base_url"), let equals = line.firstIndex(of: "=") else { continue }
+            let value = line[line.index(after: equals)...].trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            if let address = URLComponents(string: value).flatMap(endpoint), targets.contains(address) {
+                routes.insert(section)
+            }
+        }
+        return routes
+    }
+
+    /// Host and port, with the scheme's own port filled in.
+    private static func endpoint(_ parts: URLComponents) -> String? {
+        guard let host = parts.host?.lowercased(), !host.isEmpty else { return nil }
+        let port = parts.port ?? (parts.scheme?.lowercased() == "http" ? 80 : 443)
+        return (loopback.contains(host) ? "loopback" : host) + ":\(port)"
+    }
+}
+
 /// One pooled account and its latest reading.
 struct AgentHubAccount: Equatable, Identifiable {
     let hub: String

@@ -68,6 +68,14 @@ enum NotchAgentSupport {
         }
     }
 
+    /// The agents whose logs the service reads. With a hub added, it reads
+    /// every agent, since its turns may go through the hub, and spending and
+    /// activity count them whatever the switches say. The switches then only choose which of
+    /// this Mac's sign-ins get a limits tile.
+    static func readProviders(switched: [AgentProvider], hasHubs: Bool) -> [AgentProvider] {
+        hasHubs ? AgentProvider.allCases : switched
+    }
+
     static func key(for provider: AgentProvider) -> String {
         provider == .claude ? DefaultsKey.notchAgentsClaude : DefaultsKey.notchAgentsCodex
     }
@@ -176,10 +184,45 @@ enum NotchAgentSupport {
         case .cost:
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
-            guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = AgentLimitSupport.binding(snapshot.limits[provider], now: now) else { return elapsed }
-            return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
+            guard let limit = liveLimit(snapshot, now: now) else { return elapsed }
+            return AgentFormat.percent(display == .used ? limit.used : 1 - limit.used)
         }
+    }
+
+    /// Whether a turn goes through a CLIProxyAPI hub rather than the agent's
+    /// own sign-in, by the same rule its responses follow.
+    static func viaHub(_ session: AgentLiveSession, routes: Set<String>) -> Bool {
+        AgentUsageSummary.viaHub(provider: session.provider, model: session.model, route: session.route, routes: routes)
+    }
+
+    /// A hub picks the account by the model asked for. Claude models go to
+    /// its Claude accounts, everything else to its ChatGPT ones.
+    static func hubAccounts(for session: AgentLiveSession) -> AgentProvider {
+        AgentUsageSummary.hubAccounts(model: session.model)
+    }
+
+    /// The share used of the tightest allowance any working turn draws on,
+    /// with the agent running that turn. A turn through a hub draws on the
+    /// hub's accounts for its model, and the one with the least left binds
+    /// first. A turn on the agent's own sign-in draws on that plan. Nil
+    /// while none of them has a reading, and never the agent's own plan for
+    /// a turn that does not spend it.
+    static func liveLimit(_ snapshot: AgentUsageSnapshot, now: Date) -> (provider: AgentProvider, used: Double)? {
+        var tightest: (provider: AgentProvider, used: Double)?
+        for session in snapshot.live {
+            let windows: [AgentLimitWindow]
+            if viaHub(session, routes: snapshot.hubRoutes) {
+                let family = hubAccounts(for: session)
+                windows = snapshot.pool.filter { $0.provider == family }
+                    .compactMap { AgentLimitSupport.binding($0.limits, now: now) }
+            } else {
+                windows = AgentLimitSupport.binding(snapshot.limits[session.provider], now: now).map { [$0] } ?? []
+            }
+            for window in windows where window.usedFraction > tightest?.used ?? -1 {
+                tightest = (session.provider, window.usedFraction)
+            }
+        }
+        return tightest
     }
 
     /// Every digit takes the same width, so a reading's shape, not its value,

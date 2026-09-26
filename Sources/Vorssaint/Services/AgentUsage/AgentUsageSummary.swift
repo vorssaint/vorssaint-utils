@@ -54,12 +54,33 @@ struct AgentShare: Equatable, Identifiable {
 
 struct AgentPeriodUsage: Equatable {
     var total = AgentTotals()
+    /// Use by whose account paid for it. A response through a hub counts
+    /// under the kind of account that served it, whichever agent asked.
     var byProvider: [AgentProvider: AgentTotals] = [:]
+    /// The part of `byProvider` that went through a hub. Every response has
+    /// one log, so nothing here counts twice.
+    var viaHub: [AgentProvider: AgentTotals] = [:]
     var models: [AgentShare] = []
     var projects: [AgentShare] = []
 
     /// Whether every response in the period could be priced.
     var fullyPriced: Bool { total.unpriced == 0 }
+
+    /// What an agent spent on its own sign-in, the use its plan pays for.
+    func own(_ provider: AgentProvider) -> AgentTotals {
+        var own = byProvider[provider] ?? AgentTotals()
+        guard let hub = viaHub[provider] else { return own }
+        own.tokens = AgentTokens(input: own.tokens.input - hub.tokens.input,
+                                 cacheWrite: own.tokens.cacheWrite - hub.tokens.cacheWrite,
+                                 cacheRead: own.tokens.cacheRead - hub.tokens.cacheRead,
+                                 output: own.tokens.output - hub.tokens.output,
+                                 reasoning: own.tokens.reasoning - hub.tokens.reasoning)
+        own.cost -= hub.cost
+        own.savings -= hub.savings
+        own.requests -= hub.requests
+        own.unpriced -= hub.unpriced
+        return own
+    }
 }
 
 /// A day or an hour of use.
@@ -103,6 +124,11 @@ struct AgentUsageSnapshot: Equatable {
     /// Accounts pooled by the CLIProxyAPI hubs the person added, apart from
     /// the one signed in on this Mac, which keeps its own tile.
     var accounts: [AgentHubAccount] = []
+    /// Every hub account, including one folded into this Mac's Claude tile.
+    /// A turn through a hub draws on all of them.
+    var pool: [AgentHubAccount] = []
+    /// The Codex model providers that point at a hub.
+    var hubRoutes: Set<String> = []
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
@@ -115,9 +141,28 @@ enum AgentUsageSummary {
     static let blockHistory: TimeInterval = 24 * 3600
     static let burnWindow: TimeInterval = 30 * 60
 
+    /// Whether a response went through a CLIProxyAPI hub rather than the
+    /// agent's own sign-in. A Codex session does when its model provider is
+    /// one of `routes`. Claude Code does when it answers with a model
+    /// Anthropic does not make, since only a proxy can serve it one. `routes`
+    /// stays nil until the person adds a hub, and then nothing counts.
+    static func viaHub(provider: AgentProvider, model: String, route: String, routes: Set<String>?) -> Bool {
+        guard let routes else { return false }
+        switch provider {
+        case .codex: return !route.isEmpty && routes.contains(route)
+        case .claude: return !model.isEmpty && !model.lowercased().hasPrefix("claude")
+        }
+    }
+
+    /// A hub picks the account by the model asked for. Claude models go to
+    /// its Claude accounts, everything else to its ChatGPT ones.
+    static func hubAccounts(model: String) -> AgentProvider {
+        model.lowercased().hasPrefix("claude") ? .claude : .codex
+    }
+
     static func snapshot(records: [AgentUsageRecord], limits: [AgentProvider: AgentLimits],
                          live: [AgentLiveSession], plans: [AgentProvider: AgentPlan],
-                         providers: Set<AgentProvider>, now: Date,
+                         providers: Set<AgentProvider>, hubRoutes: Set<String>? = nil, now: Date,
                          calendar: Calendar = .autoupdatingCurrent) -> AgentUsageSnapshot {
         var snapshot = AgentUsageSnapshot(loaded: true, now: now)
         snapshot.limits = limits.filter { providers.contains($0.key) }
@@ -152,9 +197,11 @@ enum AgentUsageSummary {
             }
             guard let first = starts.first, record.date >= first, record.date < tomorrow,
                   let day = index(of: record.date, in: starts) else { continue }
-            days[day].byProvider[record.provider, default: AgentTotals()].add(record)
+            let hub = viaHub(provider: record.provider, model: record.model, route: record.route, routes: hubRoutes)
+            let account = hub ? hubAccounts(model: record.model) : record.provider
+            days[day].byProvider[account, default: AgentTotals()].add(record)
             if day == lastDay, let hour = index(of: record.date, in: hourStarts) {
-                hours[hour].byProvider[record.provider, default: AgentTotals()].add(record)
+                hours[hour].byProvider[account, default: AgentTotals()].add(record)
             }
             // One name per model string, not per response: the history can
             // hold tens of thousands of them.
@@ -165,12 +212,13 @@ enum AgentUsageSummary {
                 name = AgentPricing.displayName(record.model)
                 names[record.model] = name
             }
-            let modelID = record.provider.rawValue + ":" + name
+            let modelID = account.rawValue + ":" + name
             for period in AgentPeriod.allCases where day > lastDay - period.days {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
-                periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
+                periods[period, default: AgentPeriodUsage()].byProvider[account, default: AgentTotals()].add(record)
+                if hub { periods[period, default: AgentPeriodUsage()].viaHub[account, default: AgentTotals()].add(record) }
                 models[period, default: [:]][modelID, default: AgentShare(
-                    id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
+                    id: modelID, name: name.isEmpty ? "?" : name, provider: account, totals: AgentTotals())]
                     .totals.add(record)
                 if !record.project.isEmpty {
                     projects[period, default: [:]][record.project, default: AgentShare(

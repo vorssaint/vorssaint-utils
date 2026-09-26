@@ -69,6 +69,9 @@ struct AgentUsageRecord: Equatable {
     var cost: Double?
     /// What cache reads saved against paying the full input price.
     var savings: Double
+    /// The model provider a Codex session named, empty for the ChatGPT
+    /// sign-in, as on a live turn.
+    var route = ""
 }
 
 /// A usage allowance and how much of it is spent, as the provider reports it.
@@ -123,6 +126,9 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+    /// The model provider a Codex session names in its log, empty for the
+    /// ChatGPT sign-in. A provider pointed at a hub routes the turn there.
+    var route = ""
 }
 
 /// Something worth a moment in the closed island.

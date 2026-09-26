@@ -32,7 +32,6 @@ struct NotchAgentStrip: View {
     private var working: [AgentProvider] {
         AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
     }
-    private var tint: Color { working.first?.tint ?? .white }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -56,7 +55,7 @@ struct NotchAgentStrip: View {
                             Text(text)
                                 .font(.system(size: textSize, weight: .medium))
                                 .monospacedDigit()
-                                .foregroundStyle(tint)
+                                .foregroundStyle(agentStripTint(usage.snapshot, readout: chosenReadout, now: context.date))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
                                 // A reading that gains a digit, like an hour
@@ -86,10 +85,22 @@ struct NotchAgentStrip: View {
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 
+    private var chosenReadout: NotchAgentReadout { NotchAgentReadout(rawValue: readout) ?? .elapsed }
+
     private func reading(at now: Date) -> String {
-        NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
+        NotchAgentSupport.stripReading(usage.snapshot, readout: chosenReadout,
                                        display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
     }
+}
+
+/// The working agent's color, or the warning a limit reading earns as it
+/// runs low, so a strip close to a limit says so before the notice does.
+func agentStripTint(_ snapshot: AgentUsageSnapshot, readout: NotchAgentReadout, now: Date) -> Color {
+    if readout == .limit, let limit = NotchAgentSupport.liveLimit(snapshot, now: now) {
+        return agentLimitTint(limit.provider, usedFraction: limit.used)
+    }
+    let working = AgentProvider.allCases.first { provider in snapshot.live.contains { $0.provider == provider } }
+    return working?.tint ?? .white
 }
 
 /// The resting island's wings: the allowance closest to running out, as a

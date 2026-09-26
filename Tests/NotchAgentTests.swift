@@ -24,6 +24,7 @@ enum NotchAgentTests {
         reading(suite)
         claudeApp(suite)
         hubs(suite)
+        hubRouting(suite)
         preferences(suite)
         formatting(suite)
     }
@@ -1016,6 +1017,118 @@ enum NotchAgentTests {
         let strip = geometry.compactAgentGeometry(wing: 72)
         suite.expect(!strip.compactActivityUsesFooter && strip.compactActivityWingWidth == 72,
                      "a working agent stays beside the camera")
+    }
+
+    // MARK: Turns through a hub
+
+    private static func hubRouting(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 1_790_440_000)
+        let config = """
+        model_provider = "openai"
+        [model_providers.cliproxy]
+        base_url = "http://localhost:8317/v1"
+        [model_providers."remote"]
+        base_url = "https://hub.example.net:8310/v1"
+        [model_providers.elsewhere]
+        base_url = "https://api.example.com/v1"
+        [model_providers.stale]
+        base_url = "http://127.0.0.1:8000/v1"
+        [profiles.fast]
+        base_url = "http://127.0.0.1:8317/v1"
+        """
+        suite.expect(AgentHubRoutes.codex(config: config, hubs: ["http://127.0.0.1:8317", "https://hub.example.net:8310"])
+                        == ["cliproxy", "remote"]
+                        && AgentHubRoutes.codex(config: config, hubs: []) == [],
+                     "a Codex model provider routes through a hub when it reaches the hub's host and port")
+
+        let store = AgentUsageStore()
+        for (file, provider) in [("proxied", "cliproxy"), ("own", "openai")] {
+            var state = AgentLogState()
+            let meta = line(#"{"timestamp":"2026-09-26T14:22:36.244Z","type":"session_meta","payload":{"id":"\#(file)","cwd":"/a","model_provider":"\#(provider)"}}"#)
+            let started = line(#"{"timestamp":"2026-09-26T14:22:37.000Z","type":"event_msg","payload":{"type":"task_started","started_at":1790432557}}"#)
+            for data in [meta, started] {
+                store.apply(AgentLogParser.parseCodex(data, state: &state, now: now), file: file,
+                            provider: .codex, tracksTurns: true, modified: now)
+            }
+        }
+        suite.expect(Dictionary(uniqueKeysWithValues: store.live.map { ($0.id, $0.route) }) == ["proxied": "cliproxy", "own": ""],
+                     "a Codex turn keeps the model provider its session names")
+
+        func session(_ provider: AgentProvider, model: String, route: String = "") -> AgentLiveSession {
+            AgentLiveSession(id: provider.rawValue, provider: provider, started: now.addingTimeInterval(-60), lastActivity: now,
+                             model: model, project: "", tokens: AgentTokens(), cost: 0, route: route)
+        }
+        func window(_ id: String, used: Double) -> AgentLimitWindow {
+            AgentLimitWindow(id: id, kind: .weekly, minutes: 10_080, scope: nil, usedPercent: used,
+                             resetsAt: now.addingTimeInterval(86_400))
+        }
+        func account(_ index: String, _ provider: AgentProvider, used: Double?) -> AgentHubAccount {
+            AgentHubAccount(hub: "http://127.0.0.1:8317", hubName: "hub", index: index, provider: provider,
+                            name: "\(index)@x.com", email: "\(index)@x.com", chatGPTAccount: nil,
+                            limits: used.map { AgentLimits(provider: provider, windows: [window(index, used: $0)],
+                                                           observedAt: now, source: .hub) })
+        }
+        func snapshot(_ live: [AgentLiveSession], pool: [AgentHubAccount]) -> AgentUsageSnapshot {
+            var result = AgentUsageSummary.snapshot(
+                records: [], limits: [.codex: AgentLimits(provider: .codex, windows: [window("own", used: 10)], observedAt: now,
+                                                          source: .sessionLog)],
+                live: live, plans: [:], providers: [.claude, .codex], now: now)
+            result.pool = pool
+            result.hubRoutes = ["cliproxy"]
+            return result
+        }
+        let pool = [account("one", .codex, used: 40), account("two", .codex, used: 90), account("three", .codex, used: nil),
+                    account("anthropic", .claude, used: 5)]
+        let routed = snapshot([session(.codex, model: "gpt-6-astra", route: "cliproxy")], pool: pool)
+        suite.expect(NotchAgentSupport.liveLimit(routed, now: now)?.used == 0.9
+                        && NotchAgentSupport.stripReading(routed, readout: .limit, display: .remaining, now: now) == AgentFormat.percent(0.1),
+                     "a turn through a hub reads the hub account for its model with the least left, not the agent's own plan")
+        suite.expect(NotchAgentSupport.liveLimit(snapshot([session(.codex, model: "gpt-6-astra")], pool: pool), now: now)?.used == 0.1,
+                     "a turn on the agent's own sign-in reads its own plan")
+        let borrowed = snapshot([session(.claude, model: "gpt-5.6-sol")], pool: pool)
+        suite.expect(NotchAgentSupport.liveLimit(borrowed, now: now)?.used == 0.9
+                        && NotchAgentSupport.liveLimit(borrowed, now: now)?.provider == .claude,
+                     "Claude Code answering with a GPT model draws on the hub's ChatGPT accounts")
+        let both = snapshot([session(.codex, model: "gpt-6-astra"), session(.claude, model: "claude-opus-5-5")],
+                            pool: pool)
+        suite.expect(NotchAgentSupport.liveLimit(both, now: now)?.used == 0.1,
+                     "turns on this Mac's own sign-ins read the tightest plan among them")
+        let mixed = snapshot([session(.codex, model: "gpt-6-astra"), session(.claude, model: "gpt-5.6-sol")], pool: pool)
+        suite.expect(NotchAgentSupport.liveLimit(mixed, now: now)?.used == 0.9
+                        && NotchAgentSupport.liveLimit(mixed, now: now)?.provider == .claude,
+                     "a hub turn beside an own turn reads whichever account has the least left")
+        let unread = snapshot([session(.codex, model: "gpt-6-astra", route: "cliproxy")], pool: [account("three", .codex, used: nil)])
+        suite.expect(NotchAgentSupport.liveLimit(unread, now: now) == nil
+                        && NotchAgentSupport.stripReading(unread, readout: .limit, display: .used, now: now) == "1:00",
+                     "without a hub reading, a routed turn shows the time rather than another account's limit")
+        func record(_ provider: AgentProvider, model: String, route: String = "", cost: Double) -> AgentUsageRecord {
+            AgentUsageRecord(provider: provider, date: now.addingTimeInterval(-600), model: model, project: "app", session: "s",
+                             tokens: AgentTokens(input: 100, cacheWrite: 0, cacheRead: 0, output: 10), cost: cost, savings: 0,
+                             route: route)
+        }
+        let records = [record(.claude, model: "claude-opus-5-5", cost: 5), record(.claude, model: "gpt-5.6-sol", cost: 2),
+                       record(.codex, model: "gpt-6-astra", cost: 3), record(.codex, model: "gpt-6-astra", route: "cliproxy", cost: 4),
+                       record(.codex, model: "claude-opus-5-5", route: "cliproxy", cost: 1)]
+        let summary = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:], providers: [.claude, .codex],
+                                                 hubRoutes: ["cliproxy"], now: now)
+        let spent = summary.usage(.today)
+        suite.expect(spent.byProvider[.claude]?.cost == 6 && spent.byProvider[.codex]?.cost == 9 && spent.total.cost == 15,
+                     "hub use counts under the kind of account that served it, whichever agent asked, and only once")
+        suite.expect(spent.own(.claude).cost == 5 && spent.own(.codex).cost == 3 && spent.own(.codex).requests == 1,
+                     "a plan's own spending leaves out every turn that went through a hub")
+        suite.expect(summary.days.last?.byProvider[.codex]?.cost == 9
+                        && spent.models.first { $0.name == AgentPricing.displayName("gpt-5.6-sol") }?.provider == .codex,
+                     "the trend and the models follow the same account as spending")
+        let noHub = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:], providers: [.claude, .codex],
+                                               now: now).usage(.today)
+        suite.expect(noHub.byProvider[.claude]?.cost == 7 && noHub.byProvider[.codex]?.cost == 8 && noHub.viaHub.isEmpty,
+                     "without a hub added, every response counts under the agent that made it")
+        suite.expect(NotchAgentSupport.readProviders(switched: [.claude], hasHubs: false) == [.claude]
+                        && NotchAgentSupport.readProviders(switched: [], hasHubs: true) == [.claude, .codex],
+                     "with a hub added, every agent's logs are read whatever its switch says")
+        suite.expect(!NotchAgentSupport.viaHub(session(.codex, model: "gpt-6-astra", route: "ollama"), routes: ["cliproxy"])
+                        && !NotchAgentSupport.viaHub(session(.claude, model: "claude-opus-5-5"), routes: []),
+                     "other model providers and Claude's own models are not a hub")
     }
 
     private static func formatting(_ suite: TestSuite) {

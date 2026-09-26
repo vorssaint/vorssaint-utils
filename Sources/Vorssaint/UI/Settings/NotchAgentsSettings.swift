@@ -46,6 +46,10 @@ struct NotchAgentsSettingsControls: View {
                 .fixedSize(horizontal: false, vertical: true)
             providerRow(.claude, isOn: $claude)
             providerRow(.codex, isOn: $codex)
+            if !usage.hubs.isEmpty {
+                Text(text.hubSwitchesNote).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Divider()
             hubs
@@ -84,7 +88,8 @@ struct NotchAgentsSettingsControls: View {
                 .padding(.leading, settingsRowTextInset)
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
-                                      provider: claude || !codex ? .claude : .codex)
+                                      provider: claude || !codex ? .claude : .codex,
+                                      warnAt: limitAlert ? limitThreshold : NotchAgentSupport.defaultLimitThreshold)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -329,25 +334,30 @@ extension NotchAgentCard: PanelOrderItem {}
 
 /// The closed island while an agent works, drawn small beside its option:
 /// the mark on one side of the camera and the chosen reading on the other.
-/// A turn in progress shows its own numbers; otherwise an example does.
+/// A turn in progress shows its own numbers. Otherwise an example does, and
+/// an example limit sits at the share that raises the warning, in the color
+/// the strip takes there.
 private struct NotchAgentStripSample: View {
     let readout: NotchAgentReadout
     let display: NotchAgentLimitDisplay
     let provider: AgentProvider
+    /// Percent used that raises the limit warning.
+    let warnAt: Double
     @ObservedObject private var usage = AgentUsageService.shared
     private static let camera: CGFloat = 64
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let working = usage.snapshot.live.first?.provider ?? provider
+            let shown = sample(at: context.date)
             HStack(spacing: 0) {
                 NotchAgentGlyph(provider: working, size: 11)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Color.clear.frame(width: Self.camera)
-                Text(reading(at: context.date))
+                Text(shown.reading)
                     .font(.system(size: 12, weight: .medium))
                     .monospacedDigit()
-                    .foregroundStyle(working.tint)
+                    .foregroundStyle(shown.tint)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -359,15 +369,24 @@ private struct NotchAgentStripSample: View {
         .accessibilityHidden(true)
     }
 
-    private func reading(at now: Date) -> String {
+    private func sample(at now: Date) -> (reading: String, tint: Color) {
         var snapshot = usage.snapshot
         if snapshot.live.isEmpty {
+            // The example stands for no allowance in particular, so a limit
+            // reading shows the warning share. The strip itself falls back to
+            // the time only while a real turn has no reading.
+            if readout == .limit {
+                let used = min(1, max(0, warnAt / 100))
+                return (AgentFormat.percent(display == .used ? used : 1 - used),
+                        agentLimitTint(provider, usedFraction: used))
+            }
             snapshot.live = [AgentLiveSession(id: "example", provider: provider, started: now.addingTimeInterval(-754),
                                               lastActivity: now, model: "", project: "",
                                               tokens: AgentTokens(input: 1_180_000, cacheWrite: 0, cacheRead: 0, output: 20_000),
                                               cost: 4.56)]
         }
-        return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, now: now)
+        return (NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, now: now),
+                agentStripTint(snapshot, readout: readout, now: now))
     }
 }
 

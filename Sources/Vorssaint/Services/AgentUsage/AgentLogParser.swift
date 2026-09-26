@@ -12,6 +12,8 @@ enum AgentLogEntry: Equatable {
     case usage(key: String, record: AgentUsageRecord, billable: AgentBillable)
     case limits(AgentLimits)
     case plan(String, observedAt: Date)
+    /// The model provider a Codex session goes through.
+    case route(String)
     case turnBegan(Date)
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
@@ -30,6 +32,8 @@ struct AgentLogState: Equatable {
     var lastTotal: AgentTokens?
     /// Codex runs the thread on the fast tier, which bills at a premium.
     var fast = false
+    /// The model provider the Codex session named.
+    var route = ""
 }
 
 enum AgentLogParser {
@@ -162,7 +166,11 @@ enum AgentLogParser {
         case "session_meta":
             if let id = payload["id"] as? String, !id.isEmpty { state.session = native(id) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
-            return []
+            // The ChatGPT sign-in is "openai". Any other name is a provider
+            // the person set up, which may be a CLIProxyAPI hub.
+            let named = payload["model_provider"] as? String ?? ""
+            state.route = named == "openai" ? "" : native(named)
+            return [.route(state.route)]
         case "turn_context":
             if let model = payload["model"] as? String, !model.isEmpty { state.model = native(model) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
@@ -251,7 +259,7 @@ enum AgentLogParser {
         let priced = AgentPricing.cost(billable, model: state.model)
         return .usage(key: key, record: AgentUsageRecord(
             provider: .codex, date: date, model: state.model, project: state.project, session: state.session,
-            tokens: tokens, cost: priced.cost, savings: priced.savings), billable: billable)
+            tokens: tokens, cost: priced.cost, savings: priced.savings, route: state.route), billable: billable)
     }
 
     /// Input counts include what came from the cache.

@@ -60,7 +60,10 @@ final class AgentUsageService: ObservableObject {
     private var session = 0
     private var cancellation = Cancellation()
     private var timer: Timer?
+    /// The agents whose logs are read.
     private var providers: [AgentProvider] = []
+    /// The agents whose own sign-in the page shows, by their switches.
+    private var shownProviders: [AgentProvider] = []
     private var pricesInFlight = false
     private var pricesAttempted = Date.distantPast
     private var pricesFailed = false
@@ -76,6 +79,8 @@ final class AgentUsageService: ObservableObject {
     // Confined to `queue`.
     private var readerSession = -1
     private var enabled: Set<AgentProvider> = []
+    /// The agents whose own plan and limits count, a subset of `enabled`.
+    private var shown: Set<AgentProvider> = []
     private var store = AgentUsageStore()
     private var cursors: [String: AgentLogCursor] = [:]
     private var watcher: AgentLogWatcher?
@@ -100,6 +105,8 @@ final class AgentUsageService: ObservableObject {
     /// Every hub's accounts as last read, in the order of `hubOrder`.
     private var hubAccounts: [String: [AgentHubAccount]] = [:]
     private var hubOrder: [String] = []
+    /// The Codex model providers that point at a hub, from Codex's config.
+    private var hubRoutes: Set<String> = []
     private var budgetDay: Date?
     private var lastRootCheck = Date.distantPast
 
@@ -107,18 +114,34 @@ final class AgentUsageService: ObservableObject {
 
     func syncWithPreferences() {
         guard NotchAgentSupport.isEnabled() else { stop(); return }
-        let wanted = NotchAgentSupport.providers()
-        // An agent turned off is no longer read at all, and one turned on is
-        // read from its start: both take a fresh reading.
+        let switched = NotchAgentSupport.providers()
+        let wanted = NotchAgentSupport.readProviders(switched: switched, hasHubs: !hubs.isEmpty)
+        // The service drops an agent it no longer reads and reads a new one
+        // from its start, so either change takes a fresh reading.
         if running, wanted != providers { stop() }
         if !running {
             running = true
             session += 1
             cancellation = Cancellation()
             providers = wanted
-            start(session: session, providers: Set(wanted), cancellation: cancellation)
-        } else if paused {
-            resume()
+            shownProviders = switched
+            start(session: session, providers: Set(wanted), shown: Set(switched), cancellation: cancellation)
+        } else {
+            if switched != shownProviders {
+                // With a hub added, a switch only shows or hides the agent's
+                // own sign-in. The logs stay read.
+                shownProviders = switched
+                let session = self.session
+                queue.async { [self] in
+                    guard readerSession == session else { return }
+                    shown = Set(switched)
+                    readClaudePlan()
+                    readClaudeApp(now: Date())
+                    checkLimits()
+                    publish()
+                }
+            }
+            if paused { resume() }
         }
         syncPrices()
         askHubs()
@@ -163,6 +186,7 @@ final class AgentUsageService: ObservableObject {
         timer?.invalidate()
         timer = nil
         providers = []
+        shownProviders = []
         pricesInFlight = false
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
@@ -189,6 +213,7 @@ final class AgentUsageService: ObservableObject {
             claudeOrganization = nil
             claudeEmail = nil
             hubAccounts = [:]
+            hubRoutes = []
             claudeProfileModified = nil
             claudeAppModified = nil
             claudeAppSamples = []
@@ -215,12 +240,13 @@ final class AgentUsageService: ObservableObject {
         self.timer = timer
     }
 
-    private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation) {
+    private func start(session: Int, providers: Set<AgentProvider>, shown: Set<AgentProvider>, cancellation: Cancellation) {
         startTimer()
         let hubIDs = hubs.map(\.id)
         queue.async { [self] in
             readerSession = session
             enabled = providers
+            self.shown = shown
             hubOrder = hubIDs
             store = AgentUsageStore()
             cursors.removeAll()
@@ -247,6 +273,7 @@ final class AgentUsageService: ObservableObject {
                store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
                 budgetDay = today
             }
+            hubRoutes = AgentHubRoutes.codex(home: home, hubs: hubOrder)
             watch(roots)
             startPolling()
             publish()
@@ -380,6 +407,12 @@ final class AgentUsageService: ObservableObject {
                 }
                 lastRootCheck = now
                 readClaudePlan()
+                // Codex's config may have gained or lost a hub provider.
+                let routes = AgentHubRoutes.codex(home: home, hubs: hubOrder)
+                if routes != hubRoutes {
+                    hubRoutes = routes
+                    changed = true
+                }
             }
             readClaudeApp(now: now)
             checkLimits()
@@ -416,20 +449,24 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        var next = AgentUsageSummary.snapshot(records: store.records, limits: store.limits, live: store.live,
-                                              plans: plans, providers: enabled, now: Date())
+        var next = AgentUsageSummary.snapshot(records: store.records, limits: store.limits.filter { shown.contains($0.key) },
+                                              live: store.live, plans: plans.filter { shown.contains($0.key) },
+                                              providers: enabled, hubRoutes: hubOrder.isEmpty ? nil : hubRoutes, now: Date())
         let merged = mergedAccounts
+        let claudeTile = shown.contains(.claude) && next.seen.contains(.claude)
         for account in orderedAccounts where merged.contains(account.id) {
             // The account signed in here keeps one tile, with the newer reading.
-            if next.seen.contains(.claude), let limits = account.limits,
+            if claudeTile, let limits = account.limits,
                limits.observedAt > next.limits[.claude]?.observedAt ?? .distantPast {
                 next.limits[.claude] = limits
             }
         }
-        next.accounts = orderedAccounts.filter { !merged.contains($0.id) || !next.seen.contains(.claude) }
+        next.accounts = orderedAccounts.filter { !merged.contains($0.id) || !claudeTile }
+        next.pool = orderedAccounts
+        next.hubRoutes = hubRoutes
         published = next
         checkBudget(next)
-        let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
+        let checked = shown.contains(.claude) ? claudeAppSamples.last(where: {
             claudeOrganization == nil || $0.organization == nil || $0.organization == claudeOrganization
         })?.date : nil
         let listed = AgentPricing.list.updated
@@ -454,7 +491,7 @@ final class AgentUsageService: ObservableObject {
                       duration >= minimum else { return }
             case .limitWarning(let provider, _, let account), .limitReset(let provider, _, let account):
                 // Hub accounts follow the hubs, not the switches for this Mac's agents.
-                guard account != nil || self.providers.contains(provider),
+                guard account != nil || self.shownProviders.contains(provider),
                       NotchAgentSupport.limitThreshold() != nil else { return }
             case .budgetReached:
                 guard NotchAgentSupport.dailyBudget() != nil else { return }
@@ -484,7 +521,7 @@ final class AgentUsageService: ObservableObject {
     /// warns once.
     private func currentLimits() -> [String: (limits: AgentLimits, account: String?)] {
         var current: [String: (limits: AgentLimits, account: String?)] = [:]
-        for (provider, limits) in store.limits { current[provider.rawValue] = (limits, nil) }
+        for (provider, limits) in store.limits where shown.contains(provider) { current[provider.rawValue] = (limits, nil) }
         let merged = store.limits[.claude] == nil ? [] : mergedAccounts
         for account in orderedAccounts where !merged.contains(account.id) {
             if let limits = account.limits { current[account.id] = (limits, account.id) }
@@ -515,7 +552,7 @@ final class AgentUsageService: ObservableObject {
     /// The plan comes from the account profile Claude Code caches; nothing
     /// else in that file is kept.
     private func readClaudePlan() {
-        guard enabled.contains(.claude) else { return }
+        guard shown.contains(.claude) else { return }
         let url = home.appending(path: ".claude.json")
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         guard modified != claudeProfileModified else { return }
@@ -539,7 +576,7 @@ final class AgentUsageService: ObservableObject {
     /// places them at `now` on every call, since a session ages out between
     /// saves. Runs on `queue`.
     private func readClaudeApp(now: Date) {
-        guard enabled.contains(.claude) else {
+        guard shown.contains(.claude) else {
             if store.limits[.claude]?.source == .claudeApp { store.clearLimits(.claude) }
             claudeAppModified = nil
             claudeAppSamples = []
@@ -630,10 +667,13 @@ final class AgentUsageService: ObservableObject {
             guard readerSession == session else { return }
             hubOrder = ids
             hubAccounts = hubAccounts.filter { ids.contains($0.key) }
+            hubRoutes = AgentHubRoutes.codex(home: home, hubs: ids)
             checkLimits()
             publish()
         }
         askHubs()
+        // The first hub added, or the last removed, changes which logs are read.
+        syncWithPreferences()
     }
 
     /// Asks every hub that is due, one request at a time per hub.
@@ -689,7 +729,7 @@ final class AgentUsageService: ObservableObject {
     /// Hub accounts that are the Claude account signed in on this Mac.
     /// Runs on `queue`.
     private var mergedAccounts: Set<String> {
-        guard enabled.contains(.claude), let claudeEmail else { return [] }
+        guard shown.contains(.claude), let claudeEmail else { return [] }
         return Set(orderedAccounts.filter { $0.provider == .claude && $0.email?.lowercased() == claudeEmail }.map(\.id))
     }
 
