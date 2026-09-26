@@ -155,6 +155,14 @@ enum ScreenshotCaptureEngine {
                let composited = await captureAttached(plan) {
                 return composited
             }
+            // A window spanning two displays has no single display image to
+            // crop from; draw each window's own buffer at its place instead
+            // of dropping the dialog on it.
+            if let plan,
+               let composited = await composeAttached(plan, frames: Dictionary(
+                   onScreen.map { ($0.id, $0.frame) }, uniquingKeysWith: { first, _ in first })) {
+                return composited
+            }
         }
         var clippedFallback: CGImage?
         if let image = WindowPreviewProvider.captureViaWindowServer(windowID) {
@@ -339,6 +347,82 @@ enum ScreenshotCaptureEngine {
             return true
         }
         return drawn ? ScreenshotSupport.AlphaCoverage(alpha: alpha, width: width, height: height) : nil
+    }
+
+    /// The clicked window and what the app stacked on it, each from its own
+    /// buffer, layered back to front on a canvas the size of the clicked
+    /// window. Every layer has to cover its frame whole at one scale: a
+    /// window-server buffer cut at a display edge or seam (a window spanning
+    /// two displays is drawn on only one of them while displays have
+    /// separate Spaces) is recaptured through its own ScreenCaptureKit
+    /// filter, and `nil` leaves the single-window capture to answer when that
+    /// is not whole either.
+    private static func composeAttached(_ plan: ScreenshotCapturePolicy.AttachedCapturePlan,
+                                        frames: [CGWindowID: CGRect]) async -> CGImage? {
+        let candidates = Array(Set(NSScreen.screens.map(\.backingScaleFactor)))
+        guard let targetID = plan.windowIDs.first, let targetFrame = frames[targetID],
+              !candidates.isEmpty else { return nil }
+        var content: SCShareableContent?
+        func independentCapture(_ id: CGWindowID, frame: CGRect, scale: CGFloat) async -> CGImage? {
+            if content == nil {
+                content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            }
+            guard let window = content?.windows.first(where: { $0.windowID == id }) else { return nil }
+            let configuration = SCStreamConfiguration()
+            configuration.width = max(1, Int((frame.width * scale).rounded()))
+            configuration.height = max(1, Int((frame.height * scale).rounded()))
+            configuration.captureResolution = .best
+            configuration.showsCursor = false
+            configuration.colorSpaceName = CGColorSpace.sRGB
+            return try? await SCScreenshotManager.captureImage(
+                contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: configuration)
+        }
+
+        // The clicked window sets the scale every other layer must match.
+        var scale: CGFloat?
+        var targetImage = WindowPreviewProvider.captureViaWindowServer(targetID)
+        if let image = targetImage {
+            scale = ScreenshotCapturePolicy.layerScale(imageWidth: image.width, imageHeight: image.height,
+                                                        frame: targetFrame, candidates: candidates)
+        }
+        if scale == nil, let best = candidates.max() {
+            targetImage = await independentCapture(targetID, frame: targetFrame, scale: best)
+            if let image = targetImage,
+               ScreenshotCapturePolicy.layerCoversFrame(imageWidth: image.width, imageHeight: image.height,
+                                                        frame: targetFrame, scale: best) {
+                scale = best
+            }
+        }
+        guard let scale, let targetImage else { return nil }
+
+        var layers: [(image: CGImage, frame: CGRect)] = [(targetImage, targetFrame)]
+        for id in plan.windowIDs.dropFirst() {
+            guard let frame = frames[id] else { return nil }
+            var image = WindowPreviewProvider.captureViaWindowServer(id)
+            if image.map({ !ScreenshotCapturePolicy.layerCoversFrame(imageWidth: $0.width, imageHeight: $0.height,
+                                                                     frame: frame, scale: scale) }) ?? true {
+                image = await independentCapture(id, frame: frame, scale: scale)
+            }
+            guard let image,
+                  ScreenshotCapturePolicy.layerCoversFrame(imageWidth: image.width, imageHeight: image.height,
+                                                           frame: frame, scale: scale)
+            else { return nil }
+            layers.append((image, frame))
+        }
+        let width = max(1, Int((plan.bounds.width * scale).rounded()))
+        let height = max(1, Int((plan.bounds.height * scale).rounded()))
+        guard let context = CGContext(data: nil, width: width, height: height,
+                                      bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)
+                                          ?? CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.interpolationQuality = .high
+        for layer in layers {
+            context.draw(layer.image, in: ScreenshotCapturePolicy.compositeRect(
+                for: layer.frame, in: plan.bounds, scale: scale))
+        }
+        return context.makeImage()
     }
 
     /// The window's size as the window server knows it, used to tell a whole

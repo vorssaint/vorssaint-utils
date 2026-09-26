@@ -125,6 +125,36 @@ enum ScreenshotCapturePolicy {
                                    bounds: target.frame)
     }
 
+    /// Where one window of an attached plan lands on a canvas drawn at
+    /// `scale` pixels per point over the clicked window's `bounds`, in the
+    /// canvas's bottom-left coordinates. Frames are window-server points,
+    /// top-left origin.
+    static func compositeRect(for frame: CGRect, in bounds: CGRect, scale: CGFloat) -> CGRect {
+        CGRect(x: (frame.minX - bounds.minX) * scale,
+               y: (bounds.maxY - frame.maxY) * scale,
+               width: frame.width * scale,
+               height: frame.height * scale)
+    }
+
+    /// Whether a window buffer covers `frame` whole at `scale` pixels per
+    /// point in both axes, within a pixel of rounding. A composite draws each
+    /// layer into its full frame, so a buffer the window server clipped at a
+    /// display edge or seam would be stretched and shift the dialog on it;
+    /// such a layer has to be recaptured or drop the composite.
+    static func layerCoversFrame(imageWidth: Int, imageHeight: Int, frame: CGRect, scale: CGFloat) -> Bool {
+        guard scale > 0, frame.width > 0, frame.height > 0 else { return false }
+        return abs(CGFloat(imageWidth) - frame.width * scale) <= 1
+            && abs(CGFloat(imageHeight) - frame.height * scale) <= 1
+    }
+
+    /// The display scale at which a buffer covers `frame` whole, if any.
+    static func layerScale(imageWidth: Int, imageHeight: Int, frame: CGRect,
+                           candidates: [CGFloat]) -> CGFloat? {
+        candidates.sorted(by: >).first {
+            layerCoversFrame(imageWidth: imageWidth, imageHeight: imageHeight, frame: frame, scale: $0)
+        }
+    }
+
     /// Narrows a geometric plan to the attached windows Accessibility named.
     /// A missing answer leaves geometry alone; an answer with no matches leaves
     /// the ordinary single-window capture to answer.
