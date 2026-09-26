@@ -1387,6 +1387,11 @@ final class ClipboardHistoryService: ObservableObject {
                 self.moveQuickSelection(-1)
                 return nil
             }
+            if let delta = ClipboardHistoryFocus.navigationDelta(
+                key: key, controlOnly: modifiers == [.control]) {
+                self.moveQuickSelection(delta)
+                return nil
+            }
             if modifiers == [.command],
                let index = Self.digitIndex(for: event.keyCode) {
                 self.copyQuickEntry(at: index)

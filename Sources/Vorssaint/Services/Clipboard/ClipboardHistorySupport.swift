@@ -619,6 +619,15 @@ enum ClipboardHistoryFocus {
     static func textViewOwnsKeys(isComposing: Bool, isFieldEditor: Bool, isEditable: Bool) -> Bool {
         isComposing || (isEditable && !isFieldEditor)
     }
+
+    static func navigationDelta(key: String?, controlOnly: Bool) -> Int? {
+        guard controlOnly, let key = key?.lowercased() else { return nil }
+        switch key {
+        case "n": return 1
+        case "p": return -1
+        default: return nil
+        }
+    }
 }
 
 enum ClipboardHistoryBatch {

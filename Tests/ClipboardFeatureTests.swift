@@ -406,6 +406,13 @@ enum ClipboardFeatureTests {
                                                        isFieldEditor: false,
                                                        isEditable: false),
                "the read-only preview leaves the list's shortcuts intact")
+        suite.expect(ClipboardHistoryFocus.navigationDelta(key: "n", controlOnly: true) == 1,
+               "Control-N moves down through clipboard history")
+        suite.expect(ClipboardHistoryFocus.navigationDelta(key: "P", controlOnly: true) == -1,
+               "Control-P moves up regardless of letter case")
+        suite.expect(ClipboardHistoryFocus.navigationDelta(key: "n", controlOnly: false) == nil
+               && ClipboardHistoryFocus.navigationDelta(key: "x", controlOnly: true) == nil,
+               "typing and unrelated Control keys stay with the search field")
         suite.expect(ClipboardHistoryEditing.canSave(original: "First draft", draft: "Second draft"),
                "clipboard text can save a real edit")
         suite.expect(!ClipboardHistoryEditing.canSave(original: "Same", draft: "Same"),
