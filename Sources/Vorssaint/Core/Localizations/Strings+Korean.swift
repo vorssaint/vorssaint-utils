@@ -302,6 +302,7 @@ extension Strings {
         autoQuitStep1: "앱의 마지막 윈도우를 닫습니다(⌘W 또는 빨간 버튼).",
         autoQuitStep2: "앱이 자동으로 종료됩니다. ‘변경 사항을 저장할까요?’ 대화상자는 계속 표시됩니다.",
         autoQuitPredictableNote: "보통 윈도우 없이 실행되는 앱은 종료하지 않습니다.",
+        autoQuitOngoingWorkNote: "화면 기록처럼 마지막 윈도우를 닫은 뒤에도 계속 작동하는 앱이 있습니다. 예외 목록에 없으면 이러한 앱도 종료됩니다.",
         autoQuitExceptionsTitle: "예외",
         autoQuitExceptionsCaption: "이 목록의 앱은 윈도우가 없어도 계속 열려 있습니다.",
         autoQuitExceptionsEmpty: "예외가 없습니다",

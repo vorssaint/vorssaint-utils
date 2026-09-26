@@ -301,6 +301,7 @@ extension Strings {
         autoQuitStep1: "关闭某个 App 的最后一个窗口（⌘W 或红色按钮）。",
         autoQuitStep2: "该 App 会自行退出。“是否存储更改？”对话框仍会出现。",
         autoQuitPredictableNote: "通常无窗口运行的 App 永远不会被退出。",
+        autoQuitOngoingWorkNote: "有些 App 关闭最后一个窗口后仍在继续工作，例如开始录制后的屏幕录制 App。除非它们在例外列表中，否则也会被退出。",
         autoQuitExceptionsTitle: "例外",
         autoQuitExceptionsCaption: "此列表中的 App 即使没有窗口也会保持打开。",
         autoQuitExceptionsEmpty: "没有例外",

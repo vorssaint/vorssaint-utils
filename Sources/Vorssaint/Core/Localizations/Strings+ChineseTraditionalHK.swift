@@ -302,6 +302,7 @@ extension Strings {
         autoQuitStep1: "關閉某個 App 的最後一個視窗（⌘W 或紅色按鈕）。",
         autoQuitStep2: "該 App 會自行結束。「要儲存更改嗎？」對話框仍會出現。",
         autoQuitPredictableNote: "一般來說，沒有視窗的 App 不會自行結束。",
+        autoQuitOngoingWorkNote: "有些 App 關閉最後一個視窗後仍繼續運作，例如開始錄製後的螢幕錄製 App。除非在例外列表中，否則也會被結束。",
         autoQuitExceptionsTitle: "例外",
         autoQuitExceptionsCaption: "此清單中的 App 即使沒有視窗也會保持開啟。",
         autoQuitExceptionsEmpty: "沒有例外項目",
