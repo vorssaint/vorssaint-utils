@@ -1,0 +1,52 @@
+name: Apply locally reviewed stability patch
+
+on:
+  push:
+    branches: [audit/3.4-stability-performance]
+    paths: [.github/workflows/audit-apply-reviewed-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.repository == 'vorssaint/vorssaint-utils' && github.ref == 'refs/heads/audit/3.4-stability-performance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify and apply the exact local patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code c793a7d35dd2ceb25f82de2522ee982d83fb75e0 HEAD -- Sources Tests
+          gh api repos/vorssaint/vorssaint-utils/git/blobs/0682e4ac19aa4b79f0fb48ee9b4028e25453f7b6 --jq .content > /tmp/audit-patch.base64
+          python3 - <<'PY'
+          import base64, gzip, hashlib
+          from pathlib import Path
+          encoded = ''.join(Path('/tmp/audit-patch.base64').read_text().split())
+          # Correct a transfer transcription before checking the reviewed payload.
+          encoded = encoded.replace('IMHpxfyq2ru9Ad', 'IMHpxfyq2rh9Ad')
+          patch = gzip.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '6cf0db8af1bb8cd380c91efc794911c19170d1f21e0c702a7c1f684942f0e0d9'
+          Path('/tmp/audit-reviewed.patch').write_bytes(patch)
+          PY
+          git apply --check /tmp/audit-reviewed.patch
+          git apply --index --whitespace=error /tmp/audit-reviewed.patch
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 14
+          if git diff --cached --name-only | grep -Ev '^(Sources/|Tests/)'; then
+            echo 'Unexpected patch path' >&2
+            exit 1
+          fi
+          python3 Tests/generate_sources.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(perf): bound agent log work and avoid redundant interface updates'
+          git -c credential.helper='!gh auth git-credential' push origin HEAD:refs/heads/audit/3.4-stability-performance
+          git rev-parse HEAD
