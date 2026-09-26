@@ -1047,6 +1047,9 @@ extension Strings {
         smoothScrollCoastLabel: "Інерція",
         mouseAccelerationName: "Вимкнути прискорення миші",
         mouseAccelerationCaption: "Вимикає прискорення вказівника для підключених мишей. Попереднє налаштування повернеться після вимкнення функції або виходу з Vorssaint.",
+        linearScrollName: "Лінійна прокрутка",
+        linearScrollCaption: "Кожен клац колеса миші прокручує однакову відстань, хоч як швидко воно обертається. Трекпед не змінюється.",
+        linearScrollLinesLabel: "Рядків на клац",
         shelfClearOnClose: "Очищати при закритті",
         shelfClearOnCloseCaption: "Спорожнює полицю лише після натискання кнопки закриття. Автоматичне приховування та згортання зберігають елементи."
     )

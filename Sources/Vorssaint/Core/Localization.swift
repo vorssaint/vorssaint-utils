@@ -1274,6 +1274,9 @@ struct Strings {
     let smoothScrollCoastLabel: String
     let mouseAccelerationName: String
     let mouseAccelerationCaption: String
+    let linearScrollName: String
+    let linearScrollCaption: String
+    let linearScrollLinesLabel: String
     let shelfClearOnClose: String
     let shelfClearOnCloseCaption: String
 }
@@ -2354,6 +2357,9 @@ extension Strings {
         smoothScrollCoastLabel: "Inércia",
         mouseAccelerationName: "Desativar aceleração do mouse",
         mouseAccelerationCaption: "Remove a aceleração do cursor para os mouses conectados. A configuração anterior volta ao desligar esta opção ou sair do Vorssaint.",
+        linearScrollName: "Rolagem linear",
+        linearScrollCaption: "Cada passo da rodinha do mouse rola a mesma distância, não importa a velocidade do giro. O trackpad não muda.",
+        linearScrollLinesLabel: "Linhas por passo",
         shelfClearOnClose: "Limpar ao fechar",
         shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens."
     )
@@ -3435,6 +3441,9 @@ extension Strings {
         smoothScrollCoastLabel: "Coast",
         mouseAccelerationName: "Disable mouse acceleration",
         mouseAccelerationCaption: "Removes pointer acceleration for connected mice. Your previous setting returns when this is turned off or Vorssaint quits.",
+        linearScrollName: "Linear scrolling",
+        linearScrollCaption: "Every notch of the mouse wheel scrolls the same distance, no matter how fast it spins. The trackpad is not affected.",
+        linearScrollLinesLabel: "Lines per step",
         shelfClearOnClose: "Clear when closed",
         shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items."
     )

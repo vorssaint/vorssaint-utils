@@ -244,6 +244,17 @@ def main():
                                    "    private func handle(type:",
                                    "    func commit("])
           + "}\n")
+    # The raw wheel tap runs as shipped: linear scrolling's cap, carry and
+    # write-back, then the direction change. Only the services it asks and
+    # the defaults it reads are fixtures.
+    wheel_tap = declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    private func handle(type:",
+                            scope="final class ScrollInverter:")
+    if wheel_tap.count("AppFeature.linearScroll.isAvailable") != 1:
+        raise ValueError("Expected one linear scrolling availability read in ScrollInverter.handle")
+    write("LinearScrollTap.swift", "import CoreGraphics\nimport Foundation\nextension LinearScrollTapTests.Inverter {\n"
+          + wheel_tap.replace("private func", "func", 1)
+                     .replace("AppFeature.linearScroll.isAvailable", "AppFeature.linearScroll.isAvailable(in: defaults)")
+          + "}\n")
     # Entire input/mute services retain their production control flow. Only
     # visibility, scheduling, defaults and HAL transport are replaced by fixtures.
     input_source = "Sources/Vorssaint/Services/Audio/AudioInputDeviceManager.swift"

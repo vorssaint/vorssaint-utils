@@ -28,6 +28,7 @@ struct MetricsTests {
                 PointerScreenContract.run(suite)
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
+            ("linear-scroll", { LinearScrollTapTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", { AppManagementFeatureTests.run(suite) }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),

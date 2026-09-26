@@ -497,6 +497,97 @@ enum PointerInputFeatureTests {
                "high-resolution wheels keep their fractional ticks when the integer field truncates to zero")
         suite.expect(SmoothScrollSupport.ticks(line: -2, fixedPoint: 0) == -2,
                "a zero fixed-point field falls back to the integer line delta")
+
+        // MARK: Linear scrolling
+
+        suite.expect(ScrollWheelSupport.linesPerNotchRange.contains(ScrollWheelSupport.defaultLinesPerNotch)
+                && ScrollWheelSupport.sanitizedLinesPerNotch(0) == ScrollWheelSupport.defaultLinesPerNotch
+                && ScrollWheelSupport.sanitizedLinesPerNotch(-4)
+                    == ScrollWheelSupport.linesPerNotchRange.lowerBound
+                && ScrollWheelSupport.sanitizedLinesPerNotch(500)
+                    == ScrollWheelSupport.linesPerNotchRange.upperBound,
+               "lines per notch clamps to its range and an unset value means the default")
+        suite.expect(ScrollWheelSupport.linearLines(ticks: 1, linesPerNotch: 3) == 3
+                && ScrollWheelSupport.linearLines(ticks: 5, linesPerNotch: 3) == 3
+                && ScrollWheelSupport.linearLines(ticks: -4, linesPerNotch: 3) == -3,
+               "an accelerated wheel event is capped at one notch, whichever way it turns")
+        suite.expect(ScrollWheelSupport.linearLines(ticks: 0.25, linesPerNotch: 4) == 1
+                && ScrollWheelSupport.linearLines(ticks: 0, linesPerNotch: 3) == 0
+                && ScrollWheelSupport.linearLines(ticks: .nan, linesPerNotch: 3) == 0,
+               "a high-resolution fraction of a notch keeps its share and nothing invents movement")
+        suite.expect(ScrollWheelSupport.continuousTicks(fixedPointDelta: 2, pointDelta: 30) == 3
+                && ScrollWheelSupport.continuousTicks(fixedPointDelta: 2, pointDelta: 0) == 2,
+               "a continuous wheel's notch count reads from the points apps see, then the fixed-point lines")
+        let fastNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: 3, point: 30, fixedPoint: 3),
+            isContinuous: false, linesPerNotch: 3, carry: 0)
+        // A slow notch as a plain Bluetooth wheel sends it: macOS has shrunk it
+        // to a tenth of a line and one point, while its line count reads one.
+        let slowNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: -1, point: -1, fixedPoint: -0.1),
+            isContinuous: false, linesPerNotch: 3, carry: 0)
+        suite.expect(fastNotch.delta.line == 3 && fastNotch.carry == 0 && slowNotch.delta.line == -3,
+               "a fast discrete notch and a slow one are written back as the same lines")
+        suite.expect(ScrollWheelSupport.discreteTicks(line: 1, fixedPoint: 0.1) == 1
+                && ScrollWheelSupport.discreteTicks(line: -7, fixedPoint: -7.3) == -1
+                && ScrollWheelSupport.discreteTicks(line: 0, fixedPoint: 0.25) == 0.25
+                && ScrollWheelSupport.discreteTicks(line: 0, fixedPoint: .nan) == 0,
+               "any notch whose line count moves counts whole, however macOS scaled it; only a zero line keeps its fraction")
+        var fractionCarry = 0.0
+        var fractionLines: Int64 = 0
+        for _ in 0..<4 {
+            let part = ScrollWheelSupport.linearDelta(
+                ScrollWheelAxisDelta(line: 0, point: 0, fixedPoint: 0.25),
+                isContinuous: false, linesPerNotch: 3, carry: fractionCarry)
+            fractionCarry = part.carry
+            fractionLines += part.delta.line
+        }
+        suite.expect(fractionLines == 3 && fractionCarry == 0,
+               "four quarter-notch events from a high-resolution wheel add up to exactly one notch")
+        let reversedNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: -1, point: 0, fixedPoint: -1),
+            isContinuous: false, linesPerNotch: 3, carry: 0.75)
+        suite.expect(reversedNotch.delta.line == -3 && reversedNotch.carry == 0,
+               "a reversal drops the fraction the other direction left behind")
+        let continuousNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: 0, point: 40, fixedPoint: 4),
+            isContinuous: true, linesPerNotch: 3, carry: 0)
+        suite.expect(continuousNotch.delta == ScrollWheelAxisDelta(line: 3, point: 30, fixedPoint: 3)
+                && continuousNotch.carry == 0,
+               "a continuous wheel event gets all three fields, measured in whole points")
+        suite.expect(SmoothScrollSupport.linearContinuousDistance(
+                fixedPointDelta: 4, pointDelta: 40,
+                step: Double(SmoothScrollSupport.defaultStep), linesPerNotch: 3)
+                == SmoothScrollSupport.continuousDistance(
+                    fixedPointDelta: 3, pointDelta: 0, step: Double(SmoothScrollSupport.defaultStep)),
+               "the glide measures a linear notch as its lines, not the driver's accelerated points")
+        let uninstalledInverter = ScrollDirectionPreferences(isAvailable: { $0 != .scrollInverter },
+                                                             boolFor: { _ in true },
+                                                             stringFor: { _ in nil })
+        suite.expect(!uninstalledInverter.invertVertical && !uninstalledInverter.invertHorizontal,
+               "an uninstalled inverter flips nothing even with its switches left on")
+        let linearName = "com.vorssaint.tests.linear-lines.\(UUID().uuidString)"
+        let linearDefaults = UserDefaults(suiteName: linearName)!
+        defer { linearDefaults.removePersistentDomain(forName: linearName) }
+        var exceptionChecks = 0
+        let excepted = { () -> Bool in exceptionChecks += 1; return true }
+        let allowed = { () -> Bool in exceptionChecks += 1; return false }
+        linearDefaults.set(false, forKey: DefaultsKey.linearScrollEnabled)
+        suite.expect(ScrollWheelSupport.linearLinesPerNotch(defaults: linearDefaults, isAvailable: true,
+                                                           isExcepted: excepted) == nil
+                        && exceptionChecks == 0,
+               "linear scrolling switched off never asks the exception list")
+        linearDefaults.set(true, forKey: DefaultsKey.linearScrollEnabled)
+        linearDefaults.set(5, forKey: DefaultsKey.linearScrollLines)
+        suite.expect(ScrollWheelSupport.linearLinesPerNotch(defaults: linearDefaults, isAvailable: false,
+                                                           isExcepted: allowed) == nil,
+               "an uninstalled feature caps nothing even with its switch left on")
+        suite.expect(ScrollWheelSupport.linearLinesPerNotch(defaults: linearDefaults, isAvailable: true,
+                                                           isExcepted: excepted) == nil,
+               "an app on linear scrolling's own list is left out of the cap")
+        suite.expect(ScrollWheelSupport.linearLinesPerNotch(defaults: linearDefaults, isAvailable: true,
+                                                           isExcepted: allowed) == 5,
+               "both wheel taps read the same lines per notch while linear scrolling applies")
         var smoothEngine = SmoothScrollSupport.Engine()
         smoothEngine.add(vertical: 40, horizontal: 0)
         suite.expect(smoothEngine.remainingVertical == 40,
@@ -2341,6 +2432,7 @@ enum PointerInputFeatureTests {
         suite.expect(Set(MouseExceptionScope.allCases.map(\.defaultsKey)).count == MouseExceptionScope.allCases.count,
                "each feature keeps its own list, never a key shared with another")
         suite.expect(MouseExceptionScope.smoothScroll.feature == .smoothScroll
+                && MouseExceptionScope.linearScroll.feature == .linearScroll
                 && MouseExceptionScope.scrollDirection.feature == .scrollInverter
                 && MouseExceptionScope.focusFollowsMouse.feature == .focusFollowsMouse
                 && MouseExceptionScope.navigation.feature == .mouseNavigation

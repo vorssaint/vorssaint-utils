@@ -16,7 +16,7 @@ enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
-    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
+    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
@@ -100,7 +100,7 @@ extension AppFeature {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
@@ -135,6 +135,7 @@ extension AppFeature {
         case .scrollHorizontal: return "arrow.triangle.swap"
         case .focusFollowsMouse: return "cursorarrow.and.square.on.square.dashed"
         case .smoothScroll: return "cursorarrow.motionlines"
+        case .linearScroll: return "arrow.up.and.down.text.horizontal"
         case .mouseAcceleration: return "cursorarrow.rays"
         case .mouseNavigation: return "arrow.left.arrow.right"
         case .mouseButtonShortcuts: return "button.programmable"
@@ -236,6 +237,7 @@ extension AppFeature {
         case .scrollHorizontal: return [DefaultsKey.scrollHorizontalEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
+        case .linearScroll: return [DefaultsKey.linearScrollEnabled]
         case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
         case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled,
@@ -332,7 +334,7 @@ extension AppFeature {
         case .notch: return [.accessibility, .automationPlayback]
         case .mouseAcceleration:
             return []
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
              .dockClick, .windowMaximizer, .windowLayout,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,

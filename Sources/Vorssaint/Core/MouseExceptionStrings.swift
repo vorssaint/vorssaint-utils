@@ -8,6 +8,7 @@ struct MouseExceptionStrings {
     let addButton: String
     let removeButton: String
     let captionSmoothScroll: String
+    let captionLinearScroll: String
     let captionScrollDirection: String
     let captionNavigation: String
     let captionButtonShortcuts: String
@@ -19,6 +20,7 @@ struct MouseExceptionStrings {
     func caption(for scope: MouseExceptionScope) -> String {
         switch scope {
         case .smoothScroll: return captionSmoothScroll
+        case .linearScroll: return captionLinearScroll
         case .scrollDirection: return captionScrollDirection
         case .focusFollowsMouse: return captionFocusFollowsMouse
         case .navigation: return captionNavigation
@@ -57,6 +59,7 @@ extension MouseExceptionStrings {
         addButton: "Add an app…",
         removeButton: "Remove",
         captionSmoothScroll: "The wheel keeps its plain steps in these apps, for apps that read it their own way, like 3D and design tools.",
+        captionLinearScroll: "The wheel keeps the pace macOS gives it in these apps, for games and 3D tools that count the notches themselves.",
         captionScrollDirection: "The wheel keeps the direction macOS gives it in these apps.",
         captionNavigation: "The side buttons keep doing whatever these apps already do with them.",
         captionButtonShortcuts: "Your extra mouse buttons stay quiet in these apps, and the press reaches them instead.",
@@ -71,6 +74,7 @@ extension MouseExceptionStrings {
         addButton: "Adicionar app…",
         removeButton: "Remover",
         captionSmoothScroll: "Nestes apps a roda continua com os passos normais, para apps que leem a roda do jeito deles, como ferramentas de 3D e design.",
+        captionLinearScroll: "Nestes apps a roda mantém o ritmo que o macOS dá a ela, para jogos e ferramentas de 3D que contam os passos por conta própria.",
         captionScrollDirection: "Nestes apps a roda mantém o sentido que o macOS dá a ela.",
         captionNavigation: "Nestes apps os botões laterais continuam fazendo o que eles já fazem.",
         captionButtonShortcuts: "Nestes apps seus botões extras ficam quietos e o clique chega no app.",
@@ -85,6 +89,7 @@ extension MouseExceptionStrings {
         addButton: "Uygulama ekle…",
         removeButton: "Kaldır",
         captionSmoothScroll: "Bu uygulamalarda tekerlek normal adımlarında kalır; tekerleği kendine göre okuyan 3B ve tasarım araçları için.",
+        captionLinearScroll: "Bu uygulamalarda tekerlek macOS’un verdiği hızda kalır; adımları kendisi sayan oyunlar ve 3B araçları için.",
         captionScrollDirection: "Bu uygulamalarda tekerlek macOS’un verdiği yönde kalır.",
         captionNavigation: "Bu uygulamalarda yan düğmeler zaten yaptıkları işi yapmayı sürdürür.",
         captionButtonShortcuts: "Bu uygulamalarda ekstra düğmeleriniz sessiz kalır ve basma uygulamaya ulaşır.",
@@ -99,6 +104,7 @@ extension MouseExceptionStrings {
         addButton: "Добавить приложение…",
         removeButton: "Удалить",
         captionSmoothScroll: "В этих приложениях колесо крутится обычными шагами: для тех, кто читает его по-своему, например 3D-редакторов и графических программ.",
+        captionLinearScroll: "В этих приложениях колесо крутится с той скоростью, которую даёт macOS: для игр и 3D-редакторов, которые сами считают щелчки.",
         captionScrollDirection: "В этих приложениях колесо сохраняет направление, которое даёт macOS.",
         captionNavigation: "В этих приложениях боковые кнопки продолжают делать то, что уже делают.",
         captionButtonShortcuts: "В этих приложениях ваши дополнительные кнопки молчат, а нажатие доходит до приложения.",
@@ -113,6 +119,7 @@ extension MouseExceptionStrings {
         addButton: "Añadir app…",
         removeButton: "Quitar",
         captionSmoothScroll: "En estas apps la rueda mantiene sus pasos normales, para las que la leen a su manera, como las de 3D y diseño.",
+        captionLinearScroll: "En estas apps la rueda mantiene el ritmo que le da macOS, para juegos y herramientas 3D que cuentan los pasos por su cuenta.",
         captionScrollDirection: "En estas apps la rueda mantiene el sentido que le da macOS.",
         captionNavigation: "En estas apps los botones laterales siguen haciendo lo que ya hacen.",
         captionButtonShortcuts: "En estas apps tus botones extra se quedan callados y la pulsación llega a la app.",
@@ -127,6 +134,7 @@ extension MouseExceptionStrings {
         addButton: "Pridať aplikáciu…",
         removeButton: "Odstrániť",
         captionSmoothScroll: "V týchto aplikáciách si koliesko zachová svoje bežné kroky, pre aplikácie, ktoré ho spracúvajú po svojom, napríklad nástroje na 3D a dizajn.",
+        captionLinearScroll: "V týchto aplikáciách si koliesko zachová tempo, ktoré mu dáva macOS, pre hry a 3D nástroje, ktoré si kroky počítajú samy.",
         captionScrollDirection: "V týchto aplikáciách si koliesko zachová smer, ktorý mu dáva macOS.",
         captionNavigation: "Bočné tlačidlá v týchto aplikáciách naďalej robia to, čo s nimi aplikácia už robí.",
         captionButtonShortcuts: "Vaše ďalšie tlačidlá myši v týchto aplikáciách mlčia a stlačenie namiesto toho dostane aplikácia.",
@@ -141,6 +149,7 @@ extension MouseExceptionStrings {
         addButton: "App hinzufügen…",
         removeButton: "Entfernen",
         captionSmoothScroll: "In diesen Apps behält das Rad seine normalen Schritte, für Apps, die es selbst auswerten, etwa 3D- und Design-Werkzeuge.",
+        captionLinearScroll: "In diesen Apps behält das Rad das Tempo, das macOS ihm gibt, für Spiele und 3D-Werkzeuge, die die Rastschritte selbst zählen.",
         captionScrollDirection: "In diesen Apps behält das Rad die Richtung, die macOS ihm gibt.",
         captionNavigation: "In diesen Apps tun die Seitentasten weiter, was sie dort schon tun.",
         captionButtonShortcuts: "In diesen Apps bleiben deine Zusatztasten still und der Druck erreicht die App.",
@@ -155,6 +164,7 @@ extension MouseExceptionStrings {
         addButton: "Ajouter une app…",
         removeButton: "Retirer",
         captionSmoothScroll: "Dans ces apps la molette garde ses crans normaux, pour celles qui la lisent à leur façon, comme les outils 3D et de design.",
+        captionLinearScroll: "Dans ces apps la molette garde le rythme que macOS lui donne, pour les jeux et les outils 3D qui comptent eux-mêmes les crans.",
         captionScrollDirection: "Dans ces apps la molette garde le sens que macOS lui donne.",
         captionNavigation: "Dans ces apps les boutons latéraux continuent de faire ce qu’ils y font déjà.",
         captionButtonShortcuts: "Dans ces apps vos boutons supplémentaires se taisent et l’appui atteint l’app.",
@@ -169,6 +179,7 @@ extension MouseExceptionStrings {
         addButton: "Aggiungi app…",
         removeButton: "Rimuovi",
         captionSmoothScroll: "In queste app la rotellina mantiene i suoi scatti normali, per quelle che la leggono a modo loro, come gli strumenti 3D e di design.",
+        captionLinearScroll: "In queste app la rotellina mantiene il ritmo che le dà macOS, per i giochi e gli strumenti 3D che contano gli scatti da soli.",
         captionScrollDirection: "In queste app la rotellina mantiene il verso che le dà macOS.",
         captionNavigation: "In queste app i pulsanti laterali continuano a fare quello che già fanno.",
         captionButtonShortcuts: "In queste app i tuoi pulsanti extra restano zitti e la pressione arriva all’app.",
@@ -183,6 +194,7 @@ extension MouseExceptionStrings {
         addButton: "Appを追加…",
         removeButton: "削除",
         captionSmoothScroll: "これらのAppではホイールが元の刻みのままになります。3Dやデザインのツールのように、ホイールを独自に読むApp向けです。",
+        captionLinearScroll: "これらのAppではホイールの速さがmacOSのままになります。目盛りを自分で数えるゲームや3Dツール向けです。",
         captionScrollDirection: "これらのAppではホイールの向きがmacOSのままになります。",
         captionNavigation: "これらのAppでは横のボタンが元々の働きを続けます。",
         captionButtonShortcuts: "これらのAppでは拡張ボタンが働かず、押した操作がAppに届きます。",
@@ -197,6 +209,7 @@ extension MouseExceptionStrings {
         addButton: "앱 추가…",
         removeButton: "제거",
         captionSmoothScroll: "이 앱들에서는 휠이 원래 단계 그대로 움직입니다. 3D나 디자인 도구처럼 휠을 자기 방식으로 읽는 앱을 위한 것입니다.",
+        captionLinearScroll: "이 앱들에서는 휠 속도가 macOS가 주는 그대로 유지됩니다. 칸 수를 직접 세는 게임이나 3D 도구를 위한 것입니다.",
         captionScrollDirection: "이 앱들에서는 휠 방향이 macOS가 주는 그대로 유지됩니다.",
         captionNavigation: "이 앱들에서는 측면 버튼이 원래 하던 일을 계속합니다.",
         captionButtonShortcuts: "이 앱들에서는 추가 버튼이 조용히 있고 누름이 앱에 전달됩니다.",
@@ -211,6 +224,7 @@ extension MouseExceptionStrings {
         addButton: "添加 App…",
         removeButton: "移除",
         captionSmoothScroll: "在这些 App 里滚轮保持原本的档位，适合自己解读滚轮的 App，比如 3D 和设计工具。",
+        captionLinearScroll: "在这些 App 里滚轮保持 macOS 给它的速度，适合自己计算格数的游戏和 3D 工具。",
         captionScrollDirection: "在这些 App 里滚轮保持 macOS 给它的方向。",
         captionNavigation: "在这些 App 里侧键继续做它们本来做的事。",
         captionButtonShortcuts: "在这些 App 里额外按键保持安静，按下会传给 App。",
@@ -225,6 +239,7 @@ extension MouseExceptionStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         captionSmoothScroll: "在這些 App 裡滾輪保持原本的段落，適合自己解讀滾輪的 App，例如 3D 和設計工具。",
+        captionLinearScroll: "在這些 App 裡滾輪保持 macOS 給它的速度，適合自己計算格數的遊戲和 3D 工具。",
         captionScrollDirection: "在這些 App 裡滾輪保持 macOS 給它的方向。",
         captionNavigation: "在這些 App 裡側鍵繼續做它們原本做的事。",
         captionButtonShortcuts: "在這些 App 裡額外按鍵保持安靜，按下會傳給 App。",
@@ -239,6 +254,7 @@ extension MouseExceptionStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         captionSmoothScroll: "在這些 App 裡滾輪保持原本的段落，適合自己解讀滾輪的 App，例如 3D 和設計工具。",
+        captionLinearScroll: "在這些 App 裡滾輪保持 macOS 給它的速度，適合自己計算格數的遊戲和 3D 工具。",
         captionScrollDirection: "在這些 App 裡滾輪保持 macOS 給它的方向。",
         captionNavigation: "在這些 App 裡側鍵繼續做它們原本做的事。",
         captionButtonShortcuts: "在這些 App 裡額外按鍵保持安靜，按下會傳給 App。",
@@ -252,6 +268,7 @@ extension MouseExceptionStrings {
         addButton: "Додати програму…",
         removeButton: "Видалити",
         captionSmoothScroll: "Колесо зберігає свої звичайні кроки в цих програмах, для програм, які читають його по-своєму, як 3D-інструменти та дизайнерські програми.",
+        captionLinearScroll: "Колесо зберігає темп, який дає macOS, у цих програмах, для ігор і 3D-інструментів, що самі рахують клаци.",
         captionScrollDirection: "Колесо зберігає напрямок, який дає macOS, у цих програмах.",
         captionNavigation: "Бокові кнопки продовжують робити те, що ці програми вже з ними роблять.",
         captionButtonShortcuts: "Ваші додаткові кнопки миші мовчать у цих програмах, а натискання доходить до них.",

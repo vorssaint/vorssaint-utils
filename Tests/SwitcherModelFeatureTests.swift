@@ -1697,6 +1697,11 @@ enum SwitcherModelFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.mouseAccelerationDisabled] as? Bool == false
                 && registeredDefaults[DefaultsKey.panelControlMouseAcceleration] as? Bool == true,
                "mouse acceleration control is opt-in and visible in the panel when installed")
+        suite.expect(registeredDefaults[DefaultsKey.linearScrollEnabled] as? Bool == false
+                && registeredDefaults[DefaultsKey.linearScrollLines] as? Int
+                    == ScrollWheelSupport.defaultLinesPerNotch
+                && registeredDefaults[DefaultsKey.panelControlLinearScroll] as? Bool == true,
+               "linear scrolling is opt-in, starts at the default notch and shows in the panel when installed")
         suite.expect(registeredDefaults[DefaultsKey.mouseClickDebounceEnabled] as? Bool == false,
                "mouse click debounce is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mouseClickDebounceWindowMs] as? Int
