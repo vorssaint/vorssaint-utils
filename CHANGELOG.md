@@ -7,10 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island gives a small spring response when the pointer reaches its closed surface.
+Dynamic Island gives a small spring response when the pointer reaches its closed surface. The mouse extra-click filter can be tuned more precisely.
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+- The mouse extra-click filter shows its window directly in Settings and can be tuned from 1 to 100 ms in 1 ms steps, helping keep intentional rapid clicks.
 
 ## [3.4.0-beta.6] - 2026-09-25
 
