@@ -678,6 +678,11 @@ enum NotchSupport {
         modules.first { $0.shortcutKey == characters.lowercased() }
     }
 
+    static func moduleBackTarget(selected: NotchModule, modules: [NotchModule]) -> NotchModule? {
+        guard selected != .controls, modules.contains(.controls) else { return nil }
+        return .controls
+    }
+
     static func filteredModules(_ modules: [NotchModule], query: String,
                                 title: (NotchModule) -> String) -> [NotchModule] {
         let terms = CommandBarSearch.normalized(query).split(separator: " ")

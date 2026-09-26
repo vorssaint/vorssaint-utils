@@ -747,6 +747,12 @@ enum NotchTests {
         }
         suite.expect(NotchSupport.moduleShortcut("c", modules: []) == nil,
                "direct shortcuts tolerate an empty gallery")
+        suite.expect(NotchModule.allCases.filter { $0 != .controls }.allSatisfy {
+            NotchSupport.moduleBackTarget(selected: $0, modules: NotchModule.allCases) == .controls
+        }, "module pages can return directly to Controls")
+        suite.expect(NotchSupport.moduleBackTarget(selected: .controls, modules: [.controls]) == nil
+               && NotchSupport.moduleBackTarget(selected: .mixer, modules: [.mixer]) == nil,
+               "Controls has no redundant back action and hidden Controls is not a destination")
         var reached = Set<NotchModule>()
         var current: NotchModule? = allModules.first
         for _ in allModules {

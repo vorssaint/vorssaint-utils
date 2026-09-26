@@ -310,6 +310,12 @@ struct NotchView: View {
                     if !quickActions.contains(.explore) {
                         NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
                     }
+                    if let backTarget = NotchSupport.moduleBackTarget(selected: service.selected,
+                                                                      modules: service.modules) {
+                        NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack) {
+                            service.select(backTarget)
+                        }
+                    }
                     Text(service.selected.title(l10n.language))
                         .font(.system(size: 16, weight: .semibold))
                         .lineLimit(1)
