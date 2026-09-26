@@ -273,18 +273,24 @@ enum NotchPresentationRefreshContract {
                      "leaving fullscreen restores ordinary content and feedback routing")
         let fullscreenSimulated = Service()
         fullscreenSimulated.expanded = false
-        fullscreenSimulated.geometry = NotchGeometry(screen: fullscreenSimulated.geometry.screen, safeAreaTop: 0, cameraWidth: 0)
+        fullscreenSimulated.geometry = NotchGeometry(screen: fullscreenSimulated.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                                     compactSideRoom: 64)
         fullscreenSimulated.hiddenInFullscreen = true
         UserDefaults.standard.coversMenus = false
         fullscreenSimulated.refreshPresentation(animated: false)
-        suite.expect(fullscreenSimulated.panel?.isVisible == true && fullscreenSimulated.edgeClicksEnabled
-                     && (fullscreenSimulated.windowHost?.targetSize.width ?? 0) > 0
-                     && fullscreenSimulated.panel?.level == NotchPanel.fullscreenLevel,
-                     "a simulated cutout stays clickable below the revealed menu bar")
-        fullscreenSimulated.windowHost?.activate?()
+        suite.expect(fullscreenSimulated.panel?.isVisible == false && !fullscreenSimulated.edgeClicksEnabled
+                     && fullscreenSimulated.acceptsUserInteraction,
+                     "a simulated cutout with no camera to cover stays out of full-screen content")
+        fullscreenSimulated.expanded = true
         fullscreenSimulated.refreshPresentation(animated: false)
-        suite.expect(fullscreenSimulated.panel?.level == NotchPanel.fullscreenLevel,
-                     "an opened simulated island still yields to the menu bar in fullscreen")
+        suite.expect(fullscreenSimulated.panel?.isVisible == true
+                     && fullscreenSimulated.panel?.level == NotchPanel.fullscreenLevel,
+                     "a simulated island opened by a shortcut yields to the menu bar in fullscreen")
+        fullscreenSimulated.collapse()
+        fullscreenSimulated.refreshPresentation(animated: false)
+        suite.expect(fullscreenSimulated.panel?.isVisible == false,
+                     "closing a simulated island in fullscreen hides it again")
+        fullscreenSimulated.expanded = true
         fullscreenSimulated.hiddenInFullscreen = false
         fullscreenSimulated.refreshPresentation(animated: false)
         suite.expect(fullscreenSimulated.panel?.level == NotchPanel.normalLevel,

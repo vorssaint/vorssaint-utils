@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-External monitors can dim below their hardware minimum, and the Clipboard History window can be resized. Dynamic Island adds ⌘1–⌘9 paste on its Clipboard page, its own Liquid Glass switch, a hover response and better play/pause for radio streams. Its simulated cutout stays visible through focus changes when menu coverage is on, and its full-screen hiding option keeps a clickable black cutout. App Switcher offers instant selection, Command Bar accepts up to 64 shortcuts, and Quit on Close warns about apps that keep working without a window.
+External monitors can dim below their hardware minimum, and the Clipboard History window can be resized. Dynamic Island adds ⌘1–⌘9 paste on its Clipboard page, its own Liquid Glass switch, a hover response and better play/pause for radio streams. Its simulated cutout stays visible through focus changes when menu coverage is on, and its full-screen hiding option keeps a clickable cutout over the camera. App Switcher offers instant selection, Command Bar accepts up to 64 shortcuts, and Quit on Close warns about apps that keep working without a window.
 
 ### Added
 - External monitors with readable brightness control offer optional Extra dimming in Settings. The lower part of the slider dims the picture below the monitor's hardware minimum, while the rest keeps using hardware brightness.
@@ -24,7 +24,7 @@ External monitors can dim below their hardware minimum, and the Clipboard Histor
 - Quit on Close's Settings warns that apps such as screen recorders may keep working after their last window closes, and points to Exceptions to prevent an unwanted quit.
 
 ### Fixed
-- Dynamic Island stays black and clickable in full screen when Hide content in full screen is enabled; clicking, hovering or a shortcut opens its tools. On simulated cutouts, the revealed menu bar stays above it when Show over the menus is off.
+- With Hide content in full screen enabled, Dynamic Island keeps a black, clickable cutout over the camera in full screen; clicking, hovering or a shortcut opens its tools. A simulated cutout stays hidden until a shortcut opens it.
 - Dynamic Island sends a player's supported Play or Pause command when available, improving control of radio streams.
 - Temperature alerts show their limits and notifications in the selected temperature unit.
 - With inactive apps hidden, the volume mixer shows an app as soon as it starts playing.

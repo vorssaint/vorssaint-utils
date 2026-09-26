@@ -185,6 +185,13 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(0.26)
         suite.expect(fullscreen.peeking && fullscreen.openings == 0,
                      "hover preview remains available from the black fullscreen cutout")
+        let simulatedFullscreen = fixture()
+        simulatedFullscreen.hiddenInFullscreen = true
+        simulatedFullscreen.hover(true)
+        DispatchQueue.main.advance(0.26)
+        suite.expect(simulatedFullscreen.hoverWork == nil && !simulatedFullscreen.peeking
+                     && simulatedFullscreen.openings == 0,
+                     "a simulated cutout hidden in full screen does not open on hover")
         for physical in [false, true] {
             let service = fixture(physical: physical)
             service.hover(true)

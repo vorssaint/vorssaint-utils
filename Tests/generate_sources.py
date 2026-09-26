@@ -464,7 +464,8 @@ def main():
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
           + declaration(notch, "    func show(_ incoming:").replace("NotchSupport.routes(incoming.event)", "true")
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
-              "    private var hiddenUntilHover:", "    func hover(", "    private func missionControlDidRestore()",
+              "    private var hiddenUntilHover:", "    private var hiddenAtRestInFullscreen:", "    func hover(",
+              "    private func missionControlDidRestore()",
               "    private var holdsNotification:", "    private func holdNotification(",
               "    private func syncNoticeWithPreferences(",
               "    private func releaseNotification(", "    private func scheduleNoticeDismissal(",
@@ -526,6 +527,7 @@ def main():
               "    private func removeCaptureControlsClickThrough()", "    private func missionControlDidRestore()",
               "    func endCaptureControls()"])
           + declaration(notch, "    private var hiddenUntilHover:").replace("private var", "var", 1)
+          + declaration(notch, "    private var hiddenAtRestInFullscreen:").replace("private var", "var", 1)
           + declaration(notch, "    var acceptsUserInteraction:")
           + declaration(notch, "    var acceptsSystemFeedback:")
           + declaration(notch, "    var showsSystemFeedback:")

@@ -182,6 +182,12 @@ final class NotchService: ObservableObject {
         hiddenInFullscreen && !expanded && !peeking
     }
 
+    /// A simulated cutout covers no camera, so in full screen it stays out
+    /// of the picture until a shortcut opens it.
+    private var hiddenAtRestInFullscreen: Bool {
+        fullscreenCompact && !geometry.isNotched
+    }
+
     var idleContent: NotchIdleContent {
         NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
     }
@@ -692,7 +698,7 @@ final class NotchService: ObservableObject {
     }
 
     func hover(_ entered: Bool) {
-        guard running, !suspended else { return }
+        guard running, !suspended, !hiddenAtRestInFullscreen else { return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
         inside = hiddenUntilHover ? geometry.contains(point, in: geometry.collapsed)
@@ -1510,7 +1516,7 @@ final class NotchService: ObservableObject {
             return
         }
         let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
-        guard open || fullscreenCompact || geometry.isNotched || geometry.compactSideRoom != nil else {
+        guard open || (!hiddenAtRestInFullscreen && (geometry.isNotched || geometry.compactSideRoom != nil)) else {
             finishMusicDeparture()
             presentedMusic = nil
             windowHost?.hide(animated: animated, transitionContent: transitionContent)
