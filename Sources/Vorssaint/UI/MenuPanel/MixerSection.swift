@@ -47,6 +47,7 @@ struct MixerSection: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("NSSystemColorsDidChangeNotification"))) { _ in
             refreshSliderTint()
         }
+        .onAppear { mixer.refreshApps() }
     }
 
     private var mixerControls: some View {
