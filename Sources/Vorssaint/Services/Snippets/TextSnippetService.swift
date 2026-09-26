@@ -14,7 +14,7 @@ final class TextSnippetService {
     static let shared = TextSnippetService()
 
     /// Marks our own synthetic events so the tap never re-processes them.
-    private static let syntheticMarker: Int64 = 0x564F5253 // "VORS"
+    private static let syntheticMarker = OwnKeyEvent.textSnippetMarker
 
     // The tap callback and its mutable text state live off the main thread so
     // demanding foreground apps cannot turn a main-thread stall into queued

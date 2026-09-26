@@ -246,13 +246,15 @@ final class KeyboardDebounceService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        guard type == .keyDown || type == .keyUp else {
+        // Keys this app posts (a Quit Protection confirmation, text a snippet
+        // retypes) follow a real press on purpose and are not chatter.
+        guard type == .keyDown || type == .keyUp, !OwnKeyEvent.isPosted(event) else {
             return Unmanaged.passUnretained(event)
         }
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
-        let timestamp = UInt64(event.timestamp)
+        let timestamp = EventTimestamp.nanoseconds(of: event)
         let eventKind: KeyboardDebounceState.EventKind = type == .keyDown ? .keyDown : .keyUp
         let shouldSuppress = eventLock.withLock {
             state.shouldSuppress(keyCode: keyCode,

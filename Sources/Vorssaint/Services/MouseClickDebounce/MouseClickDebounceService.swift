@@ -277,7 +277,7 @@ final class MouseClickDebounceService {
             state.shouldSuppress(
                 button: input.button,
                 event: input.event,
-                timestampNanoseconds: UInt64(event.timestamp),
+                timestampNanoseconds: EventTimestamp.nanoseconds(of: event),
                 config: config
             )
         }

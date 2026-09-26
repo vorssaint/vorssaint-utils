@@ -170,7 +170,7 @@ final class ScrollInverter: ObservableObject {
             scrollPhase: event.getIntegerValueField(.scrollWheelEventScrollPhase),
             scrollCount: event.getIntegerValueField(.scrollWheelEventScrollCount)
         )
-        let timestamp = UInt64(event.timestamp)
+        let timestamp = EventTimestamp.nanoseconds(of: event)
         let secondsSinceGesturePhase = lastGesturePhaseTimestamp.map {
             Double(timestamp &- $0) / 1_000_000_000.0
         }
