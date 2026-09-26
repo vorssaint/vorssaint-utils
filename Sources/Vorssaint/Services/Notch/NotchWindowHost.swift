@@ -788,6 +788,7 @@ final class NotchPanel: NSPanel {
     // Status items own the screen edge at their level, even when our view's
     // hit test includes it. Keep the island above them, below native menus.
     static let normalLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
+    static let fullscreenLevel = NSWindow.Level.floating
     var acceptsKeyFocus = false
     var handleScroll: ((NSEvent) -> Bool)?
     var visibilityDidChange: (() -> Void)?

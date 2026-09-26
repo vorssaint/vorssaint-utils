@@ -128,7 +128,16 @@ enum NotchMusicVisibilityTests {
 
             service.hiddenInFullscreen = true
             service.syncVisibleConsumers()
-            suite.expect(!reader.running, "fullscreen hiding stops the automatic playback reader")
+            suite.expect(!reader.running && service.surfaceSize == closed,
+                         "fullscreen keeps a black cutout and stops the automatic playback reader")
+            service.expanded = true
+            service.selected = .music
+            service.syncVisibleConsumers()
+            suite.expect(reader.running && service.surfaceSize == service.expandedSize,
+                         "manually opening Music in fullscreen starts its reader")
+            service.collapse()
+            suite.expect(!reader.running && service.surfaceSize == closed,
+                         "closing Music in fullscreen stops its reader and restores the black cutout")
             service.hiddenInFullscreen = false
             service.syncVisibleConsumers()
             suite.expect(reader.running, "leaving fullscreen restarts the playback reader when music is enabled")

@@ -79,6 +79,7 @@ enum NotchLyricsContract {
         static var shared = NotchService()
         var presentationWindow: Window? = Window()
         var acceptsSystemFeedback = true
+        var acceptsUserInteraction = true
         var expanded = true
         var selected: NotchModule = .music
         var showingAppPanel = false
@@ -523,6 +524,7 @@ enum NotchMusicHardeningTests {
                 let notch = Context.NotchService.shared
                 let parent = notch.presentationWindow!
                 notch.pinned = pinned
+                notch.acceptsSystemFeedback = false
                 service.update(playback: playback("same-song"), visible: true)
                 service.importLyrics()
                 guard let panel = service.importPanel else { suite.expect(false, "a visible lyrics surface can choose a file"); continue }
@@ -552,7 +554,7 @@ enum NotchMusicHardeningTests {
                 switch interruption {
                 case 0: service.hide()
                 case 1: service.playbackChanged(playback("next-song"))
-                case 2: Context.NotchService.shared.acceptsSystemFeedback = false
+                case 2: Context.NotchService.shared.acceptsUserInteraction = false
                 case 3: Context.NotchService.shared.selected = .downloads
                 case 4: Context.NotchService.shared.presentationWindow = Context.Window()
                 default: Context.Preferences.enabled = false

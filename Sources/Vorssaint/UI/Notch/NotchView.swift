@@ -62,7 +62,9 @@ struct NotchView: View {
     }
 
     @ViewBuilder private var surface: some View {
-        if let options = service.captureControls {
+        if service.fullscreenCompact {
+            Color.clear.accessibilityHidden(true)
+        } else if let options = service.captureControls {
             if service.captureControlsCollapsed {
                 HStack(spacing: 0) {
                     Image(systemName: options.selectedTool.systemImageName).frame(width: 28)

@@ -394,6 +394,7 @@ def main():
     write("NotchFullscreen.swift", "import CoreGraphics\nimport Foundation\nextension NotchFullscreenTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
           + "final class Service: State {\n"
+          + declaration(notch, "    var acceptsUserInteraction: Bool {")
           + declaration(notch, "    var acceptsSystemFeedback: Bool {")
           + declaration(notch, "    private func updateFullscreenVisibility(").replace("private func", "func", 1)
           + declaration(notch, "    private func fullscreenEnvironmentDidChange()").replace("private func", "func", 1)
@@ -472,7 +473,7 @@ def main():
           .replace("NotchSupport.routes(notice.event)", "routesNotices")
           + "}\n}\n")
     music_visibility = "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
-        "    private var hiddenUntilHover:", "    var idleContent:", "    var hasMusicActivity:", "    var compactActivity:",
+        "    private var hiddenUntilHover:", "    var fullscreenCompact:", "    var idleContent:", "    var hasMusicActivity:", "    var compactActivity:",
         "    var compactActivityGeometry:", "    var surfaceSize:", "    func collapse(", "    func endCaptureControls(",
         "    private func syncVisibleConsumers(", "    private func releaseMonitor("])
     for call in ["NotchSupport.controls", "NotchSupport.watchesMusicActivity", "NotchSupport.idleContent"]:
@@ -525,6 +526,7 @@ def main():
               "    private func removeCaptureControlsClickThrough()", "    private func missionControlDidRestore()",
               "    func endCaptureControls()"])
           + declaration(notch, "    private var hiddenUntilHover:").replace("private var", "var", 1)
+          + declaration(notch, "    var acceptsUserInteraction:")
           + declaration(notch, "    var acceptsSystemFeedback:")
           + declaration(notch, "    var showsSystemFeedback:")
           + declaration(notch, "    var usesGlassSurface:")
@@ -532,6 +534,7 @@ def main():
           + declaration(notch, "    private func compactMusicTransition(").replace("private func", "func", 1)
           + declaration(notch, "    private func rememberPresentedMusic(").replace("private func", "func", 1)
           + declaration(notch, "    func refreshPresentation(")
+              .replace("NotchSupport.coversMenus()", "UserDefaults.standard.coversMenus")
           + declaration(notch, "    private func applyMenuSpace(").replace("private func", "func", 1)
           + declaration(notch, "    func updateCaptureHeight(")
           + declaration(notch, "    func removeCapture(")

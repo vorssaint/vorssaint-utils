@@ -145,7 +145,7 @@ final class NotchDownloadService: ObservableObject {
     private func canReturnToDownloads(_ window: NSWindow) -> Bool {
         let notch = NotchService.shared
         return AppFeature.notchDownloads.isAvailable && NotchSupport.isEnabled()
-            && NotchSupport.modules().contains(.downloads) && notch.acceptsSystemFeedback
+            && NotchSupport.modules().contains(.downloads) && notch.acceptsUserInteraction
             && notch.presentationWindow === window && window.isVisible
             && notch.expanded && notch.selected == .downloads && !notch.showingAppPanel
             && notch.selectedMetric == nil && notch.captureControls == nil
