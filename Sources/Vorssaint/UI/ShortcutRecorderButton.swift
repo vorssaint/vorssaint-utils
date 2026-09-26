@@ -197,7 +197,13 @@ final class RecorderButton: NSButton {
         }
         let modifiers = GlobalShortcutModifiers(eventFlags: event.modifierFlags)
         if let captureModifiersAction {
-            if let captured = modifierRecording.flagsChanged(modifiers) {
+            let unsupported = event.modifierFlags.contains(.function)
+            let captured = modifierRecording.flagsChanged(modifiers, hasUnsupportedModifier: unsupported)
+            if unsupported {
+                invalidAction?()
+                return
+            }
+            if let captured {
                 guard captured.hasPrimaryModifier else {
                     invalidAction?()
                     return

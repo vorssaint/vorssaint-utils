@@ -1040,6 +1040,13 @@ final class WindowLayoutService: ObservableObject {
 
         if type == .keyDown {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            // A modifier trigger is also the prefix of ordinary shortcuts
+            // such as ⌃⌘Space. Cancel before interpreting manual overrides so
+            // those keys reach their app without placing a window on release.
+            if directionalModifierHold != nil {
+                cancelDirectionalGesture()
+                return keyCode == 53 ? nil : Unmanaged.passUnretained(event)
+            }
             let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             let allowManual = WindowDirectionalGestureSupport.shouldApplyKeyboardManualOverride(
                 isAutorepeat: isAutorepeat)
@@ -1065,9 +1072,6 @@ final class WindowLayoutService: ObservableObject {
                 cancelDirectionalGesture()
                 return nil
             }
-            // An ordinary shortcut sharing the modifiers should reach its app
-            // without also placing a window when the modifiers come back up.
-            if directionalModifierHold != nil { cancelDirectionalGesture() }
         }
 
         return Unmanaged.passUnretained(event)

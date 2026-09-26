@@ -1128,7 +1128,12 @@ struct ModifierShortcutRecording {
         waitingForRelease = true
     }
 
-    mutating func flagsChanged(_ modifiers: GlobalShortcutModifiers) -> GlobalShortcutModifiers? {
+    mutating func flagsChanged(_ modifiers: GlobalShortcutModifiers,
+                               hasUnsupportedModifier: Bool = false) -> GlobalShortcutModifiers? {
+        if hasUnsupportedModifier {
+            keyPressed()
+            return nil
+        }
         if modifiers.isEmpty {
             let captured = candidate
             candidate = []

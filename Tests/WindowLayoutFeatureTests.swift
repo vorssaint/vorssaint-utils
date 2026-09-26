@@ -61,6 +61,11 @@ enum WindowLayoutFeatureTests {
         _ = interruptedRecording.flagsChanged([.control, .command])
         suite.expect(interruptedRecording.flagsChanged([]) == [.control, .command],
                      "a fresh modifier chord can be recorded after an invalid key attempt")
+        var fnRecording = ModifierShortcutRecording()
+        _ = fnRecording.flagsChanged([.control, .command], hasUnsupportedModifier: true)
+        suite.expect(fnRecording.flagsChanged([.control, .command]) == nil
+            && fnRecording.flagsChanged([]) == nil,
+            "an unsupported Fn chord never saves just its supported modifiers")
         var changingRecording = ModifierShortcutRecording()
         _ = changingRecording.flagsChanged([.control, .command])
         _ = changingRecording.flagsChanged(.command)
