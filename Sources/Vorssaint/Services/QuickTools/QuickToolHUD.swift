@@ -6,7 +6,9 @@ import SwiftUI
 
 /// Small floating confirmation used by the quick tools (color picked, text
 /// copied, mic muted): a non-activating panel near the top of the screen with
-/// the mouse, fading out on its own. Purely visual; never takes focus.
+/// the mouse, fading out on its own. It never takes focus. Most confirmations
+/// ignore the mouse entirely, and a toggle confirmation takes clicks on its
+/// one button.
 enum QuickToolHUD {
     private static var panel: NSPanel?
     private static var scrollingPanel: ScrollingCapturePanel?
@@ -153,15 +155,71 @@ enum QuickToolHUD {
         scrollingModel = nil
     }
 
+    /// What a toggle confirmation says and offers in one of its two states.
+    struct ToggleFace {
+        let message: String
+        let actionTitle: String
+    }
+
+    /// A confirmation with one button that flips a setting between two
+    /// states. Each click swaps the message and the button title and reports
+    /// the new state. The panel still never takes focus, so the app the
+    /// person copied into keeps the keyboard. It stays up while the pointer
+    /// rests on it and fades once the pointer leaves.
+    static func showToggle(icon: String,
+                           off: ToggleFace,
+                           on: ToggleFace,
+                           isOn: Bool,
+                           onChange: @escaping (Bool) -> Void) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async {
+                showToggle(icon: icon, off: off, on: on, isOn: isOn, onChange: onChange)
+            }
+            return
+        }
+        let model = QuickToolToggleModel(isOn: isOn)
+        let content = QuickToolToggleView(model: model,
+                                          icon: icon,
+                                          off: off,
+                                          on: on,
+                                          onToggle: {
+                                              withAnimation(.easeInOut(duration: 0.2)) { model.isOn.toggle() }
+                                              onChange(model.isOn)
+                                          },
+                                          onHover: pointerHoverChanged)
+        present(AnyView(content), dismissAfter: 3, interactive: true)
+    }
+
+    private static func pointerHoverChanged(_ inside: Bool) {
+        guard let panel, panel.isVisible else { return }
+        dismissWork?.cancel()
+        if inside {
+            // Arriving during the fade-out brings the panel back rather than
+            // letting it vanish under the pointer.
+            generation += 1
+            dismissWork = nil
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.12
+                panel.animator().alphaValue = 1
+            }
+        } else {
+            let work = DispatchWorkItem { dismiss() }
+            dismissWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        }
+    }
+
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
-                                windowShadow: Bool = true) {
-        let host = NSHostingController(rootView: content)
+                                windowShadow: Bool = true,
+                                interactive: Bool = false) {
+        let host = FirstClickHostingController(rootView: content)
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 
         let panel = ensurePanel()
         panel.hasShadow = windowShadow
+        panel.ignoresMouseEvents = !interactive
         panel.contentViewController = host
 
         let frame = NSScreen.pointerVisibleFrame
@@ -235,6 +293,82 @@ enum QuickToolHUD {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+    }
+}
+
+/// Hosts the confirmation so that the first click on it lands on its button.
+/// The panel never becomes key, so without this AppKit could spend that click
+/// on trying to focus the window and the button would need a second press.
+private final class FirstClickHostingController: NSViewController {
+    private final class HostingView: NSHostingView<AnyView> {
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    }
+
+    private let rootView: AnyView
+
+    init(rootView: AnyView) {
+        self.rootView = rootView
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func loadView() {
+        view = HostingView(rootView: rootView)
+    }
+}
+
+private final class QuickToolToggleModel: ObservableObject {
+    @Published var isOn: Bool
+
+    init(isOn: Bool) {
+        self.isOn = isOn
+    }
+}
+
+private struct QuickToolToggleView: View {
+    @ObservedObject var model: QuickToolToggleModel
+    let icon: String
+    let off: QuickToolHUD.ToggleFace
+    let on: QuickToolHUD.ToggleFace
+    let onToggle: () -> Void
+    let onHover: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+            // Both states sit on top of each other and only their opacity
+            // changes. The panel then keeps the width of the longer one, so a
+            // click crossfades the text in place instead of resizing the
+            // window under the pointer.
+            ZStack(alignment: .leading) {
+                faceText(off.message, visible: !model.isOn)
+                faceText(on.message, visible: model.isOn)
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .frame(maxWidth: QuickToolHUD.messageWidthLimit, alignment: .leading)
+            Button(action: onToggle) {
+                ZStack {
+                    faceText(off.actionTitle, visible: !model.isOn)
+                    faceText(on.actionTitle, visible: model.isOn)
+                }
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onHover(perform: onHover)
+    }
+
+    private func faceText(_ text: String, visible: Bool) -> some View {
+        Text(text)
+            .opacity(visible ? 1 : 0)
+            .accessibilityHidden(!visible)
     }
 }
 

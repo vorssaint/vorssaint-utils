@@ -3907,6 +3907,15 @@ enum SwitcherModelFeatureTests {
         expectEqual(QuickToolsSupport.joinedRecognizedText([], removingLineBreaks: false), "",
                     "screen OCR joins an empty result to an empty string")
 
+        var ocrCopy = QuickToolsSupport.RecognizedCopy(lines: ocrLines, removesLineBreaks: false)
+        expectEqual(ocrCopy.text, "hello\nworld\nbelow", "a screen OCR copy keeps its line breaks")
+        ocrCopy.removesLineBreaks = true
+        expectEqual(ocrCopy.text, "hello world below",
+                    "the confirmation's Cut Breaks copies the same capture as one paragraph")
+        ocrCopy.removesLineBreaks = false
+        expectEqual(ocrCopy.text, "hello\nworld\nbelow",
+                    "Add Breaks after Cut Breaks restores the capture's original lines")
+
         // QR codes: several join top to bottom, left to right, blanks dropped.
         let qrCodes = [
             QuickToolsSupport.DecodedBarcode(payload: "second", x: 0.6, y: 0.8),
