@@ -73,6 +73,32 @@ enum AutoQuitSupport {
         result == .success || result == .notificationAlreadyRegistered
     }
 
+    /// A transient modal surface can be the only thing the user is actively
+    /// interacting with after an app's last standard window disappears. Open
+    /// and save panels are the important case: modern macOS renders them in a
+    /// separate process, so the window-server fallback cannot attribute them to
+    /// the client app. Keep the app alive only while an app-specific dialog or
+    /// sheet is actually focused or modal; system-wide alerts and passive
+    /// palettes do not count.
+    static func transientInteractionBlocksQuit(role: String?,
+                                               subrole: String?,
+                                               isModal: Bool,
+                                               isFocused: Bool,
+                                               hasFocusedDescendant: Bool = false) -> Bool {
+        guard isModal || isFocused || hasFocusedDescendant else { return false }
+        if role == "AXSheet" { return true }
+        return subrole == "AXDialog"
+    }
+
+    /// A system-wide focused application can differ from the frontmost client
+    /// while AppKit draws an Open/Save panel in its helper process. Only
+    /// associate that focused process with the app that is still frontmost.
+    static func shouldInspectExternalFocusedApplication(hostPID: pid_t,
+                                                        frontmostPID: pid_t,
+                                                        focusedPID: pid_t) -> Bool {
+        hostPID > 0 && frontmostPID == hostPID && focusedPID > 0 && focusedPID != hostPID
+    }
+
     static func shouldQuitAfterWindowCheck(hadWindows: Bool,
                                            appIsTerminated: Bool,
                                            appIsExcepted: Bool,

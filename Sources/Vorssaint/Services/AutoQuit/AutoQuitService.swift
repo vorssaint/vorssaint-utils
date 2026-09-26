@@ -45,6 +45,15 @@ final class AutoQuitService: ObservableObject {
 
     private var running = false
     private var observers: [pid_t: AXObserver] = [:]
+    private struct TransientObserverKey: Hashable {
+        let hostPID: pid_t
+        let transientPID: pid_t
+    }
+    /// Open/Save panels may be exposed by AppKit's helper process rather than
+    /// by the app that requested them. Keep only short-lived watches for the
+    /// focused modal surface while its host app is still frontmost.
+    private var transientObservers: [TransientObserverKey: AXObserver] = [:]
+    private var transientWindows: [TransientObserverKey: [AXUIElement]] = [:]
     /// Apps that have shown at least one window since we started watching them.
     /// Only these are eligible to quit, so window-less agents stay put.
     private var hadWindows: [pid_t: Bool] = [:]
@@ -149,6 +158,7 @@ final class AutoQuitService: ObservableObject {
         stopCloseRequestMonitor()
         // Snapshot the keys — detach(pid:) mutates the dictionary.
         for pid in Array(observers.keys) { detach(pid: pid) }
+        for key in Array(transientObservers.keys) { stopTransientObserver(for: key) }
         observers.removeAll()
         hadWindows.removeAll()
         recentCloseButtonRequests.removeAll()
@@ -245,10 +255,27 @@ final class AutoQuitService: ObservableObject {
         pendingRefreshes.remove(pid)
         appsWithUnresolvedMinimizedWindows.remove(pid)
         windowWatchRetries[pid] = nil
+        for key in transientObservers.keys.filter({ $0.hostPID == pid }) {
+            stopTransientObserver(for: key)
+        }
     }
 
     /// Called from the C observer callback (on the main run loop).
     func handleAX(observer: AXObserver, element: AXUIElement, notification: String) {
+        if let key = transientObserverKey(for: observer) {
+            if notification == (kAXUIElementDestroyedNotification as String) {
+                for watchedNotification in Self.windowNotifications {
+                    AXObserverRemoveNotification(observer, element, watchedNotification as CFString)
+                }
+                transientWindows[key]?.removeAll { CFEqual($0, element) }
+                if transientWindows[key]?.isEmpty != false {
+                    stopTransientObserver(for: key)
+                }
+                scheduleWindowChecks(pid: key.hostPID)
+            }
+            return
+        }
+
         var pid: pid_t = 0
         AXUIElementGetPid(element, &pid)
         if pid == 0, let observerPID = pidForObserver(observer) {
@@ -436,10 +463,18 @@ final class AutoQuitService: ObservableObject {
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         let appElement = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(appElement, 0.35)
-        let windows = standardWindows(of: appElement)
+        let candidates = accessibilityWindowCandidates(of: appElement)
+        let windows = standardWindows(from: candidates)
+        let transientWindows = quitBlockingTransientWindows(from: candidates)
         var watchedWindows = 0
         for window in windows {
             if watch(window: window, observer: observer, refcon: refcon) { watchedWindows += 1 }
+        }
+        // Do not promote dialogs into "had windows": a window-less agent that
+        // happens to show a prompt must stay ineligible for auto-quit. We only
+        // watch these transient surfaces so closing one schedules a fresh check.
+        for window in transientWindows {
+            _ = watch(window: window, observer: observer, refcon: refcon)
         }
         recordMinimizedWindows(pid: pid, windows: windows)
         // The window-server scan is only needed when Accessibility handed us
@@ -519,24 +554,71 @@ final class AutoQuitService: ObservableObject {
         observers.first { entry in CFEqual(entry.value, observer) }?.key
     }
 
+    private func transientObserverKey(for observer: AXObserver) -> TransientObserverKey? {
+        transientObservers.first { entry in CFEqual(entry.value, observer) }?.key
+    }
+
+    private func stopTransientObserver(for key: TransientObserverKey) {
+        guard let observer = transientObservers.removeValue(forKey: key) else { return }
+        if let windows = transientWindows.removeValue(forKey: key) {
+            for window in windows {
+                for notification in Self.windowNotifications {
+                    AXObserverRemoveNotification(observer, window, notification as CFString)
+                }
+            }
+        }
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
+    }
+
+    private func watch(transientWindow: AXUIElement, hostPID: pid_t, transientPID: pid_t) {
+        let key = TransientObserverKey(hostPID: hostPID, transientPID: transientPID)
+        let observer: AXObserver
+        if let existing = transientObservers[key] {
+            observer = existing
+        } else {
+            var observerRef: AXObserver?
+            guard AXObserverCreate(transientPID, autoQuitAXCallback, &observerRef) == .success,
+                  let created = observerRef else { return }
+            observer = created
+            transientObservers[key] = observer
+            CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
+        }
+        guard !(transientWindows[key] ?? []).contains(where: { CFEqual($0, transientWindow) }) else { return }
+        let result = AXObserverAddNotification(observer,
+                                               transientWindow,
+                                               kAXUIElementDestroyedNotification as CFString,
+                                               Unmanaged.passUnretained(self).toOpaque())
+        guard AutoQuitSupport.isWindowNotificationRegistered(result) else {
+            if transientWindows[key]?.isEmpty != false { stopTransientObserver(for: key) }
+            return
+        }
+        transientWindows[key, default: []].append(transientWindow)
+    }
+
     private func standardWindows(of appElement: AXUIElement) -> [AXUIElement] {
+        standardWindows(from: accessibilityWindowCandidates(of: appElement))
+    }
+
+    private func accessibilityWindowCandidates(of appElement: AXUIElement) -> [AXUIElement] {
         var result: [AXUIElement] = []
         var value: CFTypeRef?
         if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value) == .success,
            let windows = value as? [AXUIElement] {
-            for window in windows {
-                Self.appendIfStandard(window, to: &result)
-            }
+            result.append(contentsOf: windows)
         }
-        // The main and focused window are almost always in the list above, and
-        // deciding whether an element is a standard window costs two to four
-        // synchronous round trips into the app every time it is asked. Match
-        // against what is already collected first, ask only what is new.
+        // Main and focused windows are usually in AXWindows, but some apps
+        // expose them only through these attributes.
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
             if let window = Self.windowAttribute(appElement, attribute as String) {
-                Self.appendIfStandard(window, to: &result)
+                if !result.contains(where: { CFEqual($0, window) }) { result.append(window) }
             }
         }
+        return result
+    }
+
+    private func standardWindows(from candidates: [AXUIElement]) -> [AXUIElement] {
+        var result: [AXUIElement] = []
+        for window in candidates { Self.appendIfStandard(window, to: &result) }
         return result
     }
 
@@ -569,6 +651,38 @@ final class AutoQuitService: ObservableObject {
         windows.append(window)
     }
 
+    /// Main/focused non-standard windows that represent an active modal
+    /// interaction. They block auto-quit without becoming ordinary app windows.
+    private func quitBlockingTransientWindows(from candidates: [AXUIElement]) -> [AXUIElement] {
+        var result: [AXUIElement] = []
+        for window in candidates where !result.contains(where: { CFEqual($0, window) }) {
+            AXUIElementSetMessagingTimeout(window, 0.35)
+            guard !Self.isStandardWindow(window),
+                  Self.isQuitBlockingTransientWindow(window) else { continue }
+            result.append(window)
+        }
+        return result
+    }
+
+    private static func isQuitBlockingTransientWindow(_ window: AXUIElement,
+                                                     hasFocusedDescendant: Bool = false) -> Bool {
+        var subroleValue: CFTypeRef?
+        let subrole: String?
+        if AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &subroleValue) == .success {
+            subrole = subroleValue as? String
+        } else {
+            subrole = nil
+        }
+
+        return AutoQuitSupport.transientInteractionBlocksQuit(
+            role: role(of: window),
+            subrole: subrole,
+            isModal: boolAttribute(window, "AXModal"),
+            isFocused: boolAttribute(window, kAXFocusedAttribute as String),
+            hasFocusedDescendant: hasFocusedDescendant
+        )
+    }
+
     private static func windowAttribute(_ appElement: AXUIElement, _ attribute: String) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, attribute as CFString, &value) == .success,
@@ -588,14 +702,102 @@ final class AutoQuitService: ObservableObject {
     }
 
     private func hasUserFacingWindow(pid: pid_t, appElement: AXUIElement) -> Bool {
-        let axWindows = standardWindows(of: appElement)
+        let candidates = accessibilityWindowCandidates(of: appElement)
+        let axWindows = standardWindows(from: candidates)
         if axWindows.contains(where: { Self.boolAttribute($0, kAXMinimizedAttribute as String) }) {
+            return true
+        }
+        if !quitBlockingTransientWindows(from: candidates).isEmpty {
+            return true
+        }
+        if hasExternalQuitBlockingTransientWindow(hostPID: pid) {
             return true
         }
         if let hasWindowServerWindow = hasWindowServerUserWindow(pid: pid) {
             return hasWindowServerWindow
         }
         return !axWindows.isEmpty
+    }
+
+    /// A system-wide focused application can differ from the client app while
+    /// AppKit presents an Open/Save panel from its helper process. Only treat
+    /// that process as belonging to this check while the client is still the
+    /// frontmost app, and watch the panel itself so its close rechecks the host.
+    private func hasExternalQuitBlockingTransientWindow(hostPID: pid_t) -> Bool {
+        // A panel discovered while the host was frontmost remains associated
+        // with it after the user switches apps; its destroy event still needs
+        // to trigger a host check.
+        for (key, windows) in transientWindows where key.hostPID == hostPID {
+            if windows.contains(where: { !Self.isStandardWindow($0) && Self.isQuitBlockingTransientWindow($0) }) {
+                return true
+            }
+        }
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == hostPID else { return false }
+        let systemElement = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(systemElement, 0.35)
+
+        // Sheets are top-level accessibility elements, but Apple explicitly
+        // excludes them from AXWindow. Resolve the focused element's top-level
+        // surface so an active sheet is not lost behind its parent window.
+        var focusedElementValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(systemElement,
+                                        kAXFocusedUIElementAttribute as CFString,
+                                        &focusedElementValue) == .success,
+           let focusedElementValue,
+           CFGetTypeID(focusedElementValue) == AXUIElementGetTypeID() {
+            let focusedElement = focusedElementValue as! AXUIElement
+            AXUIElementSetMessagingTimeout(focusedElement, 0.35)
+            var focusedElementPID: pid_t = 0
+            AXUIElementGetPid(focusedElement, &focusedElementPID)
+            if let topLevel = Self.windowAttribute(focusedElement, kAXTopLevelUIElementAttribute as String) {
+                AXUIElementSetMessagingTimeout(topLevel, 0.35)
+                var topLevelPID: pid_t = 0
+                AXUIElementGetPid(topLevel, &topLevelPID)
+                let focusedPID = topLevelPID > 0 ? topLevelPID : focusedElementPID
+                let belongsToHost = focusedPID == hostPID
+                    || AutoQuitSupport.shouldInspectExternalFocusedApplication(
+                        hostPID: hostPID,
+                        frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0,
+                        focusedPID: focusedPID)
+                if belongsToHost,
+                   !Self.isStandardWindow(topLevel),
+                   Self.isQuitBlockingTransientWindow(topLevel, hasFocusedDescendant: true) {
+                    if focusedPID == hostPID, let observer = observers[hostPID] {
+                        _ = watch(window: topLevel,
+                                  observer: observer,
+                                  refcon: Unmanaged.passUnretained(self).toOpaque())
+                    } else {
+                        watch(transientWindow: topLevel, hostPID: hostPID, transientPID: focusedPID)
+                    }
+                    return true
+                }
+            }
+        }
+
+        var focusedApplicationValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(systemElement,
+                                            kAXFocusedApplicationAttribute as CFString,
+                                            &focusedApplicationValue) == .success,
+              let focusedApplicationValue,
+              CFGetTypeID(focusedApplicationValue) == AXUIElementGetTypeID() else { return false }
+        let focusedApplication = focusedApplicationValue as! AXUIElement
+        var transientPID: pid_t = 0
+        AXUIElementGetPid(focusedApplication, &transientPID)
+        guard AutoQuitSupport.shouldInspectExternalFocusedApplication(
+            hostPID: hostPID,
+            frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0,
+            focusedPID: transientPID
+        ) else { return false }
+        AXUIElementSetMessagingTimeout(focusedApplication, 0.35)
+
+        for window in accessibilityWindowCandidates(of: focusedApplication) {
+            AXUIElementSetMessagingTimeout(window, 0.35)
+            guard !Self.isStandardWindow(window),
+                  Self.isQuitBlockingTransientWindow(window) else { continue }
+            watch(transientWindow: window, hostPID: hostPID, transientPID: transientPID)
+            return true
+        }
+        return false
     }
 
     /// Whether the window server still knows a window of this app that the user

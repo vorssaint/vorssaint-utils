@@ -1260,6 +1260,41 @@ enum AppManagementFeatureTests {
                "a window already registered on this observer stays watched across refreshes")
         suite.expect(!AutoQuitSupport.isWindowNotificationRegistered(.cannotComplete),
                "a window whose registration was refused is not watched")
+        suite.expect(AutoQuitSupport.transientInteractionBlocksQuit(
+            role: "AXWindow", subrole: "AXDialog", isModal: false, isFocused: true),
+               "a focused app-specific dialog blocks AutoQuit while the user is choosing a file")
+        suite.expect(AutoQuitSupport.transientInteractionBlocksQuit(
+            role: "AXWindow", subrole: "AXDialog", isModal: false, isFocused: false,
+            hasFocusedDescendant: true),
+               "a dialog containing the system-wide focused control blocks AutoQuit")
+        suite.expect(!AutoQuitSupport.transientInteractionBlocksQuit(
+            role: "AXWindow", subrole: "AXDialog", isModal: false, isFocused: false),
+               "an unfocused passive dialog does not block AutoQuit")
+        suite.expect(AutoQuitSupport.transientInteractionBlocksQuit(
+            role: "AXWindow", subrole: "AXDialog", isModal: true, isFocused: false),
+               "a modal dialog blocks AutoQuit even when focus briefly moves")
+        suite.expect(AutoQuitSupport.transientInteractionBlocksQuit(
+            role: "AXSheet", subrole: nil, isModal: true, isFocused: false),
+               "a modal sheet blocks AutoQuit")
+        suite.expect(!AutoQuitSupport.transientInteractionBlocksQuit(
+            role: "AXWindow", subrole: "AXSystemDialog", isModal: false, isFocused: false),
+               "a system-wide dialog record does not keep a particular app alive")
+        suite.expect(!AutoQuitSupport.transientInteractionBlocksQuit(
+            role: "AXWindow", subrole: "AXSystemDialog", isModal: true, isFocused: true),
+               "a system-wide alert is not attributed to whichever app was frontmost")
+        suite.expect(!AutoQuitSupport.transientInteractionBlocksQuit(
+            role: "AXWindow", subrole: "AXFloatingWindow", isModal: false, isFocused: true),
+               "a focused floating palette is not promoted to an AutoQuit blocker")
+        suite.expect(AutoQuitSupport.shouldInspectExternalFocusedApplication(
+            hostPID: 10, frontmostPID: 10, focusedPID: 20),
+               "a focused helper process can be inspected while its client app stays frontmost")
+        suite.expect(!AutoQuitSupport.shouldInspectExternalFocusedApplication(
+            hostPID: 10, frontmostPID: 20, focusedPID: 20)
+               && !AutoQuitSupport.shouldInspectExternalFocusedApplication(
+                   hostPID: 10, frontmostPID: 10, focusedPID: 10)
+               && !AutoQuitSupport.shouldInspectExternalFocusedApplication(
+                   hostPID: 0, frontmostPID: 0, focusedPID: 20),
+               "foreign dialogs are not associated when another app is frontmost or process ids are invalid")
         let autoQuitServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/AutoQuit/AutoQuitService.swift",
             encoding: .utf8)) ?? ""
