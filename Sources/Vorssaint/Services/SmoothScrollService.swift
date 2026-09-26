@@ -35,6 +35,7 @@ final class SmoothScrollService: ObservableObject {
     /// Pure per-axis distance engine. The tap callback and timer both live on
     /// the main run loop, so no lock is needed around its state.
     private var engine = SmoothScrollSupport.Engine()
+    private var targetLatch = SmoothScrollSupport.TargetLatch()
     private var lastFrameTimestamp: TimeInterval?
     private var currentResponse = SmoothScrollSupport.defaultResponse
     private var currentCoast = SmoothScrollSupport.defaultCoast
@@ -336,9 +337,11 @@ final class SmoothScrollService: ObservableObject {
             || currentScrollRedirected != redirected
             || glideFromContinuous != traits.isContinuous {
             engine.reset()
+            targetLatch.reset()
             carryVertical = 0
             carryHorizontal = 0
         }
+        _ = targetLatch.location(for: event.location, startsNewGlide: !engine.isActive)
         let verticalDistance = vertical * step
         let horizontalDistance = horizontal * step
         carryVertical = SmoothScrollSupport.carry(carryVertical, continuing: verticalDistance)
@@ -393,6 +396,7 @@ final class SmoothScrollService: ObservableObject {
     private func stopGlide() {
         stopFrameScheduler()
         engine.reset()
+        targetLatch.reset()
         carryVertical = 0
         carryHorizontal = 0
     }
@@ -437,6 +441,7 @@ final class SmoothScrollService: ObservableObject {
         }
         if frame.finished {
             stopFrameScheduler()
+            targetLatch.reset()
             carryVertical = 0
             carryHorizontal = 0
         }
@@ -497,6 +502,9 @@ final class SmoothScrollService: ObservableObject {
                                   wheel3: 0) else { return }
         event.setIntegerValueField(.eventSourceUserData, value: ScrollWheelSupport.syntheticTag)
         event.flags = currentFlags
+        if let point = targetLatch.point {
+            event.location = point
+        }
         event.post(tap: .cghidEventTap)
     }
 

@@ -501,6 +501,17 @@ enum PointerInputFeatureTests {
         smoothEngine.add(vertical: 40, horizontal: 0)
         suite.expect(smoothEngine.remainingVertical == 40,
                "one wheel tick queues one step of glide")
+        var scrollTarget = SmoothScrollSupport.TargetLatch()
+        let firstScrollPoint = CGPoint(x: 120, y: 240)
+        let movedPointerPoint = CGPoint(x: 900, y: 600)
+        suite.expect(scrollTarget.location(for: firstScrollPoint, startsNewGlide: true) == firstScrollPoint,
+               "a smooth-scroll glide latches the point where its first wheel tick landed")
+        suite.expect(scrollTarget.location(for: movedPointerPoint, startsNewGlide: false) == firstScrollPoint,
+               "pointer movement cannot retarget an active smooth-scroll glide")
+        scrollTarget.reset()
+        suite.expect(scrollTarget.point == nil
+                && scrollTarget.location(for: movedPointerPoint, startsNewGlide: true) == movedPointerPoint,
+               "a finished glide releases its target so the next scroll can land elsewhere")
         smoothEngine.add(vertical: 80, horizontal: 20)
         suite.expect(smoothEngine.remainingVertical == 120 && smoothEngine.remainingHorizontal == 20,
                "same-direction input adds to what is left on each axis")
