@@ -49,6 +49,19 @@ enum DefaultsKey {
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let scrollHorizontalEnabled = "scrollHorizontalEnabled"
     static let scrollHorizontalModifier = "scrollHorizontalModifier"
+    static let scrollZoomEnabled = "scrollZoomEnabled"
+    static let scrollZoomModifier = "scrollZoomModifier"
+    static let scrollZoomMode = "scrollZoomMode"
+    static let verticalZoomEnabled = "verticalZoomEnabled"
+    static let verticalZoomModifier = "verticalZoomModifier"
+    static let horizontalZoomEnabled = "horizontalZoomEnabled"
+    static let horizontalZoomModifier = "horizontalZoomModifier"
+    static let pinchZoomEnabled = "pinchZoomEnabled"
+    static let pinchZoomModifier = "pinchZoomModifier"
+    static let verticalPinchZoomEnabled = "verticalPinchZoomEnabled"
+    static let verticalPinchZoomModifier = "verticalPinchZoomModifier"
+    static let horizontalPinchZoomEnabled = "horizontalPinchZoomEnabled"
+    static let horizontalPinchZoomModifier = "horizontalPinchZoomModifier"
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
     static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
     static let focusFollowsMouseExceptions = "focusFollowsMouseExceptions"
@@ -1074,6 +1087,15 @@ enum Defaults {
         DefaultsKey.scrollInverterHorizontalEnabled: false,
         DefaultsKey.scrollHorizontalEnabled: false,
         DefaultsKey.scrollHorizontalModifier: ScrollHorizontalModifier.shift.rawValue,
+        DefaultsKey.scrollZoomEnabled: false,
+        DefaultsKey.scrollZoomModifier: ScrollHorizontalModifier.control.rawValue,
+        DefaultsKey.scrollZoomMode: ScrollZoomMode.keyboard.rawValue,
+        DefaultsKey.verticalZoomEnabled: false,
+        DefaultsKey.verticalZoomModifier: ScrollZoomModifier.control.rawValue,
+        DefaultsKey.horizontalZoomEnabled: false,
+        DefaultsKey.horizontalZoomModifier: ScrollZoomModifier.shift.rawValue,
+        DefaultsKey.pinchZoomEnabled: false,
+        DefaultsKey.pinchZoomModifier: ScrollZoomModifier.command.rawValue,
         DefaultsKey.focusFollowsMouseEnabled: false,
         DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
         DefaultsKey.smoothScrollEnabled: false,
@@ -1736,6 +1758,7 @@ enum Defaults {
         migrateExistingNotchDefaults(in: defaults)
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
+        migrateScrollZoom(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
         migrateBatteryTemperatureVisibility(in: defaults)
         migrateSwitcherPreviewSize(in: defaults)
@@ -1878,6 +1901,31 @@ enum Defaults {
         }
         defaults.set(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
                      forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+    }
+
+    static func migrateScrollZoom(in defaults: UserDefaults) {
+        if defaults.object(forKey: DefaultsKey.verticalZoomEnabled) == nil,
+           defaults.bool(forKey: DefaultsKey.scrollZoomEnabled) {
+            let modifier = defaults.string(forKey: DefaultsKey.scrollZoomModifier)
+                ?? ScrollZoomModifier.control.rawValue
+            if defaults.string(forKey: DefaultsKey.scrollZoomMode) == ScrollZoomMode.pinch.rawValue {
+                defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+                defaults.set(modifier, forKey: DefaultsKey.pinchZoomModifier)
+            } else {
+                defaults.set(true, forKey: DefaultsKey.verticalZoomEnabled)
+                defaults.set(modifier, forKey: DefaultsKey.verticalZoomModifier)
+            }
+        }
+        guard defaults.object(forKey: DefaultsKey.pinchZoomEnabled) == nil else { return }
+        if defaults.bool(forKey: DefaultsKey.verticalPinchZoomEnabled) {
+            defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+            defaults.set(defaults.string(forKey: DefaultsKey.verticalPinchZoomModifier),
+                         forKey: DefaultsKey.pinchZoomModifier)
+        } else if defaults.bool(forKey: DefaultsKey.horizontalPinchZoomEnabled) {
+            defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+            defaults.set(defaults.string(forKey: DefaultsKey.horizontalPinchZoomModifier),
+                         forKey: DefaultsKey.pinchZoomModifier)
+        }
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {

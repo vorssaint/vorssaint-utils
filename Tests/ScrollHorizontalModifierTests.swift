@@ -48,6 +48,44 @@ enum ScrollHorizontalModifierTests {
     }
 
     static func run(_ suite: TestSuite) {
+        let zoomWheel = wheel(flags: .maskControl, line: 0, point: -12, fixed: -1.2)
+        suite.expect(ScrollWheelSupport.zoomDelta(zoomWheel, modifier: .control, axis: .vertical) == -12,
+                     "the selected modifier zooms from vertical wheel movement")
+        suite.expect(ScrollWheelSupport.zoomDelta(point: -0.25, fixed: -1.2, line: -1) == -0.25,
+                     "fractional wheel ticks reach pinch zoom instead of being truncated")
+        zoomWheel.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: 0)
+        zoomWheel.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: 0)
+        zoomWheel.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 0)
+        zoomWheel.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: 9)
+        suite.expect(ScrollWheelSupport.zoomDelta(zoomWheel, modifier: .control, axis: .horizontal) == 9,
+                     "the selected modifier zooms from horizontal wheel movement")
+        zoomWheel.flags = [.maskControl, .maskShift]
+        suite.expect(ScrollWheelSupport.zoomDelta(zoomWheel, modifier: .control, axis: .horizontal) == nil,
+                     "other shortcut modifiers leave scrolling alone")
+        suite.expect(ScrollWheelSupport.zoomDelta(-12, axis: .vertical,
+                                                  invertVertical: true, invertHorizontal: false) == 12
+                && ScrollWheelSupport.zoomDelta(9, axis: .horizontal,
+                                                 invertVertical: false, invertHorizontal: true) == -9,
+                     "zoom follows the selected axis's inverted scroll direction")
+        let migrationSuite = "vorss.tests.scroll.zoom"
+        if let defaults = UserDefaults(suiteName: migrationSuite) {
+            defaults.removePersistentDomain(forName: migrationSuite)
+            defaults.set(true, forKey: DefaultsKey.scrollZoomEnabled)
+            defaults.set(ScrollZoomModifier.command.rawValue, forKey: DefaultsKey.scrollZoomModifier)
+            defaults.set(ScrollZoomMode.pinch.rawValue, forKey: DefaultsKey.scrollZoomMode)
+            Defaults.migrateScrollZoom(in: defaults)
+            suite.expect(defaults.bool(forKey: DefaultsKey.pinchZoomEnabled)
+                    && defaults.string(forKey: DefaultsKey.pinchZoomModifier)
+                        == ScrollZoomModifier.command.rawValue,
+                         "the original scroll-zoom preference becomes direction-free pinch zoom")
+            let conflicting = ScrollZoomPreferences(isAvailable: true,
+                                                     boolFor: { _ in true },
+                                                     stringFor: { _ in ScrollZoomModifier.control.rawValue })
+            suite.expect(conflicting.verticalZoom == .control
+                    && conflicting.horizontalZoom == nil && conflicting.pinchZoom == nil,
+                         "duplicate modifiers never produce overlapping zoom actions")
+            defaults.removePersistentDomain(forName: migrationSuite)
+        }
         ownWindowGestures(suite)
         ownWindowTargetCache(suite)
         sidewaysStrips(suite)
@@ -159,7 +197,19 @@ enum ScrollHorizontalModifierTests {
                      "the new feature ships uninstalled")
         suite.expect(AppFeature.scrollHorizontal.settingsDestination
             == AppFeature.scrollInverter.settingsDestination,
-            "both direction features open the same scroll settings section")
+                     "both direction features open the same scroll settings section")
+        suite.expect(AppFeature.scrollZoom.enabledKeys == [DefaultsKey.verticalZoomEnabled,
+                                                            DefaultsKey.horizontalZoomEnabled,
+                                                            DefaultsKey.pinchZoomEnabled]
+                && AppFeature.scrollZoom.settingsDestination.sectionAnchor == .scrollZoom,
+                     "scroll zoom is an independently configurable feature")
+        let installedZoom = ScrollDirectionPreferences(
+            isAvailable: { $0 == .scrollZoom },
+            boolFor: { $0 == DefaultsKey.verticalZoomEnabled },
+            stringFor: { _ in ScrollZoomModifier.control.rawValue }
+        )
+        suite.expect(installedZoom.isEnabled && installedZoom.zoom.verticalZoom == .control,
+                     "scroll zoom runs only while its feature is installed")
 
         // Saved settings remain on through removal/reinstallation. Exercise all
         // installation and toggle combinations without changing the user's defaults.

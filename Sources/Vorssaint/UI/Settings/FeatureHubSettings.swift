@@ -896,6 +896,7 @@ extension AppFeature {
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).name
         case .scrollInverter: return s.invertMouseScroll
         case .scrollHorizontal: return s.scrollHorizontalName
+        case .scrollZoom: return s.zoomSection
         case .focusFollowsMouse: return s.focusFollowsMouseName
         case .smoothScroll: return s.smoothScrollName
         case .mouseAcceleration: return s.mouseAccelerationName
@@ -976,6 +977,9 @@ extension AppFeature {
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).description
         case .scrollInverter: return hub.descScrollInverter
         case .scrollHorizontal: return L10n.shared.s.scrollHorizontalCaption
+        case .scrollZoom:
+            let s = L10n.shared.s
+            return [s.verticalZoom, s.horizontalZoom, s.pinchZoom].joined(separator: ", ")
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll
         case .mouseAcceleration: return L10n.shared.s.mouseAccelerationCaption

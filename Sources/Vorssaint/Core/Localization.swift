@@ -1243,6 +1243,10 @@ struct Strings {
     let invertVerticalScroll: String
     let invertHorizontalScroll: String
     let scrollHorizontalName: String
+    let zoomSection: String
+    let verticalZoom: String
+    let horizontalZoom: String
+    let pinchZoom: String
     let scrollHorizontalModifierLabel: String
     let scrollHorizontalCommandKey: String
     let scrollHorizontalCaption: String
@@ -2320,6 +2324,10 @@ extension Strings {
         invertVerticalScroll: "Inverter rolagem vertical",
         invertHorizontalScroll: "Inverter rolagem horizontal",
         scrollHorizontalName: "Rolar na horizontal segurando uma tecla",
+        zoomSection: "Zoom",
+        verticalZoom: "Zoom vertical",
+        horizontalZoom: "Zoom horizontal",
+        pinchZoom: "Zoom por pinça",
         scrollHorizontalModifierLabel: "Tecla modificadora",
         scrollHorizontalCommandKey: "Command",
         scrollHorizontalCaption: "Mantenha apenas a tecla escolhida pressionada para rolar a roda vertical do mouse na horizontal. Outras combinações de teclas não são alteradas.",
@@ -3398,6 +3406,10 @@ extension Strings {
         invertVerticalScroll: "Invert vertical scrolling",
         invertHorizontalScroll: "Invert horizontal scrolling",
         scrollHorizontalName: "Scroll sideways while holding a key",
+        zoomSection: "Zoom",
+        verticalZoom: "Vertical Zoom",
+        horizontalZoom: "Horizontal Zoom",
+        pinchZoom: "Pinch Zoom",
         scrollHorizontalModifierLabel: "Modifier key",
         scrollHorizontalCommandKey: "Command",
         scrollHorizontalCaption: "Hold only the selected modifier to scroll the vertical mouse wheel horizontally. Other key combinations are unchanged.",
