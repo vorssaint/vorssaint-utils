@@ -368,6 +368,28 @@ enum UpdateFeatureTests {
                 for: menuBarDestination,
                 in: generalRows + [menuBarRow]) == .setting(.panelConfiguration),
             "General and its menu bar editor keep distinct sidebar selections")
+        func pageRow(_ page: SettingsPage) -> SettingsSidebarItem {
+            SettingsSidebarItem(id: .page(page), destination: FeatureSettingsDestination(page),
+                                title: "\(page)", icon: "")
+        }
+        let groupedRows = SettingsSidebarSupport.featureGroupRows(
+            windowsControls: [pageRow(.windowLayout), pageRow(.autoQuit), pageRow(.quitProtection)]
+                + [SettingsSidebarItem(id: .feature(.scrollInverter),
+                                       destination: AppFeature.scrollInverter.settingsDestination,
+                                       title: "Scroll", icon: "")],
+            utilities: quickToolRows + [pageRow(.urlCleaner), pageRow(.keyDebounce),
+                                        pageRow(.superKey), pageRow(.textSnippets),
+                                        pageRow(.radialMenu)])
+        suite.expect(groupedRows.windowsDock.map(\.id) == [.page(.windowLayout), .page(.autoQuit)]
+                && groupedRows.mouseKeyboard.map(\.id) == [
+                    .page(.quitProtection), .feature(.scrollInverter), .page(.keyDebounce),
+                    .page(.superKey), .page(.textSnippets)]
+                && groupedRows.files.map(\.id) == [.page(.urlCleaner)]
+                && groupedRows.sound.map(\.id) == [.feature(.micMute)]
+                && groupedRows.utilities.map(\.id) == [
+                    .feature(.quickLauncher), .feature(.scratchpad), .feature(.cleaningMode),
+                    .page(.radialMenu)],
+               "sidebar rows follow the Features page groups and other utilities stay put")
         let scratchpadOnlyRows = SettingsSidebarSupport.items(
             page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
             preferredFeatures: quickToolFeatures, includePage: false,
