@@ -677,6 +677,16 @@ enum MixerRoutingSupport {
         }
         return trimmed
     }
+    
+    static func gainToSliderPosition(_ gain: Double) -> Double {
+        guard gain < 1 else { return gain }
+        return sqrt(gain)
+    }
+    
+    static func sliderPositionToGain(_ sliderPosition: Double) -> Double {
+        guard sliderPosition < 1 else { return sliderPosition }
+        return pow(sliderPosition, 2)
+    }
 }
 
 /// Presentation preferences use the same lasting identity as saved volumes.

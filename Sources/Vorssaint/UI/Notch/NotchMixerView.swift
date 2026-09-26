@@ -458,7 +458,8 @@ private struct NotchAppFader: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                NotchLevelSlider(value: Binding(get: { app.volume }, set: { mixer.setVolume($0, for: app) }),
+                NotchLevelSlider(
+                    value: Binding(get: { MixerRoutingSupport.gainToSliderPosition(app.volume) }, set: { mixer.setVolume(MixerRoutingSupport.sliderPositionToGain($0), for: app) }),
                                  label: app.name, range: 0...AppVolumeMixer.maxVolume,
                                  tint: boosting ? .orange : .white, vertical: true, trackThickness: 28, marker: 1,
                                  valueLabel: "\(percent)%")
