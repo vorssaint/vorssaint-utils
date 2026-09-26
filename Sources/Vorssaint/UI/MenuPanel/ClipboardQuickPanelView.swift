@@ -29,12 +29,6 @@ struct ClipboardQuickPanelView: View {
         history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var panelSize: CGSize {
-        history.quickPreviewPresented
-            ? ClipboardHistoryService.quickPanelPreviewSize
-            : ClipboardHistoryService.quickPanelCompactSize
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             toolbar
@@ -56,7 +50,7 @@ struct ClipboardQuickPanelView: View {
                 }
             }
         }
-        .frame(width: panelSize.width, height: panelSize.height, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.regularMaterial)
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
