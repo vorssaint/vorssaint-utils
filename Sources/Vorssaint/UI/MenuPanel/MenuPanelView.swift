@@ -1651,7 +1651,8 @@ struct QuickControlsSection: View {
                            showsDragHandle: true,
                            visibility: $showMiddleClick,
                            needsAttention: middleClickEnabled
-                               && (!permissions.accessibility || middleClick.systemDragGestureConflict),
+                               && (!permissions.accessibility || middleClick.touchDeviceMissing
+                                   || middleClick.systemDragGestureConflict),
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(middleClickEnabled))
                 .onChange(of: middleClickEnabled) { _, enabled in
@@ -1817,6 +1818,8 @@ struct QuickControlsSection: View {
     private var middleClickCaption: String {
         guard middleClickEnabled else { return l10n.s.middleClickEnableCaption }
         if !permissions.accessibility { return missingPermission(l10n.s.permissionAccessibility) }
+        // Without a readable trackpad, turning off three-finger drag would not help yet.
+        if middleClick.touchDeviceMissing { return l10n.s.middleClickNoTrackpad }
         if middleClick.systemDragGestureConflict { return l10n.s.middleClickDragConflict }
         return l10n.s.middleClickEnableCaption
     }

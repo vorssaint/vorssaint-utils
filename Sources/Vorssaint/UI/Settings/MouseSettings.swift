@@ -455,6 +455,12 @@ struct MouseSettings: View {
                             .foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    if middleClick.touchDeviceMissing {
+                        Text(l10n.s.middleClickNoTrackpad)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(.leading, settingsRowTextInset)
                 MouseExceptionsList(scope: .middleClick)

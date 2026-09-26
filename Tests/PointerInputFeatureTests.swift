@@ -1153,6 +1153,8 @@ enum PointerInputFeatureTests {
         suite.expect(WindowDirectionalGestureSupport.shouldApplyKeyboardManualOverride(isAutorepeat: false),
                "a distinct Space, Return, or Up tap still maximizes while the ring is open")
 
+        MiddleClickTrackpadContract.run(suite)
+
         // MARK: Middle click tap (issue #161)
 
         suite.expect(Defaults.sanitizedMiddleClickTapFingers(3) == 3
@@ -3289,5 +3291,84 @@ private final class PointerInputTestClock {
 
     func advance(by interval: TimeInterval) {
         lock.withLock { value += interval }
+    }
+}
+
+/// Runs the production multitouch start and stop, and the full stop a pause
+/// or session switch takes, with MultitouchSupport and the tap replaced by
+/// doubles.
+enum MiddleClickTrackpadContract {
+    static let middleClickContactCallback = "contact"
+    enum Multitouch {
+        static var devices: CFArray?
+        static func deviceList() -> CFArray? { devices }
+        static func register(_ device: UnsafeMutableRawPointer, _ callback: String?) {}
+        static func start(_ device: UnsafeMutableRawPointer) {}
+        static func stop(_ device: UnsafeMutableRawPointer) {}
+    }
+    enum PointerTapRunLoop {
+        static func remove(_ source: CFRunLoopSource, invalidating port: CFMachPort?) {}
+    }
+    class Fixture {
+        var deviceList: CFArray?
+        var touchDeviceMissing = false
+        var isRunning = false
+        var tap: CFMachPort?
+        var runLoopSource: CFRunLoopSource?
+        let tapStateLock = NSLock()
+        let stateLock = NSLock()
+        var lastTransformEnd: TimeInterval?
+        var suppressedButtonSequence = false
+        var fingerCount = 0
+        var lastFrameUptime: TimeInterval = 0
+        var threeFingersSince: TimeInterval?
+        func releaseHeldMiddleButton() {}
+        func removeObservers() {}
+        func resetTapCandidateLocked() {}
+    }
+
+    static func run(_ suite: TestSuite) {
+        let service = Service()
+        Multitouch.devices = nil
+        service.startMultitouch()
+        suite.expect(service.touchDeviceMissing,
+                     "a started middle click without a touch device tells Settings the trackpad cannot be read")
+        service.stop()
+        suite.expect(!service.touchDeviceMissing,
+                     "pausing middle click for cleaning or a session switch withdraws the warning")
+        Multitouch.devices = [NSObject()] as CFArray
+        service.startMultitouch()
+        suite.expect(!service.touchDeviceMissing, "a touch device clears the missing trackpad warning")
+        service.stopMultitouch()
+        Multitouch.devices = nil
+        service.startMultitouch()
+        suite.expect(service.touchDeviceMissing, "a trackpad that goes away while running brings the warning back")
+        service.stop()
+
+        let panel = Panel()
+        panel.middleClick.touchDeviceMissing = true
+        panel.middleClick.systemDragGestureConflict = true
+        suite.expect(panel.middleClickCaption == Strings.enUS.middleClickNoTrackpad,
+                     "the quick controls row says the trackpad cannot be read, ahead of the drag conflict")
+        panel.middleClick.touchDeviceMissing = false
+        suite.expect(panel.middleClickCaption == Strings.enUS.middleClickDragConflict,
+                     "the quick controls row falls back to the drag conflict once a trackpad is read")
+        panel.permissions.accessibility = false
+        panel.middleClick.touchDeviceMissing = true
+        suite.expect(panel.middleClickCaption.hasPrefix(Strings.enUS.permissionRequired),
+                     "a missing Accessibility grant still comes first")
+    }
+
+    class PanelFixture {
+        struct Localizer { let s = Strings.enUS }
+        struct PermissionState { var accessibility = true }
+        final class MiddleClickState {
+            var touchDeviceMissing = false
+            var systemDragGestureConflict = false
+        }
+        let l10n = Localizer()
+        var permissions = PermissionState()
+        let middleClick = MiddleClickState()
+        let middleClickEnabled = true
     }
 }

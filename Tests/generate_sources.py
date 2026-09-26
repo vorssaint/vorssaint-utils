@@ -117,6 +117,19 @@ def main():
                         "    func syncWithPreferences(", "    private func start(", "    func stop(",
                         "    private func handleLaunch(", "    private func handleMediaKeyEvent("])
           + "}\n}\n")
+    write("MiddleClickTrackpad.swift", "import CoreGraphics\nimport Foundation\n"
+          + "extension MiddleClickTrackpadContract {\nfinal class Service: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift", prefix)
+                    .replace("private ", "", 1) for prefix in [
+                        "    private func startMultitouch(", "    private func stopMultitouch(",
+                        "    private func stop("])
+          + "}\n}\n")
+    menu_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"
+    write("MiddleClickPanelCaption.swift", "import Foundation\n"
+          + "extension MiddleClickTrackpadContract {\nfinal class Panel: PanelFixture {\n"
+          + "".join(declaration(menu_panel, prefix).replace("private ", "", 1) for prefix in [
+                "    private var middleClickCaption:", "    private func missingPermission("])
+          + "}\n}\n")
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"
