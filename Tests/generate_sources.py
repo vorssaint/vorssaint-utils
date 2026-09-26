@@ -110,6 +110,13 @@ def main():
           + declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
                         "    func exportText(")
           + "}\n}\n")
+    write("ScratchpadSave.swift", "import Foundation\n"
+          + "extension ScratchpadSaveContract {\nfinal class Service: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    func commitEdits(", "    private func flushSave(", "    private func save(",
+                        "    func createPad("])
+          + "}\n}\n")
     write("MusicLaunchBlockerLifecycle.swift", "import AppKit\nimport Foundation\n"
           + "extension MusicLaunchBlockerContract {\nfinal class Service: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Audio/MusicLaunchBlocker.swift", prefix)

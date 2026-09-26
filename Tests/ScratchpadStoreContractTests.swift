@@ -15,6 +15,7 @@ import VMStatisticsCompat
 enum ScratchpadStoreContractTests {
     static func run(_ suite: TestSuite) {
         ScratchpadExportContract.run(suite)
+        ScratchpadSaveContract.run(suite)
         let manager = FileManager.default
         let now = Date(timeIntervalSince1970: 1_784_000_000)
         let original = ScratchpadDocument.initial(defaultName: "Scratchpad", text: "Keep these notes",
@@ -382,5 +383,54 @@ enum ScratchpadExportContract {
         let untouched = try String(contentsOf: kept, encoding: .utf8)
         suite.expect(untouched == "Previous file" && HUD.errors == failures + 1,
                      "a pad closed while its dialog is open reports the failed export and writes nothing")
+    }
+}
+
+/// The production save path runs against a store that can be made to fail.
+enum ScratchpadSaveContract {
+    final class Store {
+        var succeeds = false
+        var writes = 0
+        func save(_ document: ScratchpadDocument) -> Bool {
+            writes += 1
+            return succeeds
+        }
+    }
+    enum HUD {
+        static var messages: [String] = []
+        static func show(icon: String, message: String) { messages.append(message) }
+    }
+    class Fixture {
+        typealias QuickToolHUD = HUD
+        var store = Store()
+        var pendingSave: DispatchWorkItem?
+        var hasLoaded = true
+        var saveFailed = false
+        var document: ScratchpadDocument? = .initial(defaultName: "Notes", text: "Unsaved notes")
+        var applied = 0
+        func apply(_ document: ScratchpadDocument, focus: Bool = false) {
+            self.document = document
+            applied += 1
+        }
+    }
+
+    static func run(_ suite: TestSuite) {
+        defer { HUD.messages = [] }
+        let service = Service()
+        let message = FeatureStrings.scratchpad(L10n.shared.language).saveFailed
+        service.flushSave()
+        suite.expect(service.saveFailed, "a failed autosave marks the pad as unsaved")
+        service.createPad(defaultName: "Notes")
+        suite.expect(service.saveFailed && service.store.writes == 2 && HUD.messages.isEmpty,
+                     "a failed tab write keeps the warning in place and every write is still tried")
+        suite.expect(service.applied == 0 && service.document?.pads.count == 1,
+                     "a tab action whose write failed leaves the notes as they were")
+        service.commitEdits()
+        suite.expect(HUD.messages == [message], "a failed write as the pad or the island closes shows the HUD")
+        service.store.succeeds = true
+        service.createPad(defaultName: "Notes")
+        suite.expect(!service.saveFailed && service.applied == 1, "a successful write clears the warning")
+        service.commitEdits()
+        suite.expect(HUD.messages.count == 1, "a successful write on close shows no HUD")
     }
 }

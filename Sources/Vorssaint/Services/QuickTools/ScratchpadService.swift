@@ -20,6 +20,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     @Published private(set) var isPreviewing = false
     @Published private(set) var pads: [ScratchpadPad] = []
     @Published private(set) var selectedPadID: UUID?
+    /// Both pads show this in place until a write succeeds again.
+    @Published private(set) var saveFailed = false
     /// Bumped when Command-W asks the view to close the selected tab
     /// (so confirmation stays in SwiftUI).
     @Published private(set) var keyboardCloseSelectedPadSerial = 0
@@ -135,11 +137,20 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         return loadApplyingRetention()
     }
 
-    func commitEdits() { flushSave() }
+    /// The inline warning leaves with the pad or the island, so a final
+    /// write that fails on the way out falls back to the HUD.
+    func commitEdits() {
+        flushSave()
+        if saveFailed {
+            QuickToolHUD.show(
+                icon: "exclamationmark.triangle",
+                message: FeatureStrings.scratchpad(L10n.shared.language).saveFailed)
+        }
+    }
 
     func hide() {
         guard panel != nil else { return }
-        flushSave()
+        commitEdits()
         removeMonitors()
         panel?.orderOut(nil)
         isPinned = false
@@ -181,7 +192,13 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         pendingSave?.cancel()
         pendingSave = nil
         guard hasLoaded, let document else { return }
-        _ = store.save(document)
+        _ = save(document)
+    }
+
+    /// A failed write keeps the edits in memory and retries on the next change.
+    private func save(_ next: ScratchpadDocument) -> Bool {
+        saveFailed = !store.save(next)
+        return !saveFailed
     }
 
     private func apply(_ document: ScratchpadDocument, focus: Bool = false) {
@@ -204,23 +221,23 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     func createPad(defaultName: String) {
-        guard let document, let next = document.addingPad(defaultName: defaultName), store.save(next) else { return }
+        guard let document, let next = document.addingPad(defaultName: defaultName), save(next) else { return }
         apply(next, focus: true)
     }
 
     func selectPad(_ id: UUID) {
-        guard id != selectedPadID, let document, let next = document.selecting(id), store.save(next) else { return }
+        guard id != selectedPadID, let document, let next = document.selecting(id), save(next) else { return }
         apply(next, focus: true)
     }
 
     func renamePad(_ id: UUID, to name: String) {
-        guard let document, let next = document.renaming(id, to: name), store.save(next) else { return }
+        guard let document, let next = document.renaming(id, to: name), save(next) else { return }
         apply(next, focus: id == selectedPadID)
     }
 
     @discardableResult
     func closePad(_ id: UUID) -> Bool {
-        guard let document, let next = document.removing(id), store.save(next) else { return false }
+        guard let document, let next = document.removing(id), save(next) else { return false }
         apply(next, focus: true)
         return true
     }
