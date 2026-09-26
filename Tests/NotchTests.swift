@@ -1509,12 +1509,16 @@ enum NotchTests {
                                        notched: [false, true], main: 0) == 1,
                "automatic uses the notched built-in screen even with external main display")
         suite.expect(NotchSupport.screenIndex(preference: .builtIn, builtIn: [false],
-                                       notched: [false], main: 0) == 0, "closed-lid mode falls back to an attached screen")
+                                       notched: [false], main: 0) == nil,
+               "closed-lid mode hides the island when the selected built-in display is unavailable")
         suite.expect(NotchSupport.screenIndex(preference: .automatic, builtIn: [false, false],
                                        notched: [false, false], main: 1) == 1
                      && NotchSupport.screenIndex(preference: .builtIn, builtIn: [false, false],
-                                       notched: [false, false], main: 1) == 1,
-               "external-only setups keep the primary display in automatic and built-in modes")
+                                       notched: [false, false], main: 1) == nil,
+               "external-only setups use the primary display automatically but hide a built-in-only island")
+        suite.expect(NotchSupport.screenIndex(preference: .builtIn, builtIn: [false, true],
+                                       notched: [false, true], main: 0) == 1,
+               "the built-in choice returns to the laptop display when the lid opens")
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [], notched: [], main: 0) == nil,
                "no connected displays means no panel")
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [true, false, false],

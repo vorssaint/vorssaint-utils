@@ -955,7 +955,7 @@ enum NotchSupport {
         let fallback = builtIn.indices.contains(main) ? main : 0
         switch preference {
         case .main: return fallback
-        case .builtIn: return builtIn.firstIndex(of: true) ?? fallback
+        case .builtIn: return builtIn.firstIndex(of: true)
         case .automatic:
             return builtIn.indices.first { builtIn[$0] && notched[$0] }
                 ?? notched.firstIndex(of: true) ?? fallback
