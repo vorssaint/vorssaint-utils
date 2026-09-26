@@ -7,13 +7,19 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island gives a small spring response when the pointer reaches its closed surface. App shortcuts can cover the full alphabet with room to spare.
+Dynamic Island responds to hover and uses supported playback commands for radio streams.
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+- App Switcher can skip highlight, scrolling and panel resize animations while browsing, with smooth selection still the default.
 - App shortcuts now allow up to 64 bindings, enough for every letter and other commands.
 
+### Fixed
+- Dynamic Island sends a player's supported Play or Pause command when available, improving control of radio streams.
+
 ### Contributors
+Thanks to @stephansann for the report.
+Thanks to @Samuel61904 for the suggestion.
 Thanks to @stephansann.
 
 ## [3.4.0-beta.6] - 2026-09-25

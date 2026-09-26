@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Vypne zodpovedajúce skratky macOS pre aplikácie a okná len na čas, keď je prepínač Vorssaintu aktívny. Všetky spustené aplikácie ostanú dostupné.",
         switcherAppearanceDelay: "Oneskorenie zobrazenia",
         switcherAppearanceDelayCaption: "Ako dlho treba skratku podržať, kým sa prepínač objaví.",
+        switcherInstantSelection: "Okamžitý výber",
+        switcherInstantSelectionCaption: "Pri prechádzaní aplikácií a okien okamžite presunie zvýraznenie a posunie zoznam.",
         switcherMergeTabs: "Zobraziť jednu položku na aplikáciu",
         switcherMergeTabsCaption: "Zlúči všetky okná aplikácie do jednej položky v prepínači namiesto jednej položky na každé okno.",
         switcherWindowlessApps: "Aplikácie bez otvoreného okna",

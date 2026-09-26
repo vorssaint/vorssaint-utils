@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Eşleşen macOS uygulama ve pencere kısayollarını yalnızca Vorssaint değiştiricisi etkinken kapatır. Çalışan tüm uygulamalara erişim korunur.",
         switcherAppearanceDelay: "Görünme gecikmesi",
         switcherAppearanceDelayCaption: "Değiştirici görünmeden önce kısayolun ne kadar basılı tutulacağı.",
+        switcherInstantSelection: "Anında seçim",
+        switcherInstantSelectionCaption: "Uygulamalar ve pencereler arasında gezinirken vurguyu ve kaydırma konumunu anında değiştirir.",
         switcherMergeTabs: "Uygulama başına bir giriş göster",
         switcherMergeTabsCaption: "Değiştiricide pencere başına bir giriş yerine, bir uygulamanın tüm pencerelerini tek girişte toplar.",
         switcherWindowlessApps: "Açık penceresi olmayan uygulamalar",

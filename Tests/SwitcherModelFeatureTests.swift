@@ -277,6 +277,14 @@ enum SwitcherModelFeatureTests {
                == SwitcherSupport.defaultAppearanceDelayMilliseconds
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherAppearanceDelay),
                "App Switcher keeps the current appearance delay by default and carries the choice in backups")
+        suite.expect(registeredDefaults[DefaultsKey.switcherInstantSelection] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherInstantSelection),
+               "App Switcher keeps smooth selection by default and carries instant selection in backups")
+        let instantSelectionBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.switcherInstantSelection ? true : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: instantSelectionBackup)?[DefaultsKey.switcherInstantSelection] as? Bool == true,
+               "App Switcher restores the instant selection choice from a settings backup")
         suite.expect(SwitcherSupport.appearanceDelayMillisecondsRange
                .contains(SwitcherSupport.defaultAppearanceDelayMilliseconds),
                "the default App Switcher appearance delay is one the slider accepts")

@@ -20,9 +20,18 @@ struct MonitorAlertsControls: View {
     @AppStorage(DefaultsKey.monitorAlertDiskFreePercent) private var alertDiskFreePercent = 10
     @AppStorage(DefaultsKey.monitorAlertBatteryPercent) private var alertBatteryPercent = 15
     @AppStorage(DefaultsKey.monitorAlertCooldownMinutes) private var alertCooldown = 15
+    @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
 
     private var text: MonitorAlertFeatureStrings {
         FeatureStrings.monitorAlerts(l10n.language)
+    }
+
+    private var selectedTemperatureUnit: TemperatureUnit {
+        TemperatureUnit(rawValue: temperatureUnit) ?? .celsius
+    }
+
+    private func formattedTemperature(_ celsius: Int) -> String {
+        MetricFormat.temperature(Double(celsius), unit: selectedTemperatureUnit)
     }
 
     var body: some View {
@@ -59,10 +68,10 @@ struct MonitorAlertsControls: View {
                 if AppFeature.monitorCPU.isAvailable {
                     AlertTile(title: text.cpu, symbol: "cpu", isOn: $alertCPU,
                               limit: .init(label: text.cpuThreshold, value: $alertCPUThreshold,
-                                           range: 50...100, step: 5, unit: "%"))
+                                           range: 50...100, step: 5, formatValue: { "\($0)%" }))
                     AlertTile(title: text.cpuTemperature, symbol: "thermometer.medium", isOn: $alertCPUTemperature,
                               limit: .init(label: text.cpuTemperatureThreshold, value: $alertCPUTemperatureThreshold,
-                                           range: 70...105, step: 5, unit: " °C"))
+                                           range: 70...105, step: 5, formatValue: formattedTemperature))
                 }
                 if AppFeature.monitorMemory.isAvailable {
                     AlertTile(title: text.memory, symbol: "memorychip", isOn: $alertMemory, limit: nil)
@@ -70,16 +79,16 @@ struct MonitorAlertsControls: View {
                 if AppFeature.monitorDisk.isAvailable {
                     AlertTile(title: text.disk, symbol: "internaldrive", isOn: $alertDisk,
                               limit: .init(label: text.diskThreshold, value: $alertDiskFreePercent,
-                                           range: 5...30, step: 5, unit: "%"))
+                                           range: 5...30, step: 5, formatValue: { "\($0)%" }))
                 }
                 if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
                     AlertTile(title: text.batteryTemperature, symbol: "thermometer.high", isOn: $alertBatteryTemperature,
                               limit: .init(label: text.batteryTemperatureThreshold,
                                            value: $alertBatteryTemperatureThreshold,
-                                           range: 30...50, step: 5, unit: " °C"))
+                                           range: 30...50, step: 5, formatValue: formattedTemperature))
                     AlertTile(title: text.battery, symbol: "battery.25percent", isOn: $alertBattery,
                               limit: .init(label: text.batteryThreshold, value: $alertBatteryPercent,
-                                           range: 5...50, step: 5, unit: "%"))
+                                           range: 5...50, step: 5, formatValue: { "\($0)%" }))
                 }
             }
             if anyAlertEnabled {
@@ -130,7 +139,7 @@ struct MonitorAlertsControls: View {
                 }
                 Toggle(text.cpuTemperature, isOn: $alertCPUTemperature)
                 if alertCPUTemperature {
-                    Stepper("\(text.cpuTemperatureThreshold) \(alertCPUTemperatureThreshold) °C",
+                    Stepper("\(text.cpuTemperatureThreshold) \(formattedTemperature(alertCPUTemperatureThreshold))",
                             value: $alertCPUTemperatureThreshold,
                             in: 70...105,
                             step: 5)
@@ -151,7 +160,7 @@ struct MonitorAlertsControls: View {
             if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
                 Toggle(text.batteryTemperature, isOn: $alertBatteryTemperature)
                 if alertBatteryTemperature {
-                    Stepper("\(text.batteryTemperatureThreshold) \(alertBatteryTemperatureThreshold) °C",
+                    Stepper("\(text.batteryTemperatureThreshold) \(formattedTemperature(alertBatteryTemperatureThreshold))",
                             value: $alertBatteryTemperatureThreshold,
                             in: 30...50,
                             step: 5)
@@ -219,7 +228,7 @@ private struct AlertTile: View {
         let value: Binding<Int>
         let range: ClosedRange<Int>
         let step: Int
-        let unit: String
+        let formatValue: (Int) -> String
     }
 
     let title: String
@@ -251,7 +260,7 @@ private struct AlertTile: View {
                 .accessibilityAddTraits(isOn ? .isSelected : [])
                 if isOn, let limit {
                     HStack(spacing: 6) {
-                        Text("\(limit.label) \(limit.value.wrappedValue)\(limit.unit)")
+                        Text("\(limit.label) \(limit.formatValue(limit.value.wrappedValue))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -260,6 +269,7 @@ private struct AlertTile: View {
                         Stepper(limit.label, value: limit.value, in: limit.range, step: limit.step)
                             .labelsHidden()
                             .controlSize(.mini)
+                            .accessibilityValue(limit.formatValue(limit.value.wrappedValue))
                     }
                 }
             }

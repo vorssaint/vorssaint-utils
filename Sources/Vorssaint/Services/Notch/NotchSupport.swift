@@ -79,6 +79,20 @@ enum NotchModule: String, CaseIterable, Identifiable {
     }
 }
 
+/// ⌘1 to ⌘9 on the island's clipboard page paste the entry at that place in
+/// the visible list, as in the quick panel.
+struct NotchClipboardPastePress: Equatable {
+    let serial: Int
+    let index: Int
+
+    /// The digit row by physical key, so every layout keeps the shortcut.
+    static func index(keyCode: UInt16, commandOnly: Bool) -> Int? {
+        guard commandOnly else { return nil }
+        let digitKeys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
+        return digitKeys.firstIndex(of: keyCode)
+    }
+}
+
 enum NotchDisplay: String, CaseIterable {
     case automatic, builtIn, main
 }
