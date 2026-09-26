@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "仅在 Vorssaint 切换器运行时停用对应的 macOS App 与窗口快捷键，并保留所有正在运行的 App 入口。",
         switcherAppearanceDelay: "显示延迟",
         switcherAppearanceDelayCaption: "按住快捷键多久后显示切换器。",
+        switcherInstantSelection: "即时选择",
+        switcherInstantSelectionCaption: "浏览 App 和窗口时，立即移动高亮并滚动列表。",
         switcherMergeTabs: "每个 App 仅显示一项",
         switcherMergeTabsCaption: "将一个 App 的所有窗口合并为切换器中的一项，而不是每个窗口一项。",
         switcherWindowlessApps: "无打开窗口的 App",

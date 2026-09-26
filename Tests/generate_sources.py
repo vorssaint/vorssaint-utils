@@ -676,6 +676,7 @@ def main():
     write("SwitcherScroll.swift", "import AppKit\nimport SwiftUI\n"
           + "extension SwitcherScrollContract {\nstruct Strip: View {\n"
           + "@ObservedObject var switcher: Model\n"
+          + "var instantSelection = false\n"
           + "var iconRowContentWidth: CGFloat { switcher.iconRowLayout.contentWidth(simpleMode: true, windowRow: false) }\n"
           + "var body: some View {\nif selectedWindow != nil {\nlet appWindows = selectedAppWindows\n"
           + "if switcher.simple {\nGroup {\n"

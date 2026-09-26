@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Disattiva le scorciatoie macOS corrispondenti solo mentre il selettore Vorssaint è attivo. Tutte le app aperte restano raggiungibili.",
         switcherAppearanceDelay: "Ritardo di comparsa",
         switcherAppearanceDelayCaption: "Per quanto tempo va tenuta premuta la scorciatoia prima che appaia il selettore.",
+        switcherInstantSelection: "Selezione istantanea",
+        switcherInstantSelectionCaption: "Sposta subito l’evidenziazione e scorre l’elenco mentre navighi tra app e finestre.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un’app in un’unica voce nel commutatore, anziché una per finestra.",
         switcherWindowlessApps: "App senza finestre aperte",

@@ -8,9 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Dynamic Island gives a small spring response when the pointer reaches its closed surface.
+App Switcher can now move its selection instantly while browsing.
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+- App Switcher can skip highlight, scrolling and panel resize animations while browsing, with smooth selection still the default.
+
+### Contributors
+Thanks to @Samuel61904 for the suggestion.
 
 ## [3.4.0-beta.6] - 2026-09-25
 

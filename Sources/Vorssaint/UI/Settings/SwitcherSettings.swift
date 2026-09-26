@@ -25,6 +25,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
+    @AppStorage(DefaultsKey.switcherInstantSelection) private var switcherInstantSelection = false
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
     private var switcherWindowlessAppsSelection: Binding<String> {
@@ -180,6 +181,10 @@ struct SwitcherSettings: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 56, alignment: .trailing)
                 }
+            }
+            SettingsRow(symbol: "cursorarrow.rays", title: l10n.s.switcherInstantSelection,
+                        caption: l10n.s.switcherInstantSelectionCaption) {
+                Toggle(l10n.s.switcherInstantSelection, isOn: $switcherInstantSelection).labelsHidden()
             }
             SettingsRow(symbol: "magnifyingglass", title: l10n.s.switcherSearchPin,
                         caption: l10n.s.switcherSearchPinCaption) {
