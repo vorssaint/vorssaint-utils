@@ -180,7 +180,27 @@ enum NotchAudioLevelLifecycleContract {
             expect(false, "playing starts an audio reader")
             return
         }
-        var current = first
+        var publications: [[Double]?] = []
+        let observation = service.$levels.dropFirst().sink { publications.append($0) }
+        first.onLevels([0, 0, 0, 0, 0, 0, 0])
+        drain()
+        for _ in 0..<10 { first.onLevels([0, 0, 0, 0, 0, 0, 0]) }
+        drain()
+        expect(publications.count == 1 && service.levels == [0, 0, 0, 0, 0, 0, 0],
+               "identical audio samples do not invalidate the island again")
+        first.onLevels([0, 0, 0.25, 0, 0, 0, 0])
+        drain()
+        first.onLevels([0, 0, 0, 0, 0, 0, 0])
+        drain()
+        expect(publications.count == 3,
+               "a changed spectrum and its return to silence are both published")
+        enable(false)
+        expect(publications.count == 4 && publications.last! == nil,
+               "stopping still publishes the transition from silent levels to no reader")
+        observation.cancel()
+        enable(true)
+        guard let active = Reader.instances.last else { return }
+        var current = active
         let lateCallbacks: [(String, (Reader) -> Void)] = [
             ("levels", { $0.onLevels([0.1]) }),
             ("silence", { $0.onSilence() }),

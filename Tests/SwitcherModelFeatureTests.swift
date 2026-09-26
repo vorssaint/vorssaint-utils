@@ -13,6 +13,7 @@ import VMStatisticsCompat
 
 enum SwitcherModelFeatureTests {
     static func run(_ suite: TestSuite) {
+        ScrollingTitleMotionTests.run(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",

@@ -21,6 +21,11 @@ struct ScrollingTitle: View {
     let scrolls: Bool
 
     @State private var began: Date?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var shouldScroll: Bool {
+        scrolls && !reduceMotion && overflows
+    }
 
     private static let size: CGFloat = 13
     private static let speed: CGFloat = 26
@@ -38,7 +43,7 @@ struct ScrollingTitle: View {
 
     var body: some View {
         Group {
-            if scrolls, overflows {
+            if shouldScroll {
                 scrollingLine
             } else {
                 Text(text)

@@ -51,8 +51,8 @@ struct NotchAgentStrip: View {
             Button { service.open(.agents) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 42 {
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
-                            let text = reading(at: context.date)
+                        NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
+                            let text = reading(at: date)
                             Text(text)
                                 .font(.system(size: textSize, weight: .medium))
                                 .monospacedDigit()
@@ -89,6 +89,23 @@ struct NotchAgentStrip: View {
     private func reading(at now: Date) -> String {
         NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                        display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
+    }
+}
+
+/// Keep the original one-second cadence for time-dependent readings, but
+/// install no clock at all for values updated by the observed usage snapshot.
+struct NotchAgentReadoutTimeline<Content: View>: View {
+    let readout: NotchAgentReadout
+    @ViewBuilder var content: (Date) -> Content
+
+    var body: some View {
+        if readout.advancesWithClock {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                content(context.date)
+            }
+        } else {
+            content(.now)
+        }
     }
 }
 

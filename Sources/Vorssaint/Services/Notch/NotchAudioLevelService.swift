@@ -151,7 +151,7 @@ final class NotchAudioLevelService: ObservableObject {
     }
 
     private func receive(_ next: [Double], from pid: pid_t) {
-        guard reader != nil, readerPID == pid else { return }
+        guard reader != nil, readerPID == pid, levels != next else { return }
         levels = next
     }
 }

@@ -1075,6 +1075,24 @@ def main():
           + declaration(dock, "    func endWindowDrag(")
           + "}\n")
 
+    write("AgentUsageEventDelivery.swift", "import Foundation\n"
+          + "extension AgentUsageEventDeliveryTests {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
+                        "    private func report(").replace("private func", "func", 1)
+          + "}\n}\n")
+
+    write("ScrollingTitleMotion.swift", "import Foundation\n"
+          + "extension ScrollingTitleMotionTests {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/UI/Switcher/ScrollingTitle.swift",
+                        "    private var shouldScroll:").replace("private var", "var", 1)
+          + "}\n}\n")
+
+    write("AgentUsageRead.swift", "import Foundation\n"
+          + "extension AgentUsageReadTests {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
+                        "    private func read(").replace("private func", "func", 1)
+          + "}\n}\n")
+
     # Same-file extensions can exercise the private AppKit content view without
     # widening the production interface or presenting an application window.
     hud = "Sources/Vorssaint/UI/QuitProtection/QuitProtectionHUD.swift"

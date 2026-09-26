@@ -22,9 +22,11 @@ enum NotchAgentTests {
         strip(suite)
         liveTurns(suite)
         reading(suite)
+        AgentUsageReadTests.run(suite)
         claudeApp(suite)
         preferences(suite)
         formatting(suite)
+        AgentUsageEventDeliveryTests.run(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -663,6 +665,9 @@ enum NotchAgentTests {
             AgentUsageSummary.snapshot(records: [], limits: limits, live: live, plans: [:],
                                        providers: [.claude, .codex], now: now)
         }
+        suite.expect(NotchAgentReadout.elapsed.advancesWithClock && NotchAgentReadout.limit.advancesWithClock
+                        && !NotchAgentReadout.tokens.advancesWithClock && !NotchAgentReadout.cost.advancesWithClock,
+                     "only elapsed and expiring-limit readouts require clock-driven updates")
         let short = snapshot([session(.claude, startedAgo: 754)])
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
         suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
@@ -672,6 +677,15 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(long, readout: .tokens, display: .remaining, now: now)
                             == AgentFormat.tokens(600),
                      "cost and written tokens add up every turn that is working")
+        for readout in [NotchAgentReadout.tokens, .cost] {
+            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, now: now)
+                            == NotchAgentSupport.stripReading(short, readout: readout, display: .remaining,
+                                                             now: now.addingTimeInterval(60)),
+                         "time alone never changes the \(readout.rawValue) reading")
+            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, now: now)
+                            != NotchAgentSupport.stripReading(long, readout: readout, display: .remaining, now: now),
+                         "a new usage snapshot still changes the \(readout.rawValue) reading")
+        }
         let window = AgentLimitWindow(id: "w", kind: .weekly, minutes: 10_080, scope: nil, usedPercent: 79,
                                       resetsAt: now.addingTimeInterval(86_400))
         let limited = snapshot([session(.claude, startedAgo: 754)],
@@ -680,6 +694,10 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
                         && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        let expiredAt = now.addingTimeInterval(86_401)
+        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: expiredAt)
+                        == AgentFormat.percent(1),
+                     "a limit that renews without a new snapshot still updates from the clock")
         suite.expect(NotchAgentSupport.readingShape("12:34") == NotchAgentSupport.readingShape("59:59")
                         && NotchAgentSupport.readingShape("9:59") != NotchAgentSupport.readingShape("10:00")
                         && NotchAgentSupport.readingShape("$4,56") == "$0,00",
@@ -760,6 +778,39 @@ enum NotchAgentTests {
                              "an oversized log line never consumes the valid line after it")
             }
         }
+
+        // An invalid line may keep growing over several file-change events.
+        // None of its later fragments may become a pending valid line.
+        try? Data(repeating: 0x78, count: AgentLogReader.maximumLine + 1).write(to: large)
+        let discarded = AgentLogCursor(path: large.path, provider: .claude)
+        var recovered: [String] = []
+        func readDiscarded() {
+            AgentLogReader.readAppended(discarded) { recovered.append(String(decoding: $0, as: UTF8.self)) }
+        }
+        func appendDiscarded(_ data: Data) {
+            guard let handle = try? FileHandle(forWritingTo: large) else {
+                suite.expect(false, "the oversized-line fixture opens for appending")
+                return
+            }
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(data)
+            readDiscarded()
+        }
+        readDiscarded()
+        suite.expect(discarded.discarding && discarded.pending.isEmpty && recovered.isEmpty,
+                     "an unterminated oversized line enters discard mode")
+        for _ in 0..<3 {
+            appendDiscarded(Data(repeating: 0x78, count: AgentLogReader.chunkSize))
+            suite.expect(discarded.discarding && discarded.pending.isEmpty && recovered.isEmpty,
+                         "later fragments of a discarded line are never retained between reads")
+        }
+        appendDiscarded(Data("\nok\npar".utf8))
+        suite.expect(!discarded.discarding && discarded.pending == Data("par".utf8) && recovered == ["ok"],
+                     "the discarded line's end preserves the next complete line and its valid partial successor")
+        appendDiscarded(Data("tial\n".utf8))
+        suite.expect(discarded.pending.isEmpty && recovered == ["ok", "partial"],
+                     "a valid partial line after discard mode completes normally")
 
         var chunked = Data("head\n".utf8)
         chunked.append(Data(repeating: 0x78, count: AgentLogReader.chunkSize))

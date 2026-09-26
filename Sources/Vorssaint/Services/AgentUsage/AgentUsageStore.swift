@@ -334,7 +334,9 @@ enum AgentLogReader {
             }
             if !range.isEmpty, range.count <= maximumLine { line(buffer.subdata(in: range)) }
         }
-        if count - start > maximumLine {
+        // Once a line is oversized, scan only for its terminator. Retaining
+        // subsequent fragments would rebuild a buffer we can never deliver.
+        if cursor.discarding || count - start > maximumLine {
             cursor.pending = Data()
             cursor.discarding = true
         } else {
