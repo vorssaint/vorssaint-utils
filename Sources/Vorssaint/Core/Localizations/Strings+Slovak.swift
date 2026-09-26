@@ -590,6 +590,8 @@ extension Strings {
         mixerOutputFallback: "Kým sa toto zariadenie nevráti, používa sa predvolené.",
         mixerBypassedCaption: "Táto aplikácia si spravuje zvuk sama.",
         mixerOutputTooltip: "Vybrať výstup",
+        mixerAirPlayPickerTooltip: "Vybrať reproduktor AirPlay…",
+        mixerAirPlaySpeakerFormat: "AirPlay: %@",
         mixerSystemOutputTitle: "Výstup",
         mixerSystemOutputNoDevices: "Nenašli sa žiadne výstupy",
         mixerSystemOutputTooltip: "Vybrať systémový výstup",

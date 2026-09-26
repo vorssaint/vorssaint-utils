@@ -590,6 +590,8 @@ extension Strings {
         mixerOutputFallback: "Uso l’uscita predefinita finché questo dispositivo non torna.",
         mixerBypassedCaption: "Questa app gestisce da sé il proprio audio.",
         mixerOutputTooltip: "Scegli uscita",
+        mixerAirPlayPickerTooltip: "Scegli altoparlante AirPlay…",
+        mixerAirPlaySpeakerFormat: "AirPlay: %@",
         mixerSystemOutputTitle: "Uscita",
         mixerSystemOutputNoDevices: "Nessuna uscita trovata",
         mixerSystemOutputTooltip: "Scegli uscita di sistema",

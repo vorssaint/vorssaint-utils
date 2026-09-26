@@ -590,6 +590,8 @@ extension Strings {
         mixerOutputFallback: "このデバイスが戻るまでデフォルトを使用します。",
         mixerBypassedCaption: "このアプリは自身でオーディオを管理します。",
         mixerOutputTooltip: "出力を選択",
+        mixerAirPlayPickerTooltip: "AirPlayスピーカーを選択…",
+        mixerAirPlaySpeakerFormat: "AirPlay：%@",
         mixerSystemOutputTitle: "出力",
         mixerSystemOutputNoDevices: "出力が見つかりません",
         mixerSystemOutputTooltip: "システム出力を選択",

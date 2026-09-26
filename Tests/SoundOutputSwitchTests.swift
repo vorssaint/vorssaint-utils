@@ -22,5 +22,18 @@ enum SoundOutputSwitchContract {
         suite.expect(mixer.switchToNextSoundOutput(in: ["BuiltInSpeakerDevice", "ExternalDisplay"])
                      && mixer.switchedTo == ["ExternalDisplay"],
                      "two selected outputs still switch to the next one")
+
+        // The AirPlay entry is a per-app route: the mixer never marks it as a
+        // possible system output, so the shortcut skips it like any output
+        // that cannot be the default.
+        let airPlayUID = AirPlayRouteManager.airPlaySentinelUID
+        mixer.outputDevices = [Device(uid: "BuiltInSpeakerDevice", canBeDefaultOutput: true),
+                               Device(uid: airPlayUID, canBeDefaultOutput: false),
+                               Device(uid: "ExternalDisplay", canBeDefaultOutput: true)]
+        mixer.currentOutputDeviceUID = "BuiltInSpeakerDevice"
+        mixer.switchedTo = []
+        suite.expect(mixer.switchToNextSoundOutput(in: ["BuiltInSpeakerDevice", airPlayUID, "ExternalDisplay"])
+                     && mixer.switchedTo == ["ExternalDisplay"],
+                     "the output shortcut skips the per-app AirPlay entry")
     }
 }

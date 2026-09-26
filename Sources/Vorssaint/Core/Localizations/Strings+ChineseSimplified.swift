@@ -590,6 +590,8 @@ extension Strings {
         mixerOutputFallback: "在此设备恢复前使用默认输出。",
         mixerBypassedCaption: "此 App 自行管理音频。",
         mixerOutputTooltip: "选择输出",
+        mixerAirPlayPickerTooltip: "选择 AirPlay 扬声器…",
+        mixerAirPlaySpeakerFormat: "AirPlay：%@",
         mixerSystemOutputTitle: "输出",
         mixerSystemOutputNoDevices: "未找到输出设备",
         mixerSystemOutputTooltip: "选择系统输出",

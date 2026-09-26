@@ -246,6 +246,22 @@ enum MixerRoutingSupport {
                                volumes: volumes)
     }
 
+    /// Vorssaint's own AirPlay entry, streamed through the system route picker.
+    /// Exact match only: real AirPlay devices macOS exposes are ordinary outputs
+    /// and route through the normal tap, and a device name or UID that merely
+    /// mentions AirPlay must never be mistaken for this entry.
+    static func isAirPlaySentinel(_ uid: String) -> Bool {
+        uid == AirPlayRouteManager.airPlaySentinelUID
+    }
+
+    /// Outputs an app's audio can go to right now. The AirPlay entry stays in
+    /// the list (choosing it opens the picker) but only carries audio while a
+    /// speaker is picked; otherwise the app falls back to the default output,
+    /// exactly like unplugged headphones.
+    static func routableOutputUIDs(_ uids: [String], airPlayConnected: Bool) -> Set<String> {
+        Set(uids.filter { airPlayConnected || !isAirPlaySentinel($0) })
+    }
+
     static func nextSelectedOutputDeviceUID(currentUID: String?,
                                             selectedUIDs: [String],
                                             availableUIDs: Set<String>) -> String? {

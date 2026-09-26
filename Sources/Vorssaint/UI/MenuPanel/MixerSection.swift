@@ -126,6 +126,8 @@ struct MixerSection: View {
 
                 Spacer(minLength: 6)
 
+                AirPlayPickerButton()
+
                 Picker(l10n.s.mixerSystemOutputTooltip, selection: universalOutputSelectionBinding) {
                     if mixer.currentOutputDeviceUID == nil {
                         Text(l10n.s.mixerOutputUnavailable)

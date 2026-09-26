@@ -197,6 +197,11 @@ final class AppVolumeMixer: ObservableObject {
         processMonitoringEnabled = AppFeature.mixer.isAvailable
         if processMonitoringEnabled {
             publishHiddenApps()
+            // Created here, on the main thread, before any refresh reads the
+            // AirPlay snapshot from the HAL queue.
+            AirPlayRouteManager.shared.activate { [weak self] in
+                self?.refreshApps()
+            }
         }
         guard !listenerInstalled else {
             refreshApps()
@@ -259,6 +264,7 @@ final class AppVolumeMixer: ObservableObject {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
             self.wakeObserver = nil
         }
+        AirPlayRouteManager.shared.deactivate()
         if !apps.isEmpty { apps = [] }
         if !hiddenApps.isEmpty { hiddenApps = [] }
         if !outputDevices.isEmpty { outputDevices = [] }
@@ -568,11 +574,16 @@ final class AppVolumeMixer: ObservableObject {
         engineRecovery.clear(app.id)
         let sanitized = Defaults.sanitizedAppOutputDeviceUID(uid)
         persistOutputDeviceUID(sanitized, for: app)
+        if let sanitized, MixerRoutingSupport.isAirPlaySentinel(sanitized), !AirPlayRouteManager.shared.isConnected {
+            AirPlayRouteManager.shared.presentPicker()
+        }
         if let index = apps.firstIndex(where: { $0.id == app.id }) {
             apps[index].selectedOutputDeviceUID = sanitized
             applyOutputRoute(to: &apps[index],
                              savedOutputs: [app.id: sanitized].compactMapValues { $0 },
-                             availableUIDs: Set(outputDevices.map(\.uid)),
+                             availableUIDs: MixerRoutingSupport.routableOutputUIDs(
+                                outputDevices.map(\.uid),
+                                airPlayConnected: AirPlayRouteManager.isSpeakerConnected),
                              defaultUID: currentOutputDeviceUID)
             // The running tap is left alone here: applyRouting builds the one
             // for the new device first and only then stops this one, so the
@@ -667,7 +678,9 @@ final class AppVolumeMixer: ObservableObject {
         // replacement running on the new device.
         builds.invalidateAll()
 
-        let availableUIDs = Set(outputDevices.map(\.uid))
+        let availableUIDs = MixerRoutingSupport.routableOutputUIDs(
+            outputDevices.map(\.uid),
+            airPlayConnected: AirPlayRouteManager.isSpeakerConnected)
         apps = apps.map { current in
             var app = current
             app.volume = storedVolume(for: app.identity, saved: preferences.volumes) ?? app.volume
@@ -772,6 +785,24 @@ final class AppVolumeMixer: ObservableObject {
         guard engineRecovery.allowsBuild(app.id, configuration: configuration) else { return }
         guard #available(macOS 14.4, *), let token = builds.begin(app.id) else { return }
 
+        if MixerRoutingSupport.isAirPlaySentinel(targetOutputDeviceUID) {
+            let clockUID = clockDeviceUIDForAirPlayTap()
+            buildQueue.async { [weak self] in
+                let engine = AirPlayGainEngine(appID: app.id,
+                                               objects: app.audioObjects,
+                                               gain: Float(app.volume),
+                                               clockDeviceUID: clockUID)
+                DispatchQueue.main.async {
+                    guard let self else {
+                        engine?.stop()
+                        return
+                    }
+                    self.install(engine, for: app.id, token: token)
+                }
+            }
+            return
+        }
+
         buildQueue.async { [weak self] in
             let engine = TapGainEngine(objects: app.audioObjects,
                                        gain: Float(app.volume),
@@ -784,6 +815,16 @@ final class AppVolumeMixer: ObservableObject {
                 self.install(engine, for: app.id, token: token)
             }
         }
+    }
+
+    private func clockDeviceUIDForAirPlayTap() -> String {
+        if let current = currentOutputDeviceUID, !MixerRoutingSupport.isAirPlaySentinel(current) {
+            return current
+        }
+        if let hardware = outputDevices.first(where: { !MixerRoutingSupport.isAirPlaySentinel($0.uid) })?.uid {
+            return hardware
+        }
+        return "BuiltInSpeakerDevice"
     }
 
     /// Lands one finished build on the main thread.
@@ -1036,7 +1077,9 @@ final class AppVolumeMixer: ObservableObject {
             selector: kAudioHardwarePropertyDefaultSystemOutputDevice)
         let nextOutputDevices = outputDevices(defaultUID: defaultUID)
         let defaultDevice = nextOutputDevices.first { $0.uid == defaultUID }
-        let availableUIDs = Set(nextOutputDevices.map(\.uid))
+        let availableUIDs = MixerRoutingSupport.routableOutputUIDs(
+            nextOutputDevices.map(\.uid),
+            airPlayConnected: AirPlayRouteManager.isSpeakerConnected)
         let lowered = loweringOutputVolumeIfHeadphonesDisconnected(
             state: request.lowered,
             previousDefaultUID: request.previousDefaultUID,
@@ -1719,6 +1762,28 @@ final class AppVolumeMixer: ObservableObject {
                                              audioObjectID: deviceID))
         }
 
+        // Always listed while the picker API exists, next to any AirPlay device
+        // macOS itself exposes: the two are different routes. It is a per-app
+        // route only: picking a speaker never moves the Mac's own output, so it
+        // is never offered as the system, alert-sound or priority output.
+        if AirPlayRouteManager.isListed {
+            let airPlayName: String
+            if let active = AirPlayRouteManager.currentSpeakerName, !active.isEmpty {
+                airPlayName = "\(active) (AirPlay)"
+            } else {
+                airPlayName = "AirPlay"
+            }
+            devices.append(MixerOutputDevice(id: AirPlayRouteManager.airPlaySentinelUID,
+                                             uid: AirPlayRouteManager.airPlaySentinelUID,
+                                             name: airPlayName,
+                                             isDefault: false,
+                                             isHeadphones: false,
+                                             canBeDefaultOutput: false,
+                                             canBeDefaultSystemOutput: false,
+                                             priorityTier: .hardware,
+                                             audioObjectID: 0))
+        }
+
         return devices.sorted { lhs, rhs in
             MixerRoutingSupport.deviceDisplayOrderedBefore(
                 isDefault: lhs.isDefault, name: lhs.name, uid: lhs.uid,
@@ -2236,4 +2301,159 @@ private final class TapGainEngine: GainEngine {
     }
 
     deinit { stop() }
+}
+
+/// An audio path that taps an application and feeds its audio into AirPlayRouteManager for streaming to AirPlay.
+@available(macOS 14.4, *)
+private final class AirPlayGainEngine: GainEngine {
+    let tappedObjects: [AudioObjectID]
+    let outputDeviceUID: String
+    private let appID: String
+
+    private final class AtomicFloatBox {
+        private var bits: Int32
+        init(_ value: Float) { bits = Int32(bitPattern: value.bitPattern) }
+        var value: Float {
+            get { Float(bitPattern: UInt32(bitPattern: OSAtomicAdd32Barrier(0, &bits))) }
+            set {
+                let replacement = Int32(bitPattern: newValue.bitPattern)
+                while true {
+                    let current = OSAtomicAdd32Barrier(0, &bits)
+                    if OSAtomicCompareAndSwap32Barrier(current, replacement, &bits) { return }
+                }
+            }
+        }
+    }
+
+    private final class AtomicCycleBox {
+        private var bits: Int64 = 0
+        var value: UInt64 { UInt64(bitPattern: OSAtomicAdd64Barrier(0, &bits)) }
+        func increment() { _ = OSAtomicIncrement64Barrier(&bits) }
+    }
+
+    private let gainBox: AtomicFloatBox
+    private let cycleBox = AtomicCycleBox()
+    var renderCycles: UInt64 { cycleBox.value }
+
+    var gain: Float {
+        get { gainBox.value }
+        set { gainBox.value = min(max(newValue, 0), Float(AppVolumeMixer.maxVolume)) }
+    }
+
+    private var tapID: AudioObjectID = 0
+    private var aggregateID: AudioObjectID = 0
+    private var ioProc: AudioDeviceIOProcID?
+    private let ringBuffer: AudioRingBuffer
+
+    init?(appID: String, objects: [AudioObjectID], gain: Float, clockDeviceUID: String) {
+        self.appID = appID
+        self.tappedObjects = objects
+        self.outputDeviceUID = AirPlayRouteManager.airPlaySentinelUID
+        self.gainBox = AtomicFloatBox(gain)
+
+        let description = CATapDescription(stereoMixdownOfProcesses: objects)
+        description.muteBehavior = .mutedWhenTapped
+        description.isPrivate = true
+        guard AudioHardwareCreateProcessTap(description, &tapID) == noErr, tapID != 0 else {
+            return nil
+        }
+
+        let aggregate: [String: Any] = [
+            kAudioAggregateDeviceNameKey: "Vorssaint AirPlay (\(appID))",
+            kAudioAggregateDeviceUIDKey: UUID().uuidString,
+            kAudioAggregateDeviceIsPrivateKey: true,
+            kAudioAggregateDeviceMainSubDeviceKey: clockDeviceUID,
+            kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: clockDeviceUID]],
+            kAudioAggregateDeviceTapListKey: [[
+                kAudioSubTapUIDKey: description.uuid.uuidString,
+                kAudioSubTapDriftCompensationKey: true,
+            ]],
+            kAudioAggregateDeviceTapAutoStartKey: true,
+        ]
+        guard AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID) == noErr,
+              aggregateID != 0 else {
+            AudioHardwareDestroyProcessTap(tapID)
+            return nil
+        }
+
+        let tapChannels = Self.tapChannels(of: tapID)
+        let sampleRate = Self.nominalSampleRate(of: aggregateID)
+        self.ringBuffer = AudioRingBuffer(sampleRate: sampleRate)
+        let ring = self.ringBuffer
+        let box = self.gainBox
+        let cycles = self.cycleBox
+
+        guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil, { _, input, _, output, _ in
+            let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
+            let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
+
+            MixerRender.silence(outputBuffers)
+
+            guard let tapIndex = MixerRender.tapBufferIndex(in: inputBuffers, tapChannels: tapChannels),
+                  let data = inputBuffers[tapIndex].mData?.assumingMemoryBound(to: Float.self) else {
+                return
+            }
+
+            let frames = MixerRender.frames(bytes: inputBuffers[tapIndex].mDataByteSize,
+                                            channels: inputBuffers[tapIndex].mNumberChannels)
+            guard frames > 0 else { return }
+            cycles.increment()
+
+            let currentGain = box.value
+            if currentGain > 0.0001 {
+                ring.write(frames: data, frameCount: frames, gain: currentGain)
+            }
+        }) == noErr else {
+            AudioHardwareDestroyAggregateDevice(aggregateID)
+            AudioHardwareDestroyProcessTap(tapID)
+            return nil
+        }
+
+        guard AudioDeviceStart(aggregateID, ioProc) == noErr,
+              AirPlayRouteManager.shared.addAudioStream(key: appID, buffer: ringBuffer) else {
+            stop()
+            return nil
+        }
+    }
+
+    func stop() {
+        AirPlayRouteManager.shared.removeAudioStream(key: appID)
+        let aggregate = aggregateID
+        let tap = tapID
+        let proc = ioProc
+        self.aggregateID = 0
+        self.tapID = 0
+        self.ioProc = nil
+
+        if let proc, aggregate != 0 {
+            AudioDeviceStop(aggregate, proc)
+        }
+
+        DispatchQueue.global(qos: .utility).async {
+            if let proc, aggregate != 0 {
+                AudioDeviceDestroyIOProcID(aggregate, proc)
+            }
+            if aggregate != 0 {
+                AudioHardwareDestroyAggregateDevice(aggregate)
+            }
+            if tap != 0 {
+                AudioHardwareDestroyProcessTap(tap)
+            }
+        }
+    }
+
+    deinit { stop() }
+
+    private static func tapChannels(of tapID: AudioObjectID) -> Int {
+        var format = AudioStreamBasicDescription()
+        guard AppVolumeMixer.read(tapID, kAudioTapPropertyFormat, &format),
+              format.mChannelsPerFrame > 0 else { return 2 }
+        return Int(format.mChannelsPerFrame)
+    }
+
+    private static func nominalSampleRate(of deviceID: AudioObjectID) -> Double {
+        var rate: Double = 44_100
+        _ = AppVolumeMixer.read(deviceID, kAudioDevicePropertyNominalSampleRate, &rate)
+        return rate > 0 ? rate : 44_100
+    }
 }

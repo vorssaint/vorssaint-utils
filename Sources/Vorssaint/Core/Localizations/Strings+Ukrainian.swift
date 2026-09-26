@@ -572,6 +572,8 @@ extension Strings {
         mixerOutputFallback: "Використовується вихід за замовчуванням, поки цей пристрій не повернеться.",
         mixerBypassedCaption: "Ця програма сама керує своїм звуком.",
         mixerOutputTooltip: "Вибрати пристрій виведення",
+        mixerAirPlayPickerTooltip: "Вибрати динамік AirPlay…",
+        mixerAirPlaySpeakerFormat: "AirPlay: %@",
         mixerSystemOutputTitle: "Пристрій виведення",
         mixerSystemOutputNoDevices: "Пристроїв виведення не знайдено",
         mixerSystemOutputTooltip: "Вибрати системний пристрій виведення",

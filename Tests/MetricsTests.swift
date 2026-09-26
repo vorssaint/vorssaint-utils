@@ -36,12 +36,18 @@ struct MetricsTests {
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
                 SoundOutputSwitchContract.run(suite)
+                AirPlayRingBufferContract.run(suite)
+                AirPlayRouteContract.run(suite)
+                AirPlayMixLimiterContract.run(suite)
                 MixerInputVolumeContract.run(suite)
                 MixerFeatureTests.run(suite)
             }),
             ("audio-priority", { AudioPriorityTests.run(suite) }),
             ("shelf", { ShelfFeatureTests.run(suite) }),
-            ("overlays", { OverlayPanelTests.run(suite) }),
+            ("overlays", {
+                OverlayPanelTests.run(suite)
+                PopoverDismissContract.run(suite)
+            }),
             ("updates", {
                 UpdateFeatureTests.run(suite)
                 PostUpdateStatusItemRecoveryTests.run(suite)

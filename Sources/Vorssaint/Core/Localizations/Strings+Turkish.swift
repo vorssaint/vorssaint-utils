@@ -590,6 +590,8 @@ extension Strings {
         mixerOutputFallback: "Bu aygıt geri dönene kadar varsayılan kullanılıyor.",
         mixerBypassedCaption: "Bu uygulama sesini kendisi yönetir.",
         mixerOutputTooltip: "Çıkış seç",
+        mixerAirPlayPickerTooltip: "AirPlay hoparlörü seç…",
+        mixerAirPlaySpeakerFormat: "AirPlay: %@",
         mixerSystemOutputTitle: "Çıkış",
         mixerSystemOutputNoDevices: "Çıkış bulunamadı",
         mixerSystemOutputTooltip: "Sistem çıkışını seç",

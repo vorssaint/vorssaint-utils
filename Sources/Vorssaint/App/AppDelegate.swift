@@ -973,7 +973,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ) { [weak self] _ in
             guard let self, self.popover.isShown else { return }
             guard !PanelInteractionState.shared.preventsPopoverDismissal else { return }
-            guard self.statusController.containsStatusItem(at: NSEvent.mouseLocation) == false else { return }
+            let mouseLoc = NSEvent.mouseLocation
+            guard self.statusController.containsStatusItem(at: mouseLoc) == false else { return }
+            // Ignore events delivered to remote views or child popovers (like the system
+            // AirPlay route picker) which appear in global monitors because they are rendered out-of-process.
+            let ownWindows = NSApplication.shared.windows.map {
+                PopoverDismissSupport.Window(frame: $0.frame,
+                                             isVisible: $0.isVisible,
+                                             ignoresMouseEvents: $0.ignoresMouseEvents)
+            }
+            if PopoverDismissSupport.clickIsInsideOwnWindow(mouseLoc, windows: ownWindows) {
+                return
+            }
             self.closePopover()
         }
 
@@ -1108,11 +1119,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         popoverIsClosing = true
         if animated {
-            popover.performClose(nil)
+            popover.close()
         } else {
             popover.animates = false
             popover.close()
             popover.animates = true
+        }
+
+        // Safety watchdog: If popover remains shown or didClose never fired within 0.5s,
+        // clear popoverIsClosing so subsequent clicks or close requests are never blocked.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            if self.popoverIsClosing && self.popover.isShown {
+                self.popoverIsClosing = false
+                self.popoverCloseIsAppRequested = false
+            }
         }
     }
 
