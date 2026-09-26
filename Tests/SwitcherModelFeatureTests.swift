@@ -1874,6 +1874,50 @@ enum SwitcherModelFeatureTests {
         suite.expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1240, reportedMidX: 1144, buttonWidth: 197) == nil,
                "clicks near the edge of a wide metrics item stay anchored to the item")
 
+        suite.expect(StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                    ownWindowIsKey: false, closeReason: .escape),
+               "closing the panel hands activation back to the app that was in front before it")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 777,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "an app the person switched to while the panel was open keeps activation")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: true, closeReason: .escape),
+               "a Vorssaint window that took focus from the panel keeps Vorssaint active")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: nil, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "a panel opened while Vorssaint was already in front has nothing to hand back")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 900, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "Vorssaint never hands activation back to itself")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: nil,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "no known frontmost app means nothing is taken from anyone")
+        for (reason, returns) in [(PanelCloseReason.escape, true), (.statusItem, true),
+                                  (.outsideClick, false), (.action, false)] {
+            suite.expect(StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                        ownWindowIsKey: false,
+                                                                        closeReason: reason) == returns,
+                   returns ? "a \(reason) dismissal with nothing taking over hands activation back"
+                           : "a \(reason) close leaves activation to whatever takes over")
+        }
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: nil),
+               "a close Vorssaint did not ask for leaves activation alone")
+
+        let ownApp: (Int) -> Bool = { $0 == 900 }
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(777), current: 501,
+                                                                   isOwnApp: ownApp) == 777,
+               "another app becoming active while the panel is open replaces the remembered app")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(900), current: 501,
+                                                                   isOwnApp: ownApp) == 501,
+               "Vorssaint taking activation back from the panel keeps the remembered app")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(777), current: nil,
+                                                                   isOwnApp: ownApp) == 777,
+               "an app activated after the remembered one was dropped becomes the one to return to")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: PanelActivationChange<Int>.activeSpaceChanged,
+                                                                   current: 501, isOwnApp: ownApp) == nil,
+               "a desktop switch while the panel is open drops the remembered app")
+
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
 
         // The built-in display and a taller one placed to its left.

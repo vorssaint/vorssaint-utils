@@ -93,6 +93,41 @@ enum StatusItemAnchorSupport {
         return CGRect(origin: .zero, size: lastFrame.size).contains(event.locationInWindow)
     }
 
+    /// Opening the panel activates Vorssaint so its controls take keys, which
+    /// makes it the frontmost app for as long as nothing else claims focus.
+    /// Once the panel is gone, the app that was in front before it opened gets
+    /// activation back, but only when the person dismissed the panel with
+    /// nothing taking over, and has not moved on meanwhile: another app is
+    /// already in front, or one of Vorssaint's own windows (Settings,
+    /// Feedback, an editor) took focus from the panel.
+    static func shouldReturnActivation(to sourcePID: pid_t?,
+                                       ownPID: pid_t,
+                                       frontmostPID: pid_t?,
+                                       ownWindowIsKey: Bool,
+                                       closeReason: PanelCloseReason?) -> Bool {
+        guard closeReason?.dismissesWithoutTakeover == true,
+              let sourcePID, sourcePID > 0, sourcePID != ownPID,
+              frontmostPID == ownPID else { return false }
+        return !ownWindowIsKey
+    }
+
+    /// The app to hand activation back to after a change seen while the panel
+    /// is open. The panel joins every desktop and stays up when Vorssaint
+    /// deactivates, so the person can move on without closing it. Another app
+    /// becoming active replaces the remembered one; Vorssaint itself taking
+    /// activation back (a click in the panel) keeps it. A desktop switch drops
+    /// it, since activating it later would travel back to the desktop it is on.
+    static func panelActivationSource<App>(after change: PanelActivationChange<App>,
+                                           current: App?,
+                                           isOwnApp: (App) -> Bool) -> App? {
+        switch change {
+        case .activeSpaceChanged:
+            return nil
+        case .appActivated(let app):
+            return isOwnApp(app) ? current : app
+        }
+    }
+
     /// Where an open panel belongs for a cached anchor: centered on the
     /// anchor's horizontal middle with its top edge held, so content that
     /// grows or shrinks (switching panel tabs) extends downward instead of
@@ -119,4 +154,32 @@ enum StatusItemAnchorSupport {
                       width: size.width,
                       height: size.height)
     }
+}
+
+/// Why the menu bar panel closed. Only a plain dismissal hands activation back
+/// to the app that was in front: an action starts its work right after the
+/// close (often opening another app), and an outside click can land on
+/// something that does not take activation, such as another menu bar item.
+enum PanelCloseReason {
+    /// Esc while the panel has focus.
+    case escape
+    /// A click on the status item (or its metric item) that owns the panel.
+    case statusItem
+    /// A click the dismissal monitors saw outside the panel.
+    case outsideClick
+    /// A panel row or button that closes the panel on its way to other work.
+    case action
+
+    var dismissesWithoutTakeover: Bool {
+        switch self {
+        case .escape, .statusItem: return true
+        case .outsideClick, .action: return false
+        }
+    }
+}
+
+/// What can happen to the remembered app while the panel stays open.
+enum PanelActivationChange<App> {
+    case activeSpaceChanged
+    case appActivated(App)
 }

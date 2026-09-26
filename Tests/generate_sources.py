@@ -74,7 +74,8 @@ def main():
               "    private func armPopoverDriftCorrection(", "    private func endPopoverDriftCorrection(",
               "    private func showPopover(", "    func popoverWillClose(", "    func popoverDidClose(",
               "    private func releasePanelResources(", "    private func anchorAfterForeignClose(",
-              "    private func reopenPanelAfterForeignClose(", "    private func shouldDismissPopover("])
+              "    private func reopenPanelAfterForeignClose(", "    private func shouldDismissPopover(",
+              "    private func closePopoverNow("])
           + "var popoverAnchor: PanelAnchor?\nvar lastGoodPanelAnchor: PanelAnchor?\n"
           + "}\n}\n")
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
