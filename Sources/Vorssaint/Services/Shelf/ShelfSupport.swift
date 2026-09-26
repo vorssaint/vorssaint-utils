@@ -187,8 +187,22 @@ enum ShelfInteractionSupport {
 
     /// A pinned item is dragged out again and again, so a destination must
     /// never be offered a move: it would take the file away from the Shelf.
-    static func offersMoveOutside(removeAfterDrop: Bool, dragIncludesPinned: Bool) -> Bool {
-        removeAfterDrop && !dragIncludesPinned
+    /// A file stored inside a package belongs to the app that owns it, and
+    /// moving it out corrupts that app's data (a Photos library, for one).
+    static func offersMoveOutside(removeAfterDrop: Bool, dragIncludesPinned: Bool,
+                                  dragIncludesPackageContent: Bool) -> Bool {
+        removeAfterDrop && !dragIncludesPinned && !dragIncludesPackageContent
+    }
+
+    /// Only the file's ancestors count: an app or a bundle document shelved
+    /// whole is the user's own item and may still be moved like any other.
+    static func isInsidePackage(_ url: URL, isPackage: (URL) -> Bool) -> Bool {
+        var directory = url.standardizedFileURL.deletingLastPathComponent()
+        while directory.path != "/", !directory.path.isEmpty {
+            if isPackage(directory) { return true }
+            directory = directory.deletingLastPathComponent()
+        }
+        return false
     }
 }
 

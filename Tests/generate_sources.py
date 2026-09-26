@@ -377,6 +377,8 @@ def main():
     write("ShelfDragCompletion.swift", "import Foundation\n\nextension ShelfDragCompletionContract {\n"
           + "final class Service {\nvar activeInternalDragIDs: [UUID] = []\n"
           + "weak var internalDragWindow: NSWindow?\nvar internalDragWasMerged = false\n"
+          + "var internalDragHoldsPackageContent = false\nvar packageContentIDs: Set<UUID> = []\n"
+          + "func holdsPackageContent(_ ids: [UUID]) -> Bool { ids.contains(where: packageContentIDs.contains) }\n"
           + "var panel: NSWindow?\nvar dockedPanel: NSWindow?\n"
           + "var isPinned = false\nvar isVisible = false\nvar dockedVisible = false\n"
           + "var removed: [UUID] = []\nvar protectedIDs: Set<UUID> = []\n"
