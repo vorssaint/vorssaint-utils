@@ -433,11 +433,17 @@ private struct MemoryMenuBarOrderOption: View {
 
     var body: some View {
         if menuBarMemory {
-            MetricRowOption(symbol: MenuBarMetric.memory.symbolName,
-                            label: l10n.s.monitorMemoryPressureDot,
-                            isOn: Binding(
-                                get: { Defaults.sanitizedMenuBarMemoryStyle(memoryStyle) != "percent" },
-                                set: { memoryStyle = $0 ? "both" : "percent" }))
+            SettingsRow(symbol: MenuBarMetric.memory.symbolName, title: l10n.s.monitorMemoryStyleLabel) {
+                Picker(l10n.s.monitorMemoryStyleLabel, selection: $memoryStyle) {
+                    Text(l10n.s.memoryStylePercent).tag("percent")
+                    Text(l10n.s.memoryStyleDot).tag("dot")
+                    Text(l10n.s.memoryStyleBoth).tag("both")
+                    Text(l10n.s.memoryTotalLabel + " / " + l10n.s.memoryUsedLabel).tag("totalAndUsed")
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+            }
                 .onAppear {
                     memoryStyle = Defaults.sanitizedMenuBarMemoryStyle(memoryStyle)
                 }

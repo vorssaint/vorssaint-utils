@@ -815,6 +815,8 @@ extension Strings {
         memoryStyleDot: "Точка",
         memoryStylePercent: "%",
         memoryStyleBoth: "Оба",
+        memoryTotalLabel: "Всего",
+        memoryUsedLabel: "Занято",
         systemUptime: "Время работы",
         batteryCharge: "Заряд",
         powerHealth: "Состояние батареи",
