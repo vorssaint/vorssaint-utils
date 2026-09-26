@@ -433,7 +433,10 @@ final class WindowPreviewProvider {
             let items = WindowEnumerator.listWindows(for: pid)
             guard !items.isEmpty else { return }
             warmTask?.cancel()
-            warmTask = Task(priority: .utility) { [weak self] in
+            // Detached: this closure runs on the main queue, so a plain Task
+            // would inherit the main actor and the synchronous window-server
+            // capture below would block the UI whenever WindowServer stalls.
+            warmTask = Task.detached(priority: .utility) { [weak self] in
                 guard let self else { return }
                 for item in items {
                     guard !Task.isCancelled, let id = item.previewWindowID else { continue }
