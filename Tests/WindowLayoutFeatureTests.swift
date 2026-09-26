@@ -310,6 +310,21 @@ enum WindowLayoutFeatureTests {
                    $0 == "EnableTilingByEdgeDrag" ? true : false
                },
                "one enabled system edge gesture is enough to prevent competing previews")
+        suite.expect(!WindowEdgeSnapSupport.systemTilingEnabled(
+                   valueFor: { _ in nil }, displaysSpan: true)
+                && !WindowEdgeSnapSupport.systemTilingEnabled(
+                   valueFor: { _ in true }, displaysSpan: true)
+                && !WindowEdgeSnapSupport.systemTilingEnabled(
+                   valueFor: { $0 == "EnableTilingByEdgeDrag" ? true : nil },
+                   displaysSpan: true),
+               "spanning displays make system tiling inert with missing or enabled keys")
+        suite.expect(WindowEdgeSnapSupport.systemTilingEnabled(
+                   valueFor: { _ in true }, displaysSpan: false),
+               "separate Spaces still honor a written system tiling switch")
+        suite.expect(!WindowEdgeSnapSupport.displaysSpan(nil)
+                && !WindowEdgeSnapSupport.displaysSpan(false)
+                && WindowEdgeSnapSupport.displaysSpan(true),
+               "an unwritten spans-displays preference keeps Apple's Separate Spaces default")
 
         let dragFrame = CGRect(x: 100, y: 100, width: 800, height: 500)
         suite.expect(WindowEdgeSnapSupport.classify(
