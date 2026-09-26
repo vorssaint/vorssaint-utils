@@ -59,6 +59,7 @@ enum NotchHoverTests {
     enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
     class State {
         var hiddenInFullscreen = false
+        var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         var showsSystemFeedback = true, routesNotices = true
         var running = true, suspended = false, inside = false, hoverEmphasized = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
@@ -80,6 +81,7 @@ enum NotchHoverTests {
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)
         var compactActivityGeometry: NotchGeometry { geometry.compactMusicGeometry }
         var surfaceSize: CGSize {
+            if fullscreenCompact { return geometry.restingSize(showsContent: false) }
             if let notice {
                 guard noticeExpanded else { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }
                 return geometry.notificationPreviewSize(
@@ -169,6 +171,27 @@ enum NotchHoverTests {
         leave(compactPulse)
         suite.expect(compactPulse.surfaceSize == compactResting,
                      "the compact activity returns to its original size on exit")
+        let fullscreen = fixture(physical: true)
+        fullscreen.hiddenInFullscreen = true
+        fullscreen.compactActivity = .music
+        UserDefaults.standard.hides = true
+        UserDefaults.standard.expands = false
+        fullscreen.updateBounds()
+        let blackSize = fullscreen.surfaceSize
+        fullscreen.hover(true)
+        suite.expect(blackSize == fullscreen.geometry.restingSize(showsContent: false)
+                     && !fullscreen.hoverEmphasized && fullscreen.hoverWork != nil,
+                     "fullscreen keeps the cutout black but schedules configured hover access even with cached music")
+        DispatchQueue.main.advance(0.26)
+        suite.expect(fullscreen.peeking && fullscreen.openings == 0,
+                     "hover preview remains available from the black fullscreen cutout")
+        let simulatedFullscreen = fixture()
+        simulatedFullscreen.hiddenInFullscreen = true
+        simulatedFullscreen.hover(true)
+        DispatchQueue.main.advance(0.26)
+        suite.expect(simulatedFullscreen.hoverWork == nil && !simulatedFullscreen.peeking
+                     && simulatedFullscreen.openings == 0,
+                     "a simulated cutout hidden in full screen does not open on hover")
         for physical in [false, true] {
             let service = fixture(physical: physical)
             service.hover(true)

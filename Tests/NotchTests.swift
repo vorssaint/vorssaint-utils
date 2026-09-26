@@ -713,6 +713,16 @@ enum NotchTests {
         suite.expect(!NotchSupport.modules(in: defaults).contains(.mixer)
                && !NotchSupport.controls(in: defaults).contains(.volume), "mixer availability gates its module and volume control")
         defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
+        suite.expect(NotchControlItem.allCases.filter { $0.setupRequirement == .none } == [.panel],
+                     "every unavailable island control with a setup path has a navigation target")
+        suite.expect(NotchControlItem.brightness.setupRequirement == .feature(.brightness)
+                     && NotchControlItem.recording.setupRequirement == .feature(.screenRecorder)
+                     && NotchControlItem.scratchpad.setupRequirement == .feature(.scratchpad),
+                     "feature-gated controls lead to the matching feature in the hub")
+        suite.expect(NotchControlItem.music.setupRequirement == .page(.music, feature: nil)
+                     && NotchControlItem.mixer.setupRequirement == .page(.mixer, feature: .mixer)
+                     && NotchControlItem.speedTest.setupRequirement == .page(.system, feature: .monitorNetwork),
+                     "page-gated controls lead to their island section or the required feature")
         defaults.set("panel,panel,unknown,speedTest", forKey: DefaultsKey.notchControlOrder)
         defaults.set("volume,screenshot", forKey: DefaultsKey.notchHiddenControls)
         let controls = NotchSupport.controls(in: defaults)

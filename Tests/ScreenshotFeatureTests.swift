@@ -677,6 +677,13 @@ enum ScreenshotFeatureTests {
                 && ScreenshotDefaultAction(rawValue: "saveAndCopy") == .saveAndCopy
                 && ScreenshotDefaultAction(rawValue: "bogus") == nil,
                "after-capture actions decode from their stored raw values")
+        suite.expect(ScreenshotDefaultAction.allCases.filter(\.copiesToClipboard)
+                == [.saveAndCopy, .copy],
+               "only Copy and Save and copy put the capture on the clipboard")
+        suite.expect(ScreenshotDefaultAction.allCases.map(\.withoutCopy)
+                == [.none, .save, .save, .none, .edit]
+                && ScreenshotDefaultAction.allCases.allSatisfy { !$0.withoutCopy.copiesToClipboard },
+               "turning automatic copy off drops only the copy half of the after-capture action")
 
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.

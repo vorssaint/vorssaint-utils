@@ -19,7 +19,7 @@ enum NotchPresentationRefreshContract {
         static var shared = Accessibility()
         struct Accessibility { var accessibilityDisplayShouldReduceMotion = false }
     }
-    enum NotchPanel { static let normalLevel = 0 }
+    enum NotchPanel { static let normalLevel = 1, fullscreenLevel = 0 }
     final class CaptureOptions {
         var hasFocusedControl = false
         var onSelectionProgressChange: ((Bool) -> Void)?
@@ -29,6 +29,7 @@ enum NotchPresentationRefreshContract {
         struct Preferences {
             var hides = false
             var outline = false
+            var coversMenus = true
             func bool(forKey key: String) -> Bool {
                 switch key {
                 case DefaultsKey.notchHideUntilHover: return hides
@@ -136,6 +137,7 @@ enum NotchPresentationRefreshContract {
     }
     class State: ObservableObject {
         var hiddenInFullscreen = false
+        var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         let objectWillChange = ObservableObjectPublisher()
         var running = true, suspended = false
         var mode = NotchTimerMode.timer
@@ -182,6 +184,7 @@ enum NotchPresentationRefreshContract {
         var expandedGeometry: NotchGeometry { geometry }
         var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
         var surfaceSize: CGSize {
+            if fullscreenCompact { return geometry.restingSize(showsContent: false) }
             if captureControls != nil { return captureControlsCollapsed ? geometry.collapsed : geometry.peek }
             if !expanded, compactActivityIsVisible { return compactActivityGeometry.compactActivitySize }
             if !expanded { return geometry.collapsed }
@@ -245,18 +248,62 @@ enum NotchPresentationRefreshContract {
         captureControlsChecks(suite)
         let fullscreen = Service()
         fullscreen.pinned = true
+        fullscreen.expanded = false
+        fullscreen.compactActivityIsVisible = true
         fullscreen.hiddenInFullscreen = true
         fullscreen.refreshPresentation()
-        suite.expect(fullscreen.panel?.isVisible == false && !fullscreen.acceptsSystemFeedback
-                     && !fullscreen.edgeClicksEnabled,
-                     "fullscreen hides even a pinned island and stops routing feedback or edge clicks")
+        suite.expect(fullscreen.panel?.isVisible == true && !fullscreen.acceptsSystemFeedback
+                     && fullscreen.acceptsUserInteraction && fullscreen.panel?.level == NotchPanel.normalLevel
+                     && fullscreen.edgeClicksEnabled && fullscreen.windowHost?.targetSize == fullscreen.geometry.restingSize(showsContent: false)
+                     && fullscreen.windowHost?.activationRect.size == fullscreen.geometry.restingSize(showsContent: false),
+                     "fullscreen keeps a black, clickable cutout without automatic feedback or activity wings")
+        fullscreen.windowHost?.activate?()
+        fullscreen.refreshPresentation()
+        suite.expect(fullscreen.expanded && fullscreen.panel?.isVisible == true
+                     && fullscreen.acceptsUserInteraction && !fullscreen.acceptsSystemFeedback
+                     && fullscreen.windowHost?.targetSize == fullscreen.surfaceSize,
+                     "clicking the fullscreen cutout opens the island")
+        fullscreen.collapse()
+        fullscreen.refreshPresentation()
+        suite.expect(fullscreen.panel?.isVisible == true && fullscreen.windowHost?.targetSize == fullscreen.geometry.restingSize(showsContent: false),
+                     "closing in fullscreen returns to the clickable black cutout")
         fullscreen.hiddenInFullscreen = false
         fullscreen.refreshPresentation()
         suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
-                     "leaving fullscreen restores the island and feedback routing")
+                     "leaving fullscreen restores ordinary content and feedback routing")
+        let fullscreenSimulated = Service()
+        fullscreenSimulated.expanded = false
+        fullscreenSimulated.geometry = NotchGeometry(screen: fullscreenSimulated.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                                     compactSideRoom: 64)
+        fullscreenSimulated.hiddenInFullscreen = true
+        UserDefaults.standard.coversMenus = false
+        fullscreenSimulated.refreshPresentation(animated: false)
+        suite.expect(fullscreenSimulated.panel?.isVisible == false && !fullscreenSimulated.edgeClicksEnabled
+                     && fullscreenSimulated.acceptsUserInteraction,
+                     "a simulated cutout with no camera to cover stays out of full-screen content")
+        fullscreenSimulated.expanded = true
+        fullscreenSimulated.refreshPresentation(animated: false)
+        suite.expect(fullscreenSimulated.panel?.isVisible == true
+                     && fullscreenSimulated.panel?.level == NotchPanel.fullscreenLevel,
+                     "a simulated island opened by a shortcut yields to the menu bar in fullscreen")
+        fullscreenSimulated.collapse()
+        fullscreenSimulated.refreshPresentation(animated: false)
+        suite.expect(fullscreenSimulated.panel?.isVisible == false,
+                     "closing a simulated island in fullscreen hides it again")
+        fullscreenSimulated.expanded = true
+        fullscreenSimulated.hiddenInFullscreen = false
+        fullscreenSimulated.refreshPresentation(animated: false)
+        suite.expect(fullscreenSimulated.panel?.level == NotchPanel.normalLevel,
+                     "leaving fullscreen restores the usual panel level")
+        UserDefaults.standard.coversMenus = true
+        fullscreenSimulated.hiddenInFullscreen = true
+        fullscreenSimulated.refreshPresentation(animated: false)
+        suite.expect(fullscreenSimulated.panel?.level == NotchPanel.normalLevel,
+                     "the explicit cover-menus preference keeps the usual panel level")
         let missionControl = Service()
         missionControl.windowHost?.concealedForMissionControl = true
-        suite.expect(!missionControl.acceptsSystemFeedback && !missionControl.showsSystemFeedback,
+        suite.expect(!missionControl.acceptsSystemFeedback && !missionControl.acceptsUserInteraction
+                     && !missionControl.showsSystemFeedback,
                      "a concealed island leaves system feedback available to its other presenters")
         missionControl.windowHost?.concealedForMissionControl = false
         suite.expect(missionControl.acceptsSystemFeedback && missionControl.showsSystemFeedback,

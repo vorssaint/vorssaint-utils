@@ -2569,4 +2569,17 @@ enum ScreenshotDefaultAction: String, CaseIterable {
         let raw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
         return ScreenshotDefaultAction(rawValue: raw) ?? .none
     }
+
+    /// Copy and Save and copy put every capture on the clipboard.
+    var copiesToClipboard: Bool { self == .copy || self == .saveAndCopy }
+
+    /// The same choice without its clipboard half. Turning automatic copy
+    /// off in Settings applies this, so Save and copy keeps saving.
+    var withoutCopy: ScreenshotDefaultAction {
+        switch self {
+        case .copy: return .none
+        case .saveAndCopy: return .save
+        case .none, .save, .edit: return self
+        }
+    }
 }

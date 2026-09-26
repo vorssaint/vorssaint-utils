@@ -366,6 +366,12 @@ enum NotchCompactActivity: Equatable {
     }
 }
 
+enum NotchControlSetupRequirement: Equatable {
+    case feature(AppFeature)
+    case page(NotchModule, feature: AppFeature?)
+    case none
+}
+
 enum NotchControlItem: String, CaseIterable, Identifiable {
     case volume, brightness, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
     static let defaultHidden = "microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
@@ -388,6 +394,25 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
+        }
+    }
+
+    var setupRequirement: NotchControlSetupRequirement {
+        switch self {
+        case .volume: return .feature(.mixer)
+        case .brightness: return .feature(.brightness)
+        case .keepAwake: return .feature(.keepAwake)
+        case .microphone: return .feature(.micMute)
+        case .screenshot: return .feature(.screenshot)
+        case .recording: return .feature(.screenRecorder)
+        case .commandBar: return .feature(.commandBar)
+        case .scratchpad: return .feature(.scratchpad)
+        case .panel: return .none
+        case .mixer: return .page(.mixer, feature: .mixer)
+        case .speedTest: return .page(.system, feature: .monitorNetwork)
+        case .music: return .page(.music, feature: nil)
+        case .timer: return .page(.timer, feature: .notchTimer)
+        case .calendar: return .page(.calendar, feature: .notchCalendar)
         }
     }
 

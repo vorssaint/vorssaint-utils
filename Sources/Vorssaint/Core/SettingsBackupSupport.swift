@@ -89,6 +89,7 @@ enum SettingsBackupSupport {
         DefaultsKey.lastUpdateIntroVersion,
         DefaultsKey.supportUpdateIntroVersion,
         DefaultsKey.updateHighlightsSeenVersion,
+        DefaultsKey.brightnessUpdatePromptState,
         DefaultsKey.panelCollapsedResetVersion,
     ]
 

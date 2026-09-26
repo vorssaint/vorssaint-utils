@@ -43,7 +43,7 @@ enum NotchDestinationContract {
     enum BrightnessService { static var shared = Brightness() }
 
     class State {
-        var acceptsSystemFeedback = true
+        var acceptsUserInteraction = true
         func collapse() { expanded = false }
         var hiddenInFullscreen = false
         var running = true
@@ -191,7 +191,11 @@ enum NotchDestinationContract {
         suite.expect(!service.showScratchpad() && !service.expanded,
                      "choosing a separate Scratchpad window leaves the island untouched")
         defaults.set(true, forKey: DefaultsKey.notchScratchpad)
-        service.acceptsSystemFeedback = false
+        service.hiddenInFullscreen = true
+        suite.expect(service.showScratchpad() && service.expanded,
+                     "a full-screen user shortcut opens Scratchpad despite hidden automatic feedback")
+        service.collapse()
+        service.acceptsUserInteraction = false
         suite.expect(!service.showScratchpad() && !service.expanded,
                      "an unavailable island hands Scratchpad opening back to its ordinary window")
     }

@@ -146,7 +146,7 @@ final class NotchService: ObservableObject {
     private var running = false
     private var session = NotchSessionState()
     private var suspended: Bool { !session.canPresent }
-    private var hiddenInFullscreen = false {
+    @Published private(set) var hiddenInFullscreen = false {
         didSet {
             guard hiddenInFullscreen != oldValue else { return }
             NotificationCenter.default.post(name: Self.fullscreenVisibilityDidChange, object: self,
@@ -172,9 +172,20 @@ final class NotchService: ObservableObject {
     private init() {}
 
     private var hiddenUntilHover: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
+        !hiddenInFullscreen && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
             && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover)
             && !expanded && !peeking && !dragPlaceholder && captureControls == nil
+    }
+
+    /// Full screen keeps a clickable black cutout until the user opens it.
+    var fullscreenCompact: Bool {
+        hiddenInFullscreen && !expanded && !peeking
+    }
+
+    /// A simulated cutout covers no camera, so in full screen it stays out
+    /// of the picture until a shortcut opens it.
+    private var hiddenAtRestInFullscreen: Bool {
+        fullscreenCompact && !geometry.isNotched
     }
 
     var idleContent: NotchIdleContent {
@@ -218,7 +229,7 @@ final class NotchService: ObservableObject {
     }
 
     private var compactActivityIsVisible: Bool {
-        !expanded && !peeking && !dragPlaceholder && notice == nil && captureControls == nil
+        !fullscreenCompact && !expanded && !peeking && !dragPlaceholder && notice == nil && captureControls == nil
             && compactActivity != nil
     }
 
@@ -388,6 +399,7 @@ final class NotchService: ObservableObject {
     }
 
     var surfaceSize: CGSize {
+        if fullscreenCompact { return geometry.restingSize(showsContent: false) }
         if let captureControls {
             if captureControlsCollapsed {
                 return CGSize(width: geometry.cameraWidth + 56, height: geometry.stripHeight)
@@ -413,9 +425,13 @@ final class NotchService: ObservableObject {
     }
 
     var presentationWindow: NSPanel? { panel }
-    var acceptsSystemFeedback: Bool {
-        running && !suspended && !hiddenInFullscreen && panel != nil
+    /// User actions can open the island even when automatic full-screen feedback is hidden.
+    var acceptsUserInteraction: Bool {
+        running && !suspended && panel != nil
             && windowHost?.isConcealedForMissionControl != true
+    }
+    var acceptsSystemFeedback: Bool {
+        acceptsUserInteraction && !hiddenInFullscreen
     }
     var showsSystemFeedback: Bool {
         acceptsSystemFeedback && !hiddenUntilHover
@@ -609,7 +625,7 @@ final class NotchService: ObservableObject {
         guard NotchSupport.isEnabled(), !suspended else { return }
         if !running || self.panel == nil { syncWithPreferences() }
         else { refreshModules() }
-        guard !hiddenInFullscreen, let panel else { return }
+        guard let panel else { return }
         let destination = module.flatMap { modules.contains($0) ? $0 : nil } ?? reopeningModule
         let metric = metric.flatMap { metricIsAvailable($0) ? $0 : nil }
         let changesPresentation = !expanded || selected != destination
@@ -675,21 +691,21 @@ final class NotchService: ObservableObject {
 
     @discardableResult
     func showClipboard(toggle: Bool = false) -> Bool {
-        guard acceptsSystemFeedback, NotchSupport.routesClipboardWindow() else { return false }
+        guard acceptsUserInteraction, NotchSupport.routesClipboardWindow() else { return false }
         if toggle, expanded, selected == .clipboard, !showingAppPanel, !showingSections { collapse() }
         else { open(.clipboard) }
         return true
     }
 
     func hover(_ entered: Bool) {
-        guard running, !suspended, !hiddenInFullscreen else { return }
+        guard running, !suspended, !hiddenAtRestInFullscreen else { return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
         inside = hiddenUntilHover ? geometry.contains(point, in: geometry.collapsed)
             && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true
         hoverState.update(pointerInside: inside)
-        let emphasize = inside && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
+        let emphasize = inside && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
             && notice == nil && captureControls == nil
             && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if hoverEmphasized != emphasize {
@@ -715,7 +731,7 @@ final class NotchService: ObservableObject {
             if holdsNotification, let id = notice?.notificationID { holdNotification(id); return }
             guard !hoverState.suppressed, (notice == nil || hiddenUntilHover), !expanded, !peeking, !dragPlaceholder,
                   UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover) else { return }
-            if compactActivity != nil, compactActivityGeometry.compactActivityWingWidth > 0,
+            if !hiddenInFullscreen, compactActivity != nil, compactActivityGeometry.compactActivityWingWidth > 0,
                !UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) { return }
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
@@ -966,7 +982,7 @@ final class NotchService: ObservableObject {
 
     @discardableResult
     func showScratchpad(toggle: Bool = false) -> Bool {
-        guard NotchSupport.routesScratchpad(), acceptsSystemFeedback else { return false }
+        guard NotchSupport.routesScratchpad(), acceptsUserInteraction else { return false }
         if toggle, expanded, selected == .scratchpad, !showingAppPanel, !showingSections,
            selectedMetric == nil, panel?.isKeyWindow == true { collapse() }
         else { open(.scratchpad) }
@@ -980,14 +996,14 @@ final class NotchService: ObservableObject {
     }
 
     func openQuickPanel(toggle: Bool = false) -> Bool {
-        guard NotchSupport.routesQuickPanel(), acceptsSystemFeedback else { return false }
+        guard NotchSupport.routesQuickPanel(), acceptsUserInteraction else { return false }
         if toggle, expanded, selected == .tools, !showingSections { collapse() }
         else { open(.tools) }
         return true
     }
 
     func openShelf(toggle: Bool = false) -> Bool {
-        guard NotchSupport.routesShelf(), acceptsSystemFeedback else { return false }
+        guard NotchSupport.routesShelf(), acceptsUserInteraction else { return false }
         if toggle, expanded, selected == .files, !showingSections { collapse() }
         else { open(.files) }
         return true
@@ -1007,7 +1023,7 @@ final class NotchService: ObservableObject {
     }
 
     func provideHapticFeedback() {
-        guard acceptsSystemFeedback, panel?.isVisible == true, NotchSupport.usesHapticFeedback() else { return }
+        guard acceptsUserInteraction, panel?.isVisible == true, NotchSupport.usesHapticFeedback() else { return }
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
     }
 
@@ -1220,7 +1236,7 @@ final class NotchService: ObservableObject {
     }
 
     var canAcceptFileDrop: Bool {
-        acceptsSystemFeedback && captureControls == nil && modules.contains(.files)
+        acceptsUserInteraction && captureControls == nil && modules.contains(.files)
             && AppFeature.shelf.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
     }
@@ -1244,7 +1260,7 @@ final class NotchService: ObservableObject {
         let changed = choosingFileDropDestination
         if changed { choosingFileDropDestination = false }
         if targetsMediaDrop { targetsMediaDrop = false }
-        if changed, acceptsSystemFeedback { refreshPresentation() }
+        if changed, acceptsUserInteraction { refreshPresentation() }
     }
 
     func keepFileInteractionOpen(_ active: Bool) {
@@ -1486,13 +1502,9 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
-        if hiddenInFullscreen {
+        if fullscreenCompact {
             finishMusicDeparture()
             presentedMusic = nil
-            windowHost?.hide(animated: false)
-            removeHiddenHoverMonitors()
-            removeScreenEdgeClickMonitors()
-            return
         }
         syncHiddenHoverMonitoring()
         if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
@@ -1504,7 +1516,7 @@ final class NotchService: ObservableObject {
             return
         }
         let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
-        guard open || geometry.isNotched || geometry.compactSideRoom != nil else {
+        guard open || (!hiddenAtRestInFullscreen && (geometry.isNotched || geometry.compactSideRoom != nil)) else {
             finishMusicDeparture()
             presentedMusic = nil
             windowHost?.hide(animated: animated, transitionContent: transitionContent)
@@ -1514,18 +1526,23 @@ final class NotchService: ObservableObject {
         let access = NotchQuickAccessConfiguration.current()
         let size = surfaceSize
         let contentTransition = compactMusicTransition(transitionContent, animated: animated)
+        if captureControls == nil {
+            // A simulated cutout yields to the menu bar when it reappears in full screen.
+            panel?.level = hiddenInFullscreen && !geometry.isNotched && !NotchSupport.coversMenus()
+                ? NotchPanel.fullscreenLevel : NotchPanel.normalLevel
+        }
         // Preferences can change computed dimensions without publishing a
         // service property. Update SwiftUI's layout along with the native host.
         if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
-        windowHost?.setOutline(enabled: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
+        windowHost?.setOutline(enabled: !fullscreenCompact && UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
                                color: compactActivityIsVisible && compactActivity == .timer ? .systemOrange : .white)
         windowHost?.present(size: size, geometry: expanded ? expandedGeometry : geometry, animated: animated,
                             transitionContent: contentTransition,
                             quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil,
-                            revealFromHidden: captureControls == nil
+                            revealFromHidden: !hiddenInFullscreen && captureControls == nil
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
-                            usesGlass: usesGlassSurface)
+                            usesGlass: !fullscreenCompact && usesGlassSurface)
         // Closing can shrink the island away from a pointer that has not moved,
         // with no boundary crossing to report it. Only a pointer still over the
         // island may keep its next approach from opening it.
@@ -2345,7 +2362,7 @@ final class NotchService: ObservableObject {
     private func syncVisibleConsumers() {
         syncMenuSpaceMonitoring()
         guard running, !suspended else { releaseMonitor(); return }
-        if hiddenInFullscreen {
+        if fullscreenCompact {
             CameraPreviewService.shared.hideEmbedded()
             NotchMusicService.shared.stop()
             releaseMonitor()
