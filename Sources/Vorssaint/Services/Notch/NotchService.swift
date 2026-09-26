@@ -299,7 +299,8 @@ final class NotchService: ObservableObject {
         let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
         let shape = NotchAgentSupport.readingShape(NotchAgentSupport.stripReading(
             AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
-            display: NotchAgentSupport.limitDisplay(), now: Date()))
+            display: NotchAgentSupport.limitDisplay(), window: NotchAgentSupport.limitWindow(),
+            showsLimitWindowLabel: NotchAgentSupport.showsLimitWindowLabel(), now: Date()))
         let width = (shape as NSString).size(withAttributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width

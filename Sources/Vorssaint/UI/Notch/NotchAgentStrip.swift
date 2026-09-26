@@ -12,6 +12,8 @@ struct NotchAgentStrip: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitWindow) private var limitWindow = NotchAgentLimitWindow.auto.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitWindowLabel) private var limitWindowLabel = false
 
     private var geometry: NotchGeometry { service.compactActivityGeometry }
     /// Height the strip can give away once both edges keep their gap.
@@ -88,7 +90,9 @@ struct NotchAgentStrip: View {
 
     private func reading(at now: Date) -> String {
         NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
-                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
+                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
+                                       window: NotchAgentLimitWindow(rawValue: limitWindow) ?? .auto,
+                                       showsLimitWindowLabel: limitWindowLabel, now: now)
     }
 }
 

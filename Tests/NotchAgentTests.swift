@@ -665,21 +665,40 @@ enum NotchAgentTests {
         }
         let short = snapshot([session(.claude, startedAgo: 754)])
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
-        suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
-                        && NotchAgentSupport.stripReading(long, readout: .elapsed, display: .remaining, now: now) == "1:02:03",
+        suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, window: .auto, now: now)
+                        == "12:34"
+                        && NotchAgentSupport.stripReading(long, readout: .elapsed, display: .remaining, window: .auto, now: now)
+                        == "1:02:03",
                      "the strip counts from the earliest turn still working")
-        suite.expect(NotchAgentSupport.stripReading(short, readout: .cost, display: .remaining, now: now) == AgentFormat.cost(4.56)
-                        && NotchAgentSupport.stripReading(long, readout: .tokens, display: .remaining, now: now)
+        suite.expect(NotchAgentSupport.stripReading(short, readout: .cost, display: .remaining, window: .auto, now: now)
+                        == AgentFormat.cost(4.56)
+                        && NotchAgentSupport.stripReading(long, readout: .tokens, display: .remaining, window: .auto, now: now)
                             == AgentFormat.tokens(600),
                      "cost and written tokens add up every turn that is working")
         let window = AgentLimitWindow(id: "w", kind: .weekly, minutes: 10_080, scope: nil, usedPercent: 79,
                                       resetsAt: now.addingTimeInterval(86_400))
         let limited = snapshot([session(.claude, startedAgo: 754)],
                                limits: [.claude: AgentLimits(provider: .claude, windows: [window], observedAt: now, source: .claudeApp)])
-        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: now) == AgentFormat.percent(0.21)
-                        && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
-                        && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
+        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, window: .auto, now: now)
+                        == AgentFormat.percent(0.21)
+                        && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, window: .auto, now: now)
+                        == AgentFormat.percent(0.79)
+                        && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, window: .auto, now: now)
+                        == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, window: .session, now: now)
+                        == "12:34"
+                        && NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, window: .weekly, now: now)
+                        == AgentFormat.percent(0.21),
+                     "a fixed window reads that window specifically, falling back to the time when this account has none")
+        let usLocale = Locale(identifier: "en_US")
+        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, window: .weekly,
+                                                     showsLimitWindowLabel: true, locale: usLocale, now: now)
+                        == AgentFormat.duration(10_080 * 60, locale: usLocale, units: 1) + " " + AgentFormat.percent(0.21)
+                        && NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, window: .auto,
+                                                          showsLimitWindowLabel: false, now: now)
+                        == AgentFormat.percent(0.21),
+                     "the window's length only shows once the toggle for it is on")
         suite.expect(NotchAgentSupport.readingShape("12:34") == NotchAgentSupport.readingShape("59:59")
                         && NotchAgentSupport.readingShape("9:59") != NotchAgentSupport.readingShape("10:00")
                         && NotchAgentSupport.readingShape("$4,56") == "$0,00",
