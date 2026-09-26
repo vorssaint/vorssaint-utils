@@ -530,6 +530,7 @@ enum NotchTests {
     }
 
     static func run(_ suite: TestSuite) {
+        NotchMissionControlPollingTests.run(suite)
         activitySelectionContracts(suite)
         railContracts(suite)
         presentationSpacingContracts(suite)

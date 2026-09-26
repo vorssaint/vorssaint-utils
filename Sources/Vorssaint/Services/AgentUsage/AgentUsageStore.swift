@@ -11,6 +11,7 @@ final class AgentUsageStore {
     private(set) var records: [AgentUsageRecord] = []
     private var billables: [AgentBillable] = []
     private var index: [String: Int] = [:]
+    private let summary = AgentUsageSummaryCache()
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
     private var codexPlanObserved = Date.distantPast
@@ -33,6 +34,12 @@ final class AgentUsageStore {
     }
 
     var live: [AgentLiveSession] { Array(turns.values) }
+
+    func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
+                  calendar: Calendar = .current) -> AgentUsageSnapshot {
+        summary.snapshot(records: records, limits: limits, live: live, plans: plans,
+                         providers: providers, now: now, calendar: calendar)
+    }
 
     /// Applies one file's entries and returns the turns they finished.
     /// `parent` is the log whose turn a subagent's responses count toward.
@@ -107,6 +114,7 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             guard merged != old.tokens else { return }
+            summary.recordChanged(at: position, previous: old)
             var combined = billables[position]
             combined.tokens = merged
             combined.longCacheWrite = max(combined.longCacheWrite, billable.longCacheWrite)
@@ -125,6 +133,7 @@ final class AgentUsageStore {
             records[position].cost = priced.cost
             records[position].savings = priced.savings
         } else {
+            summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
             records.append(record)
             billables.append(billable)
@@ -144,6 +153,7 @@ final class AgentUsageStore {
 
     /// Prices every response again, after a newer list arrives.
     func reprice() {
+        summary.invalidate()
         for position in records.indices {
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             records[position].cost = priced.cost
@@ -174,6 +184,7 @@ final class AgentUsageStore {
     /// Keeps memory bounded to the history the island can show.
     func dropRecords(before date: Date) {
         guard records.contains(where: { $0.date < date }) else { return }
+        summary.invalidate()
         var kept: [AgentUsageRecord] = []
         var keptBillables: [AgentBillable] = []
         var positions: [Int: Int] = [:]

@@ -18,6 +18,7 @@ enum NotchAgentTests {
         codexParsing(suite)
         timestamps(suite)
         summary(suite)
+        AgentUsageSummaryCacheTests.run(suite)
         limits(suite)
         strip(suite)
         liveTurns(suite)

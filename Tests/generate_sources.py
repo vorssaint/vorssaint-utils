@@ -471,6 +471,12 @@ def main():
           + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
           + "}\n}\n")
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
+    write("NotchMissionControlPolling.swift", "import Foundation\n"
+          + "extension NotchMissionControlPollingTests {\nfinal class Host: State {\n"
+          + "".join(declaration(canvas, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    private func syncMissionControlMonitoring()", "    private var missionControlCheckInterval:",
+              "    private func updateMissionControlTimer()", "    private func refreshMissionControlState("])
+          + "}\n}\n")
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
           + declaration(notch, "    func show(_ incoming:").replace("NotchSupport.routes(incoming.event)", "true")
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [

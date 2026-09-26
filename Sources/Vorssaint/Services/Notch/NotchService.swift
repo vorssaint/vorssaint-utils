@@ -290,7 +290,8 @@ final class NotchService: ObservableObject {
     private var compactMusicIsVisible: Bool { compactActivityIsVisible && compactActivity == .music }
 
     var compactActivityGeometry: NotchGeometry {
-        compactGeometry(for: compactActivity, companion: compactCompanion)
+        let activity = compactActivity
+        return compactGeometry(for: activity, companion: activity == .timer ? compactCompanion : nil)
     }
 
     private func compactGeometry(for activity: NotchCompactActivity?, companion: NotchCompactActivity? = nil) -> NotchGeometry {

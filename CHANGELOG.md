@@ -7,10 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island adds more reopening choices.
+Dynamic Island adds more reopening choices and does less repeated work while tracking AI agents and watching for Mission Control.
 
 ### Changed
 - Dynamic Island can reopen directly to the app panel or Explore, alongside its section choices.
+
+### Fixed
+- AI usage updates reuse historical totals and apply streamed response changes incrementally. The closed island's agent clock reuses its layout between ticks, and Mission Control detection polls less often at rest while retaining fast restoration checks.
 
 ## [3.4.0-beta.7] - 2026-09-26
 

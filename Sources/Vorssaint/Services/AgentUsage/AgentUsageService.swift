@@ -30,8 +30,7 @@ final class AgentUsageService: ObservableObject {
     /// last half hour, or holding a turn, are checked this often instead.
     private static let poll: TimeInterval = 2
     private static let pollWindow: TimeInterval = 30 * 60
-    /// A live log may append many times per second; one summary per second
-    /// keeps the island current without repeatedly totaling 13 weeks of use.
+    /// Coalesce a live log's bursts into one history and display update.
     private static let publishDelay: TimeInterval = 1
 
     private let queue = DispatchQueue(label: "com.vorssaint.agent-usage", qos: .utility, autoreleaseFrequency: .workItem)
@@ -315,8 +314,8 @@ final class AgentUsageService: ObservableObject {
                 if read(path, provider: root.provider) { changed = true }
             }
         }
-        // Every snapshot adds up the whole history; saved tool output and
-        // lines with nothing to keep change nothing it shows.
+        // Saved tool output and lines with nothing to keep do not change the
+        // summary or require a display update.
         guard changed else { return }
         checkLimits()
         schedulePublish()
@@ -360,8 +359,7 @@ final class AgentUsageService: ObservableObject {
             readClaudeApp(now: now)
             checkLimits()
             reportRenewals(now: now)
-            // A snapshot adds up the whole history, so one is made only when
-            // something it shows changed, or when time alone changes it.
+            // Publish only when stored values or sliding time windows change.
             if changed || inputs != before || AgentUsageSummary.movesWithClock(published, now: now) {
                 schedulePublish()
             }
@@ -392,8 +390,7 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = AgentUsageSummary.snapshot(records: store.records, limits: store.limits, live: store.live,
-                                              plans: plans, providers: enabled, now: Date())
+        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
