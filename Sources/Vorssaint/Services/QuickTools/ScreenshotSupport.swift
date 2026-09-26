@@ -81,6 +81,13 @@ enum ScreenCaptureTool: String, CaseIterable {
         !fromShortcut || (defaults.object(forKey: showCaptureMenuOnShortcutKey) as? Bool ?? true)
     }
 
+    /// A running recording blocks the capture menu, because picking recording
+    /// from it would stop the take. A shortcut that skips the menu can only
+    /// reach its own tool, so it may run on top of the recording.
+    func opensDuringRecording(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
+        self != .recording && !showsCaptureMenu(fromShortcut: fromShortcut, defaults: defaults)
+    }
+
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
