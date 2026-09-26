@@ -648,3 +648,81 @@ enum WindowEdgeSnapSupport {
         return dx * dx + dy * dy
     }
 }
+
+/// The pointer layout mode also accepts a held modifier chord. Ordinary global
+/// shortcuts retain their key requirement and their existing storage format.
+enum WindowDirectionalTrigger: Equatable {
+    case key(GlobalShortcut)
+    case modifiers(GlobalShortcutModifiers)
+
+    init?(storageValue: String) {
+        if storageValue.hasPrefix("modifiers:") {
+            let tokens = storageValue.dropFirst("modifiers:".count).split(separator: "+", omittingEmptySubsequences: false)
+            var modifiers: GlobalShortcutModifiers = []
+            for token in tokens {
+                switch token {
+                case "control": modifiers.insert(.control)
+                case "option": modifiers.insert(.option)
+                case "shift": modifiers.insert(.shift)
+                case "command": modifiers.insert(.command)
+                default: return nil
+                }
+            }
+            guard modifiers.hasPrimaryModifier else { return nil }
+            self = .modifiers(modifiers)
+        } else {
+            guard let shortcut = GlobalShortcut(storageValue: storageValue) else { return nil }
+            self = .key(shortcut)
+        }
+    }
+
+    var storageValue: String {
+        switch self {
+        case .key(let shortcut): return shortcut.storageValue
+        case .modifiers(let modifiers): return "modifiers:" + modifiers.storageTokens.joined(separator: "+")
+        }
+    }
+
+    var displayString: String {
+        switch self {
+        case .key(let shortcut): return shortcut.displayString
+        case .modifiers(let modifiers): return modifiers.keyCaps.joined()
+        }
+    }
+}
+
+/// A modifier chord starts once, finishes on its first required-key release,
+/// and cannot restart until all its keys are up. Extra modifiers cancel it.
+struct WindowDirectionalModifierHold {
+    enum Decision { case none, begin, finish, cancel }
+    let expected: GlobalShortcutModifiers
+    private var active = false
+    private var waitingForRelease: Bool
+
+    init(expected: GlobalShortcutModifiers, initiallyHeld: GlobalShortcutModifiers = []) {
+        self.expected = expected
+        waitingForRelease = !initiallyHeld.intersection(expected).isEmpty
+    }
+
+    mutating func cancel() {
+        active = false
+        waitingForRelease = true
+    }
+
+    mutating func update(_ held: GlobalShortcutModifiers) -> Decision {
+        if active {
+            guard held == expected else {
+                let released = !held.isSuperset(of: expected)
+                cancel()
+                waitingForRelease = !held.intersection(expected).isEmpty
+                return released ? .finish : .cancel
+            }
+        } else if waitingForRelease {
+            waitingForRelease = !held.intersection(expected).isEmpty
+        } else if held == expected {
+            active = true
+            return .begin
+        }
+        return .none
+    }
+}

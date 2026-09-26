@@ -13,6 +13,94 @@ import VMStatisticsCompat
 
 enum WindowLayoutFeatureTests {
     static func run(_ suite: TestSuite) {
+        let modifierTrigger = WindowDirectionalTrigger(storageValue: "modifiers:control+command")
+        suite.expect(modifierTrigger?.displayString == "⌃⌘"
+                && modifierTrigger?.storageValue == "modifiers:control+command",
+                     "pointer layout reloads a modifier-only trigger without inventing a key")
+
+        for first: GlobalShortcutModifiers in [.control, .command] {
+            for remaining: GlobalShortcutModifiers in [.control, .command] {
+                var recording = ModifierShortcutRecording()
+                suite.expect(recording.flagsChanged(first) == nil
+                    && recording.flagsChanged([.control, .command]) == nil
+                    && recording.flagsChanged(remaining) == nil
+                    && recording.flagsChanged([]) == [.control, .command],
+                    "modifier recorder captures the held chord after either press/release order")
+            }
+        }
+        for first: GlobalShortcutModifiers in [.control, .command] {
+            for remaining: GlobalShortcutModifiers in [.control, .command] {
+                var hold = WindowDirectionalModifierHold(expected: [.control, .command])
+                suite.expect(hold.update(first) == .none
+                    && hold.update([.control, .command]) == .begin
+                    && hold.update([.control, .command]) == .none
+                    && hold.update(remaining) == .finish
+                    && hold.update([]) == .none,
+                    "modifier pointer layout begins once and finishes on either required-key release")
+            }
+        }
+        for shortcut in [GlobalShortcut.windowDirectionalDefault,
+                         GlobalShortcut(keyCode: Int64(kVK_F1), modifiers: [])] {
+            let trigger = WindowDirectionalTrigger(storageValue: shortcut.storageValue)
+            suite.expect(trigger == .key(shortcut) && trigger?.storageValue == shortcut.storageValue,
+                         "pointer layout keeps existing key-based shortcut storage")
+        }
+        for value in ["modifiers:", "modifiers:shift", "modifiers:fn", "modifiers:control+",
+                      "modifiers:control+unknown"] {
+            suite.expect(WindowDirectionalTrigger(storageValue: value) == nil,
+                         "invalid modifier trigger is rejected: \(value)")
+        }
+        suite.expect(GlobalShortcut(storageValue: "modifiers:control+command") == nil,
+                     "ordinary global shortcuts do not accept modifier-only triggers")
+        var interruptedRecording = ModifierShortcutRecording()
+        _ = interruptedRecording.flagsChanged([.control, .command])
+        interruptedRecording.keyPressed()
+        suite.expect(interruptedRecording.flagsChanged(.command) == nil
+            && interruptedRecording.flagsChanged([]) == nil,
+            "releasing modifiers after a key never overwrites the recorded key or saves an invalid attempt")
+        _ = interruptedRecording.flagsChanged([.control, .command])
+        suite.expect(interruptedRecording.flagsChanged([]) == [.control, .command],
+                     "a fresh modifier chord can be recorded after an invalid key attempt")
+        var fnRecording = ModifierShortcutRecording()
+        _ = fnRecording.flagsChanged([.control, .command], hasUnsupportedModifier: true)
+        suite.expect(fnRecording.flagsChanged([.control, .command]) == nil
+            && fnRecording.flagsChanged([]) == nil,
+            "an unsupported Fn chord never saves just its supported modifiers")
+        var changingRecording = ModifierShortcutRecording()
+        _ = changingRecording.flagsChanged([.control, .command])
+        _ = changingRecording.flagsChanged(.command)
+        _ = changingRecording.flagsChanged([.option, .command])
+        suite.expect(changingRecording.flagsChanged([]) == [.control, .command],
+                     "recording never combines modifiers that were not held together")
+        var cancelledHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        _ = cancelledHold.update([.control, .command])
+        cancelledHold.cancel()
+        suite.expect(cancelledHold.update(.command) == .none
+            && cancelledHold.update([.control, .command]) == .none
+            && cancelledHold.update([]) == .none
+            && cancelledHold.update([.control, .command]) == .begin,
+            "cancellation waits for a fresh chord and never finishes a cancelled placement")
+        var extraModifierHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        _ = extraModifierHold.update([.control, .command])
+        suite.expect(extraModifierHold.update([.control, .command, .shift]) == .cancel
+            && extraModifierHold.update([.control, .command]) == .none
+            && extraModifierHold.update([]) == .none
+            && extraModifierHold.update([.control, .command]) == .begin,
+            "extra modifiers cancel pointer layout until the chord is released")
+        var initiallyHeld = WindowDirectionalModifierHold(expected: [.control, .command],
+                                                          initiallyHeld: [.control, .command])
+        suite.expect(initiallyHeld.update([.control, .command]) == .none
+            && initiallyHeld.update(.command) == .none
+            && initiallyHeld.update([]) == .none
+            && initiallyHeld.update([.control, .command]) == .begin,
+            "enabling or resuming pointer layout does not activate an already-held chord")
+        var releasedHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        _ = releasedHold.update([.control, .command])
+        suite.expect(releasedHold.update(.command) == .finish
+            && releasedHold.update([.control, .command]) == .none
+            && releasedHold.update([]) == .none
+            && releasedHold.update([.control, .command]) == .begin,
+            "a finished gesture needs a fresh chord before starting again")
         // The native full screen action, wired like the sixths: real strings,
         // a stable id, and no system-wide key claimed until someone asks.
         suite.expect(WindowLayoutAction.allCases.contains(.fullScreen)
