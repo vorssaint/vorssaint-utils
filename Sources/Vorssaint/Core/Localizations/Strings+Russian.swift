@@ -215,7 +215,7 @@ extension Strings {
         launcherAddSection: "Вернуть",
         launcherKeysHint: "Стрелки для навигации, Enter открывает, 1–9 открывают сразу",
 
-        switcherSection: "Переключатель приложений",
+        switcherSection: "Переключатель окон",
         switcherEnable: "Использовать переключатель Vorssaint",
         switcherEnableCaption: "Переключает приложения и окна, включая свернутые и несколько окон одного приложения.",
         switcherUsageHint: "Удерживайте сочетание клавиш для навигации; отпустите, чтобы активировать окно. Shift или ← возвращают назад; W закрывает окно; Q завершает приложение; Esc отменяет.",
@@ -225,7 +225,7 @@ extension Strings {
         switcherSimpleModeCaption: "Показывает значки приложений и заголовки окон, без миниатюр и захвата экрана переключателем.",
         switcherShortcutHintApps: "Приложения",
         switcherShortcutHintWindows: "Окна",
-        switcherWindowShortcutCaption: "Открывает переключатель окон приложения на переднем плане. Пока открыт переключатель приложений, переходит между окнами выбранного приложения.",
+        switcherWindowShortcutCaption: "Открывает переключатель окон приложения на переднем плане. Пока открыт переключатель, переходит между окнами выбранного приложения.",
         switcherTakeOverSystemShortcuts: "Заменить ⌘Tab и ⌘` macOS",
         switcherTakeOverSystemShortcutsCaption: "Отключает соответствующие сочетания macOS только на время работы переключателя Vorssaint. Все запущенные приложения остаются доступны.",
         switcherAppearanceDelay: "Задержка появления",

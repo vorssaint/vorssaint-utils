@@ -1779,7 +1779,7 @@ extension RecorderFeatureStrings {
         textColorLabel: "颜色",
         removeText: "移除",
         copyAndDeleteButton: "拷贝并删除",
-        saveAsButton: "另存为…",
+        saveAsButton: "存储为…",
         discardSavedMessage: "已存储和已拷贝的文件会保留在原位置。",
         presetsButton: "预设",
         savePreset: "保存当前预设…",

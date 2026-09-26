@@ -82,7 +82,7 @@ extension GeneralSettingsStrings {
         iconMissingTitle: "Can’t find the icon?",
         iconMissingCaption: "A crowded menu bar can hide it, especially on Macs with a notch.",
         sectionKeepAwake: "Keeps your Mac awake for as long as you want.",
-        sectionDisplays: "Brightness of your screens.",
+        sectionDisplays: "Brightness of your displays.",
         sectionMixer: "Volume of each app, one slider each.",
         sectionSystem: "Processor, graphics and memory at a glance.",
         sectionNetwork: "Internet speed and which apps are using it.",

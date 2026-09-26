@@ -215,7 +215,7 @@ extension Strings {
         launcherAddSection: "重新加入",
         launcherKeysHint: "方向鍵導航，Enter 打開，1 到 9 直接打開",
 
-        switcherSection: "App 切換器",
+        switcherSection: "視窗切換器",
         switcherEnable: "使用 Vorssaint 切換器",
         switcherEnableCaption: "在 App 和視窗之間切換，包括已最小化的視窗和同一 App 的多個視窗。",
         switcherUsageHint: "按住快速鍵瀏覽；放開即可切換到視窗。Shift 或 ← 返回；W 關閉視窗；Q 結束 App；Esc 取消。",
@@ -225,7 +225,7 @@ extension Strings {
         switcherSimpleModeCaption: "顯示 App 圖示和視窗標題，不顯示預覽，也不會由切換器擷取螢幕。",
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "視窗",
-        switcherWindowShortcutCaption: "開啟最前應用程式的視窗切換器。應用程式切換器開啟時，在所選應用程式的視窗之間跳轉。",
+        switcherWindowShortcutCaption: "開啟最前應用程式的視窗切換器。切換器開啟時，在所選應用程式的視窗之間跳轉。",
         switcherTakeOverSystemShortcuts: "接管 macOS 的 ⌘Tab 和 ⌘`",
         switcherTakeOverSystemShortcutsCaption: "僅在 Vorssaint 切換器執行時停用對應的 macOS App 與視窗快速鍵，並保留所有執行中 App 的入口。",
         switcherAppearanceDelay: "顯示延遲",

@@ -216,7 +216,7 @@ extension MouseExceptionStrings {
         captionButtonShortcuts: "在这些 App 里额外按键保持安静，按下会传给 App。",
         captionMiddleClick: "在这些 App 里三指点按仍是普通点按。",
         captionFocusFollowsMouse: "在这些 App 里悬停不会改变焦点，也不会将窗口置于前方。",
-        captionSuperKey: "这些 App 中任意一个打开时，即使在后台，Super Key 也会暂停，所选按键恢复正常功能。",
+        captionSuperKey: "这些 App 中任意一个打开时，即使在后台，超级键也会暂停，所选按键恢复正常功能。",
         pausedSuperKey: "所选 App 打开期间已暂停"
     )
 
