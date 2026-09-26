@@ -1,4 +1,4 @@
-name: Apply locally reviewed stability patch
+name: Prepare locally reviewed stability patch
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  prepare:
     if: github.repository == 'vorssaint/vorssaint-utils' && github.ref == 'refs/heads/audit/3.4-stability-performance'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify and apply the exact local patch
+      - name: Prepare checked source objects for the authorized connector
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -30,7 +30,6 @@ jobs:
           import base64, gzip, hashlib
           from pathlib import Path
           encoded = ''.join(Path('/tmp/audit-patch.base64').read_text().split())
-          # Correct a transfer transcription before checking the reviewed payload.
           encoded = encoded.replace('IMHpxfyq2ru9Ad', 'IMHpxfyq2rh9Ad')
           patch = gzip.decompress(base64.b64decode(encoded, validate=True))
           assert hashlib.sha256(patch).hexdigest() == '6cf0db8af1bb8cd380c91efc794911c19170d1f21e0c702a7c1f684942f0e0d9'
@@ -39,14 +38,24 @@ jobs:
           git apply --check /tmp/audit-reviewed.patch
           git apply --index --whitespace=error /tmp/audit-reviewed.patch
           git diff --cached --check
-          test "$(git diff --cached --name-only | wc -l)" -eq 14
-          if git diff --cached --name-only | grep -Ev '^(Sources/|Tests/)'; then
-            echo 'Unexpected patch path' >&2
-            exit 1
-          fi
           python3 Tests/generate_sources.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'fix(perf): bound agent log work and avoid redundant interface updates'
-          git -c credential.helper='!gh auth git-credential' push origin HEAD:refs/heads/audit/3.4-stability-performance
-          git rev-parse HEAD
+          python3 - <<'PY'
+          import base64, json, subprocess
+          from pathlib import Path
+          paths = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          assert len(paths) == 14 and all(p.startswith(('Sources/', 'Tests/')) for p in paths)
+          def post(resource, payload):
+              result = subprocess.run(['gh', 'api', '--method', 'POST', 'repos/vorssaint/vorssaint-utils/git/' + resource, '--input', '-'], input=json.dumps(payload), text=True, capture_output=True, check=True)
+              return json.loads(result.stdout)
+          elements = []
+          for path in paths:
+              content = Path(path).read_bytes()
+              blob = post('blobs', {'encoding': 'base64', 'content': base64.b64encode(content).decode()})
+              expected = subprocess.check_output(['git', 'hash-object', path], text=True).strip()
+              assert blob['sha'] == expected
+              elements.append({'path': path, 'mode': '100644', 'type': 'blob', 'sha': blob['sha']})
+          # Start with the pinned main tree: temporary audit workflows are not part of the result.
+          tree = post('trees', {'base_tree': '211b60dac82699e889158425afc7c930003acdfe', 'tree': elements})
+          print('VERIFIED_SOURCE_TREE=' + tree['sha'])
+          print(json.dumps(elements, indent=2))
+          PY
