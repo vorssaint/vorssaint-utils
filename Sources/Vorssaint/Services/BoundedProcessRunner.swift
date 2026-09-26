@@ -75,10 +75,12 @@ enum BoundedProcessRunner {
                     _ arguments: [String],
                     timeout: TimeInterval,
                     maxOutputBytes: Int,
+                    environment: [String: String]? = nil,
                     cancellation: BoundedProcessCancellation? = nil) -> Result {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
+        process.environment = environment
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe

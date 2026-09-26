@@ -494,6 +494,96 @@ enum RepositoryFeatureTests {
                 && alternateShellSetupCommand.contains("/bin/mkdir -p /Users/test/.config/fish")
                 && alternateShellSetupCommand.hasSuffix("; eval (/opt/homebrew/bin/brew shellenv fish); brew --version"),
                "Homebrew shell setup creates and activates the interactive shell config")
+
+        // The login shell's exports reach brew through an allowlist (issue #1290).
+        let loginShell = HomebrewEnvironment.loginShellCommand(shellPath: "/bin/zsh")
+        suite.expect(loginShell.executable == "/bin/zsh"
+                && loginShell.arguments.contains("-l")
+                && loginShell.arguments.contains("-i")
+                && (loginShell.arguments.last?.hasSuffix("/usr/bin/env -0") ?? false)
+                && (loginShell.arguments.last?.contains(HomebrewEnvironment.dumpMarker) ?? false),
+               "Homebrew asks the user's shell as a login and interactive shell, so ~/.zshrc is read too, "
+               + "and marks where the NUL-separated environment starts")
+        let envDump = Data(("HOME=/Users/test\0https_proxy=http://127.0.0.1:7890\0MULTI=a\nb\0"
+                            + "EQUALS=x=y\0EMPTY=\0noequals\0Welcome back\nHOMEBREW_API_DOMAIN=https://mirror.example/api\0").utf8)
+        let parsedEnvironment = HomebrewEnvironment.parse(nullSeparated: envDump)
+        expectEqual(parsedEnvironment["https_proxy"] ?? "", "http://127.0.0.1:7890",
+                    "Homebrew environment parser reads a NAME=value entry")
+        expectEqual(parsedEnvironment["MULTI"] ?? "", "a\nb",
+                    "Homebrew environment parser keeps a newline inside a value; NUL is the only separator")
+        expectEqual(parsedEnvironment["EQUALS"] ?? "", "x=y",
+                    "Homebrew environment parser splits on the first equals sign only")
+        suite.expect(parsedEnvironment["EMPTY"] == "" && parsedEnvironment["noequals"] == nil,
+               "Homebrew environment parser keeps an empty value and drops an entry without one")
+        suite.expect(!parsedEnvironment.keys.contains { $0.contains("Welcome") || $0.hasPrefix("HOMEBREW_") },
+               "Homebrew environment parser drops an entry whose name is not an identifier, "
+               + "such as startup output glued to the variable behind it")
+        // What a real `bash -i` does: "no job control in this shell" on the shared
+        // pipe, with no NUL of its own, so the first variable rides in behind it.
+        let noisyDump = Data(("bash: no job control in this shell\nWelcome back\n"
+                              + HomebrewEnvironment.dumpMarker
+                              + "https_proxy=http://127.0.0.1:7890\0HOMEBREW_API_DOMAIN=https://mirror.example/api\0").utf8)
+        let parsedNoisy = HomebrewEnvironment.parse(nullSeparated: noisyDump)
+        expectEqual(parsedNoisy["https_proxy"] ?? "", "http://127.0.0.1:7890",
+                    "Homebrew keeps the first variable of the dump when a startup file printed before it")
+        expectEqual(parsedNoisy["HOMEBREW_API_DOMAIN"] ?? "", "https://mirror.example/api",
+                    "Homebrew reads the rest of a dump that startup output preceded")
+        suite.expect(parsedNoisy.count == 2,
+               "Homebrew takes nothing a startup file printed as a variable, found \(parsedNoisy.keys.sorted())")
+        let echoedMarker = Data(("startup echoed " + HomebrewEnvironment.dumpMarker + " itself\n"
+                                 + HomebrewEnvironment.dumpMarker + "no_proxy=localhost\0").utf8)
+        expectEqual(HomebrewEnvironment.parse(nullSeparated: echoedMarker)["no_proxy"] ?? "", "localhost",
+                    "Homebrew takes the last marker, so a startup file echoing it cannot cut the dump short")
+        let passedThrough = HomebrewEnvironment.passthrough([
+            "PATH": "/tmp/evil:/usr/bin", "DYLD_INSERT_LIBRARIES": "/tmp/evil.dylib", "HOME": "/Users/test",
+            "SHELL": "/bin/zsh", "HTTP_PROXY": "http://127.0.0.1:7890", "https_proxy": "http://127.0.0.1:7890",
+            "ALL_PROXY": "socks5://127.0.0.1:7891", "no_proxy": "localhost", "HOMEBREW_API_DOMAIN": "https://mirror.example/api",
+            "HOMEBREW_BOTTLE_DOMAIN": "https://mirror.example", "HOMEBREWX": "no", "homebrew_lower": "no",
+        ])
+        suite.expect(Set(passedThrough.keys) == ["https_proxy", "ALL_PROXY", "no_proxy",
+                                           "HOMEBREW_API_DOMAIN", "HOMEBREW_BOTTLE_DOMAIN"],
+               "Homebrew passes through only the proxy names brew itself keeps and HOMEBREW_* settings, "
+               + "found \(passedThrough.keys.sorted())")
+        suite.expect(HomebrewEnvironment.exportsFromLoginShell(shellPath: "").isEmpty
+                && HomebrewEnvironment.exportsFromLoginShell(shellPath: "/nonexistent/shell", timeout: 1).isEmpty,
+               "Homebrew contributes nothing when there is no login shell or it cannot start")
+        suite.expect(HomebrewEnvironment.exportsFromLoginShell(shellPath: "/bin/sh").keys
+                .allSatisfy(HomebrewEnvironment.isPassedThrough),
+               "Homebrew never hands a login shell's whole environment to brew")
+        let plainLogin = HomebrewEnvironment.loginShellCommand(shellPath: "/bin/zsh", interactive: false)
+        suite.expect(plainLogin.arguments.contains("-l") && !plainLogin.arguments.contains("-i")
+                && plainLogin.arguments.last == loginShell.arguments.last,
+               "Homebrew's fallback asks for the same dump from a plain login shell")
+        let resolvingEnvironment = HomebrewEnvironment.loginShellEnvironment(base: ["HOME": "/Users/test"])
+        suite.expect(HomebrewEnvironment.resolvingVariable == "VORSSAINT_RESOLVING_ENVIRONMENT"
+                && resolvingEnvironment == ["HOME": "/Users/test", "VORSSAINT_RESOLVING_ENVIRONMENT": "1"],
+               "Homebrew runs the login shell with VORSSAINT_RESOLVING_ENVIRONMENT=1 on top of the app's environment")
+        // A real zsh reading startup files from a scratch ZDOTDIR, so the user's own are never touched.
+        let zdotdir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-login-shell-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: zdotdir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: zdotdir) }
+        func startupExports(zshrc: String) -> [String: String] {
+            try? "export HOMEBREW_API_DOMAIN=https://mirror.example/api\n"
+                .write(to: zdotdir.appendingPathComponent(".zprofile"), atomically: true, encoding: .utf8)
+            try? zshrc.write(to: zdotdir.appendingPathComponent(".zshrc"), atomically: true, encoding: .utf8)
+            return HomebrewEnvironment.exportsFromLoginShell(
+                shellPath: "/bin/zsh",
+                baseEnvironment: ["HOME": zdotdir.path, "ZDOTDIR": zdotdir.path, "PATH": "/usr/bin:/bin"])
+        }
+        let zshrcExports = startupExports(zshrc: "export https_proxy=http://127.0.0.1:7890\n"
+                                          + "export HOMEBREW_SEEN_RESOLVING=$VORSSAINT_RESOLVING_ENVIRONMENT\n")
+        suite.expect(zshrcExports["HOMEBREW_API_DOMAIN"] == "https://mirror.example/api"
+                && zshrcExports["https_proxy"] == "http://127.0.0.1:7890",
+               "Homebrew reads exports from both ~/.zprofile and ~/.zshrc, found \(zshrcExports.keys.sorted())")
+        expectEqual(zshrcExports["HOMEBREW_SEEN_RESOLVING"] ?? "", "1",
+                    "Homebrew's login shell exposes VORSSAINT_RESOLVING_ENVIRONMENT to startup files")
+        // A multiplexer autostart that fails without a terminal and exits, or an exec into another shell.
+        for takeover in ["tmux_autostart_failed_without_a_terminal=1; exit 0", "exec /bin/sh -c true"] {
+            let fallbackExports = startupExports(zshrc: takeover + "\n")
+            expectEqual(fallbackExports["HOMEBREW_API_DOMAIN"] ?? "", "https://mirror.example/api",
+                        "Homebrew falls back to the plain login run when ~/.zshrc ends the shell early: \(takeover)")
+        }
         suite.expectClose(HomebrewProgressParser.progressFraction(in: "######## 42.5%") ?? -1,
                     0.425,
                     "Homebrew progress parser reads percentage output")

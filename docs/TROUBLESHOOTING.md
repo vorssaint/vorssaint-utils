@@ -59,6 +59,22 @@ macOS. If copying fresh text does not restore history, quit and reopen the
 source app and Vorssaint. Include the source app and macOS version in a report;
 do not include private clipboard content.
 
+## Homebrew and your shell startup files
+
+Homebrew inside Vorssaint uses the proxy and `HOMEBREW_*` settings your shell
+exports, so it reaches the same servers as Terminal. To find them, Vorssaint
+starts your login shell once per launch, the way Terminal does, which reads
+`~/.zprofile`, `~/.zshrc` and `~/.zlogout`. Because Vorssaint starts it, a
+startup file that reads a protected folder asks for access in Vorssaint's name.
+
+During that run `VORSSAINT_RESOLVING_ENVIRONMENT` is set to `1`. A startup file
+can check it to skip work that only makes sense in a terminal window, such as
+starting a multiplexer or a slow prompt:
+
+```sh
+[[ -n $VORSSAINT_RESOLVING_ENVIRONMENT ]] && return
+```
+
 ## Resetting permissions
 
 To wipe Vorssaint's granted permissions and let macOS ask again from scratch, pick one of these.
