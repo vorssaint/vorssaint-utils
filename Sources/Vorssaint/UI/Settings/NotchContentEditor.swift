@@ -12,7 +12,7 @@ struct NotchIslandPreview: View {
     var hidden = false
     @ObservedObject private var notch = NotchService.shared
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var monitoring = false

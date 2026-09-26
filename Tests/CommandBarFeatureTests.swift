@@ -1202,6 +1202,17 @@ enum CommandBarFeatureTests {
         suite.expect(CommandBarRowShortcuts.key(for: commandPeriod, in: emojiBinding)
                 == CommandBarPreferences.emojiBrowserRowID,
                "the Emoji browser row can own a global shortcut like any other row")
+        var alphabetBindings: [String: GlobalShortcut] = [:]
+        for index in 0..<26 {
+            alphabetBindings = CommandBarRowShortcuts.setting(
+                GlobalShortcut(keyCode: Int64(index), modifiers: [.control]),
+                for: "app.bundle.\(index)", in: alphabetBindings)
+        }
+        suite.expect(alphabetBindings.count == 26
+                && CommandBarRowShortcuts.hasRoom(for: "row.extra", in: alphabetBindings)
+                && CommandBarRowShortcuts.decode(CommandBarRowShortcuts.encode(alphabetBindings))
+                    == alphabetBindings,
+               "26 app shortcuts fit with room left for other commands")
         var full: [String: GlobalShortcut] = [:]
         for index in 0..<CommandBarRowShortcuts.limit {
             full["row.\(index)"] = GlobalShortcut(keyCode: Int64(index), modifiers: [.control])

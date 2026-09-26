@@ -220,6 +220,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Вимикає відповідні поєднання macOS для програм і вікон лише доти, доки активний перемикач Vorssaint. Усі запущені програми лишаються доступними.",
         switcherAppearanceDelay: "Затримка появи",
         switcherAppearanceDelayCaption: "Як довго потрібно утримувати клавіатурне скорочення, перш ніж з’явиться перемикач.",
+        switcherInstantSelection: "Миттєвий вибір",
+        switcherInstantSelectionCaption: "Під час переходу між програмами та вікнами одразу переміщує виділення і прокручує список.",
         switcherMergeTabs: "Показувати один запис на програму",
         switcherMergeTabsCaption: "Зводить усі вікна програми в один запис у перемикачі замість окремого запису на кожне вікно.",
         switcherWindowlessApps: "Програми без відкритих вікон",

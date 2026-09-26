@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Deaktiviert die passenden macOS-App- und Fensterkurzbefehle nur, solange Vorssaints Umschalter aktiv ist. Alle laufenden Apps bleiben erreichbar.",
         switcherAppearanceDelay: "Einblendverzögerung",
         switcherAppearanceDelayCaption: "Wie lange das Tastenkürzel gehalten werden muss, bevor der Umschalter erscheint.",
+        switcherInstantSelection: "Sofortige Auswahl",
+        switcherInstantSelectionCaption: "Verschiebt Markierung und Liste beim Durchgehen von Apps und Fenstern sofort.",
         switcherMergeTabs: "Einen Eintrag pro App anzeigen",
         switcherMergeTabsCaption: "Fasst alle Fenster einer App zu einem Eintrag im Umschalter zusammen, statt einen Eintrag pro Fenster.",
         switcherWindowlessApps: "Apps ohne geöffnetes Fenster",

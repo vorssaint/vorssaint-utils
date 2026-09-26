@@ -63,6 +63,7 @@ struct NotchMixerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear { mixer.refreshApps() }
     }
 
     @ViewBuilder private var desk: some View {

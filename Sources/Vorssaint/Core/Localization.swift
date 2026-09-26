@@ -389,6 +389,8 @@ struct Strings {
     let switcherTakeOverSystemShortcutsCaption: String
     let switcherAppearanceDelay: String
     let switcherAppearanceDelayCaption: String
+    let switcherInstantSelection: String
+    let switcherInstantSelectionCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherWindowlessApps: String
@@ -1503,6 +1505,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Desativa os atalhos correspondentes de apps e janelas do macOS somente enquanto o alternador do Vorssaint estiver ativo. Todos os apps abertos continuam acessíveis.",
         switcherAppearanceDelay: "Atraso de exibição",
         switcherAppearanceDelayCaption: "Quanto tempo o atalho precisa ficar pressionado antes de o alternador aparecer.",
+        switcherInstantSelection: "Seleção instantânea",
+        switcherInstantSelectionCaption: "Move o destaque e a rolagem imediatamente ao navegar por apps e janelas.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -2581,6 +2585,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Disables the matching macOS app and window shortcuts only while Vorssaint’s switcher is active. All running apps stay reachable.",
         switcherAppearanceDelay: "Appearance delay",
         switcherAppearanceDelayCaption: "How long the shortcut must be held before the switcher appears.",
+        switcherInstantSelection: "Instant selection",
+        switcherInstantSelectionCaption: "Moves the highlight and scroll position immediately as you browse apps and windows.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app’s windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",
