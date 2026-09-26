@@ -210,6 +210,15 @@ enum KeyboardFeatureTests {
                 && !GlobalShortcut.finderRenameDefault.matches(
                     keyCode: Int64(kVK_F2), modifiers: [.command]),
                "Finder rename matches the chosen key and no extra modifiers")
+        suite.expect(GlobalShortcut.finderCopyPathDefault.isValid
+                && GlobalShortcut.finderCopyPathDefault.displayString == "⌃⇧C"
+                && GlobalShortcut(storageValue: GlobalShortcut.finderCopyPathDefault.storageValue)
+                    == .finderCopyPathDefault,
+               "the Finder copy-path shortcut records, displays and survives storage")
+        suite.expect(GlobalShortcutRole.finderCopyPath.feature == .finderCutPaste
+                && GlobalShortcutRole.finderCopyPath.requiredEnableKeys
+                    == [DefaultsKey.finderCopyPathEnabled],
+               "copy path shares the Finder file-shortcuts lifecycle but keeps its own switch")
 
         // MARK: Shortcuts the app silences while a field is listening (#308)
 

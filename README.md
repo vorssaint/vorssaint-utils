@@ -124,7 +124,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Auto clear clipboard.** Clear the system clipboard after a delay, sleep or lock, while keeping saved history.
 - **Paste as plain text.** Paste without formatting while preserving the original clipboard content.
 - **Shelf.** Park files, text and links near your cursor while dragging, then drop or share them later.
-- **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, or paste copied images as PNG files.
+- **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, copy selected paths, or paste copied images as PNG files.
 - **Clean URL.** Remove tracking parameters from links, manually or automatically.
 - **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup.
 
