@@ -39,6 +39,8 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = true
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
+    @AppStorage(DefaultsKey.screenshotUploadShortcutEnabled) private var uploadShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotUploadDuration) private var uploadDuration = ScreenshotShareDuration.oneHour.rawValue
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
 
@@ -187,7 +189,26 @@ struct ScreenshotCaptureSettings: View {
 
             Section {
                 Toggle(strings.shareEnabledToggle, isOn: $sharingEnabled)
+                    .onChange(of: sharingEnabled) { _, _ in service.syncWithPreferences() }
                 if sharingEnabled {
+                    Toggle(strings.uploadLastCapture, isOn: $uploadShortcutEnabled)
+                        .onChange(of: uploadShortcutEnabled) { _, _ in service.syncWithPreferences() }
+                    ShortcutPreferenceRow(role: .screenshotUpload,
+                                          isEnabled: uploadShortcutEnabled) {
+                        service.syncWithPreferences()
+                    }
+                    Picker(strings.uploadExpiry, selection: $uploadDuration) {
+                        ForEach(ScreenshotShareDuration.allCases) { duration in
+                            Text(duration.title(strings)).tag(duration.rawValue)
+                        }
+                    }
+                    if uploadShortcutEnabled {
+                        if service.uploadShortcutRegistrationFailed {
+                            Text(l10n.s.shortcutUnavailable)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                     Text(strings.shareCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)

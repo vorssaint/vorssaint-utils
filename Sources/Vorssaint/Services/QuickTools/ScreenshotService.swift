@@ -17,6 +17,12 @@ final class ScreenshotService: ObservableObject {
     @Published private(set) var lastCaptureShortcutRegistrationFailed = false
     @Published private(set) var clipboardShortcutRegistrationFailed = false
 
+    @Published private(set) var uploadShortcutRegistrationFailed = false
+    private let uploadHotkey = QuickToolHotkey(id: 61)
+    private var uploadingLatestCapture = false
+    private var latestCaptureID = UUID()
+    private var linkCopyRetry = ScreenshotLinkCopyRetry()
+
     private let lastCaptureHotkey = QuickToolHotkey(id: 22)
     private let fullScreenHotkey = QuickToolHotkey(id: 23)
     private let clipboardHotkey = QuickToolHotkey(id: 24)
@@ -93,6 +99,9 @@ final class ScreenshotService: ObservableObject {
         }
         fullScreenHotkey.onPress = { [weak self] in self?.captureFullScreen() }
         lastCaptureHotkey.onPress = { [weak self] in self?.openLastCapture() }
+        uploadHotkey.onPress = { [weak self] in
+            Task { @MainActor [weak self] in self?.uploadLastCapture() }
+        }
         clipboardHotkey.onPress = { [weak self] in self?.openClipboardImage() }
     }
 
@@ -101,9 +110,11 @@ final class ScreenshotService: ObservableObject {
             fullScreenShortcutRegistrationFailed = false
             lastCaptureShortcutRegistrationFailed = false
             clipboardShortcutRegistrationFailed = false
+            uploadShortcutRegistrationFailed = false
             fullScreenHotkey.unregister()
             lastCaptureHotkey.unregister()
             clipboardHotkey.unregister()
+            uploadHotkey.unregister()
             ScreenshotLastCaptureStore.clear()
             teardownSurfaces()
             return
@@ -136,7 +147,12 @@ final class ScreenshotService: ObservableObject {
             enabled: clipboardEnabled,
             shortcut: clipboardShortcut,
             storageKey: DefaultsKey.screenshotClipboardShortcut)
-        if !lastCaptureEnabled {
+        uploadShortcutRegistrationFailed = !uploadHotkey.sync(
+            enabled: ScreenshotSharingSupport.uploadShortcutEnabled(in: defaults),
+            shortcut: GlobalShortcut.saved(for: DefaultsKey.screenshotUploadShortcut,
+                                           fallback: .screenshotUploadDefault),
+            storageKey: DefaultsKey.screenshotUploadShortcut)
+        if !ScreenshotSharingSupport.retainsLatestCapture(in: defaults) {
             ScreenshotLastCaptureStore.clear()
         }
     }
@@ -145,6 +161,7 @@ final class ScreenshotService: ObservableObject {
         fullScreenHotkey.unregister()
         lastCaptureHotkey.unregister()
         clipboardHotkey.unregister()
+        uploadHotkey.unregister()
     }
 
     /// Hub-off means gone: open editors, pins and a selection in progress
@@ -397,10 +414,11 @@ final class ScreenshotService: ObservableObject {
     /// the captures that open straight in the editor, where no preview button
     /// exists to reach for.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
+        latestCaptureID = UUID()
+        linkCopyRetry.clear()
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
-        if UserDefaults.standard.bool(
-            forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled) {
+        if ScreenshotSharingSupport.retainsLatestCapture() {
             ScreenshotLastCaptureStore.save(capture)
         }
         if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
@@ -464,7 +482,7 @@ final class ScreenshotService: ObservableObject {
             },
             share: { [weak self] duration, completion in
                 guard let self else {
-                    completion(nil)
+                    Task { @MainActor in completion(nil) }
                     return
                 }
                 self.shareDirect(capture, duration: duration, completion: completion)
@@ -484,6 +502,61 @@ final class ScreenshotService: ObservableObject {
         let editor = ScreenshotEditorController(capture: capture)
         editors.append(editor)
         editor.show()
+    }
+
+    @MainActor
+    private func uploadLastCapture() {
+        guard AppFeature.screenshot.isAvailable,
+              ScreenshotSharingSupport.uploadShortcutEnabled() else { return }
+        if let preview {
+            preview.shareLink()
+            return
+        }
+        guard editors.isEmpty else {
+            NSSound.beep()
+            return
+        }
+        guard !uploadingLatestCapture else { return }
+        if let record = linkCopyRetry.record(for: latestCaptureID,
+                                             availableRecords: ScreenshotShareService.shared.records) {
+            copyUploadedLink(record, captureID: latestCaptureID)
+            return
+        }
+        guard let capture = ScreenshotLastCaptureStore.load() else {
+            QuickToolHUD.show(icon: "camera.viewfinder", message: strings.lastCaptureMissing)
+            return
+        }
+        let captureID = latestCaptureID
+        uploadingLatestCapture = true
+        QuickToolHUD.show(icon: "link", message: strings.sharingHUD)
+        shareDirect(capture, duration: .saved()) { [weak self] record in
+            self?.uploadingLatestCapture = false
+            guard let record else { return }
+            guard let self,
+                  self.latestCaptureID == captureID else {
+                Task { @MainActor in
+                    try? await ScreenshotShareService.shared.delete(record)
+                }
+                return
+            }
+            self.copyUploadedLink(record, captureID: captureID)
+        }
+    }
+
+    @MainActor
+    private func copyUploadedLink(_ record: ScreenshotShareRecord, captureID: UUID) {
+        let copied = ScreenshotSharingSupport.copyLink(
+            record, using: ScreenshotShareService.shared.copy,
+            dismiss: {})
+        if captureID == latestCaptureID {
+            if copied {
+                linkCopyRetry.clear()
+            } else {
+                linkCopyRetry.remember(record, for: captureID)
+            }
+        }
+        QuickToolHUD.show(icon: "link", message: copied
+            ? strings.sharedHUD : strings.linkCopyFailedHUD)
     }
 
     private func openLastCapture() {
@@ -608,7 +681,7 @@ final class ScreenshotService: ObservableObject {
 
     private func shareDirect(_ capture: ScreenshotSelectionController.Capture,
                              duration: ScreenshotShareDuration,
-                             completion: @escaping (ScreenshotShareRecord?) -> Void) {
+                             completion: @escaping @MainActor (ScreenshotShareRecord?) -> Void) {
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         Task { @MainActor [weak self] in
             guard let self else {

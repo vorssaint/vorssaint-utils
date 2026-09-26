@@ -36,7 +36,7 @@ final class ScreenshotQuickPreviewController {
     /// their buttons out. Empty means the action failed entirely.
     private let action: (Action) -> Set<Action>
     private let share: (ScreenshotShareDuration,
-                        @escaping (ScreenshotShareRecord?) -> Void) -> Void
+                        @escaping @MainActor (ScreenshotShareRecord?) -> Void) -> Void
     /// Writes the capture as it would be saved into a temporary file for the
     /// system share sheet.
     private let shareFile: () -> URL?
@@ -64,7 +64,7 @@ final class ScreenshotQuickPreviewController {
          defaultAction: ScreenshotDefaultAction,
          action: @escaping (Action) -> Set<Action>,
          share: @escaping (ScreenshotShareDuration,
-                           @escaping (ScreenshotShareRecord?) -> Void) -> Void,
+                           @escaping @MainActor (ScreenshotShareRecord?) -> Void) -> Void,
          shareFile: @escaping () -> URL?,
          onClose: @escaping () -> Void) {
         self.capture = capture
@@ -264,6 +264,15 @@ final class ScreenshotQuickPreviewController {
         close()
     }
 
+    func shareLink() {
+        guard !closed, !model.deletingShare else { return }
+        if model.sharedRecord != nil {
+            copySharedLink()
+        } else {
+            performShare(.saved())
+        }
+    }
+
     /// The system share sheet: AirDrop, messages and every other target the
     /// Mac offers. The preview waits while the sheet is up, and a chosen
     /// target finishes it the way Copy does.
@@ -307,9 +316,8 @@ final class ScreenshotQuickPreviewController {
                 self.scheduleAutoDismiss()
                 return
             }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
-                self.model.sharedRecord = record
-            }
+            if self.copyLinkAndClose(record) { return }
+            self.model.sharedRecord = record
             self.autoDismissDuration = 30
             self.resizePanel(showingLink: true)
             self.scheduleAutoDismiss()
@@ -322,13 +330,22 @@ final class ScreenshotQuickPreviewController {
         dismissWork = nil
         Task { @MainActor [weak self] in
             guard let self, !self.closed else { return }
-            if ScreenshotShareService.shared.copy(record.url) {
-                QuickToolHUD.show(icon: "link", message: self.strings.sharedHUD)
-            } else {
-                NSSound.beep()
-            }
-            self.scheduleAutoDismiss()
+            if !self.copyLinkAndClose(record) { self.scheduleAutoDismiss() }
         }
+    }
+
+    @MainActor
+    private func copyLinkAndClose(_ record: ScreenshotShareRecord) -> Bool {
+        let copied = ScreenshotSharingSupport.copyLink(
+            record, using: ScreenshotShareService.shared.copy,
+            dismiss: { self.close() })
+        if copied {
+            QuickToolHUD.show(icon: "link", message: strings.sharedHUD)
+        } else {
+            QuickToolHUD.show(icon: "link", message: strings.linkCopyFailedHUD)
+            NSSound.beep()
+        }
+        return copied
     }
 
     private func deleteSharedLink() {
@@ -747,9 +764,12 @@ private struct ScreenshotQuickPreviewView: View {
                 }
             }
             .frame(width: embedded ? 28 : 22, height: embedded ? 28 : 18)
+        } primaryAction: {
+            share(.saved())
         }
         .disabled(model.sharing)
-        .screenshotSafeHelp(model.sharing ? strings.sharingHUD : strings.shareSectionTitle)
+        .screenshotSafeHelp(model.sharing ? strings.sharingHUD
+            : "\(strings.shareSectionTitle) · \(ScreenshotShareDuration.saved().title(strings))")
         .accessibilityLabel(strings.shareSectionTitle)
     }
 

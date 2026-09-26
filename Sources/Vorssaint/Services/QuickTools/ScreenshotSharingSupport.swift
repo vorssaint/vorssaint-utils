@@ -10,6 +10,10 @@ enum ScreenshotShareDuration: Int, CaseIterable, Codable, Identifiable {
 
     var id: Int { rawValue }
 
+    static func saved(in defaults: UserDefaults = .standard) -> Self {
+        Self(rawValue: defaults.integer(forKey: DefaultsKey.screenshotUploadDuration)) ?? .oneHour
+    }
+
     func title(_ strings: ScreenshotFeatureStrings) -> String {
         switch self {
         case .oneHour: strings.shareOneHour
@@ -31,6 +35,25 @@ struct ScreenshotShareRecord: Codable, Equatable, Identifiable {
     }
 }
 
+/// Keeps clipboard retries tied to the capture that produced the link.
+struct ScreenshotLinkCopyRetry {
+    private var pending: (captureID: UUID, record: ScreenshotShareRecord)?
+
+    mutating func remember(_ record: ScreenshotShareRecord, for captureID: UUID) {
+        pending = (captureID, record)
+    }
+
+    mutating func clear() { pending = nil }
+
+    func record(for captureID: UUID, availableRecords: [ScreenshotShareRecord],
+                now: Date = Date()) -> ScreenshotShareRecord? {
+        guard let pending, pending.captureID == captureID,
+              pending.record.expiresAt > now,
+              availableRecords.contains(pending.record) else { return nil }
+        return pending.record
+    }
+}
+
 struct ScreenshotShareResponse: Decodable {
     let id: String
     let viewPath: String
@@ -39,6 +62,25 @@ struct ScreenshotShareResponse: Decodable {
 }
 
 enum ScreenshotSharingSupport {
+    static func uploadShortcutEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.screenshotUploadShortcutEnabled)
+            && defaults.bool(forKey: DefaultsKey.screenshotSharingEnabled)
+    }
+
+    static func retainsLatestCapture(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
+            || uploadShortcutEnabled(in: defaults)
+    }
+
+    @discardableResult
+    static func copyLink(_ record: ScreenshotShareRecord,
+                         using copy: (URL) -> Bool,
+                         dismiss: () -> Void) -> Bool {
+        guard copy(record.url) else { return false }
+        dismiss()
+        return true
+    }
+
     static let productionEndpoint = URL(string: "https://screenshots.vorssaint.com")!
     static let developerBundleIdentifier = "com.vorssaint.utils.dev"
     static let maximumUploadBytes = 25 * 1_024 * 1_024

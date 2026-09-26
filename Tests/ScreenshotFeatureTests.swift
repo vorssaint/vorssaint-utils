@@ -39,6 +39,91 @@ enum ScreenshotFeatureTests {
 
         // MARK: Screenshot tool
 
+        let copyRecord = ScreenshotShareRecord(
+            id: String(repeating: "a", count: 32),
+            endpoint: URL(string: "https://example.com")!,
+            expiresAt: Date().addingTimeInterval(3_600), deleteToken: "test")
+        var linkEvents: [String] = []
+        let failedCopy = ScreenshotSharingSupport.copyLink(copyRecord, using: { url in
+            linkEvents.append(url.absoluteString)
+            return false
+        }, dismiss: { linkEvents.append("dismiss") })
+        suite.expect(!failedCopy && linkEvents == [copyRecord.url.absoluteString],
+                     "a failed link copy leaves the preview open for retry")
+        linkEvents.removeAll()
+        let successfulCopy = ScreenshotSharingSupport.copyLink(copyRecord, using: { url in
+            linkEvents.append(url.absoluteString)
+            return true
+        }, dismiss: { linkEvents.append("dismiss") })
+        suite.expect(successfulCopy && linkEvents == [copyRecord.url.absoluteString, "dismiss"],
+                     "a successful link copy dismisses the preview only after copying the URL")
+
+        let retryCaptureID = UUID()
+        var copyRetry = ScreenshotLinkCopyRetry()
+        copyRetry.remember(copyRecord, for: retryCaptureID)
+        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord]) == copyRecord,
+                     "a clipboard failure offers the same uploaded link for retry")
+        suite.expect(copyRetry.record(for: UUID(), availableRecords: [copyRecord]) == nil,
+                     "a new screenshot does not retry the previous screenshot's link")
+        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: []) == nil,
+                     "a revoked link cannot be copied by the upload shortcut")
+        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord],
+                                      now: copyRecord.expiresAt) == nil,
+                     "an expired link cannot be copied by the upload shortcut")
+        copyRetry.clear()
+        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord]) == nil,
+                     "successful copying clears the pending retry")
+
+        let uploadDefaultsName = "com.vorssaint.tests.screenshot-upload.\(UUID().uuidString)"
+        let uploadDefaults = UserDefaults(suiteName: uploadDefaultsName)!
+        defer { uploadDefaults.removePersistentDomain(forName: uploadDefaultsName) }
+        suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == .oneHour,
+                     "an unset upload expiry defaults to one hour")
+        for duration in ScreenshotShareDuration.allCases {
+            uploadDefaults.set(duration.rawValue, forKey: DefaultsKey.screenshotUploadDuration)
+            suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == duration,
+                         "the upload shortcut uses each supported saved expiry")
+            let url = ScreenshotSharingSupport.uploadURL(
+                endpoint: ScreenshotSharingSupport.productionEndpoint,
+                duration: .saved(in: uploadDefaults))!
+            suite.expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first?.value == String(duration.rawValue),
+                         "the saved shortcut expiry reaches the upload request")
+        }
+        uploadDefaults.set(-1, forKey: DefaultsKey.screenshotUploadDuration)
+        suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == .oneHour,
+                     "invalid restored expiry falls back to one hour")
+        for editEnabled in [false, true] {
+            for uploadEnabled in [false, true] {
+                for sharingEnabled in [false, true] {
+                    uploadDefaults.set(editEnabled, forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
+                    uploadDefaults.set(uploadEnabled, forKey: DefaultsKey.screenshotUploadShortcutEnabled)
+                    uploadDefaults.set(sharingEnabled, forKey: DefaultsKey.screenshotSharingEnabled)
+                    let canUpload = uploadEnabled && sharingEnabled
+                    suite.expect(ScreenshotSharingSupport.uploadShortcutEnabled(in: uploadDefaults) == canUpload,
+                                 "uploads require both the shortcut and sharing to be enabled")
+                    suite.expect(ScreenshotSharingSupport.retainsLatestCapture(in: uploadDefaults)
+                        == (editEnabled || canUpload),
+                                 "either active latest-capture shortcut retains the screenshot")
+                    let roles = GlobalShortcutRole.activeRoles(
+                        isOn: { uploadDefaults.bool(forKey: $0) },
+                        isAvailable: { $0 == .screenshot })
+                    suite.expect(roles.contains(.screenshotUpload) == canUpload,
+                                 "shortcut conflict detection follows upload availability")
+                }
+            }
+        }
+        suite.expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                                                     isAvailable: { _ in false })
+            .contains(.screenshotUpload), "unavailable screenshots disable the upload shortcut")
+        let uploadBackupKeys = SettingsBackupSupport.exportKeys()
+        suite.expect([DefaultsKey.screenshotUploadShortcutEnabled,
+                      DefaultsKey.screenshotUploadShortcut,
+                      DefaultsKey.screenshotUploadDuration].allSatisfy(uploadBackupKeys.contains),
+                     "upload shortcut and expiry settings travel in backups")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotUploadShortcutEnabled]
+            as? Bool == false, "uploading by shortcut is opt-in")
+
         let ownScreenshotWindows: Set<CGWindowID> = [11, 12, 13]
         let protectedScreenshotWindows: Set<CGWindowID> = [12, 99]
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHideVorssaintWindows]

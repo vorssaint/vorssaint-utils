@@ -721,6 +721,20 @@ def main():
           + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
 
     preview = "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift"
+    write("ScreenshotShareCompletion.swift", "import Foundation\n"
+          + "extension ScreenshotShareCompletionTests {\nfinal class Controller: State {\n"
+          + "".join(declaration(preview, prefix).replace("private func", "func", 1)
+                    for prefix in ["    func shareLink()", "    private func performShare(",
+                                   "    private func copySharedLink()", "    private func scheduleAutoDismiss("])
+          + "}\n}\n")
+    screenshot_service = "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift"
+    write("ScreenshotShortcutCompletion.swift", "import Foundation\n"
+          + "extension ScreenshotShareCompletionTests {\n@MainActor final class Uploader: UploadState {\n"
+          + "".join(declaration(screenshot_service, prefix).replace("private func", "func", 1)
+                    .replace("uploadShortcutEnabled()", "uploadShortcutEnabled(in: defaults)")
+                    for prefix in ["    private func uploadLastCapture()", "    private func copyUploadedLink(",
+                                   "    func openEditor(with", "    func editorDidClose("])
+          + "}\n}\n")
     write("ScreenshotPreviewHover.swift", "import Foundation\n"
           + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"
           + "".join(declaration(preview, prefix).replace("private func", "func", 1)
