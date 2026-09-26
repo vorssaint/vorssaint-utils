@@ -15,6 +15,7 @@ struct FanControlSection: View {
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit =
         TemperatureUnit.celsius.rawValue
     var collapsible = true
+    var fallbackFanSpeeds: [Double] = []
 
     private var strings: FanControlFeatureStrings {
         FeatureStrings.fanControl(l10n.language)
@@ -25,6 +26,7 @@ struct FanControlSection: View {
             FanControlCardContent(strings: strings,
                                   betaLabel: l10n.s.betaBadge,
                                   snapshot: service.snapshot,
+                                  fallbackFanSpeeds: fallbackFanSpeeds,
                                   accessState: service.accessState,
                                   error: service.error,
                                   isWorking: service.isWorking,
@@ -73,6 +75,7 @@ struct FanControlCardContent: View {
     let strings: FanControlFeatureStrings
     let betaLabel: String
     let snapshot: FanControlSnapshot
+    let fallbackFanSpeeds: [Double]
     let accessState: FanControlService.AccessState
     let error: FanControlErrorCode?
     let isWorking: Bool
@@ -89,7 +92,12 @@ struct FanControlCardContent: View {
         VStack(alignment: .leading, spacing: 10) {
             statusHeader
 
-            if !snapshot.fans.isEmpty { fanRows }
+            if !fallbackFanSpeeds.isEmpty,
+               snapshot.fans.isEmpty || error == .helperUnavailable {
+                fallbackFanRows
+            } else if !snapshot.fans.isEmpty {
+                fanRows
+            }
 
             if let message = stateMessage {
                 Text(message)
@@ -216,6 +224,23 @@ struct FanControlCardContent: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                }
+            }
+        }
+        .padding(.vertical, 1)
+    }
+
+    private var fallbackFanRows: some View {
+        VStack(spacing: 5) {
+            ForEach(fallbackFanSpeeds.indices, id: \.self) { index in
+                HStack(spacing: 6) {
+                    Text(String(format: strings.fanNameFormat, index + 1))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(format: strings.currentRPMFormat,
+                                Int(fallbackFanSpeeds[index].rounded())))
+                        .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
                 }
             }
         }

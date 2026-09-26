@@ -468,7 +468,11 @@ struct NotchView: View {
         if service.showingAppPanel {
             MenuPanelView(notchSize: pageSize)
         } else if let metric = service.selectedMetric {
-            MetricDetailView(kind: metric)
+            if metric == .fan {
+                NotchFanControlView()
+            } else {
+                MetricDetailView(kind: metric)
+            }
         } else if service.modules.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: text.empty)
         } else {
@@ -496,6 +500,15 @@ struct NotchView: View {
             case .agents: NotchAgentsView(size: pageSize)
             }
         }
+    }
+}
+
+/// Read-only RPM telemetry stays available when the protected fan helper fails.
+private struct NotchFanControlView: View {
+    @ObservedObject private var monitor = SystemMonitor.shared
+
+    var body: some View {
+        FanControlSection(collapsible: false, fallbackFanSpeeds: monitor.snapshot.fanSpeeds)
     }
 }
 
