@@ -1075,6 +1075,14 @@ extension Strings {
         mouseAccelerationName: "Desactivar la aceleración del ratón",
         mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint.",
         shelfClearOnClose: "Borrar al cerrar",
-        shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems."
+        shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems.",
+        nativeHiDPI: "HiDPI nativo",
+        virtualHiDPI: "HiDPI virtual",
+        standardResolution: "Resolución estándar (1x)",
+        recoveryKeep: "Mantener ajustes",
+        recoveryRevert: "Restablecer",
+        recoveryCountdownTitle: "¿Mantener esta configuración de pantalla?",
+        recoveryCountdownRemaining: { "Restableciendo automáticamente en \($0) s" },
+        toggleHiDPICaption: "Alternar ajuste de escala Retina HiDPI"
     )
 }

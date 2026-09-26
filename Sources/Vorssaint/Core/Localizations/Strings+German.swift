@@ -1075,6 +1075,14 @@ extension Strings {
         mouseAccelerationName: "Mausbeschleunigung deaktivieren",
         mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt.",
         shelfClearOnClose: "Beim Schließen leeren",
-        shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte."
+        shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte.",
+        nativeHiDPI: "Natives HiDPI",
+        virtualHiDPI: "Virtuelles HiDPI",
+        standardResolution: "Standardauflösung (1x)",
+        recoveryKeep: "Einstellungen behalten",
+        recoveryRevert: "Zurücksetzen",
+        recoveryCountdownTitle: "Diese Anzeigeeinstellungen beibehalten?",
+        recoveryCountdownRemaining: { "Automatische Rückkehr in \($0) s" },
+        toggleHiDPICaption: "Retina-HiDPI-Skalierung umschalten"
     )
 }

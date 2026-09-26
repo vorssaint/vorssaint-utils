@@ -407,5 +407,137 @@ enum DisplayRestorationTests {
         DispatchQueue.main.drain()
         suite.expect(service.displayControlFailure == .failed,
                      "a genuine headless transaction failure is not mislabeled as a closed-lid denial")
+        // PR #1773 display/HiDPI hardening contracts.
+        let recovery = DisplayRecoveryManager.shared
+        recovery.confirm()
+        let firstRecovery = recovery.beginAction(targetDisplayID: 0xA001, confirmationSeconds: 60)
+        let preservedSnapshot = recovery.currentSnapshot?.targetDisplayID
+        let secondRecovery = recovery.beginAction(targetDisplayID: 0xA002, confirmationSeconds: 60)
+        suite.expect(firstRecovery && !secondRecovery
+                     && preservedSnapshot == 0xA001
+                     && recovery.currentSnapshot?.targetDisplayID == 0xA001,
+                     "a second display mutation cannot replace an unconfirmed recovery snapshot")
+        recovery.confirm()
+
+        let orphanedTargets = VirtualDisplayService.orphanedTargetIDs(
+            associatedTargetIDs: [11, 22, 33],
+            onlineDisplayIDs: [11, 33, 44]
+        )
+        suite.expect(orphanedTargets == [22],
+                     "virtual HiDPI cleanup removes only targets that actually left the online topology")
+
+        let disassociatedTargets = VirtualDisplayService.disassociatedTargetIDs(
+            associatedDummies: [11: 111, 22: 222, 33: 333],
+            onlineDisplayIDs: [11, 22],
+            mirrorsDisplay: { displayID in
+                if displayID == 11 { return 111 }
+                if displayID == 22 { return 0 }
+                return 0
+            }
+        )
+        suite.expect(disassociatedTargets == [22, 33],
+                     "virtual HiDPI cleanup identifies both offline targets and unmirrored targets")
+
+        let qhdProfile = VirtualDisplayProfile.profile(matchingWidth: 2560, height: 1440)
+        if let backing = qhdProfile.modes.first(where: { $0.width == 5120 && $0.height == 2880 }) {
+            let logical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: backing)
+            suite.expect(logical.width == 2560 && logical.height == 1440,
+                         "virtual HiDPI exposes logical dimensions at half the backing size")
+        } else {
+            suite.expect(false, "QHD virtual profile contains a 5120×2880 backing mode")
+        }
+
+        let ultrawideProfile = VirtualDisplayProfile.profile(matchingWidth: 3440, height: 1440)
+        let ultrawideBacking = ultrawideProfile.modes[0]
+        let ultrawideLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: ultrawideBacking)
+        suite.expect(ultrawideBacking.width == 6880 && ultrawideBacking.height == 2880
+                     && ultrawideLogical.width == 3440 && ultrawideLogical.height == 1440,
+                     "nonstandard virtual HiDPI keeps a 2× backing surface and requested logical size")
+
+        let dynamicMode = DisplayResolutionMode(
+            width: 3024, height: 1964,
+            pixelWidth: 3024, pixelHeight: 1964,
+            refreshRate: 0
+        )
+        suite.expect(dynamicMode.refreshLabel == "—",
+                     "unknown or variable refresh never renders as 0 Hz")
+
+        let skyLightSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/SkyLightBridge.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(skyLightSource.contains("CGSGetCurrentDisplayModeFn")
+                     && skyLightSource.contains("-> Void"),
+                     "SkyLight bridge uses the current-mode API and void CGS ABI")
+
+        let resolutionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/DisplayResolutionService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!resolutionSource.contains("ioDisplayModeID")
+                     && resolutionSource.contains("previousVirtualMirrorLogicalSize"),
+                     "CGS indexes stay separate from IODisplayModeID and virtual state is snapshotted")
+        suite.expect(resolutionSource.contains("guard DisplayRecoveryManager.shared.beginAction(")
+                     && resolutionSource.contains("Failed to disable virtual mirror prior to mode switch")
+                     && resolutionSource.contains("DisplayRecoveryManager.shared.rollback()"),
+                     "display mutations serialize on the recovery snapshot and failures after virtual teardown roll back")
+        suite.expect(resolutionSource.contains("let availableModes = queryModes(for: targetID)")
+                     && resolutionSource.contains("newModesPerDisplay[targetID] = availableModes")
+                     && resolutionSource.contains("newHiDPIStatusPerDisplay[targetID] = .virtualMirror"),
+                     "mirror rows use physical-target mode indices and virtual-source current state")
+        suite.expect(resolutionSource.contains("isResolutionManagementActive")
+                     && resolutionSource.contains("reconcileVirtualMirrors")
+                     && resolutionSource.contains("if self.modesPerDisplay != newModesPerDisplay")
+                     && resolutionSource.contains("if self.currentModePerDisplay != newCurrentModePerDisplay")
+                     && resolutionSource.contains("if self.hiDPIStatusPerDisplay != newHiDPIStatusPerDisplay"),
+                     "resolution service publishes only on changes and suppresses background polling when disabled")
+
+        let brightnessSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(brightnessSource.contains("isVirtualMirrorTarget(for: id)")
+                     && brightnessSource.contains("activeTopology.contains(id) || virtualMirrorTarget"),
+                     "the physical virtual-HiDPI target remains a controllable brightness/resolution row")
+        suite.expect(brightnessSource.contains("cleanupForBrightnessFeatureRemoval()")
+                     && brightnessSource.contains("resolvePhysicalTarget(for: CGMainDisplayID())")
+                     && brightnessSource.contains("resolvePhysicalTarget(for: id)"),
+                     "brightness service rolls back virtual mirrors on disable and routes virtual IDs to physical displays")
+
+        let virtualSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/VirtualDisplayService.swift",
+            encoding: .utf8)) ?? ""
+        if let disableRange = virtualSource.range(of: "public func disableVirtualMirror(for targetDisplayID:"),
+           let completeRange = virtualSource.range(
+               of: "let completeErr = CGCompleteDisplayConfiguration",
+               range: disableRange.lowerBound..<virtualSource.endIndex),
+           let removeRange = virtualSource.range(
+               of: "associatedDummies.removeValue(forKey: targetDisplayID)",
+               range: disableRange.lowerBound..<virtualSource.endIndex) {
+            suite.expect(completeRange.lowerBound < removeRange.lowerBound,
+                         "virtual mirror ownership is retained until CoreGraphics commits teardown")
+        } else {
+            suite.expect(false, "virtual mirror teardown source contract is present")
+        }
+
+        let commandBarSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(commandBarSource.contains("resolvePhysicalTarget(for: $0)"),
+                     "command bar translates virtual display IDs to physical targets")
+
+        let osdSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessOSD.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(osdSource.contains("virtualDisplayID(for: displayID) ?? displayID"),
+                     "brightness OSD maps physical targets to active virtual screens")
+
+        let brightnessSectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(brightnessSectionSource.contains(".disabled(recoveryManager.awaitingConfirmation)"),
+                     "resolution and HiDPI controls are disabled while rollback confirmation is pending")
+
+        suite.expect(!FileManager.default.fileExists(
+            atPath: "Sources/Vorssaint/Services/Display/XDRBoostService.swift"),
+            "display integration does not ship an out-of-contract gamma overdrive path")
+
     }
 }

@@ -1045,6 +1045,14 @@ extension Strings {
         mouseAccelerationName: "Вимкнути прискорення миші",
         mouseAccelerationCaption: "Вимикає прискорення вказівника для підключених мишей. Попереднє налаштування повернеться після вимкнення функції або виходу з Vorssaint.",
         shelfClearOnClose: "Очищати при закритті",
-        shelfClearOnCloseCaption: "Спорожнює полицю лише після натискання кнопки закриття. Автоматичне приховування та згортання зберігають елементи."
+        shelfClearOnCloseCaption: "Спорожнює полицю лише після натискання кнопки закриття. Автоматичне приховування та згортання зберігають елементи.",
+        nativeHiDPI: "Нативне HiDPI",
+        virtualHiDPI: "Віртуальне HiDPI",
+        standardResolution: "Стандартна роздільність (1x)",
+        recoveryKeep: "Зберегти зміни",
+        recoveryRevert: "Відновити",
+        recoveryCountdownTitle: "Підтвердження налаштувань дисплея",
+        recoveryCountdownRemaining: { "Автоматичне повернення через \($0) с" },
+        toggleHiDPICaption: "Перемкнути масштабування Retina HiDPI"
     )
 }

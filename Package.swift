@@ -16,9 +16,13 @@ let package = Package(
             name: "VMStatisticsCompat",
             path: "Sources/VMStatisticsCompat"
         ),
+        .systemLibrary(
+            name: "VirtualDisplayBridge",
+            path: "Sources/VirtualDisplayBridge"
+        ),
         .executableTarget(
             name: "Vorssaint",
-            dependencies: ["VMStatisticsCompat", "HIDEventSystem"],
+            dependencies: ["VMStatisticsCompat", "HIDEventSystem", "VirtualDisplayBridge"],
             path: "Sources/Vorssaint"
         )
     ]

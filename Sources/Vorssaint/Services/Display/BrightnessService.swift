@@ -420,7 +420,12 @@ final class BrightnessService: ObservableObject {
     func syncWithPreferences() {
         let wanted = AppFeature.brightness.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
-        if wanted { start() } else if running { stop() }
+        if wanted {
+            start()
+        } else {
+            if running { stop() }
+            DisplayRecoveryManager.shared.cleanupForBrightnessFeatureRemoval()
+        }
         syncKeyTap()
         syncKeyboardBrightnessHotkeys()
         syncDisplayBrightnessHotkeys()
@@ -450,13 +455,15 @@ final class BrightnessService: ObservableObject {
               UserDefaults.standard.bool(forKey: DefaultsKey.displayBrightnessShortcutsEnabled)
         else { return }
         let pointer = NSEvent.mouseLocation
-        let pointerDisplay = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+        let rawPointerDisplay = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
             .flatMap { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }
+        let pointerDisplay = rawPointerDisplay.map { VirtualDisplayService.shared.resolvePhysicalTarget(for: $0) }
+        let primaryDisplay = VirtualDisplayService.shared.resolvePhysicalTarget(for: CGMainDisplayID())
         let eligible = Set(displays.filter { $0.isActive && $0.method != nil
             && !pendingDisplayIDs.contains($0.id) }.map(\.id))
         guard let id = BrightnessSupport.shortcutDisplay(
             followsPointer: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessKeysEnabled),
-            pointerDisplay: pointerDisplay, primaryDisplay: CGMainDisplayID(), eligible: eligible),
+            pointerDisplay: pointerDisplay, primaryDisplay: primaryDisplay, eligible: eligible),
               let method = displays.first(where: { $0.id == id })?.method else { return }
         step(id, method: method, delta: delta,
              showOSD: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled))
@@ -492,6 +499,7 @@ final class BrightnessService: ObservableObject {
         }
         installWakeObservers()
         refresh()
+        DisplayResolutionService.shared.refresh()
     }
 
     func stop() {
@@ -505,6 +513,7 @@ final class BrightnessService: ObservableObject {
         displayBrightnessDecreaseHotkey.unregister()
         displayBrightnessIncreaseHotkey.unregister()
         displayBrightnessShortcutRegistrationFailed = false
+        DisplayRecoveryManager.shared.cleanupForBrightnessFeatureRemoval()
         guard running else { return }
         running = false
         removeFunctionKeyTap()
@@ -586,6 +595,10 @@ final class BrightnessService: ObservableObject {
             guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
                              as? NSNumber)?.uint32Value else { continue }
             names[id] = screen.localizedName
+            let targetID = VirtualDisplayService.shared.resolvePhysicalTarget(for: id)
+            if targetID != id {
+                names[targetID] = screen.localizedName
+            }
         }
         return names
     }
@@ -596,20 +609,21 @@ final class BrightnessService: ObservableObject {
     func setBrightness(_ value: Double, for id: CGDirectDisplayID,
                        showOSD: Bool = false) {
         guard value.isFinite else { return }
+        let targetID = VirtualDisplayService.shared.resolvePhysicalTarget(for: id)
         let clamped = min(max(value, 0), 1)
         let shownInNotch = NotchService.shared.showBrightness(clamped)
-        if let index = displays.firstIndex(where: { $0.id == id }),
+        if let index = displays.firstIndex(where: { $0.id == targetID }),
            displays[index].brightness != clamped {
             displays[index].brightness = clamped
         }
         stateLock.lock()
         writeSequence &+= 1
-        pendingLevels[id] = PendingWrite(value: clamped,
+        pendingLevels[targetID] = PendingWrite(value: clamped,
                                          showOSD: showOSD && !shownInNotch,
                                          sequence: writeSequence)
-        lastApplied[id] = RememberedLevel(value: clamped,
-                                          fingerprint: Self.displayFingerprint(id))
-        levelKnownAt[id] = Date()
+        lastApplied[targetID] = RememberedLevel(value: clamped,
+                                          fingerprint: Self.displayFingerprint(targetID))
+        levelKnownAt[targetID] = Date()
         let schedule = !drainScheduled
         if schedule { drainScheduled = true }
         stateLock.unlock()
@@ -762,8 +776,13 @@ final class BrightnessService: ObservableObject {
         let virtual = Set(online.filter {
             displayInfoDictionary($0)?["kCGDisplayIsVirtualDevice"] as? Bool ?? false
         })
+        let virtualMirrorTargets = Set(online.filter {
+            VirtualDisplayService.shared.isVirtualMirrorTarget(for: $0)
+        })
         return BrightnessSupport.drawableDisplayIDs(
-            onlineDisplayIDs: online, activeDisplayIDs: active, virtualDisplayIDs: virtual)
+            onlineDisplayIDs: online,
+            activeDisplayIDs: active.union(virtualMirrorTargets),
+            virtualDisplayIDs: virtual)
     }
 
     /// Switches one display on or off inside a display reconfiguration
@@ -1225,9 +1244,15 @@ final class BrightnessService: ObservableObject {
         var matched: UInt32 = 0
         let underPointer = followsPointer
             && CGGetDisplaysWithPoint(event.location, 1, &pointerDisplay, &matched) == .success && matched > 0
+        let resolvedPointer = underPointer
+            ? VirtualDisplayService.shared.resolvePhysicalTarget(for: pointerDisplay)
+            : nil
+        let resolvedSystemTarget = systemTarget.map {
+            VirtualDisplayService.shared.resolvePhysicalTarget(for: $0)
+        }
         guard let displayID = BrightnessSupport.plainKeyTarget(followsPointer: followsPointer,
-                                                               pointerDisplay: underPointer ? pointerDisplay : nil,
-                                                               systemTarget: systemTarget)
+                                                               pointerDisplay: resolvedPointer,
+                                                               systemTarget: resolvedSystemTarget)
         else { return Unmanaged.passUnretained(event) }
 
         stateLock.lock()
@@ -1405,11 +1430,11 @@ final class BrightnessService: ObservableObject {
                            as? NSNumber)?.uint32Value else {
                 return Unmanaged.passUnretained(event)
             }
-            displayID = id
+            displayID = VirtualDisplayService.shared.resolvePhysicalTarget(for: id)
         } else if wantsBrightnessOSD, let systemTarget = systemKeyTarget {
             // With pointer routing off, keep the native target. In clamshell
             // mode this can be a system-managed external display.
-            displayID = systemTarget.id
+            displayID = VirtualDisplayService.shared.resolvePhysicalTarget(for: systemTarget.id)
         } else {
             return Unmanaged.passUnretained(event)
         }
@@ -1615,17 +1640,17 @@ final class BrightnessService: ObservableObject {
         var built: [BrightnessDisplay] = []
         var newRoutes: [CGDirectDisplayID: Route] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
-        var virtualIDs = Set<CGDirectDisplayID>()
 
         for id in onlineIDs {
             let info = Self.displayInfoDictionary(id)
-            // Read before the mirroring guard below, so the snapshot the panel
-            // decides from covers every online display, exactly like the live
-            // reading it replaces.
-            if (info?["kCGDisplayIsVirtualDevice"] as? Bool ?? false) { virtualIDs.insert(id) }
-            // A mirroring display follows its source; the source's slider is
-            // the real control.
-            guard CGDisplayMirrorsDisplay(id) == 0 else { continue }
+            // Ordinary mirror targets follow their source and do not need a
+            // separate row. A physical target managed by our virtual HiDPI
+            // mirror is different: that row is the only stable in-app handle
+            // for brightness, resolution and turning virtual HiDPI back off.
+            let virtualMirrorTarget = VirtualDisplayService.shared.isVirtualMirrorTarget(for: id)
+            if CGDisplayMirrorsDisplay(id) != kCGNullDirectDisplay && !virtualMirrorTarget {
+                continue
+            }
             if let info,
                (info["kCGDisplayIsVirtualDevice"] as? Bool ?? false)
                 || (info["kCGDisplayIsAirPlay"] as? Bool ?? false) {
@@ -1633,7 +1658,7 @@ final class BrightnessService: ObservableObject {
             }
             let isBuiltIn = CGDisplayIsBuiltin(id) != 0
             let name = Self.displayName(id, info: info, screenNames: screenNames)
-            let isActive = activeTopology.contains(id)
+            let isActive = activeTopology.contains(id) || virtualMirrorTarget
 
             if !isActive {
                 stateLock.lock()
@@ -1682,9 +1707,7 @@ final class BrightnessService: ObservableObject {
                                            brightness: 0.5, readable: false))
         }
 
-        let drawableIDs = BrightnessSupport.drawableDisplayIDs(
-            onlineDisplayIDs: seenTopology, activeDisplayIDs: activeTopology,
-            virtualDisplayIDs: virtualIDs)
+        let drawableIDs = Self.drawableDisplayIDs(online: seenTopology, active: activeTopology)
 
         stateLock.lock()
         let disabledSnapshots = managedDisabledDisplays

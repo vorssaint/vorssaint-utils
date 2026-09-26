@@ -1076,6 +1076,14 @@ extension Strings {
         mouseAccelerationName: "關閉滑鼠加速",
         mouseAccelerationCaption: "移除已連接滑鼠的指標加速。關閉此選項或結束 Vorssaint 後，會還原先前的設定。",
         shelfClearOnClose: "關閉時清空",
-        shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。"
+        shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。",
+        nativeHiDPI: "原生 HiDPI",
+        virtualHiDPI: "虛擬 HiDPI",
+        standardResolution: "標準解析度 (1x)",
+        recoveryKeep: "保留設定",
+        recoveryRevert: "還原",
+        recoveryCountdownTitle: "保留這個顯示設定？",
+        recoveryCountdownRemaining: { "\($0) 秒後自動恢復" },
+        toggleHiDPICaption: "切換 Retina HiDPI 縮放"
     )
 }

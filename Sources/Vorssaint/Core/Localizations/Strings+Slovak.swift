@@ -1075,6 +1075,14 @@ extension Strings {
         mouseAccelerationName: "Vypnúť akceleráciu myši",
         mouseAccelerationCaption: "Odstráni akceleráciu kurzora pre pripojené myši. Predchádzajúce nastavenie sa vráti po vypnutí tejto funkcie alebo po ukončení Vorssaintu.",
         shelfClearOnClose: "Vymazať pri zatvorení",
-        shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú."
+        shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú.",
+        nativeHiDPI: "Natívne HiDPI",
+        virtualHiDPI: "Virtuálne HiDPI",
+        standardResolution: "Štandardné rozlíšenie (1x)",
+        recoveryKeep: "Ponechať zmeny",
+        recoveryRevert: "Vrátiť späť",
+        recoveryCountdownTitle: "Potvrdiť nastavenia displeja",
+        recoveryCountdownRemaining: { "Automatické vrátenie o \($0) s" },
+        toggleHiDPICaption: "Prepnúť Retina HiDPI škálovanie"
     )
 }

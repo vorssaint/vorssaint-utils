@@ -76,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // offer it back, so the repair happens before anything else can care
         // about which displays are attached.
         BrightnessService.shared.restoreDisplaysLeftOff()
+        _ = RecoveryHUDController.shared
 
         // An accessory (LSUIElement) app gets no default main menu, so the standard
         // keyboard shortcuts (Cmd+H/M/W/Q and the Edit shortcuts Cmd+C/V/X/A) have
@@ -271,6 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if AppFeature.brightness.isAvailable {
             BrightnessService.shared.restoreDisplaysBeforeTermination()
         }
+        DisplayRecoveryManager.shared.cleanupOnExit()
         ExtraBrightnessService.shared.stop()
         ProcessUsageService.shared.stopNetworkMonitoring(force: true)
         URLCleanerService.shared.stop()

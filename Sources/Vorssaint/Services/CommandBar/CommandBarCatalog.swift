@@ -1763,8 +1763,9 @@ enum CommandBarCatalog {
         let service = BrightnessService.shared
         let value = Double(percent) / 100
         let pointer = NSEvent.mouseLocation
-        let target = display ?? NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+        let rawTarget = display ?? NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
             .flatMap { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }
+        let target = rawTarget.map { VirtualDisplayService.shared.resolvePhysicalTarget(for: $0) }
         if let id = target, service.displays.contains(where: { $0.id == id }) {
             service.setBrightness(value, for: id, showOSD: true)
             return

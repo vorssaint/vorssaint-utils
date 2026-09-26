@@ -1076,6 +1076,14 @@ extension Strings {
         mouseAccelerationName: "마우스 가속 끄기",
         mouseAccelerationCaption: "연결된 마우스의 포인터 가속을 끕니다. 옵션을 끄거나 Vorssaint를 종료하면 이전 설정으로 복원됩니다.",
         shelfClearOnClose: "닫을 때 항목 지우기",
-        shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다."
+        shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다.",
+        nativeHiDPI: "기본 HiDPI",
+        virtualHiDPI: "가상 HiDPI",
+        standardResolution: "표준 해상도 (1x)",
+        recoveryKeep: "설정 유지",
+        recoveryRevert: "복원",
+        recoveryCountdownTitle: "이 디스플레이 설정을 유지하겠습니까?",
+        recoveryCountdownRemaining: { "\($0)초 후 자동으로 복원됩니다" },
+        toggleHiDPICaption: "Retina HiDPI 크기 조절 전환"
     )
 }

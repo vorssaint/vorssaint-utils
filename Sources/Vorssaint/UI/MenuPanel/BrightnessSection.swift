@@ -143,6 +143,9 @@ struct BrightnessSection: View {
                     .disabled(service.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
             }
+            if display.isActive {
+                DisplayResolutionRow(displayID: display.id)
+            }
             SoftwareDimmingButton(display: display, compact: true)
         }
     }
@@ -176,7 +179,6 @@ struct BrightnessSection: View {
         Binding(get: { Double(service.keyboardLightLevel ?? 0) },
                 set: { service.setKeyboardLightLevel(Float($0)) })
     }
-
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {
         Binding(get: { display.brightness },
                 set: { service.setBrightness($0, for: display.id,
@@ -188,16 +190,51 @@ private struct ExtraBrightnessPanelToggle: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ExtraBrightnessService.shared
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.extraBrightnessLevel) private var level = 100
+
+    private var levelBinding: Binding<Double> {
+        Binding(
+            get: { Double(level) },
+            set: { newValue in
+                level = Int(newValue)
+                service.levelDidChange()
+            }
+        )
+    }
+
+    private var multiplierText: String {
+        let mult = min(2.0, max(1.0, 1.0 + (Double(level) / 100.0)))
+        return String(format: "%.2fx", locale: Locale(identifier: "en_US_POSIX"), mult)
+    }
 
     var body: some View {
-        Toggle(l10n.s.extraBrightnessName, isOn: $enabled)
-            .font(.system(size: 10.5, weight: .medium))
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .disabled(!service.supported && !enabled)
-            .help(service.supported ? l10n.s.extraBrightnessCaption : l10n.s.extraBrightnessUnsupported)
-            .onChange(of: enabled) { _, _ in service.syncWithPreferences() }
-            .onAppear { service.syncWithPreferences() }
+        HStack(spacing: 8) {
+            Text(l10n.s.extraBrightnessName)
+                .font(.system(size: 10.5, weight: .medium))
+
+            Spacer(minLength: 4)
+
+            if enabled && service.supported {
+                Slider(value: levelBinding, in: 10...100, step: 5)
+                    .tint(.orange)
+                    .controlSize(.mini)
+                    .frame(width: 80)
+
+                Text(multiplierText)
+                    .font(.system(size: 9.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.orange)
+                    .frame(width: 36, alignment: .trailing)
+            }
+
+            Toggle("", isOn: $enabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(!service.supported && !enabled)
+                .help(service.supported ? l10n.s.extraBrightnessCaption : l10n.s.extraBrightnessUnsupported)
+                .onChange(of: enabled) { _, _ in service.syncWithPreferences() }
+                .onAppear { service.syncWithPreferences() }
+        }
     }
 }
 
@@ -296,5 +333,114 @@ func displayControlFailureText(_ failure: BrightnessService.DisplayControlFailur
     case .lastActive: return strings.lastDisplayCaption
     case .failed: return strings.switchFailed
     case .closedLid: return strings.openLidToEnable
+    }
+}
+
+// MARK: - Display Resolution & HiDPI Controls
+
+struct DisplayResolutionRow: View {
+    @ObservedObject private var resolutionService = DisplayResolutionService.shared
+    @ObservedObject private var recoveryManager = DisplayRecoveryManager.shared
+    @ObservedObject private var l10n = L10n.shared
+    let displayID: CGDirectDisplayID
+
+    private var currentMode: DisplayResolutionMode? {
+        resolutionService.currentModePerDisplay[displayID]
+    }
+
+    private var modes: [DisplayResolutionMode] {
+        resolutionService.modesPerDisplay[displayID] ?? []
+    }
+
+    private var status: HiDPIStatus {
+        resolutionService.hiDPIStatusPerDisplay[displayID] ?? .none
+    }
+
+    var body: some View {
+        if let current = currentMode {
+            HStack(spacing: 6) {
+                // Resolution & Refresh rate menu
+                Menu {
+                    ForEach(modes) { mode in
+                        Button {
+                            resolutionService.applyMode(mode, for: displayID)
+                        } label: {
+                            HStack {
+                                if mode.id == current.id {
+                                    Image(systemName: "checkmark")
+                                }
+                                Text("\(mode.width) × \(mode.height)  ·  \(mode.refreshLabel)\(mode.isHiDPI ? " (HiDPI)" : "")")
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("\(current.width) × \(current.height)")
+                            .font(.system(size: 10, weight: .medium).monospacedDigit())
+                        Text("· \(current.refreshLabel)")
+                            .font(.system(size: 9.5).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .disabled(recoveryManager.awaitingConfirmation)
+
+                Spacer(minLength: 4)
+
+                // HiDPI Status Badge
+                statusBadge(status)
+
+                // Quick HiDPI Toggle Button
+                Button {
+                    resolutionService.toggleHiDPI(for: displayID)
+                } label: {
+                    Image(systemName: status != .none ? "sparkles.tv" : "tv")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(status != .none ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(recoveryManager.awaitingConfirmation)
+                .help(l10n.s.toggleHiDPICaption)
+            }
+            .padding(.leading, 22)
+            .padding(.top, 1)
+            .onAppear {
+                resolutionService.refresh()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statusBadge(_ status: HiDPIStatus) -> some View {
+        switch status {
+        case .native:
+            Text(l10n.s.nativeHiDPI)
+                .font(.system(size: 8.5, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Capsule().fill(Color.accentColor))
+        case .virtualMirror:
+            Text(l10n.s.virtualHiDPI)
+                .font(.system(size: 8.5, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Capsule().fill(Color.purple))
+        case .none:
+            Text(l10n.s.standardResolution)
+                .font(.system(size: 8.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Capsule().fill(Color.primary.opacity(0.08)))
+        }
     }
 }

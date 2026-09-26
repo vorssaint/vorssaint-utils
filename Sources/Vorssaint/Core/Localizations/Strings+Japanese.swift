@@ -1075,6 +1075,14 @@ extension Strings {
         mouseAccelerationName: "マウス加速を無効にする",
         mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。",
         shelfClearOnClose: "閉じるときに項目を消去",
-        shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。"
+        shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。",
+        nativeHiDPI: "ネイティブ HiDPI",
+        virtualHiDPI: "仮想 HiDPI",
+        standardResolution: "標準解像度 (1x)",
+        recoveryKeep: "設定を保持",
+        recoveryRevert: "元に戻す",
+        recoveryCountdownTitle: "このディスプレイ設定を保持しますか？",
+        recoveryCountdownRemaining: { "\($0)秒後に自動で元に戻します" },
+        toggleHiDPICaption: "Retina HiDPI スケーリングの切り替え"
     )
 }

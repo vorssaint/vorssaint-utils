@@ -1273,6 +1273,16 @@ struct Strings {
     let mouseAccelerationCaption: String
     let shelfClearOnClose: String
     let shelfClearOnCloseCaption: String
+
+    // MARK: Display Resolution & HiDPI
+    public let nativeHiDPI: String
+    public let virtualHiDPI: String
+    public let standardResolution: String
+    public let recoveryKeep: String
+    public let recoveryRevert: String
+    public let recoveryCountdownTitle: String
+    public let recoveryCountdownRemaining: (Int) -> String
+    public let toggleHiDPICaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -2349,7 +2359,15 @@ extension Strings {
         mouseAccelerationName: "Desativar aceleração do mouse",
         mouseAccelerationCaption: "Remove a aceleração do cursor para os mouses conectados. A configuração anterior volta ao desligar esta opção ou sair do Vorssaint.",
         shelfClearOnClose: "Limpar ao fechar",
-        shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens."
+        shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens.",
+        nativeHiDPI: "HiDPI nativo",
+        virtualHiDPI: "HiDPI virtual",
+        standardResolution: "Resolução padrão (1x)",
+        recoveryKeep: "Manter alterações",
+        recoveryRevert: "Reverter",
+        recoveryCountdownTitle: "Confirmar ajustes de tela",
+        recoveryCountdownRemaining: { "Revertendo em \($0) s" },
+        toggleHiDPICaption: "Alternar dimensionamento Retina HiDPI"
     )
 }
 
@@ -3427,6 +3445,14 @@ extension Strings {
         mouseAccelerationName: "Disable mouse acceleration",
         mouseAccelerationCaption: "Removes pointer acceleration for connected mice. Your previous setting returns when this is turned off or Vorssaint quits.",
         shelfClearOnClose: "Clear when closed",
-        shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items."
+        shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items.",
+        nativeHiDPI: "Native HiDPI",
+        virtualHiDPI: "Virtual HiDPI",
+        standardResolution: "Standard (1x)",
+        recoveryKeep: "Keep Changes",
+        recoveryRevert: "Revert",
+        recoveryCountdownTitle: "Confirm Display Settings",
+        recoveryCountdownRemaining: { "Auto-reverting in \($0)s" },
+        toggleHiDPICaption: "Toggle Retina HiDPI scaling"
     )
 }
