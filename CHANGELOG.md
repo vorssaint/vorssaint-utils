@@ -27,7 +27,7 @@ External monitors can dim below their hardware minimum, and the Clipboard Histor
 - Quit on Close's Settings warns that apps such as screen recorders may keep working after their last window closes, and points to Exceptions to prevent an unwanted quit.
 
 ### Fixed
-- Dynamic Island stays off external monitors in closed-lid mode when Built-in display is selected, and returns to the laptop display when it becomes available again.
+- Dynamic Island stays off external monitors in closed-lid mode when Built-in display is selected, and returns to the laptop display when it becomes available again. While hidden it does no background work, and a finished timer rings once the island is back. Macs without a built-in display keep the island on the main display.
 - Dynamic Island sends a player's supported Play or Pause command when available, improving control of radio streams.
 - Temperature alerts show their limits and notifications in the selected temperature unit.
 - With inactive apps hidden, the volume mixer shows an app as soon as it starts playing.

@@ -1519,6 +1519,11 @@ enum NotchTests {
         suite.expect(NotchSupport.screenIndex(preference: .builtIn, builtIn: [false, true],
                                        notched: [false, true], main: 0) == 1,
                "the built-in choice returns to the laptop display when the lid opens")
+        suite.expect(NotchSupport.screenIndex(preference: .builtIn, builtIn: [false, false],
+                                       notched: [false, false], main: 1, hasLid: false) == 1
+                     && NotchSupport.screenIndex(preference: .builtIn, builtIn: [true, false],
+                                       notched: [false, false], main: 1, hasLid: false) == 0,
+               "a Mac without a lid keeps the built-in choice on the main display, or on its own built-in panel")
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [], notched: [], main: 0) == nil,
                "no connected displays means no panel")
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [true, false, false],

@@ -477,6 +477,9 @@ final class NotchService: ObservableObject {
             else { NotchTimerService.shared.suspend() }
             return
         }
+        // Checked before any service starts, so each preference change while
+        // the lid is closed does not start and stop them all again.
+        guard screenIndex(in: NSScreen.screens) != nil else { withdrawFromMissingScreen(); return }
         refreshModules()
         NotchDownloadService.shared.syncWithPreferences()
         NotchCalendarService.shared.syncWithPreferences()
@@ -1768,16 +1771,42 @@ final class NotchService: ObservableObject {
         }
     }
 
+    /// Only a laptop reports its lid, and only a laptop can lose its
+    /// built-in screen while it keeps running.
+    private static let hasLid = BrightnessService.lidClosed() != nil
+
+    private func screenIndex(in screens: [NSScreen]) -> Int? {
+        NotchSupport.screenIndex(
+            preference: NotchDisplay(rawValue: UserDefaults.standard.string(
+                forKey: DefaultsKey.notchDisplay) ?? "") ?? .automatic,
+            builtIn: screens.map { CGDisplayIsBuiltin($0.notchDisplayID) != 0 },
+            notched: screens.map { $0.safeAreaInsets.top > 0 },
+            main: screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0,
+            hasLid: Self.hasLid)
+    }
+
+    /// With the chosen display away, as the built-in one with the lid closed,
+    /// nothing keeps working for an island that cannot show. The Mac is still
+    /// in use elsewhere, so a capture preview moves to its own window, and a
+    /// finished timer waits to ring until the island can be dismissed again.
+    private func withdrawFromMissingScreen() {
+        let cancelCapture = captureControlsCancel
+        endCaptureControls()
+        cancelCapture?()
+        let fallback = captureFallback
+        clearCapture()
+        tearDownPresentation()
+        NotchTimerService.shared.suspend()
+        // The keys go back to the system while nothing can show them.
+        if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
+        if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
+        fallback?()
+    }
+
     private func updateScreen() {
         let screens = NSScreen.screens
         menuBarMeasurements.retainDisplays(screens.map(\.notchDisplayID))
-        let builtIn = screens.map { CGDisplayIsBuiltin($0.notchDisplayID) != 0 }
-        let index = NotchSupport.screenIndex(
-            preference: NotchDisplay(rawValue: UserDefaults.standard.string(
-                forKey: DefaultsKey.notchDisplay) ?? "") ?? .automatic,
-            builtIn: builtIn, notched: screens.map { $0.safeAreaInsets.top > 0 },
-            main: screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0)
-        guard let index else { tearDownPresentation(); return }
+        guard let index = screenIndex(in: screens) else { withdrawFromMissingScreen(); return }
         let screen = screens[index]
         let cameraWidth: CGFloat
         if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
