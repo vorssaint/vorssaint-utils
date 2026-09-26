@@ -26,6 +26,7 @@ struct RadialMenuSettings: View {
     @State private var editing: RadialMenuItem?
     @State private var dragging: RadialMenuItem?
     @State private var showList = false
+    @State private var confirmingDeletion: RadialMenuProfile?
     @Environment(\.colorScheme) private var colorScheme
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
@@ -250,13 +251,27 @@ struct RadialMenuSettings: View {
             .disabled(!enabled)
 
             Button {
-                deleteProfile()
+                confirmingDeletion = selectedProfile
             } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
             .help(text.deleteProfileButton)
             .disabled(!enabled || profiles.count <= 1)
+            .confirmationDialog(
+                String(format: text.deleteProfileConfirmFormat, confirmingDeletion?.displayName(text) ?? ""),
+                isPresented: Binding(get: { confirmingDeletion != nil },
+                                     set: { if !$0 { confirmingDeletion = nil } }),
+                titleVisibility: .visible,
+                presenting: confirmingDeletion
+            ) { profile in
+                Button(text.deleteProfileButton, role: .destructive) {
+                    deleteProfile(id: profile.id)
+                }
+                Button(l10n.s.uninstallerCancel, role: .cancel) {}
+            } message: { _ in
+                Text(text.deleteProfileConfirmMessage)
+            }
         }
     }
 
@@ -386,9 +401,10 @@ struct RadialMenuSettings: View {
         persist()
     }
 
-    private func deleteProfile() {
-        guard profiles.count > 1 else { return }
-        let index = selectedProfileIndex
+    /// Deletes the profile the user confirmed, which the selection may no
+    /// longer point at by the time the dialog closes.
+    private func deleteProfile(id: UUID) {
+        guard profiles.count > 1, let index = profiles.firstIndex(where: { $0.id == id }) else { return }
         profiles.remove(at: index)
         let nextIndex = min(index, profiles.count - 1)
         selectedProfileID = profiles[nextIndex].id

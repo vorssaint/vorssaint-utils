@@ -117,6 +117,11 @@ def main():
                         "    func syncWithPreferences(", "    private func start(", "    func stop(",
                         "    private func handleLaunch(", "    private func handleMediaKeyEvent("])
           + "}\n}\n")
+    write("RadialMenuProfileDeletion.swift", "import Foundation\n"
+          + "extension RadialMenuProfileDeletionContract {\nfinal class Settings: Fixture {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/RadialMenuSettings.swift",
+                        "    private func deleteProfile(").replace("private ", "", 1)
+          + "}\n}\n")
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"

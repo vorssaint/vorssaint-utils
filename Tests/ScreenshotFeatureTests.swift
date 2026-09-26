@@ -2791,6 +2791,7 @@ enum ScreenshotFeatureTests {
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")
+        RadialMenuProfileDeletionContract.run(suite)
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuShortcut] as? String
                 == "control+option+command:49",
                "the default radial menu shortcut is control option command space")
@@ -2873,5 +2874,37 @@ enum ScreenshotFeatureTests {
                 == [.screenshot, .colorPicker],
                "capture roles are reordered for display and other roles fall away")
         GlobalShortcut.refreshLayoutLabels()
+    }
+}
+
+/// Runs the production profile deletion from Settings with its view state
+/// held by a plain fixture.
+enum RadialMenuProfileDeletionContract {
+    class Fixture {
+        var profiles: [RadialMenuProfile] = []
+        var selectedProfileID: UUID?
+        var openSubmenuID: UUID?
+        var dragging: RadialMenuItem?
+        var persisted = 0
+        func persist() { persisted += 1 }
+    }
+
+    static func run(_ suite: TestSuite) {
+        let settings = Settings()
+        let first = RadialMenuProfile(name: "First")
+        let second = RadialMenuProfile(name: "Second")
+        let third = RadialMenuProfile(name: "Third")
+        settings.profiles = [first, second, third]
+        settings.selectedProfileID = third.id
+        settings.deleteProfile(id: first.id)
+        suite.expect(settings.profiles.map(\.id) == [second.id, third.id] && settings.persisted == 1,
+                     "the confirmed profile is deleted even after the selection moved to another one")
+        settings.deleteProfile(id: first.id)
+        suite.expect(settings.profiles.count == 2 && settings.persisted == 1,
+                     "a confirmation for a profile that is already gone deletes nothing")
+        settings.deleteProfile(id: second.id)
+        settings.deleteProfile(id: third.id)
+        suite.expect(settings.profiles.map(\.id) == [third.id] && settings.selectedProfileID == third.id,
+                     "the last profile is never deleted and stays selected")
     }
 }
