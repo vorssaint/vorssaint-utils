@@ -167,6 +167,7 @@ final class NotchService: ObservableObject {
     private var menuSpaceGeneration = 0
     private var menuBarMeasurements = NotchMenuBarMeasurements()
     private var screenRefreshWork: DispatchWorkItem?
+    private var preferenceSyncWork: DispatchWorkItem?
     private let menuSpaceQueue = DispatchQueue(label: "com.vorssaint.notch-menu-space", qos: .utility)
 
     private init() {}
@@ -459,6 +460,7 @@ final class NotchService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         guard NotchSupport.isEnabled() else { stop(); return }
         if !running {
             running = true
@@ -528,6 +530,7 @@ final class NotchService: ObservableObject {
     }
 
     func stop(restoreCapture: Bool = true) {
+        preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
@@ -1871,8 +1874,7 @@ final class NotchService: ObservableObject {
             self?.screenParametersDidChange()
         }
         observe(.default, UserDefaults.didChangeNotification) { [weak self] in
-            // AppStorage can notify during a view update; defer any window work.
-            DispatchQueue.main.async { self?.syncWithPreferences() }
+            self?.schedulePreferenceSync()
         }
         observe(.default, .menuPanelWillShow) { [weak self] in self?.collapse() }
         observe(.default, NSWindow.didBecomeKeyNotification) { [weak self] in self?.syncPanelKey() }
@@ -1880,6 +1882,9 @@ final class NotchService: ObservableObject {
         session.onConsole = SessionActivity.shared.isActive
         session.locked = (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
         let workspace = NSWorkspace.shared.notificationCenter
+        observe(workspace, NSWorkspace.accessibilityDisplayOptionsDidChangeNotification) { [weak self] in
+            self?.schedulePreferenceSync()
+        }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
             self?.fullscreenEnvironmentDidChange()
         }
@@ -1909,6 +1914,20 @@ final class NotchService: ObservableObject {
         observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { [weak self] in
             self?.updateSession { $0.locked = false }
         }
+    }
+
+    /// AppStorage can notify during drawing. A preference import or a group
+    /// of edits only needs one deferred pass over the final saved settings.
+    private func schedulePreferenceSync() {
+        guard running, preferenceSyncWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.preferenceSyncWork = nil
+            guard self.running else { return }
+            self.syncWithPreferences()
+        }
+        preferenceSyncWork = work
+        DispatchQueue.main.async(execute: work)
     }
 
     private func applicationDidActivate() {
