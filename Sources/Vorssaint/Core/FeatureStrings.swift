@@ -326,7 +326,7 @@ extension MonitorAlertFeatureStrings {
         cpuTitle: "높은 CPU 사용량",
         cpuBodyFormat: "CPU 사용량이 몇 초 동안 %d%%를 넘었습니다.",
         cpuTemperatureTitle: "CPU 과열",
-        cpuTemperatureBodyFormat: "CPU 온도가 %d °C에 도달했습니다.",
+        cpuTemperatureBodyFormat: "CPU 온도가 %@에 도달했습니다.",
         memoryTitle: "위험한 메모리",
         memoryBody: "메모리 압력이 위험 수준에 도달했습니다.",
         diskTitle: "부족한 디스크 공간",
@@ -336,7 +336,7 @@ extension MonitorAlertFeatureStrings {
         batteryTemperature: "높은 배터리 온도",
         batteryTemperatureThreshold: "온도",
         batteryTemperatureTitle: "배터리 과열",
-        batteryTemperatureBodyFormat: "배터리 온도가 %d °C에 도달했습니다."
+        batteryTemperatureBodyFormat: "배터리 온도가 %@에 도달했습니다."
     )
 }
 
@@ -2622,7 +2622,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "High CPU",
         cpuBodyFormat: "CPU stayed above %d%% for a few seconds.",
         cpuTemperatureTitle: "Hot CPU",
-        cpuTemperatureBodyFormat: "CPU reached %d °C.",
+        cpuTemperatureBodyFormat: "CPU reached %@.",
         memoryTitle: "Critical memory",
         memoryBody: "Memory pressure reached the critical level.",
         diskTitle: "Low disk space",
@@ -2632,7 +2632,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "High battery temperature",
         batteryTemperatureThreshold: "Temperature above",
         batteryTemperatureTitle: "Hot battery",
-        batteryTemperatureBodyFormat: "Battery reached %d °C."
+        batteryTemperatureBodyFormat: "Battery reached %@."
     )
 
     static let ptBR = MonitorAlertFeatureStrings(
@@ -2657,7 +2657,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "CPU alta",
         cpuBodyFormat: "A CPU ficou acima de %d%% por alguns segundos.",
         cpuTemperatureTitle: "CPU quente",
-        cpuTemperatureBodyFormat: "A CPU chegou a %d °C.",
+        cpuTemperatureBodyFormat: "A CPU chegou a %@.",
         memoryTitle: "Memória crítica",
         memoryBody: "A pressão de memória chegou ao nível crítico.",
         diskTitle: "Pouco espaço em disco",
@@ -2667,7 +2667,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Temperatura alta da bateria",
         batteryTemperatureThreshold: "Temperatura acima de",
         batteryTemperatureTitle: "Bateria quente",
-        batteryTemperatureBodyFormat: "A bateria chegou a %d °C."
+        batteryTemperatureBodyFormat: "A bateria chegou a %@."
     )
 
     static let tr = MonitorAlertFeatureStrings(
@@ -2692,7 +2692,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "Yüksek CPU",
         cpuBodyFormat: "CPU birkaç saniye boyunca %d%% üzerinde kaldı.",
         cpuTemperatureTitle: "CPU sıcak",
-        cpuTemperatureBodyFormat: "CPU %d °C değerine ulaştı.",
+        cpuTemperatureBodyFormat: "CPU %@ değerine ulaştı.",
         memoryTitle: "Kritik bellek",
         memoryBody: "Bellek basıncı kritik seviyeye ulaştı.",
         diskTitle: "Düşük disk alanı",
@@ -2702,7 +2702,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Yüksek pil sıcaklığı",
         batteryTemperatureThreshold: "Sıcaklık şu değerin üstünde",
         batteryTemperatureTitle: "Pil sıcak",
-        batteryTemperatureBodyFormat: "Pil %d °C değerine ulaştı."
+        batteryTemperatureBodyFormat: "Pil %@ değerine ulaştı."
     )
 
     static let ru = MonitorAlertFeatureStrings(
@@ -2727,7 +2727,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "Высокая нагрузка CPU",
         cpuBodyFormat: "CPU держался выше %d%% несколько секунд.",
         cpuTemperatureTitle: "CPU перегрет",
-        cpuTemperatureBodyFormat: "CPU достиг %d °C.",
+        cpuTemperatureBodyFormat: "CPU достиг %@.",
         memoryTitle: "Критическая память",
         memoryBody: "Давление памяти достигло критического уровня.",
         diskTitle: "Мало места на диске",
@@ -2737,7 +2737,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Высокая температура батареи",
         batteryTemperatureThreshold: "Температура выше",
         batteryTemperatureTitle: "Батарея перегрета",
-        batteryTemperatureBodyFormat: "Батарея достигла %d °C."
+        batteryTemperatureBodyFormat: "Батарея достигла %@."
     )
 
     static let es = MonitorAlertFeatureStrings(
@@ -2762,7 +2762,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "CPU alta",
         cpuBodyFormat: "La CPU estuvo por encima de %d%% durante unos segundos.",
         cpuTemperatureTitle: "CPU caliente",
-        cpuTemperatureBodyFormat: "La CPU llegó a %d °C.",
+        cpuTemperatureBodyFormat: "La CPU llegó a %@.",
         memoryTitle: "Memoria crítica",
         memoryBody: "La presión de memoria llegó al nivel crítico.",
         diskTitle: "Poco espacio en disco",
@@ -2772,7 +2772,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Temperatura de la batería alta",
         batteryTemperatureThreshold: "Temperatura por encima de",
         batteryTemperatureTitle: "Batería caliente",
-        batteryTemperatureBodyFormat: "La batería llegó a %d °C."
+        batteryTemperatureBodyFormat: "La batería llegó a %@."
     )
 
     static let sk = MonitorAlertFeatureStrings(
@@ -2797,7 +2797,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "Vysoké vyťaženie CPU",
         cpuBodyFormat: "Využitie CPU bolo niekoľko sekúnd nad %d%%.",
         cpuTemperatureTitle: "Horúce CPU",
-        cpuTemperatureBodyFormat: "CPU dosiahlo %d °C.",
+        cpuTemperatureBodyFormat: "CPU dosiahlo %@.",
         memoryTitle: "Kritická pamäť",
         memoryBody: "Tlak na pamäť dosiahol kritickú úroveň.",
         diskTitle: "Málo miesta na disku",
@@ -2807,7 +2807,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Vysoká teplota batérie",
         batteryTemperatureThreshold: "Teplota nad",
         batteryTemperatureTitle: "Horúca batéria",
-        batteryTemperatureBodyFormat: "Batéria dosiahla %d °C."
+        batteryTemperatureBodyFormat: "Batéria dosiahla %@."
     )
 
     static let de = MonitorAlertFeatureStrings(
@@ -2832,7 +2832,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "Hohe CPU",
         cpuBodyFormat: "Die CPU lag einige Sekunden über %d%%.",
         cpuTemperatureTitle: "Heiße CPU",
-        cpuTemperatureBodyFormat: "Die CPU hat %d °C erreicht.",
+        cpuTemperatureBodyFormat: "Die CPU hat %@ erreicht.",
         memoryTitle: "Kritischer Speicher",
         memoryBody: "Der Speicherdruck hat den kritischen Wert erreicht.",
         diskTitle: "Wenig Speicherplatz",
@@ -2842,7 +2842,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Hohe Akkutemperatur",
         batteryTemperatureThreshold: "Temperatur über",
         batteryTemperatureTitle: "Heißer Akku",
-        batteryTemperatureBodyFormat: "Der Akku hat %d °C erreicht."
+        batteryTemperatureBodyFormat: "Der Akku hat %@ erreicht."
     )
 
     static let fr = MonitorAlertFeatureStrings(
@@ -2867,7 +2867,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "CPU élevé",
         cpuBodyFormat: "Le CPU est resté au-dessus de %d%% pendant quelques secondes.",
         cpuTemperatureTitle: "CPU chaud",
-        cpuTemperatureBodyFormat: "Le CPU a atteint %d °C.",
+        cpuTemperatureBodyFormat: "Le CPU a atteint %@.",
         memoryTitle: "Mémoire critique",
         memoryBody: "La pression mémoire a atteint le niveau critique.",
         diskTitle: "Espace disque faible",
@@ -2877,7 +2877,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Température de la batterie élevée",
         batteryTemperatureThreshold: "Température au-dessus de",
         batteryTemperatureTitle: "Batterie chaude",
-        batteryTemperatureBodyFormat: "La batterie a atteint %d °C."
+        batteryTemperatureBodyFormat: "La batterie a atteint %@."
     )
 
     static let it = MonitorAlertFeatureStrings(
@@ -2902,7 +2902,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "CPU alta",
         cpuBodyFormat: "La CPU è rimasta sopra %d%% per alcuni secondi.",
         cpuTemperatureTitle: "CPU calda",
-        cpuTemperatureBodyFormat: "La CPU ha raggiunto %d °C.",
+        cpuTemperatureBodyFormat: "La CPU ha raggiunto %@.",
         memoryTitle: "Memoria critica",
         memoryBody: "La pressione della memoria ha raggiunto il livello critico.",
         diskTitle: "Poco spazio su disco",
@@ -2912,7 +2912,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "Temperatura batteria alta",
         batteryTemperatureThreshold: "Temperatura sopra",
         batteryTemperatureTitle: "Batteria calda",
-        batteryTemperatureBodyFormat: "La batteria ha raggiunto %d °C."
+        batteryTemperatureBodyFormat: "La batteria ha raggiunto %@."
     )
 
     static let ja = MonitorAlertFeatureStrings(
@@ -2937,7 +2937,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "CPU 高負荷",
         cpuBodyFormat: "CPU が数秒間 %d%% を超えました。",
         cpuTemperatureTitle: "CPU が高温",
-        cpuTemperatureBodyFormat: "CPU が %d °C に達しました。",
+        cpuTemperatureBodyFormat: "CPU が %@ に達しました。",
         memoryTitle: "メモリが深刻",
         memoryBody: "メモリ圧迫が深刻レベルに達しました。",
         diskTitle: "ディスク空き容量不足",
@@ -2947,7 +2947,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "バッテリー温度が高い",
         batteryTemperatureThreshold: "温度が次を超過",
         batteryTemperatureTitle: "バッテリーが高温",
-        batteryTemperatureBodyFormat: "バッテリーが %d °C に達しました。"
+        batteryTemperatureBodyFormat: "バッテリーが %@ に達しました。"
     )
 
     static let zhHans = MonitorAlertFeatureStrings(
@@ -2972,7 +2972,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "CPU 过高",
         cpuBodyFormat: "CPU 已连续几秒高于 %d%%。",
         cpuTemperatureTitle: "CPU 过热",
-        cpuTemperatureBodyFormat: "CPU 已达到 %d °C。",
+        cpuTemperatureBodyFormat: "CPU 已达到 %@。",
         memoryTitle: "内存严重",
         memoryBody: "内存压力已达到严重级别。",
         diskTitle: "磁盘空间不足",
@@ -2982,7 +2982,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "电池温度过高",
         batteryTemperatureThreshold: "温度高于",
         batteryTemperatureTitle: "电池过热",
-        batteryTemperatureBodyFormat: "电池已达到 %d °C。"
+        batteryTemperatureBodyFormat: "电池已达到 %@。"
     )
 
     static let zhTW = MonitorAlertFeatureStrings(
@@ -3007,7 +3007,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "CPU 使用率過高",
         cpuBodyFormat: "CPU 已連續數秒高於 %d%%。",
         cpuTemperatureTitle: "CPU 過熱",
-        cpuTemperatureBodyFormat: "CPU 已達到 %d °C。",
+        cpuTemperatureBodyFormat: "CPU 已達到 %@。",
         memoryTitle: "記憶體壓力過高",
         memoryBody: "記憶體壓力已達到嚴重等級。",
         diskTitle: "磁碟空間不足",
@@ -3017,7 +3017,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "電池溫度過高",
         batteryTemperatureThreshold: "溫度高於",
         batteryTemperatureTitle: "電池過熱",
-        batteryTemperatureBodyFormat: "電池已達到 %d °C。"
+        batteryTemperatureBodyFormat: "電池已達到 %@。"
     )
 
     static let zhHK = MonitorAlertFeatureStrings(
@@ -3042,7 +3042,7 @@ struct MonitorAlertFeatureStrings {
         cpuTitle: "CPU 使用率過高",
         cpuBodyFormat: "CPU 已連續數秒高於 %d%%。",
         cpuTemperatureTitle: "CPU 過熱",
-        cpuTemperatureBodyFormat: "CPU 已達到 %d °C。",
+        cpuTemperatureBodyFormat: "CPU 已達到 %@。",
         memoryTitle: "記憶體壓力過高",
         memoryBody: "記憶體壓力已達至嚴重水平。",
         diskTitle: "磁碟空間不足",
@@ -3052,7 +3052,7 @@ struct MonitorAlertFeatureStrings {
         batteryTemperature: "電池溫度過高",
         batteryTemperatureThreshold: "溫度高於",
         batteryTemperatureTitle: "電池過熱",
-        batteryTemperatureBodyFormat: "電池已達到 %d °C。"
+        batteryTemperatureBodyFormat: "電池已達到 %@。"
     )
 }
 
@@ -3244,7 +3244,7 @@ extension MonitorAlertFeatureStrings {
         cpuTitle: "Високий CPU",
         cpuBodyFormat: "CPU тримався вище %d%% кілька секунд.",
         cpuTemperatureTitle: "Гарячий CPU",
-        cpuTemperatureBodyFormat: "CPU досяг %d °C.",
+        cpuTemperatureBodyFormat: "CPU досяг %@.",
         memoryTitle: "Критична пам’ять",
         memoryBody: "Тиск пам’яті досяг критичного рівня.",
         diskTitle: "Мало місця на диску",
@@ -3254,7 +3254,7 @@ extension MonitorAlertFeatureStrings {
         batteryTemperature: "Висока температура акумулятора",
         batteryTemperatureThreshold: "Температура вище",
         batteryTemperatureTitle: "Гарячий акумулятор",
-        batteryTemperatureBodyFormat: "Акумулятор нагрівся до %d °C."
+        batteryTemperatureBodyFormat: "Акумулятор нагрівся до %@."
     )
 }
 

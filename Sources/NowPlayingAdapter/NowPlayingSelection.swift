@@ -16,6 +16,7 @@ enum NotchNativePlayback {
         var itemIdentifier: String?
         var allowsDirectCommands = false
         var requiresCurrentPlayer = false
+        var playPauseCommand: Int32 = 2
         var applicationBundleIdentifier: String?
 
         var isRunning: Bool {
@@ -82,6 +83,14 @@ enum NotchNativePlayback {
         lock.lock()
         defer { lock.unlock() }
         return selected
+    }
+
+    private static func playPauseCommand(for info: [String: Any]) -> Int32 {
+        guard let rate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue,
+              rate.isFinite else { return 2 }
+        if rate > 0, info["canPause"] as? Bool == true { return 1 }
+        if rate == 0, info["canPlay"] as? Bool == true { return 0 }
+        return 2
     }
 
     static func select() -> Target? {
@@ -234,9 +243,25 @@ enum NotchNativePlayback {
             context = NotchPlaybackContext(pid: target.pid, revision: UUID())
         }
         target.itemIdentifier = next.item
+        // Some players expose Play and Pause separately. Use the command for
+        // the displayed state, keeping Toggle for players without either one.
+        target.playPauseCommand = playPauseCommand(for: info)
         selected = target
         identity = next
         return context
+    }
+
+    /// A supported-command callback may finish after the metadata snapshot.
+    /// Update only the same selected path and recording, without polling again.
+    static func updatePlayPauseCommand(for target: Target, info: [String: Any]) {
+        guard let next = Identity(info) else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        guard var current = selected, current.path === target.path,
+              current.pid == target.pid, current.bundleIdentifier == target.bundleIdentifier,
+              identity == next else { return }
+        current.playPauseCommand = playPauseCommand(for: info)
+        selected = current
     }
 
     static func validatedTarget(for requested: NotchPlaybackContext) -> Target? {
@@ -263,8 +288,9 @@ enum NotchNativePlayback {
         resultLock.unlock()
         lock.lock()
         defer { lock.unlock() }
-        guard matches, context == requested, identity == expected, target.isRunning else { return nil }
-        return target
+        guard matches, context == requested, identity == expected,
+              let current = selected, current.path === target.path, current.isRunning else { return nil }
+        return current
     }
 
     static func readInfo(_ target: Target, artwork: Bool, queue: DispatchQueue,
