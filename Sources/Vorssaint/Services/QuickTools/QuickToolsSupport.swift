@@ -166,10 +166,22 @@ enum QuickToolsSupport {
 
     /// One recognized line of screen text with its normalized position
     /// (bottom-left origin, as Vision reports it).
-    struct RecognizedLine {
+    struct RecognizedLine: Equatable {
         let text: String
         let x: Double
         let y: Double
+    }
+
+    /// The text of one screen capture as it went to the clipboard. The
+    /// confirmation keeps it so a click can copy the same capture again with
+    /// or without line breaks, without running recognition a second time.
+    struct RecognizedCopy: Equatable {
+        let lines: [RecognizedLine]
+        var removesLineBreaks: Bool
+
+        var text: String {
+            QuickToolsSupport.joinedRecognizedText(lines, removingLineBreaks: removesLineBreaks)
+        }
     }
 
     /// Joins recognized lines in natural reading order: top to bottom, left

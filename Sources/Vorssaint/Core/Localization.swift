@@ -349,6 +349,9 @@ struct Strings {
     let ocrCaption: String
     let ocrCopied: String
     let ocrNoText: String
+    let ocrCopiedWithoutBreaks: String
+    let ocrCutBreaks: String
+    let ocrAddBreaks: String
     let colorPickerName: String
     let colorPickerCaption: String
     let colorPickerFormatLabel: String
@@ -1467,6 +1470,9 @@ extension Strings {
         ocrCaption: "Selecione uma área da tela e o texto reconhecido é copiado, pronto para colar.",
         ocrCopied: "Texto copiado",
         ocrNoText: "Nenhum texto encontrado",
+        ocrCopiedWithoutBreaks: "Texto sem quebras de linha copiado",
+        ocrCutBreaks: "Remover quebras",
+        ocrAddBreaks: "Manter quebras",
         colorPickerName: "Conta-gotas de cor",
         colorPickerCaption: "Capture a cor de qualquer pixel da tela e copie no formato que preferir.",
         colorPickerFormatLabel: "Formato copiado",
@@ -2548,6 +2554,9 @@ extension Strings {
         ocrCaption: "Select an area of the screen and the recognized text is copied, ready to paste.",
         ocrCopied: "Text copied",
         ocrNoText: "No text found",
+        ocrCopiedWithoutBreaks: "Text without line breaks copied",
+        ocrCutBreaks: "Cut Breaks",
+        ocrAddBreaks: "Add Breaks",
         colorPickerName: "Color picker",
         colorPickerCaption: "Grab the color of any pixel on screen and copy it in your favorite format.",
         colorPickerFormatLabel: "Copied format",
