@@ -176,7 +176,7 @@ extension Strings {
         mouseNavigationSection: "Navegación",
         mouseNavigationEnable: "Usar los botones laterales para Atrás y Adelante",
         mouseNavigationCaption: "Convierte los botones Atrás y Adelante del ratón en comandos de navegación para Finder, navegadores y apps compatibles.",
-        middleClickSection: "Clic central",
+        middleClickSection: "Clic central en el trackpad",
         middleClickEnable: "El clic con tres dedos actúa como clic central",
         middleClickEnableCaption: "Presionar el trackpad con tres dedos funciona como el clic de la rueda del ratón: abrir enlaces en una pestaña nueva, cerrar pestañas y todo lo demás que hace el botón central.",
         middleClickDragConflict: "El arrastre con tres dedos de macOS está activado y usa este mismo gesto. Desactívalo en Ajustes del Sistema, en Accesibilidad, Control del puntero, Opciones del trackpad, y el clic central funcionará.",

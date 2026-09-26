@@ -176,7 +176,7 @@ extension Strings {
         mouseNavigationSection: "Navigácia",
         mouseNavigationEnable: "Používať bočné tlačidlá na Späť a Dopredu",
         mouseNavigationCaption: "Zmení tlačidlá Späť a Dopredu na myši na navigačné príkazy vo Finderi, prehliadačoch a kompatibilných aplikáciách.",
-        middleClickSection: "Stredné kliknutie",
+        middleClickSection: "Stredné kliknutie na trackpade",
         middleClickEnable: "Kliknutie tromi prstami funguje ako stredné kliknutie",
         middleClickEnableCaption: "Stlačenie trackpadu tromi prstami funguje ako kliknutie kolieskom myši: otvorí odkazy na novej karte, zatvorí karty a urobí všetko ostatné, čo stredné tlačidlo.",
         middleClickDragConflict: "V macOS je zapnuté ťahanie tromi prstami, ktoré používa rovnaké gesto. Vypnite ho v Systémových nastaveniach v časti Prístupnosť, Ovládanie kurzora, Možnosti trackpadu, a stredné kliknutie začne fungovať.",
