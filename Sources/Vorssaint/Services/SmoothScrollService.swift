@@ -192,6 +192,10 @@ final class SmoothScrollService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         guard type == .scrollWheel else { return Unmanaged.passUnretained(event) }
+        if AppSwitcher.shared.scrollNavigationActive {
+            stopGlide()
+            return Unmanaged.passUnretained(event)
+        }
         // Our own glide stream coming back through the tap.
         let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
         guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag,
