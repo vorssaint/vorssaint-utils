@@ -24,6 +24,9 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
         didSet {
             entriesStamp &+= 1
+            // Dropped rather than left to go stale, so clearing the history
+            // does not keep a folded copy of its text around.
+            foldedCandidateCache = nil
             // Keeps latestPasteboardEntry from outliving the entry it points
             // to: removing it, clearing recent/all, or trimming to a smaller
             // limit must stop the preview from claiming stale content is
@@ -449,15 +452,37 @@ final class ClipboardHistoryService: ObservableObject {
            cache.stamp == entriesStamp, cache.imageLabel == imageLabel {
             return cache.result
         }
-        let candidates = entries.enumerated().map { index, entry in
-            ClipboardHistorySearchCandidate(index: index,
-                                            text: entry.searchableText(imageLabel: imageLabel),
-                                            isPinned: entry.isPinned)
+        let result: [ClipboardHistoryEntry]
+        if ClipboardHistorySearch.hasSearchTerms(query) {
+            result = ClipboardHistorySearch.rankedIndexes(candidates: foldedCandidates(imageLabel: imageLabel),
+                                                          matching: query,
+                                                          textIsNormalized: true)
+                .map { entries[$0] }
+        } else {
+            result = entries
         }
-        let result = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
-            .map { entries[$0] }
         filterCache = (query, entriesStamp, imageLabel, result)
         return result
+    }
+
+    private var foldedCandidateCache: (imageLabel: String, candidates: [ClipboardHistorySearchCandidate])?
+
+    /// The query changes on every keystroke, so the result cache above never
+    /// hits while typing; folding every entry's full text again each time is
+    /// what made the Command Bar lag with a large history (#1885). The folded
+    /// text only changes with the history or the language.
+    private func foldedCandidates(imageLabel: String) -> [ClipboardHistorySearchCandidate] {
+        if let cache = foldedCandidateCache, cache.imageLabel == imageLabel {
+            return cache.candidates
+        }
+        let candidates = entries.enumerated().map { index, entry in
+            ClipboardHistorySearchCandidate(
+                index: index,
+                text: ClipboardHistorySearch.normalized(entry.searchableText(imageLabel: imageLabel)),
+                isPinned: entry.isPinned)
+        }
+        foldedCandidateCache = (imageLabel, candidates)
+        return candidates
     }
 
     func copyQuickEntry(at index: Int) {

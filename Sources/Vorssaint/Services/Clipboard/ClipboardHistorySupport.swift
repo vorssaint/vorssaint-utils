@@ -492,15 +492,19 @@ struct ClipboardHistorySearchCandidate {
 }
 
 enum ClipboardHistorySearch {
+    /// `textIsNormalized` is for callers that already ran every candidate's
+    /// text through `normalized(_:)` once and search it on every keystroke:
+    /// folding long entries is what made typing lag (#1885).
     static func rankedIndexes(candidates: [ClipboardHistorySearchCandidate],
-                              matching query: String) -> [Int] {
+                              matching query: String,
+                              textIsNormalized: Bool = false) -> [Int] {
         let normalizedQuery = normalized(query)
         let tokens = queryTokens(normalizedQuery)
         guard !tokens.isEmpty else { return candidates.map(\.index) }
 
         return candidates
             .compactMap { candidate -> (index: Int, score: Int, originalOrder: Int)? in
-                let text = normalized(candidate.text)
+                let text = textIsNormalized ? candidate.text : normalized(candidate.text)
                 guard tokens.allSatisfy({ text.contains($0) }) else { return nil }
                 return (candidate.index,
                         score(for: text,
@@ -514,6 +518,12 @@ enum ClipboardHistorySearch {
                 return $0.originalOrder < $1.originalOrder
             }
             .map(\.index)
+    }
+
+    /// Whether the query filters at all; an empty one lists every candidate
+    /// in order, so there is nothing to fold for it.
+    static func hasSearchTerms(_ query: String) -> Bool {
+        !queryTokens(normalized(query)).isEmpty
     }
 
     static func matches(_ text: String, query: String) -> Bool {
@@ -553,7 +563,7 @@ enum ClipboardHistorySearch {
             .filter { !$0.isEmpty }
     }
 
-    private static func normalized(_ value: String) -> String {
+    static func normalized(_ value: String) -> String {
         value
             // No locale: Turkish folds a dotted I to a dotless one, and a
             // search that inherited the Mac's locale would stop finding
