@@ -484,10 +484,13 @@ final class ScreenshotSelectionController {
         }
     }
 
-    fileprivate func adjustLoupeZoom(by scrollDelta: CGFloat, stepped: Bool) {
+    fileprivate func adjustLoupeZoom(by scrollDelta: CGFloat,
+                                     stepped: Bool,
+                                     isContinuous: Bool) {
         loupeZoom = stepped
             ? ScreenshotSupport.captureLoupeSteppedZoom(loupeZoom, adjustedBy: scrollDelta)
-            : ScreenshotSupport.captureLoupeZoom(loupeZoom, adjustedBy: scrollDelta)
+            : ScreenshotSupport.captureLoupeFastZoom(loupeZoom, adjustedBy: scrollDelta,
+                                                     isContinuous: isContinuous)
     }
 
     /// C copies the color under the pointer in the configured picker format
@@ -1129,7 +1132,8 @@ private final class ScreenshotOverlayView: NSView {
         }
         controller.adjustLoupeZoom(
             by: wheelDelta,
-            stepped: stepped)
+            stepped: stepped,
+            isContinuous: event.hasPreciseScrollingDeltas)
     }
 
     override func mouseDown(with event: NSEvent) {

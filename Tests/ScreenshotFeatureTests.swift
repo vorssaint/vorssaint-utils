@@ -2302,6 +2302,27 @@ enum ScreenshotFeatureTests {
         }
         suite.expectClose(steppedLoupeZoom, ScreenshotSupport.captureLoupeMinZoom,
                     "all stepped magnifier levels are reversible without dead notches")
+        var plainFastZoom = ScreenshotSupport.captureLoupeMinZoom
+        var plainFastNotches = 0
+        while plainFastZoom < ScreenshotSupport.captureLoupeMaxZoom, plainFastNotches < 20 {
+            plainFastZoom = ScreenshotSupport.captureLoupeFastZoom(
+                plainFastZoom, adjustedBy: 1, isContinuous: false)
+            plainFastNotches += 1
+        }
+        suite.expect(plainFastNotches <= 6,
+               "fast zoom on a plain wheel crosses the range in a few notches, not one level each")
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 1,
+                                                                 isContinuous: true), 1.15,
+                    "fast zoom keeps its per-packet factor for a smoothed wheel")
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(4, adjustedBy: -1,
+                                                                 isContinuous: false),
+                    4 / (1.15 * 1.15 * 1.15),
+                    "fast zoom on a plain wheel zooms back out at the same pace")
+        // A scroll tool can write three lines per notch; the notch keeps its pace.
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 3,
+                                                                 isContinuous: false),
+                    ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 1, isContinuous: false),
+                    "a plain notch carrying three lines lands where a one-line notch does")
         var fastLoupeZoom: CGFloat = 1
         for _ in 0..<6 {
             fastLoupeZoom = ScreenshotSupport.captureLoupeZoom(

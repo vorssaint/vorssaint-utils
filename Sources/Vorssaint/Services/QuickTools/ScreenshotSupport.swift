@@ -1814,6 +1814,24 @@ enum ScreenshotSupport {
         return scrollingDelta.isFinite ? scrollingDelta : 0
     }
 
+    /// Fast mode on a plain wheel. Its 15% per event was tuned for a smoothed
+    /// wheel, whose train of packets per notch sweeps the range; one discrete
+    /// event per notch made fast mode crawl at the same pace as stepped mode.
+    /// A plain notch therefore zooms by three of those factors. The event's
+    /// line count is left out, as stepped mode leaves it out: scroll tools
+    /// write a fixed count per notch there, and following it would let one
+    /// notch cross the whole range.
+    static func captureLoupeFastZoom(_ zoom: CGFloat,
+                                     adjustedBy scrollDelta: CGFloat,
+                                     isContinuous: Bool) -> CGFloat {
+        guard !isContinuous, scrollDelta.isFinite, scrollDelta != 0 else {
+            return captureLoupeZoom(zoom, adjustedBy: scrollDelta)
+        }
+        var result = zoom
+        for _ in 0..<3 { result = captureLoupeZoom(result, adjustedBy: scrollDelta) }
+        return result
+    }
+
     /// Fast mode preserves the original one-step-per-event behavior.
     static func captureLoupeZoom(_ zoom: CGFloat,
                                  adjustedBy scrollDelta: CGFloat) -> CGFloat {
