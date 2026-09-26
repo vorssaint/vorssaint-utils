@@ -300,11 +300,11 @@ enum ClipboardFeatureTests {
             suite.expect(alertStrings.caption.contains("12"),
                    "\(language.rawValue) monitor alert caption explains the sustained alert window")
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
-            expectFormat(alertStrings.cpuTemperatureBodyFormat, ["d"],
+            expectFormat(alertStrings.cpuTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
-            expectFormat(alertStrings.batteryTemperatureBodyFormat, ["d"],
+            expectFormat(alertStrings.batteryTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) battery temperature alert format")
         }
         suite.expect(FeatureStrings.monitorAlerts(.enUS).cooldown == "Repeat the same alert after",
