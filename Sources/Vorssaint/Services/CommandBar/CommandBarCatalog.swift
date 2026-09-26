@@ -387,7 +387,8 @@ enum CommandBarCatalog {
                 title: clipboard.clearRecent,
                 subtitle: area(.clipboardHistory),
                 keywords: [clipboard.title, ClipboardFeatureStrings.enUS.title,
-                           ClipboardFeatureStrings.enUS.clearRecent].joined(separator: " "),
+                           ClipboardFeatureStrings.enUS.clearRecent,
+                           clipboard.recent, ClipboardFeatureStrings.enUS.recent].joined(separator: " "),
                 icon: .symbol("trash"),
                 trouble: canUseHistory ? nil
                     : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
