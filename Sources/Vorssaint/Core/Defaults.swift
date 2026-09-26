@@ -18,6 +18,7 @@ enum DefaultsKey {
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
     static let supportUpdateIntroVersion = "supportUpdateIntroVersion"
     static let updateHighlightsSeenVersion = "updateHighlightsSeenVersion"
+    static let brightnessUpdatePromptState = "brightnessUpdatePromptState"
     static let updateShowcaseIntroVersion = "updateShowcaseIntroVersion"
     static let updateShowcaseMediaOverride = "updateShowcaseMediaOverride"
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
@@ -883,6 +884,26 @@ enum UpdateHighlightsInfo {
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         matchesRelease(appVersion) && lastSeenVersion != releaseVersion
+    }
+}
+
+/// A single invitation for existing Dynamic Island users to turn on display
+/// controls after updating. "pending" survives a launch interrupted before
+/// the invitation can be shown; "handled" prevents future updates replaying it.
+enum BrightnessUpdatePromptInfo {
+    static let pending = "pending"
+    static let handled = "handled"
+
+    static func isUpgrade(appVersion: String, previousVersion: String?) -> Bool {
+        guard let previousVersion,
+              let previous = UpdateServiceSupport.SemanticVersion(raw: previousVersion),
+              let current = UpdateServiceSupport.SemanticVersion(raw: appVersion) else { return false }
+        return current > previous
+    }
+
+    static func needsSetup(notchAvailable: Bool, brightnessAvailable: Bool,
+                           notchEnabled: Bool, notchBrightness: Bool, brightnessEnabled: Bool) -> Bool {
+        notchAvailable && brightnessAvailable && notchEnabled && notchBrightness && !brightnessEnabled
     }
 }
 
