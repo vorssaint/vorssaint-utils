@@ -230,6 +230,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Vorssaint 전환기가 활성화된 동안에만 해당 macOS 앱 및 윈도우 단축키를 끕니다. 실행 중인 모든 앱에 계속 접근할 수 있습니다.",
         switcherAppearanceDelay: "표시 지연",
         switcherAppearanceDelayCaption: "전환기가 나타나기 전에 단축키를 누르고 있어야 하는 시간입니다.",
+        switcherInstantSelection: "즉시 선택",
+        switcherInstantSelectionCaption: "앱과 윈도우를 탐색할 때 강조 표시와 스크롤 위치를 즉시 이동합니다.",
         switcherMergeTabs: "앱별로 하나로 묶어 표시",
         switcherMergeTabsCaption: "전환기에서 앱의 모든 윈도우를 각각이 아닌 하나의 항목으로 묶습니다.",
         switcherWindowlessApps: "열린 윈도우가 없는 앱",

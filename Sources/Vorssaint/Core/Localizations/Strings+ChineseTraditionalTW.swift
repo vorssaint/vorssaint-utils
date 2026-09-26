@@ -230,6 +230,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "僅在 Vorssaint 切換器執行時停用對應的 macOS App 與視窗快速鍵，並保留所有執行中 App 的入口。",
         switcherAppearanceDelay: "顯示延遲",
         switcherAppearanceDelayCaption: "按住快速鍵多久後顯示切換器。",
+        switcherInstantSelection: "即時選取",
+        switcherInstantSelectionCaption: "瀏覽 App 和視窗時，立即移動醒目提示並捲動列表。",
         switcherMergeTabs: "每個 App 僅顯示一項",
         switcherMergeTabsCaption: "將一個 App 的所有視窗合併為切換器中的一項，而不是每個視窗一項。",
         switcherWindowlessApps: "沒有開啟視窗的 App",

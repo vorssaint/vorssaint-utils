@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Désactive les raccourcis macOS correspondants uniquement lorsque le sélecteur Vorssaint est actif. Toutes les apps ouvertes restent accessibles.",
         switcherAppearanceDelay: "Délai d’affichage",
         switcherAppearanceDelayCaption: "Durée pendant laquelle le raccourci doit rester enfoncé avant l’affichage du sélecteur.",
+        switcherInstantSelection: "Sélection instantanée",
+        switcherInstantSelectionCaption: "Déplace immédiatement la surbrillance et fait défiler la liste pendant la navigation entre les apps et les fenêtres.",
         switcherMergeTabs: "Afficher une seule entrée par app",
         switcherMergeTabsCaption: "Regroupe toutes les fenêtres d’une app en une seule entrée dans le sélecteur, au lieu d’une entrée par fenêtre.",
         switcherWindowlessApps: "Apps sans fenêtre ouverte",
