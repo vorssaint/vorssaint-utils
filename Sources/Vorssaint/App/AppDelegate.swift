@@ -1845,10 +1845,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let strings = FeatureStrings.brightness(language)
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = FeatureStrings.notchEditor(language).enableSetting(strings.enable)
-        alert.informativeText = strings.enableCaption
+        alert.messageText = strings.islandPromptTitle
+        alert.informativeText = strings.islandPromptMessage
         alert.addButton(withTitle: FeatureStrings.commandBar(language).actionOpenSettings)
-        alert.addButton(withTitle: L10n.shared.s.supportIntroLaterButton)
+        // The invitation is not repeated, so the other choice says what stays.
+        alert.addButton(withTitle: strings.islandPromptKeepOff)
         NSApp.activate(ignoringOtherApps: true)
         let response = alert.runModal()
         defaults.set(BrightnessUpdatePromptInfo.handled, forKey: DefaultsKey.brightnessUpdatePromptState)
