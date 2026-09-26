@@ -72,7 +72,8 @@ struct NotchMixerView: View {
         } else if mixer.needsPermission {
             permission
         } else if apps.isEmpty {
-            NotchEmptyView(symbol: NotchModule.mixer.symbol, message: l10n.s.mixerEmpty)
+            NotchEmptyView(symbol: NotchModule.mixer.symbol,
+                           message: hideInactiveApps ? FeatureStrings.mixer(l10n.language).playingEmpty : l10n.s.mixerEmpty)
         } else {
             let apps = apps
             let ids = apps.compactMap(\.persistenceID)
