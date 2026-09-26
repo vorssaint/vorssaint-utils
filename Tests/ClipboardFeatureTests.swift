@@ -315,27 +315,6 @@ enum ClipboardFeatureTests {
                "clipboard quick window starts keyboard navigation on the first item")
         suite.expect(ClipboardHistorySelection.initialIndex(totalCount: 0) == 0,
                "clipboard quick window keeps an empty selection index safe")
-        let digitKeys = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
-                         kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9]
-        suite.expect(digitKeys.enumerated().allSatisfy { index, keyCode in
-            ClipboardHistorySelection.shortcutIndex(for: UInt16(keyCode), modifiers: .command) == index
-        }, "clipboard Command-digit shortcuts select the first nine positions")
-        suite.expect(ClipboardHistorySelection.shortcutIndex(for: UInt16(kVK_ANSI_1), modifiers: []) == nil
-               && ClipboardHistorySelection.shortcutIndex(for: UInt16(kVK_ANSI_1), modifiers: [.command, .shift]) == nil
-               && ClipboardHistorySelection.shortcutIndex(for: UInt16(kVK_ANSI_1), modifiers: .option) == nil
-               && ClipboardHistorySelection.shortcutIndex(for: UInt16(kVK_ANSI_0), modifiers: .command) == nil
-               && ClipboardHistorySelection.shortcutIndex(for: UInt16(kVK_ANSI_Keypad1), modifiers: .command) == nil,
-               "clipboard shortcuts leave typed numbers and unrelated combinations alone")
-        let visibleHistory = ["pinned result", "recent result", "older result"]
-        suite.expect(ClipboardHistorySelection.shortcutEntry(for: UInt16(kVK_ANSI_1),
-                                                               modifiers: .command, in: visibleHistory) == "pinned result"
-               && ClipboardHistorySelection.shortcutEntry(for: UInt16(kVK_ANSI_2),
-                                                            modifiers: .command, in: visibleHistory) == "recent result"
-               && ClipboardHistorySelection.shortcutEntry(for: UInt16(kVK_ANSI_4),
-                                                            modifiers: .command, in: visibleHistory) == nil
-               && ClipboardHistorySelection.shortcutEntry(for: UInt16(kVK_ANSI_1),
-                                                            modifiers: .command, in: [String]()) == nil,
-               "clipboard shortcuts follow visible search results and ignore missing positions")
 
         // MARK: Settings search navigation
 

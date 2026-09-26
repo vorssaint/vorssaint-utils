@@ -187,6 +187,15 @@ enum SoftwareDimmingRouteTests {
         expect(row.offered, "a monitor whose channel takes writes and answers no reads is offered the choice")
         row.display.readable = true
         expect(row.offered, "a readable DDC monitor offers optional dimming below its hardware minimum")
+        row.compact = true
+        expect(!row.offered, "the compact panel leaves the extra dimming choice to Settings")
+        row.chosen = true
+        expect(row.offered, "extra dimming stays in the compact panel once it is on, so it can be turned off")
+        row.chosen = false
+        row.display.readable = false
+        expect(row.offered, "the compact panel keeps the write-only way out")
+        row.display.readable = true
+        row.compact = false
         row.display.canChooseDimming = false
         expect(!row.offered, "a display with no stable connection path cannot save a dimming choice")
         row.display.canChooseDimming = true

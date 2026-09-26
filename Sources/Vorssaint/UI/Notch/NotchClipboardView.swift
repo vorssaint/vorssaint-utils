@@ -88,9 +88,8 @@ struct NotchClipboardView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 8) {
-                            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                                card(entry, shortcutIndex: index < 9 ? index : nil)
-                                    .frame(height: NotchLayout.clipboardCardHeight)
+                            ForEach(entries) { entry in
+                                card(entry).frame(height: NotchLayout.clipboardCardHeight)
                                     .id(entry.id)
                             }
                         }
@@ -120,7 +119,7 @@ struct NotchClipboardView: View {
     }
 
     /// The entry fills the card; its actions sit in the bottom row.
-    private func card(_ entry: ClipboardHistoryEntry, shortcutIndex: Int?) -> some View {
+    private func card(_ entry: ClipboardHistoryEntry) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Button { activate(entry) } label: {
                 preview(entry)
@@ -135,11 +134,6 @@ struct NotchClipboardView: View {
                     .font(.system(size: 10)).foregroundStyle(.secondary)
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5)).foregroundStyle(.tertiary).lineLimit(1)
-                if let shortcutIndex {
-                    Text("⌘\(shortcutIndex + 1)")
-                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
                 Spacer(minLength: 0)
                 if entry.kind == .image, AppFeature.screenshot.isAvailable {
                     NotchIconButton(symbol: "pencil", title: text.edit) { history.editImage(entry) }
@@ -189,15 +183,8 @@ struct NotchClipboardView: View {
     }
 
     /// Up and Down move the highlight while the search field keeps typing;
-    /// Return activates the highlight and Command-digits activate visible rows.
-    private func handleSearchKey(_ event: NSEvent) -> Bool {
-        let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
-        if let entry = ClipboardHistorySelection.shortcutEntry(for: event.keyCode,
-                                                               modifiers: modifiers, in: entries) {
-            activate(entry)
-            return true
-        }
-        let keyCode = event.keyCode
+    /// Return pastes or copies it like a click.
+    private func handleSearchKey(_ keyCode: UInt16) -> Bool {
         let ids = entries.map(\.id)
         switch keyCode {
         case 125, 126:
@@ -294,11 +281,11 @@ struct NotchClipboardView: View {
     }
 }
 
-/// Reads navigation and Command-digit shortcuts before the search field's editor.
-/// The unmodified navigation keys belong to the list only while search has focus.
+/// Reads the arrow keys and Return before the search field's editor does,
+/// which would otherwise spend them moving the caret.
 private struct ClipboardSearchKeyMonitor: NSViewRepresentable {
     var active: Bool
-    var handleKey: (NSEvent) -> Bool
+    var handleKey: (UInt16) -> Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -321,26 +308,22 @@ private struct ClipboardSearchKeyMonitor: NSViewRepresentable {
 
     final class Coordinator {
         var active: Bool
-        var handleKey: (NSEvent) -> Bool
+        var handleKey: (UInt16) -> Bool
         private var monitor: Any?
 
-        init(active: Bool, handleKey: @escaping (NSEvent) -> Bool) {
+        init(active: Bool, handleKey: @escaping (UInt16) -> Bool) {
             self.active = active
             self.handleKey = handleKey
         }
 
         func install(for view: NSView) {
             monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak view] event in
-                guard let self, let window = view?.window, event.window === window,
-                      (window.firstResponder as? NSTextView)?.hasMarkedText() != true else { return event }
-                let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
-                if ClipboardHistorySelection.shortcutIndex(for: event.keyCode, modifiers: modifiers) != nil {
-                    return self.handleKey(event) ? nil : event
-                }
-                guard self.active, modifiers.isEmpty,
+                guard let self, self.active, let window = view?.window, event.window === window,
+                      event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
                       [UInt16(125), 126, 36, 76].contains(event.keyCode),
-                      let editor = window.firstResponder as? NSTextView, editor.isFieldEditor else { return event }
-                return self.handleKey(event) ? nil : event
+                      let editor = window.firstResponder as? NSTextView, editor.isFieldEditor,
+                      !editor.hasMarkedText() else { return event }
+                return self.handleKey(event.keyCode) ? nil : event
             }
         }
 

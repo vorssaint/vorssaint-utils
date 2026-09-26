@@ -206,8 +206,9 @@ private struct ExtraBrightnessPanelToggle: View {
 /// has to be there too.
 ///
 /// On readable DDC displays, the choice extends the slider below the panel's
-/// hardware minimum. On write-only DDC paths, it keeps the existing fallback
-/// to software control (issue #1589). Either choice stays visible until cleared.
+/// hardware minimum and is offered in Settings. On write-only DDC paths, it
+/// keeps the existing fallback to software control on both surfaces (issue
+/// #1589). Either choice stays visible until cleared.
 struct SoftwareDimmingButton: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = BrightnessService.shared
@@ -225,7 +226,10 @@ struct SoftwareDimmingButton: View {
     private var offered: Bool {
         guard display.isActive, !display.isBuiltIn, display.canChooseDimming else { return false }
         if chosen { return true }
-        return display.method == .ddc
+        guard display.method == .ddc else { return false }
+        // The panel keeps only the write-only way out; extra dimming is
+        // offered in Settings and joins the panel once it is on.
+        return !(compact && display.readable)
     }
 
     var body: some View {
