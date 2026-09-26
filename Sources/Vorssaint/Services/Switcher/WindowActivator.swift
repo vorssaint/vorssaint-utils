@@ -627,28 +627,6 @@ enum WindowActivator {
         cancelPendingMinimizeRestore()
     }
 
-    fileprivate static func restoreSourceAfterTargetMinimize(_ restore: SwitcherWindowMinimizeRestore) {
-        guard pendingMinimizeRestore === restore else { return }
-        let reportedFrontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let frontmostPID = reportedFrontmostPID == restore.targetWindowOwnerPID
-            ? restore.targetPID
-            : reportedFrontmostPID
-        guard SwitcherSupport.shouldRestoreSourceAfterTargetMinimize(targetPID: restore.targetPID,
-                                                                     sourcePID: restore.sourcePID,
-                                                                     frontmostPID: frontmostPID,
-                                                                     targetIsMinimized: true,
-                                                                     frontmostMatchesTargetBundle: restore.matchesTargetBundle(frontmostPID),
-                                                                     frontmostCanBeSystemPromotion: restore.minimizeIntentObserved),
-              activateSource(pid: restore.sourcePID,
-                             windowID: restore.sourceWindowID,
-                             windowOwnerPID: restore.sourceWindowOwnerPID) else {
-            cancelPendingMinimizeRestore()
-            return
-        }
-
-        cancelPendingMinimizeRestore()
-    }
-
     fileprivate static func restoreSourceAfterTargetMinimizeIntent(_ restore: SwitcherWindowMinimizeRestore,
                                                                    keepPending: Bool = false,
                                                                    allowSystemPromotion: Bool = false) {
