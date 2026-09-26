@@ -278,7 +278,9 @@ enum AgentLogReader {
 
     /// Reads what was appended since the last call and hands over each
     /// complete line. A replaced or truncated file starts over.
-    static func readAppended(_ cursor: AgentLogCursor, line: (Data) -> Void) {
+    static func readAppended(_ cursor: AgentLogCursor, shouldContinue: () -> Bool = { true },
+                             line: (Data) -> Void) {
+        guard shouldContinue() else { return }
         var info = stat()
         guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
         let size = UInt64(max(0, info.st_size))
@@ -295,7 +297,7 @@ enum AgentLogReader {
         guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { try? handle.close() }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
-        while cursor.offset < size {
+        while cursor.offset < size, shouldContinue() {
             let wanted = Int(min(UInt64(chunkSize), size - cursor.offset))
             // A first read can cover gigabytes; each chunk and what was parsed
             // from it are released before the next one.
@@ -330,7 +332,7 @@ enum AgentLogReader {
                 cursor.discarding = false
                 continue
             }
-            if !range.isEmpty { line(buffer.subdata(in: range)) }
+            if !range.isEmpty, range.count <= maximumLine { line(buffer.subdata(in: range)) }
         }
         if count - start > maximumLine {
             cursor.pending = Data()

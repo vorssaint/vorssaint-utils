@@ -99,6 +99,10 @@ enum NotchAudioLevelTests {
 typealias NotchAudioTestSilenceMemory = NotchAudioLevelSupport.SilenceMemory
 
 enum NotchAudioLevelLifecycleContract {
+    final class NSWorkspace {
+        static let shared = NSWorkspace()
+        var accessibilityDisplayShouldReduceMotion = false
+    }
     enum AppFeature {
         case notchLiveEqualizer
         var isAvailable: Bool { true }
@@ -165,6 +169,7 @@ enum NotchAudioLevelLifecycleContract {
         }
         defer {
             enable(false)
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
             music.playback = nil
             Reader.instances.removeAll()
             drain()
@@ -281,5 +286,20 @@ enum NotchAudioLevelLifecycleContract {
         drain()
         expect(!audible.stopped && Reader.instances.count == beforeAudiblePause && service.levels == [0.8],
                "a short pause preserves a reader that already delivered sound")
+
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
+        service.syncWithPreferences()
+        drain()
+        expect(audible.stopped && service.levels == nil,
+               "Reduce Motion stops audio analysis because the bars cannot use its levels")
+        music.playback = playback()
+        drain()
+        expect(Reader.instances.count == beforeAudiblePause,
+               "playback updates do not restart the live equalizer while motion is reduced")
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
+        service.syncWithPreferences()
+        drain()
+        expect(Reader.instances.count == beforeAudiblePause + 1 && Reader.instances.last?.stopped == false,
+               "restoring motion resumes the chosen live equalizer on the current player")
     }
 }

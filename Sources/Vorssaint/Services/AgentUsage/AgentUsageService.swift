@@ -61,6 +61,7 @@ final class AgentUsageService: ObservableObject {
 
     // Confined to `queue`.
     private var readerSession = -1
+    private var readerCancellation: Cancellation?
     private var enabled: Set<AgentProvider> = []
     private var store = AgentUsageStore()
     private var cursors: [String: AgentLogCursor] = [:]
@@ -147,6 +148,7 @@ final class AgentUsageService: ObservableObject {
         claudeAppChecked = nil
         queue.async { [self] in
             readerSession = -1
+            readerCancellation = nil
             poller?.cancel()
             poller = nil
             watcher?.stop()
@@ -190,6 +192,7 @@ final class AgentUsageService: ObservableObject {
         startTimer()
         queue.async { [self] in
             readerSession = session
+            readerCancellation = cancellation
             enabled = providers
             store = AgentUsageStore()
             cursors.removeAll()
@@ -261,6 +264,7 @@ final class AgentUsageService: ObservableObject {
     /// working turn with it.
     @discardableResult
     private func read(_ path: String, provider: AgentProvider) -> Bool {
+        guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
             return store.forget(file: path)
@@ -269,7 +273,7 @@ final class AgentUsageService: ObservableObject {
         cursors[path] = cursor
         var entries: [AgentLogEntry] = []
         let now = Date()
-        AgentLogReader.readAppended(cursor) { line in
+        AgentLogReader.readAppended(cursor, shouldContinue: { !cancellation.isCancelled }) { line in
             switch provider {
             case .claude: entries += AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
             case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)

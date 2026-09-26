@@ -743,6 +743,41 @@ enum NotchAgentTests {
         suite.expect(ordered.map(\.path) == [sessionPath, root.appending(path: "session/subagents/agent-1.jsonl").path]
                         && AgentLogCursor(path: ordered.last?.path ?? "", provider: .claude).parent == sessionPath,
                      "a subagent is read after the session it works for, even when it finished first")
+
+        let large = folder.appending(path: "large.jsonl")
+        for count in [AgentLogReader.maximumLine, AgentLogReader.maximumLine + 1,
+                      AgentLogReader.maximumLine + AgentLogReader.chunkSize + 1] {
+            autoreleasepool {
+                var data = Data(repeating: 0x78, count: count)
+                data.append(contentsOf: "\nok\n".utf8)
+                try? data.write(to: large)
+                let cursor = AgentLogCursor(path: large.path, provider: .claude)
+                var sizes: [Int] = []
+                AgentLogReader.readAppended(cursor) { sizes.append($0.count) }
+                suite.expect(sizes == (count <= AgentLogReader.maximumLine ? [count, 2] : [2]),
+                             "log line limit applies across chunk boundaries, including a newline in the next chunk (\(count) bytes)")
+                suite.expect(cursor.pending.isEmpty && !cursor.discarding,
+                             "an oversized log line never consumes the valid line after it")
+            }
+        }
+
+        var chunked = Data("head\n".utf8)
+        chunked.append(Data(repeating: 0x78, count: AgentLogReader.chunkSize))
+        chunked.append(contentsOf: "\ntail\n".utf8)
+        try? chunked.write(to: large)
+        let cancelled = AgentLogCursor(path: large.path, provider: .claude)
+        var sizes: [Int] = []
+        AgentLogReader.readAppended(cancelled, shouldContinue: { false }) { sizes.append($0.count) }
+        suite.expect(cancelled.offset == 0 && sizes.isEmpty,
+                     "a cancelled log read consumes no file data")
+        AgentLogReader.readAppended(cancelled, shouldContinue: { sizes.isEmpty }) { sizes.append($0.count) }
+        suite.expect(cancelled.offset == UInt64(AgentLogReader.chunkSize)
+                        && sizes == [4] && cancelled.pending.count == AgentLogReader.chunkSize - 5,
+                     "disabling agents during a large read stops at the next chunk boundary")
+        sizes.removeAll()
+        AgentLogReader.readAppended(cancelled) { sizes.append($0.count) }
+        suite.expect(sizes == [AgentLogReader.chunkSize, 4] && cancelled.offset == UInt64(chunked.count),
+                     "an interrupted log resumes its partial line without losing or replaying completed lines")
     }
 
     private static func history(_ samples: [(String, String?, [String: Any])], version: Int = 2) -> Data {

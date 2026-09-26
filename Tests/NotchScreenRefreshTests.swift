@@ -15,6 +15,7 @@ enum NotchScreenRefreshContract {
         var now: Double = 0
         var jobs: [(Deadline, DispatchWorkItem)] = []
         var pending: Int { jobs.filter { !$0.1.isCancelled }.count }
+        func async(execute work: DispatchWorkItem) { jobs.append((.now(), work)) }
         func asyncAfter(deadline: Deadline, execute work: DispatchWorkItem) { jobs.append((deadline, work)) }
         func advance(_ seconds: Double) {
             now += seconds
@@ -77,6 +78,7 @@ enum NotchScreenRefreshContract {
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
         var screenRefreshWork: DispatchWorkItem?
+        var preferenceSyncWork: DispatchWorkItem?
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210, compactSideRoom: 64)
         var panel: Panel? = Panel()
@@ -110,6 +112,28 @@ enum NotchScreenRefreshContract {
             ClipboardHistoryService.shared.remembered = 0
         }
         let service = Service()
+        let preferences = Service()
+        for _ in 0..<100 { preferences.schedulePreferenceSync() }
+        suite.expect(DispatchQueue.main.pending == 1 && preferences.preferenceSyncs == 0,
+                     "a preference burst defers one island sync until drawing has finished")
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 1 && preferences.preferenceSyncWork == nil,
+                     "the deferred sync consumes the entire preference burst once")
+        preferences.schedulePreferenceSync()
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 2, "later preference changes still synchronize the island")
+        preferences.schedulePreferenceSync()
+        preferences.running = false
+        DispatchQueue.main.advance(0)
+        preferences.schedulePreferenceSync()
+        suite.expect(preferences.preferenceSyncs == 2 && DispatchQueue.main.pending == 0,
+                     "pending and later preference notifications cannot restart a stopped island")
+        preferences.running = true
+        preferences.suspended = true
+        preferences.schedulePreferenceSync()
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 3,
+                     "suspended islands still apply preference changes that stop disabled services")
         let initialSize = service.geometry.compactMusicGeometry.compactActivitySize
         var pendingPeak = 0
         var geometryChanged = false
