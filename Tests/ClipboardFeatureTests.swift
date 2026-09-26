@@ -146,6 +146,37 @@ enum ClipboardFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
 
+        // MARK: Clipboard quick window sizing
+
+        let desktop = NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let compactSize = ClipboardHistoryWindowSizing.contentSize(
+            preview: false, savedWidth: 0, savedHeight: 0, visibleFrame: desktop)
+        let previewSize = ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 0, savedHeight: 0, visibleFrame: desktop)
+        suite.expect(compactSize == NSSize(width: 560, height: 420)
+                && previewSize == NSSize(width: 840, height: 500),
+               "clipboard quick window retains its original compact and preview sizes by default")
+        suite.expect(ClipboardHistoryWindowSizing.minimumSize(preview: false)
+                == NSSize(width: 560, height: 300)
+                && ClipboardHistoryWindowSizing.minimumSize(preview: true)
+                    == NSSize(width: 840, height: 380),
+               "the narrowest clipboard window leaves room for batch actions in both layouts")
+        let taller = ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 700, savedHeight: 640, visibleFrame: desktop)
+        suite.expect(taller == NSSize(width: 980, height: 720)
+                && ClipboardHistoryWindowSizing.savedCompactSize(from: taller, preview: true)
+                    == NSSize(width: 700, height: 640),
+               "a resized preview returns to the same chosen list size")
+        let shortScreen = NSRect(x: 0, y: 0, width: 1050, height: 700)
+        suite.expect(ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 1000, savedHeight: 900, visibleFrame: shortScreen)
+                == NSSize(width: 1018, height: 668),
+               "a saved size is limited to the visible display")
+        suite.expect(ClipboardHistoryWindowSizing.contentSize(
+            preview: false, savedWidth: .infinity, savedHeight: -1, visibleFrame: desktop)
+                == compactSize,
+               "invalid saved dimensions fall back to the original size")
+
         // MARK: Clipboard menu bar preview
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryMenuBarPreview] as? Bool == false,
@@ -300,11 +331,11 @@ enum ClipboardFeatureTests {
             suite.expect(alertStrings.caption.contains("12"),
                    "\(language.rawValue) monitor alert caption explains the sustained alert window")
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
-            expectFormat(alertStrings.cpuTemperatureBodyFormat, ["d"],
+            expectFormat(alertStrings.cpuTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
-            expectFormat(alertStrings.batteryTemperatureBodyFormat, ["d"],
+            expectFormat(alertStrings.batteryTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) battery temperature alert format")
         }
         suite.expect(FeatureStrings.monitorAlerts(.enUS).cooldown == "Repeat the same alert after",

@@ -229,6 +229,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Vorssaint のスイッチャーが動作中の間だけ、対応する macOS のアプリとウインドウのショートカットを無効にします。実行中のすべてのアプリに切り替えられます。",
         switcherAppearanceDelay: "表示までの待ち時間",
         switcherAppearanceDelayCaption: "スイッチャーが表示されるまでショートカットを押し続ける時間です。",
+        switcherInstantSelection: "選択を即時に切り替える",
+        switcherInstantSelectionCaption: "アプリやウインドウを選ぶと、ハイライトとスクロール位置をすぐに切り替えます。",
         switcherMergeTabs: "アプリごとに1つにまとめて表示",
         switcherMergeTabsCaption: "スイッチャーで、アプリのすべてのウインドウをウインドウごとではなく1つの項目にまとめます。",
         switcherWindowlessApps: "ウインドウなしのアプリ",

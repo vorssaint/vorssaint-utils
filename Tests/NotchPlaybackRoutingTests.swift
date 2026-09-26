@@ -15,6 +15,7 @@ enum NotchPlaybackRoutingContract {
         var itemIdentifier: String? = "fixture"
         var allowsDirectCommands = true
         var requiresCurrentPlayer = false
+        var playPauseCommand: Int32 = 2
         var applicationBundleIdentifier: String?
     }
     struct NSRunningApplication {
@@ -205,7 +206,86 @@ enum NotchPlaybackRoutingTests {
                      "a video that lost the system session cannot send to the new global player")
         Adapter.systemPID = 10
         replyEncoding(suite)
+        radioPlayback(suite)
         recordingContext(suite)
+    }
+
+    private static func radioPlayback(_ suite: TestSuite) {
+        typealias Adapter = NotchPlaybackRoutingContract
+        let path = NSObject()
+        var radio = Adapter.Target(path: path)
+        radio.requiresCurrentPlayer = true
+        var info: [String: Any] = ["kMRMediaRemoteNowPlayingInfoTitle": "Live radio",
+                                   "kMRMediaRemoteNowPlayingInfoPlaybackRate": 1,
+                                   "canPlay": true, "canPause": true]
+        defer { Adapter.beforeRead = nil; Adapter.metadata[ObjectIdentifier(path)] = nil; Adapter.publish(nil) }
+        Adapter.metadata[ObjectIdentifier(path)] = info
+        let playing = Adapter.publish(radio, info: info)!
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: playing))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 1,
+                     "a radio player with separate playback commands receives Pause instead of Toggle")
+
+        info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
+        Adapter.metadata[ObjectIdentifier(path)] = info
+        let paused = Adapter.publish(radio, info: info)!
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: paused))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 0,
+                     "the same radio player receives Play when the stream is paused")
+
+        info["canPlay"] = false
+        Adapter.metadata[ObjectIdentifier(path)] = info
+        let fallback = Adapter.publish(radio, info: info)!
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: fallback))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 2,
+                     "players without a separate command retain Toggle")
+
+        Adapter.systemPID = 20
+        Adapter.command = nil
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: fallback))
+        suite.expect(Adapter.reply["sent"] as? Bool == false && Adapter.command == nil,
+                     "a radio player that lost the system session cannot control another player")
+        Adapter.systemPID = 10
+
+        var delayed = info
+        delayed["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
+        delayed["canPause"] = nil
+        Adapter.metadata[ObjectIdentifier(path)] = delayed
+        let delayedContext = Adapter.publish(radio, info: delayed)!
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: delayedContext))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 2,
+                     "an unanswered capability query initially keeps Toggle")
+        var late = delayed
+        late["canPause"] = true
+        Adapter.updatePlayPauseCommand(for: radio, info: late)
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: delayedContext))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 1,
+                     "a late capability reply updates the same recording without another metadata notification")
+
+        let inFlight = Adapter.publish(radio, info: delayed)!
+        Adapter.beforeRead = { Adapter.updatePlayPauseCommand(for: radio, info: late) }
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: inFlight))
+        Adapter.beforeRead = nil
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 1,
+                     "a capability arriving during validation is used by the pending command")
+
+        var changed = delayed
+        changed["kMRMediaRemoteNowPlayingInfoTitle"] = "Another station"
+        Adapter.metadata[ObjectIdentifier(path)] = changed
+        let changedContext = Adapter.publish(radio, info: changed)!
+        Adapter.updatePlayPauseCommand(for: radio, info: late)
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: changedContext))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 2,
+                     "an old capability reply cannot change another recording on the same path")
+
+        var replacement = Adapter.Target(path: NSObject())
+        replacement.requiresCurrentPlayer = true
+        Adapter.metadata[ObjectIdentifier(replacement.path)] = delayed
+        let replacedContext = Adapter.publish(replacement, info: delayed)!
+        Adapter.updatePlayPauseCommand(for: radio, info: late)
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: replacedContext))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 2,
+                     "an old capability reply cannot change a newly selected path")
+        Adapter.metadata[ObjectIdentifier(replacement.path)] = nil
     }
 
     /// JSONSerialization raises an exception `try?` cannot catch on NaN or
