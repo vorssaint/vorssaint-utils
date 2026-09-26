@@ -7,10 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island gives a small spring response when the pointer reaches its closed surface.
+Dynamic Island gives a small spring response when the pointer reaches its closed surface. App shortcuts can cover the full alphabet with room to spare.
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+- App shortcuts now allow up to 64 bindings, enough for every letter and other commands.
+
+### Contributors
+Thanks to @stephansann.
 
 ## [3.4.0-beta.6] - 2026-09-25
 
