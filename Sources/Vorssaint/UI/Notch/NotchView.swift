@@ -280,6 +280,11 @@ struct NotchView: View {
         return notice
     }
 
+    /// The fan card opens Fan Control, so its page shares that title.
+    private func detailTitle(_ metric: MetricDetailKind) -> String {
+        metric == .fan ? FeatureStrings.fanControl(l10n.language).title : metric.title(l10n.s)
+    }
+
     private var header: some View {
         HStack(spacing: service.expandedGeometry.headerCameraGap > 0 ? 0 : 6) {
             let quickActions = NotchQuickAccessConfiguration.current().actions
@@ -302,7 +307,7 @@ struct NotchView: View {
                     if showsDetail {
                         NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.goBack)
                     }
-                    Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric?.title(l10n.s) ?? text.title)
+                    Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric.map(detailTitle) ?? text.title)
                         .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
