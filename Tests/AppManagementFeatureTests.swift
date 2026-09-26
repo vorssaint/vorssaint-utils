@@ -1260,6 +1260,24 @@ enum AppManagementFeatureTests {
                "a window already registered on this observer stays watched across refreshes")
         suite.expect(!AutoQuitSupport.isWindowNotificationRegistered(.cannotComplete),
                "a window whose registration was refused is not watched")
+        suite.expect(AutoQuitSupport.shouldConsumeFullscreenCloseAction(.success)
+                && AutoQuitSupport.shouldConsumeFullscreenCloseAction(.cannotComplete)
+                && !AutoQuitSupport.shouldConsumeFullscreenCloseAction(.actionUnsupported),
+               "a fullscreen close consumes success and an indeterminate timeout, but falls back after definite failure")
+        let display = CGRect(x: 100, y: 50, width: 1440, height: 900)
+        suite.expect(AutoQuitSupport.mayContainFullscreenClose(CGPoint(x: 120, y: 68),
+                                                               display: display, topClearance: 0)
+                && AutoQuitSupport.mayContainFullscreenClose(CGPoint(x: 120, y: 105),
+                                                              display: display, topClearance: 24)
+                && !AutoQuitSupport.mayContainFullscreenClose(CGPoint(x: 120, y: 105),
+                                                               display: display, topClearance: 0)
+                && AutoQuitSupport.mayContainFullscreenClose(CGPoint(x: 120, y: 123),
+                                                              display: display, topClearance: 38)
+                && !AutoQuitSupport.mayContainFullscreenClose(CGPoint(x: 120, y: 123),
+                                                               display: display, topClearance: 0)
+                && !AutoQuitSupport.mayContainFullscreenClose(CGPoint(x: 300, y: 68),
+                                                               display: display, topClearance: 62),
+               "fullscreen preflight includes menu-bar and camera-housing clearance but excludes ordinary clicks")
         let autoQuitServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/AutoQuit/AutoQuitService.swift",
             encoding: .utf8)) ?? ""
@@ -1327,6 +1345,37 @@ enum AppManagementFeatureTests {
         }
         suite.expect(missingCloseCheckOffsetCode.isEmpty,
                "AutoQuit close checks remain offsets from one origin: missing \(missingCloseCheckOffsetCode)")
+
+        let fullscreenCloseCode = [
+            "options: .listenOnly",
+            "private var fullscreenCloseTap: CFMachPort?",
+            "CGEventMask(1 << CGEventType.leftMouseUp.rawValue)",
+            "CGEventMask(1 << CGEventType.leftMouseDown.rawValue)",
+            "CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)",
+            "options: .defaultTap",
+            "thread.name = \"Vorssaint Auto Quit Fullscreen Close\"",
+            "let runLoop = CFRunLoopGetCurrent()",
+            "CFRunLoopAddSource(runLoop, source, .commonModes)",
+            "PendingFullscreenClose(mouseDownTimestamp: event.timestamp,",
+            "guard fullscreenCloseThread === Thread.current else { return (nil, nil) }",
+            "down.tapPostEvent(proxy)",
+            "if let stale { flushFullscreenClose(stale, proxy: proxy) }",
+            "release.tapPostEvent(proxy)",
+            "AutoQuitSupport.mayContainFullscreenClose(event.location,",
+            "let candidate = WindowServerTrafficLightHitTest.fullscreenCloseCandidate(",
+            "SessionActivity.shared.onChange { [weak self] _ in",
+            "CGEventSource.buttonState(.combinedSessionState, button: .left)",
+            "Self.boolAttribute(target.window, \"AXFullScreen\")",
+            "AutoQuitSupport.shouldConsumeFullscreenCloseAction(",
+        ]
+        let missingFullscreenCloseCode = fullscreenCloseCode.filter {
+            autoQuitServiceCodeLines(containing: $0).isEmpty
+        }
+        suite.expect(missingFullscreenCloseCode.isEmpty,
+               "AutoQuit observes ordinary close input passively, handles releases off-main, consumes a verified fullscreen red-button release or indeterminate timeout, and preserves definite-failure fallback: missing \(missingFullscreenCloseCode)")
+        suite.expect(!autoQuitServiceSource.contains(
+                   "CFRunLoopAddSource(CFRunLoopGetMain(), fullscreenSource"),
+               "the active fullscreen release tap never shares the main run loop with Accessibility hit testing")
 
         // Attaching to a watched app must never ask its application element for
         // a role. A Chromium app (Electron, and the browsers) answers that by

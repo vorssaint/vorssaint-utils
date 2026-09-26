@@ -90,7 +90,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Dock Preview.** Hover over Dock icons to preview windows across desktops. Switch, close, move or snap them from the preview.
 - **Dock clicks.** Click an active app's Dock icon to minimize, hide or cycle through its windows.
 - **Maximize windows.** Use the green button to fill the screen without creating another Space.
-- **Quit on close.** Quit selected apps when their last window closes.
+- **Quit on close.** Quit selected apps when their last window closes. A fullscreen window closes from its red button in one click instead of first returning to its desktop.
 - **Quit and close protection.** Prevent accidental ⌘Q or ⌘W with a hold, double press or extra modifier, per app.
 
 <p align="center">
