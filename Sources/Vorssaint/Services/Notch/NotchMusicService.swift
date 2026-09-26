@@ -27,6 +27,8 @@ final class NotchMusicService: ObservableObject {
     @Published private(set) var queueActionFailed = false
     /// A player moved on to another song; see NotchTrackChange.
     let trackChanges = PassthroughSubject<Void, Never>()
+    /// Immediate visual acknowledgement of an accepted swipe, before metadata arrives.
+    let gestureSkips = PassthroughSubject<Bool, Never>()
     private var trackChange = NotchTrackChange()
     private var queueVisible = false
     private var queueRequest: UUID?
@@ -404,6 +406,12 @@ final class NotchMusicService: ObservableObject {
     @discardableResult
     func send(_ command: Command) -> Bool {
         send(command, context: playback?.commandContext)
+    }
+
+    func skipFromGesture(forward: Bool) {
+        let command: Command = forward ? .next : .previous
+        guard canPerform(command), send(command) else { return }
+        gestureSkips.send(forward)
     }
 
     @discardableResult

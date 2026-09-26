@@ -159,6 +159,7 @@ struct NotchMusicView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(height: height)
+        .modifier(NotchMusicSwipeFeedback())
     }
 
     private func details(_ playback: NotchPlayback, titleLines: Int, artist: Bool, timeline: Bool, roomy: Bool) -> some View {

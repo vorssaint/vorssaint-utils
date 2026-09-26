@@ -6,6 +6,21 @@ import AppKit
 enum NotchGestureTests {
     static func run(_ suite: TestSuite) {
         nativeInteractionContracts(suite)
+        suite.expect(NotchGestureSupport.allowsVertical(expanded: true, inHeader: false,
+                                                       musicSurface: true, control: false, scroll: false),
+               "the music surface can close the expanded island without aiming at its header")
+        suite.expect(!NotchGestureSupport.allowsVertical(expanded: true, inHeader: false,
+                                                        musicSurface: true, control: false, scroll: true)
+               && !NotchGestureSupport.allowsVertical(expanded: true, inHeader: false,
+                                                     musicSurface: true, control: true, scroll: false)
+               && !NotchGestureSupport.allowsVertical(expanded: true, inHeader: false,
+                                                     musicSurface: false, control: false, scroll: false),
+               "lyrics, queues, controls and other modules retain their own vertical input")
+        suite.expect(NotchGestureSupport.allowsVertical(expanded: false, inHeader: false,
+                                                       musicSurface: false, control: false, scroll: false)
+               && NotchGestureSupport.allowsVertical(expanded: true, inHeader: true,
+                                                    musicSurface: false, control: false, scroll: false),
+               "the resting island and expanded header keep their vertical gestures")
         suite.expect(NotchSupport.compactActivity(timer: true, downloads: true, music: true) == .timer
                && NotchSupport.compactActivity(timer: false, downloads: true, music: true) == .downloads
                && NotchSupport.compactActivity(timer: false, downloads: false, agents: true,
@@ -42,6 +57,18 @@ enum NotchGestureTests {
         for _ in 0..<100 { suite.expect(feed(-50, 0) == nil, "one physical swipe never skips multiple tracks") }
         suite.expect(feed(45, 0, began: true) == .previousTrack, "a right swipe selects the previous track")
         suite.expect(feed(40, 40, began: true) == nil, "diagonal motion is not guessed as a track or panel gesture")
+        suite.expect(feed(1, 0, began: true, expanded: true) == nil
+               && feed(0, -24, expanded: true) == .close,
+               "small horizontal touchdown noise cannot lock out a vertical closing swipe")
+        suite.expect(feed(0, 1, began: true) == nil && feed(-40, 0) == .nextTrack,
+               "small vertical touchdown noise cannot lock out a track swipe")
+        suite.expect(feed(0, 0.1, began: true) == nil, "a slow swipe begins below direction slop")
+        for _ in 0..<7 { suite.expect(feed(0, 0.5) == nil, "subpoint travel accumulates without firing") }
+        suite.expect(feed(0, 21) == .open, "slow travel contributes to the action threshold")
+        suite.expect(feed(0, 5, began: true) == nil && feed(-80, 0) == nil,
+               "an established vertical gesture cannot become a track skip")
+        suite.expect(feed(-20, 0, began: true) == nil && feed(-19, 0) == nil && feed(-1, 0) == .nextTrack,
+               "direction selection counts each delta once toward the track threshold")
         suite.expect(feed(-50, 0, began: true, horizontal: false) == nil,
                "lists, sliders and the navigation row can keep horizontal scrolling")
         suite.expect(feed(0, -50, began: true, vertical: false, expanded: true) == nil,
