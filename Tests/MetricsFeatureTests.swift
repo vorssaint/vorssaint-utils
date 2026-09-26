@@ -417,6 +417,16 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.temperatureCompact(49.6, unit: .fahrenheit), "121°", "compact fahrenheit rounds")
         expectEqual(MetricFormat.temperatureUnitSuffix(.celsius), "°C", "celsius suffix is explicit")
         expectEqual(MetricFormat.temperatureUnitSuffix(.fahrenheit), "°F", "fahrenheit suffix is explicit")
+        let alertStrings = FeatureStrings.monitorAlerts(.enUS)
+        expectEqual(String(format: alertStrings.cpuTemperatureBodyFormat,
+                           MetricFormat.temperature(90, unit: .fahrenheit)),
+                    "CPU reached 194 °F.", "CPU temperature alert uses the selected unit")
+        expectEqual(String(format: alertStrings.batteryTemperatureBodyFormat,
+                           MetricFormat.temperature(40, unit: .fahrenheit)),
+                    "Battery reached 104 °F.", "battery temperature alert uses the selected unit")
+        expectEqual(String(format: alertStrings.cpuTemperatureBodyFormat,
+                           MetricFormat.temperature(90, unit: .celsius)),
+                    "CPU reached 90 °C.", "CPU temperature alert still supports Celsius")
 
         // MARK: Temperature sensor selection
 

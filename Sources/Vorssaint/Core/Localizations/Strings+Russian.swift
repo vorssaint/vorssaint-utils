@@ -230,6 +230,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Отключает соответствующие сочетания macOS только на время работы переключателя Vorssaint. Все запущенные приложения остаются доступны.",
         switcherAppearanceDelay: "Задержка появления",
         switcherAppearanceDelayCaption: "Как долго нужно удерживать сочетание клавиш, прежде чем появится переключатель.",
+        switcherInstantSelection: "Мгновенный выбор",
+        switcherInstantSelectionCaption: "При переходе между приложениями и окнами сразу перемещает выделение и прокручивает список.",
         switcherMergeTabs: "Показывать одну запись на приложение",
         switcherMergeTabsCaption: "Сводит все окна приложения в одну запись в переключателе вместо отдельной записи на каждое окно.",
         switcherWindowlessApps: "Приложения без открытых окон",

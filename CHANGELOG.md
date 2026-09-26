@@ -7,13 +7,26 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island gives a small spring response when the pointer reaches its closed surface. External monitors can now dim below their hardware minimum when extra dimming is enabled.
+Dynamic Island responds to hover and uses supported playback commands for radio streams.
 
 ### Added
+- Clipboard History's separate window resizes by dragging an edge or corner, and remembers the chosen size. Thanks to @1119350264.
 - External monitors with readable brightness control offer optional Extra dimming. The lower part of the slider dims the picture below the monitor's hardware minimum, while the rest keeps using hardware brightness.
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+- App Switcher can skip highlight, scrolling and panel resize animations while browsing, with smooth selection still the default.
+- App shortcuts now allow up to 64 bindings, enough for every letter and other commands.
+- The mouse extra-click filter shows its window directly in Settings and can be tuned in 1 ms steps.
+
+### Fixed
+- Dynamic Island sends a player's supported Play or Pause command when available, improving control of radio streams.
+- Clipboard History no longer refreshes the whole list when the pointer moves between entries, including with the preview closed.
+
+### Contributors
+Thanks to @stephansann for the report.
+Thanks to @Samuel61904 for the suggestion.
+Thanks to @stephansann.
 
 ## [3.4.0-beta.6] - 2026-09-25
 
