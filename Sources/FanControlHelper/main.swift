@@ -81,6 +81,7 @@ private final class FanControlOwnership {
 }
 
 private final class FanControlController {
+    private let log = Logger(subsystem: FanControlIdentifiers.helperID, category: "FanControl")
     private let queue = DispatchQueue(label: "com.vorssaint.fan-control.helper")
     private let ownership = FanControlOwnership()
     private var hardware: FanControlHardware?
@@ -585,7 +586,7 @@ private func runSelfTest() -> Bool {
     return true
 }
 
-if CommandLine.arguments.contains("--selftest") {
+if ProcessInfo.processInfo.arguments.contains("--selftest") {
     exit(runSelfTest() ? EXIT_SUCCESS : EXIT_FAILURE)
 }
 
