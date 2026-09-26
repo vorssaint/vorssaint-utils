@@ -259,6 +259,9 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.windowMaximizeExcludedApps)
                 && (Defaults.registeredDefaults[DefaultsKey.windowMaximizeExcludedApps] as? [String]) == [],
                "the green button exception list starts empty and travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.switcherPreviewExcludedApps)
+                && (Defaults.registeredDefaults[DefaultsKey.switcherPreviewExcludedApps] as? [String]) == [],
+               "the switcher's own paused apps start empty and travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.panelShowToggles)
                 && backupKeys.contains(DefaultsKey.panelToggleOrder)
                 && backupKeys.contains(DefaultsKey.panelToggleDarkMode)

@@ -57,7 +57,8 @@ struct SwitcherSettings: View {
                         .disabled(!switcherEnabled)
                 }
                 if AppFeature.switcher.isAvailable {
-                    WindowPreviewsCard(sizeKey: DefaultsKey.switcherPreviewSize)
+                    WindowPreviewsCard(sizeKey: DefaultsKey.switcherPreviewSize,
+                                       excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps)
                 }
                 if switcherEngaged {
                     if !permissions.accessibility {
@@ -303,15 +304,17 @@ struct SwitcherSettings: View {
     }
 }
 
-/// The window previews card on the Switcher and Dock pages: each page sizes
-/// its own previews, while the minimal look and the exclusions are shared.
+/// The window previews card on the Switcher and Dock pages: each page has its
+/// own preview size and paused apps, while the minimal look is shared.
 struct WindowPreviewsCard: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage private var previewSize: String
+    private let excludedAppsKey: String
 
-    init(sizeKey: String) {
+    init(sizeKey: String, excludedAppsKey: String) {
         _previewSize = AppStorage(wrappedValue: "normal", sizeKey)
+        self.excludedAppsKey = excludedAppsKey
     }
 
     var body: some View {
@@ -330,7 +333,7 @@ struct WindowPreviewsCard: View {
                         caption: l10n.s.minimalWindowPreviewsCaption) {
                 Toggle(l10n.s.minimalWindowPreviews, isOn: $minimalPreviews).labelsHidden()
             }
-            WindowPreviewExclusionsList()
+            WindowPreviewExclusionsList(key: excludedAppsKey)
         }
     }
 

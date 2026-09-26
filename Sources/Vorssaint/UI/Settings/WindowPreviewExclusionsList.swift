@@ -5,7 +5,14 @@ import SwiftUI
 
 struct WindowPreviewExclusionsList: View {
     @ObservedObject private var l10n = L10n.shared
-    @State private var apps: [String] = Self.savedApps
+    @State private var apps: [String]
+    private let key: String
+
+    init(key: String) {
+        self.key = key
+        _apps = State(initialValue: Defaults.sanitizedBundleIdentifierList(
+            UserDefaults.standard.stringArray(forKey: key) ?? []))
+    }
 
     private var text: WindowPreviewExclusionStrings {
         FeatureStrings.windowPreviewExclusions(l10n.language)
@@ -21,14 +28,9 @@ struct WindowPreviewExclusionsList: View {
                       onRemove: { bundleID in save(apps.filter { $0 != bundleID }) })
     }
 
-    private static var savedApps: [String] {
-        Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: DefaultsKey.windowPreviewExcludedApps) ?? [])
-    }
-
     private func save(_ bundleIDs: [String]) {
         let sanitized = Defaults.sanitizedBundleIdentifierList(bundleIDs)
-        UserDefaults.standard.set(sanitized, forKey: DefaultsKey.windowPreviewExcludedApps)
+        UserDefaults.standard.set(sanitized, forKey: key)
         apps = sanitized
     }
 }
