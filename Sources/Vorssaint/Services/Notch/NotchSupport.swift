@@ -1320,6 +1320,12 @@ struct NotchGeometry: Equatable {
         return CGSize(width: expandedWidth,
                       height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
     }
+    func keepAwakeSize(contentHeight: CGFloat) -> CGSize {
+        var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
+        if layout == .custom { preferredHeight = min(preferredHeight, customHeight) }
+        return CGSize(width: expandedWidth,
+                      height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
+    }
 
     /// Leave room for the row indicator without narrowing the tiles below
     /// their readable width. Keyboard navigation uses these same columns.

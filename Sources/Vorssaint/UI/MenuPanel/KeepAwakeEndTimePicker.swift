@@ -8,6 +8,7 @@ import SwiftUI
 struct KeepAwakeEndTimePicker: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var selection: Date
+    var onPopoverChange: ((Bool) -> Void)? = nil
     @State private var isPresented = false
 
     var body: some View {
@@ -41,6 +42,8 @@ struct KeepAwakeEndTimePicker: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .onChange(of: isPresented) { onPopoverChange?(isPresented) }
+        .onDisappear { onPopoverChange?(false) }
     }
 
     private var editor: some View {

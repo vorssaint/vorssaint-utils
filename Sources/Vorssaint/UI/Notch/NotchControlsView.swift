@@ -120,7 +120,7 @@ struct NotchControlsView: View {
 
     @ViewBuilder private func shortcut(_ item: NotchControlItem) -> some View {
         switch item {
-        case .keepAwake: NotchAwakeButton()
+        case .keepAwake: NotchAwakeButton(notch: service)
         case .microphone: NotchMicButton()
         case .screenshot:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {
@@ -464,45 +464,359 @@ struct NotchActionTile: View {
     let title: String
     var active = false
     var accent: NotchTileAccent = .selection
+    var longPressAction: (() -> Void)? = nil
     let action: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(active ? accent.glyph : .white.opacity(0.85))
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 40, height: 40)
-                    .background(active ? accent.fill : Color.white.opacity(0.075), in: Circle())
-                    .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: symbol)
-                Text(title).font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(2).multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.85)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 28, alignment: .top)
+        Group {
+            if let longPressAction {
+                Button(action: action) { tile }
+                    .buttonStyle(NotchLongPressButtonStyle(cornerRadius: 14, longPress: longPressAction))
+            } else {
+                Button(action: action) { tile }
+                    .buttonStyle(NotchButtonStyle(cornerRadius: 14))
             }
-            .padding(.horizontal, 4)
-            .frame(maxWidth: .infinity)
-            .frame(height: NotchLayout.shortcutHeight)
-            .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: active)
-            .contentShape(RoundedRectangle(cornerRadius: 14))
         }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
         .accessibilityLabel(title)
         .accessibilityAddTraits(active ? .isSelected : [])
         .help(title)
     }
+
+    private var tile: some View {
+        VStack(spacing: 6) {
+            Image(systemName: symbol).font(.system(size: 17, weight: .medium))
+                .foregroundStyle(active ? accent.glyph : .white.opacity(0.85))
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 40, height: 40)
+                .background(active ? accent.fill : Color.white.opacity(0.075), in: Circle())
+                .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: symbol)
+            Text(title).font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(2).multilineTextAlignment(.center)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+                .frame(height: 28, alignment: .top)
+        }
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity)
+        .frame(height: NotchLayout.shortcutHeight)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: active)
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct NotchLongPressButtonStyle: PrimitiveButtonStyle {
+    var cornerRadius: CGFloat = 14
+    let longPress: () -> Void
+    @State private var hovered = false
+    @State private var pressed = false
+    @State private var pressStart: Date?
+    @State private var cancelled = false
+    @Environment(\.isEnabled) private var enabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let threshold: TimeInterval = 0.4
+
+    func makeBody(configuration: Configuration) -> some View {
+        let active = enabled && hovered
+        configuration.label
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.white.opacity(active ? 0.09 : 0))
+                    .allowsHitTesting(false)
+            }
+            .opacity(enabled ? (pressed ? 0.8 : 1) : 0.4)
+            .scaleEffect(reduceMotion ? 1 : pressed ? 0.965 : (active ? 1.022 : 1))
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.7), value: pressed)
+            .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.75), value: hovered)
+            .onHover { hovered = $0 }
+            .overlay {
+                GeometryReader { geo in
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                            .onChanged { value in
+                                let inside = CGRect(origin: .zero, size: geo.size)
+                                    .contains(value.location)
+                                if !inside {
+                                    pressed = false
+                                    cancelled = true
+                                    return
+                                }
+                                if cancelled { return }
+                                if pressStart == nil { pressStart = Date() }
+                                pressed = true
+                            }
+                            .onEnded { _ in
+                                pressed = false
+                                guard !cancelled else {
+                                    cancelled = false
+                                    pressStart = nil
+                                    return
+                                }
+                                let held = pressStart.map { Date().timeIntervalSince($0) } ?? 0
+                                pressStart = nil
+                                cancelled = false
+                                if held >= threshold { longPress() } else { configuration.trigger() }
+                            })
+                }
+            }
+    }
 }
 
 private struct NotchAwakeButton: View {
+    let notch: NotchService
     @ObservedObject private var service = KeepAwakeManager.shared
     @ObservedObject private var l10n = L10n.shared
     var body: some View {
         NotchActionTile(symbol: service.isActive ? "cup.and.saucer.fill" : "cup.and.saucer",
                         title: l10n.s.keepAwakeTitle, active: service.isActive,
-                        accent: .awake, action: service.toggle)
+                        accent: .awake,
+                        longPressAction: notch.showKeepAwakeDetail,
+                        action: service.toggle)
+            .accessibilityAction(named: l10n.s.keepAwakeOptions, notch.showKeepAwakeDetail)
+    }
+}
+
+struct NotchKeepAwakeView: View {
+    @ObservedObject var service: NotchService
+    @ObservedObject private var awake = KeepAwakeManager.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
+    @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var allowDisplaySleep = false
+    @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
+    @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
+    @State private var untilTime = Date()
+    @State private var useEndTime = false
+    @State private var showingIconPicker = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var pickerTransition: AnyTransition {
+        reduceMotion ? .identity : .asymmetric(insertion: .move(edge: .trailing),
+                                                removal: .move(edge: .trailing)).combined(with: .opacity)
+    }
+
+    private var controlsTransition: AnyTransition {
+        reduceMotion ? .identity : .asymmetric(insertion: .move(edge: .leading),
+                                                removal: .move(edge: .leading)).combined(with: .opacity)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if showingIconPicker {
+                iconPickerPage.transition(pickerTransition)
+            } else {
+                controlsPage.transition(controlsTransition)
+            }
+        }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showingIconPicker)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .modifier(NotchControlSurface(cornerRadius: 18))
+        .onAppear {
+            defaultDuration = Defaults.sanitizedDefaultDuration(defaultDuration)
+            keepAwakeActiveIcon = Defaults.sanitizedKeepAwakeActiveIcon(keepAwakeActiveIcon).rawValue
+            keepAwakeIconTint = Defaults.sanitizedKeepAwakeIconTint(keepAwakeIconTint).rawValue
+            untilTime = Date().addingTimeInterval(3600)
+        }
+        .onChange(of: awake.isActive) { service.refreshPresentation() }
+        .onChange(of: awake.endDate != nil) { service.refreshPresentation() }
+        .onChange(of: showingIconPicker) { service.keepAwakeIconPickerVisible = showingIconPicker; service.refreshPresentation() }
+        .onDisappear { service.keepKeepAwakeInteractionOpen(false); service.keepAwakeIconPickerVisible = false }
+    }
+
+    @ViewBuilder
+    private var controlsPage: some View {
+        HStack(spacing: 10) {
+            Image(systemName: awake.isActive ? "cup.and.saucer.fill" : "cup.and.saucer")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(awake.isActive ? .yellow : .white.opacity(0.85))
+            statusLine
+            Spacer(minLength: 8)
+            Toggle("", isOn: activeBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+                .tint(.yellow)
+                .accessibilityLabel(l10n.s.keepAwakeTitle)
+        }
+        if awake.isActive {
+            if awake.endDate != nil {
+                HStack(spacing: 8) {
+                    extendChip(15)
+                    extendChip(30)
+                    extendChip(60)
+                    Spacer(minLength: 0)
+                }
+            }
+        } else {
+            Picker(l10n.s.durationLabel, selection: $useEndTime) {
+                Text(l10n.s.durationLabel).tag(false)
+                Text(l10n.s.keepAwakeUntilLabel).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if useEndTime {
+                KeepAwakeEndTimePicker(selection: $untilTime,
+                                      onPopoverChange: { service.keepKeepAwakeInteractionOpen($0) })
+            } else {
+                HStack {
+                    Image(systemName: "timer")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    DurationPicker(selection: $defaultDuration)
+                    Spacer(minLength: 0)
+                }
+            }
+            chip(l10n.s.keepAwakeUntilStart, action: startSession)
+                .frame(maxWidth: .infinity)
+        }
+        Divider().overlay(.white.opacity(0.1))
+        optionToggle(icon: "macbook", title: l10n.s.clamshellTitle,
+                     caption: clamshellCaption, isOn: $awake.clamshellPreferred,
+                     disabled: awake.clamshellSetupInProgress,
+                     captionIsError: awake.clamshellSetupFailed)
+        optionToggle(icon: "display", title: displaySleepStrings.allowDisplaySleep,
+                     isOn: $allowDisplaySleep)
+        Divider().overlay(.white.opacity(0.1))
+        Button { showingIconPicker = true } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "paintbrush")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(l10n.s.keepAwakeActiveIconLabel)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var iconPickerPage: some View {
+        Button { showingIconPicker = false } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 10, weight: .semibold))
+                Text(l10n.s.keepAwakeTitle)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        KeepAwakeIconPicker(iconValue: $keepAwakeActiveIcon,
+                            tintValue: $keepAwakeIconTint,
+                            compact: true)
+    }
+
+    private var displaySleepStrings: KeepAwakeDisplaySleepStrings {
+        FeatureStrings.keepAwakeDisplaySleep(l10n.language)
+    }
+
+    private var clamshellCaption: String {
+        if awake.clamshellSetupInProgress { return l10n.s.configuring }
+        if awake.clamshellSetupFailed { return l10n.s.sudoersFailed }
+        if awake.clamshellActive { return l10n.s.clamshellOnCaption }
+        if awake.clamshellPreferred { return l10n.s.clamshellNeedsSession }
+        return awake.passwordlessClamshell ? l10n.s.clamshellReady : l10n.s.clamshellNeedsPassword
+    }
+
+    private func optionToggle(icon: String, title: String, caption: String? = nil,
+                              isOn: Binding<Bool>, disabled: Bool = false,
+                              captionIsError: Bool = false) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(.white)
+                if let caption {
+                    Text(caption)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(captionIsError ? Color.red : .secondary)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 8)
+            Toggle(title, isOn: isOn)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+                .disabled(disabled)
+        }
+    }
+
+    private var statusLine: some View {
+        Group {
+            if awake.isActive {
+                if awake.sessionTrigger == .automation {
+                    Text(FeatureStrings.keepAwakeAutomation(l10n.language)
+                        .activeStatus(for: awake.activeAutomationConditions))
+                } else if let end = awake.endDate {
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        Text("\(l10n.s.keepAwakeEndsIn) \(KeepAwakeCard.remainingText(until: end))")
+                            .monospacedDigit()
+                    }
+                } else {
+                    Text(l10n.s.keepAwakeUntilDisabled)
+                }
+            } else {
+                Text(l10n.s.keepAwakeNormalRules)
+            }
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var activeBinding: Binding<Bool> {
+        Binding(get: { awake.isActive },
+                set: { on in
+                    if on {
+                        startSession()
+                    } else if awake.isActive {
+                        awake.toggle()
+                    }
+                })
+    }
+
+    private func startSession() {
+        if useEndTime {
+            awake.activate(until: KeepAwakeAutomationSupport.resolvedUntilDate(picked: untilTime, now: Date()))
+        } else {
+            awake.activate(minutes: defaultDuration)
+        }
+    }
+
+    private func extendChip(_ minutes: Int) -> some View {
+        chip("+\(minutes) min") { awake.extend(minutes: minutes) }
+    }
+
+    private func chip(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .frame(height: 26)
+                .foregroundStyle(.yellow)
+                .background(.yellow.opacity(0.18), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 13))
+        .accessibilityLabel(label)
     }
 }
 

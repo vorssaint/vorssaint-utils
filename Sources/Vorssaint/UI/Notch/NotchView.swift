@@ -191,7 +191,7 @@ struct NotchView: View {
         .accessibilityHidden(true)
     }
 
-    private var showsDetail: Bool { service.showingAppPanel || service.selectedMetric != nil }
+    private var showsDetail: Bool { service.showingAppPanel || service.selectedMetric != nil || service.showingKeepAwake }
 
     private var expanded: some View {
         VStack(spacing: NotchLayout.spacing) {
@@ -269,7 +269,7 @@ struct NotchView: View {
 
     private var scrollsVertically: Bool {
         guard !service.showingAppPanel else { return false }
-        return contentOverflows || service.selectedMetric != nil
+        return contentOverflows || service.selectedMetric != nil || service.showingKeepAwake
             || (service.selected == .captures && service.captureContent != nil)
             || (service.selected == .tools && launcher.isEditing && launcher.activeUtility == nil)
     }
@@ -302,7 +302,7 @@ struct NotchView: View {
                     if showsDetail {
                         NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.goBack)
                     }
-                    Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric?.title(l10n.s) ?? text.title)
+                    Text(service.showingAppPanel ? "Vorssaint" : service.showingKeepAwake ? l10n.s.keepAwakeTitle : service.selectedMetric?.title(l10n.s) ?? text.title)
                         .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -467,6 +467,8 @@ struct NotchView: View {
     @ViewBuilder private var content: some View {
         if service.showingAppPanel {
             MenuPanelView(notchSize: pageSize)
+        } else if service.showingKeepAwake {
+            NotchKeepAwakeView(service: service)
         } else if let metric = service.selectedMetric {
             MetricDetailView(kind: metric)
         } else if service.modules.isEmpty {
