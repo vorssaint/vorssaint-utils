@@ -197,7 +197,19 @@ enum ScrollHorizontalModifierTests {
                      "the new feature ships uninstalled")
         suite.expect(AppFeature.scrollHorizontal.settingsDestination
             == AppFeature.scrollInverter.settingsDestination,
-            "both direction features open the same scroll settings section")
+                     "both direction features open the same scroll settings section")
+        suite.expect(AppFeature.scrollZoom.enabledKeys == [DefaultsKey.verticalZoomEnabled,
+                                                            DefaultsKey.horizontalZoomEnabled,
+                                                            DefaultsKey.pinchZoomEnabled]
+                && AppFeature.scrollZoom.settingsDestination.sectionAnchor == .scrollZoom,
+                     "scroll zoom is an independently configurable feature")
+        let installedZoom = ScrollDirectionPreferences(
+            isAvailable: { $0 == .scrollZoom },
+            boolFor: { $0 == DefaultsKey.verticalZoomEnabled },
+            stringFor: { _ in ScrollZoomModifier.control.rawValue }
+        )
+        suite.expect(installedZoom.isEnabled && installedZoom.zoom.verticalZoom == .control,
+                     "scroll zoom runs only while its feature is installed")
 
         // Saved settings remain on through removal/reinstallation. Exercise all
         // installation and toggle combinations without changing the user's defaults.
