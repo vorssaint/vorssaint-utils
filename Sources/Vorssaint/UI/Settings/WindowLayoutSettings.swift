@@ -24,6 +24,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
+    @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
@@ -147,12 +148,21 @@ struct WindowLayoutSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if directionalEnabled {
-                        ShortcutRecorderButton(shortcut: directionalShortcut,
+                        ShortcutRecorderButton(shortcut: directionalKeyShortcut,
                                                isEnabled: permissions.accessibility,
                                                waitingTitle: l10n.s.shortcutPressKeys,
-                                               invalidAction: {},
+                                               emptyTitle: directionalTrigger.displayString,
+                                               notCapturedAction: { directionalError = l10n.s.shortcutNotCaptured },
+                                               recordingChanged: { if $0 { directionalError = nil } },
+                                               captureModifiersAction: { saveDirectionalTrigger(.modifiers($0)) },
+                                               invalidAction: { directionalError = l10n.s.shortcutInvalid },
                                                captureAction: saveDirectionalShortcut)
                             .frame(width: 108)
+                        if let directionalError {
+                            Text(directionalError)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
                         if service.directionalShortcutRegistrationFailed {
                             Text(l10n.s.shortcutUnavailable)
                                 .font(.caption)
@@ -243,13 +253,26 @@ struct WindowLayoutSettings: View {
         .settingsFormSectionAnchor(.windowMaximizer)
     }
 
-    private var directionalShortcut: GlobalShortcut {
-        GlobalShortcut(storageValue: directionalShortcutRaw) ?? .windowDirectionalDefault
+    private var directionalTrigger: WindowDirectionalTrigger {
+        WindowDirectionalTrigger(storageValue: directionalShortcutRaw) ?? .key(.windowDirectionalDefault)
+    }
+
+    private var directionalKeyShortcut: GlobalShortcut {
+        if case .key(let shortcut) = directionalTrigger { return shortcut }
+        return .windowDirectionalDefault
     }
 
     private func saveDirectionalShortcut(_ shortcut: GlobalShortcut) {
-        guard service.directionalShortcutConflictTitle(shortcut) == nil else { return }
-        directionalShortcutRaw = shortcut.storageValue
+        if let conflict = service.directionalShortcutConflictTitle(shortcut) {
+            directionalError = String(format: l10n.s.shortcutConflictFormat, conflict)
+            return
+        }
+        saveDirectionalTrigger(.key(shortcut))
+    }
+
+    private func saveDirectionalTrigger(_ trigger: WindowDirectionalTrigger) {
+        directionalError = nil
+        directionalShortcutRaw = trigger.storageValue
         service.syncWithPreferences()
     }
 
