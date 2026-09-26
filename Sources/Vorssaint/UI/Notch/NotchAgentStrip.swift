@@ -9,6 +9,7 @@ import SwiftUI
 struct NotchAgentStrip: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var waitWatcher = AgentWaitWatcher.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
@@ -39,7 +40,10 @@ struct NotchAgentStrip: View {
             Button { service.open(.agents) } label: {
                 HStack(spacing: 1) {
                     if geometry.compactActivityWingWidth >= 28 {
-                        ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
+                        ForEach(working) { provider in
+                            NotchAgentGlyph(provider: provider, size: iconSize,
+                                            waiting: provider == .claude && !waitWatcher.waiting.isEmpty)
+                        }
                     }
                 }
                 .padding(.leading, iconInset)
@@ -97,23 +101,46 @@ struct NotchAgentStrip: View {
 struct NotchAgentRestingWing: View {
     let leading: Bool
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var waitWatcher = AgentWaitWatcher.shared
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
-            content(now: context.date)
+            let focus = focus(now: context.date)
+            // Claude's own signal, not whichever provider this side
+            // happens to show — Codex's ring sitting closest to its limit
+            // must not read as Claude waiting. Yellow: not a color the
+            // limit ring or either agent's own tint already carries.
+            let waiting = leading && (focus?.provider ?? fallbackProvider) == .claude && !waitWatcher.waiting.isEmpty
+            content(focus: focus, now: context.date)
+                .overlay(alignment: .topTrailing) {
+                    // No outward offset: the icon this sits on is only
+                    // 10-11pt itself, and the pill around it clips tightly
+                    // to its measured content, so a badge pushed past the
+                    // corner was being cut off instead of shown.
+                    if waiting {
+                        Circle().fill(.yellow).frame(width: 6, height: 6)
+                    }
+                }
         }
     }
 
-    @ViewBuilder private func content(now: Date) -> some View {
-        let snapshot = usage.snapshot
-        let candidates = snapshot.limits.compactMap { provider, limits in
+    private func focus(now: Date) -> (provider: AgentProvider, window: AgentLimitWindow)? {
+        let candidates = usage.snapshot.limits.compactMap { provider, limits in
             AgentLimitSupport.binding(limits, now: now).map { (provider: provider, window: $0) }
         }
-        let focus = candidates.max {
+        return candidates.max {
             $0.window.usedPercent != $1.window.usedPercent ? $0.window.usedPercent < $1.window.usedPercent
                 : $0.provider.rawValue > $1.provider.rawValue
         }
+    }
+
+    private var fallbackProvider: AgentProvider? {
+        AgentProvider.allCases.first(where: usage.snapshot.seen.contains)
+    }
+
+    @ViewBuilder private func content(focus: (provider: AgentProvider, window: AgentLimitWindow)?, now: Date) -> some View {
+        let snapshot = usage.snapshot
         let used = display == NotchAgentLimitDisplay.used.rawValue
         if let focus {
             let tint = agentLimitTint(focus.provider, usedFraction: focus.window.usedFraction)
@@ -127,7 +154,7 @@ struct NotchAgentRestingWing: View {
                     .monospacedDigit()
                     .lineLimit(1)
             }
-        } else if let provider = AgentProvider.allCases.first(where: snapshot.seen.contains) {
+        } else if let provider = fallbackProvider {
             if leading {
                 NotchAgentMark(provider: provider, size: 10)
             } else {

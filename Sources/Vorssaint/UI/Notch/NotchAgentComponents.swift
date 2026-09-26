@@ -155,6 +155,9 @@ struct NotchAgentGlyph: View {
     let provider: AgentProvider
     var size: CGFloat = 13
     var working = true
+    /// A session for this provider is blocked waiting on a reply, not just
+    /// still working.
+    var waiting = false
     @State private var breathing = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -166,6 +169,13 @@ struct NotchAgentGlyph: View {
             .animation(moving ? .easeInOut(duration: 1.2).repeatForever(autoreverses: true) : .default, value: breathing)
             // Room for the widest mark, the Claude one, drawn past its size.
             .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
+            .overlay(alignment: .topTrailing) {
+                if waiting {
+                    Circle()
+                        .fill(.orange)
+                        .frame(width: max(4, size * 0.32), height: max(4, size * 0.32))
+                }
+            }
             .onAppear { breathing = true }
             .accessibilityHidden(true)
     }

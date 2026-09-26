@@ -18,6 +18,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
     @AppStorage(DefaultsKey.notchAgentsLimitAlert) private var limitAlert = true
+    @AppStorage(DefaultsKey.notchAgentsWaitingAlert) private var waitingAlert = false
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
     @AppStorage(DefaultsKey.notchAgentsDailyBudget) private var dailyBudget = 0.0
     @AppStorage(DefaultsKey.notchAgentsPriceUpdates) private var priceUpdates = true
@@ -114,6 +115,9 @@ struct NotchAgentsSettingsControls: View {
             SettingsRow(symbol: "arrow.triangle.2.circlepath", title: text.priceUpdates, caption: priceCaption) {
                 Toggle(text.priceUpdates, isOn: $priceUpdates).labelsHidden().toggleStyle(.switch)
             }
+            if claude {
+                switchRow("bubble.left.and.exclamationmark.bubble.right", text.waitingAlert, isOn: $waitingAlert)
+            }
 
             if claude {
                 Divider()
@@ -137,6 +141,9 @@ struct NotchAgentsSettingsControls: View {
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex),
                        String(liveActivity), readout, limitDisplay]) { _, _ in
             NotchService.shared.syncWithPreferences()
+        }
+        .onChange(of: [String(claude), String(waitingAlert)]) { _, _ in
+            AgentWaitWatcher.shared.syncWithPreferences()
         }
     }
 

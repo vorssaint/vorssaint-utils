@@ -451,7 +451,7 @@ final class NotchService: ObservableObject {
         if !NotchFileToolsService.shared.offersMediaDrop { endFileDrop() }
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
-        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop(); AgentWaitWatcher.shared.stop() }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -463,6 +463,7 @@ final class NotchService: ObservableObject {
         NotchNotificationService.shared.syncWithPreferences()
         NotchAudioLevelService.shared.syncWithPreferences()
         AgentUsageService.shared.syncWithPreferences()
+        AgentWaitWatcher.shared.syncWithPreferences()
         updateScreen()
         syncGestures()
         NotchTimerService.shared.syncWithPreferences()
@@ -511,6 +512,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        AgentWaitWatcher.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -2168,6 +2170,9 @@ final class NotchService: ObservableObject {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showAgentEvent($0) }
                 .store(in: &subscriptions)
+            AgentWaitWatcher.shared.newlyWaiting.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showAgentWaitingNotice($0) }
+                .store(in: &subscriptions)
         }
         stopPower()
         if NotchSupport.routes(.volume) {
@@ -2225,6 +2230,14 @@ final class NotchService: ObservableObject {
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
         }
+    }
+
+    private func showAgentWaitingNotice(_ session: AgentWaitingSession) {
+        let text = FeatureStrings.notchAgents(L10n.shared.language)
+        // The session name has no length bound, so it sits in detail, away
+        // from the camera; title, right against the camera, stays fixed.
+        show(NotchNotice(event: .agents, title: text.waitingAlert, detail: session.name,
+                         symbol: AgentProvider.claude.symbol, agent: .claude))
     }
 
     func showCurrentVolume() {
