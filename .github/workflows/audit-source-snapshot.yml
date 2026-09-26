@@ -1,0 +1,28 @@
+name: Audit source snapshot
+
+on:
+  push:
+    branches: [audit/3.4-stability-performance]
+    paths: [.github/workflows/audit-source-snapshot.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Package public source and history for local audit
+        run: |
+          git bundle create /tmp/vorssaint-audit.bundle --all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vorssaint-audit-source
+          path: /tmp/vorssaint-audit.bundle
+          retention-days: 1
+          if-no-files-found: error
