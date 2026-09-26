@@ -27,6 +27,12 @@ enum SettingsFeatureTests {
         // MARK: Settings backup
 
         let backupKeys = SettingsBackupSupport.exportKeys()
+        let marginBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.windowLayoutMarginPercent ? 12.0 : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: marginBackup)?[
+            DefaultsKey.windowLayoutMarginPercent] as? Double == 12,
+            "custom maximize margin survives a settings backup round trip")
         suite.expect(backupKeys.contains(DefaultsKey.switcherEnabled)
                 && backupKeys.contains(DefaultsKey.menuBarCPU)
                 && backupKeys.contains(DefaultsKey.language)
