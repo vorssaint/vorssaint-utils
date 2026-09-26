@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-External monitors can dim below their hardware minimum, and the Clipboard History window can be resized. Dynamic Island adds ⌘1–⌘9 paste on its Clipboard page, its own Liquid Glass switch, a hover response and Fan Control from its fan card, and keeps a clickable cutout over the camera in full screen. App Switcher offers instant selection, Command Bar accepts up to 64 shortcuts, and Quit on Close warns about apps that keep working without a window.
+External monitors can dim below their hardware minimum, and the Clipboard History window can be resized. Dynamic Island adds ⌘1–⌘9 paste on its Clipboard page, its own Liquid Glass switch, a hover response and Fan Control from its fan card, and keeps a clickable cutout over the camera in full screen. App Switcher offers instant selection, Command Bar accepts up to 64 shortcuts, and Quit on Close warns about apps that keep working without a window. Volume mixer keeps watching for stalled audio during playback.
 
 ### Added
 - External monitors with readable brightness control offer optional Extra dimming in Settings. The lower part of the slider dims the picture below the monitor's hardware minimum, while the rest keeps using hardware brightness.
@@ -31,6 +31,7 @@ External monitors can dim below their hardware minimum, and the Clipboard Histor
 - Dynamic Island sends a player's supported Play or Pause command when available, improving control of radio streams.
 - Temperature alerts show their limits and notifications in the selected temperature unit.
 - With inactive apps hidden, the volume mixer shows an app as soon as it starts playing.
+- Volume mixer detects audio processing that stalls after initially working and attempts recovery without requiring a reset or restart. Adjusting an app's volume also checks its audio path.
 - Clipboard History no longer refreshes the whole list when the pointer moves between entries.
 - Turning off automatic copy for screenshots also stops the after-capture Copy action, so captures no longer reach the clipboard. Save and copy becomes Save.
 
