@@ -38,6 +38,9 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = true
+    @AppStorage(DefaultsKey.screenshotPreviewEnabled) private var previewEnabled = true
+    @AppStorage(DefaultsKey.screenshotPreviewDuration) private var previewDuration =
+        ScreenshotSupport.defaultConfirmationPreviewDuration
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
@@ -234,6 +237,31 @@ struct ScreenshotCaptureSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if usesAutomaticConfirmationPreview {
+                Toggle(strings.confirmationPreviewToggle, isOn: $previewEnabled)
+                if previewEnabled {
+                    Picker(strings.confirmationPreviewDurationLabel, selection: $previewDuration) {
+                        ForEach(ScreenshotSupport.confirmationPreviewDurations, id: \.self) { seconds in
+                            if seconds == 0 {
+                                Text(strings.confirmationPreviewUntilDismissed).tag(0)
+                            } else {
+                                Text(String(format: strings.delaySecondsFormat, seconds)).tag(seconds)
+                            }
+                        }
+                    }
+                }
+                Text(strings.confirmationPreviewCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var usesAutomaticConfirmationPreview: Bool {
+        guard let action = ScreenshotDefaultAction(rawValue: defaultActionRaw) else { return false }
+        switch action {
+        case .save, .saveAndCopy, .copy: return true
+        case .none, .edit: return false
         }
     }
 

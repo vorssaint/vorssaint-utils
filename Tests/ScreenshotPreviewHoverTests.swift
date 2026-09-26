@@ -17,7 +17,7 @@ enum ScreenshotPreviewHoverTests {
         var pointerInside = false
         var systemSharing = false
         var dismissWork: DispatchWorkItem?
-        var autoDismissDuration: TimeInterval = 12
+        var autoDismissDuration: TimeInterval? = 12
         var closed = false
         let model = Model()
         func close() { closed = true }
@@ -85,5 +85,13 @@ enum ScreenshotPreviewHoverTests {
             DispatchQueue.main.advance(duration)
             suite.expect(sharingController.closed, "a cancelled share sheet resumes the dismissal delay")
         }
+
+        DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
+        let persistentController = Controller()
+        persistentController.autoDismissDuration = nil
+        persistentController.scheduleAutoDismiss()
+        DispatchQueue.main.advance(60)
+        suite.expect(!persistentController.closed && DispatchQueue.main.pending == 0,
+                     "a persistent confirmation preview does not schedule automatic dismissal")
     }
 }

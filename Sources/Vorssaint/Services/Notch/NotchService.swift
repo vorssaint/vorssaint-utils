@@ -121,6 +121,7 @@ final class NotchService: ObservableObject {
     private var captureFallback: (() -> Void)?
     private var captureClose: (() -> Void)?
     private var captureHover: ((Bool) -> Void)?
+    private var captureClosesOnCollapse = false
     private var inside = false
     private var hoverEmphasized = false
     private var hoverState = NotchHoverState()
@@ -647,6 +648,7 @@ final class NotchService: ObservableObject {
 
     func collapse() {
         guard captureControls == nil, !heldDrag else { return }
+        let closeCapture = detachCaptureIfClosingOnCollapse()
         hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
         pinned = false
         hoverWork?.cancel(); hoverWork = nil
@@ -667,6 +669,7 @@ final class NotchService: ObservableObject {
         panel?.resignKey()
         removeEventMonitors()
         syncVisibleConsumers()
+        closeCapture?()
     }
 
     func toggle() { expanded ? collapse() : open() }
@@ -1028,6 +1031,7 @@ final class NotchService: ObservableObject {
 
     func presentCaptureControls(_ options: ScreenCaptureSelectionOptions, cancel: @escaping () -> Void) {
         guard acceptsSystemFeedback else { cancel(); return }
+        let closeCapture = detachCaptureIfClosingOnCollapse()
         pinned = false
         captureControlsCancel = cancel
         captureControls = options
@@ -1059,6 +1063,7 @@ final class NotchService: ObservableObject {
         panel?.makeKey()
         installCaptureControlsClickThrough()
         syncVisibleConsumers()
+        closeCapture?()
     }
 
     func collapseCaptureControls() {
@@ -1397,7 +1402,8 @@ final class NotchService: ObservableObject {
         !expanded && !dragPlaceholder && captureControls == nil
     }
 
-    func presentCapture(id: UUID, content: AnyView, actions: AnyView? = nil, height: CGFloat, fallback: @escaping () -> Void,
+    func presentCapture(id: UUID, content: AnyView, actions: AnyView? = nil, height: CGFloat,
+                        takeFocus: Bool, closeOnCollapse: Bool, fallback: @escaping () -> Void,
                         close: @escaping () -> Void, hover: @escaping (Bool) -> Void) -> Bool {
         guard acceptsSystemFeedback, NotchSupport.routes(.capture) else { return false }
         let keepOpen = expanded && pinned
@@ -1408,8 +1414,9 @@ final class NotchService: ObservableObject {
         captureFallback = fallback
         captureClose = close
         captureHover = hover
+        captureClosesOnCollapse = closeOnCollapse
         open(.captures, pinned: keepOpen,
-             takeFocus: UserDefaults.standard.bool(forKey: DefaultsKey.screenshotPreviewTakesFocus), feedback: false)
+             takeFocus: takeFocus, feedback: false)
         captureHover?(inside)
         return true
     }
@@ -1444,6 +1451,17 @@ final class NotchService: ObservableObject {
         captureFallback = nil
         captureClose = nil
         captureHover = nil
+        captureClosesOnCollapse = false
+    }
+
+    /// Persistent captures must detach before their close callback runs so a
+    /// replaced island surface cannot be collapsed again by that callback.
+    /// Timed captures remain attached to their existing dismissal timer.
+    private func detachCaptureIfClosingOnCollapse() -> (() -> Void)? {
+        guard captureClosesOnCollapse else { return nil }
+        let close = captureClose
+        clearCapture()
+        return close
     }
 
     private func mutatePresentation(transitionContent: NotchContentTransition = .none, _ change: () -> Void) {

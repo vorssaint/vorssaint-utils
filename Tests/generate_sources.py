@@ -473,7 +473,8 @@ def main():
           + "}\n}\n")
     music_visibility = "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
         "    private var hiddenUntilHover:", "    var idleContent:", "    var hasMusicActivity:", "    var compactActivity:",
-        "    var compactActivityGeometry:", "    var surfaceSize:", "    func collapse(", "    func endCaptureControls(",
+        "    var compactActivityGeometry:", "    var surfaceSize:", "    func collapse(",
+        "    private func detachCaptureIfClosingOnCollapse(", "    func endCaptureControls(",
         "    private func syncVisibleConsumers(", "    private func releaseMonitor("])
     for call in ["NotchSupport.controls", "NotchSupport.watchesMusicActivity", "NotchSupport.idleContent"]:
         music_visibility = music_visibility.replace(call + "()", call + "(in: ReviewDefaults.current)")
@@ -524,6 +525,10 @@ def main():
               "    private func updateCaptureControlsHover(", "    private func updateCaptureControlsClickThrough()",
               "    private func removeCaptureControlsClickThrough()", "    private func missionControlDidRestore()",
               "    func endCaptureControls()"])
+          + declaration(notch, "    func presentCaptureControls(")
+              .replace("ScreenCaptureSelectionOptions", "CaptureOptions")
+              .replace(".receive(on: DispatchQueue.main)", "")
+              .replace("panel?.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) + 1)", "panel?.level = 2")
           + declaration(notch, "    private var hiddenUntilHover:").replace("private var", "var", 1)
           + declaration(notch, "    var acceptsSystemFeedback:")
           + declaration(notch, "    var showsSystemFeedback:")
@@ -536,6 +541,7 @@ def main():
           + declaration(notch, "    func updateCaptureHeight(")
           + declaration(notch, "    func removeCapture(")
           + declaration(notch, "    private func clearCapture(")
+          + declaration(notch, "    private func detachCaptureIfClosingOnCollapse(")
           + "}\n}\nextension NotchPresentationRefreshContract.Host {\n"
           + declaration(canvas, "    func setMouseEventsIgnored(")
           + declaration(canvas, "    private func restoreFromMissionControl(").replace("private func", "func", 1)

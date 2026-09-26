@@ -19,9 +19,7 @@ extension NotchPresentationRefreshContract {
             let service = Service()
             service.windowHost?.missionControlDidRestore = { [weak service] in service?.missionControlDidRestore() }
             service.expanded = false
-            service.captureControls = CaptureOptions()
-            service.captureControlsMonitors = [1]
-            service.refreshPresentation(animated: false)
+            service.presentCaptureControls(CaptureOptions(), cancel: {})
             service.updateCaptureControlsClickThrough()
             service.scheduleCaptureControlsCollapse()
             return service
@@ -32,6 +30,34 @@ extension NotchPresentationRefreshContract {
                 : .zero
             service.updateCaptureControlsClickThrough()
         }
+
+        let persistent = Service()
+        var persistentCloseCount = 0
+        var persistentClosedAfterTakeover = false
+        persistent.captureID = UUID()
+        persistent.captureContent = true
+        persistent.captureClose = {
+            persistentCloseCount += 1
+            persistentClosedAfterTakeover = persistent.captureControls != nil
+                && persistent.captureID == nil && persistent.captureContent == nil
+                && persistent.captureClose == nil
+        }
+        persistent.captureClosesOnCollapse = true
+        persistent.presentCaptureControls(CaptureOptions(), cancel: {})
+        suite.expect(persistentCloseCount == 1 && persistentClosedAfterTakeover,
+                     "capture controls detach a persistent preview before closing it after island takeover")
+        persistent.endCaptureControls()
+
+        let timed = Service()
+        var timedCloseCount = 0
+        timed.captureID = UUID()
+        timed.captureContent = true
+        timed.captureClose = { timedCloseCount += 1 }
+        timed.presentCaptureControls(CaptureOptions(), cancel: {})
+        suite.expect(timedCloseCount == 0 && timed.captureID != nil && timed.captureContent == true,
+                     "capture controls leave a timed preview owned by its existing dismissal timer")
+        timed.endCaptureControls()
+        NSEvent.monitorRemovals = 0
 
         let idle = begin()
         for _ in 0..<5 {
