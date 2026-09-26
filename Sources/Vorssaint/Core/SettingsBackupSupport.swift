@@ -168,6 +168,7 @@ enum SettingsBackupSupport {
         // a Mac that still holds its own stale verdicts.
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
         DefaultsKey.brightnessForcedSoftwarePaths,
+        DefaultsKey.brightnessExtendedDimmingPaths,
     ]
 
     /// The file's content: an envelope with the format version, the app

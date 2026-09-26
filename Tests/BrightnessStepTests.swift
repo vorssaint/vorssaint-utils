@@ -64,5 +64,21 @@ enum BrightnessStepTests {
         suite.expect(service.committed.last.map { abs($0 - 0.4) < 0.0001 } == true
                      && service.displays[0].brightness == 0.3,
                      "a level set while the monitor was read wins over the older read")
+
+        service.routes[2]?.extendedDimming = true
+        service.levelKnownAt[2] = nil
+        service.displays[0].brightness = 0.125
+        service.step(2, method: .ddc, delta: 0.1, showOSD: false)
+        suite.expect(service.workQueue.jobs.isEmpty
+                     && service.committed.last.map { abs($0 - 0.225) < 0.0001 } == true,
+                     "a step in the extended software range uses the known picture level")
+
+        service.displays[0].brightness = 0.625
+        service.reply = (80, 100)
+        service.step(2, method: .ddc, delta: 0.1, showOSD: false)
+        service.workQueue.drain()
+        DispatchQueue.main.drain()
+        suite.expect(service.committed.last.map { abs($0 - 0.95) < 0.0001 } == true,
+                     "a stale hardware-range step maps the monitor's actual DDC level")
     }
 }

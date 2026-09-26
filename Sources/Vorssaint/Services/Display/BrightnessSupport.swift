@@ -491,6 +491,26 @@ enum BrightnessSupport {
         return UInt16((clamped * Double(ceiling)).rounded())
     }
 
+    /// An optional lower quarter of the slider dims the picture after the
+    /// monitor has reached its own minimum. The rest keeps using its backlight.
+    static let extendedDimmingRange = 0.25
+
+    static func extendedDimmingComponents(for brightness: Double) -> (hardware: Double, picture: Double) {
+        let level = min(max(brightness, 0), 1)
+        if level < extendedDimmingRange {
+            return (0, level / extendedDimmingRange)
+        }
+        return ((level - extendedDimmingRange) / (1 - extendedDimmingRange), 1)
+    }
+
+    static func extendedDimmingLevel(hardware: Double, remembered: Double?, pictureDimmed: Bool) -> Double {
+        let physical = extendedDimmingRange
+            + min(max(hardware, 0), 1) * (1 - extendedDimmingRange)
+        guard pictureDimmed, hardware <= 0.001, let remembered,
+              remembered < extendedDimmingRange else { return physical }
+        return min(max(remembered, 0), extendedDimmingRange)
+    }
+
     // MARK: - Display to service matching
 
     /// What CoreGraphics knows about a display, for scoring against an

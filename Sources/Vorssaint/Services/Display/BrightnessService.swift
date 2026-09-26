@@ -33,6 +33,8 @@ struct BrightnessDisplay: Identifiable, Equatable {
     /// still works (writes go through), it just starts from the last value
     /// applied here instead of the monitor's own.
     let readable: Bool
+    /// Manual dimming choices need a stable display-and-connection key.
+    var canChooseDimming = false
 }
 
 /// Brightness sliders for every display, built-in and external. The built-in
@@ -75,6 +77,7 @@ final class BrightnessService: ObservableObject {
     /// from one that swallows them, so the only witness is someone watching
     /// the panel (issue #1589).
     @Published private(set) var softwareDimmingPreferred = Set<CGDirectDisplayID>()
+    @Published private(set) var extendedDimmingPreferred = Set<CGDirectDisplayID>()
     @Published private(set) var displayControlFailure: DisplayControlFailure?
     @Published private(set) var brightnessOSDSupported = false
     @Published private(set) var keyboardLightEnabled: Bool?
@@ -94,6 +97,8 @@ final class BrightnessService: ObservableObject {
         var maximum: UInt16
         var ddcReadable = false
         var ddcPathKey: String?
+        var extendedDimming = false
+        var lastDDCValue: UInt16?
     }
 
     private var deferredRestoration = BrightnessSupport.DeferredDisplayRestoration()
@@ -906,11 +911,12 @@ final class BrightnessService: ObservableObject {
         }
     }
 
-    /// Writes every remembered curve back, skipping any display number that
+    /// Restores only curves this app dimmed, skipping any display number that
     /// now belongs to a different monitor. Runs on the work queue.
     private func restoreAllGamma() {
-        for (id, baseline) in gammaBaselines
-        where Self.displayFingerprint(id) == baseline.fingerprint {
+        for id in dimmedDisplays {
+            guard let baseline = gammaBaselines[id],
+                  Self.displayFingerprint(id) == baseline.fingerprint else { continue }
             CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
                                         baseline.green, baseline.blue)
             Self.log.log("restored gamma baseline for display \(id)")
@@ -1293,8 +1299,9 @@ final class BrightnessService: ObservableObject {
                                                             window: Self.levelTrustWindow)
         // Gamma dimming is this app's own doing, so the remembered value is
         // the truth by construction and there is nothing to ask.
-        guard method == .ddc, route?.ddcReadable == true, !fresh,
-              let route, let service = route.service else {
+        guard method == .ddc, let route, route.ddcReadable, !fresh,
+              (!route.extendedDimming || (cached ?? 1) >= BrightnessSupport.extendedDimmingRange),
+              let service = route.service else {
             guard let current = cached else { return }
             commitStep(from: current, delta: delta, to: displayID, method: method, showOSD: showOSD)
             return
@@ -1331,13 +1338,20 @@ final class BrightnessService: ObservableObject {
                 var current = cached
                 self.stateLock.lock()
                 let superseded = self.levelKnownAt[displayID] != known
+                let routeChanged = self.routes[displayID]?.ddcPathKey != route.ddcPathKey
+                    || self.routes[displayID]?.extendedDimming != route.extendedDimming
                 self.stateLock.unlock()
+                guard !routeChanged else { return }
                 if superseded {
                     // A level set while the monitor was being read is newer than the read.
                     current = self.displays.first(where: { $0.id == displayID })?.brightness ?? cached
                 } else if case let .replied(value, maximum) = probe {
-                    let level = BrightnessSupport.normalized(
+                    let hardware = BrightnessSupport.normalized(
                         current: value, maximum: BrightnessSupport.sanitizedMaximum(maximum))
+                    let level = route.extendedDimming
+                        ? BrightnessSupport.extendedDimmingLevel(
+                            hardware: hardware, remembered: nil, pictureDimmed: false)
+                        : hardware
                     Self.log.log("display \(displayID) reads \(level) before stepping")
                     current = level
                     if let index = self.displays.firstIndex(where: { $0.id == displayID }) {
@@ -1718,7 +1732,8 @@ final class BrightnessService: ObservableObject {
                                          isBuiltIn: display.isBuiltIn,
                                          method: previous.method, isActive: true,
                                          brightness: previous.brightness,
-                                         readable: previous.readable)
+                                         readable: previous.readable,
+                                         canChooseDimming: previous.canChooseDimming)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.running, generation == self.rebuildGeneration else { return }
@@ -1733,6 +1748,7 @@ final class BrightnessService: ObservableObject {
         // dimming, so every real display keeps a working slider.
         var softwareIndices = Set(ddcCandidates.map(\.index))
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
+        var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
         if !ddcCandidates.isEmpty, BrightnessBridge.ddcAvailable {
             let services = Self.externalServices()
@@ -1785,29 +1801,60 @@ final class BrightnessService: ObservableObject {
                 case .replied(let current, let maximum):
                     forgetWriteOnlyDDCPath(pathKey)
                     let ceiling = BrightnessSupport.sanitizedMaximum(maximum)
+                    let hardware = BrightnessSupport.normalized(current: current, maximum: ceiling)
+                    let wantsExtendedDimming = pathKey.map {
+                        extendedDimmingPaths().contains($0)
+                    } ?? false
+                    if wantsExtendedDimming { extendedDimmingIDs.insert(id) }
+                    if wantsExtendedDimming { captureGammaBaselineIfNeeded(id) }
+                    let extendsDimming = wantsExtendedDimming
+                        && gammaBaselines[id]?.fingerprint == Self.displayFingerprint(id)
+                    stateLock.lock()
+                    let remembered = rememberedLevel(for: id)
+                    stateLock.unlock()
+                    var level = extendsDimming
+                        ? BrightnessSupport.extendedDimmingLevel(
+                            hardware: hardware, remembered: remembered,
+                            pictureDimmed: dimmedDisplays.contains(id))
+                        : hardware
+                    if extendsDimming {
+                        if !previousTopology.contains(id) {
+                            level = BrightnessSupport.reconnectedDimLevel(level)
+                        }
+                        let picture = BrightnessSupport.extendedDimmingComponents(for: level).picture
+                        if picture < 0.999 || dimmedDisplays.contains(id) {
+                            _ = applySoftwareDim(id, value: picture)
+                        }
+                    }
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
-                        method: .ddc, isActive: true,
-                        brightness: BrightnessSupport.normalized(current: current,
-                                                                 maximum: ceiling),
-                        readable: true)
+                        method: .ddc, isActive: true, brightness: level,
+                        readable: true, canChooseDimming: pathKey != nil)
                     newRoutes[id] = Route(method: .ddc, service: matched.service,
                                           maximum: ceiling, ddcReadable: true,
-                                          ddcPathKey: pathKey)
+                                          ddcPathKey: pathKey, extendedDimming: extendsDimming,
+                                          lastDDCValue: current)
                     stateLock.lock()
                     levelKnownAt[id] = Date()
                     stateLock.unlock()
                     softwareIndices.remove(candidate.index)
                 case .writeOnly:
+                    if let pathKey, extendedDimmingPaths().contains(pathKey) {
+                        extendedDimmingIDs.insert(id)
+                    }
                     rememberWriteOnlyDDCPath(pathKey)
                     // Reads fail on some monitors whose writes still work:
                     // keep the slider, seeded from this session's last value.
                     stateLock.lock()
-                    let seed = rememberedLevel(for: id) ?? 0.5
+                    let remembered = rememberedLevel(for: id) ?? 0.5
+                    let seed = routes[id]?.extendedDimming == true
+                        ? BrightnessSupport.extendedDimmingComponents(for: remembered).hardware
+                        : remembered
                     stateLock.unlock()
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
-                        method: .ddc, isActive: true, brightness: seed, readable: false)
+                        method: .ddc, isActive: true, brightness: seed,
+                        readable: false, canChooseDimming: pathKey != nil)
                     newRoutes[id] = Route(method: .ddc, service: matched.service,
                                           maximum: 100, ddcPathKey: pathKey)
                     softwareIndices.remove(candidate.index)
@@ -1836,8 +1883,13 @@ final class BrightnessService: ObservableObject {
         for index in softwareIndices.sorted() {
             let id = built[index].id
             stateLock.lock()
+            let remembered = rememberedLevel(for: id)
+            let previousExtended = routes[id]?.extendedDimming == true
+            let softwareLevel = previousExtended
+                ? remembered.map { BrightnessSupport.extendedDimmingComponents(for: $0).picture }
+                : remembered
             var value = BrightnessSupport.softwareDimToRestore(
-                remembered: rememberedLevel(for: id),
+                remembered: softwareLevel,
                 appliedByApp: dimmedDisplays.contains(id))
             stateLock.unlock()
             captureGammaBaselineIfNeeded(id)
@@ -1854,10 +1906,19 @@ final class BrightnessService: ObservableObject {
             }
             built[index] = BrightnessDisplay(
                 id: id, name: built[index].name, isBuiltIn: false,
-                method: .software, isActive: true, brightness: value, readable: true)
+                method: .software, isActive: true, brightness: value, readable: true,
+                canChooseDimming: softwarePathKeys[id] != nil)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100,
                                   ddcPathKey: softwarePathKeys[id])
-            if value < 0.999 { _ = applySoftwareDim(id, value: value) }
+            if value < 0.999 || dimmedDisplays.contains(id) {
+                _ = applySoftwareDim(id, value: value)
+            }
+        }
+        // A DDC or system route owns the picture again. A gamma curve left
+        // from an earlier extended route would otherwise keep it dark.
+        for id in Array(dimmedDisplays) where newRoutes[id]?.method != .software
+            && newRoutes[id]?.extendedDimming != true {
+            _ = applySoftwareDim(id, value: 1)
         }
         var resolved: [BrightnessDisplay] = []
         var supportsBrightnessOSD = false
@@ -1918,6 +1979,9 @@ final class BrightnessService: ObservableObject {
             if self.softwareDimmingPreferred != forcedSoftwareIDs {
                 self.softwareDimmingPreferred = forcedSoftwareIDs
             }
+            if self.extendedDimmingPreferred != extendedDimmingIDs {
+                self.extendedDimmingPreferred = extendedDimmingIDs
+            }
             if self.drawableDisplays != drawableIDs { self.drawableDisplays = drawableIDs }
             if self.brightnessOSDSupported != supportsBrightnessOSD {
                 self.brightnessOSDSupported = supportsBrightnessOSD
@@ -1951,6 +2015,11 @@ final class BrightnessService: ObservableObject {
                 writeSucceeded = BrightnessBridge.setBrightness?(id, Float(value)) == 0
             case .ddc:
                 guard let service = route.service else { continue }
+                if route.extendedDimming {
+                    writeSucceeded = writeExtendedBrightness(value, to: id,
+                                                             route: route, service: service)
+                    break
+                }
                 let deviceValue = BrightnessSupport.deviceValue(for: value,
                                                                 maximum: route.maximum)
                 let packet = BrightnessSupport.writePacket(
@@ -1988,6 +2057,37 @@ final class BrightnessService: ObservableObject {
                 }
             }
         }
+    }
+
+    /// The monitor stays at its hardware minimum while the lower part of the
+    /// slider scales its picture. Restoring the picture before a brighter DDC
+    /// write keeps a failed gamma restore from leaving a black screen at high
+    /// backlight power.
+    private func writeExtendedBrightness(_ value: Double, to id: CGDirectDisplayID,
+                                         route: Route, service: CFTypeRef) -> Bool {
+        let components = BrightnessSupport.extendedDimmingComponents(for: value)
+        if components.picture >= 0.999, dimmedDisplays.contains(id),
+           !applySoftwareDim(id, value: 1) { return false }
+
+        let deviceValue = BrightnessSupport.deviceValue(for: components.hardware,
+                                                        maximum: route.maximum)
+        var hardwareSucceeded = true
+        if route.lastDDCValue != deviceValue {
+            let packet = BrightnessSupport.writePacket(code: BrightnessSupport.luminanceCode,
+                                                       value: deviceValue)
+            hardwareSucceeded = ddcSend(to: id, service: service, packet: packet)
+            if hardwareSucceeded {
+                stateLock.lock()
+                if routes[id]?.ddcPathKey == route.ddcPathKey,
+                   routes[id]?.extendedDimming == true {
+                    routes[id]?.lastDDCValue = deviceValue
+                }
+                stateLock.unlock()
+            }
+        }
+        let pictureSucceeded = components.picture >= 0.999
+            || applySoftwareDim(id, value: components.picture)
+        return hardwareSucceeded && pictureSucceeded
     }
 
     // MARK: - Software dimming (work queue)
@@ -2091,6 +2191,47 @@ final class BrightnessService: ObservableObject {
         Set(UserDefaults.standard.stringArray(
             forKey: DefaultsKey.brightnessForcedSoftwarePaths
         ) ?? [])
+    }
+
+    private func extendedDimmingPaths() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(
+            forKey: DefaultsKey.brightnessExtendedDimmingPaths
+        ) ?? [])
+    }
+
+    /// Keeps the ordinary DDC route above the monitor's minimum and adds a
+    /// software range below it only for this monitor on this connection.
+    func setExtendedDimmingPreferred(_ preferred: Bool, for id: CGDirectDisplayID) {
+        stateLock.lock()
+        let pathKey = routes[id]?.ddcPathKey
+        if pathKey != nil {
+            pendingLevels.removeValue(forKey: id)
+        }
+        if pathKey != nil && !preferred {
+            lastApplied[id] = nil
+            levelKnownAt[id] = nil
+        }
+        stateLock.unlock()
+        guard let pathKey else { return }
+        let defaults = UserDefaults.standard
+        let stored = defaults.stringArray(forKey: DefaultsKey.brightnessExtendedDimmingPaths) ?? []
+        let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
+            stored, path: pathKey, isWriteOnly: preferred)
+        if updated != stored {
+            defaults.set(updated, forKey: DefaultsKey.brightnessExtendedDimmingPaths)
+        }
+        Self.log.log("display \(id) extended dimming preferred \(preferred)")
+        guard !preferred else {
+            refresh(force: true)
+            return
+        }
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            if self.dimmedDisplays.contains(id) {
+                self.applySoftwareDim(id, value: 1)
+            }
+            DispatchQueue.main.async { [weak self] in self?.refresh(force: true) }
+        }
     }
 
     /// Moves one display between the DDC and the gamma route by hand. Clearing

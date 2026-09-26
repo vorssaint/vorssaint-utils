@@ -7,7 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island gives a small spring response when the pointer reaches its closed surface.
+Dynamic Island gives a small spring response when the pointer reaches its closed surface. External monitors can now dim below their hardware minimum when extra dimming is enabled.
+
+### Added
+- External monitors with readable brightness control offer optional Extra dimming. The lower part of the slider dims the picture below the monitor's hardware minimum, while the rest keeps using hardware brightness.
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.

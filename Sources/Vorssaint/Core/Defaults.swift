@@ -207,6 +207,9 @@ enum DefaultsKey {
     // software: the only way to know a write-only channel swallows its writes
     // is to watch the panel, which no probe can do. Issue #1589.
     static let brightnessForcedSoftwarePaths = "brightnessForcedSoftwarePaths"
+    // Per-monitor connections where the lower end of the brightness slider
+    // also dims the picture below the panel's hardware minimum.
+    static let brightnessExtendedDimmingPaths = "brightnessExtendedDimmingPaths"
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"

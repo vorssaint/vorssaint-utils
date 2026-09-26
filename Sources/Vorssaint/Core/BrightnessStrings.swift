@@ -34,6 +34,7 @@ struct BrightnessFeatureStrings {
     let keyboardBrightnessDecrease: String
     let keyboardBrightnessIncrease: String
     let softwareDimming: String
+    let extendedDimming: String
 }
 
 extension FeatureStrings {
@@ -86,7 +87,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Use keyboard brightness shortcuts",
         keyboardBrightnessDecrease: "Decrease keyboard brightness",
         keyboardBrightnessIncrease: "Increase keyboard brightness",
-        softwareDimming: "Dim the picture"
+        softwareDimming: "Dim the picture",
+        extendedDimming: "Extra dimming"
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -116,7 +118,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Usar atalhos para o brilho do teclado",
         keyboardBrightnessDecrease: "Diminuir brilho do teclado",
         keyboardBrightnessIncrease: "Aumentar brilho do teclado",
-        softwareDimming: "Escurecer a imagem"
+        softwareDimming: "Escurecer a imagem",
+        extendedDimming: "Escurecimento extra"
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -146,7 +149,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Klavye parlaklığı kısayollarını kullan",
         keyboardBrightnessDecrease: "Klavye parlaklığını azalt",
         keyboardBrightnessIncrease: "Klavye parlaklığını artır",
-        softwareDimming: "Görüntüyü karart"
+        softwareDimming: "Görüntüyü karart",
+        extendedDimming: "Ek karartma"
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -176,7 +180,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Использовать сочетания клавиш для подсветки клавиатуры",
         keyboardBrightnessDecrease: "Уменьшить яркость клавиатуры",
         keyboardBrightnessIncrease: "Увеличить яркость клавиатуры",
-        softwareDimming: "Затемнять изображение"
+        softwareDimming: "Затемнять изображение",
+        extendedDimming: "Дополнительное затемнение"
     )
 
     static let es = BrightnessFeatureStrings(
@@ -206,7 +211,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Usar atajos para el brillo del teclado",
         keyboardBrightnessDecrease: "Reducir el brillo del teclado",
         keyboardBrightnessIncrease: "Aumentar el brillo del teclado",
-        softwareDimming: "Oscurecer la imagen"
+        softwareDimming: "Oscurecer la imagen",
+        extendedDimming: "Atenuación adicional"
     )
 
     static let sk = BrightnessFeatureStrings(
@@ -236,7 +242,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Používať klávesové skratky pre jas klávesnice",
         keyboardBrightnessDecrease: "Znížiť jas klávesnice",
         keyboardBrightnessIncrease: "Zvýšiť jas klávesnice",
-        softwareDimming: "Stmaviť obraz"
+        softwareDimming: "Stmaviť obraz",
+        extendedDimming: "Ďalšie stmievanie"
     )
 
     static let de = BrightnessFeatureStrings(
@@ -266,7 +273,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Kurzbefehle für die Tastaturhelligkeit verwenden",
         keyboardBrightnessDecrease: "Tastaturhelligkeit verringern",
         keyboardBrightnessIncrease: "Tastaturhelligkeit erhöhen",
-        softwareDimming: "Bild abdunkeln"
+        softwareDimming: "Bild abdunkeln",
+        extendedDimming: "Zusätzliches Abdunkeln"
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -296,7 +304,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Utiliser les raccourcis de luminosité du clavier",
         keyboardBrightnessDecrease: "Réduire la luminosité du clavier",
         keyboardBrightnessIncrease: "Augmenter la luminosité du clavier",
-        softwareDimming: "Assombrir l’image"
+        softwareDimming: "Assombrir l’image",
+        extendedDimming: "Assombrissement supplémentaire"
     )
 
     static let it = BrightnessFeatureStrings(
@@ -326,7 +335,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Usa le scorciatoie per la luminosità della tastiera",
         keyboardBrightnessDecrease: "Riduci luminosità tastiera",
         keyboardBrightnessIncrease: "Aumenta luminosità tastiera",
-        softwareDimming: "Scurisci l’immagine"
+        softwareDimming: "Scurisci l’immagine",
+        extendedDimming: "Oscuramento extra"
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -356,7 +366,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "キーボードの明るさのショートカットを使用",
         keyboardBrightnessDecrease: "キーボードの明るさを下げる",
         keyboardBrightnessIncrease: "キーボードの明るさを上げる",
-        softwareDimming: "画面を暗くする"
+        softwareDimming: "画面を暗くする",
+        extendedDimming: "さらに暗くする"
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -386,7 +397,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "키보드 밝기 단축키 사용",
         keyboardBrightnessDecrease: "키보드 밝기 낮추기",
         keyboardBrightnessIncrease: "키보드 밝기 높이기",
-        softwareDimming: "화면을 어둡게"
+        softwareDimming: "화면을 어둡게",
+        extendedDimming: "추가 어둡게"
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -416,7 +428,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "使用键盘亮度快捷键",
         keyboardBrightnessDecrease: "降低键盘亮度",
         keyboardBrightnessIncrease: "提高键盘亮度",
-        softwareDimming: "调暗画面"
+        softwareDimming: "调暗画面",
+        extendedDimming: "进一步调暗"
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -446,7 +459,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
         keyboardBrightnessIncrease: "提高鍵盤亮度",
-        softwareDimming: "調暗畫面"
+        softwareDimming: "調暗畫面",
+        extendedDimming: "進一步調暗"
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -476,7 +490,8 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
         keyboardBrightnessIncrease: "提高鍵盤亮度",
-        softwareDimming: "調暗畫面"
+        softwareDimming: "調暗畫面",
+        extendedDimming: "進一步調暗"
     )
     static let uk = BrightnessFeatureStrings(
         pageTitle: "Дисплеї",
@@ -505,6 +520,7 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessShortcuts: "Клавіатурні скорочення яскравості клавіатури",
         keyboardBrightnessDecrease: "Зменшити яскравість клавіатури",
         keyboardBrightnessIncrease: "Збільшити яскравість клавіатури",
-        softwareDimming: "Затемнити зображення"
+        softwareDimming: "Затемнити зображення",
+        extendedDimming: "Додаткове затемнення"
     )
 }
