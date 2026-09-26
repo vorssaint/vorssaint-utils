@@ -75,6 +75,7 @@ final class ClipboardHistoryService: ObservableObject {
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
     private var panelResizeObserver: NSObjectProtocol?
+    private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
@@ -1127,7 +1128,6 @@ final class ClipboardHistoryService: ObservableObject {
         UserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
         guard let panel, panel.isVisible else { return }
         let previousFrame = panel.frame
-        panel.contentMinSize = ClipboardHistoryWindowSizing.minimumSize(preview: presented)
         resize(panel, to: preferredPanelSize(visibleFrame: panel.screen?.visibleFrame
                                             ?? NSScreen.pointerVisibleFrame),
                around: previousFrame, animated: true)
@@ -1240,7 +1240,9 @@ final class ClipboardHistoryService: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        panel.contentMinSize = ClipboardHistoryWindowSizing.minimumSize(preview: quickPreviewPresented)
+        let sizeLimit = ClipboardPanelSizeLimit { [weak self] in self?.quickPreviewPresented ?? false }
+        panel.delegate = sizeLimit
+        panelSizeLimit = sizeLimit
         let host = NSHostingController(rootView: ClipboardQuickPanelView())
         // AppKit owns the window size; SwiftUI fills its content view.
         host.sizingOptions = []
@@ -1706,5 +1708,23 @@ enum ClipboardImageStore {
             try? FileManager.default.removeItem(at: file)
             thumbnails.removeObject(forKey: file.lastPathComponent as NSString)
         }
+    }
+}
+
+/// The hosting view rewrites the window's size limits on its first layout
+/// pass, so a contentMinSize set on the panel is lost. Enforce the minimum
+/// while the user resizes instead.
+private final class ClipboardPanelSizeLimit: NSObject, NSWindowDelegate {
+    private let preview: () -> Bool
+
+    init(preview: @escaping () -> Bool) {
+        self.preview = preview
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        let minimum = sender.frameRect(forContentRect: NSRect(
+            origin: .zero, size: ClipboardHistoryWindowSizing.minimumSize(preview: preview()))).size
+        return NSSize(width: max(minimum.width, frameSize.width),
+                      height: max(minimum.height, frameSize.height))
     }
 }
