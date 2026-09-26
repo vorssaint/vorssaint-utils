@@ -206,7 +206,8 @@ struct NotchClipboardView: View {
             highlightedID = NotchSupport.steppedItem(from: highlightedID, in: ids, backwards: keyCode == 126)
             return true
         case 36, 76:
-            guard let id = highlightedID, let entry = entries.first(where: { $0.id == id }) else { return false }
+            guard let id = NotchSupport.clipboardPasteTarget(highlighted: highlightedID, in: ids),
+                  let entry = entries.first(where: { $0.id == id }) else { return false }
             activate(entry)
             return true
         default:

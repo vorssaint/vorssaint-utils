@@ -759,6 +759,11 @@ enum NotchTests {
                && NotchSupport.adjacentModule(to: .camera, modules: [.files], backwards: true) == .files
                && NotchSupport.adjacentModule(to: nil, modules: [], backwards: false) == nil,
                "reverse cycling, removed selections and an empty gallery have safe destinations")
+        suite.expect(NotchSupport.clipboardPasteTarget(highlighted: nil, in: [1, 2, 3]) == 1
+                && NotchSupport.clipboardPasteTarget(highlighted: 2, in: [1, 2, 3]) == 2
+                && NotchSupport.clipboardPasteTarget(highlighted: 9, in: [1, 2, 3]) == 1
+                && NotchSupport.clipboardPasteTarget(highlighted: 2, in: [Int]()) == nil,
+               "Return pastes the highlighted or first visible clipboard entry, and nothing from an empty list")
         suite.expect(NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: false) == 1
                && NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: true) == 1
                && NotchSupport.steppedItem(from: 1, in: [1, 2, 3], backwards: false) == 2
