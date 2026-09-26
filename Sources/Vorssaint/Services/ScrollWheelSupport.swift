@@ -114,7 +114,7 @@ struct ScrollDirectionPreferences {
         invertHorizontal = isAvailable(.scrollInverter) && boolFor(DefaultsKey.scrollInverterHorizontalEnabled)
         horizontalModifier = isAvailable(.scrollHorizontal) && boolFor(DefaultsKey.scrollHorizontalEnabled)
             ? ScrollHorizontalModifier(storageValue: stringFor(DefaultsKey.scrollHorizontalModifier)) : nil
-        zoom = ScrollZoomPreferences(isAvailable: isAvailable(.scrollInverter),
+        zoom = ScrollZoomPreferences(isAvailable: isAvailable(.scrollZoom),
                                      boolFor: boolFor, stringFor: stringFor)
     }
 

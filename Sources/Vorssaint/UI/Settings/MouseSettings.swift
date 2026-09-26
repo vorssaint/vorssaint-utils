@@ -73,6 +73,10 @@ struct MouseSettings: View {
                     scrollCard
                         .settingsSectionAnchor(.scrollDirection, cornerRadius: 16)
                 }
+                if AppFeature.scrollZoom.isAvailable {
+                    zoomCard
+                        .settingsSectionAnchor(.scrollZoom, cornerRadius: 16)
+                }
                 if AppFeature.focusFollowsMouse.isAvailable {
                     focusFollowsMouseCard
                         .settingsSectionAnchor(.focusFollowsMouse, cornerRadius: 16)
@@ -124,7 +128,7 @@ struct MouseSettings: View {
 
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
-        [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration,
+        [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration,
          .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
             .filter(\.isAvailable)
     }
@@ -135,6 +139,7 @@ struct MouseSettings: View {
         switch feature {
         case .scrollInverter: return invertVertical || invertHorizontal
         case .scrollHorizontal: return horizontalScrollEnabled
+        case .scrollZoom: return scrollZoomEnabled
         case .focusFollowsMouse: return focusFollowsMouseEnabled
         case .smoothScroll: return smoothScrollEnabled
         case .linearScroll: return linearScrollEnabled
@@ -218,14 +223,6 @@ struct MouseSettings: View {
                         .padding(.leading, settingsRowTextInset)
                 }
             }
-            if AppFeature.scrollInverter.isAvailable {
-                scrollZoomControl("Vertical zoom", enabled: $verticalZoomEnabled,
-                                  modifier: $verticalZoomModifier, setting: .verticalZoom)
-                scrollZoomControl("Horizontal zoom", enabled: $horizontalZoomEnabled,
-                                  modifier: $horizontalZoomModifier, setting: .horizontalZoom)
-                scrollZoomControl("Pinch zoom", enabled: $pinchZoomEnabled,
-                                  modifier: $pinchZoomModifier, setting: .pinchZoom)
-            }
             if scrollDirectionEnabled, inverter.isRunning {
                 activeBadge(l10n.s.scrollActiveNow)
             }
@@ -236,6 +233,17 @@ struct MouseSettings: View {
             if scrollDirectionEnabled {
                 MouseExceptionsList(scope: .scrollDirection)
             }
+        }
+    }
+
+    private var zoomCard: some View {
+        SettingsCard(title: l10n.s.zoomSection) {
+            scrollZoomControl(l10n.s.verticalZoom, enabled: $verticalZoomEnabled,
+                              modifier: $verticalZoomModifier, setting: .verticalZoom)
+            scrollZoomControl(l10n.s.horizontalZoom, enabled: $horizontalZoomEnabled,
+                              modifier: $horizontalZoomModifier, setting: .horizontalZoom)
+            scrollZoomControl(l10n.s.pinchZoom, enabled: $pinchZoomEnabled,
+                              modifier: $pinchZoomModifier, setting: .pinchZoom)
         }
     }
 
@@ -287,30 +295,30 @@ struct MouseSettings: View {
 
     private func scrollZoomControl(_ title: String, enabled: Binding<Bool>,
                                     modifier: Binding<ScrollZoomModifier>, setting: ScrollZoomSetting) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title)
-                Spacer()
-                Toggle(title, isOn: enabled)
-                    .labelsHidden()
-                    .onChange(of: enabled.wrappedValue) { _, active in
-                        ScrollInverter.shared.syncWithPreferences()
-                        if active { permissions.requestAccessibility() }
-                    }
+        HStack(spacing: 16) {
+            Text(title)
+                .frame(width: 180, alignment: .leading)
+            Picker("", selection: modifier) {
+                Text(l10n.s.shortcutNone).tag(ScrollZoomModifier.none)
+                Text("⇧ Shift").tag(ScrollZoomModifier.shift)
+                Text("⌥ Option").tag(ScrollZoomModifier.option)
+                Text("⌃ Control").tag(ScrollZoomModifier.control)
+                Text("⌘ Command").tag(ScrollZoomModifier.command)
             }
-            if enabled.wrappedValue {
-                Picker("\(title) key", selection: modifier) {
-                    Text("None").tag(ScrollZoomModifier.none)
-                    Text("⇧ Shift").tag(ScrollZoomModifier.shift)
-                    Text("⌥ Option").tag(ScrollZoomModifier.option)
-                    Text("⌃ Control").tag(ScrollZoomModifier.control)
-                    Text("⌘ Command").tag(ScrollZoomModifier.command)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: modifier.wrappedValue) { _, selected in
-                    clearZoomModifierConflicts(for: setting, selected: selected)
-                }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: .infinity)
+            .disabled(!enabled.wrappedValue)
+            .accessibilityLabel(title)
+            .onChange(of: modifier.wrappedValue) { _, selected in
+                clearZoomModifierConflicts(for: setting, selected: selected)
             }
+            Toggle(title, isOn: enabled)
+                .labelsHidden()
+                .frame(width: 52, alignment: .trailing)
+                .onChange(of: enabled.wrappedValue) { _, active in
+                    ScrollInverter.shared.syncWithPreferences()
+                    if active { permissions.requestAccessibility() }
+                }
         }
     }
 
@@ -615,7 +623,7 @@ struct MouseSettings: View {
     private var scrollDirectionEnabled: Bool {
         scrollInversionEnabled
             || (AppFeature.scrollHorizontal.isAvailable && horizontalScrollEnabled)
-            || (AppFeature.scrollInverter.isAvailable && scrollZoomEnabled)
+            || (AppFeature.scrollZoom.isAvailable && scrollZoomEnabled)
     }
 
     private var scrollZoomEnabled: Bool {
