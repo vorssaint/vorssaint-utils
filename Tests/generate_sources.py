@@ -269,6 +269,11 @@ def main():
     write("MixerOutputAdjustment.swift", "import CoreAudio\nimport Foundation\n"
           + "extension MixerOutputAdjustmentContract {\nfinal class Mixer {\n"
           + declaration(mixer, "    private struct OutputAdjustment {")
+          + declaration(mixer, "    private struct OutputStep {")
+          + "private var queuedOutputSteps: [OutputStep] = []\nvar outputStepReadInFlight = false\n"
+          + "static func hasSettableOutputVolume(for device: AudioObjectID) -> Bool { true }\n"
+          + "static func outputVolume(for device: AudioObjectID) -> Float32? { Hardware.volume }\n"
+          + "static func outputMuted(for device: AudioObjectID) -> Bool? { Hardware.muted }\n"
           + "var systemOutputVolume: Double?\nvar systemOutputMuted: Bool?\n"
           + "var outputControlListenerDevice: AudioObjectID?\n"
           + "var outputControlListenerAddresses: [AudioObjectPropertyAddress] = []\n"
@@ -291,6 +296,9 @@ def main():
           + "func readSnapshot(volume: Double?, muted: Bool?) { applyOutputControls(volume: volume, muted: muted) }\n"
           + "".join(declaration(mixer, prefix) for prefix in [
               "    func requestOutputAdjustment(", "    private func removeOutputControlListeners(",
+              "    func requestOutputStep(", "    func requestOutputMuteToggle(",
+              "    private func enqueueOutputKey(", "    private func settleQueuedOutputSteps(",
+              "    private func applyQueuedOutputSteps(",
               "    private func isCurrentOutputAdjustment(", "    private var hasCurrentOutputAdjustment:",
               "    private func applyOutputControls(", "    private func drainOutputAdjustment("])
           + "}\n}\n")

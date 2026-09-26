@@ -165,6 +165,14 @@ final class AppVolumeMixer: ObservableObject {
     }
     private var pendingOutputAdjustment: OutputAdjustment?
     private var outputWriteInFlight: OutputAdjustment?
+    /// One volume or mute key waiting on the output's own reading. A nil
+    /// `level` toggles mute.
+    private struct OutputStep {
+        let level: ((Double) -> Double)?
+        let completion: (Bool) -> Void
+    }
+    private var queuedOutputSteps: [OutputStep] = []
+    private var outputStepReadInFlight = false
     private let outputControlLock = NSLock()
     private var outputControlLifetime = UUID()
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
@@ -220,6 +228,11 @@ final class AppVolumeMixer: ObservableObject {
                 // even on a quiet wake.
                 self.engineRenderProgress.removeAll()
                 self.engineRecovery.clearAll()
+                // An output that drops away during sleep can come back under
+                // the same object ID without the volume and mute listeners
+                // registered on it, and the level it reports then goes stale.
+                // Forgetting the registration makes this refresh subscribe again.
+                self.removeOutputControlListeners()
                 self.refreshApps()
                 self.reconcileEngines(with: self.apps)
                 self.scheduleEngineReconcile(after: 2)
@@ -368,6 +381,8 @@ final class AppVolumeMixer: ObservableObject {
         pendingOutputAdjustment = nil
         // Superseded keys are handled: replaying them would adjust the new output.
         pending?.completion(true)
+        outputStepReadInFlight = false
+        settleQueuedOutputSteps(handled: true)
     }
 
     private func scheduleOutputControlRefresh(for device: AudioObjectID) {
@@ -493,6 +508,104 @@ final class AppVolumeMixer: ObservableObject {
         pendingOutputAdjustment = adjustment
         previous?.completion(true)
         drainOutputAdjustment()
+    }
+
+    /// A volume key steps from the level the output reports now, not from the
+    /// last published reading: after sleep an output can come back at another
+    /// level without notifying, and stepping from the stale reading left the
+    /// island at 21% while the speakers played at 2%. Keys pressed while that
+    /// read runs queue behind it, and keys during this app's own write carry on
+    /// from the level already requested. `level` receives the audible level
+    /// (0 while muted) and returns the one to set.
+    func requestOutputStep(level: @escaping (Double) -> Double,
+                           completion: @escaping (Bool) -> Void = { _ in }) {
+        enqueueOutputKey(OutputStep(level: level, completion: completion),
+                         isAvailable: systemOutputVolume != nil)
+    }
+
+    /// The mute key rides the same read and queue as the volume keys, so it
+    /// toggles the state the output reports now (a stale reading asked for the
+    /// state already in place and the key did nothing), and a volume key right
+    /// after it steps from the level that one read fetched.
+    func requestOutputMuteToggle(completion: @escaping (Bool) -> Void = { _ in }) {
+        enqueueOutputKey(OutputStep(level: nil, completion: completion),
+                         isAvailable: systemOutputMuted != nil)
+    }
+
+    private func enqueueOutputKey(_ step: OutputStep, isAvailable: Bool) {
+        guard let device = outputControlListenerDevice, isAvailable else {
+            step.completion(false)
+            return
+        }
+        queuedOutputSteps.append(step)
+        guard !outputStepReadInFlight else { return }
+        guard !hasCurrentOutputAdjustment else {
+            applyQueuedOutputSteps()
+            return
+        }
+        outputStepReadInFlight = true
+        let lifetime = outputControlLock.withLock { outputControlLifetime }
+        halQueue.async { [weak self] in
+            let isDefault = Self.defaultOutputDeviceID() == device
+            let volume = isDefault && Self.hasSettableOutputVolume(for: device)
+                ? Self.outputVolume(for: device).map(Double.init)
+                : nil
+            let muted = isDefault ? Self.outputMuted(for: device) : nil
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let current = self.outputControlListenerDevice == device
+                    && self.outputControlLock.withLock { self.outputControlLifetime == lifetime }
+                // Removing the old listeners already settled that lifetime's
+                // keys. Its callback must not drain the new output's queue.
+                guard current else { return }
+                self.outputStepReadInFlight = false
+                guard isDefault else {
+                    // The keys were meant for an output that has since been
+                    // replaced, as headphones taking over. Replaying each one
+                    // natively would step the new output a full step per
+                    // press, so they settle as handled, the way a pending
+                    // adjustment does when its output changes, and the
+                    // mixer resubscribes to what now plays.
+                    self.settleQueuedOutputSteps(handled: true)
+                    if current { self.scheduleListenerRefresh() }
+                    return
+                }
+                // A control the default output lacks leaves its keys to the
+                // system; the others still apply.
+                if !self.hasCurrentOutputAdjustment {
+                    if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
+                    if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
+                }
+                self.applyQueuedOutputSteps()
+            }
+        }
+    }
+
+    private func settleQueuedOutputSteps(handled: Bool) {
+        let steps = queuedOutputSteps
+        queuedOutputSteps.removeAll()
+        for step in steps { step.completion(handled) }
+    }
+
+    private func applyQueuedOutputSteps() {
+        let steps = queuedOutputSteps
+        queuedOutputSteps.removeAll()
+        for step in steps {
+            if let level = step.level {
+                guard let volume = systemOutputVolume else {
+                    step.completion(false)
+                    continue
+                }
+                requestOutputAdjustment(volume: level(systemOutputMuted == true ? 0 : volume),
+                                        completion: step.completion)
+            } else {
+                guard let muted = systemOutputMuted else {
+                    step.completion(false)
+                    continue
+                }
+                requestOutputAdjustment(muted: !muted, completion: step.completion)
+            }
+        }
     }
 
     private func isCurrentOutputAdjustment(_ adjustment: OutputAdjustment) -> Bool {

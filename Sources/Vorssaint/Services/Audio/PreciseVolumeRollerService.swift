@@ -157,14 +157,23 @@ final class PreciseVolumeRollerService: ObservableObject {
                     Self.postForwardedRelease(code)
                 }
             }
-            if key == .mute, let muted = mixer.systemOutputMuted {
-                mixer.requestOutputAdjustment(muted: !muted, completion: completion)
-            } else if let current = mixer.systemOutputVolume {
-                mixer.requestOutputAdjustment(volume: NotchSupport.volumeLevel(
-                    current: mixer.systemOutputMuted == true ? 0 : current,
-                    direction: key == .volumeUp ? 1 : -1, fine: fine), completion: completion)
+            // Both keys start from the device's own reading, so the island
+            // shows the result once it has been applied. A native fallback
+            // publishes its state through the listeners.
+            if key == .mute, mixer.systemOutputMuted != nil {
+                mixer.requestOutputMuteToggle { applied in
+                    completion(applied)
+                    if applied { NotchService.shared.showCurrentVolume() }
+                }
+            } else if mixer.systemOutputVolume != nil {
+                let direction = key == .volumeUp ? 1 : -1
+                mixer.requestOutputStep(level: {
+                    NotchSupport.volumeLevel(current: $0, direction: direction, fine: fine)
+                }, completion: { applied in
+                    completion(applied)
+                    if applied { NotchService.shared.showCurrentVolume() }
+                })
             } else { completion(false) }
-            NotchService.shared.showCurrentVolume()
         }
         return true
     }
