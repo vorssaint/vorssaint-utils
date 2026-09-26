@@ -7,10 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island gives a small spring response when the pointer reaches its closed surface.
+Dynamic Island gives a small spring response when the pointer reaches its closed surface. Clipboard History responds faster when moving across entries.
 
 ### Changed
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+
+### Fixed
+- Clipboard History no longer refreshes the whole list when the pointer moves between entries, including with the preview closed.
 
 ## [3.4.0-beta.6] - 2026-09-25
 
