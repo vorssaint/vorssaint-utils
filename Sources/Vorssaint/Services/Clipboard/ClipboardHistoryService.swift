@@ -1360,8 +1360,7 @@ final class ClipboardHistoryService: ObservableObject {
                 self.moveQuickSelection(-1)
                 return nil
             }
-            if modifiers == [.command],
-               let index = Self.digitIndex(for: event.keyCode) {
+            if let index = ClipboardHistorySelection.shortcutIndex(for: event.keyCode, modifiers: modifiers) {
                 self.copyQuickEntry(at: index)
                 return nil
             }
@@ -1450,21 +1449,6 @@ final class ClipboardHistoryService: ObservableObject {
     private func pruneQuickBatchSelection() {
         let validIDs = Set(entries.map(\.id))
         quickBatchEntryIDs = Set(quickBatchEntryIDs.filter { validIDs.contains($0) })
-    }
-
-    private static func digitIndex(for keyCode: UInt16) -> Int? {
-        switch Int(keyCode) {
-        case kVK_ANSI_1: return 0
-        case kVK_ANSI_2: return 1
-        case kVK_ANSI_3: return 2
-        case kVK_ANSI_4: return 3
-        case kVK_ANSI_5: return 4
-        case kVK_ANSI_6: return 5
-        case kVK_ANSI_7: return 6
-        case kVK_ANSI_8: return 7
-        case kVK_ANSI_9: return 8
-        default: return nil
-        }
     }
 
     private func clampedQuickSelectionIndex(for count: Int) -> Int {

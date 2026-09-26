@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Carbon.HIToolbox
 
 /// Main-thread capture admission. Expiring a result does not release the
 /// actual queued read; stop/start must not release it either.
@@ -536,6 +537,29 @@ enum ClipboardHistorySearch {
 }
 
 enum ClipboardHistorySelection {
+    static func shortcutIndex(for keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Int? {
+        guard modifiers.intersection([.command, .control, .option, .shift]) == [.command] else { return nil }
+        switch Int(keyCode) {
+        case kVK_ANSI_1: return 0
+        case kVK_ANSI_2: return 1
+        case kVK_ANSI_3: return 2
+        case kVK_ANSI_4: return 3
+        case kVK_ANSI_5: return 4
+        case kVK_ANSI_6: return 5
+        case kVK_ANSI_7: return 6
+        case kVK_ANSI_8: return 7
+        case kVK_ANSI_9: return 8
+        default: return nil
+        }
+    }
+
+    static func shortcutEntry<Entry>(for keyCode: UInt16, modifiers: NSEvent.ModifierFlags,
+                                     in entries: [Entry]) -> Entry? {
+        guard let index = shortcutIndex(for: keyCode, modifiers: modifiers),
+              entries.indices.contains(index) else { return nil }
+        return entries[index]
+    }
+
     static func initialIndex(totalCount: Int) -> Int {
         guard totalCount > 0 else { return 0 }
         return 0
