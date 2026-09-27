@@ -36,6 +36,8 @@ enum NotchNativePlayback {
     /// System uptime at which the chosen source, still without a track, is
     /// released. A monotonic clock, so changing the time cannot stretch it.
     private static var releaseAt: TimeInterval?
+    /// Set before the watch starts; the one-shot reader does not use selection.
+    static var includeOtherPlayers = false
 
     static var sourceReply: [String: Any] {
         lock.lock(); defer { lock.unlock() }
@@ -146,7 +148,7 @@ enum NotchNativePlayback {
         let presentation = clientPresentation
         resultsLock.unlock()
         let chosenPID = lock.withLock { selection?.pid }
-        let musicPIDs = NSWorkspace.shared.runningApplications.filter(isMusicApp).map(\.processIdentifier)
+        let musicPIDs = NSWorkspace.shared.runningApplications.filter { isMusicApp($0) }.map(\.processIdentifier)
         var applications: [NSRunningApplication] = []
         // A bounded fan-out; no timers or queries survive the adapter process.
         // Past the bound, only the least likely clients are skipped: chosen,
@@ -168,7 +170,7 @@ enum NotchNativePlayback {
             group.enter()
             readInfo(candidate, artwork: false, queue: callbacks) { info in
                 let source = NotchPlaybackSource(pid: candidate.pid, bundleIdentifier: candidate.bundleIdentifier,
-                    isMusicApp: isMusicApp(app),
+                    isMusicApp: isMusicApp(app, parentBundleIdentifier: candidate.applicationBundleIdentifier),
                     isPlaying: (info?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue ?? 0 > 0,
                     hasTrack: (info?["kMRMediaRemoteNowPlayingInfoTitle"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
                     displayName: presentation[candidate.pid]?.name ?? app.localizedName)
@@ -211,7 +213,8 @@ enum NotchNativePlayback {
         if let requested, !bridging,
            !ready.contains(where: { $0.1.selection == requested && $0.1.hasTrack }) { return nil }
         let source = NotchPlaybackSource.preferred(in: ready.map(\.1), previousPID: target?.pid,
-                                                   systemPID: currentPID, selection: requested)
+                                                   systemPID: currentPID, selection: requested,
+                                                   includeOtherPlayers: includeOtherPlayers)
         guard var chosen = ready.first(where: { $0.1 == source })?.0 else { return nil }
         typealias IsSystemPlayer = @convention(c) (AnyObject, Selector) -> Bool
         let systemPlayer = ["isSystemMediaApplication", "isSystemPodcastsApplication", "isSystemBooksApplication"].contains { name in
@@ -375,9 +378,10 @@ enum NotchNativePlayback {
         return symbol.assumingMemoryBound(to: NSString?.self).pointee as String?
     }
 
-    private static func isMusicApp(_ app: NSRunningApplication) -> Bool {
-        guard let url = app.bundleURL else { return false }
-        return Bundle(url: url)?.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String == "public.app-category.music"
+    private static func isMusicApp(_ app: NSRunningApplication, parentBundleIdentifier: String? = nil) -> Bool {
+        let category = app.bundleURL.flatMap { Bundle(url: $0)?.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String }
+        return NotchPlaybackSource.isMusicApplication(bundleIdentifier: app.bundleIdentifier,
+                                                      parentBundleIdentifier: parentBundleIdentifier, category: category)
     }
 
     private static func makeTarget(_ app: NSRunningApplication) -> Target? {

@@ -36,6 +36,7 @@ final class NotchMusicService: ObservableObject {
     private var input: Pipe?
     private var generation = UUID()
     private var wantsPlayback = false
+    private var includeOtherPlayers = false
     private var restartCount = 0
     private var restartWork: DispatchWorkItem?
     private var launchedAt: TimeInterval?
@@ -72,7 +73,12 @@ final class NotchMusicService: ObservableObject {
     }
 
     func start() {
-        guard !wantsPlayback else { return }
+        let includeOtherPlayers = UserDefaults.standard.bool(forKey: DefaultsKey.notchIncludeOtherPlayers)
+        if wantsPlayback {
+            guard self.includeOtherPlayers != includeOtherPlayers else { return }
+            stop()
+        }
+        self.includeOtherPlayers = includeOtherPlayers
         wantsPlayback = true
         awaitingPlayback = true
         restartCount = 0
@@ -91,7 +97,7 @@ final class NotchMusicService: ObservableObject {
         let requested = UUID()
         generation = requested
         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-        process.arguments = arguments + ["watch"]
+        process.arguments = arguments + [includeOtherPlayers ? "watch_all" : "watch"]
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         process.standardInput = input

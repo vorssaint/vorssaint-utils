@@ -217,6 +217,12 @@ public func vorssaintNowPlayingGet() {
 
 /// One adapter process while a music surface is subscribed. Native change
 /// notifications replace polling; closing stdin also ends it if the app exits.
+@_cdecl("vorssaint_now_playing_watch_all")
+public func vorssaintNowPlayingWatchAll() {
+    NotchNativePlayback.includeOtherPlayers = true
+    vorssaintNowPlayingWatch()
+}
+
 @_cdecl("vorssaint_now_playing_watch")
 public func vorssaintNowPlayingWatch() {
     typealias Register = @convention(c) (DispatchQueue) -> Void

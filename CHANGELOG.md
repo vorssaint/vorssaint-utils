@@ -7,10 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island adds more reopening choices.
+Dynamic Island adds more reopening choices and keeps video out of automatic music playback by default.
 
 ### Changed
 - Dynamic Island can reopen directly to the app panel or Explore, alongside its section choices.
+- Dynamic Island automatically follows music apps by default. Music settings can also include videos and other apps; manually chosen playback sources still work.
 
 ## [3.4.0-beta.7] - 2026-09-26
 
