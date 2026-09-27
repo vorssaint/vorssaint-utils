@@ -169,12 +169,10 @@ struct NotchView: View {
     private var capsLockStatus: some View {
         HStack(spacing: 0) {
             Image(systemName: "capslock.fill")
-                .padding(.trailing, restingBatteryInset)
+                .padding(.leading, restingBatteryInset)
                 .frame(width: service.geometry.restingWingWidth, alignment: .trailing)
             Color.clear.frame(width: service.geometry.cameraWidth)
-            Image(systemName: "checkmark").font(.system(size: 10, weight: .semibold))
-                .padding(.leading, restingBatteryInset)
-                .frame(width: service.geometry.restingWingWidth, alignment: .leading)
+            Color.clear.frame(width: service.geometry.restingWingWidth)
         }
         .font(.system(size: 12))
         .foregroundStyle(.white.opacity(0.9))
