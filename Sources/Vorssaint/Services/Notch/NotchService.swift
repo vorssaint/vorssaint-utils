@@ -2232,7 +2232,9 @@ final class NotchService: ObservableObject {
         let interaction = NotchGestureSupport.nativeInteraction(at: panel.contentView?.hitTest(event.locationInWindow))
         let musicSurface = modules.contains(.music)
             && (compactMusicIsVisible || (expanded && selected == .music && !showingAppPanel && !showingSections))
-        let vertical = !interaction.control && (!expanded || inHeader)
+        let vertical = NotchGestureSupport.allowsVertical(expanded: expanded, inHeader: inHeader,
+                                                          musicSurface: musicSurface,
+                                                          control: interaction.control, scroll: interaction.scroll)
         let horizontal = !interaction.control && !interaction.scroll && !inHeader && musicSurface
         let x = NotchGestureSupport.movement(Double(event.scrollingDeltaX), precise: event.hasPreciseScrollingDeltas,
                                              inverted: event.isDirectionInvertedFromDevice)
@@ -2250,7 +2252,7 @@ final class NotchService: ObservableObject {
         case .close: collapse()
         case .nextTrack, .previousTrack:
             guard musicSurface else { gesture = NotchGestureSupport(); return false }
-            NotchMusicService.shared.send(action == .nextTrack ? .next : .previous)
+            NotchMusicService.shared.skipFromGesture(forward: action == .nextTrack)
         }
         return true
     }

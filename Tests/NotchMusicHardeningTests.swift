@@ -147,6 +147,7 @@ enum NotchMusicHardeningTests {
         sourcePriority(suite)
         sourceSwitching(suite)
         sourceRestore(suite)
+        sourcePreference(suite)
         artworkInheritance(suite)
         trackChanges(suite)
         NotchPlaybackRoutingTests.run(suite)
@@ -265,6 +266,29 @@ enum NotchMusicHardeningTests {
         service.stop()
     }
 
+    private static func sourcePreference(_ suite: TestSuite) {
+        typealias Contract = NotchMusicCommandContract
+        let preferences = Contract.Service.UserDefaults.standard
+        preferences.includeOtherPlayers = false
+        defer { preferences.includeOtherPlayers = false }
+        let service = Contract.Service()
+        service.start()
+        suite.expect(service.launches == 1 && !service.includeOtherPlayers,
+                     "automatic playback starts with music apps only")
+        service.start()
+        suite.expect(service.launches == 1, "an unchanged playback scope does not restart the adapter")
+        service.chosenSource = .init(pid: 20, bundleIdentifier: "test.browser")
+        preferences.includeOtherPlayers = true
+        service.start()
+        suite.expect(service.launches == 2 && service.includeOtherPlayers && service.restoringSource,
+                     "including other players restarts discovery and preserves a manual choice")
+        preferences.includeOtherPlayers = false
+        service.start()
+        suite.expect(service.launches == 3 && !service.includeOtherPlayers && service.restoringSource,
+                     "turning the option off restores music-only discovery without losing the chosen source")
+        service.stop()
+    }
+
     /// The island announces a new song, never what a playing song keeps
     /// reporting or what a reader finds when it starts.
     private static func trackChanges(_ suite: TestSuite) {
@@ -353,15 +377,27 @@ enum NotchMusicHardeningTests {
         let paused = source(10, music: true, playing: false)
         let browser = source(20, music: false)
         let other = source(30, music: true)
-        func choose(_ sources: [NotchPlaybackSource], previous: Int32? = nil, system: Int32? = 20) -> NotchPlaybackSource? {
-            NotchPlaybackSource.preferred(in: sources, previousPID: previous, systemPID: system)
+        suite.expect(NotchPlaybackSource.isMusicApplication(bundleIdentifier: "com.apple.Music", parentBundleIdentifier: nil,
+                                                             category: nil)
+                     && NotchPlaybackSource.isMusicApplication(bundleIdentifier: "com.spotify.client.helper",
+                                                               parentBundleIdentifier: "com.spotify.client", category: nil)
+                     && NotchPlaybackSource.isMusicApplication(bundleIdentifier: "com.example.player",
+                                                               parentBundleIdentifier: nil, category: "public.app-category.music")
+                     && !NotchPlaybackSource.isMusicApplication(bundleIdentifier: "com.example.browser",
+                                                                parentBundleIdentifier: nil, category: "public.app-category.video"),
+                     "music apps and Spotify helpers stay eligible while video apps are excluded")
+        func choose(_ sources: [NotchPlaybackSource], previous: Int32? = nil, system: Int32? = 20,
+                    includeOtherPlayers: Bool = false) -> NotchPlaybackSource? {
+            NotchPlaybackSource.preferred(in: sources, previousPID: previous, systemPID: system,
+                                          includeOtherPlayers: includeOtherPlayers)
         }
         suite.expect(choose([browser, music]) == music, "a browser video cannot take controls from playing music")
         suite.expect(choose([music, browser]) == music, "source discovery order does not change music priority")
-        suite.expect(choose([browser, paused], previous: 10) == browser,
-               "a video playing takes the island from music paused in the background")
-        suite.expect(choose([browser, paused]) == browser,
-               "the same holds on a first read, with nothing remembered")
+        suite.expect(choose([browser, paused], previous: 10) == paused && choose([browser]) == nil,
+                     "music-only automatic playback ignores videos, even when they own the system session")
+        suite.expect(choose([browser, paused], previous: 10, includeOtherPlayers: true) == browser
+                     && choose([browser], includeOtherPlayers: true) == browser,
+                     "the opt-in restores automatic playback from other apps")
         let idleBrowser = source(20, music: false, playing: false)
         suite.expect(NotchPlaybackSource.preferred(in: [music, browser], previousPID: 10, systemPID: 10,
                                                    selection: browser.selection) == browser,
@@ -411,11 +447,12 @@ enum NotchMusicHardeningTests {
                "playing music still outranks a playing browser and a paused music app")
         // A music app open but stopped, a video playing in the browser: the
         // island used to go blank, since paused music outranked everything.
-        suite.expect(choose([paused, browser], previous: nil, system: 20) == browser,
-               "a stopped music app left open never blanks the island over a playing video")
-        suite.expect(choose([browser, source(10, music: true, track: false)]) == browser,
-               "an empty music app does not hide browser playback")
-        suite.expect(choose([browser], previous: 10) == browser, "closing the music app releases its priority")
+        suite.expect(choose([paused, browser], previous: nil, system: 20, includeOtherPlayers: true) == browser,
+               "with other players enabled, a stopped music app does not hide a playing video")
+        suite.expect(choose([browser, source(10, music: true, track: false)], includeOtherPlayers: true) == browser,
+               "with other players enabled, an empty music app does not hide browser playback")
+        suite.expect(choose([browser], previous: 10, includeOtherPlayers: true) == browser,
+                     "with other players enabled, closing the music app releases its priority")
         suite.expect(choose([source(10, music: true, track: false)], previous: 10) == nil,
                "clearing the track never preserves a stale music selection")
         suite.expect(choose([music, other, browser], previous: 30) == other,
@@ -425,7 +462,8 @@ enum NotchMusicHardeningTests {
         suite.expect(choose([music, other], system: 30) == other,
                "the system's choice breaks an initial tie between playing music apps")
         suite.expect(choose([browser], system: 99) == nil, "an unrelated remembered video never becomes a fallback")
-        suite.expect(choose([source(0, music: true), browser]) == browser, "invalid process identities are not controllable")
+        suite.expect(choose([source(0, music: true), browser], includeOtherPlayers: true) == browser,
+                     "invalid process identities are not controllable")
         suite.expect(choose([], previous: 10) == nil, "no surviving session leaves no command destination")
     }
 

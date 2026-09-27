@@ -27,6 +27,8 @@ final class NotchMusicService: ObservableObject {
     @Published private(set) var queueActionFailed = false
     /// A player moved on to another song; see NotchTrackChange.
     let trackChanges = PassthroughSubject<Void, Never>()
+    /// Immediate visual acknowledgement of an accepted swipe, before metadata arrives.
+    let gestureSkips = PassthroughSubject<Bool, Never>()
     private var trackChange = NotchTrackChange()
     private var queueVisible = false
     private var queueRequest: UUID?
@@ -36,6 +38,7 @@ final class NotchMusicService: ObservableObject {
     private var input: Pipe?
     private var generation = UUID()
     private var wantsPlayback = false
+    private var includeOtherPlayers = false
     private var restartCount = 0
     private var restartWork: DispatchWorkItem?
     private var launchedAt: TimeInterval?
@@ -72,7 +75,12 @@ final class NotchMusicService: ObservableObject {
     }
 
     func start() {
-        guard !wantsPlayback else { return }
+        let includeOtherPlayers = UserDefaults.standard.bool(forKey: DefaultsKey.notchIncludeOtherPlayers)
+        if wantsPlayback {
+            guard self.includeOtherPlayers != includeOtherPlayers else { return }
+            stop()
+        }
+        self.includeOtherPlayers = includeOtherPlayers
         wantsPlayback = true
         awaitingPlayback = true
         restartCount = 0
@@ -91,7 +99,7 @@ final class NotchMusicService: ObservableObject {
         let requested = UUID()
         generation = requested
         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-        process.arguments = arguments + ["watch"]
+        process.arguments = arguments + [includeOtherPlayers ? "watch_all" : "watch"]
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         process.standardInput = input
@@ -404,6 +412,12 @@ final class NotchMusicService: ObservableObject {
     @discardableResult
     func send(_ command: Command) -> Bool {
         send(command, context: playback?.commandContext)
+    }
+
+    func skipFromGesture(forward: Bool) {
+        let command: Command = forward ? .next : .previous
+        guard canPerform(command), send(command) else { return }
+        gestureSkips.send(forward)
     }
 
     @discardableResult

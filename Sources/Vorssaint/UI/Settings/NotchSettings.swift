@@ -45,6 +45,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCapture) private var capture = true
     @AppStorage(DefaultsKey.notchTrackChange) private var trackChange = true
     @AppStorage(DefaultsKey.notchShowPlayingMusic) private var showPlayingMusic = true
+    @AppStorage(DefaultsKey.notchIncludeOtherPlayers) private var includeOtherPlayers = false
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
     @AppStorage(DefaultsKey.notchHiddenControls) private var hiddenControls = NotchControlItem.defaultHidden
     @AppStorage(DefaultsKey.notchControlOrder) private var controlOrder = ""
@@ -74,7 +75,7 @@ struct NotchSettings: View {
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     private var configuration: [String] {
-        [String(enabled), String(calendarEnabled), String(calendarCountdown), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), idle, hiddenControls, controlOrder, size,
+        [String(enabled), String(calendarEnabled), String(calendarCountdown), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(customWidth), String(customHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, String(hover), hidden, order, String(volume),
          String(brightness), String(keyboardLight), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(scratchpad), String(agentsEnabled)]
     }
@@ -289,6 +290,7 @@ struct NotchSettings: View {
         case .music:
             let music = FeatureStrings.notchMusicExtras(l10n.language)
             switchRow("music.note", text.playingMusic, isOn: $showPlayingMusic)
+            switchRow("play.rectangle", music.includeOtherPlayers, isOn: $includeOtherPlayers)
             switchRow("text.quote", music.enableLyrics, isOn: $lyricsEnabled)
                 .disabled(!AppFeature.notchLyrics.isAvailable)
             if lyricsEnabled, AppFeature.notchLyrics.isAvailable {
