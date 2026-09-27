@@ -428,6 +428,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowMaximizerSupport.swift
         Sources/Vorssaint/Core/MouseButtonStrings.swift
         Sources/Vorssaint/Core/MouseClickDebounceStrings.swift
+        Sources/Vorssaint/Services/KeySounds/KeySoundsSupport.swift
+        Sources/Vorssaint/Core/KeySoundsStrings.swift
         Sources/Vorssaint/Core/MouseExceptionStrings.swift
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift
         Sources/Vorssaint/Core/WindowLayoutIgnoredAppsStrings.swift
@@ -663,6 +665,9 @@ fi
 if [[ -d Resources/Gifs ]]; then
     mkdir -p "$STAGE/Contents/Resources/Gifs"
     cp Resources/Gifs/*.gif "$STAGE/Contents/Resources/Gifs/"
+fi
+if [[ -d Resources/KeySoundPacks ]]; then  # Key Sounds plugin
+    ditto Resources/KeySoundPacks "$STAGE/Contents/Resources/KeySoundPacks"
 fi
 if [[ -d Resources/Images ]]; then
     mkdir -p "$STAGE/Contents/Resources/Images"
