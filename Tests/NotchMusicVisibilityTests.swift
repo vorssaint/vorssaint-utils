@@ -57,6 +57,7 @@ enum NotchMusicVisibilityTests {
         var suspended = false
         var expanded = false
         var peeking = false
+        var showsCapsLock = false
         var showingAppPanel = false
         var showingSections = false
         var selected: NotchModule = .controls
@@ -131,6 +132,15 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(reader.running && service.compactActivity == .music && service.surfaceSize.width > closed.width,
                    "enabled playback first appears beside both physical and simulated cameras")
+            service.showsCapsLock = true
+            service.syncVisibleConsumers()
+            suite.expect(reader.running && service.compactActivity == .music
+                         && service.surfaceSize == service.geometry.restingSize(showsContent: true),
+                         "Caps Lock occupies the compact strip without stopping music")
+            service.showsCapsLock = false
+            service.syncVisibleConsumers()
+            suite.expect(service.surfaceSize.width > closed.width,
+                         "unlocking restores the selected music strip")
 
             service.hiddenInFullscreen = true
             service.syncVisibleConsumers()

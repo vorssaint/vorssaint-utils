@@ -906,6 +906,10 @@ enum NotchSupport {
         return choice == .music && !showsMusicActivity(isPlaying: isPlaying, in: defaults) ? .none : choice
     }
 
+    static func showsCapsLock(capsLockOn: Bool, in defaults: UserDefaults = .standard) -> Bool {
+        capsLockOn && isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCapsLock)
+    }
+
     static func controls(in defaults: UserDefaults = .standard) -> [NotchControlItem] {
         let hidden = Set((defaults.string(forKey: DefaultsKey.notchHiddenControls) ?? NotchControlItem.defaultHidden)
             .split(separator: ",").map(String.init))

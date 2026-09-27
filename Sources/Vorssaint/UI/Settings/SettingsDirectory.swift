@@ -344,6 +344,7 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.notch(language).description,
                                                  FeatureStrings.notchEditor(language).hideMenuBarIcon,
                                                  "notch", "camera", "music", "clipboard",
+                                                 FeatureStrings.superKey(language).capsLockKey,
                                                  FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens"]),
                 SettingsDirectoryItem(page: .commandBar,
                                       title: FeatureStrings.commandBar(language).pageTitle,

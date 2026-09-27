@@ -121,6 +121,8 @@ struct NotchView: View {
                 NotchIconButton(symbol: "chevron.down", title: text.open) { service.open() }
             }
             .padding(.horizontal, NotchLayout.horizontalInset).padding(.top, service.geometry.safeContentTop)
+        } else if service.showsCapsLock {
+            capsLockStatus
         } else if let activity = service.compactActivity {
             if service.showsCompactActivityPicker {
                 let layout = service.compactActivityPickerLayout
@@ -162,6 +164,23 @@ struct NotchView: View {
     private var restingBatteryInset: CGFloat {
         // Leave enough of the 44-point wing for the full 100% label at every height.
         min(16, NotchLayout.shoulder(height: service.geometry.stripHeight) + NotchLayout.compactEdgeGap)
+    }
+
+    private var capsLockStatus: some View {
+        HStack(spacing: 0) {
+            Image(systemName: "capslock.fill")
+                .padding(.trailing, restingBatteryInset)
+                .frame(width: service.geometry.restingWingWidth, alignment: .trailing)
+            Color.clear.frame(width: service.geometry.cameraWidth)
+            Image(systemName: "checkmark").font(.system(size: 10, weight: .semibold))
+                .padding(.leading, restingBatteryInset)
+                .frame(width: service.geometry.restingWingWidth, alignment: .leading)
+        }
+        .font(.system(size: 12))
+        .foregroundStyle(.white.opacity(0.9))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(FeatureStrings.superKey(l10n.language).capsLockKey)
     }
 
     private var compact: some View {

@@ -20,6 +20,7 @@ import IOKit.hidsystem
 /// either, so the source is never left as a key that does nothing.
 final class SuperKeyService: ObservableObject {
     static let shared = SuperKeyService()
+    static let capsLockDidChange = Notification.Name("SuperKeyCapsLockDidChange")
 
     /// True while the key is actually working: tap up and mapping applied.
     @Published private(set) var isRunning = false
@@ -801,7 +802,7 @@ final class SuperKeyService: ObservableObject {
         case .escape:
             runOnMainIfNeeded { _ = Self.postKey(CGKeyCode(kVK_Escape)) }
         case .capsLock:
-            runOnMainIfNeeded { self.setCapsLock(!self.capsLockIsOn()) }
+            runOnMainIfNeeded { self.setCapsLock(!Self.capsLockIsOn()) }
         case .inputSource:
             // Must finish before this tap returns: the next keystroke is already
             // in flight, and hopping to main (or waiting on Accessibility) left
@@ -867,7 +868,7 @@ final class SuperKeyService: ObservableObject {
 
     /// The lock state lives with the system's own keyboard service, which is
     /// also what lights the key.
-    private func withHIDSystem<T>(_ body: (io_connect_t) -> T?) -> T? {
+    private static func withHIDSystem<T>(_ body: (io_connect_t) -> T?) -> T? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching(kIOHIDSystemClass))
         guard service != 0 else { return nil }
         defer { IOObjectRelease(service) }
@@ -878,7 +879,7 @@ final class SuperKeyService: ObservableObject {
         return body(connection)
     }
 
-    private func capsLockIsOn() -> Bool {
+    static func capsLockIsOn() -> Bool {
         withHIDSystem { connection in
             var state = false
             guard IOHIDGetModifierLockState(connection, Int32(kIOHIDCapsLockState), &state) == KERN_SUCCESS
@@ -888,8 +889,9 @@ final class SuperKeyService: ObservableObject {
     }
 
     private func setCapsLock(_ on: Bool) {
-        _ = withHIDSystem { connection in
-            IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), on)
+        let changed = Self.withHIDSystem { connection in
+            IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), on) == KERN_SUCCESS
         }
+        if changed == true { NotificationCenter.default.post(name: Self.capsLockDidChange, object: nil) }
     }
 }

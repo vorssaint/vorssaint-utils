@@ -416,6 +416,15 @@ def main():
           + declaration(shelf, "    func completeInternalDrag(")
           + "}\n}\n")
     notch = "Sources/Vorssaint/Services/Notch/NotchService.swift"
+    caps_lock = "".join(declaration(notch, prefix).replace("    private func", "    func", 1)
+                        for prefix in ["    private func syncCapsLockMonitoring()",
+                                       "    private func stopCapsLockMonitoring()",
+                                       "    private func updateCapsLock(",
+                                       "    private func sampleCapsLock()"])
+    caps_lock = caps_lock.replace("UserDefaults.standard", "ReviewDefaults.current")
+    write("NotchCapsLock.swift", "import AppKit\nimport Foundation\n"
+          + "extension NotchCapsLockTests {\nfinal class Service: State {\n"
+          + caps_lock + "}\n}\n")
     write("NotchFullscreen.swift", "import CoreGraphics\nimport Foundation\nextension NotchFullscreenTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
           + "final class Service: State {\n"

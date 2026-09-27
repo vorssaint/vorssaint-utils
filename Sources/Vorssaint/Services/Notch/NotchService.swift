@@ -94,6 +94,7 @@ final class NotchService: ObservableObject {
     @Published private(set) var panelIsKey = false
     @Published private var captureContentHeight: CGFloat?
     @Published private(set) var power = PowerReading()
+    @Published private(set) var capsLockOn = false
     @Published private var musicDetailVisible = false
 
     private var windowHost: NotchWindowHost?
@@ -105,6 +106,8 @@ final class NotchService: ObservableObject {
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
     private var eventMonitors: [Any] = []
+    private var capsLockMonitors: [Any] = []
+    private var capsLockObserver: NSObjectProtocol?
     private var screenEdgeClickMonitors: [Any] = []
     private var screenEdgePressArea: CGRect?
     private var captureControlsMonitors: [Any] = []
@@ -195,6 +198,8 @@ final class NotchService: ObservableObject {
         NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
     }
 
+    var showsCapsLock: Bool { NotchSupport.showsCapsLock(capsLockOn: capsLockOn) }
+
     var hasTimerActivity: Bool {
         NotchTimerSupport.isEnabled() && NotchTimerService.shared.session.hasSession
     }
@@ -232,6 +237,7 @@ final class NotchService: ObservableObject {
     var showsCompactActivityPicker: Bool {
         (inside || activityPickerMenuOpen) && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking
             && !dragPlaceholder && notice == nil && captureControls == nil
+            && !showsCapsLock
             && compactActivities.count > 1
     }
 
@@ -284,6 +290,7 @@ final class NotchService: ObservableObject {
 
     private var compactActivityIsVisible: Bool {
         !fullscreenCompact && !expanded && !peeking && !dragPlaceholder && notice == nil && captureControls == nil
+            && !showsCapsLock
             && compactActivity != nil
     }
 
@@ -481,6 +488,7 @@ final class NotchService: ObservableObject {
                 contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
         }
         if peeking { return geometry.peek }
+        if showsCapsLock { return geometry.restingSize(showsContent: true) }
         if showsCompactActivityPicker { return compactActivityPickerLayout.size }
         if compactActivity != nil {
             let resting = compactActivityGeometry.compactActivitySize
@@ -547,6 +555,7 @@ final class NotchService: ObservableObject {
         // Checked before any service starts, so each preference change while
         // the lid is closed does not start and stop them all again.
         guard screenIndex(in: NSScreen.screens) != nil else { withdrawFromMissingScreen(); return }
+        syncCapsLockMonitoring()
         refreshModules()
         NotchDownloadService.shared.syncWithPreferences()
         NotchCalendarService.shared.syncWithPreferences()
@@ -622,6 +631,7 @@ final class NotchService: ObservableObject {
     }
 
     private func tearDownPresentation() {
+        stopCapsLockMonitoring()
         screenRefreshWork?.cancel(); screenRefreshWork = nil
         captureControlsWork?.cancel(); captureControlsWork = nil
         musicDetailVisible = false
@@ -2022,7 +2032,10 @@ final class NotchService: ObservableObject {
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
             self?.fullscreenEnvironmentDidChange()
         }
-        observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in self?.applicationDidActivate() }
+        observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in
+            self?.sampleCapsLock()
+            self?.applicationDidActivate()
+        }
         observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in
             self?.updateSession { $0.sleeping = true }
         }
@@ -2077,6 +2090,46 @@ final class NotchService: ObservableObject {
                                            pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true) {
             collapse()
         }
+    }
+
+    private func sampleCapsLock() {
+        if !capsLockMonitors.isEmpty { updateCapsLock(SuperKeyService.capsLockIsOn()) }
+    }
+
+    private func syncCapsLockMonitoring() {
+        guard running, !suspended, UserDefaults.standard.bool(forKey: DefaultsKey.notchCapsLock),
+              Permissions.shared.accessibility else {
+            stopCapsLockMonitoring()
+            return
+        }
+        if capsLockMonitors.isEmpty {
+            guard let global = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: { [weak self] event in
+                self?.updateCapsLock(event.modifierFlags.contains(.capsLock))
+            }) else { return }
+            guard let local = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: { [weak self] event in
+                self?.updateCapsLock(event.modifierFlags.contains(.capsLock))
+                return event
+            }) else { NSEvent.removeMonitor(global); return }
+            capsLockMonitors = [global, local]
+            capsLockObserver = NotificationCenter.default.addObserver(
+                forName: SuperKeyService.capsLockDidChange, object: nil, queue: .main
+            ) { [weak self] _ in self?.updateCapsLock(SuperKeyService.capsLockIsOn()) }
+        }
+        updateCapsLock(SuperKeyService.capsLockIsOn())
+    }
+
+    private func stopCapsLockMonitoring() {
+        capsLockMonitors.forEach(NSEvent.removeMonitor)
+        capsLockMonitors.removeAll()
+        if let capsLockObserver { NotificationCenter.default.removeObserver(capsLockObserver) }
+        capsLockObserver = nil
+        if capsLockOn { capsLockOn = false }
+    }
+
+    private func updateCapsLock(_ on: Bool) {
+        guard capsLockOn != on else { return }
+        capsLockOn = on
+        refreshPresentation(animated: false, transitionContent: .replace)
     }
 
     private func syncPanelKey() {

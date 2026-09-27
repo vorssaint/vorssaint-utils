@@ -71,6 +71,7 @@ enum NotchHoverTests {
         var departureWork: DispatchWorkItem?
         var compactActivity: NotchCompactActivity?
         var compactActivities: [NotchCompactActivity] = []
+        var showsCapsLock = false
         var activityPickerMenuOpen = false
         var hoverState = NotchHoverState()
         var hiddenHoverMonitors: [Any] = []

@@ -530,6 +530,8 @@ enum NotchTests {
     }
 
     static func run(_ suite: TestSuite) {
+        capsLockContracts(suite)
+        NotchCapsLockTests.run(suite)
         NotchMissionControlPollingTests.run(suite)
         activitySelectionContracts(suite)
         railContracts(suite)
@@ -1794,6 +1796,38 @@ enum NotchTests {
         suite.expect(NotchPlaybackCommand.seek(.nan).message == nil
                && NotchPlaybackCommand.seek(-1).message == nil,
                "invalid internal positions cannot be serialized into adapter input")
+    }
+
+    private static func capsLockContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-caps-lock"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchCapsLock] as? Bool == false,
+                     "Caps Lock status starts off")
+        suite.expect(!NotchSupport.showsCapsLock(capsLockOn: true, in: defaults),
+                     "the status is hidden until opted in")
+        defaults.set(true, forKey: DefaultsKey.notchCapsLock)
+        for (state, visible) in [(false, false), (true, true), (false, false), (true, true)] {
+            suite.expect(NotchSupport.showsCapsLock(capsLockOn: state, in: defaults) == visible,
+                         "the status follows repeated lock and unlock transitions")
+        }
+        defaults.set(true, forKey: DefaultsKey.superKeyEnabled)
+        defaults.set(SuperKeySource.capsLock.rawValue, forKey: DefaultsKey.superKeySource)
+        suite.expect(NotchSupport.showsCapsLock(capsLockOn: true, in: defaults),
+                     "a Super Key solo action that enables the real lock is still shown")
+        defaults.set(false, forKey: DefaultsKey.notchCapsLock)
+        suite.expect(!NotchSupport.showsCapsLock(capsLockOn: true, in: defaults),
+                     "turning the preference off immediately hides the status")
+        defaults.set(true, forKey: DefaultsKey.notchCapsLock)
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(!NotchSupport.showsCapsLock(capsLockOn: true, in: defaults),
+                     "turning off Dynamic Island hides the status")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCapsLock),
+                     "the preference travels in settings backups")
     }
     private static func calendarContracts(_ suite: TestSuite) {
         let entitlements = NSDictionary(contentsOfFile: "Resources/Vorssaint.entitlements") as? [String: Any]
