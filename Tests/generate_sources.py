@@ -783,6 +783,7 @@ def main():
         "    private func applySource(",
         "    private func loadLiveLoupeImages()",
         "    private func markCapturePending()",
+        "    private func confirmSelectionWithKeyboard()",
         "    private func captureFullDisplayUnderMouse()",
         "    private func repeatLastRegion()",
         "    fileprivate func confirmWindow(",
@@ -792,6 +793,7 @@ def main():
     write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\n"
           + "extension ScreenshotSelectionRefreshContract.Chooser {\n"
           + declaration(selection, "    fileprivate var acceptsCaptureInput:").replace("fileprivate var", "var", 1)
+          + declaration(selection, "    fileprivate var acceptsWindowClick:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    private var repeatTargetPanel:").replace("private var", "var", 1)
           + declaration(selection, "    fileprivate var offersRepeatLastRegion:").replace("fileprivate var", "var", 1)
           + "".join(declaration(selection, prefix).replace("fileprivate func", "func", 1)
@@ -817,8 +819,11 @@ def main():
           + "var keyMonitor: Any?\nvar globalKeyMonitor: Any?\nvar spaceIsDown = false\n"
           + "var acceptsWindowClick = true\nvar loupeAcceptsKeyboardActions = false\n"
           + "var actions: [String] = []\nvar draggingPanel: ScreenshotOverlayPanel?\n"
+          + "var isPickingColor = false\nvar acceptsCaptureInput = true\n"
+          + "var panels: [ScreenshotOverlayPanel] = []\nvar currentPointerLocation: CGPoint?\n"
           + 'func finish(_ outcome: Outcome) { actions.append("cancel") }\n'
           + 'func captureFullDisplayUnderMouse() { actions.append("fullDisplay") }\n'
+          + 'func confirmColor(at point: CGPoint, on panel: ScreenshotOverlayPanel) { actions.append("color") }\n'
           + "func panelUnderMouse() -> ScreenshotOverlayPanel? { draggingPanel }\n"
           + 'func repeatLastRegion() { actions.append("repeat") }\n'
           + "func selectCaptureTool(for event: NSEvent) -> Bool { false }\n"
@@ -830,6 +835,7 @@ def main():
           + "func nudgePointer(keyCode: Int, fast: Bool) {}\nfunc attach() { installKeyMonitor() }\n"
           + declaration(selection, "    private static func isRepeatRegionKey(")
           + declaration(selection, "    private static func matchesShortcutKey(")
+          + declaration(selection, "    private func confirmSelectionWithKeyboard()")
           + declaration(selection, "    private func installKeyMonitor()")
           + "}\n}\n")
     hop = "Sources/Vorssaint/Services/Switcher/SpaceHop.swift"

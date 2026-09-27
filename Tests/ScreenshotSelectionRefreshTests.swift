@@ -28,6 +28,7 @@ enum ScreenshotSelectionRefreshContract {
     }
     final class View {
         var isCapturePending = false
+        var isDragging = false
         var loupeImage: CGImage?
         func captureToolDidChange() {}
         func refreshPointerState() {}
@@ -52,7 +53,12 @@ enum ScreenshotSelectionRefreshContract {
             self.windows = windows
         }
     }
-    enum RecorderSupport { struct Region { let windowID: CGWindowID? } }
+    enum RecorderSupport {
+        struct Region {
+            let windowID: CGWindowID?
+            let viewRect: CGRect
+        }
+    }
     @MainActor enum ScreenshotCaptureEngine {
         struct Request {
             let excluded: Set<CGWindowID>
@@ -122,6 +128,8 @@ enum ScreenshotSelectionRefreshContract {
             loupeEnabled = false, selectionInProgress = false
         var panels: [ScreenshotOverlayPanel]
         var outcome: Outcome?
+        var currentPointerLocation: CGPoint? = CGPoint(x: 23, y: 61)
+        var requiresDraggedRegion = false
         var captureExcludedWindowIDs: Set<CGWindowID> {
             ScreenshotCapturePolicy.protectedWindowIDs(
                 workflowWindowIDs: [12], contentWindowIDs: [11, 13],
@@ -155,7 +163,7 @@ enum ScreenshotSelectionRefreshContract {
         }
         func region(fromView: CGRect, on: ScreenshotOverlayPanel, windowID: CGWindowID?)
             -> RecorderSupport.Region
-        { .init(windowID: windowID) }
+        { .init(windowID: windowID, viewRect: fromView) }
         func finish(_ outcome: Outcome) {
             self.outcome = outcome
             finished = true
@@ -166,8 +174,10 @@ enum ScreenshotSelectionRefreshContract {
     }
 
     enum QuickToolsSupport {
+        static var sampledPoint: CGPoint?
         static func sampledColor(in image: CGImage, x: Int, y: Int) -> NSColor? {
-            image.excluded.contains(11) ? .red : .green
+            sampledPoint = CGPoint(x: x, y: y)
+            return image.excluded.contains(11) ? .red : .green
         }
     }
     static func run(_ suite: TestSuite) {
@@ -189,6 +199,50 @@ enum ScreenshotSelectionRefreshContract {
         ScreenshotCaptureEngine.requests = []
         let previousRegion = Chooser.lastRegion
         defer { Chooser.lastRegion = previousRegion }
+        let color = Chooser(.color)
+        color.confirmSelectionWithKeyboard()
+        if case .color(let picked) = color.outcome {
+            expect(picked == .green, "keyboard confirmation returns the displayed color")
+        } else {
+            expect(false, "keyboard confirmation produces a color result")
+        }
+        expect(color.finished, "keyboard color confirmation ends the picker session")
+        expect(QuickToolsSupport.sampledPoint == CGPoint(x: 23, y: 39),
+               "keyboard confirmation samples the nudged pointer in flipped display coordinates")
+        for blocked in ["refresh", "drag", "finished", "missing image"] {
+            let c = Chooser(.color)
+            switch blocked {
+            case "refresh": c.sourceRefreshPending = true
+            case "drag": c.panels[0].overlayView.isDragging = true
+            case "finished": c.finished = true
+            default: c.panels[0].frozenImage = nil
+            }
+            c.confirmSelectionWithKeyboard()
+            expect(c.outcome == nil, "keyboard color confirmation is ignored during \(blocked)")
+        }
+        for tool in [ScreenCaptureTool.screenshot, .text, .recording] {
+            let c = Chooser(tool)
+            c.confirmSelectionWithKeyboard()
+            switch c.outcome {
+            case .captured(let capture):
+                expect(tool != .recording && capture.anchorRect == c.panels[0].screenFrame
+                       && capture.scale == c.panels[0].pixelScale,
+                       "screenshot and text confirmation capture the full display")
+            case .region(let region):
+                expect(tool == .recording && region.windowID == nil
+                       && region.viewRect == CGRect(origin: .zero, size: c.panels[0].screenFrame.size),
+                       "recording confirmation selects a full-display region without a window target")
+            default:
+                expect(false, "keyboard confirmation returns the existing capture result for \(tool)")
+            }
+        }
+        for restricted in ["dragged region", "scrolling"] {
+            let c = Chooser(.screenshot)
+            c.requiresDraggedRegion = restricted == "dragged region"
+            c.scrollingCaptureEnabled = restricted == "scrolling"
+            c.confirmSelectionWithKeyboard()
+            expect(c.outcome == nil, "keyboard confirmation preserves the \(restricted) restriction")
+        }
         for tool in ScreenCaptureTool.allCases {
             for display in [nil, 1, 2, 3] as [CGDirectDisplayID?] {
                 let c = Chooser(tool)
