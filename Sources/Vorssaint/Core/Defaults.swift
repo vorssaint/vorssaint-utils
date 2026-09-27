@@ -864,18 +864,17 @@ enum OnboardingInfo {
     static let currentFeatureSet = 4
 }
 
-/// The one-time tour of a release's headline features, shown right after the
-/// update. Each row deep links to the exact Settings page or opens the tool
-/// itself, so a new feature is one click from being tried instead of buried.
+/// The one-time tour of this release's headline feature, shown after updating.
 enum UpdateHighlightsInfo {
-    /// One tour shared by the betas of this release.
+    /// One tour shared by the betas and final release.
     static let releaseVersion = "3.4.0-beta.1"
 
     static func matchesRelease(_ appVersion: String) -> Bool {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
               let release = UpdateServiceSupport.SemanticVersion(raw: releaseVersion),
-              (version.major, version.minor, version.patch) == (release.major, release.minor, release.patch),
-              (2...3).contains(version.prerelease.count), version.prerelease[0].description == "beta",
+              (version.major, version.minor, version.patch) == (release.major, release.minor, release.patch) else { return false }
+        if version.prerelease.isEmpty { return true }
+        guard (2...3).contains(version.prerelease.count), version.prerelease[0].description == "beta",
               let number = Int(version.prerelease[1].description) else { return false }
         if version.prerelease.count == 3 {
             guard case let .numeric(hotfix) = version.prerelease[2], hotfix >= 0 else { return false }
@@ -912,29 +911,10 @@ enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the update intro. It used
     /// to track AppInfo.version, which re-showed the ask on every update; now a
     /// release only shows it when this constant is deliberately bumped.
-    static let releaseVersion = "3.3.2"
+    static let releaseVersion = "3.4.0"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
-    }
-}
-
-enum SupportUpdateIntroStep: CaseIterable, Hashable {
-    case support
-    case social
-
-    var next: SupportUpdateIntroStep? {
-        switch self {
-        case .support: return .social
-        case .social: return nil
-        }
-    }
-
-    var previous: SupportUpdateIntroStep? {
-        switch self {
-        case .support: return nil
-        case .social: return .support
-        }
     }
 }
 

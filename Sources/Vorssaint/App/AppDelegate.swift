@@ -2174,7 +2174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             updatePreviewWindow = nil
         }
         if finishedUpdateIntro {
-            DispatchQueue.main.async { [weak self] in self?.showBrightnessUpdatePromptIfNeeded() }
+            DispatchQueue.main.async { [weak self] in self?.presentUpdateIntros() }
         }
     }
 

@@ -1603,24 +1603,17 @@ enum SwitcherModelFeatureTests {
                "update showcase intro starts unseen")
         suite.expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
-               "support prompt is deliberately pinned to 3.3.2")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.1"),
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
+               "support prompt is deliberately pinned to the 3.4 final release")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.3.2")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil),
                "support prompt shows once after updating to its pinned release")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.2"),
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.4.0"),
                "support prompt stays hidden after it is seen")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.0", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.1", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0-beta.7", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.1", lastSeenVersion: nil),
                "support prompt never leaks into another release")
-        suite.expect(SupportUpdateIntroStep.support.next == .social
-               && SupportUpdateIntroStep.social.next == nil,
-               "update intro moves from support to social updates")
-        suite.expect(SupportUpdateIntroStep.support.previous == nil
-               && SupportUpdateIntroStep.social.previous == .support,
-               "update intro navigates back without closing")
-        suite.expect(SupportUpdateIntroStep.allCases == [.support, .social],
-               "update intro page indicators follow the navigation order")
         suite.expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
                "the community action uses the permanent Discord invitation")
         suite.expect(AppInfo.coffeeURL.absoluteString == "https://buymeacoffee.com/vorssaint",
@@ -1638,10 +1631,10 @@ enum SwitcherModelFeatureTests {
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
         suite.expect(plistBuild == "94",
                "every app version needs its own incremented bundle build")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
-               "the support prompt remains deliberately pinned to 3.3.2")
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
+               "the support prompt is prepared for the 3.4 final release")
         suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0-beta.1",
-               "the prepared tour belongs to the first 3.4 beta without changing the installed version")
+               "the beta and final release share one tour marker without changing the installed version")
         for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.5", "3.4.0-beta.6", "3.4.0-beta.7", "3.4.0-beta.10"] {
             suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
                    && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: "3.3.3"),
@@ -1649,15 +1642,22 @@ enum SwitcherModelFeatureTests {
             suite.expect(!UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion),
                    "the beta tour does not repeat after it has been seen")
             suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
-                   "beta updates do not request the support and social introduction")
+                   "beta updates do not request the support introduction")
         }
-        for version in ["3.3.5", "3.4.0", "3.4.1", "3.4.0-rc.1", "3.4.0-beta.0", "3.4.0-beta.no", "3.4.0-beta.2.no", "3.4.0-beta.2.1.1", "3.5.0-beta.1", "4.0.0"] {
+        suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil)
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.3.2")
+               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0",
+                                                      lastSeenVersion: UpdateHighlightsInfo.releaseVersion),
+               "the final release shows the tour to upgraders without replaying it for beta tour viewers")
+        for version in ["3.3.5", "3.4.1", "3.4.0-rc.1", "3.4.0-beta.0", "3.4.0-beta.no", "3.4.0-beta.2.no", "3.4.0-beta.2.1.1", "3.5.0-beta.1", "4.0.0"] {
             suite.expect(!UpdateHighlightsInfo.matchesRelease(version)
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
                    "previewing from the current build and other release cycles cannot consume the future beta tour")
         }
-        suite.expect(FileManager.default.fileExists(atPath: "Resources/Images/highlights-notch.png"),
-               "the notch tour bundles its static layout illustration")
+        let tourGIF = URL(fileURLWithPath: "Resources/Gifs/highlights-notch.gif")
+        let tourFrames = CGImageSourceCreateWithURL(tourGIF as CFURL, nil).map(CGImageSourceGetCount)
+        suite.expect(tourFrames.map { $0 > 1 } == true,
+               "the Dynamic Island tour includes an animated GIF in the app resources")
         suite.expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int

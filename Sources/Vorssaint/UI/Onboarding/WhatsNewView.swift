@@ -165,147 +165,27 @@ struct UpdateSupportIntroView: View {
     var onFinish: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
-    @Environment(\.openURL) private var openURL
-    @State private var step: SupportUpdateIntroStep
-    @State private var isMovingForward = true
-
-    init(initialStep: SupportUpdateIntroStep = .support,
-         onFinish: @escaping () -> Void) {
-        self.onFinish = onFinish
-        _step = State(initialValue: initialStep)
-    }
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                switch step {
-                case .support:
-                    supportContent
-                        .transition(pageTransition)
-                case .social:
-                    socialContent
-                        .transition(pageTransition)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.horizontal, 34)
-            .clipped()
+            Spacer(minLength: 0)
+            UpdateSupportContent()
+                .padding(.horizontal, 34)
+            Spacer(minLength: 0)
 
             Divider()
 
-            footer
-        }
-        .frame(width: 560, height: 500)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var pageTransition: AnyTransition {
-        .asymmetric(
-            insertion: .move(edge: isMovingForward ? .trailing : .leading)
-                .combined(with: .opacity),
-            removal: .move(edge: isMovingForward ? .leading : .trailing)
-                .combined(with: .opacity)
-        )
-    }
-
-    private func move(to destination: SupportUpdateIntroStep, forward: Bool) {
-        isMovingForward = forward
-        withAnimation(.easeInOut(duration: 0.3)) {
-            step = destination
-        }
-    }
-
-    private var socialContent: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 17, style: .continuous)
-                    .fill(Color.black)
-                    .frame(width: 74, height: 74)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 17, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
-                XLogoShape()
-                    .fill(Color.white, style: FillStyle(eoFill: true))
-                    .frame(width: 36, height: 36)
-            }
-
-            Text(l10n.s.communityIntroTitle)
-                .font(.system(size: 22, weight: .bold))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(l10n.s.communityIntroMessage)
-                .font(.system(size: 13.5))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 440)
-
-            Button {
-                openURL(AppInfo.socialURL)
-            } label: {
-                HStack(spacing: 8) {
-                    XLogoShape()
-                        .fill(Color.white, style: FillStyle(eoFill: true))
-                        .frame(width: 13, height: 13)
-                    Text(l10n.s.communityIntroFollowButton)
-                }
-            }
-            .buttonStyle(XFollowButtonStyle())
-            .padding(.top, 4)
-
-            Text(AppInfo.socialURL.absoluteString
-                .replacingOccurrences(of: "https://", with: ""))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 2)
-        }
-    }
-
-    private var supportContent: some View {
-        UpdateSupportContent()
-    }
-
-    private var footer: some View {
-        ZStack {
             HStack {
-                if let previous = step.previous {
-                    Button(l10n.s.obBack) {
-                        move(to: previous, forward: false)
-                    }
-                }
                 Spacer()
-                if let next = step.next {
-                    Button(l10n.s.obContinue) {
-                        move(to: next, forward: true)
-                    }
+                Button(l10n.s.supportIntroDoneButton, action: onFinish)
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                } else {
-                    Button(l10n.s.supportIntroDoneButton) {
-                        onFinish()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                }
             }
-
-            HStack(spacing: 6) {
-                ForEach(SupportUpdateIntroStep.allCases, id: \.self) { candidate in
-                    Circle()
-                        .fill(candidate == step
-                              ? Color.accentColor
-                              : Color.secondary.opacity(0.24))
-                        .frame(width: 6, height: 6)
-                }
-            }
-            .accessibilityHidden(true)
+            .padding(16)
         }
-        .padding(16)
+        .frame(width: 560, height: 400)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -345,21 +225,6 @@ private struct UpdateSupportContent: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
 
-            Text(l10n.s.supportIntroStarMessage)
-                .font(.system(size: 13.5, weight: .medium))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 440)
-                .padding(.top, 2)
-
-            Button {
-                openURL(AppInfo.repositoryURL)
-            } label: {
-                Label(l10n.s.supportIntroStarButton, systemImage: "star.fill")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-
             Text(l10n.s.donateThanks)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -397,28 +262,6 @@ struct XLogoShape: Shape {
         path.addLine(to: point(5.117, 4.126))
         path.closeSubpath()
         return path
-    }
-}
-
-/// X-branded call to action: white label on a black capsule, readable in both
-/// appearances thanks to the faint outline.
-private struct XFollowButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13.5, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 9)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.black)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-            )
-            .opacity(configuration.isPressed ? 0.75 : 1)
-            .contentShape(Capsule(style: .continuous))
     }
 }
 
