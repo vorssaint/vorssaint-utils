@@ -1097,7 +1097,7 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
+    case mouseScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce, keySounds,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
          mouseClickDebounce, notch
 
@@ -1117,6 +1117,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .shelf: return .shelf
         case .windowMaximize: return .windowMaximizer
         case .dockPreview: return .dockPreview
+        case .keySounds: return .keySounds
         case .keyDebounce: return .keyboardDebounce
         case .dockClick, .dockClickHide, .dockClickCycle: return .dockClick
         case .middleClick: return .middleClick
@@ -1139,6 +1140,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
+        case .keySounds: return .inputDevices
         case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .notch:
             return .windows
         case .mouseScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
@@ -1205,6 +1207,8 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlShelf) private var showShelf = true
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
     @AppStorage(DefaultsKey.panelControlKeyDebounce) private var showKeyDebounce = true
+    @AppStorage(DefaultsKey.panelControlKeySounds) private var showKeySounds = true
+    @AppStorage(DefaultsKey.keySoundsEnabled) private var keySoundsEnabled = false
     @AppStorage(DefaultsKey.panelControlDockClick) private var showDockClick = true
     @AppStorage(DefaultsKey.panelControlDockClickHide) private var showDockClickHide = true
     @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
@@ -1314,6 +1318,7 @@ struct QuickControlsSection: View {
 
     private func isEnabled(_ item: ControlPanelItem) -> Bool {
         switch item {
+        case .keySounds: return keySoundsEnabled
         case .mouseScroll: return scrollDirectionEnabled
         case .focusFollowsMouse: return focusFollowsMouseEnabled
         case .mouseAcceleration: return mouseAccelerationDisabled
@@ -1392,6 +1397,7 @@ struct QuickControlsSection: View {
 
     private func isVisible(_ item: ControlPanelItem) -> Bool {
         switch item {
+        case .keySounds: return showKeySounds
         case .mouseScroll: return showScroll
         case .focusFollowsMouse: return showFocusFollowsMouse
         case .mouseAcceleration: return showMouseAcceleration
@@ -1493,6 +1499,8 @@ struct QuickControlsSection: View {
                     switcherIconRowOption
                 }
             }
+        case .keySounds:
+            KeySoundsPanelRow(editing: editing, visibility: $showKeySounds)
         case .keyDebounce:
             VStack(alignment: .leading, spacing: 5) {
                 PanelToggleRow(title: l10n.s.keyDebounceName,

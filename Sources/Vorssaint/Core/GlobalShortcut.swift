@@ -132,6 +132,8 @@ struct GlobalShortcut: Equatable, Hashable {
                                                  modifiers: [.control, .option, .command])
     static let soundOutputSwitcherDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_S),
                                                            modifiers: [.control, .option, .command])
+    static let keySoundsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_B),
+                                                 modifiers: [.control, .option, .command])
     static let displayBrightnessDecreaseDefault = GlobalShortcut(
         keyCode: Int64(kVK_ANSI_Minus), modifiers: [.shift, .command])
     static let displayBrightnessIncreaseDefault = GlobalShortcut(
@@ -695,6 +697,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case switcherWindow
     case clipboard
     case soundOutputSwitcher
+    case keySounds
     case pastePlain
     case finderRename
     case colorPicker
@@ -728,6 +731,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .switcherWindow: return DefaultsKey.switcherWindowShortcut
         case .clipboard: return DefaultsKey.clipboardHistoryShortcut
         case .soundOutputSwitcher: return DefaultsKey.soundOutputSwitcherShortcut
+        case .keySounds: return DefaultsKey.keySoundsShortcut
         case .pastePlain: return DefaultsKey.pastePlainShortcut
         case .finderRename: return DefaultsKey.finderRenameShortcut
         case .colorPicker: return DefaultsKey.colorPickerShortcut
@@ -761,6 +765,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .switcherWindow: return .switcherWindowDefault
         case .clipboard: return .clipboardDefault
         case .soundOutputSwitcher: return .soundOutputSwitcherDefault
+        case .keySounds: return .keySoundsDefault
         case .pastePlain: return .pastePlainDefault
         case .finderRename: return .finderRenameDefault
         case .colorPicker: return .colorPickerDefault
@@ -813,6 +818,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .switcherWindow: return strings.switcherShortcutHintWindows
         case .clipboard: return FeatureStrings.clipboard(L10n.shared.language).title
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle
+        case .keySounds: return FeatureStrings.keySounds(L10n.shared.language).shortcutTitle
         case .pastePlain: return strings.pastePlainName
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
         case .colorPicker: return strings.colorPickerName
@@ -872,6 +878,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return [DefaultsKey.clipboardHistoryEnabled,
                                  DefaultsKey.clipboardHistoryShortcutEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
+        // Follows its own toggle, not the sounds: the shortcut is how they turn on.
+        case .keySounds: return [DefaultsKey.keySoundsShortcutEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
         case .finderRename: return [DefaultsKey.finderRenameEnabled]
         case .colorPicker: return [DefaultsKey.colorPickerShortcutEnabled]
@@ -907,6 +915,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .switcher, .switcherWindow: return .switcher
         case .clipboard: return .clipboardHistory
         case .soundOutputSwitcher: return .soundOutputSwitcher
+        case .keySounds: return .keySounds
         case .pastePlain: return .pastePlain
         case .finderRename: return .finderRename
         case .colorPicker: return .colorPicker

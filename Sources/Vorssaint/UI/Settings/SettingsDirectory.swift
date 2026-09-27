@@ -377,6 +377,8 @@ enum SettingsDirectory {
                                         .screenCaptureFeatureKeywords(s, language: language)),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
+                SettingsDirectoryItem(page: .keySounds, title: FeatureStrings.keySounds(language).title, icon: "speaker.wave.2.circle",
+                                      keywords: ["keyboard", "sound", "click", "mechanical", "switch", "cherry"]),
                 SettingsDirectoryItem(page: .superKey,
                                       title: FeatureStrings.superKey(language).pageTitle,
                                       icon: superKeySource.systemImage,

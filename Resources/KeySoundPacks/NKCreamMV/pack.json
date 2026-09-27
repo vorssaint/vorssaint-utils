@@ -1,0 +1,193 @@
+{
+  "name": "NK Cream",
+  "author": "Mechvibes Contributors (MIT)",
+  "license": "MIT",
+  "homepage": "https://github.com/hainguyents13/mechvibes",
+  "sampleRate": 48000,
+  "groups": {
+    "alpha": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav",
+        "soft/alpha_03.wav",
+        "soft/alpha_04.wav",
+        "soft/alpha_05.wav"
+      ],
+      "medium": [
+        "medium/alpha_01.wav",
+        "medium/alpha_02.wav",
+        "medium/alpha_03.wav",
+        "medium/alpha_04.wav",
+        "medium/alpha_05.wav"
+      ],
+      "hard": [
+        "hard/alpha_01.wav",
+        "hard/alpha_02.wav",
+        "hard/alpha_03.wav",
+        "hard/alpha_04.wav",
+        "hard/alpha_05.wav"
+      ],
+      "slam": [
+        "slam/alpha_01.wav",
+        "slam/alpha_02.wav",
+        "slam/alpha_03.wav",
+        "slam/alpha_04.wav",
+        "slam/alpha_05.wav"
+      ]
+    },
+    "delete": {
+      "soft": [
+        "soft/delete_01.wav"
+      ],
+      "medium": [
+        "medium/delete_01.wav"
+      ],
+      "hard": [
+        "hard/delete_01.wav"
+      ],
+      "slam": [
+        "slam/delete_01.wav"
+      ]
+    },
+    "modifier": {
+      "soft": [
+        "soft/modifier_01.wav",
+        "soft/modifier_02.wav",
+        "soft/modifier_03.wav"
+      ],
+      "medium": [
+        "medium/modifier_01.wav",
+        "medium/modifier_02.wav",
+        "medium/modifier_03.wav"
+      ],
+      "hard": [
+        "hard/modifier_01.wav",
+        "hard/modifier_02.wav",
+        "hard/modifier_03.wav"
+      ],
+      "slam": [
+        "slam/modifier_01.wav",
+        "slam/modifier_02.wav",
+        "slam/modifier_03.wav"
+      ]
+    },
+    "enter": {
+      "soft": [
+        "soft/enter_01.wav"
+      ],
+      "medium": [
+        "medium/enter_01.wav"
+      ],
+      "hard": [
+        "hard/enter_01.wav"
+      ],
+      "slam": [
+        "slam/enter_01.wav"
+      ]
+    },
+    "space": {
+      "soft": [
+        "soft/space_01.wav"
+      ],
+      "medium": [
+        "medium/space_01.wav"
+      ],
+      "hard": [
+        "hard/space_01.wav"
+      ],
+      "slam": [
+        "slam/space_01.wav"
+      ]
+    },
+    "arrow": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav",
+        "soft/alpha_03.wav",
+        "soft/alpha_04.wav",
+        "soft/alpha_05.wav"
+      ],
+      "medium": [
+        "medium/alpha_01.wav",
+        "medium/alpha_02.wav",
+        "medium/alpha_03.wav",
+        "medium/alpha_04.wav",
+        "medium/alpha_05.wav"
+      ],
+      "hard": [
+        "hard/alpha_01.wav",
+        "hard/alpha_02.wav",
+        "hard/alpha_03.wav",
+        "hard/alpha_04.wav",
+        "hard/alpha_05.wav"
+      ],
+      "slam": [
+        "slam/alpha_01.wav",
+        "slam/alpha_02.wav",
+        "slam/alpha_03.wav",
+        "slam/alpha_04.wav",
+        "slam/alpha_05.wav"
+      ]
+    },
+    "function": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav",
+        "soft/alpha_03.wav",
+        "soft/alpha_04.wav",
+        "soft/alpha_05.wav"
+      ],
+      "medium": [
+        "medium/alpha_01.wav",
+        "medium/alpha_02.wav",
+        "medium/alpha_03.wav",
+        "medium/alpha_04.wav",
+        "medium/alpha_05.wav"
+      ],
+      "hard": [
+        "hard/alpha_01.wav",
+        "hard/alpha_02.wav",
+        "hard/alpha_03.wav",
+        "hard/alpha_04.wav",
+        "hard/alpha_05.wav"
+      ],
+      "slam": [
+        "slam/alpha_01.wav",
+        "slam/alpha_02.wav",
+        "slam/alpha_03.wav",
+        "slam/alpha_04.wav",
+        "slam/alpha_05.wav"
+      ]
+    },
+    "other": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav",
+        "soft/alpha_03.wav",
+        "soft/alpha_04.wav",
+        "soft/alpha_05.wav"
+      ],
+      "medium": [
+        "medium/alpha_01.wav",
+        "medium/alpha_02.wav",
+        "medium/alpha_03.wav",
+        "medium/alpha_04.wav",
+        "medium/alpha_05.wav"
+      ],
+      "hard": [
+        "hard/alpha_01.wav",
+        "hard/alpha_02.wav",
+        "hard/alpha_03.wav",
+        "hard/alpha_04.wav",
+        "hard/alpha_05.wav"
+      ],
+      "slam": [
+        "slam/alpha_01.wav",
+        "slam/alpha_02.wav",
+        "slam/alpha_03.wav",
+        "slam/alpha_04.wav",
+        "slam/alpha_05.wav"
+      ]
+    }
+  }
+}

@@ -278,6 +278,16 @@ enum DefaultsKey {
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
     static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
+    static let keySoundsEnabled = "keySoundsEnabled"
+    static let keySoundsPack = "keySoundsPack"                         // pack folder name
+    static let keySoundsVolume = "keySoundsVolume"                     // 0.05...1
+    static let keySoundsVelocityEnabled = "keySoundsVelocityEnabled"   // accelerometer picks the strength
+    static let keySoundsSensitivity = "keySoundsSensitivity"           // 0.4...2.5, 1 = neutral
+    static let keySoundsReleaseEnabled = "keySoundsReleaseEnabled"
+    static let keySoundsMuteModifiers = "keySoundsMuteModifiers"
+    static let keySoundsBuiltInSpeakersOnly = "keySoundsBuiltInSpeakersOnly"
+    static let keySoundsShortcutEnabled = "keySoundsShortcutEnabled"
+    static let keySoundsShortcut = "keySoundsShortcut"
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
@@ -314,6 +324,7 @@ enum DefaultsKey {
     static let panelControlShelf = "panelControlShelf"
     static let panelControlWindowMaximize = "panelControlWindowMaximize"
     static let panelControlKeyDebounce = "panelControlKeyDebounce"
+    static let panelControlKeySounds = "panelControlKeySounds"
     static let panelControlDockClick = "panelControlDockClick"
     static let panelControlDockClickHide = "panelControlDockClickHide"
     static let panelControlDockClickCycle = "panelControlDockClickCycle"
@@ -1051,6 +1062,10 @@ enum Defaults {
     /// magnetic-keyboard users can pick values below the old 5 ms UI step
     /// without changing the stored range (issue #1551).
     static let keyboardDebounceWindowStep = 1
+    static let defaultKeySoundsPack = "CherryMXBluePBT"
+    static let defaultKeySoundsVolume = 0.8
+    static let allowedKeySoundsVolumeRange = 0.05...1.0
+    static let allowedKeySoundsSensitivityRange = 0.4...2.5
     static let defaultMouseClickDebounceWindowMs = 25
     static let allowedMouseClickDebounceWindowRange = 5...100
     static let allowedMenuBarPresets = ["dense"]
@@ -1370,6 +1385,16 @@ enum Defaults {
         DefaultsKey.keyboardDebounceEnabled: false,
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
         DefaultsKey.keyboardDebounceKeyWindows: "",
+        DefaultsKey.keySoundsEnabled: false,
+        DefaultsKey.keySoundsPack: defaultKeySoundsPack,
+        DefaultsKey.keySoundsVolume: defaultKeySoundsVolume,
+        DefaultsKey.keySoundsVelocityEnabled: true,
+        DefaultsKey.keySoundsSensitivity: 1.0,
+        DefaultsKey.keySoundsReleaseEnabled: true,
+        DefaultsKey.keySoundsMuteModifiers: false,
+        DefaultsKey.keySoundsBuiltInSpeakersOnly: false,
+        DefaultsKey.keySoundsShortcutEnabled: true,
+        DefaultsKey.keySoundsShortcut: GlobalShortcut.keySoundsDefault.storageValue,
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.cleaningModeKeepScreenVisible: false,
         DefaultsKey.panelUtilityURLCleaner: true,
@@ -1406,6 +1431,7 @@ enum Defaults {
         DefaultsKey.panelControlShelf: true,
         DefaultsKey.panelControlWindowMaximize: true,
         DefaultsKey.panelControlKeyDebounce: true,
+        DefaultsKey.panelControlKeySounds: true,
         DefaultsKey.panelControlDockClick: true,
         DefaultsKey.panelControlDockClickHide: true,
         DefaultsKey.panelControlDockClickCycle: true,
@@ -2148,6 +2174,16 @@ enum Defaults {
     /// else means the option is off.
     static func sanitizedMiddleClickTapFingers(_ raw: Int) -> Int {
         raw == 3 || raw == 4 ? raw : 0
+    }
+
+    static func sanitizedKeySoundsVolume(_ value: Double) -> Double {
+        value.isFinite ? min(max(value, allowedKeySoundsVolumeRange.lowerBound),
+                             allowedKeySoundsVolumeRange.upperBound) : defaultKeySoundsVolume
+    }
+
+    static func sanitizedKeySoundsSensitivity(_ value: Double) -> Double {
+        value.isFinite ? min(max(value, allowedKeySoundsSensitivityRange.lowerBound),
+                             allowedKeySoundsSensitivityRange.upperBound) : 1
     }
 
     static func sanitizedKeyboardDebounceWindow(_ milliseconds: Int) -> Int {

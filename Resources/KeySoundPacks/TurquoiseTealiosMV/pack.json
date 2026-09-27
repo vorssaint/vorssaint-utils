@@ -1,0 +1,152 @@
+{
+  "name": "Turquoise Tealios",
+  "author": "Mechvibes Contributors (MIT)",
+  "license": "MIT",
+  "homepage": "https://github.com/hainguyents13/mechvibes",
+  "sampleRate": 48000,
+  "groups": {
+    "alpha": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav"
+      ],
+      "medium": [
+        "medium/alpha_03.wav"
+      ],
+      "hard": [
+        "hard/alpha_04.wav"
+      ],
+      "slam": [
+        "slam/alpha_05.wav"
+      ]
+    },
+    "delete": {
+      "soft": [
+        "soft/delete_01.wav"
+      ],
+      "medium": [
+        "medium/delete_01.wav"
+      ],
+      "hard": [
+        "hard/delete_01.wav"
+      ],
+      "slam": [
+        "slam/delete_01.wav"
+      ]
+    },
+    "enter": {
+      "soft": [
+        "soft/enter_01.wav"
+      ],
+      "medium": [
+        "medium/enter_01.wav"
+      ],
+      "hard": [
+        "hard/enter_01.wav"
+      ],
+      "slam": [
+        "slam/enter_01.wav"
+      ]
+    },
+    "space": {
+      "soft": [
+        "soft/space_01.wav"
+      ],
+      "medium": [
+        "medium/space_01.wav"
+      ],
+      "hard": [
+        "hard/space_01.wav"
+      ],
+      "slam": [
+        "slam/space_01.wav"
+      ]
+    },
+    "modifier": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav"
+      ],
+      "medium": [
+        "medium/alpha_03.wav"
+      ],
+      "hard": [
+        "hard/alpha_04.wav"
+      ],
+      "slam": [
+        "slam/alpha_05.wav"
+      ]
+    },
+    "arrow": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav"
+      ],
+      "medium": [
+        "medium/alpha_03.wav"
+      ],
+      "hard": [
+        "hard/alpha_04.wav"
+      ],
+      "slam": [
+        "slam/alpha_05.wav"
+      ]
+    },
+    "function": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav"
+      ],
+      "medium": [
+        "medium/alpha_03.wav"
+      ],
+      "hard": [
+        "hard/alpha_04.wav"
+      ],
+      "slam": [
+        "slam/alpha_05.wav"
+      ]
+    },
+    "other": {
+      "soft": [
+        "soft/alpha_01.wav",
+        "soft/alpha_02.wav"
+      ],
+      "medium": [
+        "medium/alpha_03.wav"
+      ],
+      "hard": [
+        "hard/alpha_04.wav"
+      ],
+      "slam": [
+        "slam/alpha_05.wav"
+      ]
+    }
+  },
+  "release": {
+    "alpha": [
+      "release/alpha_01.wav"
+    ],
+    "delete": [
+      "release/delete_01.wav"
+    ],
+    "enter": [
+      "release/enter_01.wav"
+    ],
+    "space": [
+      "release/space_01.wav"
+    ],
+    "modifier": [
+      "release/alpha_01.wav"
+    ],
+    "arrow": [
+      "release/alpha_01.wav"
+    ],
+    "function": [
+      "release/alpha_01.wav"
+    ],
+    "other": [
+      "release/alpha_01.wav"
+    ]
+  }
+}

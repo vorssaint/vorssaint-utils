@@ -86,6 +86,7 @@ struct MetricsTests {
             }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
+            ("key-sounds", { KeySoundsTests.run(suite) }),
             ("keyboard", {
                 KeyboardFeatureTests.run(suite)
                 AssistiveKeyboardTests.run(suite)
