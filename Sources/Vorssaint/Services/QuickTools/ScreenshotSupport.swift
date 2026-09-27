@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Accelerate
 import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
@@ -79,6 +80,13 @@ enum ScreenCaptureTool: String, CaseIterable {
 
     func showsCaptureMenu(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
         !fromShortcut || (defaults.object(forKey: showCaptureMenuOnShortcutKey) as? Bool ?? true)
+    }
+
+    /// A running recording blocks the capture menu, because picking recording
+    /// from it would stop the take. A shortcut that skips the menu can only
+    /// reach its own tool, so it may run on top of the recording.
+    func opensDuringRecording(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
+        self != .recording && !showsCaptureMenu(fromShortcut: fromShortcut, defaults: defaults)
     }
 
     var systemImageName: String {
@@ -326,14 +334,29 @@ enum ScreenshotSupport {
         }
         guard !movingTiles.isEmpty else { return .unmatched }
 
+        // Compute pixel differences in Accelerate, once per offset. The old
+        // nested Swift pixel loops repeated the work for each tile and candidate
+        // and took seconds per Retina frame in unoptimized Developer builds.
+        let previousPixels = previous.pixels.map(Float.init)
+        let currentPixels = current.pixels.map(Float.init)
+        var differences = [Float](repeating: 0, count: previous.pixels.count)
         var matches: [Match] = []
         for advance in minimumAdvance...maximumAdvance {
+            if Task.isCancelled { return .unmatched }
             for reversed in [false, true] {
+                let count = (height - advance) * previous.width
+                previousPixels.withUnsafeBufferPointer { lhs in
+                    currentPixels.withUnsafeBufferPointer { rhs in
+                        vDSP_vsub(rhs.baseAddress! + (reversed ? advance * previous.width : 0), 1,
+                                  lhs.baseAddress! + (reversed ? 0 : advance * previous.width), 1,
+                                  &differences, 1, vDSP_Length(count))
+                    }
+                }
+                vDSP_vabs(differences, 1, &differences, 1, vDSP_Length(count))
                 guard let match = scrollingCandidate(previous: previous,
-                                                     current: current,
                                                      advance: advance,
-                                                     reversed: reversed,
-                                                     tiles: movingTiles) else { continue }
+                                                     tiles: movingTiles,
+                                                     differences: differences) else { continue }
                 matches.append(Match(advance: advance,
                                      reversed: reversed,
                                      contentColumns: match.contentColumns,
@@ -469,17 +492,15 @@ enum ScreenshotSupport {
     }
 
     private static func scrollingCandidate(previous: ScrollingSample,
-                                           current: ScrollingSample,
                                            advance: Int,
-                                           reversed: Bool,
-                                           tiles: [Range<Int>]) -> ScrollingCandidate? {
+                                           tiles: [Range<Int>],
+                                           differences: [Float]) -> ScrollingCandidate? {
         let requiredRun = max(8, min(28, previous.height / 12))
         let matches = tiles.map { tile -> (Range<Int>, ScrollingRowMatch?) in
             guard let match = scrollingMatch(previous: previous,
-                                              current: current,
                                               advance: advance,
-                                              reversed: reversed,
-                                              columns: tile),
+                                              columns: tile,
+                                              differences: differences),
                   match.longestRun >= requiredRun,
                   match.matchingRows >= max(requiredRun, match.comparedRows / 3)
             else { return (tile, nil) }
@@ -509,10 +530,9 @@ enum ScreenshotSupport {
                   let last = supported.last else { return nil }
             let contentColumns = first.0.lowerBound..<last.0.upperBound
             guard let combined = scrollingMatch(previous: previous,
-                                                 current: current,
                                                  advance: advance,
-                                                 reversed: reversed,
-                                                 columns: contentColumns),
+                                                 columns: contentColumns,
+                                                 differences: differences),
                   combined.longestRun >= requiredRun,
                   combined.matchingRows >= max(requiredRun, combined.comparedRows / 3)
             else { return nil }
@@ -540,10 +560,9 @@ enum ScreenshotSupport {
     }
 
     private static func scrollingMatch(previous: ScrollingSample,
-                                       current: ScrollingSample,
                                        advance: Int,
-                                       reversed: Bool,
-                                       columns: Range<Int>) -> ScrollingRowMatch? {
+                                       columns: Range<Int>,
+                                       differences: [Float]) -> ScrollingRowMatch? {
         let width = previous.width
         let edgeInset = max(2, previous.height / 10)
         let lastRow = previous.height - advance - edgeInset
@@ -552,39 +571,37 @@ enum ScreenshotSupport {
               columns.upperBound <= width,
               !columns.isEmpty else { return nil }
 
+        let rowCount = lastRow - edgeInset
+        var rowDifferences = [Float](repeating: 0, count: rowCount)
+        let weights = [Float](repeating: 1, count: columns.count)
+        differences.withUnsafeBufferPointer { buffer in
+            vDSP_desamp(buffer.baseAddress! + edgeInset * width + columns.lowerBound,
+                        vDSP_Stride(width), weights, &rowDifferences,
+                        vDSP_Length(rowCount), vDSP_Length(columns.count))
+        }
         var longestRun = 0
         var run = 0
         var matchingRows = 0
-        var comparedRows = 0
-        var totalDifference = 0
-        var comparedPixels = 0
-        for currentRow in edgeInset..<lastRow {
-            let previousRow = currentRow + advance
-            let previousStart = (reversed ? currentRow : previousRow) * width
-            let currentStart = (reversed ? previousRow : currentRow) * width
-            var rowDifference = 0
-            for column in columns {
-                rowDifference += abs(Int(previous.pixels[previousStart + column])
-                    - Int(current.pixels[currentStart + column]))
-            }
-            let rowPixels = columns.count
-            let average = Double(rowDifference) / Double(rowPixels)
-            totalDifference += rowDifference
-            comparedPixels += rowPixels
-            comparedRows += 1
-            if average <= 8 {
-                run += 1
-                matchingRows += 1
-                longestRun = max(longestRun, run)
-            } else {
-                run = 0
+        let threshold = Float(columns.count * 8)
+        rowDifferences.withUnsafeBufferPointer { rows in
+            var row = 0
+            while row < rowCount {
+                if rows[row] <= threshold {
+                    run += 1
+                    matchingRows += 1
+                    if run > longestRun { longestRun = run }
+                } else {
+                    run = 0
+                }
+                row += 1
             }
         }
-        guard comparedPixels > 0 else { return nil }
+        var totalDifference: Float = 0
+        vDSP_sve(rowDifferences, 1, &totalDifference, vDSP_Length(rowCount))
         return ScrollingRowMatch(longestRun: longestRun,
                                  matchingRows: matchingRows,
-                                 comparedRows: comparedRows,
-                                 difference: Double(totalDifference) / Double(comparedPixels))
+                                 comparedRows: rowCount,
+                                 difference: Double(totalDifference) / Double(rowCount * columns.count))
     }
 
     static func scrollingPixelRange(sampleColumns: Range<Int>,
@@ -2142,8 +2159,8 @@ enum ScreenshotSupport {
         return max(2, Int((CGFloat(base) * BlurStrength.blockFactor(for: level)).rounded()))
     }
 
-    /// The blur levels the pixelate marks use. Each needs a mosaic as large as
-    /// the capture, so the editor keeps no other.
+    /// The blur levels the pixelate marks use. Keep only their sampled mosaics;
+    /// drawing expands each one to the capture size when needed.
     static func mosaicLevels(for annotations: [Annotation]) -> Set<Int> {
         Set(annotations.filter { $0.tool == .pixelate }.map(\.blurLevel))
     }
@@ -2568,5 +2585,18 @@ enum ScreenshotDefaultAction: String, CaseIterable {
     static var current: ScreenshotDefaultAction {
         let raw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
         return ScreenshotDefaultAction(rawValue: raw) ?? .none
+    }
+
+    /// Copy and Save and copy put every capture on the clipboard.
+    var copiesToClipboard: Bool { self == .copy || self == .saveAndCopy }
+
+    /// The same choice without its clipboard half. Turning automatic copy
+    /// off in Settings applies this, so Save and copy keeps saving.
+    var withoutCopy: ScreenshotDefaultAction {
+        switch self {
+        case .copy: return .none
+        case .saveAndCopy: return .save
+        case .none, .save, .edit: return self
+        }
     }
 }

@@ -8,6 +8,7 @@ import SwiftUI
 /// Bluetooth on sleep. One card per feature, opened by a row that names it,
 /// says what it is doing right now and switches it.
 struct EnergySettings: View {
+    var focus: SettingsSectionAnchor?
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var awake = KeepAwakeManager.shared
@@ -39,26 +40,26 @@ struct EnergySettings: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(l10n.s.tabEnergy).font(.title2.bold())
-                    Text(FeatureStrings.settingsPages(l10n.language).energyDescription)
+                    Text(pageTitle).font(.title2.bold())
+                    Text(pageDescription)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if AppFeature.keepAwake.isAvailable {
+                if (focus == nil || focus == .keepAwake), AppFeature.keepAwake.isAvailable {
                     keepAwakeCard
                         .settingsSectionAnchor(.keepAwake, cornerRadius: 16)
                     keepAwakeOptionsCard
                 }
-                if AppFeature.brightness.isAvailable {
+                if (focus == nil || focus == .brightness), AppFeature.brightness.isAvailable {
                     displaysCard
                         .settingsSectionAnchor(.brightness, cornerRadius: 16)
                 }
-                if AppFeature.extraBrightness.isAvailable {
+                if (focus == nil || focus == .extraBrightness), AppFeature.extraBrightness.isAvailable {
                     extraBrightnessCard
                         .settingsSectionAnchor(.extraBrightness, cornerRadius: 16)
                 }
-                if AppFeature.bluetoothSleep.isAvailable {
+                if (focus == nil || focus == .bluetoothSleep), AppFeature.bluetoothSleep.isAvailable {
                     bluetoothCard
                         .settingsSectionAnchor(.bluetoothSleep, cornerRadius: 16)
                 }
@@ -76,11 +77,41 @@ struct EnergySettings: View {
             keepAwakeIconTint = Defaults.sanitizedKeepAwakeIconTint(keepAwakeIconTint).rawValue
             keepAwakeActiveIcon = Defaults.sanitizedKeepAwakeActiveIcon(keepAwakeActiveIcon).rawValue
             keepAwakeMouseJiggleInterval = Defaults.sanitizedKeepAwakeMouseJiggleInterval(keepAwakeMouseJiggleInterval)
+            refreshVisibleServices()
+        }
+        .onChange(of: focus) { _, _ in refreshVisibleServices() }
+    }
+
+    private func refreshVisibleServices() {
+        if focus == nil || focus == .keepAwake {
             awake.refreshPasswordlessStatus()
-            // Displays may have changed since launch (docked, clamshell);
-            // re-check so the section never shows a stale availability.
+        }
+        if focus == nil || focus == .extraBrightness {
             ExtraBrightnessService.shared.syncWithPreferences()
+        }
+        if focus == nil || focus == .brightness {
+            // Displays may have changed since launch (docked, clamshell).
             BrightnessService.shared.refresh()
+        }
+    }
+
+    private var pageTitle: String {
+        switch focus {
+        case .keepAwake: return l10n.s.keepAwakeTitle
+        case .brightness: return FeatureStrings.brightness(l10n.language).pageTitle
+        case .extraBrightness: return l10n.s.extraBrightnessName
+        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).pageTitle
+        default: return l10n.s.tabEnergy
+        }
+    }
+
+    private var pageDescription: String {
+        switch focus {
+        case .keepAwake: return FeatureStrings.hub(l10n.language).descKeepAwake
+        case .brightness: return FeatureStrings.brightness(l10n.language).hubDescription
+        case .extraBrightness: return FeatureStrings.hub(l10n.language).descExtraBrightness
+        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).hubDescription
+        default: return FeatureStrings.settingsPages(l10n.language).energyDescription
         }
     }
 
@@ -298,9 +329,7 @@ struct EnergySettings: View {
                                     BrightnessService.shared.syncWithPreferences()
                                 }
                         }
-                        DisplayBrightnessShortcutControls()
-                            .toggleStyle(TrailingSwitchToggleStyle())
-                            .padding(.leading, settingsRowTextInset)
+                        DisplayBrightnessShortcutControls(showsSettingsRow: true)
                         if brightness.brightnessOSDSupported {
                             SettingsRow(symbol: "sun.max", title: strings.osdToggle, caption: strings.osdCaption) {
                                 Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)

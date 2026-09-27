@@ -11,6 +11,7 @@ struct WallpaperSection: View {
     @ObservedObject private var service = WallpaperService.shared
     @State private var page = 1
     @State private var isRemovingSources = false
+    @State private var viewerID = UUID()
     var collapsible = true
 
     private var text: WallpaperFeatureStrings {
@@ -58,11 +59,11 @@ struct WallpaperSection: View {
             }
             .onAppear {
                 // own folders can change on disk; keep Apple catalog cache
-                service.refresh(forceAppleRescan: false)
+                service.beginViewing(viewerID)
             }
             .onDisappear {
                 isRemovingSources = false
-                service.cancelThumbs()
+                service.endViewing(viewerID)
             }
             .onChange(of: currentPage) { _, newPage in
                 service.preparePageThumbs(for: service.filter, around: newPage)

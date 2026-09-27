@@ -100,7 +100,8 @@ final class MusicLaunchBlocker: ObservableObject {
             secondsSinceUserGesture: Self.secondsSinceUserGesture
         ) else { return }
         guard app.forceTerminate() || app.terminate() else { return }
-        openReplacementIfConfigured(startingPlayback: lastMediaKeyCode == MusicLaunchSupport.playPauseKeyCode)
+        openReplacementIfConfigured(startingPlayback: lastMediaKeyCode == MusicLaunchSupport.playPauseKeyCode
+            && UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockPlayReplacement))
     }
 
     /// Pointer buttons and ordinary keys can ask to open an app. Modifier
@@ -133,7 +134,9 @@ final class MusicLaunchBlocker: ObservableObject {
               FileManager.default.fileExists(atPath: url.path) else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { app, _ in
             // Play/Pause asked for music, not just a window.
-            guard startingPlayback, let app else { return }
+            guard startingPlayback, self.isEnabled,
+                  UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockPlayReplacement),
+                  let app else { return }
             MusicReplacementPlayback.start(app)
         }
     }

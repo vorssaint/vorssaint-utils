@@ -18,6 +18,7 @@ enum MenuPanelRecoveryTests {
     final class NSScreen {
         static var screens = [NSScreen()]
         static var withMenuBar: NSScreen? { screens.first }
+        static var pointerVisibleFrame: CGRect { screens.first?.visibleFrame ?? .zero }
         var frame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
         var visibleFrame = CGRect(x: 0, y: 0, width: 1920, height: 1050)
         var isStillAttached = true
@@ -33,8 +34,12 @@ enum MenuPanelRecoveryTests {
         var contentView: View? = View()
         init(_ frame: CGRect) { self.frame = frame }
         func convertToScreen(_ rect: CGRect) -> CGRect { rect.offsetBy(dx: frame.minX, dy: frame.minY) }
+        func frameRect(forContentRect rect: CGRect) -> CGRect {
+            CGRect(origin: rect.origin, size: CGSize(width: rect.width, height: rect.height + 28))
+        }
         func setFrame(_ rect: CGRect, display: Bool) {
             frame = rect
+            screen = NSScreen.screens.first { $0.frame.contains(CGPoint(x: rect.midX, y: rect.midY)) }
             NotificationCenter.default.post(name: Self.didMoveNotification, window: self)
         }
         func makeKey() {}
@@ -57,8 +62,10 @@ enum MenuPanelRecoveryTests {
         var contentViewController: Controller? = Controller()
         var fails = false
         var attempts = 0
+        var measuredScreen: NSScreen?
         func show(relativeTo: CGRect, of button: NSStatusBarButton, preferredEdge: NSRectEdge) {
             attempts += 1
+            measuredScreen = PanelInteractionState.shared.anchorScreen
             guard !fails, let window = button.window else { return }
             contentViewController?.view.window = NSWindow(CGRect(x: window.frame.midX - 166, y: 530, width: 332, height: 500))
             isShown = true
@@ -92,7 +99,9 @@ enum MenuPanelRecoveryTests {
         static var shared = MenuPanelFocus()
         var activeMetric: String? = "network"
         var switching = false
+        var popoverIsVisible = false
         func setSwitchingMetricAnchor(_ value: Bool) { switching = value }
+        func setPopoverVisible(_ value: Bool) { popoverIsVisible = value }
         func clearMetricFocus() { activeMetric = nil }
     }
     enum Needs { case none, network }
@@ -121,8 +130,9 @@ enum MenuPanelRecoveryTests {
         static func anchorDriftX(clickX: Double, reportedMidX: Double, buttonWidth: Double) -> Double? {
             PanelRecoveryPolicy.anchorDriftX(clickX: clickX, reportedMidX: reportedMidX, buttonWidth: buttonWidth)
         }
-        static func isTrustworthyStatusFrame(_ frame: CGRect) -> Bool {
-            PanelRecoveryPolicy.isTrustworthyStatusFrame(frame, screenFrames: NSScreen.screens.map(\.frame))
+        static func isTrustworthyStatusFrame(_ frame: CGRect,
+                                             screenFrames: [CGRect] = NSScreen.screens.map(\.frame)) -> Bool {
+            PanelRecoveryPolicy.isTrustworthyStatusFrame(frame, screenFrames: screenFrames)
         }
         static func pinnedPanelFrame(size: CGSize, anchorMidX: CGFloat, anchorTop: CGFloat, visibleFrame: CGRect) -> CGRect {
             PanelRecoveryPolicy.pinnedPanelFrame(size: size, anchorMidX: anchorMidX, anchorTop: anchorTop, visibleFrame: visibleFrame)
@@ -145,15 +155,18 @@ enum MenuPanelRecoveryTests {
         var popoverLastWindowNumber: Int?
         var popoverForeignReopenAt = Date.distantPast
         var popoverClosedAt = Date.distantPast
-        var lastStatusClick: (x: CGFloat, at: Date)?
+        var lastStatusClick: (point: NSPoint, at: Date)?
         static let statusClickFreshness: TimeInterval = 0.5
+        static let statusClickEventTypes: Set<NSEvent.EventType> = [
+            .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
+        ]
         var popoverPositioningPanel: NSPanel?
         var popoverDriftObservers: [NSObjectProtocol] = []
         var monitors = false
         func removePopoverDismissMonitor() { monitors = false }
         func installPopoverDismissMonitor() { monitors = true }
         func runPopoverCloseCompletions() {}
-        func statusScreen(for button: NSStatusBarButton) -> NSScreen? { button.window?.screen }
+        func closePopover() { popover.isShown = false }
         func configurePopoverWindow(_ window: NSWindow) {}
         func animatePopoverOpen(_ window: NSWindow) {}
         @discardableResult func useStablePopoverPositioningViewIfNeeded(_ window: NSWindow) -> Bool { false }
@@ -171,7 +184,7 @@ enum MenuPanelRecoveryTests {
     }
 
     static func run(_ expect: (Bool, String) -> Void) {
-        func setup(corrected: Bool = false) -> Host {
+        func setup(corrected: Bool = false, present: Bool = true) -> Host {
             DispatchQueue.main = Queue(); NotificationCenter.default = Center()
             NSScreen.screens = [NSScreen()]; NSApp = Application()
             MenuPanelFocus.shared = MenuPanelFocus(); SystemMonitor.shared = SystemMonitor()
@@ -179,9 +192,11 @@ enum MenuPanelRecoveryTests {
             let host = Host()
             if corrected {
                 host.statusController.button!.window!.frame.origin.x = 1482
-                host.lastStatusClick = (700, Date())
+                host.lastStatusClick = (CGPoint(x: 700, y: 1065), Date())
             }
-            host.showPopover(animate: false, activate: false)
+            if present { host.showPopover(animate: false, activate: false) }
+            expect(MenuPanelFocus.shared.popoverIsVisible == host.popover.isShown,
+                   "panel presentation follows the actual show result")
             NSApp.currentEvent = event()
             return host
         }
@@ -193,10 +208,12 @@ enum MenuPanelRecoveryTests {
         for corrected in [false, true] {
             let host = setup(corrected: corrected)
             expect(host.popoverLastFrame?.midX == 700, "recovery remembers the final visible position, including initial correction")
-            host.lastStatusClick = (700, Date().addingTimeInterval(-5))
+            host.lastStatusClick = (CGPoint(x: 700, y: 1065), Date().addingTimeInterval(-5))
             close(host)
             expect(host.popover.isShown && host.popoverLastFrame?.midX == 700,
                    "fresh panel click recovers at its existing anchor even after the opening click expires")
+            expect(MenuPanelFocus.shared.popoverIsVisible,
+                   "panel content stays active after a successful anchor recovery")
             expect(MenuPanelFocus.shared.activeMetric == "network" && SystemMonitor.shared.needs == .network,
                    "recovery preserves metric focus and sampling")
             DispatchQueue.main.drain()
@@ -204,6 +221,106 @@ enum MenuPanelRecoveryTests {
             close(host); DispatchQueue.main.drain()
             expect(!host.popover.isShown && SystemMonitor.shared.needs == .none && !host.statusController.held,
                    "immediate second close stays closed and releases resources")
+            expect(!MenuPanelFocus.shared.popoverIsVisible,
+                   "closed panel content stops observing live section updates")
+        }
+        for origin in [CGPoint.zero, CGPoint(x: 1920, y: 0), CGPoint(x: -1366, y: 0),
+                       CGPoint(x: 0, y: 1080), CGPoint(x: 0, y: -1024)] {
+            let host = setup(present: false)
+            let clickedScreen = NSScreen()
+            clickedScreen.displayID = 2
+            clickedScreen.frame = CGRect(origin: origin, size: CGSize(width: 1366, height: 1024))
+            clickedScreen.visibleFrame = CGRect(origin: origin, size: CGSize(width: 1366, height: 1000))
+            if origin == .zero {
+                // Sidecar is the primary display, with the Mac to its right.
+                NSScreen.screens[0].frame.origin.x = 1366
+                NSScreen.screens[0].visibleFrame.origin.x = 1366
+                host.statusController.button!.window!.frame.origin.x += 1366
+                NSScreen.screens.insert(clickedScreen, at: 0)
+            } else {
+                NSScreen.screens.append(clickedScreen)
+            }
+            // The reported status frame stays on the Mac. The click is on the
+            // iPad's top row, including the shared boundary in a vertical layout.
+            let point = CGPoint(x: origin.x + 700, y: clickedScreen.frame.maxY)
+            host.lastStatusClick = (point, Date())
+            host.showPopover(animate: false, activate: false)
+            expect(host.popover.measuredScreen === clickedScreen,
+                   "panel height uses the clicked display before presentation at \(origin)")
+            expect(host.popoverAnchor?.screen === clickedScreen
+                   && host.popoverAnchor?.overridesSoundFrame == true,
+                   "click overrides a valid status frame on another display at \(origin)")
+            let frame = host.popover.contentViewController!.view.window!.frame
+            expect(clickedScreen.visibleFrame.contains(frame) && frame.midX == point.x
+                   && frame.maxY == clickedScreen.visibleFrame.maxY,
+                   "panel opens below the clicked menu bar at \(origin)")
+
+            host.lastStatusClick = (point, Date().addingTimeInterval(-5))
+            close(host)
+            expect(host.popover.measuredScreen === clickedScreen
+                   && host.popoverLastFrame == frame,
+                   "recovery retains the clicked display after the opening click expires at \(origin)")
+            DispatchQueue.main.drain()
+        }
+        do {
+            let host = setup(present: false)
+            let other = NSScreen()
+            other.displayID = 2
+            other.frame.origin.x = 1920
+            NSScreen.screens.append(other)
+            host.lastStatusClick = (CGPoint(x: 2600, y: 1065), Date().addingTimeInterval(-1))
+            host.showPopover(animate: false, activate: false)
+            expect(host.popoverAnchor?.screen === NSScreen.screens[0]
+                   && host.popoverAnchor?.overridesSoundFrame == false,
+                   "an expired click cannot move a later presentation to another display")
+        }
+        do {
+            let host = setup()
+            host.popover.isShown = false
+            host.endPopoverDriftCorrection()
+            host.statusController.button!.window!.frame.origin.y = 1100
+            host.lastStatusClick = (CGPoint(x: 1100, y: 1065), Date())
+            host.showPopover(animate: false, activate: false)
+            expect(host.popoverLastFrame?.midX == 1100,
+                   "a new physical click takes priority over a remembered anchor")
+        }
+        do {
+            let host = setup(present: false)
+            let screen = NSScreen()
+            screen.displayID = 2
+            screen.frame.origin.x = 1920
+            screen.visibleFrame.origin.x = 1920
+            NSScreen.screens.append(screen)
+            host.statusController.button!.window!.frame.origin.x += 1920
+            host.showPopover(animate: false, activate: false)
+            let panel = host.popover.contentViewController!.view.window!
+            panel.setFrame(CGRect(x: 3200, y: 530, width: 332, height: 500), display: false)
+            let settings = NSWindow(CGRect(x: 100, y: 100, width: 800, height: 700))
+            host.positionSettingsWindow(settings, force: false)
+            expect(screen.visibleFrame.contains(settings.frame) && !settings.frame.intersects(panel.frame),
+                   "reopened Settings moves from the Mac to the panel's display")
+            let placed = settings.frame
+            host.positionSettingsWindow(settings, force: false)
+            expect(settings.frame == placed, "Settings keeps its position on the requested display")
+            host.popover.isShown = false
+            let freshSettings = NSWindow(CGRect(x: 100, y: 100, width: 800, height: 700))
+            host.positionSettingsWindow(freshSettings, force: true, on: screen)
+            expect(screen.visibleFrame.contains(freshSettings.frame),
+                   "new Settings uses the invocation display even without an open panel")
+            screen.isStillAttached = false
+            NSScreen.screens.removeLast()
+            freshSettings.screen = NSScreen.screens.first
+            host.positionSettingsWindow(freshSettings, force: false, on: screen)
+            expect(NSScreen.screens[0].visibleFrame.contains(freshSettings.frame),
+                   "Settings stays reachable if the requested display disconnects before placement")
+        }
+        for invalidEvent in [nil, event(.keyDown), event(age: 1), event(age: -1)] {
+            let host = setup(present: false)
+            host.lastStatusClick = (CGPoint(x: 1100, y: 1065), Date())
+            NSApp.currentEvent = invalidEvent
+            host.captureStatusClick()
+            expect(host.lastStatusClick == nil,
+                   "keyboard, accessibility and stale events clear the previous status click")
         }
         for kind in ["requested", "missing event", "other window", "old click", "future click", "outside",
                      "movement", "escape", "key release", "modifier", "no frame", "no window number",
@@ -241,6 +358,8 @@ enum MenuPanelRecoveryTests {
             expect(!host.popover.isShown && !host.monitors && SystemMonitor.shared.needs == .none
                    && !host.statusController.held && host.popoverDriftObservers.isEmpty,
                    "failed presentation releases observers, sampling and held status badge")
+            expect(!MenuPanelFocus.shared.popoverIsVisible,
+                   "failed presentation leaves panel content inactive")
         }
         do {
             let host = setup(); close(host); close(host); DispatchQueue.main.drain()

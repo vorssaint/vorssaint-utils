@@ -172,6 +172,13 @@ enum NotchMusicAutomationTests {
             sampledAt: Date(), canSeek: true, commandContext: current.commandContext, canSendCommandsDirectly: true)
         service.playback = native
         suite.expect(service.canSeek && service.canPerform(.seek(20)), "direct native playback keeps its existing seeking capability")
+        suite.expect(service.canPerform(.next) && !service.lacksTrackSkipping(.next),
+               "a player whose commands are unknown keeps its skip buttons")
+        var video = native; video.canSkipNext = false; video.canSkipPrevious = false
+        service.playback = video
+        suite.expect(service.lacksTrackSkipping(.next) && service.lacksTrackSkipping(.previous)
+               && !service.canPerform(.next) && service.canPerform(.toggle),
+               "a player without next or previous commands keeps only play and pause")
         service.playback = current
         let target = Automation.Target(pid: 42)
         service.automationTarget = target

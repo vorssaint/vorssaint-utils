@@ -47,6 +47,11 @@ enum NotchMusicVisibilityTests {
     enum NSEvent { static let mouseLocation = CGPoint.zero }
 
     class State {
+        var activitySelection = NotchActivitySelection()
+        var compactActivityCompanions: [NotchCompactActivity] = []
+        var showsCompactActivityPicker = false
+        var compactActivityPickerLayout = NotchActivityPickerLayout(
+            count: 2, labelWidth: 80, stripSize: CGSize(width: 300, height: 32), screenWidth: 1440)
         var hiddenInFullscreen = false
         var running = true
         var suspended = false
@@ -69,7 +74,10 @@ enum NotchMusicVisibilityTests {
         var dragPlaceholder = false
         var hasTimerActivity = false
         var hasDownloadActivity = false
+        var downloadName: String?
         var hasAgentActivity = false
+        var timerStripWing: CGFloat = 44
+        func timerStripWing(for companion: NotchCompactActivity?) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
         var calendarStripWing: CGFloat = 120
         var notchNeedsMonitor = false
@@ -80,6 +88,7 @@ enum NotchMusicVisibilityTests {
         var highlightedSection: NotchModule?
         var sectionRow = 0
         var hoverState = NotchHoverState()
+        var hoverEmphasized = false
         var hoverWork: DispatchWorkItem?
         var windowHost: Host?
         var panel: Panel? = Panel()
@@ -106,6 +115,7 @@ enum NotchMusicVisibilityTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(false, forKey: DefaultsKey.notchTrackChange)
         let service = Service()
         let reader = NotchMusicService.shared
         service.modules = NotchSupport.modules(in: defaults)
@@ -124,7 +134,16 @@ enum NotchMusicVisibilityTests {
 
             service.hiddenInFullscreen = true
             service.syncVisibleConsumers()
-            suite.expect(!reader.running, "fullscreen hiding stops the automatic playback reader")
+            suite.expect(!reader.running && service.surfaceSize == closed,
+                         "fullscreen keeps a black cutout and stops the automatic playback reader")
+            service.expanded = true
+            service.selected = .music
+            service.syncVisibleConsumers()
+            suite.expect(reader.running && service.surfaceSize == service.expandedSize,
+                         "manually opening Music in fullscreen starts its reader")
+            service.collapse()
+            suite.expect(!reader.running && service.surfaceSize == closed,
+                         "closing Music in fullscreen stops its reader and restores the black cutout")
             service.hiddenInFullscreen = false
             service.syncVisibleConsumers()
             suite.expect(reader.running, "leaving fullscreen restarts the playback reader when music is enabled")
@@ -238,6 +257,18 @@ enum NotchMusicVisibilityTests {
         service.hasTimerActivity = true
         service.hasDownloadActivity = true
         suite.expect(service.compactActivity == .timer, "Nothing for resting music preserves a running timer")
+        service.compactActivityCompanions = [.downloads]
+        service.activitySelection.select(.timer, available: service.compactActivities)
+        suite.expect(service.compactCompanion == nil,
+                     "the production Timer selection does not borrow the active download wing")
+        service.activitySelection.select(.timer, companion: .downloads,
+                                         available: service.compactActivities, companions: [.downloads])
+        suite.expect(service.compactCompanion == .downloads,
+                     "the production strip shows only the explicitly selected companion")
+        service.activitySelection.select(.timer, available: service.compactActivities)
+        suite.expect(service.compactCompanion == nil,
+                     "choosing Timer again removes the explicit pair in the production strip")
+        service.activitySelection = NotchActivitySelection()
         service.hasTimerActivity = false
         suite.expect(service.compactActivity == .downloads, "Nothing for resting music preserves active downloads")
         let notice = NotchNotice(event: .accessory, title: "Wireless Headphones", detail: "Connected", symbol: "headphones")

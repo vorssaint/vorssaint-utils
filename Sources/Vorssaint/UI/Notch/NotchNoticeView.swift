@@ -13,7 +13,6 @@ struct NotchNoticeView: View {
     private var inset: CGFloat { min(16, wingWidth / 6) }
     private var tint: Color {
         switch notice.event {
-        case .brightness, .keyboardLight: return .yellow
         // A warning reads as one in any agent's color; other AI notices wear it.
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         default: return .white
@@ -116,8 +115,7 @@ struct NotchExpandedLevelView: View {
         HStack(spacing: 8) {
             Image(systemName: notice.symbol)
                 .frame(width: 18)
-            NotchMeter(value: notice.level ?? 0, height: 5,
-                       tint: notice.event == .volume ? .white : .yellow)
+            NotchMeter(value: notice.level ?? 0, height: 5, tint: .white)
                 .frame(maxWidth: 96)
             Text(notice.detail)
                 .monospacedDigit()

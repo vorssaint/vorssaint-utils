@@ -90,6 +90,7 @@ enum NotchDownloadFolderChoiceContract {
         static var shared = NotchService()
         var presentationWindow: Window? = Window()
         var acceptsSystemFeedback = true
+        var acceptsUserInteraction = true
         var expanded = true
         var selected: NotchModule = .downloads
         var showingAppPanel = false
@@ -151,13 +152,14 @@ enum NotchDownloadFolderChoiceTests {
                 Context.reset(pinned: pinned, menuAction: menu)
                 let service = Context.Service()
                 let notch = Context.NotchService.shared
+                notch.acceptsSystemFeedback = false
                 let window = notch.presentationWindow!
                 service.chooseFolder()
                 guard let panel = service.chooser else { suite.expect(false, "the folder chooser was created"); continue }
                 suite.expect(panel.parent == nil && window.attachedSheet == nil && panel.standalone && panel.focused
                        && panel.level.rawValue > window.level.rawValue && Context.NSApp.activatedWithChooser
                        && !panel.hidesOnDeactivate,
-                       "notch buttons and menus focus a standalone picker above the island, begun before activation, "
+                       "notch buttons and menus focus a standalone picker despite hidden system feedback, begun before activation, "
                        + "that stays up while another app is active")
                 suite.expect(notch.expanded && notch.pinned == pinned,
                        "opening the picker preserves the working surface and existing pin")
@@ -202,7 +204,7 @@ enum NotchDownloadFolderChoiceTests {
             switch interruption {
             case 0: service.stop()
             case 1: Context.AppFeature.notchDownloads.isAvailable = false
-            case 2: Context.NotchService.shared.acceptsSystemFeedback = false
+            case 2: Context.NotchService.shared.acceptsUserInteraction = false
             case 3: Context.NotchService.shared.selected = .music
             case 4: Context.NotchService.shared.expanded = false
             case 5: Context.NotchService.shared.presentationWindow = Context.Window()

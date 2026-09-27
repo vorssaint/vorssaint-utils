@@ -33,6 +33,23 @@ struct HomebrewPackage: Identifiable, Hashable {
     var versionText: String? { installedVersion ?? stableVersion }
 }
 
+enum HomebrewSearchResults {
+    static func reconciled(_ results: [HomebrewPackage],
+                           installed: [HomebrewPackage]) -> [HomebrewPackage] {
+        let installedByID = Dictionary(uniqueKeysWithValues: installed.map { ($0.id, $0) })
+        return results.map { result in
+            if var current = installedByID[result.id] {
+                current.popularity = result.popularity ?? current.popularity
+                return current
+            }
+            var current = result
+            current.installedVersion = nil
+            current.update = nil
+            return current
+        }
+    }
+}
+
 struct HomebrewPackageUpdate: Hashable {
     let kind: HomebrewPackageKind
     let name: String
@@ -105,6 +122,13 @@ enum HomebrewOwnershipSupport {
 }
 
 enum HomebrewDependencyGraph {
+    static func display(_ visible: [HomebrewPackage],
+                        installed: [HomebrewPackage],
+                        groupDependencies: Bool) -> (rows: [HomebrewPackage], dependencies: [String: [HomebrewPackage]]) {
+        if groupDependencies { return fold(visible, installed: installed) }
+        return (visible, [:])
+    }
+
     /// Splits installed packages into rows the person asked for and, under
     /// each, the installed dependencies it reaches. Only packages in `visible`
     /// become rows, so a filter never hides a dependency whose parent it hid.

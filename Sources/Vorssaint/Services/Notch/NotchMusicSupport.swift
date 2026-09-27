@@ -37,6 +37,9 @@ struct NotchPlayback: Equatable {
     var itemIdentifier: String? = nil
     var commandContext: NotchPlaybackContext? = nil
     var canSendCommandsDirectly = false
+    /// Nil when the player's commands could not be read.
+    var canSkipNext: Bool? = nil
+    var canSkipPrevious: Bool? = nil
 
     func position(at date: Date) -> TimeInterval {
         min(duration, max(0, elapsed + (isPlaying ? max(0, date.timeIntervalSince(sampledAt)) * rate : 0)))
@@ -78,7 +81,9 @@ struct NotchPlayback: Equatable {
                                 .map { $0.doubleValue.isFinite && $0.doubleValue >= 0 } == true,
                              itemIdentifier: reply.info["itemIdentifier"] as? String,
                              commandContext: commandContext?.pid == track.appPID ? commandContext : nil,
-                             canSendCommandsDirectly: canSendCommandsDirectly)
+                             canSendCommandsDirectly: canSendCommandsDirectly,
+                             canSkipNext: reply.info["canSkipNext"] as? Bool,
+                             canSkipPrevious: reply.info["canSkipPrevious"] as? Bool)
     }
 }
 

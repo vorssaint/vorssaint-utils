@@ -284,4 +284,19 @@ enum NotchTimerSupport {
             allowed: units, width: .narrow,
             fractionalPart: .hide(rounded: .down)).locale(locale))
     }
+
+    // MARK: Strip
+
+    /// A wing is never narrower than the music strip's; the longest readings
+    /// keep the width the strip always had.
+    static let stripWingRange: ClosedRange<CGFloat> = 44...64
+    /// Air between the camera and what sits beside it.
+    static let stripCameraGap: CGFloat = 6
+
+    static func stripTextSize(height: CGFloat) -> CGFloat { min(16, height - 6) }
+    /// The mark takes the strip's height less an even gap above and below.
+    static func stripIconSize(height: CGFloat) -> CGFloat { min(20, height - NotchLayout.compactEdgeGap * 2) }
+    static func stripAgentMarkSize(height: CGFloat, working: Int) -> CGFloat {
+        min(working > 1 ? 11 : 14, max(8, height - NotchLayout.compactEdgeGap * 2 - 4))
+    }
 }

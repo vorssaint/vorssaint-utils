@@ -28,6 +28,9 @@ final class StatusItemController {
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
     private var lastIconStateKey = ""
+    /// Mirrors only the island's fullscreen presentation state. A notification
+    /// avoids loading NotchService when its feature was never installed.
+    private(set) var islandHiddenInFullscreen = false
     /// True while the app itself keeps the main item out of the bar, for
     /// Dynamic Island or for separate metrics, as opposed to macOS dropping
     /// it. Recovery leaves such an item alone.
@@ -199,6 +202,16 @@ final class StatusItemController {
             }
             .store(in: &cancellables)
 
+        NotificationCenter.default.publisher(for: NotchService.fullscreenVisibilityDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self, let hidden = notification.userInfo?["hidden"] as? Bool,
+                      hidden != self.islandHiddenInFullscreen else { return }
+                self.islandHiddenInFullscreen = hidden
+                self.refresh()
+            }
+            .store(in: &cancellables)
+
         bindClipboardPreviewIfAvailable()
 
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
@@ -334,7 +347,8 @@ final class StatusItemController {
         let optionEnabled = defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
         let signal = updateAvailable || micBadgeActive
-        let islandHides = MenuBarSpacingSupport.islandHidesStatusIcon(in: defaults) && !signal
+        let islandHides = MenuBarSpacingSupport.islandHidesStatusIcon(
+            in: defaults, hiddenInFullscreen: islandHiddenInFullscreen) && !signal
         let hidden = islandHides || MenuBarSpacingSupport.shouldHideStatusIcon(
             optionEnabled: optionEnabled,
             separateMetrics: separateMetrics,
@@ -496,7 +510,8 @@ final class StatusItemController {
                 updateAvailable = false
             }
             let signal = updateAvailable || renderedMicBadgeActive
-            let glyphHidden = (MenuBarSpacingSupport.islandHidesStatusIcon(in: defaults) && !signal)
+            let glyphHidden = (MenuBarSpacingSupport.islandHidesStatusIcon(
+                in: defaults, hiddenInFullscreen: islandHiddenInFullscreen) && !signal)
                 || MenuBarSpacingSupport.shouldHideStatusIcon(
                     optionEnabled: defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
                     separateMetrics: separateMetrics,

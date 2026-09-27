@@ -86,8 +86,13 @@ enum AppUpdatesSupport {
     /// only the part in front of it lines up with what an app bundle reports.
     static func versionCore(_ version: String) -> String {
         let trimmed = version.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let comma = trimmed.firstIndex(of: ",") else { return trimmed }
-        return String(trimmed[trimmed.startIndex..<comma])
+        var comparable = trimmed
+        if (comparable.first == "v" || comparable.first == "V"),
+           comparable.dropFirst().first?.isNumber == true {
+            comparable.removeFirst()
+        }
+        guard let comma = comparable.firstIndex(of: ",") else { return comparable }
+        return String(comparable[comparable.startIndex..<comma])
     }
 
     /// Versions that carry no version at all. A package pinned to "latest"

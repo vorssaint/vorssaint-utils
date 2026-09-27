@@ -20,8 +20,6 @@ enum ClipboardHistoryMoveDirection {
 /// secret-looking strings by default.
 final class ClipboardHistoryService: ObservableObject {
     static let shared = ClipboardHistoryService()
-    static let quickPanelCompactSize = NSSize(width: 560, height: 420)
-    static let quickPanelPreviewSize = NSSize(width: 840, height: 500)
 
     @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
         didSet {
@@ -76,6 +74,8 @@ final class ClipboardHistoryService: ObservableObject {
     private var copyInFlight = false
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
+    private var panelResizeObserver: NSObjectProtocol?
+    private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
@@ -676,8 +676,10 @@ final class ClipboardHistoryService: ObservableObject {
             // Preserve exclusion over the whole time since the previous
             // accepted check, including any read that expired in between.
             let excludedSource = ClipboardIgnoredApps.shared.excludedSourceSinceLastCheck()
-            guard result.changeCount > self.lastChangeCount else { return }
-            self.lastChangeCount = result.changeCount
+            guard let accepted = ClipboardHistoryChangeCount.accepted(
+                read: result.changeCount, since: sinceChangeCount, last: self.lastChangeCount
+            ) else { return }
+            self.lastChangeCount = accepted
             // The pasteboard changed to something this check is about to
             // decide not to record (an ignored app, a concealed/secret copy,
             // or an image with the images toggle off): the menu bar preview
@@ -1125,9 +1127,10 @@ final class ClipboardHistoryService: ObservableObject {
         quickPreviewPresented = presented
         UserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
         guard let panel, panel.isVisible else { return }
-        resize(panel,
-               to: presented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize,
-               animated: true)
+        let previousFrame = panel.frame
+        resize(panel, to: preferredPanelSize(visibleFrame: panel.screen?.visibleFrame
+                                            ?? NSScreen.pointerVisibleFrame),
+               around: previousFrame, animated: true)
     }
 
     func toggleHistoryWindow() {
@@ -1217,9 +1220,10 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let initialSize = quickPreviewPresented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize
+        let initialSize = preferredPanelSize(visibleFrame: NSScreen.pointerVisibleFrame)
         let panel = OverlayPanel(contentRect: NSRect(origin: .zero, size: initialSize),
-                                 styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+                                 styleMask: [.titled, .closable, .resizable,
+                                             .fullSizeContentView, .nonactivatingPanel],
                                  backing: .buffered,
                                  defer: false)
         panel.title = FeatureStrings.clipboard(L10n.shared.language).title
@@ -1236,21 +1240,46 @@ final class ClipboardHistoryService: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        let sizeLimit = ClipboardPanelSizeLimit { [weak self] in self?.quickPreviewPresented ?? false }
+        panel.delegate = sizeLimit
+        panelSizeLimit = sizeLimit
         let host = NSHostingController(rootView: ClipboardQuickPanelView())
-        // The SwiftUI root owns the exact compact/preview frames and extends
-        // under the title bar, so preferred-size tracking would add that bar
-        // to the panel height a second time.
+        // AppKit owns the window size; SwiftUI fills its content view.
         host.sizingOptions = []
         panel.contentViewController = host
         panel.setFrame(NSRect(origin: .zero, size: initialSize),
                        display: false)
+        panelResizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didEndLiveResizeNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
+            guard let self, let panel else { return }
+            self.savePanelSize(panel)
+        }
         self.panel = panel
         return panel
     }
 
+    private func preferredPanelSize(visibleFrame: NSRect) -> NSSize {
+        let defaults = UserDefaults.standard
+        return ClipboardHistoryWindowSizing.contentSize(
+            preview: quickPreviewPresented,
+            savedWidth: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowWidth),
+            savedHeight: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowHeight),
+            visibleFrame: visibleFrame)
+    }
+
+    private func savePanelSize(_ panel: NSPanel) {
+        guard let size = ClipboardHistoryWindowSizing.savedCompactSize(
+            from: panel.contentRect(forFrameRect: panel.frame).size,
+            preview: quickPreviewPresented
+        ) else { return }
+        UserDefaults.standard.set(Double(size.width), forKey: DefaultsKey.clipboardHistoryWindowWidth)
+        UserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.clipboardHistoryWindowHeight)
+    }
+
     private func position(_ panel: NSPanel) {
-        let size = quickPreviewPresented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize
         let screen = NSScreen.pointerVisibleFrame
+        let size = preferredPanelSize(visibleFrame: screen)
         let x = screen.midX - size.width / 2
         let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)
         panel.setFrame(NSRect(x: max(screen.minX + 16, min(x, screen.maxX - size.width - 16)),
@@ -1261,8 +1290,8 @@ final class ClipboardHistoryService: ObservableObject {
                        animate: false)
     }
 
-    private func resize(_ panel: NSPanel, to contentSize: NSSize, animated: Bool) {
-        let current = panel.frame
+    private func resize(_ panel: NSPanel, to contentSize: NSSize,
+                        around current: NSRect, animated: Bool) {
         var target = NSRect(origin: .zero, size: contentSize)
         target.origin.x = current.midX - target.width / 2
         target.origin.y = current.midY - target.height / 2
@@ -1679,5 +1708,23 @@ enum ClipboardImageStore {
             try? FileManager.default.removeItem(at: file)
             thumbnails.removeObject(forKey: file.lastPathComponent as NSString)
         }
+    }
+}
+
+/// The hosting view rewrites the window's size limits on its first layout
+/// pass, so a contentMinSize set on the panel is lost. Enforce the minimum
+/// while the user resizes instead.
+private final class ClipboardPanelSizeLimit: NSObject, NSWindowDelegate {
+    private let preview: () -> Bool
+
+    init(preview: @escaping () -> Bool) {
+        self.preview = preview
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        let minimum = sender.frameRect(forContentRect: NSRect(
+            origin: .zero, size: ClipboardHistoryWindowSizing.minimumSize(preview: preview()))).size
+        return NSSize(width: max(minimum.width, frameSize.width),
+                      height: max(minimum.height, frameSize.height))
     }
 }

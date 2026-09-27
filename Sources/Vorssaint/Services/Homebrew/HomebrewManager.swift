@@ -108,6 +108,8 @@ final class HomebrewManager: ObservableObject {
                 }
                 do {
                     self.installed = try HomebrewParser.parseInfoCommandOutput(output).map(self.packageEnriched)
+                    self.searchResults = HomebrewSearchResults.reconciled(self.searchResults,
+                                                                         installed: self.installed)
                     self.installedCaskRecords = HomebrewParser.parseInstalledCaskRecords(output)
                     self.installedCaskRecordsFetchedAt = Date()
                     self.didOpenInstaller = false

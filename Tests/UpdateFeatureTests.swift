@@ -13,6 +13,30 @@ import VMStatisticsCompat
 
 enum UpdateFeatureTests {
     static func run(_ suite: TestSuite) {
+        suite.expect(BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0-beta.7",
+                                                          previousVersion: "3.4.0-beta.6")
+                    && BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0",
+                                                            previousVersion: "3.4.0-beta.6"),
+                    "the display setup invitation recognizes a newer release")
+        for previous in [nil, "", "dev", "3.4.0-beta.7", "3.4.0"] as [String?] {
+            suite.expect(!BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0-beta.7",
+                                                               previousVersion: previous),
+                         "a first install, unknown version, unchanged release or downgrade does not invite: \(previous ?? "nil")")
+        }
+        suite.expect(BrightnessUpdatePromptInfo.needsSetup(
+            notchAvailable: true, brightnessAvailable: true, notchEnabled: true,
+            notchBrightness: true, brightnessEnabled: false),
+            "the invitation targets an enabled island with brightness waiting for display controls")
+        for (notchAvailable, brightnessAvailable, notchEnabled, notchBrightness, brightnessEnabled)
+            in [(false, true, true, true, false), (true, false, true, true, false),
+                (true, true, false, true, false), (true, true, true, false, false),
+                (true, true, true, true, true)] {
+            suite.expect(!BrightnessUpdatePromptInfo.needsSetup(
+                notchAvailable: notchAvailable, brightnessAvailable: brightnessAvailable,
+                notchEnabled: notchEnabled, notchBrightness: notchBrightness,
+                brightnessEnabled: brightnessEnabled),
+                "the invitation skips unavailable, unused or already configured display controls")
+        }
         func activeSet(_ permission: AppPermission,
                        available: Set<AppFeature> = Set(AppFeature.allCases),
                        on: Set<String> = [],
@@ -332,6 +356,18 @@ enum UpdateFeatureTests {
                                                     in: toolRows, preferredID: .feature(.audioPriority))
                     == .feature(.audioPriority),
                "flat tool rows keep unique identities and select the clicked tool")
+        let menuBarDestination = FeatureSettingsDestination(
+            .general, sectionAnchor: .panelConfiguration)
+        let menuBarRow = SettingsSidebarItem(
+            id: .setting(.panelConfiguration), destination: menuBarDestination,
+            title: "Menu bar", icon: "menubar.rectangle")
+        suite.expect(SettingsSidebarSupport.selection(
+            for: FeatureSettingsDestination(.general),
+            in: generalRows + [menuBarRow]) == .page(.general)
+            && SettingsSidebarSupport.selection(
+                for: menuBarDestination,
+                in: generalRows + [menuBarRow]) == .setting(.panelConfiguration),
+            "General and its menu bar editor keep distinct sidebar selections")
         let scratchpadOnlyRows = SettingsSidebarSupport.items(
             page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
             preferredFeatures: quickToolFeatures, includePage: false,
@@ -1299,6 +1335,15 @@ enum UpdateFeatureTests {
         suite.expect(AppUpdatesSupport.versionCore("3.5.262,260717dcrpwg7m0") == "3.5.262"
                 && AppUpdatesSupport.versionCore("0.0.402") == "0.0.402",
                "the revision after a comma is not part of the version")
+        suite.expect(AppUpdatesSupport.versionCore(" v2.0.11.1,260925abc ") == "2.0.11.1"
+                && AppUpdatesSupport.versionCore("V2.0.11.1") == "2.0.11.1"
+                && !AppUpdatesSupport.isNewer("v2.0.11.1", than: "2.0.11.1")
+                && !AppUpdatesSupport.isNewer("2.0.11.1", than: "V2.0.11.1"),
+               "a leading v/V and surrounding whitespace normalize before numeric comparison")
+        suite.expect(!AppUpdatesSupport.isNewer("2.0.11.1", than: "v2.0.11.1")
+                && AppUpdatesSupport.isNewer("v2.0.11.2", than: "2.0.11.1")
+                && AppUpdatesSupport.versionCore("version1") == "version1",
+               "only a v/V directly before a number is removed, and prefixed versions compare by value")
         suite.expect(AppUpdatesSupport.isNewer("3.5.262,260717dcrpwg7m0", than: "3.5.230")
                 && !AppUpdatesSupport.isNewer("1.130.0", than: "1.130.0"),
                "an update is only newer when the number really grew")

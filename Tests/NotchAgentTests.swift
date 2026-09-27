@@ -18,13 +18,17 @@ enum NotchAgentTests {
         codexParsing(suite)
         timestamps(suite)
         summary(suite)
+        AgentUsageSummaryCacheTests.run(suite)
         limits(suite)
         strip(suite)
         liveTurns(suite)
         reading(suite)
+        AgentUsageReadTests.run(suite)
         claudeApp(suite)
         preferences(suite)
         formatting(suite)
+        AgentUsageEventDeliveryTests.run(suite)
+        NotchAgentAnimationTests.run { suite.expect($0, $1) }
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -663,6 +667,9 @@ enum NotchAgentTests {
             AgentUsageSummary.snapshot(records: [], limits: limits, live: live, plans: [:],
                                        providers: [.claude, .codex], now: now)
         }
+        suite.expect(NotchAgentReadout.elapsed.advancesWithClock && NotchAgentReadout.limit.advancesWithClock
+                        && !NotchAgentReadout.tokens.advancesWithClock && !NotchAgentReadout.cost.advancesWithClock,
+                     "only elapsed and expiring-limit readouts require clock-driven updates")
         let short = snapshot([session(.claude, startedAgo: 754)])
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
         suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
@@ -672,6 +679,15 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(long, readout: .tokens, display: .remaining, now: now)
                             == AgentFormat.tokens(600),
                      "cost and written tokens add up every turn that is working")
+        for readout in [NotchAgentReadout.tokens, .cost] {
+            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, now: now)
+                            == NotchAgentSupport.stripReading(short, readout: readout, display: .remaining,
+                                                             now: now.addingTimeInterval(60)),
+                         "time alone never changes the \(readout.rawValue) reading")
+            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, now: now)
+                            != NotchAgentSupport.stripReading(long, readout: readout, display: .remaining, now: now),
+                         "a new usage snapshot still changes the \(readout.rawValue) reading")
+        }
         let window = AgentLimitWindow(id: "w", kind: .weekly, minutes: 10_080, scope: nil, usedPercent: 79,
                                       resetsAt: now.addingTimeInterval(86_400))
         let limited = snapshot([session(.claude, startedAgo: 754)],
@@ -680,6 +696,10 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
                         && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        let expiredAt = now.addingTimeInterval(86_401)
+        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: expiredAt)
+                        == AgentFormat.percent(1),
+                     "a limit that renews without a new snapshot still updates from the clock")
         suite.expect(NotchAgentSupport.readingShape("12:34") == NotchAgentSupport.readingShape("59:59")
                         && NotchAgentSupport.readingShape("9:59") != NotchAgentSupport.readingShape("10:00")
                         && NotchAgentSupport.readingShape("$4,56") == "$0,00",
@@ -743,6 +763,74 @@ enum NotchAgentTests {
         suite.expect(ordered.map(\.path) == [sessionPath, root.appending(path: "session/subagents/agent-1.jsonl").path]
                         && AgentLogCursor(path: ordered.last?.path ?? "", provider: .claude).parent == sessionPath,
                      "a subagent is read after the session it works for, even when it finished first")
+
+        let large = folder.appending(path: "large.jsonl")
+        for count in [AgentLogReader.maximumLine, AgentLogReader.maximumLine + 1,
+                      AgentLogReader.maximumLine + AgentLogReader.chunkSize + 1] {
+            autoreleasepool {
+                var data = Data(repeating: 0x78, count: count)
+                data.append(contentsOf: "\nok\n".utf8)
+                try? data.write(to: large)
+                let cursor = AgentLogCursor(path: large.path, provider: .claude)
+                var sizes: [Int] = []
+                AgentLogReader.readAppended(cursor) { sizes.append($0.count) }
+                suite.expect(sizes == (count <= AgentLogReader.maximumLine ? [count, 2] : [2]),
+                             "log line limit applies across chunk boundaries, including a newline in the next chunk (\(count) bytes)")
+                suite.expect(cursor.pending.isEmpty && !cursor.discarding,
+                             "an oversized log line never consumes the valid line after it")
+            }
+        }
+
+        // An invalid line may keep growing over several file-change events.
+        // None of its later fragments may become a pending valid line.
+        try? Data(repeating: 0x78, count: AgentLogReader.maximumLine + 1).write(to: large)
+        let discarded = AgentLogCursor(path: large.path, provider: .claude)
+        var recovered: [String] = []
+        func readDiscarded() {
+            AgentLogReader.readAppended(discarded) { recovered.append(String(decoding: $0, as: UTF8.self)) }
+        }
+        func appendDiscarded(_ data: Data) {
+            guard let handle = try? FileHandle(forWritingTo: large) else {
+                suite.expect(false, "the oversized-line fixture opens for appending")
+                return
+            }
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(data)
+            readDiscarded()
+        }
+        readDiscarded()
+        suite.expect(discarded.discarding && discarded.pending.isEmpty && recovered.isEmpty,
+                     "an unterminated oversized line enters discard mode")
+        for _ in 0..<3 {
+            appendDiscarded(Data(repeating: 0x78, count: AgentLogReader.chunkSize))
+            suite.expect(discarded.discarding && discarded.pending.isEmpty && recovered.isEmpty,
+                         "later fragments of a discarded line are never retained between reads")
+        }
+        appendDiscarded(Data("\nok\npar".utf8))
+        suite.expect(!discarded.discarding && discarded.pending == Data("par".utf8) && recovered == ["ok"],
+                     "the discarded line's end preserves the next complete line and its valid partial successor")
+        appendDiscarded(Data("tial\n".utf8))
+        suite.expect(discarded.pending.isEmpty && recovered == ["ok", "partial"],
+                     "a valid partial line after discard mode completes normally")
+
+        var chunked = Data("head\n".utf8)
+        chunked.append(Data(repeating: 0x78, count: AgentLogReader.chunkSize))
+        chunked.append(contentsOf: "\ntail\n".utf8)
+        try? chunked.write(to: large)
+        let cancelled = AgentLogCursor(path: large.path, provider: .claude)
+        var sizes: [Int] = []
+        AgentLogReader.readAppended(cancelled, shouldContinue: { false }) { sizes.append($0.count) }
+        suite.expect(cancelled.offset == 0 && sizes.isEmpty,
+                     "a cancelled log read consumes no file data")
+        AgentLogReader.readAppended(cancelled, shouldContinue: { sizes.isEmpty }) { sizes.append($0.count) }
+        suite.expect(cancelled.offset == UInt64(AgentLogReader.chunkSize)
+                        && sizes == [4] && cancelled.pending.count == AgentLogReader.chunkSize - 5,
+                     "disabling agents during a large read stops at the next chunk boundary")
+        sizes.removeAll()
+        AgentLogReader.readAppended(cancelled) { sizes.append($0.count) }
+        suite.expect(sizes == [AgentLogReader.chunkSize, 4] && cancelled.offset == UInt64(chunked.count),
+                     "an interrupted log resumes its partial line without losing or replaying completed lines")
     }
 
     private static func history(_ samples: [(String, String?, [String: Any])], version: Int = 2) -> Data {
@@ -832,9 +920,11 @@ enum NotchAgentTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        suite.expect(NotchAgentSupport.isEnabled(in: defaults), "installed AI agents start enabled in the island")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(!NotchSupport.modules(in: defaults).contains(.agents) && !NotchAgentSupport.isEnabled(in: defaults)
                         && !NotchSupport.routes(.agents, in: defaults),
-                     "the AI page stays off until it is chosen")
+                     "turning AI agents off removes their page and notices")
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(NotchSupport.modules(in: defaults).last == .agents && NotchAgentSupport.isEnabled(in: defaults)
                         && NotchSupport.routes(.agents, in: defaults) && NotchAgentSupport.showsLiveActivity(in: defaults),
@@ -871,9 +961,9 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
-                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == true
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
-                     "every AI preference is registered and travels in backups, with the page off and prices kept current")
+                     "every AI preference is registered and travels in backups, with the page on and prices kept current")
         suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
         suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "turning price updates off stops the download")

@@ -50,7 +50,7 @@ final class AppSwitcher: ObservableObject {
             updateIconRowLayoutForCurrentSelection()
             revealSelectedIconInVisibleRow()
             if sessionActive, usesIconRowLayout {
-                resizePanel()
+                resizePanel(animated: !UserDefaults.standard.bool(forKey: DefaultsKey.switcherInstantSelection))
             }
         }
     }
@@ -1678,13 +1678,13 @@ final class AppSwitcher: ObservableObject {
     }
 
     /// Re-fits the panel after the grid changed mid-session (e.g. an app quit
-    /// with Q). Animated only when already on screen, so the size change reads
-    /// as intentional instead of a flash.
-    private func resizePanel() {
+    /// with Q). Normally animates only when on screen; instant selection skips
+    /// that animation when browsing changes the panel width.
+    private func resizePanel(animated: Bool = true) {
         guard let panel else { return }
         let frame = centeredFrame(for: currentPanelSize)
         panel.hasShadow = !usesIconRowLayout
-        panel.setFrame(frame, display: true, animate: panel.isVisible)
+        panel.setFrame(frame, display: true, animate: panel.isVisible && animated)
         panel.invalidateShadow()
     }
 

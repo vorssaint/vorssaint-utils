@@ -10,6 +10,7 @@ struct NotchLayoutEditor: View {
     @Binding var height: Double
     var editContents: () -> Void
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var addingSide: NotchQuickAccessSide?
     @State private var editingID: UUID?
@@ -43,7 +44,14 @@ struct NotchLayoutEditor: View {
                     // silhouette, type and spacing keep the proportions on screen.
                     islandPreview
                         .background {
-                            NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: actualHeight)).fill(.black)
+                            let shape = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: actualHeight))
+                            shape.fill(.black)
+                                .overlay {
+                                    if outlineEnabled {
+                                        shape.stroke(.white.opacity(0.65), lineWidth: 2).clipShape(shape)
+                                            .mask(Rectangle().padding(.top, 1))
+                                    }
+                                }
                         }
                         .scaleEffect(scale)
                         .frame(width: frame.width, height: frame.height)
@@ -121,7 +129,7 @@ struct NotchLayoutEditor: View {
     /// canvas fits the tallest custom island with its bottom drop zone below.
     private static let previewScale: CGFloat = 0.5
     private static let canvasHeight: CGFloat = NotchSize.heightRange.upperBound * previewScale + 20 + 58 + 2
-    private var layout: NotchSize { NotchSize(rawValue: size) ?? .compact }
+    private var layout: NotchSize { NotchSize(rawValue: size) ?? .spacious }
     private var actualWidth: CGFloat {
         NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
     }

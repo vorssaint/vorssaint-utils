@@ -3,15 +3,14 @@
 
 import SwiftUI
 
-/// A static illustration of the new feature, following the layout editor preview.
+/// The release's Dynamic Island demonstration, stored inside the app bundle.
 struct UpdateHighlightsView: View {
     @ObservedObject private var l10n = L10n.shared
     let onFinish: () -> Void
 
     private var text: NotchTourStrings { FeatureStrings.notchTour(l10n.language) }
-    private var artwork: NSImage? {
-        Bundle.main.url(forResource: "highlights-notch", withExtension: "png", subdirectory: "Images")
-            .flatMap(NSImage.init(contentsOf:))
+    private var animationURL: URL? {
+        Bundle.main.url(forResource: "highlights-notch", withExtension: "gif", subdirectory: "Gifs")
     }
 
     var body: some View {
@@ -24,14 +23,15 @@ struct UpdateHighlightsView: View {
             .frame(height: 42)
 
             Group {
-                if let artwork {
-                    Image(nsImage: artwork).resizable().scaledToFit()
+                if let animationURL {
+                    UpdateHighlightsGIF(url: animationURL)
                 } else {
                     Image(systemName: "rectangle.topthird.inset.filled")
                         .font(.system(size: 72, weight: .light)).foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 500, height: 268)
+            .frame(width: 500, height: 400)
+            .clipped()
             .accessibilityHidden(true)
 
             Text(text.caption)
@@ -42,6 +42,9 @@ struct UpdateHighlightsView: View {
 
             HStack {
                 Button(l10n.s.highlightsConfigure) {
+                    if !AppFeature.notch.isAvailable {
+                        FeatureRuntime.shared.setAvailable([.notch], true)
+                    }
                     SettingsRouter.shared.request(AppFeature.notch.settingsDestination)
                     appDelegate()?.openSettingsFromHighlights()
                 }
@@ -54,6 +57,34 @@ struct UpdateHighlightsView: View {
             .frame(width: 500, height: 32)
         }
         .padding(24)
-        .frame(width: 600, height: 552)
+        .frame(width: 600, height: 660)
     }
+}
+
+private struct UpdateHighlightsGIF: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.masksToBounds = true
+
+        let imageView = NSImageView()
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.animates = true
+        let image = NSImage(contentsOf: url)
+        image?.size = NSSize(width: 451, height: 400)
+        imageView.image = image
+        container.addSubview(imageView)
+        NSLayoutConstraint.activate([
+            imageView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            imageView.topAnchor.constraint(equalTo: container.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
+        return container
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
 }

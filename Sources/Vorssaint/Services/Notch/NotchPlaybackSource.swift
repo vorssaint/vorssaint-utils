@@ -20,6 +20,12 @@ struct NotchPlaybackSource: Equatable {
 
     var selection: Selection { Selection(pid: pid, bundleIdentifier: bundleIdentifier) }
 
+    static func isMusicApplication(bundleIdentifier: String?, parentBundleIdentifier: String?, category: String?) -> Bool {
+        let knownMusicApps: Set<String> = ["com.apple.Music", "com.apple.iTunes", "com.spotify.client"]
+        return category == "public.app-category.music"
+            || [bundleIdentifier, parentBundleIdentifier].compactMap { $0 }.contains(where: knownMusicApps.contains)
+    }
+
     var reply: [String: Any] {
         var value: [String: Any] = ["pid": pid, "bundleIdentifier": bundleIdentifier, "isMusicApp": isMusicApp,
                                    "isPlaying": isPlaying, "hasTrack": hasTrack]
@@ -52,28 +58,26 @@ struct NotchPlaybackSource: Equatable {
         return sources.sorted { $0.pid < $1.pid }
     }
 
-    /// Music apps come before browsers, but only among players in the same
-    /// state: whatever is actually sounding is what the island is for, and a
-    /// music app sitting paused in the background must not leave it blank
-    /// while a video plays. Paused music keeps its place once nothing sounds,
-    /// so its resume control stays reachable, and an app without a track
-    /// never hides anything.
-    static func preferred(in sources: [Self], previousPID: Int32?, systemPID: Int32?, selection: Selection? = nil) -> Self? {
+    /// Automatic playback follows music apps unless the user includes other
+    /// players. A manual source choice always takes precedence. Paused music
+    /// keeps its resume control when nothing eligible is playing.
+    static func preferred(in sources: [Self], previousPID: Int32?, systemPID: Int32?, selection: Selection? = nil,
+                          includeOtherPlayers: Bool = false) -> Self? {
         let available = sources.filter { $0.pid > 0 && $0.hasTrack }
         // An explicit choice remains controllable while paused, even if another
         // source is playing. Without a track, the automatic order fills in.
         if let selection, let chosen = available.first(where: { $0.selection == selection }) { return chosen }
         let music = available.filter(\.isMusicApp)
-        // Anything else is taken only where it always was: when the system
-        // points at it, or when it is the player already being followed.
-        let other = available.filter {
+        // In the opt-in mode, other apps still need system ownership or an
+        // existing follow relationship before automatic selection.
+        let other = includeOtherPlayers ? available.filter {
             !$0.isMusicApp && ($0.pid == systemPID || $0.pid == previousPID)
-        }
+        } : []
         for candidates in [music.filter(\.isPlaying), other.filter(\.isPlaying), music] {
             if let previous = candidates.first(where: { $0.pid == previousPID }) { return previous }
             if let current = candidates.first(where: { $0.pid == systemPID }) { return current }
             if let first = candidates.sorted(by: { $0.pid < $1.pid }).first { return first }
         }
-        return available.first { $0.pid == systemPID }
+        return includeOtherPlayers ? available.first { $0.pid == systemPID } : nil
     }
 }

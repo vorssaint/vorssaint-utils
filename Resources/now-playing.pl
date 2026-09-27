@@ -12,7 +12,7 @@ use DynaLoader;
 $| = 1;
 my ($library, $mode) = @ARGV;
 $mode //= "get";
-my %entries = map { $_ => "vorssaint_now_playing_$_" } qw(get watch);
+my %entries = map { $_ => "vorssaint_now_playing_$_" } qw(get watch watch_all);
 die "now-playing: unknown mode\n" unless exists $entries{$mode};
 die "usage: now-playing.pl <adapter library>\n" unless defined $library && -f $library;
 my $handle = DynaLoader::dl_load_file($library, 0)

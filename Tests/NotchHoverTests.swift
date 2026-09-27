@@ -36,6 +36,10 @@ enum NotchHoverTests {
         static var active = false
         static func ownsCocoaPoint(_ point: CGPoint) -> Bool { active }
     }
+    final class NSWorkspace {
+        static let shared = NSWorkspace()
+        var accessibilityDisplayShouldReduceMotion = false
+    }
     final class Host {
         var visible = true
         var rect = CGRect.zero
@@ -55,8 +59,9 @@ enum NotchHoverTests {
     enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
     class State {
         var hiddenInFullscreen = false
+        var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         var showsSystemFeedback = true, routesNotices = true
-        var running = true, suspended = false, inside = false
+        var running = true, suspended = false, inside = false, hoverEmphasized = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?
@@ -65,6 +70,8 @@ enum NotchHoverTests {
         var departingNotice: NotchNotice?
         var departureWork: DispatchWorkItem?
         var compactActivity: NotchCompactActivity?
+        var compactActivities: [NotchCompactActivity] = []
+        var activityPickerMenuOpen = false
         var hoverState = NotchHoverState()
         var hiddenHoverMonitors: [Any] = []
         var hoverWork: DispatchWorkItem?
@@ -76,12 +83,16 @@ enum NotchHoverTests {
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)
         var compactActivityGeometry: NotchGeometry { geometry.compactMusicGeometry }
         var surfaceSize: CGSize {
+            if fullscreenCompact { return geometry.restingSize(showsContent: false) }
             if let notice {
                 guard noticeExpanded else { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }
                 return geometry.notificationPreviewSize(
                     contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
             }
-            return expanded ? geometry.expanded : peeking ? geometry.peek : geometry.collapsed
+            if expanded { return geometry.expanded }
+            if peeking { return geometry.peek }
+            let resting = compactActivity == nil ? geometry.collapsed : compactActivityGeometry.compactActivitySize
+            return hoverEmphasized ? NotchHoverEmphasis.size(from: resting, geometry: geometry) : resting
         }
         var openings = 0, closures = 0, feedbacks = 0
         var requestedModule: NotchModule?
@@ -98,6 +109,7 @@ enum NotchHoverTests {
             updateBounds()
         }
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
+        func refreshPresentation() { updateBounds() }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
     }
@@ -111,6 +123,7 @@ enum NotchHoverTests {
             DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
             UserDefaults.standard = UserDefaults.Preferences()
             AssistiveKeyboard.active = false
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
             let service = Service()
             if physical {
                 service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
@@ -124,6 +137,94 @@ enum NotchHoverTests {
             NSEvent.mouseLocation = CGPoint(x: service.geometry.screen.minX, y: service.geometry.screen.minY)
             service.hover(false)
         }
+        for physical in [false, true] {
+            for reduced in [false, true] {
+                let picker = fixture(physical: physical)
+                picker.compactActivity = .agents
+                picker.compactActivities = [.agents, .music]
+                NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = reduced
+                picker.hover(true)
+                suite.expect(picker.showsCompactActivityPicker && picker.hoverWork == nil,
+                             "hover exposes named choices without an automatic opening deadline, including Reduce Motion")
+                DispatchQueue.main.advance(2)
+                suite.expect(picker.openings == 0, "the activity chooser stays available while the person decides")
+                picker.activityPickerMenuOpen = true
+                leave(picker)
+                suite.expect(picker.showsCompactActivityPicker, "moving into the combination menu keeps its picker visible")
+                picker.activityPickerMenuOpen = false
+                leave(picker)
+                suite.expect(!picker.showsCompactActivityPicker, "leaving hides the activity chooser")
+                picker.expanded = true
+                picker.inside = true
+                suite.expect(!picker.showsCompactActivityPicker, "the chooser does not cover an open page")
+                picker.expanded = false
+                picker.captureControls = true
+                suite.expect(!picker.showsCompactActivityPicker, "capture controls retain priority")
+                picker.captureControls = nil
+                picker.notice = volume
+                suite.expect(!picker.showsCompactActivityPicker, "system notices retain priority")
+                picker.notice = nil
+                picker.hiddenInFullscreen = true
+                suite.expect(!picker.showsCompactActivityPicker, "full-screen content hiding retains priority")
+            }
+        }
+        for physical in [false, true] {
+            let clickOnly = fixture(physical: physical)
+            UserDefaults.standard.enabled = false
+            let resting = clickOnly.surfaceSize
+            clickOnly.hover(true)
+            let emphasized = clickOnly.surfaceSize
+            suite.expect(emphasized.height == resting.height + 5 && emphasized.width >= resting.width
+                         && emphasized.width <= resting.width + 20 && clickOnly.hoverWork == nil,
+                         "click-only islands pulse within available menu space without scheduling an opening")
+            leave(clickOnly)
+            suite.expect(clickOnly.surfaceSize == resting,
+                         "leaving restores the resting island size")
+        }
+        let hiddenPulse = fixture()
+        UserDefaults.standard.hides = true
+        hiddenPulse.windowHost?.visible = false
+        let hiddenResting = hiddenPulse.surfaceSize
+        hiddenPulse.hover(true)
+        suite.expect(hiddenPulse.surfaceSize == hiddenResting,
+                     "an invisible island does not pulse before its hover reveal")
+        let reducedMotion = fixture()
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
+        let reducedResting = reducedMotion.surfaceSize
+        reducedMotion.hover(true)
+        suite.expect(reducedMotion.surfaceSize == reducedResting,
+                     "Reduce Motion leaves the resting island still on hover")
+        let compactPulse = fixture(physical: true)
+        compactPulse.compactActivity = .music
+        compactPulse.updateBounds()
+        let compactResting = compactPulse.surfaceSize
+        compactPulse.hover(true)
+        suite.expect(compactPulse.surfaceSize.height == compactResting.height + 5,
+                     "a visible compact activity responds to hover without replacing its content")
+        leave(compactPulse)
+        suite.expect(compactPulse.surfaceSize == compactResting,
+                     "the compact activity returns to its original size on exit")
+        let fullscreen = fixture(physical: true)
+        fullscreen.hiddenInFullscreen = true
+        fullscreen.compactActivity = .music
+        UserDefaults.standard.hides = true
+        UserDefaults.standard.expands = false
+        fullscreen.updateBounds()
+        let blackSize = fullscreen.surfaceSize
+        fullscreen.hover(true)
+        suite.expect(blackSize == fullscreen.geometry.restingSize(showsContent: false)
+                     && !fullscreen.hoverEmphasized && fullscreen.hoverWork != nil,
+                     "fullscreen keeps the cutout black but schedules configured hover access even with cached music")
+        DispatchQueue.main.advance(0.26)
+        suite.expect(fullscreen.peeking && fullscreen.openings == 0,
+                     "hover preview remains available from the black fullscreen cutout")
+        let simulatedFullscreen = fixture()
+        simulatedFullscreen.hiddenInFullscreen = true
+        simulatedFullscreen.hover(true)
+        DispatchQueue.main.advance(0.26)
+        suite.expect(simulatedFullscreen.hoverWork == nil && !simulatedFullscreen.peeking
+                     && simulatedFullscreen.openings == 0,
+                     "a simulated cutout hidden in full screen does not open on hover")
         for physical in [false, true] {
             let service = fixture(physical: physical)
             service.hover(true)

@@ -27,9 +27,43 @@ enum PreferencesFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.appearance] as? String == AppAppearance.system.rawValue,
                "the app follows the system appearance until the user picks a side")
         suite.expect(registeredDefaults[DefaultsKey.liquidGlassEnabled] as? Bool == false,
-               "liquid glass appearance is opt-in")
+               "liquid glass in other windows is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.notchLiquidGlassEnabled] as? Bool == false,
+               "liquid glass in Dynamic Island is opt-in")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.liquidGlassEnabled),
-               "liquid glass appearance follows settings backups")
+               "liquid glass in other windows follows settings backups")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchLiquidGlassEnabled),
+               "liquid glass in Dynamic Island follows settings backups")
+        suite.expect(SettingsBackupSupport.keysToClear(whenImporting: [
+            DefaultsKey.notchEnabled: true
+        ]).contains(DefaultsKey.notchLiquidGlassEnabled)
+            && !SettingsBackupSupport.keysToClear(whenImporting: [:])
+                .contains(DefaultsKey.notchLiquidGlassEnabled),
+               "old backups with island settings can migrate their glass choice, while older backups keep the local choice")
+        let glassDomain = "vorss.tests.glass-migration.\(UUID().uuidString)"
+        let glassDefaults = UserDefaults(suiteName: glassDomain)!
+        defer { glassDefaults.removePersistentDomain(forName: glassDomain) }
+        Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
+        suite.expect(glassDefaults.persistentDomain(forName: glassDomain)?[
+            DefaultsKey.notchLiquidGlassEnabled] as? Bool == false,
+               "a new installation saves the island glass choice as off")
+        glassDefaults.set(true, forKey: DefaultsKey.liquidGlassEnabled)
+        Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
+        suite.expect(!glassDefaults.bool(forKey: DefaultsKey.notchLiquidGlassEnabled),
+               "turning on glass for other windows after the first launch leaves the island off")
+        glassDefaults.removeObject(forKey: DefaultsKey.notchLiquidGlassEnabled)
+        Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
+        suite.expect(glassDefaults.bool(forKey: DefaultsKey.notchLiquidGlassEnabled),
+               "an existing glass preference is copied to Dynamic Island")
+        glassDefaults.set(false, forKey: DefaultsKey.liquidGlassEnabled)
+        Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
+        suite.expect(glassDefaults.bool(forKey: DefaultsKey.notchLiquidGlassEnabled),
+               "changing other windows does not change an already migrated island")
+        glassDefaults.set(false, forKey: DefaultsKey.notchLiquidGlassEnabled)
+        glassDefaults.set(true, forKey: DefaultsKey.liquidGlassEnabled)
+        Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
+        suite.expect(!glassDefaults.bool(forKey: DefaultsKey.notchLiquidGlassEnabled),
+               "an explicit island choice survives later launches")
         suite.expect(AppAppearance.sanitized(nil) == .system
                 && AppAppearance.sanitized("nonsense") == .system,
                "an unknown stored appearance falls back to the system one")

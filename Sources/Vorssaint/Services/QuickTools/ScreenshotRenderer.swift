@@ -291,10 +291,12 @@ enum ScreenshotRenderer {
         guard let pixelated = pixelated[annotation.blurLevel] else { return }
         context.saveGState()
         context.clip(to: annotation.rect)
-        // The pixelated twin is drawn full-size under the clip; flip locally
-        // because CGContext.draw expects an unflipped space.
+        // Expand the sampled mosaic with nearest-neighbor filtering under the
+        // clip. Keeping it small avoids one capture-sized bitmap per blur level.
+        // Flip locally because CGContext.draw expects an unflipped space.
         context.translateBy(x: 0, y: imageSize.height)
         context.scaleBy(x: 1, y: -1)
+        context.interpolationQuality = .none
         context.draw(pixelated, in: CGRect(origin: .zero, size: imageSize))
         context.restoreGState()
     }
@@ -418,19 +420,7 @@ enum ScreenshotRenderer {
                 }
             }
         }
-        guard let mosaic = small.makeImage() else { return nil }
-
-        guard let full = CGContext(data: nil,
-                                   width: image.width,
-                                   height: image.height,
-                                   bitsPerComponent: 8,
-                                   bytesPerRow: 0,
-                                   space: CGColorSpaceCreateDeviceRGB(),
-                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-        else { return nil }
-        full.interpolationQuality = .none
-        full.draw(mosaic, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        return full.makeImage()
+        return small.makeImage()
     }
 
     // MARK: - Export

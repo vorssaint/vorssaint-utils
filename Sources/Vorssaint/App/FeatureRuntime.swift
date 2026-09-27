@@ -91,17 +91,33 @@ final class FeatureRuntime: ObservableObject {
     }
 
     /// Flipping availability runs each feature's binding immediately, in the
-    /// order given: off tears every resource down on the spot, on restores
-    /// whatever enabled state the feature had (its own keys are never
-    /// touched). One row, the "all" buttons and the Dynamic Island leaving
+    /// order given: off tears every resource down on the spot, while a first
+    /// install turns on the feature's main control. Saved choices survive a
+    /// reinstall. One row, the "all" buttons and the Dynamic Island leaving
     /// with its extensions all pass through here, with one revision bump.
-    func setAvailable(_ features: [AppFeature], _ available: Bool) {
+    /// Install all leaves enable keys alone: it would otherwise switch on
+    /// intrusive features nobody picked, such as focus follows mouse.
+    func setAvailable(_ features: [AppFeature], _ available: Bool,
+                      enablingFirstInstalls: Bool = true) {
         var changed = false
-        for feature in features where mayFlip(feature, to: available) {
+        let firstIslandInstall = available && features.contains(.notch)
+            && mayFlip(.notch, to: true)
+            && !UserDefaults.standard.bool(forKey: DefaultsKey.notchInitialExtensionsInstalled)
+        let requested = firstIslandInstall
+            ? features + AppFeature.dynamicIslandExtensions.filter { !features.contains($0) }
+            : features
+        let savedValues = savedPreferences()
+        for feature in requested where mayFlip(feature, to: available) {
+            if available && enablingFirstInstalls {
+                feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
+            }
             UserDefaults.standard.set(available, forKey: feature.availabilityKey)
             if available { loadedThisSession.insert(feature) }
             Self.bindings[feature]?()
             changed = true
+        }
+        if firstIslandInstall && AppFeature.notch.isAvailable {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         if changed { finishAvailabilityChange() }
     }
@@ -121,9 +137,13 @@ final class FeatureRuntime: ObservableObject {
         for key in keys {
             UserDefaults.standard.set(true, forKey: key)
         }
+        let savedValues = savedPreferences()
         for feature in AppFeature.allCases
         where mayFlip(feature, to: selected.contains(feature)) {
             let joins = selected.contains(feature)
+            if joins {
+                feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
+            }
             UserDefaults.standard.set(joins, forKey: feature.availabilityKey)
             if joins { loadedThisSession.insert(feature) }
             Self.bindings[feature]?()
@@ -136,12 +156,20 @@ final class FeatureRuntime: ObservableObject {
         for feature in selected where feature.isAvailable {
             Self.bindings[feature]?()
         }
+        if selected.contains(.notch) && AppFeature.notch.isAvailable {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
+        }
         finishAvailabilityChange()
     }
 
     /// Bulk install or uninstall for the hub's "all" buttons.
     func setAllAvailable(_ available: Bool) {
-        setAvailable(AppFeature.allCases, available)
+        setAvailable(AppFeature.allCases, available, enablingFirstInstalls: false)
+    }
+
+    private func savedPreferences() -> [String: Any] {
+        guard let domain = Bundle.main.bundleIdentifier else { return [:] }
+        return UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
     }
 
     /// Launch path: replaces the old unconditional sync block. Only available

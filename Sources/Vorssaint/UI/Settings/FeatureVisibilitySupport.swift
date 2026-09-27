@@ -155,21 +155,38 @@ final class SettingsRouter: ObservableObject {
 
     init() {}
 
+    /// `replacingVisit` swaps what the current visit shows without adding a
+    /// history entry, for a fallback when the visited tool went away.
     func request(_ destination: FeatureSettingsDestination, targetFeature: AppFeature? = nil,
-                 sidebarFeature: AppFeature? = nil) {
+                 sidebarFeature: AppFeature? = nil, replacingVisit: Bool = false) {
         let requestID = UUID()
+        let samePage = page == destination.page
         page = destination.page
         self.destination = destination
         self.sidebarFeature = sidebarFeature?.settingsDestination == destination ? sidebarFeature : nil
-        // Section requests refine the current page visit, not a new history entry.
-        history[historyIndex] = HistoryEntry(destination: destination,
-                                             sidebarFeature: self.sidebarFeature)
+        let entry = HistoryEntry(destination: destination, sidebarFeature: self.sidebarFeature)
+        // Section requests refine the current page visit, not a new history
+        // entry. General and Energy show one tool per anchor, so switching
+        // tools there is a visit of its own.
+        if samePage && !isTraversingHistory && !replacingVisit
+            && Self.anchorSelectsTool(on: destination.page)
+            && history[historyIndex].destination != destination {
+            history.removeSubrange((historyIndex + 1)..<history.count)
+            history.append(entry)
+            historyIndex += 1
+        } else {
+            history[historyIndex] = entry
+        }
         pendingDestinationRequest = SettingsDestinationRequest(id: requestID,
                                                                destination: destination)
         pendingFeatureTarget = targetFeature.map {
             SettingsFeatureTargetRequest(id: requestID, feature: $0)
         }
         self.requestID = requestID
+    }
+
+    private static func anchorSelectsTool(on page: SettingsPage) -> Bool {
+        page == .general || page == .energy
     }
 
     func goBack(isPageVisible: (SettingsPage) -> Bool = { _ in true }) {

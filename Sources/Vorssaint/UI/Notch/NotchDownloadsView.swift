@@ -7,7 +7,7 @@ import SwiftUI
 struct NotchDownloadsSettingsControls: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = true
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
@@ -35,7 +35,7 @@ struct NotchDownloadsView: View {
     let size: CGSize
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = true
     @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
@@ -144,24 +144,36 @@ struct NotchDownloadStrip: View {
         let item = downloads.items.first { $0.active && !$0.completed }
         Button { service.open(.downloads) } label: {
             HStack(spacing: 0) {
-                Group {
+                HStack(spacing: 6) {
                     if geometry.compactActivityWingWidth >= 40 {
                         Image(systemName: "arrow.down.circle.fill").font(.system(size: iconSize))
+                        if NotchDownloadSupport.showsCompactName(in: geometry) {
+                            Text(item?.name ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle)
+                                .font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                        }
                     }
                 }
                 .padding(.leading, geometry.compactActivityWingWidth >= 40 ? iconInset : 0)
+                .padding(.trailing, 4)
                 // Each wing anchors to its own edge, so the silhouette's curve
                 // decides the margin instead of the content's own width.
                 .frame(width: geometry.compactActivityWingWidth, alignment: .leading).clipped()
                 Color.clear.frame(width: geometry.compactActivityCameraGap)
-                HStack {
-                    Spacer(minLength: 0)
+                HStack(spacing: 6) {
+                    // The name widens both wings; the bar fills the side the
+                    // percentage alone would leave as a band of black.
+                    if NotchDownloadSupport.showsCompactName(in: geometry), let fraction = item?.fraction {
+                        NotchMeter(value: fraction, height: 4).padding(.leading, 4)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
                     if geometry.compactActivityWingWidth >= 36 {
                         if let fraction = item?.fraction {
                             Text(fraction, format: NotchDownloadSupport.percentFormat(l10n.language))
                                 .font(.system(size: NotchDownloadSupport.percentSize, weight: .medium))
                                 .monospacedDigit()
                                 .lineLimit(1).minimumScaleFactor(NotchDownloadSupport.percentMinimumScale)
+                                .layoutPriority(1)
                         } else {
                             ProgressView().controlSize(.mini)
                         }

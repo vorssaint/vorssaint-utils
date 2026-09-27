@@ -15,6 +15,8 @@ struct NotchGestureSupport {
     }
     private var origin: Origin?
     private var axis: Axis?
+    private var pendingX = 0.0
+    private var pendingY = 0.0
     private var distance = 0.0
     private var fired = false
     private var lastTimestamp: TimeInterval?
@@ -44,6 +46,11 @@ struct NotchGestureSupport {
         return delta * (inverted ? 1 : -1) * (precise ? 1 : 24)
     }
 
+    static func allowsVertical(expanded: Bool, inHeader: Bool, musicSurface: Bool,
+                               control: Bool, scroll: Bool) -> Bool {
+        !control && (!expanded || inHeader || (musicSurface && !scroll))
+    }
+
     mutating func handle(x: Double, y: Double, timestamp: TimeInterval,
                          began: Bool, ended: Bool, momentum: Bool, precise: Bool, hasPhase: Bool,
                          allowVertical: Bool, allowHorizontal: Bool, expanded: Bool) -> Action? {
@@ -69,18 +76,28 @@ struct NotchGestureSupport {
         let allowHorizontal = origin?.horizontal ?? allowHorizontal
         let expanded = origin?.expanded ?? expanded
         if axis == nil {
-            if precise, allowHorizontal, abs(x) > 0.2, abs(x) >= abs(y) * 1.5 { axis = .horizontal }
-            else if allowVertical, abs(y) > 0.2, abs(y) >= abs(x) * 1.5 { axis = .vertical }
+            // Establish intent from a little accumulated travel, not the first
+            // fraction of a point as the fingers touch the trackpad.
+            pendingX += x
+            pendingY += y
+            if precise, allowHorizontal, abs(pendingX) >= 4, abs(pendingX) >= abs(pendingY) * 1.5 {
+                axis = .horizontal
+                distance = pendingX
+            }
+            else if allowVertical, abs(pendingY) >= 4, abs(pendingY) >= abs(pendingX) * 1.5 {
+                axis = .vertical
+                distance = pendingY
+            }
             else { return nil }
+        } else {
+            distance += axis == .horizontal ? x : y
         }
         switch axis {
         case .horizontal where allowHorizontal:
-            distance += x
             guard abs(distance) >= 40 else { return nil }
             fired = true
             return distance < 0 ? .nextTrack : .previousTrack
         case .vertical where allowVertical:
-            distance += y
             guard abs(distance) >= 24 else { return nil }
             fired = true
             if distance > 0, !expanded { return .open }

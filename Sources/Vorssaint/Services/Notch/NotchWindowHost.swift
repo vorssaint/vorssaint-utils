@@ -126,6 +126,10 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         if panel.ignoresMouseEvents != effective { panel.ignoresMouseEvents = effective }
     }
 
+    func setOutline(enabled: Bool, color: NSColor) {
+        canvas.setOutline(enabled: enabled, color: color)
+    }
+
     func hide(animated: Bool, transitionContent: NotchContentTransition = .dismiss) {
         guard isPresented else { return }
         let animate = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -138,7 +142,6 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     func present(size: CGSize, geometry: NotchGeometry, animated: Bool, transitionContent: NotchContentTransition = .none,
                  quickAccess: NotchQuickAccessConfiguration? = nil, revealFromHidden: Bool = false,
                  hideWhenSettled: Bool = false, usesGlass: Bool = false) {
-        canvas.setOutline(NotchSilhouette.current())
         hidesWhenSettled = hideWhenSettled
         if hideWhenSettled {
             if mouseEventsBeforeHide == nil {
@@ -207,7 +210,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         // reveal at the screen edge, even when reopening at that same size.
         let previousWidth = revealing ? geometry.collapsed.width : canvas.bounds.width
         let previousPath = revealing
-            ? NotchShape(attached: true, radius: 0, floatingGap: NotchSilhouette.current().gap)
+            ? NotchShape(attached: true, radius: 0)
                 .path(in: CGRect(x: 0, y: 0, width: previousWidth, height: 0)).cgPath
             : canvas.visiblePath
         let sameScreen = geometry.screen == currentGeometry.screen
@@ -465,26 +468,39 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     /// is the cheap hint, and the frame probe, which waits on the window
     /// server, runs only while one is up or the island is concealed.
     private func syncMissionControlMonitoring() {
+        updateMissionControlTimer()
+        if panel.isVisible { refreshMissionControlState(now: true) }
+    }
+
+    private var missionControlCheckInterval: TimeInterval {
+        overviewWasVisible || concealedForMissionControl ? 0.08 : 0.25
+    }
+
+    private func updateMissionControlTimer() {
         guard panel.isVisible || concealedForMissionControl else {
             missionControlTimer?.invalidate()
             missionControlTimer = nil
             return
         }
-        if missionControlTimer == nil {
-            let timer = Timer(timeInterval: 0.08, repeats: true) { [weak self] _ in
+        let interval = missionControlCheckInterval
+        if missionControlTimer?.timeInterval != interval {
+            missionControlTimer?.invalidate()
+            let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
                 self?.refreshMissionControlState()
             }
-            timer.tolerance = 0.04
+            timer.tolerance = interval / 2
             missionControlTimer = timer
             RunLoop.main.add(timer, forMode: .common)
         }
-        if panel.isVisible { refreshMissionControlState(now: true) }
     }
 
     private func refreshMissionControlState(now immediate: Bool = false) {
         let now = ProcessInfo.processInfo.systemUptime
-        guard immediate || now - lastMissionControlCheck >= 0.08 else { return }
+        guard immediate || now - lastMissionControlCheck >= missionControlCheckInterval else { return }
         lastMissionControlCheck = now
+        // Most of the time no overview is up. Poll less often then, but keep
+        // the original restore cadence and immediate checks before revealing.
+        defer { updateMissionControlTimer() }
         let overview = NotchFrameProbe.overviewIsVisible(on: currentGeometry.screen)
         let appeared = overview && !overviewWasVisible
         overviewWasVisible = overview
@@ -597,6 +613,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     var backdropProbeContour: Path { canvas.backdropPresentation.contour }
     var backdropProbeUsesGlass: Bool { canvas.usesGlass }
     var backdropProbeOpenness: Double { canvas.backdropPresentation.openness }
+    var outlineProbeOpacity: Float { canvas.outlineProbeOpacity }
+    var outlineProbeWidth: CGFloat { canvas.outlineProbeWidth }
+    var outlineProbeTopOpen: Bool { canvas.outlineProbeTopOpen }
     /// Nil where this macOS has no overlay Spaces to offer.
     var overlayProbeHolds: Bool? { overlaySpace.map { $0.probeHolds(panel) } }
     var backdropProbeScheduled: Bool { canvas.backdropDisplayLink != nil }
@@ -674,8 +693,8 @@ enum NotchStage {
     }
 
     /// A stage of `stage` size centred on the top of `bounds`.
-    static func frame(_ stage: CGSize, in bounds: CGRect, dy: CGFloat = 0) -> CGRect {
-        CGRect(x: bounds.midX - stage.width / 2, y: bounds.minY + dy, width: stage.width, height: stage.height)
+    static func frame(_ stage: CGSize, in bounds: CGRect) -> CGRect {
+        CGRect(x: bounds.midX - stage.width / 2, y: bounds.minY, width: stage.width, height: stage.height)
     }
 }
 
@@ -782,6 +801,7 @@ final class NotchPanel: NSPanel {
     // Status items own the screen edge at their level, even when our view's
     // hit test includes it. Keep the island above them, below native menus.
     static let normalLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
+    static let fullscreenLevel = NSWindow.Level.floating
     var acceptsKeyFocus = false
     var handleScroll: ((NSEvent) -> Bool)?
     var visibilityDidChange: (() -> Void)?
@@ -814,7 +834,8 @@ final class NotchPanel: NSPanel {
     }
 
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .scrollWheel, handleScroll?(event) == true { return }
+        if event.type == .scrollWheel,
+           handleScroll?(event) == true || HorizontalWheelScrolling.handle(event) { return }
         super.sendEvent(event)
     }
 }
@@ -934,22 +955,14 @@ private final class NotchCanvas: NSView {
     var hoverChanged: ((Bool) -> Void)?
     private let silhouette = CAShapeLayer()
     private let edge = CAShapeLayer()
+    private var outlineEnabled = false
+    private var outlineColor = NSColor.white
     private let contentVisibility = CALayer()
     private var dropActions: NotchFileDropActions?
     private var acceptingDrag = false
     private var contentSize: CGSize
-    private(set) var outline = NotchSilhouette.current()
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
-
-    /// Switching outlines redraws the resting island at once.
-    func setOutline(_ next: NotchSilhouette) {
-        guard outline != next else { return }
-        outline = next
-        stopMotion()
-        needsLayout = true
-        layoutSubtreeIfNeeded()
-    }
 
     init(content: AnyView, background: (NotchBackdropPresentation) -> AnyView, size: CGSize) {
         contentSize = size
@@ -979,8 +992,13 @@ private final class NotchCanvas: NSView {
         addSubview(activationButton)
         edge.fillColor = nil
         updateContrast()
-        edge.lineWidth = 0.5
         edge.zPosition = 2
+        // The island hangs from the top of the screen, so its outline leaves
+        // that side open instead of drawing a line along the screen's edge.
+        let edgeMask = CALayer()
+        edgeMask.backgroundColor = NSColor.black.cgColor
+        edgeMask.frame = CGRect(x: -10_000, y: Self.outlineTopGap, width: 20_000, height: 20_000)
+        edge.mask = edgeMask
         layer?.addSublayer(edge)
         contentVisibility.name = "notch.contentVisibility"
         contentVisibility.backgroundColor = NSColor.black.cgColor
@@ -1008,13 +1026,35 @@ private final class NotchCanvas: NSView {
     }
 
     func updateContrast() {
-        let color = NSColor.white.withAlphaComponent(
-            NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 0.45 : 0).cgColor
-        guard edge.strokeColor != color else { return }
+        let increasedContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let color = (increasedContrast ? NSColor.white : outlineColor).withAlphaComponent(
+            outlineEnabled ? (increasedContrast ? 0.85 : 0.65) : (increasedContrast ? 0.45 : 0)).cgColor
+        let lineWidth: CGFloat = outlineEnabled ? 2 : 0.5
+        let opacity: Float = outlineEnabled || contentSize.height > 64 ? 1 : 0
+        guard edge.strokeColor != color || edge.lineWidth != lineWidth || edge.opacity != opacity else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         edge.strokeColor = color
+        edge.lineWidth = lineWidth
+        edge.opacity = opacity
         CATransaction.commit()
+    }
+
+    func setOutline(enabled: Bool, color: NSColor) {
+        guard outlineEnabled != enabled || outlineColor != color else { return }
+        outlineEnabled = enabled
+        outlineColor = color
+        updateContrast()
+    }
+
+    /// The inner half of the widest outline stroke, left undrawn at the top.
+    static let outlineTopGap: CGFloat = 1
+
+    var outlineProbeOpacity: Float { edge.opacity }
+    var outlineProbeWidth: CGFloat { edge.lineWidth }
+    var outlineProbeTopOpen: Bool {
+        guard let mask = edge.mask else { return false }
+        return mask.frame.minY >= edge.lineWidth / 2 && mask.frame.minY <= Self.outlineTopGap
     }
 
     func setFileDropActions(_ actions: NotchFileDropActions?) {
@@ -1121,25 +1161,16 @@ private final class NotchCanvas: NSView {
         return path.copy(using: &offset) ?? path
     }
 
-    /// The island's size as drawn, from the top edge: a floating capsule
-    /// still counts the space above it, as its window and hover do.
+    /// The island's size as drawn, from the top edge.
     func surfaceSize(of path: CGPath) -> CGSize {
         let box = path.boundingBoxOfPath
-        let height = max(0, box.maxY)
-        guard outline.gap > 0 else { return CGSize(width: box.width, height: height) }
-        return CGSize(width: box.width + 2 * min(NotchLayout.capsuleSide(height: height), box.width), height: height)
+        return CGSize(width: box.width, height: max(0, box.maxY))
     }
 
     var visibleSize: CGSize? { visiblePath.map(surfaceSize) }
 
-    /// Clicks in the space above a floating capsule still reach it, as they
-    /// reach the top of the attached island.
     func containsVisiblePoint(_ point: CGPoint) -> Bool {
-        guard let path = visiblePath else { return false }
-        if path.contains(point) { return true }
-        let box = path.boundingBoxOfPath
-        return outline.gap > 0 && !box.isEmpty && point.y >= 0 && point.y <= box.minY + 1
-            && point.x >= box.minX && point.x <= box.maxX
+        visiblePath?.contains(point) ?? false
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -1171,8 +1202,7 @@ private final class NotchCanvas: NSView {
     /// in the mask layer's own coordinates.
     func silhouettePath(for size: CGSize) -> CGPath {
         var translation = CGAffineTransform(translationX: islandX(size) - silhouette.frame.minX, y: 0)
-        let path = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height),
-                              floatingGap: outline.gap)
+        let path = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height))
             .path(in: CGRect(origin: .zero, size: size)).cgPath
         return path.copy(using: &translation) ?? path
     }
@@ -1480,12 +1510,10 @@ private final class NotchCanvas: NSView {
         }
         silhouette.path = silhouettePath(for: motionStart ?? contentSize)
         edge.path = silhouette.path
-        edge.opacity = contentSize.height > 64 ? 1 : 0
+        updateContrast()
         // Keep foreground layout fixed inside the reserved reveal area. Only
         // the separate backdrop's contour changes on animation frames.
-        // A floating capsule starts below the top edge; its content keeps
-        // the middle of the capsule, not of the strip above it.
-        var hostFrame = NotchStage.frame(stage, in: bounds, dy: (outline.gap / 2).rounded(.down))
+        var hostFrame = NotchStage.frame(stage, in: bounds)
         hostFrame.origin.x = centre - stage.width / 2
         if host.frame != hostFrame { host.frame = hostFrame }
         contentVisibility.frame = host.bounds

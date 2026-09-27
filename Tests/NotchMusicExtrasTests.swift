@@ -192,8 +192,12 @@ enum NotchMusicExtrasTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
-        suite.expect(!NotchLyricsSupport.isEnabled(in: defaults) && !NotchLyricsSupport.onlineEnabled(in: defaults)
-               && !NotchQueueSupport.isEnabled(in: defaults), "new music surfaces and online metadata sharing start disabled")
+        suite.expect(NotchLyricsSupport.isEnabled(in: defaults) && !NotchLyricsSupport.onlineEnabled(in: defaults)
+               && NotchQueueSupport.isEnabled(in: defaults), "installed music surfaces start enabled while online lyrics stay off")
+        defaults.set(false, forKey: DefaultsKey.notchLyricsEnabled)
+        defaults.set(false, forKey: DefaultsKey.notchQueueEnabled)
+        suite.expect(!NotchLyricsSupport.isEnabled(in: defaults) && !NotchQueueSupport.isEnabled(in: defaults),
+               "local lyrics and the queue can be turned off")
         defaults.set(true, forKey: DefaultsKey.notchLyricsEnabled)
         defaults.set(true, forKey: DefaultsKey.notchQueueEnabled)
         suite.expect(NotchLyricsSupport.isEnabled(in: defaults) && !NotchLyricsSupport.onlineEnabled(in: defaults)
@@ -215,7 +219,7 @@ enum NotchMusicExtrasTests {
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            suite.expect(strings.count == 37 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(strings.count == 38 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }

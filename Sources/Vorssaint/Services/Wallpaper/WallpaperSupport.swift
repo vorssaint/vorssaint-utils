@@ -3,6 +3,48 @@
 
 import Foundation
 
+/// Lets a folder scan publish only while its gallery is open and it is the
+/// latest scan. The scan reads this from a worker queue while the UI changes
+/// visibility on the main thread.
+final class WallpaperGalleryLifecycle {
+    private let lock = NSLock()
+    private var viewers = Set<UUID>()
+    private var generation = UUID()
+
+    var isVisible: Bool { lock.withLock { !viewers.isEmpty } }
+
+    func begin(_ viewer: UUID) { lock.withLock { _ = viewers.insert(viewer) } }
+
+    /// A closing panel cancels work only when no other gallery is still open.
+    @discardableResult
+    func end(_ viewer: UUID) -> Bool {
+        lock.withLock {
+            guard viewers.remove(viewer) != nil, viewers.isEmpty else { return false }
+            generation = UUID()
+            return true
+        }
+    }
+
+    func endAll() {
+        lock.withLock {
+            viewers.removeAll()
+            generation = UUID()
+        }
+    }
+
+    @discardableResult
+    func invalidate() -> UUID {
+        lock.withLock {
+            generation = UUID()
+            return generation
+        }
+    }
+
+    func accepts(_ token: UUID) -> Bool {
+        lock.withLock { !viewers.isEmpty && generation == token }
+    }
+}
+
 /// Catalog / filter / store-patch helpers. No AppKit (test harness).
 enum WallpaperSupport {
     enum Source: String, Equatable {

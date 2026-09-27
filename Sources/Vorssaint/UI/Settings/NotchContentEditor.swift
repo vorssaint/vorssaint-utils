@@ -12,10 +12,11 @@ struct NotchIslandPreview: View {
     var hidden = false
     @ObservedObject private var notch = NotchService.shared
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var monitoring = false
+    @State private var windowVisible = false
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
     private static let captionHeight: CGFloat = 28
     private static let margin: CGFloat = 16
@@ -44,14 +45,17 @@ struct NotchIslandPreview: View {
                 Rectangle()
                     .fill(.primary.opacity(0.06))
                     .frame(height: geometry.menuBarHeight * scale)
-                island(size: size, geometry: geometry)
-                    .scaleEffect(scale, anchor: .top)
-                    .frame(width: size.width * scale, height: size.height * scale, alignment: .top)
-                    .opacity(hidden ? 0.4 : 1)
+                if windowVisible {
+                    island(size: size, geometry: geometry)
+                        .scaleEffect(scale, anchor: .top)
+                        .frame(width: size.width * scale, height: size.height * scale, alignment: .top)
+                        .opacity(hidden ? 0.4 : 1)
+                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
         }
         .background(.quaternary.opacity(0.35))
+        .background(WindowVisibilityReader { windowVisible = $0 })
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(alignment: .bottomLeading) {
             Label(hidden ? editor.hiddenInIsland : editor.preview, systemImage: hidden ? "eye.slash" : "eye")
@@ -64,8 +68,9 @@ struct NotchIslandPreview: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(editor.preview)
         .accessibilityValue(module.title(l10n.language) + (hidden ? ", " + editor.hiddenInIsland : ""))
-        .onAppear { monitor(module == .system) }
-        .onChange(of: module) { _, value in monitor(value == .system) }
+        .onAppear { monitor(windowVisible && module == .system) }
+        .onChange(of: module) { _, value in monitor(windowVisible && value == .system) }
+        .onChange(of: windowVisible) { _, visible in monitor(visible && module == .system) }
         .onDisappear { monitor(false) }
     }
 

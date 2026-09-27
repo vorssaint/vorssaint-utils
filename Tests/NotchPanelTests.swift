@@ -20,6 +20,9 @@ enum NotchPanelTests {
         expect(panel.collectionBehavior.contains([.canJoinAllSpaces, .fullScreenAuxiliary])
                && panel.collectionBehavior.intersection([.managed, .stationary, .transient]) == .stationary,
                "the island stays in place when the desktop is revealed, with no conflicting window motion policy")
+        expect(NotchPanel.fullscreenLevel.rawValue > NSWindow.Level.normal.rawValue
+               && NotchPanel.fullscreenLevel.rawValue < NSWindow.Level.mainMenu.rawValue,
+               "the simulated full-screen cutout stays over app content but yields to the revealed menu bar")
         sheetContracts(expect: expect)
         activeGlass(expect: expect)
     }

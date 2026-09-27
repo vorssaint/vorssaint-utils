@@ -134,9 +134,11 @@ enum NotchNotificationTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
-        suite.expect(!NotchNotificationSupport.isEnabled(in: defaults), "enabling the notch never enables message mirroring")
+        suite.expect(NotchNotificationSupport.isEnabled(in: defaults), "installed notifications start enabled in the island")
+        defaults.set(false, forKey: DefaultsKey.notchNotificationsEnabled)
+        suite.expect(!NotchNotificationSupport.isEnabled(in: defaults), "message mirroring can be turned off")
         defaults.set(true, forKey: DefaultsKey.notchNotificationsEnabled)
-        suite.expect(NotchSupport.routes(.systemNotification, in: defaults), "an explicit opt-in enables new notification banners")
+        suite.expect(NotchSupport.routes(.systemNotification, in: defaults), "turning message mirroring back on enables new banners")
         suite.expect(!NotchNotificationSupport.dismissesNative(in: defaults), "native banners remain intact by default")
         defaults.set(true, forKey: DefaultsKey.notchDismissNativeNotifications)
         suite.expect(NotchNotificationSupport.dismissesNative(in: defaults), "native closing requires both notification opt-ins")

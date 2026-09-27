@@ -10,8 +10,8 @@ import Foundation
 /// Availability is a layer ABOVE each feature's own enable key: an unavailable
 /// feature disappears from Settings, the menu panel and the menu bar, and its
 /// service tears down (and never instantiates on the next launch). Turning a
-/// feature back on restores whatever enabled state it had, because the enable
-/// keys are never touched.
+/// feature back on restores saved enable choices. A first install turns on its
+/// primary control when no enable choice was saved before.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
@@ -283,6 +283,34 @@ extension AppFeature {
         }
     }
 
+    /// Turn on the feature's main behavior at install time. Features with
+    /// several independent controls start with one useful behavior, except
+    /// audio priority, whose output and input controls work together. The
+    /// live equalizer stays off: it asks for system audio recording on the
+    /// first song, so only the user's own switch turns it on.
+    private var initialEnableKeys: [String] {
+        switch self {
+        case .windowLayout: return [DefaultsKey.windowLayoutShortcutsEnabled]
+        case .audioPriority: return enabledKeys
+        case .notchLiveEqualizer: return []
+        default: return enabledKeys.first.map { [$0] } ?? []
+        }
+    }
+
+    /// Registered defaults are visible through `object(forKey:)`, so only the
+    /// persistent domain can tell a fresh install from a saved off choice.
+    func enableOnFirstInstall(in defaults: UserDefaults, savedValues: [String: Any]) {
+        let choices = self == .windowLayout
+            ? [DefaultsKey.windowLayoutShortcutsEnabled, DefaultsKey.windowDirectionalEnabled,
+               DefaultsKey.pointerDisplayEnabled, DefaultsKey.windowEdgeSnapEnabled,
+               DefaultsKey.windowGestureEnabled]
+            : enabledKeys
+        guard !choices.contains(where: { savedValues[$0] != nil }) else { return }
+        for key in initialEnableKeys {
+            defaults.set(true, forKey: key)
+        }
+    }
+
     /// Which permissions the feature can use at all. Whether it is using them
     /// RIGHT NOW is answered by `activeFeatures(using:)`, which also applies
     /// the dynamic rules (simple-mode switcher needs no screen recording, the
@@ -368,6 +396,10 @@ extension AppFeature {
     /// along.
     static var dynamicIslandExtensions: [AppFeature] {
         features(in: .dynamicIsland).filter { $0 != .notch }
+    }
+
+    var initialInstallGroup: [AppFeature] {
+        self == .notch ? [self] + Self.dynamicIslandExtensions : [self]
     }
 
     /// Registered defaults preserve existing features on update. New opt-in

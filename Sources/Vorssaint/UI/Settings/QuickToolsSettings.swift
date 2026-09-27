@@ -54,7 +54,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.launcherName)
                 }
-                .settingsSectionAnchor(.quickLauncher)
+                .settingsFormSectionAnchor(.quickLauncher)
             }
 
             if AppFeature.quickToggles.isAvailable {
@@ -95,7 +95,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.quickToggles(l10n.language).pageTitle)
                 }
-                .settingsSectionAnchor(.quickToggles)
+                .settingsFormSectionAnchor(.quickToggles)
                 .onAppear { brightness.refreshKeyboardLight() }
             }
 
@@ -135,7 +135,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.micMuteName)
                 }
-                .settingsSectionAnchor(.micMute)
+                .settingsFormSectionAnchor(.micMute)
             }
 
             if AppFeature.cameraPreview.isAvailable {
@@ -168,7 +168,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.cameraPreview(l10n.language).pageTitle)
                 }
-                .settingsSectionAnchor(.cameraPreview)
+                .settingsFormSectionAnchor(.cameraPreview)
             }
 
             if AppFeature.wallpaper.isAvailable {
@@ -187,7 +187,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.wallpaper(l10n.language).pageTitle)
                 }
-                .settingsSectionAnchor(.wallpaper)
+                .settingsFormSectionAnchor(.wallpaper)
             }
 
             if AppFeature.scratchpad.isAvailable {
@@ -249,7 +249,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.scratchpad(l10n.language).pageTitle)
                 }
-                .settingsSectionAnchor(.scratchpad)
+                .settingsFormSectionAnchor(.scratchpad)
             }
 
             if AppFeature.cleaningMode.isAvailable {
@@ -269,7 +269,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.cleaningMenuItem)
                 }
-                .settingsSectionAnchor(.cleaningMode)
+                .settingsFormSectionAnchor(.cleaningMode)
             }
         }
         .formStyle(.grouped)

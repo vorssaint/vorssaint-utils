@@ -677,6 +677,13 @@ enum ScreenshotFeatureTests {
                 && ScreenshotDefaultAction(rawValue: "saveAndCopy") == .saveAndCopy
                 && ScreenshotDefaultAction(rawValue: "bogus") == nil,
                "after-capture actions decode from their stored raw values")
+        suite.expect(ScreenshotDefaultAction.allCases.filter(\.copiesToClipboard)
+                == [.saveAndCopy, .copy],
+               "only Copy and Save and copy put the capture on the clipboard")
+        suite.expect(ScreenshotDefaultAction.allCases.map(\.withoutCopy)
+                == [.none, .save, .save, .none, .edit]
+                && ScreenshotDefaultAction.allCases.allSatisfy { !$0.withoutCopy.copiesToClipboard },
+               "turning automatic copy off drops only the copy half of the after-capture action")
 
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.
@@ -713,9 +720,18 @@ enum ScreenshotFeatureTests {
                 suite.expect(tool.showsCaptureMenu(fromShortcut: false, defaults: reopenedDefaults),
                        "buttons still open the capture menu even when a shortcut hides it")
             }
+            for tool in ScreenCaptureTool.allCases {
+                suite.expect(tool.opensDuringRecording(fromShortcut: true, defaults: reopenedDefaults)
+                        == (tool == hiddenTool && tool != .recording),
+                       "only \(hiddenTool)'s menu-free shortcut may run over a recording, checked for \(tool)")
+                suite.expect(!tool.opensDuringRecording(fromShortcut: false, defaults: reopenedDefaults),
+                       "buttons open the capture menu, so they never run over a recording")
+            }
             captureMenuDefaults.set(true, forKey: hiddenTool.showCaptureMenuOnShortcutKey)
             suite.expect(hiddenTool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
                    "turning the setting back on restores the shortcut menu")
+            suite.expect(!hiddenTool.opensDuringRecording(fromShortcut: true, defaults: captureMenuDefaults),
+                   "turning the setting back on blocks the shortcut during a recording again")
         }
         let recordingOnly: Set<AppFeature> = [.screenRecorder]
         suite.expect(ScreenCaptureTool.available(isAvailable: recordingOnly.contains) == [.recording],
@@ -1447,7 +1463,7 @@ enum ScreenshotFeatureTests {
         outlinedArea.blurLevel = 4
         suite.expect(ScreenshotSupport.mosaicLevels(for: [lightArea, strongArea, strongArea, outlinedArea]) == [1, 5]
                 && ScreenshotSupport.mosaicLevels(for: [outlinedArea]).isEmpty,
-               "the editor keeps a capture-sized mosaic only for the levels its pixelate areas use")
+               "the editor keeps a sampled mosaic only for the levels its pixelate areas use")
         func filled(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat) -> CGImage? {
             let context = CGContext(data: nil, width: 20, height: 10, bitsPerComponent: 8,
                                     bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
@@ -1486,6 +1502,58 @@ enum ScreenshotFeatureTests {
             suite.expect(read && left[0] > 200 && left[2] < 50 && right[2] > 200 && right[0] < 50,
                    "an export with mixed blur levels draws each area from its own mosaic")
         }
+        // Compare the exported pixels with the old full-size cache path. The
+        // pixelate rect cuts across mosaic cells, exercising the clip too.
+        let mosaicWidth = 26, mosaicHeight = 19
+        let mosaicSource = CGContext(data: nil, width: mosaicWidth, height: mosaicHeight,
+                                     bitsPerComponent: 8, bytesPerRow: 0,
+                                     space: CGColorSpaceCreateDeviceRGB(),
+                                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        mosaicSource?.setFillColor(CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1))
+        mosaicSource?.fill(CGRect(x: 0, y: 0, width: 13, height: mosaicHeight))
+        mosaicSource?.setFillColor(CGColor(srgbRed: 0, green: 0, blue: 1, alpha: 1))
+        mosaicSource?.fill(CGRect(x: 13, y: 0, width: 13, height: mosaicHeight))
+        var sampledIsSmaller = false
+        var exportedPixelsMatch = false
+        if let source = mosaicSource?.makeImage(),
+           let sampled = ScreenshotRenderer.pixelatedImage(from: source),
+           let oldFull = CGContext(data: nil, width: mosaicWidth, height: mosaicHeight,
+                                   bitsPerComponent: 8, bytesPerRow: 0,
+                                   space: CGColorSpaceCreateDeviceRGB(),
+                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+            sampledIsSmaller = sampled.width < source.width && sampled.height < source.height
+            oldFull.interpolationQuality = .none
+            oldFull.draw(sampled, in: CGRect(x: 0, y: 0, width: mosaicWidth, height: mosaicHeight))
+            if let expanded = oldFull.makeImage() {
+                let area = ScreenshotSupport.Annotation(
+                    tool: .pixelate, rect: CGRect(x: 3, y: 2, width: 19, height: 14))
+                func exportedPixels(using mosaic: CGImage) -> [UInt8]? {
+                    guard let image = ScreenshotRenderer.renderExport(
+                        baseImage: source, annotations: [area], pixelated: [3: mosaic], scale: 1,
+                        annotationShadowsEnabled: false, watermark: ScreenshotSupport.WatermarkStyle(),
+                        watermarkImage: nil, style: ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0),
+                        fill: .none, downscaleTo1x: false)?.image else { return nil }
+                    var pixels = [UInt8](repeating: 0, count: mosaicWidth * mosaicHeight * 4)
+                    let read = pixels.withUnsafeMutableBytes { buffer -> Bool in
+                        guard let context = CGContext(data: buffer.baseAddress, width: mosaicWidth,
+                                                      height: mosaicHeight, bitsPerComponent: 8,
+                                                      bytesPerRow: mosaicWidth * 4,
+                                                      space: CGColorSpaceCreateDeviceRGB(),
+                                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                        else { return false }
+                        context.draw(image, in: CGRect(x: 0, y: 0, width: mosaicWidth, height: mosaicHeight))
+                        return true
+                    }
+                    return read ? pixels : nil
+                }
+                if let compactPixels = exportedPixels(using: sampled),
+                   let expandedPixels = exportedPixels(using: expanded) {
+                    exportedPixelsMatch = compactPixels == expandedPixels
+                }
+            }
+        }
+        suite.expect(sampledIsSmaller, "pixelation caches sampled pixels instead of a full capture")
+        suite.expect(exportedPixelsMatch, "sampled mosaics export the same clipped pixels as full-size mosaics")
         let bigText = ScreenshotSupport.Annotation(tool: .text, stroke: .small, textSize: 48)
         suite.expect(ScreenshotSupport.selectionStyle(for: bigText)
                 == ScreenshotSupport.SelectionStyle(color: .red, stroke: nil,

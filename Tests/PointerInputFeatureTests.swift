@@ -147,6 +147,20 @@ enum PointerInputFeatureTests {
         suite.expect(KeyboardDebounceConfig.decodeKeyWindows("37:100,bad,40:0,99:999")
                == [37: 100, 40: 0, 99: Defaults.defaultKeyboardDebounceWindowMs],
                "debounce key windows decode and sanitize stored values")
+        let preciseConfig = KeyboardDebounceConfig(enabled: true,
+                                                   globalWindowMs: 1,
+                                                   keyWindows: [:])
+        debounceState.reset()
+        suite.expect(!debounceDown(0, at: 90.0000, config: preciseConfig),
+               "a 1 ms keyboard window accepts the first press")
+        _ = debounceUp(0, at: 90.0005, config: preciseConfig)
+        suite.expect(debounceDown(0, at: 90.0010, config: preciseConfig),
+               "a 1 ms keyboard window still filters a same-key bounce")
+        suite.expect(!debounceDown(11, at: 90.0012, config: preciseConfig),
+               "different keys pressed within 5 ms are never filtered")
+        _ = debounceUp(11, at: 90.0014, config: preciseConfig)
+        suite.expect(!debounceDown(0, at: 90.0015, config: preciseConfig),
+               "the first key is accepted again after another key")
 
         // MARK: Mouse click debounce
 
@@ -209,11 +223,22 @@ enum PointerInputFeatureTests {
                 && !click(0, .up, at: 301, config: disabledClickConfig)
                 && !click(0, .down, at: 302, config: disabledClickConfig),
                "disabled click debounce is a complete pass-through")
+        let preciseClickConfig = MouseClickDebounceConfig(enabled: true, windowMilliseconds: 6)
+        clickState.reset()
+        suite.expect(!click(0, .down, at: 400, config: preciseClickConfig)
+                && !click(0, .up, at: 401, config: preciseClickConfig)
+                && !click(0, .down, at: 407, config: preciseClickConfig)
+                && !click(0, .up, at: 408, config: preciseClickConfig)
+                && click(0, .down, at: 413, config: preciseClickConfig),
+               "a 6 ms window keeps a click 6 ms after release and filters one 5 ms after")
         suite.expect(Defaults.sanitizedMouseClickDebounceWindow(5) == 5
+                && Defaults.sanitizedMouseClickDebounceWindow(6) == 6
                 && Defaults.sanitizedMouseClickDebounceWindow(100) == 100
+                && Defaults.sanitizedMouseClickDebounceWindow(4)
+                    == Defaults.defaultMouseClickDebounceWindowMs
                 && Defaults.sanitizedMouseClickDebounceWindow(0)
                     == Defaults.defaultMouseClickDebounceWindowMs,
-               "mouse click debounce keeps only its conservative settings range")
+               "mouse click debounce accepts any millisecond window from 5 to 100 ms")
         let clickDebounceServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceService.swift",
             encoding: .utf8)) ?? ""

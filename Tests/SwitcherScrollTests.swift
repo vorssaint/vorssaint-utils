@@ -59,6 +59,7 @@ enum SwitcherScrollContract {
         let window: Item
         let preview: Int?
         let isSelected: Bool
+        let instantSelection: Bool
         let onCommit: () -> Void
         let onClose: () -> Void
         var body: some View { Color.clear.frame(width: SwitcherIconRowLayout.previewCardWidth, height: SwitcherIconRowLayout.previewCardHeight) }
@@ -85,9 +86,11 @@ enum SwitcherScrollContract {
             else { UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherPreviewSize) }
             NSApp.setActivationPolicy(previousPolicy)
         }
-        func run(_ name: String, _ body: (Model, (String) -> Void, () -> Void) -> Void) {
+        func run(_ name: String, instantSelection: Bool = false,
+                 _ body: (Model, (String) -> Void, () -> Void) -> Void) {
             let model = Model()
-            let hosting = NSHostingView(rootView: Strip(switcher: model))
+            let hosting = NSHostingView(rootView: Strip(switcher: model,
+                                                      instantSelection: instantSelection))
             let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 1600, height: 300),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
@@ -167,6 +170,14 @@ enum SwitcherScrollContract {
         }
         for simple in [false, true] {
             let mode = simple ? "titles" : "previews"
+            run("\(mode) instant navigation", instantSelection: true) { model, check, _ in
+                model.screenWidth = 640
+                model.seed([8, 7], selected: 7, simple: simple); check("initial overflow")
+                model.select(index: 0); check("first")
+                model.select(index: 7); check("last")
+                model.select(index: 8); check("next app")
+                model.select(index: 14); check("next app last")
+            }
             run("\(mode) search") { model, check, _ in
                 model.seed([3,1,1,1,1,1,1], selected: 2, simple: simple); check("initial")
                 model.search("a"); check("narrowed without changing selection")

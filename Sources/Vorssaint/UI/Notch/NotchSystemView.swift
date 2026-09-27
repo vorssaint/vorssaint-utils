@@ -72,7 +72,7 @@ struct NotchSystemView: View {
         }
         if AppFeature.fanControl.isAvailable, !snapshot.fanSpeeds.isEmpty {
             let strings = FeatureStrings.fanControl(l10n.language)
-            cards.append(Card(kind: .fan, title: strings.menuBarTitle, symbol: "fanblades",
+            cards.append(Card(kind: .fan, title: strings.title, symbol: "fanblades",
                               value: snapshot.fanSpeeds.first.map { String(format: strings.rpmFormat, Int($0.rounded())) }))
         }
         return cards

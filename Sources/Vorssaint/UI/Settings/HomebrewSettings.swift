@@ -8,6 +8,7 @@ struct HomebrewSettings: View {
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @AppStorage(DefaultsKey.homebrewGroupDependencies) private var homebrewGroupDependencies = true
     @State private var query = ""
     @State private var searchKind: HomebrewPackageKind = .cask
     @State private var installedFilter = HomebrewInstalledFilter.all
@@ -126,6 +127,12 @@ struct HomebrewSettings: View {
                 .pickerStyle(.segmented)
                 .frame(width: 300)
                 outdatedSummary
+            }
+            HStack {
+                Spacer(minLength: 0)
+                Toggle(l10n.s.homebrewGroupDependencies, isOn: $homebrewGroupDependencies)
+                    .font(.caption)
+                    .controlSize(.small)
             }
         }
     }
@@ -279,8 +286,11 @@ struct HomebrewSettings: View {
     }
 
     private var installedPackagesSection: some View {
-        let folded = HomebrewDependencyGraph.fold(filteredInstalled, installed: homebrew.installed)
-        return packageSection(l10n.s.homebrewInstalled, count: filteredInstalled.count) {
+        let visible = filteredInstalled
+        let folded = HomebrewDependencyGraph.display(visible,
+                                                      installed: homebrew.installed,
+                                                      groupDependencies: homebrewGroupDependencies)
+        return packageSection(l10n.s.homebrewInstalled, count: visible.count) {
             if homebrew.isLoadingInstalled {
                 loadingRow(l10n.s.homebrewLoading)
             } else if folded.rows.isEmpty {
