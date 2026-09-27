@@ -109,6 +109,7 @@ final class NotchService: ObservableObject {
     private var screenEdgePressArea: CGRect?
     private var captureControlsMonitors: [Any] = []
     private var hiddenHoverMonitors: [Any] = []
+    private var pointerDisplayMonitors: [Any] = []
     private var hoverWork: DispatchWorkItem?
     private var noticeWork: DispatchWorkItem?
     private var departureWork: DispatchWorkItem?
@@ -672,6 +673,7 @@ final class NotchService: ObservableObject {
         removeScreenEdgeClickMonitors()
         removeCaptureControlsClickThrough()
         removeHiddenHoverMonitors()
+        removePointerDisplayMonitors()
         releaseMonitor()
         windowHost?.close()
         windowHost = nil
@@ -1883,7 +1885,38 @@ final class NotchService: ObservableObject {
             builtIn: screens.map { CGDisplayIsBuiltin($0.notchDisplayID) != 0 },
             notched: screens.map { $0.safeAreaInsets.top > 0 },
             main: screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0,
+            pointer: screens.firstIndex(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }),
             hasLid: Self.hasLid)
+    }
+
+    /// The pointer choice moves the island to the display the pointer
+    /// enters. Only movement is observed, and only with several displays.
+    private func syncPointerDisplayMonitoring() {
+        guard running, !suspended, NSScreen.screens.count > 1,
+              NotchDisplay(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchDisplay) ?? "") == .pointer
+        else { removePointerDisplayMonitors(); return }
+        guard pointerDisplayMonitors.isEmpty else { return }
+        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in
+            self?.pointerDidMove()
+        }) { pointerDisplayMonitors.append(token) }
+        if let token = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] event in
+            self?.pointerDidMove()
+            return event
+        }) { pointerDisplayMonitors.append(token) }
+    }
+
+    private func removePointerDisplayMonitors() {
+        pointerDisplayMonitors.forEach(NSEvent.removeMonitor)
+        pointerDisplayMonitors.removeAll()
+    }
+
+    /// An open island stays where the user is working with it; the next
+    /// movement after it closes brings it to the pointer's display.
+    private func pointerDidMove() {
+        guard running, !suspended, !expanded, captureControls == nil, !heldDrag, screenRefreshWork == nil,
+              let screen = NSScreen.withMouse, screen.frame != geometry.screen else { return }
+        screenParametersDidChange()
     }
 
     /// With the chosen display away, as the built-in one with the lid closed,
@@ -1949,6 +1982,7 @@ final class NotchService: ObservableObject {
                 update: { [weak self] in self?.updateFileDrop(at: $0) == true }))
         } else { windowHost?.setFileDropActions(nil) }
         panel?.sharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
+        syncPointerDisplayMonitoring()
         updateFullscreenVisibility(displayID: screen.notchDisplayID)
     }
 

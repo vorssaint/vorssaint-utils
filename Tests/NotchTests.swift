@@ -1670,6 +1670,18 @@ enum NotchTests {
         suite.expect(NotchSupport.screenIndex(preference: .main, builtIn: [true, false, false],
                                        notched: [true, false, false], main: 2) == 2,
                "the main display choice follows the display with the menu bar, even beside a notched built-in screen")
+        suite.expect(NotchSupport.screenIndex(preference: .pointer, builtIn: [true, false, false],
+                                       notched: [true, false, false], main: 0, pointer: 2) == 2
+                     && NotchSupport.screenIndex(preference: .pointer, builtIn: [true, false],
+                                       notched: [true, false], main: 0, pointer: 1) == 1,
+               "the display-with-pointer choice moves to whichever display holds the pointer, notched or not")
+        suite.expect(NotchSupport.screenIndex(preference: .pointer, builtIn: [true, false],
+                                       notched: [true, false], main: 1) == 1
+                     && NotchSupport.screenIndex(preference: .pointer, builtIn: [true, false],
+                                       notched: [true, false], main: 1, pointer: 5) == 1,
+               "without a pointer on any display, the display-with-pointer choice uses the main display")
+        suite.expect(NotchSupport.screenIndex(preference: .pointer, builtIn: [], notched: [], main: 0, pointer: 0) == nil,
+               "the display-with-pointer choice still has no panel without displays")
         suite.expect(NotchSupport.shouldReplace(.volume, with: .brightness), "continuous controls can replace each other")
         suite.expect(!NotchSupport.shouldReplace(.volume, with: .clipboard), "copy does not interrupt a volume adjustment")
         suite.expect(NotchSupport.shouldReplace(.battery, with: .capture), "a capture takes precedence over passive battery status")

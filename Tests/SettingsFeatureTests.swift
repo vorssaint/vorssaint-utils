@@ -111,6 +111,13 @@ enum SettingsFeatureTests {
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: mainDisplayBackup)?[DefaultsKey.notchDisplay] as? String
                     == NotchDisplay.main.rawValue,
                "a backup keeps the main display choice")
+        let pointerDisplayBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [DefaultsKey.notchDisplay: NotchDisplay.pointer.rawValue],
+        ]
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: pointerDisplayBackup)?[DefaultsKey.notchDisplay] as? String
+                    == NotchDisplay.pointer.rawValue,
+               "a backup keeps the display-with-pointer choice")
         suite.expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
                "the cleaning mode keep screen visible choice travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.appearance),

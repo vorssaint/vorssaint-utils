@@ -481,6 +481,7 @@ struct NotchSettings: View {
                            selected: (NotchDisplay(rawValue: display) ?? .automatic) == .automatic) { display = NotchDisplay.automatic.rawValue }
                     choice(text.builtIn, symbol: "laptopcomputer", selected: display == NotchDisplay.builtIn.rawValue) { display = NotchDisplay.builtIn.rawValue }
                     choice(text.mainDisplay, symbol: "display", selected: display == NotchDisplay.main.rawValue) { display = NotchDisplay.main.rawValue }
+                    choice(text.pointerDisplay, symbol: "cursorarrow.rays", selected: display == NotchDisplay.pointer.rawValue) { display = NotchDisplay.pointer.rawValue }
                 }
             }
             SettingsCard(title: editor.destinations) {
