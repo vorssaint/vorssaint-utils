@@ -243,6 +243,10 @@ struct NotchAgentBars: View {
                 }
             }
         }
+        // Oldest bucket at the left edge, newest at the right, in every
+        // language: this axis is time, and a mirrored root would flip the row
+        // while the axis labels beside it still read left to right.
+        .unmirroredLayout()
         .accessibilityHidden(true)
     }
 }
@@ -297,6 +301,10 @@ struct NotchAgentHeatmap: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
+        // Thirteen weeks running left to right, the newest column last, the
+        // same way the bars above run. The figures printed beside the map are
+        // text and stay in the reading order.
+        .unmirroredLayout()
         .accessibilityHidden(true)
     }
 
