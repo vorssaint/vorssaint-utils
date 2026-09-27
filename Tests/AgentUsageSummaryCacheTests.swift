@@ -10,12 +10,14 @@ enum AgentUsageSummaryCacheTests {
         // The day before the spring DST transition, including future entries.
         var now = AgentTimestamp.parse("2026-03-07T23:55:00Z")!
         let cache = AgentUsageSummaryCache()
-        var records = (0..<6_000).map { index in
-            AgentUsageRecord(provider: index % 2 == 0 ? .claude : .codex,
-                date: now.addingTimeInterval(-Double(index) * 1_400 + 900),
-                model: index % 2 == 0 ? "claude-opus-5-5" : "gpt-6-sol", project: "p\(index % 7)",
-                session: "s", tokens: AgentTokens(input: index + 1, output: 10),
-                cost: index % 13 == 0 ? nil : Double(index % 11) / 8, savings: 0.125)
+        var records: [AgentUsageRecord] = (0..<6_000).map { index -> AgentUsageRecord in
+            let provider: AgentProvider = index % 2 == 0 ? .claude : .codex
+            let date = now.addingTimeInterval(-Double(index) * 1_400 + 900)
+            let model = index % 2 == 0 ? "claude-opus-5-5" : "gpt-6-sol"
+            let tokens = AgentTokens(input: index + 1, output: 10)
+            let cost: Double? = index % 13 == 0 ? nil : Double(index % 11) / 8
+            return AgentUsageRecord(provider: provider, date: date, model: model, project: "p\(index % 7)",
+                                    session: "s", tokens: tokens, cost: cost, savings: 0.125)
         }
         var providers = Set(AgentProvider.allCases)
         var live: [AgentLiveSession] = []
