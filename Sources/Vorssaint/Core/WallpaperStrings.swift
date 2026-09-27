@@ -49,6 +49,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -440,5 +441,31 @@ extension WallpaperFeatureStrings {
         applyFailed: "無法設定桌布",
         previousPage: "上一頁",
         nextPage: "下一頁"
+    )
+
+    static let ar = WallpaperFeatureStrings(
+        pageTitle: "خلفية الشاشة",
+        hubDescription: "اختر خلفية ثابتة دون فتح إعدادات النظام",
+        panelDescription: "اختر خلفية ثابتة دون فتح إعدادات النظام.",
+        filterAll: "الكل",
+        filterOwn: "صورك",
+        filterApple: "Apple",
+        applyAllDisplays: "الإظهار في كل المساحات",
+        addImage: "إضافة صورة",
+        addFolder: "إضافة مجلد",
+        removeAdded: "إزالة",
+        doneRemoving: "تم",
+        sourceUnavailable: "غير متاح",
+        addImagePrompt: "اختر صورًا لإبقائها في قائمة خلفيات Vorssaint",
+        addFolderPrompt: "اختر مجلد صور لإبقائه في قائمة خلفيات Vorssaint",
+        openSystemSettings: "فتح إعدادات خلفية الشاشة",
+        emptyAll: "لم يتم العثور على خلفيات",
+        emptyOwn: "لم تُضف أي صورة بعد",
+        emptyApple: "لم يتم العثور على خلفيات Apple ثابتة",
+        downloading: "جارٍ التنزيل…",
+        downloadFailed: "تعذّر تنزيل الخلفية",
+        applyFailed: "تعذّر تعيين الخلفية",
+        previousPage: "السابق",
+        nextPage: "التالي"
     )
 }

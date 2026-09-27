@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -199,5 +200,16 @@ extension RecentCaptureStrings {
         open: "Відкрити",
         remove: "Видалити з історії",
         clear: "Очистити історію"
+    )
+
+    static let ar = RecentCaptureStrings(
+        title: "اللقطات الأخيرة",
+        empty: "التقط صورة للشاشة أو احفظ تسجيلًا لتجده هنا.",
+        screenshot: "لقطة شاشة",
+        recording: "تسجيل",
+        restore: "استعادة",
+        open: "فتح",
+        remove: "إزالة من السجل",
+        clear: "مسح السجل"
     )
 }
