@@ -1061,6 +1061,8 @@ extension Strings {
         focusFollowsMouseName: "Фокус следует за мышью",
         focusFollowsMouseCaption: "Фокусирует и поднимает окно под указателем после короткой паузы.",
         focusFollowsMouseDelay: "Задержка наведения",
+        focusFollowsMouseOnlyBetweenDisplays: "Только между экранами",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "Переключает фокус, только когда указатель останавливается на окне другого экрана. В пределах одного экрана фокус не меняется.",
         switcherMinimizedPlacementLabel: "Свёрнутые окна",
         switcherTreatHiddenAppsLikeMinimized: "Считать скрытые приложения свёрнутыми окнами",
         switcherMinimizedPlacementNormal: "Обычный порядок",

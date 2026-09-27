@@ -1061,6 +1061,8 @@ extension Strings {
         focusFollowsMouseName: "마우스를 따라 포커스",
         focusFollowsMouseCaption: "잠시 멈춘 뒤 포인터 아래의 윈도우에 포커스를 주고 앞으로 가져옵니다.",
         focusFollowsMouseDelay: "호버 지연",
+        focusFollowsMouseOnlyBetweenDisplays: "디스플레이 간에만",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "포인터가 다른 디스플레이의 윈도우에 머물 때만 포커스를 옮깁니다. 같은 디스플레이 안에서는 포커스가 바뀌지 않습니다.",
         switcherMinimizedPlacementLabel: "최소화된 윈도우",
         switcherTreatHiddenAppsLikeMinimized: "숨긴 앱을 최소화된 윈도우처럼 처리",
         switcherMinimizedPlacementNormal: "일반 순서",

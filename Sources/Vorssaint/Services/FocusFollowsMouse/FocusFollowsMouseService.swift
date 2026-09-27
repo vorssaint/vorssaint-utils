@@ -14,6 +14,7 @@ final class FocusFollowsMouseService {
     private var observers: [NSObjectProtocol] = []
     private var state = FocusFollowsMouseState()
     private var delayMilliseconds = FocusFollowsMouseSupport.defaultDelayMilliseconds
+    private var onlyBetweenDisplays = false
     private var isRunning = false
 
     private init() {
@@ -38,6 +39,7 @@ final class FocusFollowsMouseService {
 
     func preferencesDidChange() {
         delayMilliseconds = Self.savedDelay()
+        onlyBetweenDisplays = UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseOnlyBetweenDisplays)
     }
 
     func stop() {
@@ -54,7 +56,7 @@ final class FocusFollowsMouseService {
             preferencesDidChange()
             return
         }
-        delayMilliseconds = Self.savedDelay()
+        preferencesDidChange()
         guard let mouseMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged],
             handler: { [weak self] event in
@@ -132,10 +134,23 @@ final class FocusFollowsMouseService {
         let clickThroughWindowIDs = Set(NSApp.windows.filter(\.ignoresMouseEvents).compactMap {
             CGWindowID(exactly: $0.windowNumber)
         })
+        let frontmostProcessID = onlyBetweenDisplays
+            ? NSWorkspace.shared.frontmostApplication?.processIdentifier : nil
         queryQueue.async { [weak self] in
             guard let self else { return }
+            let windows = WindowServerSupport.onScreenWindowInfo()
+            // Checked before any Accessibility query: staying on the focused
+            // window's display is the common case and needs no app lookup.
+            if let frontmostProcessID {
+                guard FocusFollowsMouseSupport.crossesDisplays(
+                    pointer: evaluation.point,
+                    focusedWindowBounds: FocusFollowsMouseSupport.frontWindowBounds(
+                        in: windows, processID: frontmostProcessID),
+                    displays: Self.displayBounds()
+                ) else { return }
+            }
             let target = FocusFollowsMouseSupport.queryWindow(
-                in: WindowServerSupport.onScreenWindowInfo(), at: evaluation.point,
+                in: windows, at: evaluation.point,
                 pointerWindowID: pointerWindowID,
                 ownProcessID: ProcessInfo.processInfo.processIdentifier,
                 clickThroughWindowIDs: clickThroughWindowIDs
@@ -217,6 +232,14 @@ final class FocusFollowsMouseService {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
         return value as? String
+    }
+
+    private static func displayBounds() -> [CGRect] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).map(CGDisplayBounds)
     }
 
     private static func savedDelay() -> Int {

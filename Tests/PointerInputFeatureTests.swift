@@ -799,6 +799,40 @@ enum PointerInputFeatureTests {
                "focus follows mouse ships off with a safe delay")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseDelay),
                "focus follows mouse preferences follow settings backups")
+        let focusDisplays = [CGRect(x: 0, y: 0, width: 1_000, height: 800),
+                             CGRect(x: 1_000, y: 0, width: 1_200, height: 900)]
+        suite.expect(!FocusFollowsMouseSupport.crossesDisplays(
+                pointer: CGPoint(x: 900, y: 400),
+                focusedWindowBounds: CGRect(x: 100, y: 100, width: 400, height: 300),
+                displays: focusDisplays),
+               "only between displays ignores hover on the focused window's display")
+        suite.expect(FocusFollowsMouseSupport.crossesDisplays(
+                pointer: CGPoint(x: 1_500, y: 400),
+                focusedWindowBounds: CGRect(x: 100, y: 100, width: 400, height: 300),
+                displays: focusDisplays),
+               "only between displays follows the pointer onto another display")
+        suite.expect(!FocusFollowsMouseSupport.crossesDisplays(
+                pointer: CGPoint(x: 1_500, y: 400),
+                focusedWindowBounds: CGRect(x: 900, y: 100, width: 800, height: 300),
+                displays: focusDisplays),
+               "a window straddling displays belongs to the display holding most of it")
+        suite.expect(FocusFollowsMouseSupport.crossesDisplays(
+                pointer: CGPoint(x: 900, y: 400), focusedWindowBounds: nil, displays: focusDisplays),
+               "without a focused window hover is free to focus any display")
+        let focusWindowList: [[String: Any]] = [
+            [kCGWindowOwnerPID as String: NSNumber(value: 7), kCGWindowLayer as String: NSNumber(value: 25),
+             kCGWindowBounds as String: ["X": 0, "Y": 0, "Width": 50, "Height": 50]],
+            [kCGWindowOwnerPID as String: NSNumber(value: 7), kCGWindowLayer as String: NSNumber(value: 0),
+             kCGWindowBounds as String: ["X": 1_100, "Y": 10, "Width": 300, "Height": 200]],
+            [kCGWindowOwnerPID as String: NSNumber(value: 7), kCGWindowLayer as String: NSNumber(value: 0),
+             kCGWindowBounds as String: ["X": 10, "Y": 10, "Width": 300, "Height": 200]],
+        ]
+        suite.expect(FocusFollowsMouseSupport.frontWindowBounds(in: focusWindowList, processID: 7)
+                == CGRect(x: 1_100, y: 10, width: 300, height: 200)
+                && FocusFollowsMouseSupport.frontWindowBounds(in: focusWindowList, processID: 8) == nil,
+               "the focused display comes from the app's frontmost normal window")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseOnlyBetweenDisplays] as? Bool == false,
+               "focus follows mouse works on every display by default")
         let focusFollowsMouseServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseService.swift",
             encoding: .utf8)) ?? ""

@@ -49,6 +49,51 @@ enum FocusFollowsMouseSupport {
         return nil
     }
 
+    /// With "only between displays" on, hover moves focus only when the
+    /// pointer rests on a different display than the focused window. Without
+    /// a focused window there is nothing holding focus to a display.
+    static func crossesDisplays(pointer: CGPoint,
+                                focusedWindowBounds: CGRect?,
+                                displays: [CGRect]) -> Bool {
+        guard let focusedWindowBounds,
+              let focusedDisplay = display(of: focusedWindowBounds, in: displays)
+        else { return true }
+        guard let pointerDisplay = displays.firstIndex(where: { contains($0, pointer) }) else { return false }
+        return pointerDisplay != focusedDisplay
+    }
+
+    /// The frontmost normal window of an app in a front-to-back window list,
+    /// which is the one holding its keyboard focus.
+    static func frontWindowBounds(in windows: [[String: Any]], processID: pid_t) -> CGRect? {
+        for window in windows {
+            guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == processID,
+                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = WindowServerSupport.bounds(from: window),
+                  bounds.width > 1, bounds.height > 1
+            else { continue }
+            return bounds
+        }
+        return nil
+    }
+
+    /// The display a window mostly sits on, as macOS assigns it.
+    private static func display(of bounds: CGRect, in displays: [CGRect]) -> Int? {
+        var best: (index: Int, area: CGFloat)?
+        for (index, display) in displays.enumerated() {
+            let overlap = display.intersection(bounds)
+            guard !overlap.isNull else { continue }
+            let area = overlap.width * overlap.height
+            if area > (best?.area ?? 0) { best = (index, area) }
+        }
+        return best?.index
+    }
+
+    /// Right and bottom edges count, like the pointer reaching a screen edge.
+    private static func contains(_ rect: CGRect, _ point: CGPoint) -> Bool {
+        point.x >= rect.minX && point.x <= rect.maxX && point.y >= rect.minY && point.y <= rect.maxY
+    }
+
     static func shouldActivate(targetWindowID: CGWindowID,
                                focusedWindowID: CGWindowID?,
                                targetAppIsFrontmost: Bool) -> Bool {

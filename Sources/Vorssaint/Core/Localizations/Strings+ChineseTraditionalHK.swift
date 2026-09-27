@@ -1061,6 +1061,8 @@ extension Strings {
         focusFollowsMouseName: "游標停留時聚焦",
         focusFollowsMouseCaption: "游標短暫停留後，聚焦並將其下方視窗移至最前方。",
         focusFollowsMouseDelay: "停留延遲",
+        focusFollowsMouseOnlyBetweenDisplays: "僅在顯示器之間",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "僅在指標停留於另一部顯示器上的視窗時才切換焦點。在同一部顯示器內停留不會改變焦點。",
         switcherMinimizedPlacementLabel: "已最小化的視窗",
         switcherTreatHiddenAppsLikeMinimized: "將隱藏的 App 視為已最小化的視窗",
         switcherMinimizedPlacementNormal: "正常順序",

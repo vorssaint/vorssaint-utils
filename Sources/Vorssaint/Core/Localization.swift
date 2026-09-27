@@ -1257,6 +1257,8 @@ struct Strings {
     let focusFollowsMouseName: String
     let focusFollowsMouseCaption: String
     let focusFollowsMouseDelay: String
+    let focusFollowsMouseOnlyBetweenDisplays: String
+    let focusFollowsMouseOnlyBetweenDisplaysCaption: String
     let switcherMinimizedPlacementLabel: String
     let switcherTreatHiddenAppsLikeMinimized: String
     let switcherMinimizedPlacementNormal: String
@@ -2337,6 +2339,8 @@ extension Strings {
         focusFollowsMouseName: "Foco ao passar o mouse",
         focusFollowsMouseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
         focusFollowsMouseDelay: "Atraso ao passar o mouse",
+        focusFollowsMouseOnlyBetweenDisplays: "Só entre telas",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "Muda o foco apenas quando o ponteiro passa para uma janela em outra tela. Dentro da mesma tela, o foco não muda.",
         switcherMinimizedPlacementLabel: "Janelas minimizadas",
         switcherTreatHiddenAppsLikeMinimized: "Tratar apps ocultos como janelas minimizadas",
         switcherMinimizedPlacementNormal: "Ordem normal",
@@ -3418,6 +3422,8 @@ extension Strings {
         focusFollowsMouseName: "Focus follows mouse",
         focusFollowsMouseCaption: "Focuses and raises the window under the pointer after a short pause.",
         focusFollowsMouseDelay: "Hover delay",
+        focusFollowsMouseOnlyBetweenDisplays: "Only between displays",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "Moves focus only when the pointer rests on a window on another display. Hovering within the same display leaves focus alone.",
         switcherMinimizedPlacementLabel: "Minimized windows",
         switcherTreatHiddenAppsLikeMinimized: "Treat hidden apps like minimized windows",
         switcherMinimizedPlacementNormal: "Normal ordering",

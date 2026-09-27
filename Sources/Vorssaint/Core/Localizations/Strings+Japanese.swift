@@ -1060,6 +1060,8 @@ extension Strings {
         focusFollowsMouseName: "マウス追従フォーカス",
         focusFollowsMouseCaption: "短い停止後、ポインタの下にあるウインドウをフォーカスして手前に表示します。",
         focusFollowsMouseDelay: "ホバー遅延",
+        focusFollowsMouseOnlyBetweenDisplays: "ディスプレイ間のみ",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "ポインタが別のディスプレイのウインドウに止まったときだけフォーカスを移します。同じディスプレイ内ではフォーカスは変わりません。",
         switcherMinimizedPlacementLabel: "最小化されたウインドウ",
         switcherTreatHiddenAppsLikeMinimized: "非表示のアプリを最小化されたウインドウとして扱う",
         switcherMinimizedPlacementNormal: "通常の順序",

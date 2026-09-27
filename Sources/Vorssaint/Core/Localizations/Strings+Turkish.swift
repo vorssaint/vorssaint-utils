@@ -1060,6 +1060,8 @@ extension Strings {
         focusFollowsMouseName: "Odak fareyi takip etsin",
         focusFollowsMouseCaption: "Kısa bir beklemeden sonra işaretçinin altındaki pencereye odaklanır ve öne getirir.",
         focusFollowsMouseDelay: "Üzerinde bekleme gecikmesi",
+        focusFollowsMouseOnlyBetweenDisplays: "Yalnızca ekranlar arasında",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "Odağı yalnızca işaretçi başka bir ekrandaki pencerede durduğunda değiştirir. Aynı ekran içinde odak değişmez.",
         switcherMinimizedPlacementLabel: "Küçültülmüş pencereler",
         switcherTreatHiddenAppsLikeMinimized: "Gizli uygulamaları küçültülmüş pencereler gibi işle",
         switcherMinimizedPlacementNormal: "Normal sıralama",
