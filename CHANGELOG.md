@@ -7,13 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island adds reopening choices, improves music gestures and playback selection, keeps brightness feedback white, and reduces repeated processing during agent activity and Mission Control monitoring.
+Dynamic Island adds reopening choices, improves music gestures and playback selection, keeps brightness feedback white, and reduces repeated processing during agent activity and Mission Control monitoring. The menu bar panel and Settings open on the display where they are invoked, including Sidecar.
 
 ### Changed
 - Dynamic Island can reopen directly to the app panel or Explore, alongside its section choices.
 - Dynamic Island automatically follows music apps by default. Music settings can also include videos and other apps; manually chosen playback sources still work.
 
 ### Fixed
+- The menu bar panel follows the display where its icon was clicked, including Sidecar and vertically arranged displays. Settings opens on the panel's display or the pointer's display and moves there when reopened.
 - Music swipes ignore small initial direction changes and can close the expanded player from its surface. Accepted track skips show brief directional feedback, respecting Reduce Motion.
 - Screen and keyboard brightness feedback stays white in compact notices and the expanded header.
 - AI usage updates reuse historical totals and apply streamed response changes incrementally. The closed island's agent clock reuses its layout between ticks, and Mission Control detection polls less often at rest while retaining fast restoration checks.
