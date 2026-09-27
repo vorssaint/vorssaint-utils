@@ -94,6 +94,9 @@ enum AlertSoundStrings {
         case .uk:
             return ukrainian
 
+        case .ar:
+            return arabic
+
         // Apple's AlertSounds localization data keeps the English
         // display names for these locales.
         case .ja, .ko, .zhHans, .zhTW, .zhHK:
@@ -289,5 +292,24 @@ enum AlertSoundStrings {
         "Sosumi": "Повідомлення",
         "Submarine": "Занурення",
         "Tink": "Тиць",
+    ]
+
+    // MARK: - Arabic
+
+    private static let arabic: [String: String] = [
+        "Basso": "وسطي",
+        "Blow": "نسيم",
+        "Bottle": "حصى",
+        "Frog": "قفز",
+        "Funk": "فانكي",
+        "Glass": "بلور",
+        "Hero": "بطلة",
+        "Morse": "بونغ",
+        "Ping": "السونار",
+        "Pop": "فقاعة",
+        "Purr": "نقر",
+        "Sosumi": "سونومي",
+        "Submarine": "غمر",
+        "Tink": "بوب",
     ]
 }

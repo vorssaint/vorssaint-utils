@@ -317,7 +317,7 @@ private struct DockPreviewPanelContent: View {
                 Button {
                     revealSelection(onSelectPrevious(), proxy: proxy)
                 } label: {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: "chevron.backward")
                         .font(.system(size: 11, weight: .semibold))
                         .frame(width: 18, height: 18)
                 }
@@ -327,7 +327,7 @@ private struct DockPreviewPanelContent: View {
                 Button {
                     revealSelection(onSelectNext(), proxy: proxy)
                 } label: {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 11, weight: .semibold))
                         .frame(width: 18, height: 18)
                 }

@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -231,5 +232,18 @@ extension MenuBarAppearanceStrings {
         highColor: "Високий колір",
         mediumFrom: "Середній від",
         highFrom: "Високий від"
+    )
+
+    static let ar = MenuBarAppearanceStrings(
+        label: "عرض الاستخدام",
+        values: "قيم",
+        bars: "أشرطة",
+        caption: "تنطبق الأشرطة على استخدام المعالج وبطاقة الرسوم والذاكرة والقرص. أما بقية القراءات فتبقى أرقامًا.",
+        customize: "ألوان الأشرطة وحدودها",
+        normalColor: "اللون العادي",
+        mediumColor: "اللون المتوسط",
+        highColor: "اللون المرتفع",
+        mediumFrom: "متوسط ابتداءً من",
+        highFrom: "مرتفع ابتداءً من"
     )
 }

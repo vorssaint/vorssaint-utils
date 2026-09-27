@@ -52,6 +52,7 @@ struct WhatsAppOrganizerStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -549,5 +550,38 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "Впорядкування WhatsApp",
         notificationFormat: "Впорядковано файлів: %1$d. Оброблено дублікатів: %2$d. Не вдалося: %3$d.",
         privacyNote: "Для точного виявлення дублікатів байти файлів читаються локально лише під час обчислення криптографічного дайджесту. Вміст та чати ніколи не зберігаються та не завантажуються."
+    )
+
+    static let ar = WhatsAppOrganizerStrings(
+        title: "التنظيم التلقائي",
+        experimental: "تجريبي",
+        description: "ينقل تنزيلات WhatsApp المستقرة إلى مجلد مخصص ويكتشف التنزيلات المكررة تمامًا.",
+        enabled: "التنظيم تلقائيًا",
+        enabledCaption: "قد يعيد WhatsApp تنزيل ملف تم نقله. لا يستطيع Vorssaint منع التنزيل من الشبكة، لكنه يستطيع اكتشاف النسخة الإضافية المطابقة والتخلص منها.",
+        destination: "مجلد الوجهة",
+        chooseFolder: "اختيار…",
+        useDefault: "استخدام Downloads/WhatsApp",
+        invalidDestination: "اختر مجلدًا غير مجلد التنزيلات نفسه.",
+        organization: "بنية المجلدات",
+        flat: "بدون مجلدات فرعية",
+        byType: "حسب نوع الملف",
+        byMonth: "حسب السنة والشهر",
+        delay: "الانتظار قبل النقل",
+        minutesFormat: "%d دقيقة",
+        duplicateAction: "عند تنزيل الملف نفسه مجددًا",
+        trashDuplicate: "نقل النسخة الجديدة إلى المهملات",
+        keepBoth: "الاحتفاظ بالنسختين",
+        replaceExisting: "استبدال النسخة المنظَّمة",
+        duplicateCaption: "تُؤكَّد النسخ المكررة ببصمة SHA-256 محلية. ويُعاد التحقق من النسخة المنظَّمة قبل التخلص من أي نسخة أخرى.",
+        organizeNow: "تنظيم الملفات المؤهلة الآن",
+        undo: "التراجع عن آخر تنظيم",
+        waiting: "مراقبة مجلد التنزيلات",
+        working: "جارٍ تنظيم ملفات WhatsApp…",
+        resultFormat: "%1$d منقول · %2$d مكرر · %3$d فشل",
+        lastRunFormat: "آخر تنظيم %@: %d منقول · %d مكرر · %d فشل",
+        neverRun: "لم يُجرَ أي تنظيم بعد.",
+        notificationTitle: "تنظيم WhatsApp",
+        notificationFormat: "تم تنظيم %1$d ملف. وتمت معالجة %2$d تنزيل مكرر. وفشل %3$d.",
+        privacyNote: "لتحديد النسخ المكررة تمامًا، تُقرأ بايتات الملف محليًا فقط أثناء حساب بصمة تشفيرية. ولا يُخزَّن المحتوى أو المحادثات ولا تُرفع أبدًا."
     )
 }
