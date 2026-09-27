@@ -369,6 +369,40 @@ enum ShelfFeatureTests {
                 && ShelfTileLayout.tileFrame(index: 2, columns: 3, tileSize: mirrorTile,
                                              spacing: 10, inset: 4).minX == 180,
                      "the leftover width of a mirrored grid falls on the leading side")
+        // A sideways strip wider than its viewport has to open at the end its
+        // flow starts from, but only when that end actually moved. A rebuild a
+        // tile started after a merge carries no memory of an earlier one, and
+        // must leave the scroll where the reader had it rather than yanking the
+        // strip to either end.
+        suite.expect(ShelfScrollStart.shouldRealign(rightToLeft: true, lastRightToLeft: nil,
+                                                   contentSize: CGSize(width: 300, height: 100),
+                                                   lastContentSize: nil) == false
+                && ShelfScrollStart.shouldRealign(rightToLeft: false, lastRightToLeft: nil,
+                                                  contentSize: CGSize(width: 300, height: 100),
+                                                  lastContentSize: nil) == false,
+                     "a rebuild with no memory of an earlier one leaves the scroll alone")
+        suite.expect(ShelfScrollStart.shouldRealign(rightToLeft: true, lastRightToLeft: false,
+                                                   contentSize: CGSize(width: 300, height: 100),
+                                                   lastContentSize: CGSize(width: 300, height: 100))
+                && ShelfScrollStart.shouldRealign(rightToLeft: false, lastRightToLeft: true,
+                                                  contentSize: CGSize(width: 300, height: 100),
+                                                  lastContentSize: CGSize(width: 300, height: 100)),
+                     "a direction flip sends the strip to the end it now starts from")
+        suite.expect(ShelfScrollStart.shouldRealign(rightToLeft: true, lastRightToLeft: true,
+                                                   contentSize: CGSize(width: 400, height: 100),
+                                                   lastContentSize: CGSize(width: 300, height: 100))
+                && ShelfScrollStart.shouldRealign(rightToLeft: false, lastRightToLeft: false,
+                                                  contentSize: CGSize(width: 400, height: 100),
+                                                  lastContentSize: CGSize(width: 300, height: 100)) == false,
+                     "a resize moves the end only for a mirrored strip")
+        suite.expect(ShelfScrollStart.shouldRealign(rightToLeft: true, lastRightToLeft: true,
+                                                   contentSize: CGSize(width: 300, height: 100),
+                                                   lastContentSize: CGSize(width: 300, height: 100)) == false,
+                     "an ordinary rebuild leaves the strip where it was left")
+        suite.expect(ShelfScrollStart.origin(rightToLeft: true, documentWidth: 900, visibleWidth: 300) == 600
+                && ShelfScrollStart.origin(rightToLeft: false, documentWidth: 900, visibleWidth: 300) == 0
+                && ShelfScrollStart.origin(rightToLeft: true, documentWidth: 200, visibleWidth: 300) == 0,
+                     "a mirrored strip opens at its right end, and never past x = 0")
         suite.expect(ShelfTileLayout.sidewaysTileFrame(index: 0, rows: 2, tileSize: mirrorTile,
                                                        spacing: 10, inset: 4, mirroredIn: 276).minX == 194,
                      "the island's sideways grid answers the same edge")

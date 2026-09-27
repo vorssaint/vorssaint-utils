@@ -1398,6 +1398,7 @@ private struct LiquidGlassMixerSlider: View {
     let accessibilityLabel: String
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.layoutDirection) private var layoutDirection
 
     private let knobWidth: CGFloat = 24
     private let knobHeight: CGFloat = 15
@@ -1486,10 +1487,11 @@ private struct LiquidGlassMixerSlider: View {
         }
     }
 
+    /// A volume bar is a magnitude along the reading order, so it mirrors with
+    /// the rest of the row rather than being pinned like a time axis.
     private func updateValue(at x: CGFloat, width: CGFloat) {
-        let travel = max(width - knobWidth, 1)
-        let normalized = min(max((x - knobWidth / 2) / travel, 0), 1)
-        value = Double(normalized) * maximum
+        value = MixerSliderTrack.fraction(at: x, width: width, knobWidth: knobWidth,
+                                         rightToLeft: layoutDirection == .rightToLeft) * maximum
     }
 }
 #endif

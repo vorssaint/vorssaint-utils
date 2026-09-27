@@ -391,6 +391,35 @@ struct ShelfTooltipStrings {
     }
 }
 
+/// Whether a rebuilt sideways strip should jump back to the end its flow
+/// starts from.
+enum ShelfScrollStart {
+    /// A clip view opens at x = 0 whatever the layout direction, while a
+    /// mirrored grid draws its first column at the document's right edge. A
+    /// mirrored strip therefore has to be sent to that edge, but only when the
+    /// edge itself moved: on a direction flip, and for a mirrored strip also on
+    /// a resize, since the distance from x = 0 to the end changes with the
+    /// viewport.
+    ///
+    /// `lastRightToLeft` is nil for a rebuild that carries no memory of an
+    /// earlier one, which is what a tile does after a merge lands on it. That
+    /// rebuild knows nothing about where the reader had scrolled to, so it
+    /// leaves the strip alone rather than yanking it to either end.
+    static func shouldRealign(rightToLeft: Bool,
+                              lastRightToLeft: Bool?,
+                              contentSize: CGSize,
+                              lastContentSize: CGSize?) -> Bool {
+        guard let lastRightToLeft else { return false }
+        if lastRightToLeft != rightToLeft { return true }
+        return rightToLeft && lastContentSize != contentSize
+    }
+
+    /// Where the clip view belongs once it should realign.
+    static func origin(rightToLeft: Bool, documentWidth: CGFloat, visibleWidth: CGFloat) -> CGFloat {
+        rightToLeft ? max(0, documentWidth - visibleWidth) : 0
+    }
+}
+
 enum ShelfTooltipSupport {
     /// Long enough to show a real paragraph, short enough that a huge paste
     /// doesn't produce an unusably huge tooltip.

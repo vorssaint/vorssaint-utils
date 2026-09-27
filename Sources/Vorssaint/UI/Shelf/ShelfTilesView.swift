@@ -231,10 +231,10 @@ struct ShelfTilesView: NSViewRepresentable {
             }
             return
         }
-        // Where the flow ends moves when the direction flips or the viewport
-        // resizes, and nothing else here moves it.
-        let endMoved = coordinator.map { $0.lastRebuiltRightToLeft != rightToLeft
-                                          || $0.lastRebuiltContentSize != scroll.contentSize } ?? true
+        let endMoved = ShelfScrollStart.shouldRealign(rightToLeft: rightToLeft,
+                                                      lastRightToLeft: coordinator?.lastRebuiltRightToLeft,
+                                                      contentSize: scroll.contentSize,
+                                                      lastContentSize: coordinator?.lastRebuiltContentSize)
         coordinator?.lastRebuiltItems = items
         coordinator?.lastRebuiltSelection = selection
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
@@ -262,7 +262,9 @@ struct ShelfTilesView: NSViewRepresentable {
             // right edge until someone scrolled. Only when the end itself
             // moved: an ordinary rebuild leaves the shelf where it was left.
             if endMoved {
-                let origin = rightToLeft ? max(0, documentWidth - scroll.contentSize.width) : 0
+                let origin = ShelfScrollStart.origin(rightToLeft: rightToLeft,
+                                                     documentWidth: documentWidth,
+                                                     visibleWidth: scroll.contentSize.width)
                 scroll.contentView.scroll(to: NSPoint(x: origin, y: 0))
                 scroll.reflectScrolledClipView(scroll.contentView)
             }

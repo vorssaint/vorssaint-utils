@@ -1062,6 +1062,22 @@ enum AudioListenerClients {
     }
 }
 
+/// The panel's own volume bar, which mirrors with the row it sits in.
+enum MixerSliderTrack {
+    /// The fraction a pointer at `x` asks for. The fill is leading-aligned and
+    /// the knob is placed with an offset, both of which SwiftUI flips in a
+    /// mirrored row, while a gesture reports the x it was given and never
+    /// flips with them. Measured on this Mac: a click at the window's right
+    /// edge arrives as the full width in both directions. So a mirrored bar
+    /// counts the distance from its trailing edge, and the knob stays under
+    /// the pointer instead of running to the far end.
+    static func fraction(at x: CGFloat, width: CGFloat, knobWidth: CGFloat, rightToLeft: Bool) -> Double {
+        let travel = max(width - knobWidth, 1)
+        let along = rightToLeft ? width - x : x
+        return Double(min(max((along - knobWidth / 2) / travel, 0), 1))
+    }
+}
+
 /// Reordering a rail that is drawn in reverse. The labels and glyphs name a
 /// direction on screen, so both the menu actions and the drop side have to be
 /// read against the order the rail is actually drawn in.

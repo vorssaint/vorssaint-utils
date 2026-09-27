@@ -2193,7 +2193,9 @@ final class NotchService: ObservableObject {
     @discardableResult
     func updateFileDrop(at point: CGPoint) -> Bool {
         let targeted = choosingFileDropDestination
-            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize).contains(point)
+            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize,
+                                                   rightToLeft: L10n.shared.language.isRightToLeft)
+                .contains(point)
         if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
         return !targeted || NotchFileToolsService.shared.canAcceptMediaDrop
     }
