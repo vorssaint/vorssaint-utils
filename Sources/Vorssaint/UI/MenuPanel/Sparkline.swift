@@ -48,6 +48,10 @@ struct Sparkline: View {
                 }
             }
         }
+        // Oldest sample at the left edge, newest at the right, in every
+        // language: this axis is time, and a mirrored root would flip the
+        // path along with everything else drawn in it.
+        .unmirroredLayout()
     }
 
     private func points(in size: CGSize, baselineY: CGFloat) -> [CGPoint] {

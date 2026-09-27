@@ -62,6 +62,7 @@ struct WhatsAppDownloadStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -530,6 +531,19 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: sk.lastRunFormat, nextRunFormat: sk.nextRunFormat,
             firstMessageFormat: sk.firstMessageFormat, localNote: sk.localNote,
             notificationFormat: sk.notificationFormat, scanFailed: sk.scanFailed, manageButton: sk.manageButton)
+        case .ar:
+            return OperationalStrings(
+                automaticCaption: "يتحقق مرة يوميًا وينقل الملفات المطابقة التي تجاوزت المدة إلى المهملات.",
+                retentionCaption: "الملفات المعدَّلة حديثًا تنتظر المدة كاملةً من جديد.",
+                manualIntro: "افحص في أي وقت. يتبع التحديد المبدئي أنواعك ومدتك، وتبقى كل الملفات المؤكدة قابلة للمراجعة.",
+                resultsFormat: "%1$d ملف مؤكد · %2$@", selectRules: "التحديد وفق قواعدي",
+                cleanSelectedFormat: "نقل %1$d إلى المهملات · %2$@",
+                lastRunFormat: "آخر تنظيف %@: %d ملف · %@ · %d فشل",
+                nextRunFormat: "التحقق التلقائي التالي %@.",
+                firstMessageFormat: "هناك %d ملف حالي يطابق قواعدك أصلًا. اختر تضمينها أو إدارة التنزيلات المستقبلية فقط.",
+                localNote: "تُفحص البيانات الوصفية المحلية فقط. ولا يقرأ Vorssaint المحادثات ولا محتويات الملفات.",
+                notificationFormat: "تم نقل %1$d ملف (%2$@) إلى المهملات. وفشل %3$d.",
+                scanFailed: "تعذّر فحص مجلد التنزيلات. تحقق من “الملفات والمجلدات” في إعدادات النظام.", manageButton: "إدارة…")
         }
     }
 
@@ -603,4 +617,16 @@ extension WhatsAppDownloadStrings {
         scanFailed: "Не вдалося перевірити папку «Викачане». Перевірте «Файли та папки» в Системних параметрах.",
         manageButton: "Керувати…"
     )
+
+    static let ar = translated(language: .ar,
+        title: "تنزيلات WhatsApp", hub: "يضبط ملفات WhatsApp داخل مجلد التنزيلات",
+        intro: "يعثر على الملفات التي يؤكد macOS أنها جاءت من WhatsApp. ولا تُقرأ محتويات الملفات ولا المحادثات أبدًا.",
+        automatic: "التنظيف تلقائيًا", folder: "المجلد المراقَب", accessReady: "يمكن الوصول إلى مجلد التنزيلات",
+        accessDenied: "لا يستطيع Vorssaint الوصول إلى مجلد التنزيلات. اسمح بذلك في “الملفات والمجلدات”.",
+        types: "أنواع الملفات", all: "الكل", image: "الصور", video: "الفيديوهات", audio: "الصوت والرسائل الصوتية",
+        document: "المستندات", archive: "الأرشيفات", other: "أخرى", retention: "الاحتفاظ", days: "%d يوم",
+        noFiles: "لا توجد ملفات WhatsApp مؤكدة في مجلد التنزيلات.", keep: "الاحتفاظ", manage: "الإدارة مجددًا",
+        activity: "النشاط", never: "لم يُجرَ أي تنظيف بعد.", future: "التنزيلات المستقبلية فقط",
+        existing: "تضمين الملفات الحالية", firstTitle: "ماذا نفعل بالملفات الحالية؟",
+        trash: "تُنقل الملفات إلى المهملات ويمكن استعادتها قبل إفراغها.", notificationTitle: "تنظيف WhatsApp")
 }

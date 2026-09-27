@@ -136,11 +136,15 @@ enum ShelfTileLayout {
                                   rows: Int,
                                   tileSize: CGSize,
                                   spacing: CGFloat,
-                                  inset: CGFloat) -> CGRect {
+                                  inset: CGFloat,
+                                  mirroredIn contentWidth: CGFloat? = nil) -> CGRect {
         let safeRows = max(1, rows)
         let column = index / safeRows
         let row = index % safeRows
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let stride = tileSize.width + spacing
+        let x = contentWidth.map { $0 - inset - tileSize.width - CGFloat(column) * stride }
+            ?? (inset + CGFloat(column) * stride)
+        return CGRect(x: x,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)
@@ -163,15 +167,26 @@ enum ShelfTileLayout {
     }
 
     /// Where the tile at `index` sits in the flipped document view.
+    ///
+    /// These are absolute frames in an AppKit document view, so nothing mirrors
+    /// them on its own. `mirroredIn` measures each column in from the trailing
+    /// edge of that width, which leaves the width a short row cannot fill on
+    /// the side a right-to-left reader ends on. Reversing the column index
+    /// instead would keep that leftover on the right, the mirror of what the
+    /// grid should do, so the content width is required to mirror at all.
     static func tileFrame(index: Int,
                           columns: Int,
                           tileSize: CGSize,
                           spacing: CGFloat,
-                          inset: CGFloat) -> CGRect {
+                          inset: CGFloat,
+                          mirroredIn contentWidth: CGFloat? = nil) -> CGRect {
         let safeColumns = max(1, columns)
         let column = index % safeColumns
         let row = index / safeColumns
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let stride = tileSize.width + spacing
+        let x = contentWidth.map { $0 - inset - tileSize.width - CGFloat(column) * stride }
+            ?? (inset + CGFloat(column) * stride)
+        return CGRect(x: x,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)
@@ -347,6 +362,11 @@ struct ShelfTooltipStrings {
     /// through 24 but not 12 through 14; the last for everything else.
     /// Slovak reads the whole number instead, so only 1 and only 2 through 4
     /// leave the last form, and 21 and 22 stay with it.
+    ///
+    /// Arabic reads the last two digits, and its middle form is the ordinary
+    /// plural: 3, 7, 103 and 110 ask for it, while 11 through 99 go back to the
+    /// singular noun after the numeral. Two goes with them, since the dual is a
+    /// word of its own and is not what follows a numeral.
     enum Form { case one, few, many }
 
     func form(for count: Int) -> Form {
@@ -364,6 +384,9 @@ struct ShelfTooltipStrings {
             case 2, 3, 4: return .few
             default: return .many
             }
+        case .byLastTwoDigits:
+            if magnitude == 1 { return .one }
+            return (3...10).contains(magnitude % 100) ? .few : .many
         }
     }
 }

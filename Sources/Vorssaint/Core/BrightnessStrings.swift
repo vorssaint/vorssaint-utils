@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -651,4 +652,37 @@ extension BrightnessFeatureStrings {
         islandPromptMessage: "Dynamic Island показує зміни яскравості, лише коли в налаштуваннях «Дисплеї» увімкнено «Керування дисплеями».",
         islandPromptKeepOff: "Залишити вимкненим"
     )
+
+    static let ar = BrightnessFeatureStrings(
+        pageTitle: "الشاشات",
+        hubDescription: "تحكم في السطوع والطاقة لكل شاشة",
+        enable: "التحكم في الشاشات",
+        enableCaption: "تحكم في السطوع والتشغيل والإيقاف للشاشة المدمجة والشاشات الخارجية، من هنا ومن لوحة شريط القائمة.",
+        externalCaption: "تُضبط الشاشات الخارجية عبر البروتوكول نفسه الذي تستخدمه أزرارها. وحين لا يدعمه الاتصال، كما في محوّلات HDMI، يخفض شريط التمرير إضاءة الصورة بدلًا من ذلك، فيعمل التحكم بالسطوع في الحالتين.",
+        noDisplays: "لم يتم العثور على أي شاشة.",
+        displayOff: "متوقفة",
+        turnOffDisplay: "إيقاف الشاشة",
+        turnOnDisplay: "تشغيل الشاشة",
+        lastDisplayCaption: "يجب أن تبقى شاشة واحدة على الأقل قيد التشغيل.",
+        switchUnavailable: "تبديل الشاشات غير متاح على هذا الـ Mac.",
+        switchFailed: "تعذّر تغيير هذه الشاشة.",
+        openLidToEnable: "افتح الغطاء لتشغيل الشاشة المدمجة.",
+        keysToggle: "مفاتيح السطوع تتبع المؤشر",
+        keysCaption: "تغيّر مفاتيح السطوع في لوحة المفاتيح الشاشة الموجودة تحت المؤشر.",
+        osdToggle: "إظهار السطوع عند الضبط",
+        osdCaption: "يعرض نسبة السطوع عند استخدام مفاتيح السطوع أو أشرطة التمرير.",
+        displayBrightnessShortcuts: "استخدام اختصارات سطوع الشاشة",
+        displayBrightnessShortcutCaption: "تضبط الاختصارات الشاشة الرئيسية، أو الشاشة الموجودة تحت المؤشر عند تفعيل تتبّع المؤشر.",
+        displayBrightnessDecrease: "خفض سطوع الشاشة",
+        displayBrightnessIncrease: "رفع سطوع الشاشة",
+        keyboardLight: "إضاءة لوحة المفاتيح",
+        keyboardLightCaption: "يشغّل الإضاءة الخلفية للوحة المفاتيح أو يوقفها.",
+        keyboardBrightnessShortcuts: "استخدام اختصارات إضاءة لوحة المفاتيح",
+        keyboardBrightnessDecrease: "خفض إضاءة لوحة المفاتيح",
+        keyboardBrightnessIncrease: "رفع إضاءة لوحة المفاتيح",
+        softwareDimming: "تعتيم الصورة",
+        extendedDimming: "تعتيم إضافي",
+        islandPromptTitle: "إظهار السطوع في الجزيرة الديناميكية؟",
+        islandPromptMessage: "لا تعرض الجزيرة الديناميكية تغيّرات السطوع إلا وخيار “التحكم بالشاشات” مفعّل في إعدادات الشاشات.",
+        islandPromptKeepOff: "إبقاؤه مغلقًا")
 }

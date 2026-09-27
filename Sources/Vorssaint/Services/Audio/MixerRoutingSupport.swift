@@ -1061,3 +1061,22 @@ enum AudioListenerClients {
         lock.withLock { entries[UInt(bitPattern: client)] = nil }
     }
 }
+
+/// Reordering a rail that is drawn in reverse. The labels and glyphs name a
+/// direction on screen, so both the menu actions and the drop side have to be
+/// read against the order the rail is actually drawn in.
+enum MixerReorderDirection {
+    /// The index step for a move the user asked for by screen direction.
+    static func offset(towardTrailingEdge: Bool, rightToLeft: Bool) -> Int {
+        (towardTrailingEdge == rightToLeft) ? -1 : 1
+    }
+
+    /// Whether a drop lands after the tile under the pointer. A horizontal rail
+    /// drawn in reverse puts "after" on the leading half; the insertion marker
+    /// is placed with `.trailing`, which mirrors on its own, so the two agree
+    /// only once this does too.
+    static func dropsAfter(pointerBeyondMidpoint: Bool, sideways: Bool, rightToLeft: Bool) -> Bool {
+        guard sideways, rightToLeft else { return pointerBeyondMidpoint }
+        return !pointerBeyondMidpoint
+    }
+}

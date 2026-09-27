@@ -61,6 +61,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         case .uk: return .uk
         }
     }
@@ -82,6 +83,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -159,6 +161,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let uk = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Дозволити дисплею засинати",
         allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
+    )
+
+    static let ar = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "السماح للشاشة بالسكون",
+        allowDisplaySleepCaption: "يُبقي الـ Mac مستيقظًا بينما تتبع الشاشة مؤقّت سكونها المعتاد."
     )
 }
 
@@ -491,4 +498,25 @@ extension KeepAwakeAutomationStrings {
         matchAll: "Усі",
         automationCaptionAll: "Запускається лише коли всі обрані умови активні."
     )
+
+    static let ar = KeepAwakeAutomationStrings(
+        automationSection: "الأتمتة",
+        automationCaption: "تبدأ عند تحقق أي شرط محدد.",
+        automationOff: "متوقف",
+        externalDisplayToggle: "شاشة خارجية",
+        externalDisplayActive: "نشط أثناء توصيل شاشة خارجية",
+        powerToggle: "الطاقة",
+        powerActive: "نشط أثناء التوصيل بالطاقة",
+        runningAppsToggle: "التطبيقات",
+        runningAppsActive: "نشط أثناء تشغيل تطبيق محدد",
+        runningAppsListTitle: "التطبيقات المحددة",
+        runningAppsAddButton: "إضافة تطبيق…",
+        runningAppsRemoveButton: "إزالة",
+        runningAppsListCaption: "يبدأ “الإبقاء مستيقظًا” ما دام أي من هذه التطبيقات مفتوحًا، ولو في الخلفية.",
+        automationActive: "نشط لتحقق أحد الشروط التلقائية",
+        pauseWhenLockedToggle: "الإيقاف المؤقت أثناء قفل الـ Mac",
+        pauseWhenLockedCaption: "يتبع قواعد السكون المعتادة أثناء القفل ويستأنف ما تبقى من الجلسة بعد إلغاء القفل.",
+        matchAny: "أي",
+        matchAll: "الكل",
+        automationCaptionAll: "تبدأ فقط عند تحقق كل شرط محدد.")
 }
