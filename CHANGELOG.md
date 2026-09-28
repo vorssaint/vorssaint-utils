@@ -43,6 +43,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Mouse side buttons go back and forward again in Safari, Finder and other apps on keyboard layouts such as German and French.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
+- Esc in Settings no longer closes the menu bar panel open beside it, so it clears a search or closes a sheet there; a confirmation or popover opened from the panel now closes before the panel does.
 - Scrolling the Features page in Settings no longer stutters or freezes the app.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
