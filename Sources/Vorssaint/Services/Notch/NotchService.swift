@@ -2496,12 +2496,16 @@ final class NotchService: ObservableObject {
         showVolume(volume, muted: muted)
     }
 
-    private func showVolume(_ volume: Double, muted: Bool?) {
-        guard volume.isFinite else { return }
+    /// Levels set outside the island, like the command bar's, report here
+    /// too. The observer skips a level that matches the current one and a new
+    /// output's first reading. False leaves the confirmation to the caller.
+    @discardableResult
+    func showVolume(_ volume: Double, muted: Bool? = nil) -> Bool {
+        guard volume.isFinite else { return false }
         let value = muted == true ? 0 : min(1, max(0, volume))
-        show(NotchNotice(event: .volume, title: FeatureStrings.notch(L10n.shared.language).volume,
-                         detail: "\(Int((value * 100).rounded()))%",
-                         symbol: value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", level: value))
+        return show(NotchNotice(event: .volume, title: FeatureStrings.notch(L10n.shared.language).volume,
+                                detail: "\(Int((value * 100).rounded()))%",
+                                symbol: value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", level: value))
     }
 
     private func startPower() {
