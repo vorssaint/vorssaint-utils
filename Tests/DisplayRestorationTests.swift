@@ -782,6 +782,62 @@ enum DisplayRestorationTests {
                      "a second display mutation cannot replace an unconfirmed recovery snapshot")
         recovery.confirm()
 
+        let failureStarted = recovery.beginAction(
+            targetDisplayID: 0xD001,
+            previousVirtualMirrorLogicalSize: CGSize(width: 2560, height: 1440),
+            virtualDisplayCreated: false,
+            confirmationSeconds: 60
+        )
+        suite.expect(failureStarted && recovery.awaitingConfirmation && !recovery.hasRollbackFailure,
+                     "recovery begins with clean state")
+        recovery.rollback()
+        suite.expect(recovery.hasRollbackFailure,
+                     "rollback sets hasRollbackFailure when mirror restoration fails")
+        suite.expect(recovery.awaitingConfirmation,
+                     "recovery retains awaitingConfirmation after rollback failure")
+        suite.expect(recovery.currentSnapshot?.targetDisplayID == 0xD001,
+                     "recovery preserves currentSnapshot after rollback failure")
+        suite.expect(recovery.remainingSeconds == 0,
+                     "recovery zeroes remainingSeconds after rollback failure")
+        suite.expect(!VirtualDisplayService.shared.isVirtualMirrorActive(for: 0xD001),
+                     "rollback teardown leaves no active virtual mirror on target display")
+        let blockedAction = recovery.beginAction(targetDisplayID: 0xD002, confirmationSeconds: 60)
+        suite.expect(!blockedAction,
+                     "mutations are blocked while in rollback failure state")
+        recovery.rollback()
+        suite.expect(recovery.hasRollbackFailure && recovery.awaitingConfirmation,
+                     "rollback retry maintains failure state when restore fails again")
+        recovery.confirm()
+        suite.expect(!recovery.hasRollbackFailure && !recovery.awaitingConfirmation && recovery.currentSnapshot == nil,
+                     "confirm clears rollback failure and transaction state")
+
+        let allModes = (CGDisplayCopyAllDisplayModes(
+            CGMainDisplayID(),
+            [kCGDisplayShowDuplicateLowResolutionModes as String: true] as CFDictionary
+        ) as? [CGDisplayMode]) ?? []
+        suite.expect(VirtualDisplayService.matchingDisplayMode(in: [], logicalWidth: 1920, logicalHeight: 1080) == nil,
+                     "matchingDisplayMode handles empty modes array safely")
+        let oneXModes = allModes.filter { $0.pixelWidth == $0.width && $0.pixelHeight == $0.height }
+        if let sample1x = oneXModes.first {
+            let matched = VirtualDisplayService.matchingDisplayMode(
+                in: [sample1x],
+                logicalWidth: sample1x.width,
+                logicalHeight: sample1x.height
+            )
+            suite.expect(matched == nil,
+                         "matchingDisplayMode rejects 1x mode even when logical size matches")
+        }
+        let twoXModes = allModes.filter { $0.pixelWidth == $0.width * 2 && $0.pixelHeight == $0.height * 2 }
+        if let sample2x = twoXModes.first {
+            let matched2x = VirtualDisplayService.matchingDisplayMode(
+                in: allModes,
+                logicalWidth: sample2x.width,
+                logicalHeight: sample2x.height
+            )
+            suite.expect(matched2x != nil && matched2x?.pixelWidth == sample2x.width * 2,
+                         "matchingDisplayMode accepts mode with exact 2x HiDPI backing")
+        }
+
         let orphanedTargets = VirtualDisplayService.orphanedTargetIDs(
             associatedTargetIDs: [11, 22, 33],
             onlineDisplayIDs: [11, 33, 44]
@@ -903,14 +959,26 @@ enum DisplayRestorationTests {
         suite.expect(virtualSource.contains("CGConfigureDisplayWithDisplayMode(cfg, virtualID")
                      && virtualSource.contains("CGDisplayCopyDisplayMode(virtualID)")
                      && virtualSource.contains("activeMode.width == width")
-                     && virtualSource.contains("activeMode.height == height"),
+                     && virtualSource.contains("activeMode.height == height")
+                     && virtualSource.contains("activeMode.pixelWidth == expectedPixelWidth")
+                     && virtualSource.contains("activeMode.pixelHeight == expectedPixelHeight"),
                      "virtual display creation explicitly configures and verifies the active logical dimensions")
 
         let recoverySource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Display/DisplayRecoveryManager.swift",
             encoding: .utf8)) ?? ""
-        suite.expect(recoverySource.contains("activeMode?.width == targetW && activeMode?.height == targetH"),
+        suite.expect(recoverySource.contains("activeMode?.width == targetW && activeMode?.height == targetH")
+                     && recoverySource.contains("activeMode?.pixelWidth == expectedPixelW && activeMode?.pixelHeight == expectedPixelH")
+                     && recoverySource.contains("self.hasRollbackFailure = true")
+                     && recoverySource.contains("disableVirtualMirror(for: snapshot.targetDisplayID)"),
                      "recovery explicitly verifies active dimensions before reporting virtual mirror restored")
+
+        let hudSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/RecoveryHUDView.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(hudSource.contains("!recoveryManager.hasRollbackFailure")
+                     && hudSource.contains("exclamationmark.triangle.fill"),
+                     "recovery HUD reflects rollback failure state and retains keep action")
 
         let commandBarSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",

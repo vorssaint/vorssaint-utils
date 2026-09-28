@@ -239,19 +239,25 @@ public struct RecoveryHUDView: View {
                 ZStack {
                     Circle()
                         .stroke(Color.white.opacity(0.12), lineWidth: 3.5)
-                    Circle()
-                        .trim(from: 0, to: CGFloat(max(0, recoveryManager.remainingSeconds)) / 15.0)
-                        .stroke(
-                            recoveryManager.remainingSeconds <= 5 ? Color.orange : Color.blue,
-                            style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.2), value: recoveryManager.remainingSeconds)
+                    if recoveryManager.hasRollbackFailure {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.orange)
+                    } else {
+                        Circle()
+                            .trim(from: 0, to: CGFloat(max(0, recoveryManager.remainingSeconds)) / 15.0)
+                            .stroke(
+                                recoveryManager.remainingSeconds <= 5 ? Color.orange : Color.blue,
+                                style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .animation(.easeInOut(duration: 0.2), value: recoveryManager.remainingSeconds)
 
-                    Text("\(recoveryManager.remainingSeconds)")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
+                        Text("\(recoveryManager.remainingSeconds)")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                    }
                 }
                 .frame(width: 34, height: 34)
 
@@ -261,10 +267,17 @@ public struct RecoveryHUDView: View {
                         .foregroundStyle(.white)
                         .lineLimit(1)
 
-                    Text(l10n.s.recoveryCountdownRemaining(recoveryManager.remainingSeconds))
-                        .font(.system(size: 11.5, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .lineLimit(1)
+                    if recoveryManager.hasRollbackFailure {
+                        Text("\(l10n.s.recoveryRevert) · Esc / \(l10n.s.recoveryKeep) · ↵")
+                            .font(.system(size: 11.5, weight: .regular))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .lineLimit(1)
+                    } else {
+                        Text(l10n.s.recoveryCountdownRemaining(recoveryManager.remainingSeconds))
+                            .font(.system(size: 11.5, weight: .regular))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -332,7 +345,7 @@ public struct RecoveryHUDView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
                 .keyboardShortcut(.defaultAction)
-                .disabled(recoveryManager.remainingSeconds == 0)
+                .disabled(recoveryManager.remainingSeconds == 0 && !recoveryManager.hasRollbackFailure)
             }
         }
         .padding(.horizontal, 18)

@@ -138,7 +138,16 @@ public enum VirtualDisplayError: LocalizedError, Equatable {
     case configurationFailed(CGError)
     case virtualDisplayCreationFailed
     case modeNotFound(width: Int, height: Int)
-    case modeVerificationFailed(expectedWidth: Int, expectedHeight: Int, actualWidth: Int, actualHeight: Int)
+    case modeVerificationFailed(
+        expectedWidth: Int,
+        expectedHeight: Int,
+        actualWidth: Int,
+        actualHeight: Int,
+        expectedPixelWidth: Int,
+        expectedPixelHeight: Int,
+        actualPixelWidth: Int,
+        actualPixelHeight: Int
+    )
 
     public var errorDescription: String? {
         switch self {
@@ -154,8 +163,13 @@ public enum VirtualDisplayError: LocalizedError, Equatable {
             return "Virtual display creation failed or did not yield a valid display ID."
         case .modeNotFound(let width, let height):
             return "No matching display mode found for \(width)×\(height)."
-        case .modeVerificationFailed(let expW, let expH, let actW, let actH):
-            return "Virtual display active mode \(actW)×\(actH) did not match requested logical size \(expW)×\(expH)."
+        case .modeVerificationFailed(
+            let expW, let expH,
+            let actW, let actH,
+            let expPW, let expPH,
+            let actPW, let actPH
+        ):
+            return "Virtual display active mode \(actW)×\(actH) (\(actPW)×\(actPH)) did not match requested mode \(expW)×\(expH) (\(expPW)×\(expPH))."
         }
     }
 }
@@ -307,13 +321,7 @@ public final class VirtualDisplayService: @unchecked Sendable {
             $0.width == logicalWidth && $0.height == logicalHeight &&
             $0.pixelWidth == hiDPIW && $0.pixelHeight == hiDPIH
         }
-        if !exactBacking.isEmpty {
-            return exactBacking.max { $0.refreshRate < $1.refreshRate }
-        }
-        let sameLogical = modes.filter {
-            $0.width == logicalWidth && $0.height == logicalHeight
-        }
-        return sameLogical.max { $0.refreshRate < $1.refreshRate }
+        return exactBacking.max { $0.refreshRate < $1.refreshRate }
     }
 
     /// Tears down virtual sources whose physical targets have left the online
@@ -444,11 +452,18 @@ public final class VirtualDisplayService: @unchecked Sendable {
             throw VirtualDisplayError.configurationFailed(completeErr)
         }
 
-        guard let activeMode = CGDisplayCopyDisplayMode(virtualID),
+        let expectedPixelWidth = max(width, width * 2)
+        let expectedPixelHeight = max(height, height * 2)
+        let activeMode = CGDisplayCopyDisplayMode(virtualID)
+        let actualW = activeMode?.width ?? 0
+        let actualH = activeMode?.height ?? 0
+        let actualPW = activeMode?.pixelWidth ?? 0
+        let actualPH = activeMode?.pixelHeight ?? 0
+        guard let activeMode,
               activeMode.width == width,
-              activeMode.height == height else {
-            let actualW = CGDisplayCopyDisplayMode(virtualID)?.width ?? 0
-            let actualH = CGDisplayCopyDisplayMode(virtualID)?.height ?? 0
+              activeMode.height == height,
+              activeMode.pixelWidth == expectedPixelWidth,
+              activeMode.pixelHeight == expectedPixelHeight else {
             var unmirrorCfg: CGDisplayConfigRef?
             if CGBeginDisplayConfiguration(&unmirrorCfg) == .success, let ucfg = unmirrorCfg {
                 _ = CGConfigureDisplayMirrorOfDisplay(ucfg, targetDisplayID, kCGNullDirectDisplay)
@@ -459,7 +474,11 @@ public final class VirtualDisplayService: @unchecked Sendable {
                 expectedWidth: width,
                 expectedHeight: height,
                 actualWidth: actualW,
-                actualHeight: actualH
+                actualHeight: actualH,
+                expectedPixelWidth: expectedPixelWidth,
+                expectedPixelHeight: expectedPixelHeight,
+                actualPixelWidth: actualPW,
+                actualPixelHeight: actualPH
             )
         }
 
