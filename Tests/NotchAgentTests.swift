@@ -15,6 +15,7 @@ enum NotchAgentTests {
         pricing(suite)
         claudeParsing(suite)
         claudeTurns(suite)
+        claudeBackgroundTasks(suite)
         codexParsing(suite)
         timestamps(suite)
         summary(suite)
@@ -327,6 +328,70 @@ enum NotchAgentTests {
         _ = feed(claudeUser(time: "2026-09-21T23:50:00.000Z"))
         store.closeIdleTurns(now: AgentTimestamp.parse("2026-09-22T00:05:00.000Z")!, after: NotchAgentSupport.idleTurn)
         suite.expect(store.live.isEmpty, "a turn that has written nothing for a while stops showing as working")
+    }
+
+    private static func claudeBackgroundTasks(_ suite: TestSuite) {
+        let now = AgentTimestamp.parse("2026-09-21T23:45:00.000Z")!
+        var state = AgentLogState()
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        func feed(_ data: Data) -> [AgentUsageEvent] {
+            store.apply(AgentLogParser.parseClaude(data, state: &state, now: now), file: "main", provider: .claude,
+                        tracksTurns: true, modified: now, now: now)
+        }
+        func notice(_ id: String, status: String = "completed", wrapper: String = "user") -> Data {
+            let text = #"<task-notification>\n<task-id>\#(id)</task-id>\n<status>\#(status)</status>\n<summary>done</summary>\n</task-notification>"#
+            switch wrapper {
+            case "queue":
+                return line(#"{"type":"queue-operation","operation":"enqueue","timestamp":"2026-09-21T23:43:00.000Z","sessionId":"s1","content":"\#(text)"}"#)
+            case "attachment":
+                return line(#"{"type":"attachment","attachment":{"type":"queued_command","prompt":"\#(text)"}}"#)
+            default:
+                return line(#"{"type":"user","timestamp":"2026-09-21T23:43:00.000Z","sessionId":"s1","origin":{"kind":"task-notification"},"message":{"role":"user","content":"\#(text)"}}"#)
+            }
+        }
+        let shell = line(#"{"type":"user","sessionId":"s1","message":{"role":"user","content":[{"type":"tool_result","content":"Command running in background with ID: b1"}]},"toolUseResult":{"stdout":"","backgroundTaskId":"b1"}}"#)
+        let agent = line(#"{"type":"user","sessionId":"s1","message":{"role":"user","content":[{"type":"tool_result","content":"Async agent launched"}]},"toolUseResult":{"status":"async_launched","agentId":"a1","isAsync":true}}"#)
+
+        _ = feed(claudeUser(time: "2026-09-21T23:40:00.000Z"))
+        _ = feed(claudeAssistant(stop: "tool_use"))
+        _ = feed(shell)
+        _ = feed(claudeAssistant(id: "msg_2", request: "req_2", stop: "tool_use"))
+        _ = feed(agent)
+        suite.expect(state.background == ["b1", "a1"], "a backgrounded command and a launched agent are both tracked")
+        let replied = feed(claudeAssistant(id: "msg_3", request: "req_3", stop: "end_turn", time: "2026-09-21T23:41:00.000Z"))
+        suite.expect(replied.isEmpty && store.live.count == 1 && store.awaiting == ["main"],
+                     "a reply given while background work runs keeps the turn working, without a finish notice")
+        store.closeIdleTurns(now: now.addingTimeInterval(NotchAgentSupport.idleTurn + 60), after: NotchAgentSupport.idleTurn)
+        suite.expect(store.live.count == 1, "a turn waiting on background work stays working though its log is quiet")
+
+        let quoted = line(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"<task-notification><task-id>b1</task-id><status>completed</status>"}]}}"#)
+        _ = feed(quoted)
+        suite.expect(state.background.count == 2, "a tool result quoting a notice settles nothing")
+        _ = feed(notice("b1", status: "running"))
+        suite.expect(state.background.count == 2, "a notice about work still going settles nothing")
+        _ = feed(notice("b1", wrapper: "queue"))
+        _ = feed(notice("b1"))
+        suite.expect(state.background == ["a1"] && store.awaiting == ["main"] && store.live.count == 1,
+                     "a finished task is settled once, while the rest keep the turn waiting")
+        _ = feed(notice("a1", status: "killed", wrapper: "attachment"))
+        suite.expect(state.background.isEmpty && store.awaiting.isEmpty, "a stopped task settles as well")
+        let finished = feed(claudeAssistant(id: "msg_4", request: "req_4", stop: "end_turn", time: "2026-09-21T23:44:30.000Z"))
+        guard case .finished(_, let duration, _, _, _)? = finished.first else {
+            suite.expect(false, "the turn finishes once its background work has reported back")
+            return
+        }
+        suite.expect(duration == 270 && store.live.isEmpty,
+                     "the turn finishes once, as the whole turn, after its background work reports back")
+
+        // A session that dies with work in the background is not left working.
+        _ = feed(claudeUser(time: "2026-09-21T23:50:00.000Z"))
+        _ = feed(shell)
+        _ = feed(claudeAssistant(id: "msg_5", request: "req_5", stop: "end_turn", time: "2026-09-21T23:50:10.000Z"))
+        let later = AgentTimestamp.parse("2026-09-21T23:50:10.000Z")!.addingTimeInterval(AgentUsageStore.resumeWindow(for: .claude))
+        store.closeIdleTurns(now: later, after: NotchAgentSupport.idleTurn)
+        suite.expect(store.live.isEmpty && store.awaiting.isEmpty,
+                     "background work that never reports back stops showing as working in time")
     }
 
     // MARK: Codex logs

@@ -16,6 +16,9 @@ enum AgentLogEntry: Equatable {
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
     case turnEnded(Date?, completed: Bool, duration: TimeInterval?)
+    /// True when the agent has replied but background work it started still
+    /// runs, so the turn waits on it; false once the last of it reports back.
+    case awaitingBackground(Bool)
 }
 
 /// Per-file context carried from line to line.
@@ -30,6 +33,9 @@ struct AgentLogState: Equatable {
     var lastTotal: AgentTokens?
     /// Codex runs the thread on the fast tier, which bills at a premium.
     var fast = false
+    /// Claude Code commands and agents sent to the background that have not
+    /// reported back yet. The session answers again when each one does.
+    var background: Set<String> = []
 }
 
 enum AgentLogParser {
@@ -51,8 +57,19 @@ enum AgentLogParser {
     // MARK: Claude Code
 
     static func parseClaude(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        if contains(line, #""type":"assistant""#) { return claudeAssistant(line, state: &state, now: now) }
-        guard contains(line, #""type":"user""#) else { return [] }
+        // A background task's report is queued first and delivered later,
+        // each time on a line of its own; whichever comes first settles it.
+        var settled: [AgentLogEntry] = []
+        if !state.background.isEmpty, contains(line, "<task-notification>"), let id = finishedTask(line),
+           state.background.remove(id) != nil, state.background.isEmpty {
+            settled = [.awaitingBackground(false)]
+        }
+        if contains(line, #""type":"assistant""#) { return settled + claudeAssistant(line, state: &state, now: now) }
+        guard contains(line, #""type":"user""#) else { return settled }
+        return settled + claudeUser(line, state: &state, now: now)
+    }
+
+    private static func claudeUser(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         // A local command prints its output without asking the model anything,
         // so the command line that opened a turn closes it again. Only the
         // person's own text counts: a tool result can quote the same words.
@@ -61,6 +78,11 @@ enum AgentLogParser {
             let open = state.turnOpen
             state.turnOpen = false
             return open ? [.turnEnded(nil, completed: false, duration: nil)] : []
+        }
+        // A command or agent sent to the background says so in its result.
+        if contains(line, #""backgroundTaskId":""#) || contains(line, #""status":"async_launched""#),
+           let id = launchedTask(line) {
+            state.background.insert(id)
         }
         // Tool results arrive inside a turn and can be large; while a turn is
         // open, the line only has to say that work goes on.
@@ -111,6 +133,14 @@ enum AgentLogParser {
             // An error written in place of a reply, like a spent limit, stops
             // the turn without finishing it.
             let failed = json["isApiErrorMessage"] as? Bool == true || model.hasPrefix("<")
+            // A reply given while background work still runs is not the end:
+            // the session answers again when that work reports back.
+            if !failed, !state.background.isEmpty {
+                entries.append(state.turnOpen ? .turnActive(date) : .turnBegan(date))
+                entries.append(.awaitingBackground(true))
+                state.turnOpen = true
+                return entries
+            }
             if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil)) }
             state.turnOpen = false
         default:
@@ -136,6 +166,39 @@ enum AgentLogParser {
         return texts.contains {
             $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
         }
+    }
+
+    /// The task a tool result sent to the background: a command's id, or a
+    /// launched agent's.
+    private static func launchedTask(_ line: Data) -> String? {
+        guard let json = object(line), json["type"] as? String == "user", json["isSidechain"] as? Bool != true,
+              let result = json["toolUseResult"] as? [String: Any] else { return nil }
+        let id = result["backgroundTaskId"] as? String
+            ?? (result["status"] as? String == "async_launched" ? result["agentId"] as? String : nil)
+        return id.flatMap { $0.isEmpty ? nil : native($0) }
+    }
+
+    /// The task a notice reports as stopped. Only a notice Claude Code wrote
+    /// counts, never one quoted in a tool result or a reply.
+    static func finishedTask(_ line: Data) -> String? {
+        guard let json = object(line) else { return nil }
+        let text: String?
+        switch json["type"] as? String {
+        case "queue-operation": text = json["content"] as? String
+        case "attachment": text = (json["attachment"] as? [String: Any])?["prompt"] as? String
+        case "user": text = (json["message"] as? [String: Any])?["content"] as? String
+        default: text = nil
+        }
+        guard let text, text.hasPrefix("<task-notification>"),
+              let id = tag("task-id", in: text), !id.isEmpty else { return nil }
+        // A notice about work still going is no ending.
+        return tag("status", in: text) == "running" ? nil : native(id)
+    }
+
+    private static func tag(_ name: String, in text: String) -> String? {
+        guard let open = text.range(of: "<\(name)>"),
+              let close = text.range(of: "</\(name)>", range: open.upperBound..<text.endIndex) else { return nil }
+        return String(text[open.upperBound..<close.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func adopt(_ json: [String: Any], into state: inout AgentLogState) {
