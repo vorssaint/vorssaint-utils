@@ -10,6 +10,7 @@ import Foundation
 /// an app from the wheel's glide must not also silence the side buttons there.
 enum MouseExceptionScope: String, CaseIterable {
     case smoothScroll
+    case linearScroll
     case scrollDirection
     case focusFollowsMouse
     case navigation
@@ -20,6 +21,7 @@ enum MouseExceptionScope: String, CaseIterable {
     var defaultsKey: String {
         switch self {
         case .smoothScroll: return DefaultsKey.smoothScrollExceptions
+        case .linearScroll: return DefaultsKey.linearScrollExceptions
         case .scrollDirection: return DefaultsKey.scrollInverterExceptions
         case .focusFollowsMouse: return DefaultsKey.focusFollowsMouseExceptions
         case .navigation: return DefaultsKey.mouseNavigationExceptions
@@ -34,6 +36,7 @@ enum MouseExceptionScope: String, CaseIterable {
     var feature: AppFeature {
         switch self {
         case .smoothScroll: return .smoothScroll
+        case .linearScroll: return .linearScroll
         case .scrollDirection: return .scrollInverter
         case .focusFollowsMouse: return .focusFollowsMouse
         case .navigation: return .mouseNavigation
