@@ -36,7 +36,7 @@ struct AudioPriorityDisclosure: View {
                             .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(.secondary)
                         Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
+                        Image(systemName: "chevron.forward")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.secondary)
                             .frame(width: 12)

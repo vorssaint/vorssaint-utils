@@ -804,10 +804,12 @@ final class AppSwitcher: ObservableObject {
             } else {
                 advanceWindowInSelectedApp(by: delta)
             }
+        // The grid is laid out along the reading direction, so in a mirrored
+        // one the cell to the right of the highlight is the earlier entry.
         case KeyCode.rightArrow:
-            advanceSelection(by: 1)
+            advanceSelection(by: L10n.shared.language.readingStep(1))
         case KeyCode.leftArrow:
-            advanceSelection(by: -1)
+            advanceSelection(by: L10n.shared.language.readingStep(-1))
         case KeyCode.downArrow:
             moveSelection(by: grid.columns)
         case KeyCode.upArrow:
@@ -1949,7 +1951,7 @@ final class AppSwitcher: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: SwitcherView().environmentObject(self))
+        panel.contentViewController = NSHostingController(rootView: SwitcherView().environmentObject(self).localizedLayoutDirection())
         self.panel = panel
         return panel
     }

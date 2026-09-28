@@ -52,6 +52,7 @@ struct WhatsAppOrganizerStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -549,5 +550,38 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "Впорядкування WhatsApp",
         notificationFormat: "Впорядковано файлів: %1$d. Оброблено дублікатів: %2$d. Не вдалося: %3$d.",
         privacyNote: "Для точного виявлення дублікатів байти файлів читаються локально лише під час обчислення криптографічного дайджесту. Вміст та чати ніколи не зберігаються та не завантажуються."
+    )
+
+    static let he = WhatsAppOrganizerStrings(
+        title: "ארגון אוטומטי",
+        experimental: "ניסיוני",
+        description: "מעביר הורדות יציבות של WhatsApp לתיקייה ייעודית ומזהה הורדות חוזרות זהות.",
+        enabled: "ארגן אוטומטית",
+        enabledCaption: "WhatsApp עשוי להוריד שוב קובץ שהועבר. Vorssaint לא יכול למנוע את ההורדה מהרשת, אבל יכול לזהות ולבטל עותק נוסף זהה.",
+        destination: "תיקיית יעד",
+        chooseFolder: "בחר…",
+        useDefault: "השתמש בהורדות/WhatsApp",
+        invalidDestination: "בחר תיקייה אחרת מאשר הורדות עצמה.",
+        organization: "מבנה תיקיות",
+        flat: "ללא תת-תיקיות",
+        byType: "לפי סוג קובץ",
+        byMonth: "לפי שנה וחודש",
+        delay: "המתן לפני העברה",
+        minutesFormat: "%d דקות",
+        duplicateAction: "כאשר אותו קובץ מורד שוב",
+        trashDuplicate: "העבר את העותק החדש לאשפה",
+        keepBoth: "שמור שני העותקים",
+        replaceExisting: "החלף את העותק המאורגן",
+        duplicateCaption: "כפילויות מאושרות עם תמצית SHA-256 פרטית. העותק המאורגן נבדק שוב לפני שעותק נוסף מבוטל.",
+        organizeNow: "ארגן קבצים זמינים עכשיו",
+        undo: "בטל ארגון אחרון",
+        waiting: "מנטר את הורדות",
+        working: "מארגן קבצי WhatsApp…",
+        resultFormat: "%1$d הועברו · %2$d כפילויות · %3$d נכשלו",
+        lastRunFormat: "ארגון אחרון %@: %d הועברו · %d כפילויות · %d נכשלו",
+        neverRun: "טרם בוצע ארגון.",
+        notificationTitle: "ארגון WhatsApp",
+        notificationFormat: "%1$d קבצים אורגנו. %2$d הורדות כפולות טופלו. %3$d נכשלו.",
+        privacyNote: "לזיהוי כפילויות מדויקות, בתים של קבצים נקראים מקומית בלבד בזמן חישוב גיבוב קריפטוגרפי. תוכן וצ׳אטים לעולם לא נשמרים או מועלים."
     )
 }

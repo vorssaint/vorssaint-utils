@@ -58,6 +58,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -570,5 +571,39 @@ extension BrightnessFeatureStrings {
         islandPromptTitle: "Показувати яскравість у Dynamic Island?",
         islandPromptMessage: "Dynamic Island показує зміни яскравості, лише коли в налаштуваннях «Дисплеї» увімкнено «Керування дисплеями».",
         islandPromptKeepOff: "Залишити вимкненим"
+    )
+
+    static let he = BrightnessFeatureStrings(
+        pageTitle: "תצוגות",
+        hubDescription: "בקרת בהירות והפעלה לכל תצוגה",
+        enable: "שליטה בתצוגות",
+        enableCaption: "בקרת בהירות והפעלה/כיבוי למסך המובנה ולצגים חיצוניים, כאן ובפאנל שורת התפריט.",
+        externalCaption: "צגים חיצוניים מותאמים דרך אותו פרוטוקול כמו הלחצנים שלהם. כאשר החיבור לא יכול לשאת אותו, כמו עם מתאמי HDMI, המחוון מחשיך את התמונה במקום, כך שבקרת הבהירות עובדת בכל מקרה.",
+        noDisplays: "לא נמצאה תצוגה.",
+        displayOff: "כבוי",
+        turnOffDisplay: "כבה תצוגה",
+        turnOnDisplay: "הפעל תצוגה",
+        lastDisplayCaption: "לפחות תצוגה אחת חייבת להישאר דלוקה.",
+        switchUnavailable: "החלפת תצוגה אינה זמינה ב-Mac הזה.",
+        switchFailed: "לא ניתן היה לשנות תצוגה זו.",
+        openLidToEnable: "פתח את המכסה כדי להפעיל את המסך המובנה.",
+        keysToggle: "מקשי בהירות עוקבים אחר הסמן",
+        keysCaption: "מקשי הבהירות במקלדת משנים את התצוגה שתחת הסמן.",
+        osdToggle: "הצג בהירות בעת התאמה",
+        osdCaption: "מציג את אחוז הבהירות כאשר משתמשים במקשי הבהירות או במחוונים.",
+        displayBrightnessShortcuts: "השתמש בקיצורים לבהירות המסך",
+        displayBrightnessShortcutCaption: "הקיצורים משנים את המסך הראשי, או את המסך שמתחת לסמן כשמעקב אחרי הסמן פעיל.",
+        displayBrightnessDecrease: "הפחת את בהירות המסך",
+        displayBrightnessIncrease: "הגבר את בהירות המסך",
+        keyboardLight: "תאורת מקלדת",
+        keyboardLightCaption: "מדליק או מכבה את תאורת המקלדת האחורית.",
+        keyboardBrightnessShortcuts: "השתמש בקיצורים לבהירות המקלדת",
+        keyboardBrightnessDecrease: "הפחת את בהירות המקלדת",
+        keyboardBrightnessIncrease: "הגבר את בהירות המקלדת",
+        softwareDimming: "עמעם את התמונה",
+        extendedDimming: "עמעום נוסף",
+        islandPromptTitle: "להציג את הבהירות ב-Dynamic Island?",
+        islandPromptMessage: "Dynamic Island מציג שינויי בהירות רק כאשר ״שליטה בצגים״ מופעל בהגדרות הצגים.",
+        islandPromptKeepOff: "השאר כבוי"
     )
 }

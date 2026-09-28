@@ -65,6 +65,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -712,5 +713,48 @@ extension AppUpdateStrings {
         includeOnlineCaption: "Коли підтримується, перевіряє оновлення безпосередньо в розробників програм, а потім використовує публічний каталог. Оновлення встановлює власний механізм програми.",
         incompleteCheck: "Перевірку не завершено",
         onlineUnavailable: "Онлайн-перевірку не вдалося завершити. Інші результати все ще показуються."
+    )
+
+    static let he = AppUpdateStrings(
+        pageTitle: "עדכוני אפליקציות",
+        hubDescription: "מצא והתקן עדכונים לאפליקציות שלך",
+        caption: "בודק אילו אפליקציות ב-Mac זה עם גרסאות חדשות יותר ועוזר לך להשלים כל עדכון מהמקור המקורי שלו.",
+        panelCaption: "ראה אילו אפליקציות עם גרסה חדשה יותר",
+        checkNow: "בדוק עכשיו",
+        checking: "בודק",
+        lastCheckFormat: "בדיקה אחרונה %@",
+        neverChecked: "טרם נבדק",
+        upToDate: "לא נמצאו עדכונים",
+        partialUpToDate: "לא נמצאו עדכונים בבדיקה החלקית הזו",
+        coverageNote: "בודק את המקורות המקוריים של האפליקציות המותקנות וקטלוג ציבורי. עדכונים מותקנים דרך המקור המקורי שלהם.",
+        selectAll: "בחר הכל",
+        clearSelection: "נקה",
+        updateSelectedFormat: "עדכן %d",
+        updateOne: "עדכן",
+        openAppStore: "פתח את App Store",
+        appStoreBadge: "App Store",
+        storeHint: "פותח את App Store, שם מותקן עדכון זה",
+        frequencyLabel: "בדוק ברקע",
+        frequencyOff: "כבוי",
+        frequencyDaily: "כל יום",
+        frequencyWeekly: "כל שבוע",
+        nextCheckFormat: "בדיקה הבאה %@",
+        notifyToggle: "הודע לי כשיש עדכון לאפליקציה",
+        includeStoreToggle: "כלול אפליקציות מ-App Store",
+        includeStoreCaption: "בודק את הגרסאות בחנות לפי האזור של Mac זה. Apple מתקינה את העדכונים האלה.",
+        packageMissing: "Homebrew לא מותקן, כך שאפליקציות לא ניתנות לעדכון מכאן עדיין.",
+        notificationBodyFormat: "%@ אפליקציות עם גרסה חדשה יותר.",
+        notificationBodyOne: "אפליקציה אחת עם גרסה חדשה יותר.",
+        showInPanel: "הצג בפאנל",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "מקורות",
+        includeHomebrewToggle: "כלול אפליקציות Homebrew",
+        onlineBadge: "מקוון",
+        openApp: "פתח",
+        openAppHint: "פותח את האפליקציה כדי שהעדכון שלה יוכל להסתיים",
+        includeOnlineToggle: "כלול אפליקציות מותקנות אחרות",
+        includeOnlineCaption: "בודק ישירות מול מפתחי האפליקציות כשהדבר נתמך, ואז משתמש בקטלוג ציבורי. תוכנת העדכון של האפליקציה עצמה מתקינה את העדכון.",
+        incompleteCheck: "הבדיקה לא הושלמה",
+        onlineUnavailable: "הבדיקה המקוונת לא הצליחה להסתיים. תוצאות אחרות עדיין מוצגות."
     )
 }

@@ -184,6 +184,17 @@ extension FeatureStrings {
             unavailable: "Це сповіщення більше не підтримує цю дію.",
             dismissSystemBanner: "Закривати системний банер",
             dismissSystemBannerHint: "Закриває оригінальний банер невдовзі після появи у Dynamic Island. Довші звуки все ще можуть обриватися.")
+        case .he: return NotchNotificationStrings(
+            title: "התראות",
+            description: "התראות מערכת חדשות ב-Dynamic Island.",
+            privacy: "מציג רק באנרים חדשים וגלויים. ההודעות נשמרות בזיכרון ומתנקות כשאתה נועל את ה-Mac הזה או מכבה את האפשרות.",
+            empty: "התראות חדשות יופיעו כאן",
+            waiting: "ממתין לשירות ההתראות של המערכת",
+            open: "פתח",
+            dismiss: "סגור",
+            unavailable: "ההתראה הזו כבר לא יכולה לקבל את הפעולה הזו.",
+            dismissSystemBanner: "סגור את באנר המערכת",
+            dismissSystemBannerHint: "סוגר את המקור זמן קצר אחרי שהוא מופיע ב-Dynamic Island. צלילים ארוכים עדיין עלולים להיקטע.")
         }
     }
 }

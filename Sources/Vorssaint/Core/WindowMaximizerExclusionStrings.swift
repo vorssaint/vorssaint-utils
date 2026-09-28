@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -134,5 +135,12 @@ extension WindowMaximizerExclusionStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         caption: "在這些 App 中，綠色按鈕會保留 macOS 原本的行為，遊戲、模擬器和影片播放器仍然可以進入全螢幕。"
+    )
+
+    static let he = WindowMaximizerExclusionStrings(
+        listTitle: "שמור על מסך מלא באפליקציות אלה",
+        addButton: "הוסף אפליקציה…",
+        removeButton: "הסר",
+        caption: "הלחצן הירוק שומר על ההתנהגות של macOS באפליקציות אלה, כך שמשחקים, אמולטורים ונגני וידאו עדיין יכולים לעבור למסך מלא."
     )
 }

@@ -987,10 +987,15 @@ final class NotchService: ObservableObject {
             if let target = highlightedSection, filteredSections.contains(target) { select(target) }
             return true
         }
+        // The gallery fills along the reading direction, so a mirrored one
+        // puts the section before the highlight under the right arrow. The
+        // side arrows only reach here while nothing is typed; with a query in
+        // the field they stay with the caret, below.
+        let isRTL = L10n.shared.language.isRTL
         let direction: QuickToolsSupport.GridDirection
         switch event.keyCode {
-        case 123 where sectionQuery.isEmpty: direction = .left
-        case 124 where sectionQuery.isEmpty: direction = .right
+        case 123 where sectionQuery.isEmpty: direction = QuickToolsSupport.readingDirection(.left, isRTL: isRTL)
+        case 124 where sectionQuery.isEmpty: direction = QuickToolsSupport.readingDirection(.right, isRTL: isRTL)
         case 125: direction = .down
         case 126: direction = .up
         default: return false
@@ -1349,7 +1354,8 @@ final class NotchService: ObservableObject {
     @discardableResult
     func updateFileDrop(at point: CGPoint) -> Bool {
         let targeted = choosingFileDropDestination
-            && NotchFileToolsSupport.mediaDropArea(in: geometry, size: surfaceSize).contains(point)
+            && NotchFileToolsSupport.mediaDropArea(in: geometry, size: surfaceSize,
+                                                   isRTL: L10n.shared.language.isRTL).contains(point)
         if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
         return !targeted || NotchFileToolsService.shared.canAcceptMediaDrop
     }

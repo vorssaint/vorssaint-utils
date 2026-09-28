@@ -2961,7 +2961,7 @@ final class CommandBarService: ObservableObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: CommandBarView())
+        let host = NSHostingController(rootView: CommandBarView().localizedLayoutDirection())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel
@@ -3154,10 +3154,12 @@ final class CommandBarService: ObservableObject {
                 }
                 return nil
             case kVK_LeftArrow:
-                // Handed back untouched when the field has text in it.
-                return self.moveCategory(-1) ? nil : event
+                // Handed back untouched when the field has text in it. The row
+                // of chips is laid out along the reading direction, so a
+                // mirrored one walks the other way for the same key.
+                return self.moveCategory(L10n.shared.language.readingStep(-1)) ? nil : event
             case kVK_RightArrow:
-                return self.moveCategory(1) ? nil : event
+                return self.moveCategory(L10n.shared.language.readingStep(1)) ? nil : event
             case kVK_Tab:
                 self.completeSelection()
                 return nil

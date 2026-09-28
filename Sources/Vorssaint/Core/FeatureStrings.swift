@@ -21,6 +21,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 
@@ -41,6 +42,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 
@@ -61,6 +63,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 
@@ -81,6 +84,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 
@@ -101,6 +105,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 
@@ -136,6 +141,7 @@ struct MixerFeatureStrings {
     static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App", pin: "置顶", unpin: "取消置顶", moveUp: "上移", moveDown: "下移", pinFirst: "置于最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 并拖移以重新排列", actions: "操作")
     static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
     static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
+    static let he = MixerFeatureStrings(hideInactiveApps: "הסתר אפליקציות לא פעילות", pin: "הצמד למעלה", unpin: "בטל הצמדה", moveUp: "הזז למעלה", moveDown: "הזז למטה", pinFirst: "הצמד לראש", moveLeft: "הזז שמאלה", moveRight: "הזז ימינה", arrange: "החזק Command וגרור כדי לסדר מחדש", actions: "פעולות")
 }
 
 extension SettingsCategoryStrings {
@@ -463,6 +469,15 @@ struct SettingsCategoryStrings {
         utilities: "工具",
         app: "App",
         appManagement: "App 管理"
+    )
+
+    static let he = SettingsCategoryStrings(
+        essentials: "עיקרי",
+        windowsControls: "חלונות ובקרה",
+        files: "קבצים",
+        utilities: "כלי עזר",
+        app: "אפליקציה",
+        appManagement: "ניהול אפליקציות"
     )
 }
 
@@ -1317,6 +1332,67 @@ struct ClipboardFeatureStrings {
         menuBarPreviewCaption: "在圖示旁顯示最近複製內容的簡短預覽，按一下即可開啟記錄。",
         menuBarPreviewLength: "預覽長度",
         menuBarPreviewLengthSuffix: "個字元"
+    )
+
+    static let he = ClipboardFeatureStrings(
+        title: "לוח גזירים",
+        enable: "שמור היסטוריית לוח גזירים",
+        caption: "שומר את מה שאתה מעתיק כדי שתוכל להשתמש בו שוב מאוחר יותר. הכל נשאר במכשיר זה וניתן לניקוי בכל עת.",
+        localNote: "הכל נשאר ב-Mac זה. פריטים גדולים מדלגים.",
+        skipSensitive: "דלג על טקסט שעלול להכיל נתונים רגישים",
+        skipSensitiveCaption: "מונע שמירת טקסט קצר כמו סיסמאות, אסימונים או מפתחות.",
+        limit: "מגבלת פריטים",
+        limitUnlimited: "ללא הגבלה",
+        showInPanel: "הצג בפאנל",
+        shortcut: "קיצור היסטוריית לוח גזירים",
+        shortcutCaption: "פותח חלון גישה מהירה לחיפוש, הצמדה והדבקה עם ⌘1 עד ⌘9 לאפליקציה הקודמת.",
+        shortcutHint: "לחץ על כל שורה להדבקה לאפליקציה הקודמת. ⌘-לחיצה בוחרת מספר פריטים; ⌘C מעתיק ללא הדבקה.",
+        clickRowShortcut: "לחץ על שורה",
+        commandClickShortcut: "⌘-לחיצה",
+        pinned: "מוצמד",
+        recent: "אחרונים",
+        pin: "הצמד",
+        unpin: "בטל הצמדה",
+        clearRecent: "נקה אחרונים",
+        clearAll: "נקה לא מוצמדים",
+        empty: "אין טקסט שמור עדיין",
+        disabled: "הפעל היסטוריה כדי להתחיל לשמור את מה שאתה מעתיק.",
+        search: "חפש טקסט שהועתק",
+        copy: "העתק",
+        copied: "הועתק",
+        delete: "מחק פריט",
+        selectMultiple: "הוסף למחסנית",
+        unselectMultiple: "הסר מהמחסנית",
+        selectShortcutAction: "בחר",
+        pasteSelectedFormat: "הדבק %d",
+        copySelectedFormat: "העתק %d",
+        clearSelection: "נקה בחירה",
+        moveUp: "העלה",
+        moveDown: "הורד",
+        noResults: "אין תוצאות",
+        newestFirst: "החדשים ביותר ראשונים",
+        active: "שומר טקסט חדש",
+        includeImagesFiles: "שמור גם תמונות וקבצים שהועתקו",
+        includeImagesFilesCaption: "תמונות נוספות להיסטוריה, וקבצים נשמרים כקישור למיקומם. ניתן להצמיד ולהדביק כמו טקסט.",
+        imageEntryLabel: "תמונה",
+        fileCountFormat: "%d קבצים",
+        pasteImageAsFile: "הדבק תמונה שהועתקה כקובץ",
+        pasteImageAsFileCaption: "כאשר Finder הוא הקדמי, ⌘V שומר את התמונה שהועתקה כ-PNG בתיקייה הנוכחית.",
+        previewLabel: "תצוגה מקדימה",
+        edit: "ערוך",
+        cancel: "ביטול",
+        save: "שמור",
+        autoClearEnable: "נקה לוח גזירים אוטומטית לאחר השהייה",
+        autoClearSecondsSuffix: "שניות",
+        autoClearOnSleep: "נקה לוח גזירים במצב שינה",
+        autoClearOnDisplaySleep: "נקה לוח גזירים בכיבוי מסך",
+        autoClearOnScreenLock: "נקה לוח גזירים בנעילת מסך",
+        autoClearCaption: "רק לוח הגזירים של המערכת מנוקה. פריטים שמורים נשארים בהיסטוריה.",
+        deleteSelectedFormat: "מחק %d",
+        menuBarPreview: "הצג את ההעתקה האחרונה בשורת התפריטים",
+        menuBarPreviewCaption: "מציג תצוגה מקדימה מקוצרת של ההעתקה האחרונה ליד הסמל. לחץ עליה כדי לפתוח את ההיסטוריה.",
+        menuBarPreviewLength: "אורך התצוגה המקדימה",
+        menuBarPreviewLengthSuffix: "תווים"
     )
 }
 
@@ -2564,6 +2640,95 @@ struct WindowLayoutFeatureStrings {
         gapLarge: "大",
         gapExtraLarge: "特大"
     )
+
+    static let he = WindowLayoutFeatureStrings(
+        title: "סידור חלונות",
+        caption: "מסדר חלונות באזורי המסך, או מעביר ומשנה גודל בעזרת משטח מגע או עכבר.",
+        showInPanel: "הצג בפאנל",
+        gestureSection: "גרירת חלונות",
+        gestureEnable: "גרירה להזזה ושינוי גודל",
+        gestureCaption: "החזק את מקשי העזר המוצגים במשטח מגע או עכבר, וגרור מכל מקום בתוך החלון.",
+        gestureModifiers: "מקשי הזזה",
+        gestureMove: "גרירה להזזה",
+        gestureResize: "הוסף Shift וגרור לשינוי גודל",
+        gestureResizeHint: "נקודת ההתחלה בוחרת את הקצה או הפינה הקרובים ביותר. בעכבר, גם גרירה עם הלחצן הימני משנה גודל.",
+        gestureRaiseWindow: "הבא את החלון הנגרר לחזית",
+        shortcuts: "קיצורי מקלדת",
+        shortcutsCaption: "השתמש בקיצורי מקלדת גלובליים לסידור החלון הנוכחי בלי לפתוח את הפאנל.",
+        permissionCaption: "הרשאת נגישות משמשת רק להזזה ושינוי גודל של חלונות.",
+        noWindow: "לא נמצא חלון נוכחי.",
+        missingPermission: "יש לאשר הרשאת נגישות להזזת חלונות.",
+        failed: "לא ניתן להזיז חלון זה.",
+        done: "החלון סודר.",
+        restored: "החלון שוחזר.",
+        noRestore: "אין סידור קודם לשחזור.",
+        target: "חלון נוכחי",
+        halves: "חצאים",
+        thirds: "שלישים",
+        quarterRows: "שורות של רבע",
+        quarterColumns: "עמודות של רבע",
+        sixths: "שישיות",
+        corners: "פינות",
+        other: "פעולות אחרות",
+        leftHalf: "חצי שמאל",
+        rightHalf: "חצי ימין",
+        topHalf: "חצי עליון",
+        bottomHalf: "חצי תחתון",
+        centerHalf: "חצי מרכזי",
+        leftThird: "1/3 שמאל",
+        centerThird: "1/3 מרכז",
+        rightThird: "1/3 ימין",
+        leftTwoThirds: "2/3 שמאל",
+        rightTwoThirds: "2/3 ימין",
+        centerTwoThirds: "2/3 מרכז",
+        topThird: "1/3 עליון",
+        middleThird: "1/3 אמצע",
+        bottomThird: "1/3 תחתון",
+        topTwoThirds: "2/3 עליון",
+        bottomTwoThirds: "2/3 תחתון",
+        topQuarter: "1/4 עליון",
+        upperMiddleQuarter: "1/4 אמצע עליון",
+        lowerMiddleQuarter: "1/4 אמצע תחתון",
+        bottomQuarter: "1/4 תחתון",
+        leftQuarter: "1/4 שמאל",
+        leftMiddleQuarter: "1/4 אמצע שמאל",
+        rightMiddleQuarter: "1/4 אמצע ימין",
+        rightQuarter: "1/4 ימין",
+        topLeftSixth: "1/6 שמאל עליון",
+        topCenterSixth: "1/6 מרכז עליון",
+        topRightSixth: "1/6 ימין עליון",
+        bottomLeftSixth: "1/6 שמאל תחתון",
+        bottomCenterSixth: "1/6 מרכז תחתון",
+        bottomRightSixth: "1/6 ימין תחתון",
+        topLeft: "פינה שמאלית עליונה",
+        topRight: "פינה ימנית עליונה",
+        bottomLeft: "פינה שמאלית תחתונה",
+        bottomRight: "פינה ימנית תחתונה",
+        maximize: "הגדלה",
+        center: "מרכוז",
+        nextDisplay: "מסך הבא",
+        restore: "שחזור",
+        fullScreen: "מסך מלא",
+        previousDisplay: "מסך קודם",
+        edgeSnapEnable: "הצמד חלונות לקצוות המסך",
+        edgeSnapCaption: "הפעל כאן, בחר למטה את האזורים המסומנים, ואז גרור את שורת הכותרת של חלון לאחד מהם ושחרר.",
+        edgeSnapSystemConflict: "macOS משתמש באותם קצוות מסך. כבה ריצוף חלונות ב״מכתבה וה-Dock״ כדי לאפשר ל-Vorssaint לפעול.",
+        edgeSnapOpenSystemSettings: "פתח את מכתבה וה-Dock",
+        edgeSnapWaitingForSystem: "הופעל ב-Vorssaint. יפעל לאחר כיבוי ריצוף החלונות של macOS.",
+        marginMaximize: "הגדלה עם שוליים",
+        gapsSection: "רווחים",
+        gapsCaption: "הרווחים בין חלונות מוצמדים, ובין החלונות לקצוות המסך.",
+        windowGap: "רווח בין חלונות",
+        screenGap: "רווח מסך",
+        sideRepeatCycle: "לחיצה חוזרת על שמאלה או ימינה מחליפה גדלים",
+        sideRepeatCycleCaption: "חצי, אחר כך שני שלישים, אחר כך שליש באותו צג. כשכבוי, ועם יותר מצג אחד, הלחיצה החוזרת מעבירה את החלון לצג הבא באותו צד.",
+        gapNone: "ללא",
+        gapTiny: "זעיר",
+        gapSmall: "קטן",
+        gapMedium: "בינוני",
+        gapLarge: "גדול",
+        gapExtraLarge: "גדול מאוד"
+    )
 }
 
 struct MonitorAlertFeatureStrings {
@@ -3255,6 +3420,41 @@ extension MonitorAlertFeatureStrings {
         batteryTemperatureThreshold: "Температура вище",
         batteryTemperatureTitle: "Гарячий акумулятор",
         batteryTemperatureBodyFormat: "Акумулятор нагрівся до %@."
+    )
+
+    static let he = MonitorAlertFeatureStrings(
+        section: "התראות",
+        caption: "התראות מופעלות כשמגיעים לספים שנבחרו. התראות שימוש ב-CPU וטמפרטורה מתעלמות מעליות קצרות של פחות מ-12 שניות. הגדרת החזרה מגבילה רק חזרות של אותה התראה.",
+        notificationsDenied: "ההתראות של Vorssaint כבויות בהגדרות המערכת, לכן לא ניתן להציג התראות.",
+        cpu: "CPU גבוה",
+        cpuTemperature: "טמפרטורת CPU גבוהה",
+        memory: "לחץ זיכרון קריטי",
+        disk: "שטח דיסק נמוך",
+        battery: "סוללה חלשה",
+        cpuThreshold: "CPU מעל",
+        cpuTemperatureThreshold: "טמפרטורה מעל",
+        diskThreshold: "שטח פנוי מתחת ל-",
+        batteryThreshold: "סוללה מתחת ל-",
+        cooldown: "חזרה על אותה התראה אחרי",
+        cooldown2: "2 דקות",
+        cooldown5: "5 דקות",
+        cooldown15: "15 דקות",
+        cooldown30: "30 דקות",
+        cooldown60: "שעה אחת",
+        cpuTitle: "CPU גבוה",
+        cpuBodyFormat: "CPU נשאר מעל %d%% למספר שניות.",
+        cpuTemperatureTitle: "CPU חם",
+        cpuTemperatureBodyFormat: "CPU הגיע ל-%@.",
+        memoryTitle: "זיכרון קריטי",
+        memoryBody: "לחץ הזיכרון הגיע לרמה קריטית.",
+        diskTitle: "שטח דיסק נמוך",
+        diskBodyFormat: "ב-%@ נשאר פחות מ-%d%% שטח פנוי.",
+        batteryTitle: "סוללה חלשה",
+        batteryBodyFormat: "הסוללה ב-%d%%.",
+        batteryTemperature: "טמפרטורת סוללה גבוהה",
+        batteryTemperatureThreshold: "טמפרטורה מעל",
+        batteryTemperatureTitle: "סוללה חמה",
+        batteryTemperatureBodyFormat: "הסוללה הגיעה ל-%@."
     )
 }
 

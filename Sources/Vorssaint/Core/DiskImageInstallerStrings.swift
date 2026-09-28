@@ -44,6 +44,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -391,5 +392,28 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Показати встановлену програму у Finder",
         installedKeptDownloadBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження збережено.",
         installingFormat: "Встановлення %@…"
+    )
+
+    static let he = DiskImageInstallerStrings(
+        title: "מתקין קובצי תמונת דיסק",
+        hubDescription: "התקן את האפליקציה מדמות הכונן ונקה את ההורדה",
+        useUserApplications: "התקן בתיקיית האפליקציות שבתיקיית הבית שלך",
+        applicationsFolder: "תיקיית האפליקציות",
+        userApplicationsFolder: "תיקיית האפליקציות שבתיקיית הבית שלך",
+        promptTitle: "להתקין אפליקציה זו?",
+        promptBodyFormat: "%@ יועתק אל %@ ודמות הכונן תיפלט.",
+        installButton: "התקן",
+        installedTitle: "האפליקציה הותקנה",
+        installedBodyFormat: "%@ מוכן ב%@. דמות הכונן נפלטה וההורדה הועברה לאשפה.",
+        installedKeepingMountBodyFormat: "%@ הותקן ב%@, אך לא ניתן היה לפלוט את דמות הכונן. ההורדה נשמרה.",
+        installedKeepingDownloadBodyFormat: "%@ הותקן ב%@ ודמות הכונן נפלטה, אך לא ניתן היה להעביר את ההורדה לאשפה.",
+        failedTitle: "לא ניתן להתקין",
+        failedBody: "שום דבר לא שונה. עדיין ניתן לגרור את האפליקציה ל״אפליקציות״.",
+        verificationFailedBody: "Mac זה לא הצליח לאמת את האפליקציה, ולכן שום דבר לא הותקן.",
+        alreadyInstalledBodyFormat: "%@ כבר נמצא ב״אפליקציות״.",
+        trashDownloadOption: "העבר את ההורדה לאשפה",
+        revealAppOption: "הצג את האפליקציה שהותקנה ב-Finder",
+        installedKeptDownloadBodyFormat: "%@ מוכן ב%@. דמות הכונן נפלטה וההורדה נשמרה.",
+        installingFormat: "מתקין את %@…"
     )
 }

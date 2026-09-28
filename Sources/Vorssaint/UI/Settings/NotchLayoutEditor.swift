@@ -117,6 +117,15 @@ struct NotchLayoutEditor: View {
                         .accessibilityLabel(text.size)
                 }
                 .coordinateSpace(name: "island.editor")
+                // A picture of the island, in the island's own coordinates.
+                // Each bubble is placed by a point measured from a physical
+                // side of the camera, and the live island draws those same
+                // points unmirrored; drags arrive here as physical locations
+                // and are tested against these same frames. Mirroring the
+                // canvas would put the preview on the opposite side from
+                // where the button really goes, and send every drag to the
+                // zone across from the pointer.
+                .environment(\.layoutDirection, .leftToRight)
             }
             .frame(height: Self.canvasHeight)
             .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: configuration)

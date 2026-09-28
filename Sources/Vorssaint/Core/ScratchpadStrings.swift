@@ -58,6 +58,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -600,5 +601,41 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "Ви можете зберігати до %d нотатників",
         previewFormatting: "Показувати форматування",
         editText: "Редагувати текст"
+    )
+
+    static let he = ScratchpadFeatureStrings(
+        pageTitle: "פנקס טיוטה",
+        hubDescription: "לוחות צפים להערות קצרות",
+        panelCaption: "הערות מהירות בלשוניות נפרדות",
+        openButton: "פתח פנקס טיוטה",
+        placeholder: "הקלד כל דבר. זה נשמר מעצמו.",
+        copyAll: "העתק הכל",
+        copied: "הועתק",
+        exportAction: "שמור כקובץ",
+        exportFailed: "לא ניתן לשמור את הקובץ",
+        loadFailed: "לא ניתן לפתוח את ההערות שלך. הן נשארו ללא שינוי.",
+        saveFailed: "לא ניתן היה לשמור את הפתקים. העתק אותם למקום אחר לפני היציאה.",
+        clearAction: "נקה",
+        retentionTitle: "נקה אוטומטית",
+        retentionNever: "לעולם לא",
+        retentionDay: "אחרי יום ללא שימוש",
+        retentionWeek: "אחרי שבוע ללא שימוש",
+        retentionMonth: "אחרי חודש ללא שימוש",
+        retentionCaption: "הפנקס מתרוקן כשהטקסט לא נערך במשך הזמן הזה.",
+        closeOnClickOutside: "סגור כשאני לוחץ בחוץ",
+        keepOpen: "השאר פתוח",
+        backgroundOpacity: "רקע הפנקס",
+        backgroundTranslucent: "שקוף למחצה",
+        backgroundOpaque: "אטום",
+        newPad: "פנקס טיוטה חדש",
+        padActions: "פעולות פנקס טיוטה",
+        renamePad: "שנה שם פנקס טיוטה",
+        closePad: "סגור פנקס טיוטה",
+        saveName: "שמור",
+        cancel: "ביטול",
+        deletePadMessageFormat: "למחוק את “%@” ואת כל התוכן שבו?",
+        padLimitFormat: "ניתן לשמור עד %d פנקסי טיוטה",
+        previewFormatting: "הצג עיצוב",
+        editText: "ערוך טקסט"
     )
 }

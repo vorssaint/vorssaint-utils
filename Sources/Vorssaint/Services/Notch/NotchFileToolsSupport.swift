@@ -8,11 +8,18 @@ import UniformTypeIdentifiers
 enum NotchFileToolsSupport {
     static let dropSpacing: CGFloat = 12
 
-    static func mediaDropArea(in geometry: NotchGeometry, size: CGSize) -> CGRect {
+    /// Where the "optimize media" tile sits, for a drop the AppKit host
+    /// hit-tests against a physical point. The two destinations are a row of
+    /// choices, not a picture of anything, so they follow the reading
+    /// direction: optimizing comes second, which puts it on the left half in
+    /// a mirrored layout and the right half everywhere else. The host reports
+    /// a physical point either way, so the side has to be chosen here.
+    static func mediaDropArea(in geometry: NotchGeometry, size: CGSize, isRTL: Bool = false) -> CGRect {
         let content = geometry.contentSize(for: size)
-        return CGRect(x: size.width / 2 + dropSpacing / 2,
+        let half = max(0, (content.width - dropSpacing) / 2)
+        return CGRect(x: isRTL ? size.width / 2 - dropSpacing / 2 - half : size.width / 2 + dropSpacing / 2,
                       y: geometry.headerTopInset + geometry.headerRowHeight + NotchLayout.spacing,
-                      width: max(0, (content.width - dropSpacing) / 2), height: content.height)
+                      width: half, height: content.height)
     }
 
     static func optimizationTool(for urls: [URL]) -> MediaTool? {

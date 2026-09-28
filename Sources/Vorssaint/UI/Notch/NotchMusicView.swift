@@ -365,6 +365,10 @@ private struct NotchMusicTimeline: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                 }
+                // A position in a recording is a place on a timeline, which
+                // runs the same way in every language: the bar fills from the
+                // start, elapsed stays under it and what is left under the end.
+                .environment(\.layoutDirection, .leftToRight)
             }
             .frame(height: 30)
             .onChange(of: playback.track) { clearScrub() }

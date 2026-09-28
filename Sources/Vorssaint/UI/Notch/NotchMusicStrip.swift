@@ -124,7 +124,12 @@ struct NotchMusicSwipeFeedback: ViewModifier {
         let displacement = reduceMotion ? 0 : direction
         return content
             .keyframeAnimator(initialValue: CGFloat.zero, trigger: trigger) { view, travel in
+                // The swipe that asked for this is read from a raw horizontal
+                // delta, so the nudge that answers it is a physical one too.
+                // An offset follows the reading direction, which would send
+                // the strip the opposite way from the finger in Hebrew.
                 view.offset(x: displacement * travel)
+                    .environment(\.layoutDirection, .leftToRight)
             } keyframes: { _ in
                 CubicKeyframe(8, duration: 0.09)
                 SpringKeyframe(0, duration: 0.25, spring: .smooth)

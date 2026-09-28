@@ -31,6 +31,13 @@ struct WindowEdgeSnapZonePicker: View {
                 RoundedRectangle(cornerRadius: compact ? 9 : 12, style: .continuous)
                     .strokeBorder(Color.primary.opacity(0.14))
             )
+            // A picture of the screen, not a row of controls: each cell stands
+            // for the corner a window actually snaps to, and a window dragged
+            // to the top left of the display lands at the top left of every
+            // display in every language. Mirroring it would leave the cell
+            // marked left sitting on the right of the diagram, toggling the
+            // zone on the opposite side of the screen from the one under it.
+            .environment(\.layoutDirection, .leftToRight)
 
             Button {
                 disabledZonesStorage = ""

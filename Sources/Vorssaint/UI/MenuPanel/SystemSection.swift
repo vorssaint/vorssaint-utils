@@ -395,7 +395,7 @@ struct SystemSection: View {
                                                  kind: BreakdownKind, isInteractive: Bool,
                                                  @ViewBuilder trailing: () -> Trailing) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .rotationEffect(.degrees(expanded == kind ? 90 : 0))
@@ -478,7 +478,7 @@ struct SystemSection: View {
 
     private func memoryRowContent(isInteractive: Bool) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .rotationEffect(.degrees(expanded == .memory ? 90 : 0))
@@ -518,7 +518,7 @@ struct SystemSection: View {
                         alertsExpanded.toggle()
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "chevron.forward")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
                                 .rotationEffect(.degrees(alertsExpanded ? 90 : 0))

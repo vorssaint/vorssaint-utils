@@ -223,6 +223,13 @@ struct ScreenshotEditorView: View {
         .overlay(alignment: .topLeading) {
             cropLoupeOverlay(zoom: zoom, canvasSize: canvasSize)
         }
+        // The capture and the renderer that paints it both work in the
+        // image's own coordinates, which no language reverses. These two
+        // overlays place themselves by an x taken from that image, off a
+        // top-leading corner, so a mirrored canvas would hand the text field
+        // and the loupe's crosshair the far side of the picture from the
+        // pixel they belong to. The chrome around the canvas still mirrors.
+        .environment(\.layoutDirection, .leftToRight)
     }
 
     /// The live backdrop layer, matching exactly what the exporter paints.

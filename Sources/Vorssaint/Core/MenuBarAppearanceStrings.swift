@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -231,5 +232,18 @@ extension MenuBarAppearanceStrings {
         highColor: "Високий колір",
         mediumFrom: "Середній від",
         highFrom: "Високий від"
+    )
+
+    static let he = MenuBarAppearanceStrings(
+        label: "תצוגת שימוש",
+        values: "ערכים",
+        bars: "פסים",
+        caption: "פסים חלים על שימוש במעבד, GPU, זיכרון ודיסק. שאר הקריאות נשארות מספריות.",
+        customize: "צבעי פסים וספים",
+        normalColor: "צבע רגיל",
+        mediumColor: "צבע בינוני",
+        highColor: "צבע גבוה",
+        mediumFrom: "בינוני מ-",
+        highFrom: "גבוה מ-"
     )
 }

@@ -71,7 +71,11 @@ struct MixerAppDragSource: NSViewRepresentable {
                   source.canMove(sourceID, targetID) else { return nil }
             let point = convert(sender.draggingLocation, from: nil)
             guard bounds.contains(point) else { return nil }
-            let after = source.sideways ? point.x > bounds.midX : point.y > bounds.midY
+            // This is an AppKit drag, so nothing mirrors the hit point for us: in a
+            // right-to-left layout the half that comes after in the array is the left one.
+            let after = source.sideways
+                ? (L10n.shared.language.isRTL ? point.x < bounds.midX : point.x > bounds.midX)
+                : point.y > bounds.midY
             return (sourceID, MixerAppDropTarget(id: targetID, after: after))
         }
 

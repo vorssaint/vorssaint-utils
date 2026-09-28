@@ -3,6 +3,7 @@
 
 import Combine
 import Foundation
+import SwiftUI
 
 /// The way a language agrees a noun with the number in front of it.
 enum CountAgreement {
@@ -35,11 +36,12 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
+    case he = "he"
 
     var id: String { rawValue }
 
     /// How this language agrees a counted noun with the number in front of
-    /// it. Three of the fifteen put a distinct form between one and many, and
+    /// it. Three of the sixteen put a distinct form between one and many, and
     /// they disagree on which numbers take it, so the count itself is not
     /// enough to pick a form without knowing the language's rule.
     var countAgreement: CountAgreement {
@@ -49,6 +51,16 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         default: return .oneAndMany
         }
     }
+
+    /// Hebrew is the one right-to-left language here.
+    var isRTL: Bool { self == .he }
+
+    /// Turns a step along a horizontal row from what the key says into what
+    /// the array means. The left and right arrow keys name physical
+    /// directions, while an index names a position in reading order; a
+    /// mirrored row puts the two at odds, so the right arrow walks backwards
+    /// through it. Vertical movement is left alone: no language mirrors it.
+    func readingStep(_ delta: Int) -> Int { isRTL ? -delta : delta }
 
     /// The language's own name, shown in its own script, the way macOS lists them.
     var displayName: String {
@@ -68,6 +80,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
         case .uk: return "Українська"
+        case .he: return "עברית"
         }
     }
 
@@ -96,10 +109,35 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
-            ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
+            ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans), ("he", .he),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
+    }
+}
+
+/// Mirrors the chosen `AppLanguage` into SwiftUI's layout direction. This app
+/// is AppKit-hosted (`NSHostingController`/`NSHostingView`), so nothing gives
+/// a Hebrew UI a mirrored layout on its own: `CFBundleLocalizations` only
+/// follows the *system* language, and `AppLanguage` is a user override that's
+/// decoupled from it. Every hosting root applies this explicitly instead.
+struct LocalizedLayoutDirection: ViewModifier {
+    @ObservedObject private var l10n = L10n.shared
+
+    func body(content: Content) -> some View {
+        content.environment(\.layoutDirection, l10n.language.isRTL ? .rightToLeft : .leftToRight)
+    }
+}
+
+/// What a hosted view becomes once the modifier has wrapped it. Named, and
+/// the modifier returns it rather than an opaque type, so a cast from a
+/// hosting controller back to the view it hosts has something true to say:
+/// a cast to the bare view compiles just as well and never once matches.
+typealias LocalizedRoot<Content: View> = ModifiedContent<Content, LocalizedLayoutDirection>
+
+extension View {
+    func localizedLayoutDirection() -> LocalizedRoot<Self> {
+        modifier(LocalizedLayoutDirection())
     }
 }
 
@@ -129,6 +167,7 @@ final class L10n: ObservableObject {
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
         case .uk: return .uk
+        case .he: return .he
         }
     }
 

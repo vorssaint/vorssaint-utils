@@ -248,6 +248,47 @@ enum ShelfFeatureTests {
                && ShelfTileLayout.sidewaysTileFrame(index: 3, rows: 1, tileSize: revealTile, spacing: 10, inset: 4)
                == CGRect(x: 268, y: 4, width: 78, height: 88),
                "a sideways shelf fills each column top to bottom before starting the next")
+        // A mirrored grid reflects across the width it fills, so the first
+        // tile sits the same distance from the right edge that it sits from
+        // the left in every other language, and the row stays the same shape.
+        suite.expect(ShelfTileLayout.tileFrame(index: 0, columns: 3, tileSize: revealTile, spacing: 10,
+                                               inset: 4, mirroredIn: 276)
+               == CGRect(x: 194, y: 4, width: 78, height: 88)
+               && ShelfTileLayout.tileFrame(index: 1, columns: 3, tileSize: revealTile, spacing: 10,
+                                            inset: 4, mirroredIn: 276)
+               == CGRect(x: 106, y: 4, width: 78, height: 88)
+               && ShelfTileLayout.tileFrame(index: 3, columns: 3, tileSize: revealTile, spacing: 10,
+                                            inset: 4, mirroredIn: 276)
+               == CGRect(x: 194, y: 102, width: 78, height: 88),
+               "a mirrored grid starts each row at the right edge and keeps its rows in order")
+        suite.expect(ShelfTileLayout.tileFrame(index: 1, columns: 3, tileSize: revealTile, spacing: 10, inset: 4)
+               == ShelfTileLayout.tileFrame(index: 1, columns: 3, tileSize: revealTile, spacing: 10,
+                                            inset: 4, mirroredIn: nil),
+               "no mirror width leaves the grid exactly where it was")
+        suite.expect(ShelfTileLayout.sidewaysTileFrame(index: 0, rows: 2, tileSize: revealTile, spacing: 10,
+                                                       inset: 4, mirroredIn: 350)
+               == CGRect(x: 268, y: 4, width: 78, height: 88)
+               && ShelfTileLayout.sidewaysTileFrame(index: 2, rows: 2, tileSize: revealTile, spacing: 10,
+                                                    inset: 4, mirroredIn: 350)
+               == CGRect(x: 180, y: 4, width: 78, height: 88),
+               "a mirrored strip fills from the right, column by column")
+        // The strip's own document, not the visible width: a strip that
+        // overflows lays its first tiles past the right edge of the viewport,
+        // so the shelf has to open there instead of at x zero.
+        suite.expect(ShelfTileLayout.sidewaysInitialScrollX(documentWidth: 900, visibleWidth: 424, isRTL: true) == 476
+               && ShelfTileLayout.sidewaysInitialScrollX(documentWidth: 900, visibleWidth: 424, isRTL: false) == 0
+               && ShelfTileLayout.sidewaysInitialScrollX(documentWidth: 300, visibleWidth: 424, isRTL: true) == 0,
+               "a mirrored strip opens on its first tiles, and one that fits opens where it always did")
+        // Adding a tile to a mirrored strip widens the document, and every
+        // frame in it is measured back from the right edge, so the viewport
+        // has to move by the same amount or the tiles slide out from under
+        // whoever is looking at them.
+        suite.expect(ShelfTileLayout.sidewaysScrollX(afterGrowingTo: 988, from: 900, scrollX: 476, isRTL: true) == 564
+               && ShelfTileLayout.sidewaysScrollX(afterGrowingTo: 988, from: 900, scrollX: 476, isRTL: false) == 476
+               && ShelfTileLayout.sidewaysScrollX(afterGrowingTo: 900, from: 900, scrollX: 120, isRTL: true) == 120
+               && ShelfTileLayout.sidewaysScrollX(afterGrowingTo: 500, from: 900, scrollX: 120, isRTL: true) == 0,
+               "a mirrored strip holds its place as it grows, and never scrolls past its own start")
+
         suite.expect(ShelfTileLayout.sidewaysDocumentSize(itemCount: 3, rows: 1, visibleSize: .zero,
                                                           tileSize: revealTile, spacing: 10, inset: 4)
                == CGSize(width: 262, height: 96)
@@ -705,7 +746,7 @@ enum ShelfFeatureTests {
                && AppLanguage.ru.countAgreement == .byLastDigits
                && AppLanguage.uk.countAgreement == .byLastDigits
                && AppLanguage.sk.countAgreement == .byWholeNumber,
-               "Russian, Slovak and Ukrainian are the three languages of the fifteen that ask for the middle form, each by its own rule")
+               "Russian, Slovak and Ukrainian are the three languages of the sixteen that ask for the middle form, each by its own rule")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",

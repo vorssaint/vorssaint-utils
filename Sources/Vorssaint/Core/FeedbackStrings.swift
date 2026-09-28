@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -535,5 +536,37 @@ extension FeedbackStrings {
         commandFeature: "Запропонувати функцію",
         commandSubtitle: "Надіслати відгук",
         diagnosticsChannelLabel: "Канал оновлення"
+    )
+
+    static let he = FeedbackStrings(
+        sectionTitle: "משוב",
+        sectionCaption: "שלח דיווח על באג או הצעה לתכונה ישירות למתחזק Vorssaint.",
+        openButton: "שלח משוב",
+        windowTitle: "שלח משוב",
+        bugTitle: "באג",
+        featureTitle: "הצעה לתכונה",
+        messageLabel: "מה תרצה לשתף?",
+        bugPlaceholder: "ספר מה קרה ומה ציפית שיקרה.",
+        featurePlaceholder: "תאר את הרעיון וכיצד הוא יכול לעזור.",
+        charactersFormat: "%d מתוך 2000 תווים",
+        includeDiagnostics: "כלול פרטים טכניים",
+        includeDiagnosticsCaption: "מוסיף רק את הפרטים הטכניים המוצגים למטה. אינו כולל יומנים.",
+        whatSentTitle: "מה יישלח",
+        whatSentBasic: "הקטגוריה שנבחרה והטקסט לעיל.",
+        whatSentDiagnostics: "הפרטים הטכניים המפורטים למטה.",
+        privacyNote: "אין כלל שם, חשבון, דוא״ל, מזהה מכשיר, יומנים, צילומי מסך, קבצים או תוכן לוח ההעתקה. ה-IP הציבורי שלך מעובד זמנית להגנה מפני שימוש לרעה ואינו מצורף למשוב.",
+        retentionNote: "לאחר המסירה, הטקסט נשאר בערוצי תמיכה פרטיים עד שבעל השירות מוחק אותו. עותק שלא נמסר נמחק לצמיתות לאחר 7 ימים.",
+        sendButton: "שלח משוב",
+        sending: "שולח…",
+        sentTitle: "המשוב נשלח",
+        sentCaption: "תודה. לא נשלחו פרטי קשר, לכן לא תקבל תשובה ישירה.",
+        unavailableError: "לא ניתן להתחבר. בדוק את חיבור האינטרנט ונסה שוב.",
+        rateLimitError: "יותר מדי הגשות מרשת זו. אנא נסה שוב מאוחר יותר.",
+        genericError: "לא ניתן לשלוח את המשוב כרגע.",
+        done: "סיום",
+        commandBug: "דווח על באג",
+        commandFeature: "הצע תכונה",
+        commandSubtitle: "שלח משוב",
+        diagnosticsChannelLabel: "ערוץ עדכונים"
     )
 }

@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -135,5 +136,12 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "Додати програму…",
         removeButton: "Видалити",
         caption: "Все, що ви копіюєте в цих програмах, не зберігається в історії."
+    )
+
+    static let he = ClipboardIgnoredAppsStrings(
+        listTitle: "אפליקציות לדילוג",
+        addButton: "הוסף אפליקציה…",
+        removeButton: "הסר",
+        caption: "שום דבר שתעתיק באפליקציות אלה נשמר בהיסטוריה."
     )
 }

@@ -490,5 +490,187 @@ enum LocalizationFeatureContractTests {
                && koreanInfoPlistStrings.contains("Mac 밖으로 나가지"),
                "Korean InfoPlist.strings localizes the audio permission prompt")
 
+        // MARK: Every SwiftUI hosting root mirrors for a right-to-left language
+        // The app is AppKit-hosted, so every `NSHostingController`/`NSHostingView`
+        // starts a fresh SwiftUI environment: a root that forgets
+        // `localizedLayoutDirection()` draws Hebrew text in an unmirrored layout,
+        // and nothing in the type system says so. This walks `Sources/` rather
+        // than one named file, because the gap opens with the *next* root
+        // somebody adds, in a file this test cannot know the name of yet.
+        let layoutModifier = ".localizedLayoutDirection()"
+        let swiftSources: [String] = {
+            guard let walker = FileManager.default.enumerator(atPath: "Sources") else { return [] }
+            return walker.compactMap { $0 as? String }
+                .filter { $0.hasSuffix(".swift") }
+                .map { "Sources/" + $0 }
+                .sorted()
+        }()
+        suite.expect(swiftSources.count > 1, "the hosting root sweep reads Sources/ back")
+
+        // The text from `open` through the paired `close`, starting at the first
+        // `open` at or after `start`, so a root spread over several lines is read
+        // as the one expression it is.
+        func balancedSlice(_ text: String, from start: String.Index,
+                           open: Character, close: Character) -> String {
+            guard let begin = text[start...].firstIndex(of: open) else { return "" }
+            var depth = 0
+            var index = begin
+            while index < text.endIndex {
+                if text[index] == open { depth += 1 }
+                if text[index] == close {
+                    depth -= 1
+                    if depth == 0 { return String(text[begin...index]) }
+                }
+                index = text.index(after: index)
+            }
+            return String(text[begin...])
+        }
+
+        // A hosting subclass whose generic parameter is pre-declared cannot take
+        // the modifier at its construction site without breaking its own type, so
+        // the modifier lives in the hosted view's `body` instead.
+        func structBody(_ name: String) -> String {
+            for path in swiftSources {
+                let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+                guard let hit = text.range(of: "struct \(name)") else { continue }
+                return balancedSlice(text, from: hit.upperBound, open: "{", close: "}")
+            }
+            return ""
+        }
+
+        var hostingRoots = 0
+        for path in swiftSources {
+            let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            var cursor = text.startIndex
+            while let hit = text.range(of: "(rootView:", range: cursor..<text.endIndex) {
+                cursor = hit.upperBound
+                let prefix = text[..<hit.lowerBound]
+                // `init(rootView:)` and the `super` call inside it are a
+                // subclass's own plumbing: they forward what a site built.
+                if prefix.hasSuffix("init") { continue }
+                hostingRoots += 1
+                let call = balancedSlice(text, from: hit.lowerBound, open: "(", close: ")")
+                if call.contains(layoutModifier) { continue }
+                let argument = String(call.dropFirst("(rootView:".count).dropLast())
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let head = String(argument.prefix { $0.isLetter || $0.isNumber || $0 == "_" })
+                if argument == head, !head.isEmpty {
+                    // A local the modifier was applied to a few lines up. The
+                    // evidence has to sit between the binding and this root and
+                    // not belong to an earlier one, or a second root in the same
+                    // file passes on the first one's modifier.
+                    let binding = prefix.range(of: "let \(head) =", options: .backwards)
+                        ?? prefix.range(of: "var \(head) =", options: .backwards)
+                    if let binding {
+                        let since = prefix[binding.lowerBound...]
+                        let ownRoot = since.range(of: "(rootView:") == nil
+                        if ownRoot, since.contains(layoutModifier) { continue }
+                    }
+                } else if !head.isEmpty, structBody(head).contains(layoutModifier) {
+                    continue
+                }
+                // `HeightReportingHostingView` is generic and hands on whatever
+                // it is given, so the requirement moves out to the call sites of
+                // the `OverlayScrollView` that wraps it — all of them.
+                if prefix.hasSuffix("HeightReportingHostingView") {
+                    var wrapped = 0
+                    var mirrored = 0
+                    var scan = text.startIndex
+                    while let site = text.range(of: "OverlayScrollView(measuredHeight:",
+                                                range: scan..<text.endIndex) {
+                        scan = site.upperBound
+                        wrapped += 1
+                        if balancedSlice(text, from: site.upperBound, open: "{", close: "}")
+                            .contains(layoutModifier) { mirrored += 1 }
+                    }
+                    suite.expect(wrapped > 0 && wrapped == mirrored,
+                           "every OverlayScrollView call site mirrors the content it hosts "
+                           + "(\(mirrored) of \(wrapped))")
+                    continue
+                }
+                suite.expect(false, "\(path) hosts a SwiftUI root that never mirrors layout direction: "
+                       + "\(call.prefix(72).split(separator: "\n").first ?? "")")
+            }
+        }
+        suite.expect(hostingRoots > 30, "the hosting root sweep found the roots it guards (\(hostingRoots))")
+
+        // MARK: Every switch over the language answers for Hebrew
+        // A new `AppLanguage` case makes every switch over it non-exhaustive,
+        // and the compiler says so - but only for the files it is handed. This
+        // target builds a subset of `Sources/`, so a switch in any other file
+        // stops the app from building while this suite stays green, which is
+        // exactly how the hour and minute labels on the keep-awake picker
+        // shipped a branch that did not compile. This reads all of `Sources/`.
+        var languageSwitches = 0
+        var switchesMissingHebrew: [String] = []
+        for path in swiftSources {
+            let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            var cursor = text.startIndex
+            while let hit = text.range(of: "switch ", range: cursor..<text.endIndex) {
+                cursor = hit.upperBound
+                // Prose about switches is not a switch. Read back to the start
+                // of the line and skip anything a comment marker opened.
+                let lineStart = text[..<hit.lowerBound].lastIndex(of: "\n").map { text.index(after: $0) }
+                    ?? text.startIndex
+                if text[lineStart..<hit.lowerBound].contains("//") { continue }
+                guard let lineEnd = text[hit.upperBound...].firstIndex(of: "\n") else { break }
+                let subject = text[hit.upperBound..<lineEnd]
+                guard subject.contains("language"), subject.contains("{") else { continue }
+                languageSwitches += 1
+                let body = balancedSlice(text, from: hit.upperBound, open: "{", close: "}")
+                if body.contains("case .he") || body.contains("default:") { continue }
+                switchesMissingHebrew.append((path as NSString).lastPathComponent)
+            }
+        }
+        suite.expect(languageSwitches > 20,
+               "the language switch sweep found the switches it guards (\(languageSwitches))")
+        suite.expect(switchesMissingHebrew.isEmpty,
+               "every switch over the language has an answer for Hebrew "
+               + "(\(switchesMissingHebrew.joined(separator: ", ")))")
+
+        // MARK: A view that reads the pointer and places by x picks a side
+        // SwiftUI mirrors `.position(x:)`, `.offset(x:)` and a leading
+        // alignment under a right-to-left layout, but a gesture still reports
+        // where the pointer physically is. A view doing both at once is
+        // working in two coordinate spaces, and unless it says which one it
+        // means, the two disagree only in Hebrew: the dragged thing flies away
+        // from the finger, and the target that lights up is the one across
+        // from the cursor. Saying so is either pinning the view to
+        // left-to-right or reading the direction and compensating.
+        var mixedSpaces = 0
+        var undecidedSpaces: [String] = []
+        for path in swiftSources {
+            let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            let readsPointer = text.contains("value.location") || text.contains("draggingLocation")
+            let placesByX = text.contains(".position(") || text.contains(".offset(x:")
+            guard readsPointer, placesByX else { continue }
+            mixedSpaces += 1
+            if text.contains("layoutDirection") || text.contains("isRTL") { continue }
+            undecidedSpaces.append((path as NSString).lastPathComponent)
+        }
+        suite.expect(mixedSpaces > 3,
+               "the coordinate-space sweep found the views it guards (\(mixedSpaces))")
+        suite.expect(undecidedSpaces.isEmpty,
+               "a view that reads the pointer and places by x says which way round it means them "
+               + "(\(undecidedSpaces.joined(separator: ", ")))")
+
+        // MARK: A horizontal step follows the layout, a vertical one does not
+        // A key names a direction on the glass; an index names a position in
+        // reading order. The two agree in fifteen languages and disagree in
+        // the sixteenth, which is why the switcher, the launcher, the island's
+        // section gallery and the command bar's category row all ask first.
+        suite.expect(AppLanguage.he.readingStep(1) == -1 && AppLanguage.he.readingStep(-1) == 1,
+               "Hebrew turns a horizontal step around")
+        suite.expect(AppLanguage.allCases.filter { $0.readingStep(1) == 1 }.count
+               == AppLanguage.allCases.count - 1,
+               "Hebrew is the only language that turns it around")
+        suite.expect(QuickToolsSupport.readingDirection(.right, isRTL: true) == .left
+               && QuickToolsSupport.readingDirection(.left, isRTL: true) == .right
+               && QuickToolsSupport.readingDirection(.up, isRTL: true) == .up
+               && QuickToolsSupport.readingDirection(.down, isRTL: true) == .down,
+               "a mirrored grid swaps the side arrows and leaves the vertical pair alone")
+        suite.expect([QuickToolsSupport.GridDirection.up, .down, .left, .right]
+               .allSatisfy { QuickToolsSupport.readingDirection($0, isRTL: false) == $0 },
+               "an unmirrored grid reads every arrow exactly as it did before")
     }
 }

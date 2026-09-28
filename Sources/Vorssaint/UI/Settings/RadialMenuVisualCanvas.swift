@@ -137,6 +137,12 @@ struct RadialMenuVisualCanvas: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .coordinateSpace(name: "RadialCanvas")
+            // The wheel this arranges is drawn unmirrored, because the
+            // service fires whichever slice the pointer is physically over.
+            // The angles here are the same angles, and a drag reports where
+            // the pointer physically is, so the canvas has to agree: mirrored,
+            // a chip placed at two o'clock would open from ten.
+            .environment(\.layoutDirection, .leftToRight)
         }
     }
 

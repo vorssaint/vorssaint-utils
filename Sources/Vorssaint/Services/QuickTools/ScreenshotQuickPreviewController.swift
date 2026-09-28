@@ -101,7 +101,7 @@ final class ScreenshotQuickPreviewController {
             hoverChanged: { [weak self] inside in self?.hoverChanged(inside) },
             embedded: wantsNotch)
         if wantsNotch, NotchService.shared.presentCapture(
-            id: presentationID, content: AnyView(content), actions: AnyView(content.toolbar), height: Self.size(showingLink: model.sharedRecord != nil).height,
+            id: presentationID, content: AnyView(content.localizedLayoutDirection()), actions: AnyView(content.toolbar.localizedLayoutDirection()), height: Self.size(showingLink: model.sharedRecord != nil).height,
             fallback: { [weak self] in
                 guard let self else { return }
                 self.shownInNotch = false
@@ -117,7 +117,7 @@ final class ScreenshotQuickPreviewController {
             finishShowing()
             return
         }
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.localizedLayoutDirection())
         let size = Self.size(showingLink: model.sharedRecord != nil)
         let panel = ScreenshotQuickPreviewPanel(
             contentRect: CGRect(origin: .zero, size: size),

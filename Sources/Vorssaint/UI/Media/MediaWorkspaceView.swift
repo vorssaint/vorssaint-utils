@@ -767,11 +767,16 @@ struct MediaWorkspaceView: View {
                     : nil
             }
             .frame(width: previewFrameSize.width, height: previewFrameSize.height)
+            // Each choice is a corner of the exported picture, and the
+            // renderer draws into the output bitmap without mirroring, so the
+            // preview holds the same corners: leading and trailing would show
+            // the mark opposite the corner the saved file gets.
             .overlay(alignment: previewAlignment) {
                 previewWatermarkOverlay
                     .padding(previewWatermarkMargin)
                     .opacity(currentWatermark.opacity)
             }
+            .environment(\.layoutDirection, .leftToRight)
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)

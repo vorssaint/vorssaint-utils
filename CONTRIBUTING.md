@@ -52,6 +52,12 @@ over a new subsystem. Keep each PR focused on one independently useful change.
 - Update every locale in `AppLanguage.allCases`, including feature-specific
   string catalogs. A new language also needs its locale registration, localized
   permission prompts where applicable, and coverage tests.
+- Hebrew reads right to left. `AppLanguage.isRTL` drives it and every SwiftUI
+  hosting root applies `localizedLayoutDirection()`, which a test checks. The
+  mirroring does not reach a directional SF Symbol, which has to be the
+  `.forward` or `.backward` variant, or hand-placed AppKit geometry. Anything
+  standing for a physical place, such as a screen corner or a media timeline,
+  stays left to right.
 - New source files retain the project's SPDX license and copyright headers.
 
 Sensor changes should include a dump from `./build/Vorssaint --sensors` and the

@@ -70,9 +70,12 @@ struct FanControlCurveEditor: View {
                 }
             }
 
+            // Temperature rises to the right, as on any chart axis, and the
+            // graph reads its drags in that same unmirrored space.
             FanControlCurveGraph(points: curve.points,
                                  accessibilityLabel: strings.curveGraph,
                                  disabled: disabled)
+                .environment(\.layoutDirection, .leftToRight)
                 .frame(height: 92)
 
             HStack {

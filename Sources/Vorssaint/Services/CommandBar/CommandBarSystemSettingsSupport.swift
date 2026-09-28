@@ -111,6 +111,7 @@ enum CommandBarSystemSettingsSupport {
         case .zhTW: return "zh_TW"
         case .zhHK: return "zh_HK"
         case .uk: return "uk"
+        case .he: return "he"
         }
     }
 }

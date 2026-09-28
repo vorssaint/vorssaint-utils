@@ -38,6 +38,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -252,5 +253,19 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "呢份備份冇 Dynamic Island 設定。呢部 Mac 上嘅相關設定會保留。想從另一部 Mac 複製呢啲設定,請用 Vorssaint 3.4 或更新版本重新匯出。其他設定會匯入,之後 App 會重新啟動。",
         importAction: "匯入並重新啟動",
         invalidFile: "此檔案不是有效嘅 Vorssaint 備份。"
+    )
+
+    static let he = BackupFeatureStrings(
+        title: "גיבוי",
+        description: "קח את ההגדרות שלך ל-Mac אחר: ייצא את כל ההעדפות לקובץ וייבא אותו שם. ההערות שלך בפנקס טיוטה, היסטוריית לוח הגזירים, פריטי המדף והרשאות המערכת לעולם לא עוזבים את ה-Mac הזה.",
+        exportButton: "ייצוא הגדרות…",
+        importButton: "ייבוא הגדרות…",
+        exported: "הגיבוי נשמר",
+        exportFailed: "לא ניתן היה לשמור את הגיבוי.",
+        importConfirmTitle: "לייבא הגדרות אלו?",
+        importConfirmBody: "ההגדרות הנוכחיות שלך יוחלפו באלו שבקובץ והאפליקציה תופעל מחדש. שום דבר אחר ב-Mac הזה לא ישתנה.",
+        importMissingIslandBody: "בגיבוי הזה אין הגדרות של Dynamic Island. ההגדרות של האי ב-Mac הזה יישמרו. ייצא מחדש עם Vorssaint 3.4 ואילך ב-Mac השני כדי להעתיק אותן. שאר ההגדרות ייובאו והאפליקציה תופעל מחדש.",
+        importAction: "ייבוא והפעלה מחדש",
+        invalidFile: "קובץ זה אינו גיבוי חוקי של Vorssaint."
     )
 }

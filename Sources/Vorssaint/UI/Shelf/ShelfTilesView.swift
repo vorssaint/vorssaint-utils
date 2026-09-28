@@ -180,10 +180,22 @@ struct ShelfTilesView: NSViewRepresentable {
             ? ShelfTileLayout.rowCount(contentHeight: scroll.contentSize.height, tileHeight: tile.height,
                                        spacing: spacing, inset: inset)
             : max(1, Int(ceil(Double(items.count) / Double(columns))))
+        let sidewaysSize = ShelfTileLayout.sidewaysDocumentSize(itemCount: items.count, rows: rows,
+                                                                 visibleSize: scroll.contentSize, tileSize: tile,
+                                                                 spacing: spacing, inset: inset)
+        // Absolute frames in a document view mirror for nobody, so a
+        // right-to-left layout reflects the grid across the width it fills:
+        // the strip's own document for a sideways flow, the visible column
+        // width otherwise.
+        let mirrorWidth: CGFloat? = L10n.shared.language.isRTL
+            ? (sideways ? sidewaysSize.width : contentWidth)
+            : nil
         let frame: (Int) -> CGRect = { index in
             sideways
-                ? ShelfTileLayout.sidewaysTileFrame(index: index, rows: rows, tileSize: tile, spacing: spacing, inset: inset)
-                : ShelfTileLayout.tileFrame(index: index, columns: columns, tileSize: tile, spacing: spacing, inset: inset)
+                ? ShelfTileLayout.sidewaysTileFrame(index: index, rows: rows, tileSize: tile, spacing: spacing,
+                                                    inset: inset, mirroredIn: mirrorWidth)
+                : ShelfTileLayout.tileFrame(index: index, columns: columns, tileSize: tile, spacing: spacing,
+                                            inset: inset, mirroredIn: mirrorWidth)
         }
 
         // Item.== is id-only (by design, for selection/lookup purposes
@@ -199,6 +211,9 @@ struct ShelfTilesView: NSViewRepresentable {
                 && expandedBatches == $0.lastRebuiltExpandedBatches
                 && pinnedIDs == $0.lastRebuiltPinnedIDs
                 && scroll.contentSize == $0.lastRebuiltContentSize
+                // The grid is laid out for a reading direction, so switching
+                // to or from Hebrew with the shelf open has to lay it out again.
+                && L10n.shared.language.isRTL == $0.lastRebuiltRightToLeft
         } ?? false
         if unchanged {
             // Revealing does not require rebuilding any tile, so keep the
@@ -214,6 +229,7 @@ struct ShelfTilesView: NSViewRepresentable {
         coordinator?.lastRebuiltExpandedBatches = expandedBatches
         coordinator?.lastRebuiltPinnedIDs = pinnedIDs
         coordinator?.lastRebuiltContentSize = scroll.contentSize
+        coordinator?.lastRebuiltRightToLeft = L10n.shared.language.isRTL
 
         document.subviews.forEach { $0.removeFromSuperview() }
 
@@ -226,11 +242,37 @@ struct ShelfTilesView: NSViewRepresentable {
             document.addSubview(view)
         }
         if sideways {
-            let size = ShelfTileLayout.sidewaysDocumentSize(itemCount: items.count, rows: rows,
-                                                             visibleSize: scroll.contentSize, tileSize: tile,
-                                                             spacing: spacing, inset: inset)
-            scroll.hasHorizontalScroller = size.width > scroll.contentSize.width + 1
-            document.frame = NSRect(origin: .zero, size: size)
+            scroll.hasHorizontalScroller = sidewaysSize.width > scroll.contentSize.width + 1
+            document.frame = NSRect(origin: .zero, size: sidewaysSize)
+            // A mirrored strip starts at the far end of its document, so the
+            // viewport has to be put there once: when the strip first has a
+            // size to be laid out against, and again if the language changes
+            // under an open shelf. Every rebuild in between leaves whatever
+            // the person has scrolled to exactly where they left it.
+            let rightToLeft = L10n.shared.language.isRTL
+            if let coordinator, scroll.contentSize.width > 0 {
+                let origin = scroll.contentView.bounds.origin
+                let target: CGFloat
+                if coordinator.positionedRightToLeft != rightToLeft {
+                    coordinator.positionedRightToLeft = rightToLeft
+                    target = ShelfTileLayout.sidewaysInitialScrollX(documentWidth: sidewaysSize.width,
+                                                                     visibleWidth: scroll.contentSize.width,
+                                                                     isRTL: rightToLeft)
+                } else {
+                    // Not the first layout, so the person has had the chance to
+                    // scroll: hold their place rather than take them anywhere.
+                    target = ShelfTileLayout.sidewaysScrollX(
+                        afterGrowingTo: sidewaysSize.width,
+                        from: coordinator.lastDocumentWidth ?? sidewaysSize.width,
+                        scrollX: origin.x,
+                        isRTL: rightToLeft)
+                }
+                if target != origin.x {
+                    scroll.contentView.scroll(to: NSPoint(x: target, y: origin.y))
+                    scroll.reflectScrolledClipView(scroll.contentView)
+                }
+                coordinator.lastDocumentWidth = sidewaysSize.width
+            }
         } else {
             let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * spacing
             scroll.hasVerticalScroller = contentHeight > scroll.contentSize.height + 1
@@ -259,6 +301,15 @@ struct ShelfTilesView: NSViewRepresentable {
         var lastRebuiltExpandedBatches: Set<UUID>?
         var lastRebuiltPinnedIDs: Set<UUID>?
         var lastRebuiltContentSize: NSSize?
+        var lastRebuiltRightToLeft: Bool?
+        /// The reading direction the sideways viewport was last put in place
+        /// for. Separate from `lastRebuiltRightToLeft`, which every rebuild
+        /// rewrites: this one moves the scroll position, so it may only fire
+        /// when the direction itself has actually turned around.
+        var positionedRightToLeft: Bool?
+        /// The width the sideways document had last time, so a mirrored strip
+        /// that grows can carry the viewport along with the frames that moved.
+        var lastDocumentWidth: CGFloat?
     }
 
     /// Brings a newly added tile into view. scrollToVisible already does
@@ -400,7 +451,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
             addSubview(badge)
 
             let expand = NSButton(frame: NSRect(x: 4, y: 4, width: 17, height: 17))
-            expand.image = NSImage(systemSymbolName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle.fill",
+            // An AppKit tile never sees SwiftUI's layout direction, so the
+            // collapsed glyph is picked by hand to point into the reading order.
+            let collapsedSymbol = L10n.shared.language.isRTL ? "chevron.left.circle.fill" : "chevron.right.circle.fill"
+            expand.image = NSImage(systemSymbolName: isExpanded ? "chevron.down.circle.fill" : collapsedSymbol,
                                    accessibilityDescription: nil)
             expand.isBordered = false
             expand.bezelStyle = .regularSquare

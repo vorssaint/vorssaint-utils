@@ -49,6 +49,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -440,5 +441,31 @@ extension WallpaperFeatureStrings {
         applyFailed: "無法設定桌布",
         previousPage: "上一頁",
         nextPage: "下一頁"
+    )
+
+    static let he = WallpaperFeatureStrings(
+        pageTitle: "תמונת רקע",
+        hubDescription: "בחר תמונת רקע סטטית בלי לפתוח את הגדרות המערכת",
+        panelDescription: "בחר תמונת רקע סטטית בלי לפתוח את הגדרות המערכת.",
+        filterAll: "הכול",
+        filterOwn: "התמונות שלך",
+        filterApple: "Apple",
+        applyAllDisplays: "הצג בכל המרחבים",
+        addImage: "הוסף תמונה",
+        addFolder: "הוסף תיקייה",
+        removeAdded: "הסר",
+        doneRemoving: "סיום",
+        sourceUnavailable: "לא זמין",
+        addImagePrompt: "בחר תמונות לשמירה ברשימת תמונות הרקע של Vorssaint",
+        addFolderPrompt: "בחר תיקיית תמונות לשמירה ברשימת תמונות הרקע של Vorssaint",
+        openSystemSettings: "פתח את הגדרות תמונת הרקע",
+        emptyAll: "לא נמצאו תמונות רקע",
+        emptyOwn: "עדיין לא הוספת תמונות",
+        emptyApple: "לא נמצאו תמונות סטטיות של Apple",
+        downloading: "מוריד…",
+        downloadFailed: "לא ניתן היה להוריד את תמונת הרקע",
+        applyFailed: "לא ניתן היה להגדיר את תמונת הרקע",
+        previousPage: "הקודם",
+        nextPage: "הבא"
     )
 }

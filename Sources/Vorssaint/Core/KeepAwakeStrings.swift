@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 
@@ -82,6 +83,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -159,6 +161,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let uk = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Дозволити дисплею засинати",
         allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
+    )
+
+    static let he = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "אפשר למסך להיכבות",
+        allowDisplaySleepCaption: "ה-Mac נשאר ער בעוד המסך פועל לפי זמן הכיבוי הרגיל שלו."
     )
 }
 
@@ -490,5 +497,27 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Будь-яка",
         matchAll: "Усі",
         automationCaptionAll: "Запускається лише коли всі обрані умови активні."
+    )
+
+    static let he = KeepAwakeAutomationStrings(
+        automationSection: "אוטומציה",
+        automationCaption: "מתחיל כאשר כל תנאי שנבחר מתקיים.",
+        automationOff: "כבוי",
+        externalDisplayToggle: "מסך חיצוני",
+        externalDisplayActive: "פעיל בזמן שמסך חיצוני מחובר",
+        powerToggle: "חשמל",
+        powerActive: "פעיל בזמן שמחובר לחשמל",
+        runningAppsToggle: "אפליקציות",
+        runningAppsActive: "פעיל כשאפליקציה נבחרת פועלת",
+        runningAppsListTitle: "אפליקציות נבחרות",
+        runningAppsAddButton: "הוסף אפליקציה…",
+        runningAppsRemoveButton: "הסר",
+        runningAppsListCaption: "״שמור ערנות״ מתחיל כשאחת מהאפליקציות האלה פתוחה, גם ברקע.",
+        automationActive: "פעיל כי תנאי אוטומטי מתקיים",
+        pauseWhenLockedToggle: "השהה כשה-Mac נעול",
+        pauseWhenLockedCaption: "בזמן נעילה חלים כללי השינה הרגילים, ויתרת הסשן ממשיכה אחרי שתבטל את הנעילה.",
+        matchAny: "כל אחד",
+        matchAll: "כולם",
+        automationCaptionAll: "מתחיל רק כשכל התנאים שנבחרו פעילים."
     )
 }

@@ -348,7 +348,7 @@ final class QuickLauncherService: ObservableObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: QuickLauncherView())
+        let host = NSHostingController(rootView: QuickLauncherView().localizedLayoutDirection())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel
@@ -395,11 +395,15 @@ final class QuickLauncherService: ObservableObject {
         case kVK_Return, kVK_ANSI_KeypadEnter:
             activateSelection()
             return nil
+        // The grid is laid out along the reading direction, so a mirrored one
+        // answers the right arrow with the item before the selection.
         case kVK_LeftArrow:
-            moveSelection(.left, flow: flow)
+            moveSelection(QuickToolsSupport.readingDirection(.left, isRTL: L10n.shared.language.isRTL),
+                          flow: flow)
             return nil
         case kVK_RightArrow:
-            moveSelection(.right, flow: flow)
+            moveSelection(QuickToolsSupport.readingDirection(.right, isRTL: L10n.shared.language.isRTL),
+                          flow: flow)
             return nil
         case kVK_UpArrow:
             moveSelection(.up, flow: flow)

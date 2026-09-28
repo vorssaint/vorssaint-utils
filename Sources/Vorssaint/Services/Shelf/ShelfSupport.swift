@@ -94,11 +94,13 @@ enum ShelfTileLayout {
                                   rows: Int,
                                   tileSize: CGSize,
                                   spacing: CGFloat,
-                                  inset: CGFloat) -> CGRect {
+                                  inset: CGFloat,
+                                  mirroredIn documentWidth: CGFloat? = nil) -> CGRect {
         let safeRows = max(1, rows)
         let column = index / safeRows
         let row = index % safeRows
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let leading = inset + CGFloat(column) * (tileSize.width + spacing)
+        return CGRect(x: documentWidth.map { $0 - leading - tileSize.width } ?? leading,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)
@@ -120,16 +122,53 @@ enum ShelfTileLayout {
         return CGSize(width: max(width, visibleSize.width), height: max(height, visibleSize.height))
     }
 
+    /// Where a sideways strip's viewport belongs when it is first laid out,
+    /// and again whenever the reading direction changes. Absolute frames in
+    /// a document view mirror for nobody, so a right-to-left strip puts its
+    /// first tiles at the far end of a document that overflows, while the
+    /// scroll view still opens at x zero showing the last ones. This is the
+    /// offset that opens it on the start of the strip instead.
+    static func sidewaysInitialScrollX(documentWidth: CGFloat,
+                                       visibleWidth: CGFloat,
+                                       isRTL: Bool) -> CGFloat {
+        guard isRTL else { return 0 }
+        return max(0, documentWidth - visibleWidth)
+    }
+
+    /// Where a mirrored strip's viewport moves to once its document has
+    /// grown. Every frame in a right-to-left strip is measured back from the
+    /// right edge, so a tile added on the end widens the document and slides
+    /// all of them over by that much; leaving the scroll offset alone would
+    /// slide what the person is reading along with them. This carries the
+    /// offset so the same tiles stay under the same pixels. A left-to-right
+    /// strip grows away from its start and needs nothing.
+    static func sidewaysScrollX(afterGrowingTo documentWidth: CGFloat,
+                                from previousDocumentWidth: CGFloat,
+                                scrollX: CGFloat,
+                                isRTL: Bool) -> CGFloat {
+        guard isRTL else { return scrollX }
+        return max(0, scrollX + documentWidth - previousDocumentWidth)
+    }
+
     /// Where the tile at `index` sits in the flipped document view.
+    ///
+    /// These are absolute frames in an AppKit document view, so nothing mirrors
+    /// them on its own: the grid would keep filling from the left inside a
+    /// panel whose chrome had already flipped. Given the document's width, the
+    /// grid is reflected across it instead: rows fill from the right edge, and
+    /// the slack a width leaves over after the last whole column lands on the
+    /// left, exactly where it sits on the right in a left-to-right layout.
     static func tileFrame(index: Int,
                           columns: Int,
                           tileSize: CGSize,
                           spacing: CGFloat,
-                          inset: CGFloat) -> CGRect {
+                          inset: CGFloat,
+                          mirroredIn documentWidth: CGFloat? = nil) -> CGRect {
         let safeColumns = max(1, columns)
         let column = index % safeColumns
         let row = index / safeColumns
-        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+        let leading = inset + CGFloat(column) * (tileSize.width + spacing)
+        return CGRect(x: documentWidth.map { $0 - leading - tileSize.width } ?? leading,
                       y: inset + CGFloat(row) * (tileSize.height + spacing),
                       width: tileSize.width,
                       height: tileSize.height)

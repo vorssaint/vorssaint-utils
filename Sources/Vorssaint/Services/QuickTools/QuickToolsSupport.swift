@@ -109,6 +109,21 @@ enum QuickToolsSupport {
         case up, down, left, right
     }
 
+    /// The same key press read against the layout it lands in. A grid laid
+    /// out for a right-to-left language shows its first cell on the right,
+    /// so the right arrow has to walk towards the start of the array for the
+    /// selection to move the way the person watched their finger point. The
+    /// vertical pair passes through: rows run top to bottom in every
+    /// language here.
+    static func readingDirection(_ direction: GridDirection, isRTL: Bool) -> GridDirection {
+        guard isRTL else { return direction }
+        switch direction {
+        case .left: return .right
+        case .right: return .left
+        case .up, .down: return direction
+        }
+    }
+
     /// Which way a grid fills: row by row with a fixed column count, or
     /// column by column with a fixed row count, as a rail in the island does.
     enum GridFlow: Equatable {

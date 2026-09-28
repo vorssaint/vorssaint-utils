@@ -323,7 +323,7 @@ struct SettingsView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: collapsedSectionIDs.contains(section.id)
-                            ? "chevron.right" : "chevron.down")
+                            ? "chevron.forward" : "chevron.down")
                             .font(.system(size: 9, weight: .semibold))
                             .frame(width: 12)
                         Text(section.title)

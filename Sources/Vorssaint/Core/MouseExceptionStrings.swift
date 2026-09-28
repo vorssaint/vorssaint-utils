@@ -47,6 +47,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -259,5 +260,19 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Наведення не змінює фокус та не піднімає вікно в цих програмах.",
         captionSuperKey: "Коли будь-яка з цих програм відкрита, навіть у фоновому режимі, Super Key призупиняється, і вибрана клавіша відновлює свою звичайну функцію.",
         pausedSuperKey: "Призупинено, поки відкрита вибрана програма"
+    )
+
+    static let he = MouseExceptionStrings(
+        listTitle: "אפליקציות להשאיר בשקט",
+        addButton: "הוסף אפליקציה…",
+        removeButton: "הסר",
+        captionSmoothScroll: "הגלגל שומר על הצעדים הרגילים שלו באפליקציות אלה, לאפליקציות שקוראות אותו בדרך שלהן, כמו כלי תלת-ממד ועיצוב.",
+        captionScrollDirection: "הגלגל שומר על הכיוון ש-macOS נותן לו באפליקציות אלה.",
+        captionNavigation: "הלחצנים הצדדיים ממשיכים לעשות מה שהאפליקציות האלה כבר עושות איתם.",
+        captionButtonShortcuts: "הלחצנים הנוספים של העכבר שלך נשארים שקטים באפליקציות אלה, והלחיצה מגיעה אליהן במקום.",
+        captionMiddleClick: "לחיצה בשלוש אצבעות נשארת לחיצה רגילה באפליקציות אלה.",
+        captionFocusFollowsMouse: "מעבר עם הסמן לא משנה מיקוד ולא מעלה חלון לחזית באפליקציות אלה.",
+        captionSuperKey: "כל עוד אחת מהאפליקציות האלה פתוחה, גם ברקע, Super Key מושהה והמקש שנבחר עובד כרגיל.",
+        pausedSuperKey: "מושהה כשאפליקציה נבחרת פתוחה"
     )
 }

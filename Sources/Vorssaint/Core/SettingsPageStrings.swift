@@ -36,6 +36,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -65,6 +66,19 @@ extension SettingsPageStrings {
         switcherLayoutWindowsCaption: "One preview per window, minimized ones included.",
         switcherLayoutIcons: "Large icons",
         switcherLayoutSimple: "Simple list"
+    )
+
+    static let he = SettingsPageStrings(
+        energyDescription: "שמור את ה-Mac ער, שלוט במסכים שלך וחסוך בסוללה.",
+        monitorDescription: "מה שורת התפריטים והחלונית מציגות על ה-Mac שלך, ומתי להזהיר אותך.",
+        mouseDescription: "תן לגלגלת, לכפתורי הצד ולמשטח המגע תפקידים חדשים.",
+        switcherDescription: "החלף בין אפליקציות וחלונות בדרך שלך.",
+        dockTitle: "Dock",
+        dockDescription: "ראה את החלונות של אפליקציה מהסמל שלה ב-Dock, ובחר מה תעשה לחיצה עליו.",
+        switcherLayoutWindows: "תצוגות מקדימות של חלונות",
+        switcherLayoutWindowsCaption: "תצוגה מקדימה אחת לכל חלון, כולל ממוזערים.",
+        switcherLayoutIcons: "סמלים גדולים",
+        switcherLayoutSimple: "רשימה פשוטה"
     )
 
     static let ptBR = SettingsPageStrings(

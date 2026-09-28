@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -422,5 +423,29 @@ extension SuperKeyStrings {
         mappingForeignMapping: "Прив’язка клавіш іншої програми використовує обрану клавішу. Видаліть її у тій програмі: просто закрити її недостатньо.",
         mappingSystemRefused: "macOS відхилила прив’язку клавіш. Перепідключіть клавіатуру або перезавантажте Mac, потім увімкніть знову.",
         keyboardTapRefused: "macOS не дозволила Vorssaint стежити за клавіатурою. Вимкніть і знову ввімкніть Vorssaint у розділі «Системні параметри › Приватність і безпека › Доступність», а потім знову ввімкніть цю функцію."
+    )
+
+    static let he = SuperKeyStrings(
+        pageTitle: "מקש סופר",
+        hubDescription: "הופך מקש אחד לשילוב מקשי השינוי שתבחר.",
+        enableToggle: "השתמש במקש זה כמקש סופר",
+        enableCaption: "החזק אותו ולחץ על כל מקש. בחר מקש צירוף אחד או יותר למטה.",
+        modifierKeysNote: "שמור על הפעולה הרגילה של מקש זה בהגדרות מערכת › מקלדת › מקשי צירוף.",
+        sourceKey: "מקש להחזקה",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "%@ ימני",
+        holdHint: "החזק",
+        soloSection: "לחיצה בודדת",
+        soloCaption: "מה עושה לחיצה קלה כששום מקש אחר לא נלחץ.",
+        soloNothing: "כלום",
+        soloCapsLock: "הפעל וכבה אותיות גדולות",
+        soloEscape: "לחץ על Escape",
+        activeNow: "פועל עכשיו",
+        panelCaptionFormat: "%1$@ מחזיק את %2$@.",
+        manageButton: "הגדר…",
+        soloInputSource: "החלף מקור קלט; החזק ל-Caps Lock",
+        mappingForeignMapping: "מיפוי מקשים של אפליקציה אחרת משתמש במקש שנבחר. הסר אותו באותה אפליקציה: סגירתה אינה מספיקה.",
+        mappingSystemRefused: "macOS סירב למיפוי המקשים. חבר מחדש את המקלדת או הפעל מחדש את ה-Mac, ואז הפעל זאת שוב.",
+        keyboardTapRefused: "macOS לא איפשר ל-Vorssaint לעקוב אחרי המקלדת. כבה והפעל את Vorssaint בהגדרות מערכת › פרטיות ואבטחה › נגישות, ואז הפעל את זה שוב."
     )
 }
