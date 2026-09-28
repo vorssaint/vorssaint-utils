@@ -1856,6 +1856,28 @@ enum NotchTests {
                                                                  DefaultsKey.notchCalendarCountdown,
                                                                  AppFeature.notchCalendar.availabilityKey]),
                "calendar preferences travel in backup")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarExcluded),
+                     "hidden calendars travel in backup")
+        suite.expect(NotchCalendarSupport.excludedCalendars(in: defaults).isEmpty,
+                     "every calendar starts shown")
+        let calendars = ["work", "home", "birthdays"]
+        suite.expect(NotchCalendarSupport.calendarsToRead(calendars, excluded: [], identifier: { $0 }) == nil
+                     && NotchCalendarSupport.calendarsToRead(calendars, excluded: ["gone"], identifier: { $0 }) == nil,
+                     "with nothing hidden, or only calendars that no longer exist, every calendar is read")
+        NotchCalendarSupport.setCalendar("home", shown: false, in: defaults)
+        suite.expect(NotchCalendarSupport.calendarsToRead(calendars + ["added later"],
+                                                          excluded: NotchCalendarSupport.excludedCalendars(in: defaults),
+                                                          identifier: { $0 }) == ["work", "birthdays", "added later"],
+                     "a hidden calendar is left out while calendars added later stay shown")
+        suite.expect(NotchCalendarSupport.calendarsToRead(calendars, excluded: Set(calendars), identifier: { $0 }) == [],
+                     "hiding every calendar reads none rather than falling back to all")
+        NotchCalendarSupport.setCalendar("home", shown: true, in: defaults)
+        suite.expect(NotchCalendarSupport.excludedCalendars(in: defaults).isEmpty, "a calendar can be shown again")
+        let choices = [NotchCalendarChoice(id: "b", title: "Work", sourceID: "2", source: "iCloud"),
+                       NotchCalendarChoice(id: "c", title: "Birthdays", sourceID: "1", source: "Other"),
+                       NotchCalendarChoice(id: "a", title: "Home", sourceID: "2", source: "iCloud")]
+        suite.expect(NotchCalendarSupport.grouped(choices).map { $0.map(\.id) } == [["a", "b"], ["c"]],
+                     "calendars are grouped by account, both in name order")
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         func event(_ id: String, _ start: Double, _ end: Double, allDay: Bool = false) -> NotchCalendarEvent {
             NotchCalendarEvent(id: id, title: id, calendar: "Personal", start: now.addingTimeInterval(start),

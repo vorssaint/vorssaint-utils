@@ -489,6 +489,114 @@ enum PointerInputFeatureTests {
         suite.expect(!MouseNavigationSupport.shouldPassThrough(bundleIdentifier: nil),
                "an unknown frontmost app keeps the navigation behavior")
 
+        // MARK: Event timestamps at the HID tap (issue #1689)
+
+        // Apple Silicon ticks mach absolute time every 125/3 ns. At the HID
+        // stage hardware events carry those ticks, posted events nanoseconds.
+        let appleSilicon = EventTimestamp.Timebase(numer: 125, denom: 3)
+        let intel = EventTimestamp.Timebase(numer: 1, denom: 1)
+        func ticks(atMilliseconds milliseconds: UInt64) -> UInt64 {
+            milliseconds * 1_000_000 * 3 / 125
+        }
+        let nowTicks = ticks(atMilliseconds: 3_600_000)
+        suite.expect(EventTimestamp.nanoseconds(raw: ticks(atMilliseconds: 3_599_998),
+                                                nowTicks: nowTicks, timebase: appleSilicon)
+                == 3_599_998 * 1_000_000,
+               "a hardware event stamped in mach ticks reads as nanoseconds of uptime")
+        suite.expect(EventTimestamp.nanoseconds(raw: 3_599_999 * 1_000_000,
+                                                nowTicks: nowTicks, timebase: appleSilicon)
+                == 3_599_999 * 1_000_000,
+               "a posted event already stamped in nanoseconds keeps its value")
+        suite.expect(EventTimestamp.nanoseconds(raw: 3_599_999 * 1_000_000,
+                                                nowTicks: 3_600_000 * 1_000_000, timebase: intel)
+                == 3_599_999 * 1_000_000,
+               "a timebase of one nanosecond per tick passes timestamps through")
+        suite.expect(EventTimestamp.nanoseconds(ticks: 3_253_805_719_584, timebase: appleSilicon)
+                == 135_575_238_316_000
+                && EventTimestamp.nanoseconds(ticks: 3_251_232_217_924, timebase: appleSilicon)
+                == 135_468_009_080_166,
+               "tick conversion rounds down like the timestamps a session tap reports")
+        suite.expect(EventTimestamp.nanoseconds(ticks: .max, timebase: appleSilicon) == .max
+                && EventTimestamp.nanoseconds(raw: .max, nowTicks: nowTicks,
+                                              timebase: appleSilicon) == .max,
+               "a nonsense timestamp saturates instead of trapping inside an event tap")
+        let liveEvent = CGEvent(source: nil)
+        let liveTicks = mach_absolute_time()
+        liveEvent?.timestamp = liveTicks
+        let liveFromTicks = liveEvent.map(EventTimestamp.nanoseconds(of:))
+        let liveNanoseconds = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+        liveEvent?.timestamp = liveNanoseconds
+        let liveFromNanoseconds = liveEvent.map(EventTimestamp.nanoseconds(of:))
+        suite.expect(liveFromTicks.map { $0 <= liveNanoseconds && liveNanoseconds - $0 < 1_000_000_000 }
+                == true
+                && liveFromNanoseconds == liveNanoseconds,
+               "events stamped with this Mac's mach clock or uptime nanoseconds share one clock")
+
+        // A 50 ms window measured in raw ticks would last about 2.1 s here.
+        let hidDebounceConfig = KeyboardDebounceConfig(enabled: true,
+                                                       globalWindowMs: 50,
+                                                       keyWindows: [:])
+        func hidKey(_ event: KeyboardDebounceState.EventKind, atMilliseconds milliseconds: UInt64) -> Bool {
+            debounceState.shouldSuppress(
+                keyCode: 0,
+                isAutoRepeat: false,
+                event: event,
+                timestampNanoseconds: EventTimestamp.nanoseconds(
+                    raw: ticks(atMilliseconds: milliseconds), nowTicks: nowTicks, timebase: appleSilicon),
+                config: hidDebounceConfig)
+        }
+        debounceState.reset()
+        suite.expect(!hidKey(.keyDown, atMilliseconds: 3_500_000)
+                && !hidKey(.keyUp, atMilliseconds: 3_500_060)
+                && hidKey(.keyDown, atMilliseconds: 3_500_080)
+                && !hidKey(.keyDown, atMilliseconds: 3_500_120)
+                && !hidKey(.keyUp, atMilliseconds: 3_500_180)
+                && !hidKey(.keyDown, atMilliseconds: 3_500_240),
+               "keyboard debounce on HID ticks drops a 20 ms bounce and accepts a press 60 ms after release")
+        clickState.reset()
+        func hidClick(_ event: MouseClickDebounceEvent, atMilliseconds milliseconds: UInt64) -> Bool {
+            clickState.shouldSuppress(
+                button: 0,
+                event: event,
+                timestampNanoseconds: EventTimestamp.nanoseconds(
+                    raw: ticks(atMilliseconds: milliseconds), nowTicks: nowTicks, timebase: appleSilicon),
+                config: clickConfig)
+        }
+        suite.expect(!hidClick(.down, atMilliseconds: 3_500_000)
+                && !hidClick(.up, atMilliseconds: 3_500_080)
+                && hidClick(.down, atMilliseconds: 3_500_090)
+                && hidClick(.up, atMilliseconds: 3_500_095)
+                && !hidClick(.down, atMilliseconds: 3_500_200)
+                && !hidClick(.up, atMilliseconds: 3_500_280),
+               "click debounce on HID ticks drops a 10 ms bounce and accepts a click 120 ms later")
+
+        // Keys this app posts are recognised on the event itself. Quit
+        // Protection confirms a press by posting a copy of the hardware key
+        // down, which keeps both the hardware timestamp and its source process
+        // id of 0. KeyboardDebounceTapTests feeds these through the tap handler.
+        let ownProcessID = Int64(getpid())
+        let hardwareKeyDown = CGEvent(keyboardEventSource: nil, virtualKey: 13, keyDown: true)
+        hardwareKeyDown?.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
+        hardwareKeyDown?.timestamp = ticks(atMilliseconds: 3_599_990)
+        let quitProtectionCopy = hardwareKeyDown?.copy()
+        quitProtectionCopy?.setIntegerValueField(.eventSourceUserData, value: OwnKeyEvent.quitProtectionMarker)
+        suite.expect(hardwareKeyDown.map(OwnKeyEvent.isPosted) == false,
+               "a hardware key press still goes through key debounce")
+        suite.expect(quitProtectionCopy?.getIntegerValueField(.eventSourceUnixProcessID) == 0
+                && quitProtectionCopy?.timestamp == hardwareKeyDown?.timestamp
+                && quitProtectionCopy.map(OwnKeyEvent.isPosted) == true,
+               "the Quit Protection copy of a held key is recognised although it keeps the hardware pid and time")
+        let snippetSource = CGEventSource(stateID: .hidSystemState)
+        snippetSource?.userData = OwnKeyEvent.textSnippetMarker
+        let snippetKey = CGEvent(keyboardEventSource: snippetSource, virtualKey: 49, keyDown: true)
+        snippetKey?.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
+        suite.expect(snippetKey.map(OwnKeyEvent.isPosted) == true,
+               "text a snippet retypes is recognised by its source marker alone")
+        suite.expect(OwnKeyEvent.isPosted(sourceProcessID: ownProcessID, userData: 0, ownProcessID: ownProcessID)
+                && !OwnKeyEvent.isPosted(sourceProcessID: 1, userData: 0, ownProcessID: ownProcessID)
+                && !OwnKeyEvent.isPosted(sourceProcessID: 0, userData: 0x564F, ownProcessID: ownProcessID),
+               "keys posted by this process skip debounce while other apps' posted keys do not")
+
         // MARK: Smooth scrolling
 
         suite.expect(SmoothScrollSupport.ticks(line: 1, fixedPoint: 1.0) == 1.0,
@@ -497,6 +605,103 @@ enum PointerInputFeatureTests {
                "high-resolution wheels keep their fractional ticks when the integer field truncates to zero")
         suite.expect(SmoothScrollSupport.ticks(line: -2, fixedPoint: 0) == -2,
                "a zero fixed-point field falls back to the integer line delta")
+
+        // MARK: Linear scrolling
+
+        suite.expect(ScrollWheelSupport.linesPerNotchRange.contains(ScrollWheelSupport.defaultLinesPerNotch)
+                && ScrollWheelSupport.sanitizedLinesPerNotch(0) == ScrollWheelSupport.defaultLinesPerNotch
+                && ScrollWheelSupport.sanitizedLinesPerNotch(-4)
+                    == ScrollWheelSupport.linesPerNotchRange.lowerBound
+                && ScrollWheelSupport.sanitizedLinesPerNotch(500)
+                    == ScrollWheelSupport.linesPerNotchRange.upperBound,
+               "lines per notch clamps to its range and an unset value means the default")
+        suite.expect(ScrollWheelSupport.linearLines(ticks: 1, linesPerNotch: 3) == 3
+                && ScrollWheelSupport.linearLines(ticks: 5, linesPerNotch: 3) == 3
+                && ScrollWheelSupport.linearLines(ticks: -4, linesPerNotch: 3) == -3,
+               "an accelerated wheel event is capped at one notch, whichever way it turns")
+        suite.expect(ScrollWheelSupport.linearLines(ticks: 0.25, linesPerNotch: 4) == 1
+                && ScrollWheelSupport.linearLines(ticks: 0, linesPerNotch: 3) == 0
+                && ScrollWheelSupport.linearLines(ticks: .nan, linesPerNotch: 3) == 0,
+               "a high-resolution fraction of a notch keeps its share and nothing invents movement")
+        suite.expect(ScrollWheelSupport.continuousTicks(fixedPointDelta: 2, pointDelta: 30) == 3
+                && ScrollWheelSupport.continuousTicks(fixedPointDelta: 2, pointDelta: 0) == 2,
+               "a continuous wheel's notch count reads from the points apps see, then the fixed-point lines")
+        let fastNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: 3, point: 30, fixedPoint: 3),
+            isContinuous: false, linesPerNotch: 3, carry: 0)
+        // A slow notch as a plain Bluetooth wheel sends it: macOS has shrunk it
+        // to a tenth of a line and one point, while its line count reads one.
+        let slowNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: -1, point: -1, fixedPoint: -0.1),
+            isContinuous: false, linesPerNotch: 3, carry: 0)
+        suite.expect(fastNotch.delta.line == 3 && fastNotch.carry == 0 && slowNotch.delta.line == -3,
+               "a fast discrete notch and a slow one are written back as the same lines")
+        suite.expect(ScrollWheelSupport.discreteTicks(line: 1, fixedPoint: 0.1, point: 1) == 1
+                && ScrollWheelSupport.discreteTicks(line: -7, fixedPoint: -7.3, point: -73) == -1
+                && ScrollWheelSupport.discreteTicks(line: 0, fixedPoint: 0.25, point: 2) == 0.25
+                && ScrollWheelSupport.discreteTicks(line: 0, fixedPoint: 0, point: 10) == 1
+                && ScrollWheelSupport.discreteTicks(line: 0, fixedPoint: .nan, point: 0) == 0,
+               "a notch uses its line count, then its fraction, then points when the driver leaves both empty")
+        let pointOnlyNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: 0, point: 10, fixedPoint: 0),
+            isContinuous: false, linesPerNotch: 3, carry: 0)
+        suite.expect(pointOnlyNotch.delta.line == 3 && pointOnlyNotch.carry == 0,
+                     "a discrete point-only wheel event is not discarded")
+        var fractionCarry = 0.0
+        var fractionLines: Int64 = 0
+        for _ in 0..<4 {
+            let part = ScrollWheelSupport.linearDelta(
+                ScrollWheelAxisDelta(line: 0, point: 0, fixedPoint: 0.25),
+                isContinuous: false, linesPerNotch: 3, carry: fractionCarry)
+            fractionCarry = part.carry
+            fractionLines += part.delta.line
+        }
+        suite.expect(fractionLines == 3 && fractionCarry == 0,
+               "four quarter-notch events from a high-resolution wheel add up to exactly one notch")
+        let reversedNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: -1, point: 0, fixedPoint: -1),
+            isContinuous: false, linesPerNotch: 3, carry: 0.75)
+        suite.expect(reversedNotch.delta.line == -3 && reversedNotch.carry == 0,
+               "a reversal drops the fraction the other direction left behind")
+        let continuousNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: 0, point: 40, fixedPoint: 4),
+            isContinuous: true, linesPerNotch: 3, carry: 0)
+        suite.expect(continuousNotch.delta == ScrollWheelAxisDelta(line: 3, point: 30, fixedPoint: 3)
+                && continuousNotch.carry == 0,
+               "a continuous wheel event gets all three fields, measured in whole points")
+        suite.expect(SmoothScrollSupport.linearContinuousDistance(
+                fixedPointDelta: 4, pointDelta: 40,
+                step: Double(SmoothScrollSupport.defaultStep), linesPerNotch: 3)
+                == SmoothScrollSupport.continuousDistance(
+                    fixedPointDelta: 3, pointDelta: 0, step: Double(SmoothScrollSupport.defaultStep)),
+               "the glide measures a linear notch as its lines, not the driver's accelerated points")
+        let uninstalledInverter = ScrollDirectionPreferences(isAvailable: { $0 != .scrollInverter },
+                                                             boolFor: { _ in true },
+                                                             stringFor: { _ in nil })
+        suite.expect(!uninstalledInverter.invertVertical && !uninstalledInverter.invertHorizontal,
+               "an uninstalled inverter flips nothing even with its switches left on")
+        let linearName = "com.vorssaint.tests.linear-lines.\(UUID().uuidString)"
+        let linearDefaults = UserDefaults(suiteName: linearName)!
+        defer { linearDefaults.removePersistentDomain(forName: linearName) }
+        var exceptionChecks = 0
+        let excepted = { () -> Bool in exceptionChecks += 1; return true }
+        let allowed = { () -> Bool in exceptionChecks += 1; return false }
+        linearDefaults.set(false, forKey: DefaultsKey.linearScrollEnabled)
+        suite.expect(ScrollWheelSupport.linearLinesPerNotch(defaults: linearDefaults, isAvailable: true,
+                                                           isExcepted: excepted) == nil
+                        && exceptionChecks == 0,
+               "linear scrolling switched off never asks the exception list")
+        linearDefaults.set(true, forKey: DefaultsKey.linearScrollEnabled)
+        linearDefaults.set(5, forKey: DefaultsKey.linearScrollLines)
+        suite.expect(ScrollWheelSupport.linearLinesPerNotch(defaults: linearDefaults, isAvailable: false,
+                                                           isExcepted: allowed) == nil,
+               "an uninstalled feature caps nothing even with its switch left on")
+        suite.expect(ScrollWheelSupport.linearLinesPerNotch(defaults: linearDefaults, isAvailable: true,
+                                                           isExcepted: excepted) == nil,
+               "an app on linear scrolling's own list is left out of the cap")
+        suite.expect(ScrollWheelSupport.linearLinesPerNotch(defaults: linearDefaults, isAvailable: true,
+                                                           isExcepted: allowed) == 5,
+               "both wheel taps read the same lines per notch while linear scrolling applies")
         var smoothEngine = SmoothScrollSupport.Engine()
         smoothEngine.add(vertical: 40, horizontal: 0)
         suite.expect(smoothEngine.remainingVertical == 40,
@@ -2341,6 +2546,7 @@ enum PointerInputFeatureTests {
         suite.expect(Set(MouseExceptionScope.allCases.map(\.defaultsKey)).count == MouseExceptionScope.allCases.count,
                "each feature keeps its own list, never a key shared with another")
         suite.expect(MouseExceptionScope.smoothScroll.feature == .smoothScroll
+                && MouseExceptionScope.linearScroll.feature == .linearScroll
                 && MouseExceptionScope.scrollDirection.feature == .scrollInverter
                 && MouseExceptionScope.focusFollowsMouse.feature == .focusFollowsMouse
                 && MouseExceptionScope.navigation.feature == .mouseNavigation

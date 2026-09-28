@@ -25,6 +25,15 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     var recurring = false
 }
 
+/// One calendar offered in Settings, grouped under its account like Calendar.app.
+struct NotchCalendarChoice: Equatable, Identifiable, Sendable {
+    let id: String
+    let title: String
+    let sourceID: String
+    let source: String
+    var color: NotchCalendarColor = .fallback
+}
+
 enum NotchCalendarSupport {
     static let countdownLeadTime: TimeInterval = 60 * 60
 
@@ -87,6 +96,36 @@ enum NotchCalendarSupport {
 
     static func showsCountdown(in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCalendarCountdown)
+    }
+
+    /// Stored as excluded identifiers so a calendar added later starts shown.
+    static func excludedCalendars(in defaults: UserDefaults = .standard) -> Set<String> {
+        Set(defaults.stringArray(forKey: DefaultsKey.notchCalendarExcluded) ?? [])
+    }
+
+    static func setCalendar(_ identifier: String, shown: Bool, in defaults: UserDefaults = .standard) {
+        var excluded = excludedCalendars(in: defaults)
+        if shown { excluded.remove(identifier) } else { excluded.insert(identifier) }
+        defaults.set(excluded.sorted(), forKey: DefaultsKey.notchCalendarExcluded)
+    }
+
+    /// The calendars to pass to EventKit: nil reads every calendar, including
+    /// ones added later. An empty result means read nothing; the caller must
+    /// not hand `[]` to EventKit, which treats it like nil.
+    static func calendarsToRead<C>(_ calendars: [C], excluded: Set<String>,
+                                   identifier: (C) -> String) -> [C]? {
+        guard calendars.contains(where: { excluded.contains(identifier($0)) }) else { return nil }
+        return calendars.filter { !excluded.contains(identifier($0)) }
+    }
+
+    /// Accounts in name order, each with its calendars in name order.
+    static func grouped(_ choices: [NotchCalendarChoice]) -> [[NotchCalendarChoice]] {
+        Dictionary(grouping: choices, by: \.sourceID).values
+            .map { $0.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } }
+            .sorted {
+                let order = $0[0].source.localizedStandardCompare($1[0].source)
+                return order == .orderedSame ? $0[0].sourceID < $1[0].sourceID : order == .orderedAscending
+            }
     }
 
     static func ordered(_ events: [NotchCalendarEvent]) -> [NotchCalendarEvent] {

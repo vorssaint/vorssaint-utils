@@ -1077,6 +1077,9 @@ extension Strings {
         smoothScrollCoastLabel: "Dobeh",
         mouseAccelerationName: "Vypnúť akceleráciu myši",
         mouseAccelerationCaption: "Odstráni akceleráciu kurzora pre pripojené myši. Predchádzajúce nastavenie sa vráti po vypnutí tejto funkcie alebo po ukončení Vorssaintu.",
+        linearScrollName: "Lineárne rolovanie",
+        linearScrollCaption: "Každý krok kolieska myši posunie rovnakú vzdialenosť bez ohľadu na to, ako rýchlo sa točí. Trackpadu sa to netýka.",
+        linearScrollLinesLabel: "Riadky na krok",
         shelfClearOnClose: "Vymazať pri zatvorení",
         shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú."
     )

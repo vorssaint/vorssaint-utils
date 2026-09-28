@@ -323,6 +323,7 @@ struct NotchSettings: View {
             Divider()
             switchRow("calendar.badge.clock", calendar.countdown, caption: calendar.countdownHint,
                       isOn: $calendarCountdown)
+            if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }
         case .timer:
             switchRow("speaker.wave.2", FeatureStrings.notchActivities(l10n.language).soundEnabled, isOn: $timerSoundEnabled)
                 .disabled(!AppFeature.notchTimer.isAvailable)
