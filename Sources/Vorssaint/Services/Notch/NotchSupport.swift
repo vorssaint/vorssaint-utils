@@ -114,6 +114,28 @@ enum NotchSize: String, CaseIterable {
     }
 }
 
+/// A correction to the camera housing macOS reports. The report is rounded
+/// to points while the cutout follows the panel's own pixels, so on some Macs
+/// and resolutions an edge of the real notch can show past the island.
+struct NotchCameraFit: Equatable {
+    static let widthRange = -10.0...10.0
+    static let heightRange = -6.0...6.0
+    static let zero = NotchCameraFit(width: 0, height: 0)
+
+    let width: CGFloat
+    let height: CGFloat
+
+    init(width: Double, height: Double) {
+        self.width = NotchSize.clamped(width, to: Self.widthRange, fallback: 0)
+        self.height = NotchSize.clamped(height, to: Self.heightRange, fallback: 0)
+    }
+
+    static func current(in defaults: UserDefaults = .standard) -> NotchCameraFit {
+        NotchCameraFit(width: defaults.double(forKey: DefaultsKey.notchCameraFitWidth),
+                       height: defaults.double(forKey: DefaultsKey.notchCameraFitHeight))
+    }
+}
+
 /// Shared measurements keep the window's content budget and its SwiftUI
 /// layout in agreement, including small screens and custom sizes.
 enum NotchLayout {
@@ -1099,15 +1121,18 @@ struct NotchGeometry: Equatable {
 
     init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, layout: NotchSize = .compact,
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
-         customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight) {
+         customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
+         cameraFit: NotchCameraFit = .zero) {
         self.screen = screen
         self.layout = layout
         self.customWidth = NotchSize.clamped(customWidth, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
         self.customHeight = NotchSize.clamped(customHeight, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)
         let barHeight = menuBarHeight.isFinite ? min(64, max(16, menuBarHeight)) : 24
         isNotched = safeAreaTop.isFinite && safeAreaTop > 0 && cameraWidth.isFinite && cameraWidth > 0
-        self.cameraWidth = min(isNotched ? cameraWidth : 180 * barHeight / 32, screen.width * 0.7)
-        cameraHeight = isNotched ? min(safeAreaTop, 64) : barHeight
+        // Only a physical camera has an outline to match; a simulated one follows the bar.
+        let fit = isNotched ? cameraFit : .zero
+        self.cameraWidth = min(isNotched ? max(0, cameraWidth + fit.width) : 180 * barHeight / 32, screen.width * 0.7)
+        cameraHeight = isNotched ? min(max(0, safeAreaTop + fit.height), 64) : barHeight
         self.menuBarHeight = max(cameraHeight, barHeight)
         self.compactSideRoom = compactSideRoom
     }

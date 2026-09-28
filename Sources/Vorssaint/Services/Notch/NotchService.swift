@@ -1938,7 +1938,8 @@ final class NotchService: ObservableObject {
                                     visibleTop: screen.visibleFrame.maxY, scale: screen.backingScaleFactor,
                                     statusBarThickness: NSStatusBar.system.thickness),
                                  customWidth: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomWidth),
-                                 customHeight: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomHeight))
+                                 customHeight: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomHeight),
+                                 cameraFit: NotchCameraFit.current())
         if next.hasSameMenuBar(as: geometry) { next.compactSideRoom = geometry.compactSideRoom }
         next.quickAccessBottomInset = NotchQuickAccessConfiguration.current().hasBottom ? NotchQuickAccessLayout.gutter : 0
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
