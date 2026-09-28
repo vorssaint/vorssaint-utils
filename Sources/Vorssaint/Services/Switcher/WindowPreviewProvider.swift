@@ -104,7 +104,9 @@ final class WindowPreviewProvider {
                 guard !Task.isCancelled else { return }
                 let captureIsPaused = await MainActor.run { Self.captureIsPaused }
                 guard !captureIsPaused else { return }
-                guard let image = Self.captureViaWindowServer(target.id) else {
+                let capturedImage = await Self.captureViaWindowServer(target.id)
+                guard !Task.isCancelled else { return }
+                guard let image = capturedImage else {
                     pending.append(target)
                     continue
                 }
@@ -237,20 +239,29 @@ final class WindowPreviewProvider {
     /// other-Space windows come back as their real, untransformed content.
     private static let windowServerCaptureOptions: UInt32 = (1 << 8) | (1 << 11)
 
+    /// Shared by every preview provider and the screenshot tool. Cancelling a
+    /// caller must not let another capture overlap its unfinished system call.
+    private static let windowServerCaptures = WindowServerCaptureQueue()
+
     /// Internal so the screenshot tool can reuse the existing window capture.
-    static func captureViaWindowServer(_ windowID: CGWindowID) -> CGImage? {
+    /// Background warming passes `waitingForOtherCaptures: false`: it is
+    /// optional work and skips a window rather than queue behind a slow capture.
+    static func captureViaWindowServer(_ windowID: CGWindowID,
+                                       waitingForOtherCaptures: Bool = true) async -> CGImage? {
         guard windowServerConnection != 0, let capture = windowServerCapture else { return nil }
-        var id = UInt32(windowID)
-        guard let array = capture(windowServerConnection, &id, 1, windowServerCaptureOptions)?
-            .takeRetainedValue(),
-            CFArrayGetCount(array) > 0,
-            let value = CFArrayGetValueAtIndex(array, 0)
-        else { return nil }
-        let candidate = unsafeBitCast(value, to: CFTypeRef.self)
-        guard CFGetTypeID(candidate) == CGImage.typeID else { return nil }
-        let image = unsafeBitCast(candidate, to: CGImage.self)
-        guard image.width > 1, image.height > 1 else { return nil }
-        return image
+        return await windowServerCaptures.capture(waitingForOtherCaptures: waitingForOtherCaptures) {
+            var id = UInt32(windowID)
+            guard let array = capture(windowServerConnection, &id, 1, windowServerCaptureOptions)?
+                .takeRetainedValue(),
+                CFArrayGetCount(array) > 0,
+                let value = CFArrayGetValueAtIndex(array, 0)
+            else { return nil }
+            let candidate = unsafeBitCast(value, to: CFTypeRef.self)
+            guard CFGetTypeID(candidate) == CGImage.typeID else { return nil }
+            let image = unsafeBitCast(candidate, to: CGImage.self)
+            guard image.width > 1, image.height > 1 else { return nil }
+            return image
+        }
     }
 
     private static let rectifyContext = CIContext()
@@ -439,7 +450,9 @@ final class WindowPreviewProvider {
                     guard !Task.isCancelled, let id = item.previewWindowID else { continue }
                     let captureIsPaused = await MainActor.run { Self.captureIsPaused }
                     guard !captureIsPaused else { return }
-                    guard let image = Self.captureViaWindowServer(id) else { continue }
+                    let capturedImage = await Self.captureViaWindowServer(id, waitingForOtherCaptures: false)
+                    guard !Task.isCancelled else { return }
+                    guard let image = capturedImage else { continue }
                     if let grid = SwitcherSupport.alphaGrid(of: image),
                        SwitcherSupport.captureLooksTransformed(alphaGrid: grid) {
                         let needsPreview = await MainActor.run { !Task.isCancelled && self.cache[id] == nil }
@@ -463,7 +476,10 @@ final class WindowPreviewProvider {
                         continue
                     }
                     let scaled = Self.bitmapCopy(image, maxPixelSize: Self.defaultMaxPixelSize)
-                    await MainActor.run { self.store(scaled, for: id) }
+                    await MainActor.run {
+                        guard !Task.isCancelled else { return }
+                        self.store(scaled, for: id)
+                    }
                 }
                 await MainActor.run { self.pruneCache(keeping: []) }
             }

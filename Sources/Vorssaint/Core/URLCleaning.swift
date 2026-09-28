@@ -49,7 +49,7 @@ enum URLCleaning {
         ],
         "xiaohongshu.com": [
             "xhsshare", "author_share", "xsec_source", "share_from_user_hidden",
-            "shareRedId", "share_id", "exSource", "app_version", "app_platform",
+            "shareredid", "share_id", "exsource", "app_version", "app_platform",
             "apptime", "appuid",
         ],
     ]

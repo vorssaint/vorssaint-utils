@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -70,6 +71,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -177,6 +179,41 @@ extension QuitProtectionStrings {
         releaseHint: "Suelta para confirmar",
         shiftKey: "Mayúsculas",
         optionKey: "Opción",
+        controlKey: "Control"
+    )
+
+    static let sk = QuitProtectionStrings(
+        name: "Ochrana pred ukončením a zatvorením",
+        description: "Chráni ⌘Q a ⌘W pred náhodným stlačením",
+        intro: "Nastavte každú skratku samostatne. Pôvodná akcia sa vykoná až po zvolenom potvrdení.",
+        enabled: "Chrániť túto skratku",
+        enabledCaption: "Ostatné skratky s Command fungujú bez zmeny.",
+        mode: "Režim potvrdenia",
+        hold: "Podržať na potvrdenie",
+        doublePress: "Dvojité stlačenie",
+        extraModifier: "Vyžadovať ďalší modifikátor",
+        holdDuration: "Doba podržania",
+        doublePressInterval: "Interval medzi stlačeniami",
+        modifier: "Ďalší modifikátor",
+        appScope: "Aplikácie",
+        allApps: "Všetky aplikácie",
+        selectedOnly: "Iba vybrané aplikácie",
+        allExceptSelected: "Všetky okrem vybraných aplikácií",
+        exceptions: "Výnimky",
+        noExceptions: "Nie sú vybrané žiadne aplikácie",
+        addApp: "Pridať aplikáciu…",
+        feedback: "Zobraziť vizuálnu spätnú väzbu",
+        accessibilityCaption: "Ochrana používa Prístupnosť na sledovanie iba ⌘Q a ⌘W globálne.",
+        holdQuitHUDFormat: "Podržte %@ na ukončenie",
+        holdCloseHUDFormat: "Podržte %@ na zatvorenie",
+        doubleQuitHUDFormat: "Stlačte %@ znova na ukončenie",
+        doubleCloseHUDFormat: "Stlačte %@ znova na zatvorenie",
+        extraQuitHUDFormat: "Použite %@ na ukončenie",
+        extraCloseHUDFormat: "Použite %@ na zatvorenie",
+        cancelHint: "Esc zruší",
+        releaseHint: "Uvoľnením potvrdíte",
+        shiftKey: "Shift",
+        optionKey: "Option",
         controlKey: "Control"
     )
 
@@ -525,6 +562,41 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "使用 %@ 以關閉",
         cancelHint: "Esc 取消",
         releaseHint: "放開以確認",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let uk = QuitProtectionStrings(
+        name: "Захист від виходу та закриття",
+        description: "Захищає ⌘Q та ⌘W від випадкових натискань",
+        intro: "Налаштуйте кожне клавіатурне скорочення окремо. Початкова дія виконується лише після вибраного підтвердження.",
+        enabled: "Захищати це клавіатурне скорочення",
+        enabledCaption: "Інші клавіатурні скорочення з Command продовжують працювати як зазвичай.",
+        mode: "Режим підтвердження",
+        hold: "Утримувати для підтвердження",
+        doublePress: "Натиснути двічі",
+        extraModifier: "Вимагати додаткову клавішу-модифікатор",
+        holdDuration: "Тривалість утримання",
+        doublePressInterval: "Інтервал подвійного натискання",
+        modifier: "Додаткова клавіша-модифікатор",
+        appScope: "Програми",
+        allApps: "Усі програми",
+        selectedOnly: "Лише вибрані програми",
+        allExceptSelected: "Усі, крім вибраних програм",
+        exceptions: "Винятки",
+        noExceptions: "Не вибрано жодної програми",
+        addApp: "Додати програму…",
+        feedback: "Показувати візуальний відгук",
+        accessibilityCaption: "Для захисту використовується дозвіл «Доступність», щоб глобально відстежувати лише ⌘Q та ⌘W.",
+        holdQuitHUDFormat: "Утримуйте %@, щоб завершити програму",
+        holdCloseHUDFormat: "Утримуйте %@, щоб закрити вікно",
+        doubleQuitHUDFormat: "Натисніть %@ ще раз, щоб завершити програму",
+        doubleCloseHUDFormat: "Натисніть %@ ще раз, щоб закрити вікно",
+        extraQuitHUDFormat: "Використайте %@, щоб завершити програму",
+        extraCloseHUDFormat: "Використайте %@, щоб закрити вікно",
+        cancelHint: "Esc скасовує",
+        releaseHint: "Відпустіть для підтвердження",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

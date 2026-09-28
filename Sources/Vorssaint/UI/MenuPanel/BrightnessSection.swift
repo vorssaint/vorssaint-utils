@@ -34,6 +34,10 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.red)
                 }
+                if service.keyboardLightEnabled != nil {
+                    Divider()
+                    keyboardLightRow
+                }
                 if service.brightnessOSDSupported {
                     Divider()
                     Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)
@@ -54,7 +58,10 @@ struct BrightnessSection: View {
                 optionsDisclosure
             }
             .panelCard()
-            .onAppear { service.refresh() }
+            .onAppear {
+                service.refresh()
+                service.refreshKeyboardLight()
+            }
         }
     }
 
@@ -140,6 +147,36 @@ struct BrightnessSection: View {
         }
     }
 
+    /// Sits with the display sliders because it is the same control. The
+    /// Quick toggles switch stays the place to flip it off and back on, and
+    /// the slider reaches 0, so the row carries no switch of its own.
+    private var keyboardLightRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(strings.keyboardLight)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(Int(((service.keyboardLightLevel ?? 0) * 100).rounded()))%")
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: keyboardLightBinding, in: 0...1,
+                   onEditingChanged: service.keyboardLightDragChanged)
+                .controlSize(.small)
+                .accessibilityLabel(strings.keyboardLight)
+        }
+    }
+
+    private var keyboardLightBinding: Binding<Double> {
+        Binding(get: { Double(service.keyboardLightLevel ?? 0) },
+                set: { service.setKeyboardLightLevel(Float($0)) })
+    }
+
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {
         Binding(get: { display.brightness },
                 set: { service.setBrightness($0, for: display.id,
@@ -168,10 +205,10 @@ private struct ExtraBrightnessPanelToggle: View {
 /// slider is just as dead on the Energy page as in the panel, so the way out
 /// has to be there too.
 ///
-/// Offered only where the routing is genuinely ambiguous: a channel that takes
-/// writes and answers no reads either drives the panel or swallows everything,
-/// and the bus cannot tell which (issue #1589). Stays visible once chosen, or
-/// there would be no way back to DDC.
+/// On readable DDC displays, the choice extends the slider below the panel's
+/// hardware minimum and is offered in Settings. On write-only DDC paths, it
+/// keeps the existing fallback to software control on both surfaces (issue
+/// #1589). Either choice stays visible until cleared.
 struct SoftwareDimmingButton: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = BrightnessService.shared
@@ -179,23 +216,35 @@ struct SoftwareDimmingButton: View {
     var compact = false
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
-    private var chosen: Bool { service.softwareDimmingPreferred.contains(display.id) }
+    private var extendedChosen: Bool { service.extendedDimmingPreferred.contains(display.id) }
+    private var softwareChosen: Bool { service.softwareDimmingPreferred.contains(display.id) }
+    private var chosen: Bool { extendedChosen || softwareChosen }
+    private var usesExtendedDimming: Bool {
+        !softwareChosen && (extendedChosen || (display.method == .ddc && display.readable))
+    }
 
     private var offered: Bool {
-        guard display.isActive, !display.isBuiltIn else { return false }
+        guard display.isActive, !display.isBuiltIn, display.canChooseDimming else { return false }
         if chosen { return true }
-        return display.method == .ddc && !display.readable
+        guard display.method == .ddc else { return false }
+        // The panel keeps only the write-only way out; extra dimming is
+        // offered in Settings and joins the panel once it is on.
+        return !(compact && display.readable)
     }
 
     var body: some View {
         if offered {
             Button {
-                service.setSoftwareDimmingPreferred(!chosen, for: display.id)
+                if usesExtendedDimming {
+                    service.setExtendedDimmingPreferred(!extendedChosen, for: display.id)
+                } else {
+                    service.setSoftwareDimmingPreferred(!softwareChosen, for: display.id)
+                }
             } label: {
                 HStack(spacing: compact ? 4 : 5) {
                     Image(systemName: chosen ? "checkmark.circle.fill" : "circle.lefthalf.filled")
                         .font(.system(size: compact ? 9.5 : 11, weight: .semibold))
-                    Text(strings.softwareDimming)
+                    Text(usesExtendedDimming ? strings.extendedDimming : strings.softwareDimming)
                         .font(.system(size: compact ? 10 : 12, weight: .medium))
                         .lineLimit(1)
                 }
@@ -203,7 +252,7 @@ struct SoftwareDimmingButton: View {
             }
             .buttonStyle(.plain)
             .disabled(service.isDisplayPending(display.id))
-            .accessibilityLabel("\(display.name): \(strings.softwareDimming)")
+            .accessibilityLabel("\(display.name): \(usesExtendedDimming ? strings.extendedDimming : strings.softwareDimming)")
         }
     }
 }

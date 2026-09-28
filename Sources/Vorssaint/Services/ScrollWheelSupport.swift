@@ -93,17 +93,33 @@ enum ScrollWheelSupport {
         let shortcutFlags: CGEventFlags = [.maskShift, .maskAlternate, .maskControl, .maskCommand]
         guard event.flags.intersection(shortcutFlags) == modifier.flag else { return false }
 
-        let line = event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
-        let point = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
-        let fixed = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)
-        guard line != 0 || point != 0 || fixed != 0,
-              event.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 0,
-              event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == 0,
-              event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2) == 0 else { return false }
+        guard isVerticalOnly(event) else { return false }
         // Our capture/editor windows use these same modifiers for their own
         // wheel gestures. Resolve the target only for a tick we would redirect.
         guard !targetsOwnWindow() else { return false }
 
+        moveVerticalToHorizontal(event)
+        event.flags.remove(modifier.flag)
+        event.setIntegerValueField(.eventSourceUserData, value: horizontalRedirectTag)
+        return true
+    }
+
+    /// Movement on the vertical axis only, as a plain mouse wheel sends it.
+    static func isVerticalOnly(_ event: CGEvent) -> Bool {
+        (event.getIntegerValueField(.scrollWheelEventDeltaAxis1) != 0
+            || event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) != 0
+            || event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1) != 0)
+            && event.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 0
+            && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == 0
+            && event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2) == 0
+    }
+
+    /// Moves a vertical-only event to the horizontal axis, keeping its sign
+    /// as Shift does.
+    static func moveVerticalToHorizontal(_ event: CGEvent) {
+        let line = event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
+        let point = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
+        let fixed = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)
         // Line writes can rederive pixel fields; restore the captured precision
         // only after both line axes have been written.
         event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 0)
@@ -112,9 +128,14 @@ enum ScrollWheelSupport {
         event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: fixed)
         event.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: 0)
         event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: point)
-        event.flags.remove(modifier.flag)
-        event.setIntegerValueField(.eventSourceUserData, value: horizontalRedirectTag)
-        return true
+    }
+
+    /// A mouse wheel only turns vertically, so a strip that scrolls only
+    /// sideways could not be moved with one. The wheel moves the strip when
+    /// nothing around it scrolls down; a list around it keeps the wheel.
+    static func wheelMovesStripSideways(stripScrollsHorizontally: Bool, stripScrollsVertically: Bool,
+                                        enclosingScrollsVertically: Bool) -> Bool {
+        stripScrollsHorizontally && !stripScrollsVertically && !enclosingScrollsVertically
     }
 
     /// The raw wheel path uses the same redirection as smoothing, then applies

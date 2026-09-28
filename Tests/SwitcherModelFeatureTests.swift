@@ -145,6 +145,7 @@ enum SwitcherModelFeatureTests {
     }
 
     static func run(_ suite: TestSuite) {
+        ScrollingTitleMotionTests.run(suite)
         scrollNavigationChecks(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
@@ -410,6 +411,14 @@ enum SwitcherModelFeatureTests {
                == SwitcherSupport.defaultAppearanceDelayMilliseconds
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherAppearanceDelay),
                "App Switcher keeps the current appearance delay by default and carries the choice in backups")
+        suite.expect(registeredDefaults[DefaultsKey.switcherInstantSelection] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherInstantSelection),
+               "App Switcher keeps smooth selection by default and carries instant selection in backups")
+        let instantSelectionBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.switcherInstantSelection ? true : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: instantSelectionBackup)?[DefaultsKey.switcherInstantSelection] as? Bool == true,
+               "App Switcher restores the instant selection choice from a settings backup")
         suite.expect(SwitcherSupport.appearanceDelayMillisecondsRange
                .contains(SwitcherSupport.defaultAppearanceDelayMilliseconds),
                "the default App Switcher appearance delay is one the slider accepts")
@@ -688,6 +697,23 @@ enum SwitcherModelFeatureTests {
                && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
                                                               windowSpaces: []),
                "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
+
+        // MARK: Hidden apps only follow minimized-window placement by choice
+        let hiddenAppEntry = SwitcherItem.appOnly(appName: "Primary", pid: 101,
+                                                 isAppHidden: true)
+        suite.expect(!hiddenAppWindow.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: false)
+               && !hiddenAppEntry.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: false)
+               && hiddenAppWindow.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: true)
+               && hiddenAppEntry.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: true)
+               && embeddedWindow.withMinimized(true).isMinimizedForPlacement(treatHiddenAppsLikeMinimized: false)
+               && !embeddedWindow.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: true),
+               "hidden apps follow minimized-window placement only when selected, while actual minimized windows always follow it")
+        let placementCode = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(placementCode.contains("forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized")
+               && placementCode.contains("item.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized)"),
+               "window enumeration applies the saved hidden-app choice through the placement predicate")
 
         // Real parked windows remain ordered in; a dismissed surface can
         // retain the same desktop assignment but is explicitly ordered out.
@@ -1005,6 +1031,9 @@ enum SwitcherModelFeatureTests {
                == WindowSwitchMinimizedPlacement.normal.rawValue
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherMinimizedPlacement),
                "App Switcher leaves minimized windows in normal order by default and carries the choice in backups")
+        suite.expect(registeredDefaults[DefaultsKey.switcherTreatHiddenAppsLikeMinimized] as? Bool == true
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherTreatHiddenAppsLikeMinimized),
+               "hidden apps follow the minimized-window placement by default and the opt-out travels with settings backups")
         suite.expect(registeredDefaults[DefaultsKey.switcherShowFullscreenWindows] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowFullscreenWindows),
                "App Switcher keeps fullscreen windows visible by default and carries the choice in backups")
@@ -1588,6 +1617,13 @@ enum SwitcherModelFeatureTests {
         suite.expect(DockPreviewSupport.cardThumbnailHeight
                 > DockPreviewSupport.cardHeight * 0.7,
                "the thumbnail keeps most of the Dock Preview card")
+        // Minimal previews have no title band, so the card loses its height
+        // rather than handing it to a picture too narrow to use it.
+        UserDefaults.standard.set(true, forKey: DefaultsKey.minimalWindowPreviews)
+        suite.expectClose(Double(DockPreviewSupport.cardHeight),
+                    Double(DockPreviewSupport.cardThumbnailHeight + DockPreviewSupport.cardPadding * 2),
+                    "a minimal Dock Preview card is the thumbnail and its padding, nothing more")
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.minimalWindowPreviews)
 
         // The card used to draw the app icon on every thumbnail and the window
         // title both over the thumbnail and under it. In a panel every card
@@ -1700,24 +1736,19 @@ enum SwitcherModelFeatureTests {
                "update showcase intro starts unseen")
         suite.expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
-               "support prompt is deliberately pinned to 3.3.2")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.1"),
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
+               "support prompt is deliberately pinned to the 3.4 stable series")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.3.2")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil),
                "support prompt shows once after updating to its pinned release")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.2"),
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
                "support prompt stays hidden after it is seen")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.0", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.1", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
-               "support prompt never leaks into another release")
-        suite.expect(SupportUpdateIntroStep.support.next == .social
-               && SupportUpdateIntroStep.social.next == nil,
-               "update intro moves from support to social updates")
-        suite.expect(SupportUpdateIntroStep.support.previous == nil
-               && SupportUpdateIntroStep.social.previous == .support,
-               "update intro navigates back without closing")
-        suite.expect(SupportUpdateIntroStep.allCases == [.support, .social],
-               "update intro page indicators follow the navigation order")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.4.0"),
+               "premature support markers from beta onboarding do not suppress the stable invitation")
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0-beta.7", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.5.0", lastSeenVersion: nil),
+               "support prompt never leaks into another release series")
         suite.expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
                "the community action uses the permanent Discord invitation")
         suite.expect(AppInfo.coffeeURL.absoluteString == "https://buymeacoffee.com/vorssaint",
@@ -1730,31 +1761,51 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.0-beta.2.1",
+        suite.expect(plistVersion == "3.4.0",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "89",
+        suite.expect(plistBuild == "95",
                "every app version needs its own incremented bundle build")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
-               "the support prompt remains deliberately pinned to 3.3.2")
-        suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0-beta.1",
-               "the prepared tour belongs to the first 3.4 beta without changing the installed version")
-        for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.10"] {
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
+               "the support prompt is prepared for the 3.4 final release")
+        suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0",
+               "the stable release has its own tour marker without changing the installed version")
+        for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.5", "3.4.0-beta.6", "3.4.0-beta.7", "3.4.0-beta.10"] {
             suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
                    && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: "3.3.3"),
                    "the notch tour introduces this beta cycle to new and returning users")
-            suite.expect(!UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion),
+            suite.expect(!UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion),
                    "the beta tour does not repeat after it has been seen")
             suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
-                   "beta updates do not request the support and social introduction")
+                   "beta updates do not request the support introduction")
         }
-        for version in ["3.3.5", "3.4.0", "3.4.1", "3.4.0-rc.1", "3.4.0-beta.0", "3.4.0-beta.no", "3.4.0-beta.2.no", "3.4.0-beta.2.1.1", "3.5.0-beta.1", "4.0.0"] {
+        suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil)
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.3.2")
+               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0",
+                                                      lastSeenVersion: UpdateHighlightsInfo.releaseVersion),
+               "the final release shows its tour once to upgraders")
+        suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0",
+                                                      lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion),
+               "beta tour viewers also see the final release tour")
+        for version in ["3.3.5", "3.5.0", "3.4.1-beta.1", "3.4.0-rc.1", "3.4.0-beta.0", "3.4.0-beta.no", "3.4.0-beta.2.no", "3.4.0-beta.2.1.1", "3.5.0-beta.1", "4.0.0"] {
             suite.expect(!UpdateHighlightsInfo.matchesRelease(version)
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
                    "previewing from the current build and other release cycles cannot consume the future beta tour")
         }
-        suite.expect(FileManager.default.fileExists(atPath: "Resources/Images/highlights-notch.png"),
-               "the notch tour bundles its static layout illustration")
+        for version in ["3.4.0", "3.4.1", "3.4.2", "3.4.10", "3.4.99"] {
+            suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
+                   && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion)
+                   && SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0"),
+                   "direct hotfix upgraders still receive the stable tour and support invitation")
+            suite.expect(UpdateHighlightsInfo.seenVersion(for: version) == UpdateHighlightsInfo.releaseVersion
+                   && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion)
+                   && !SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
+                   "all stable patches share completion markers and never repeat completed introductions")
+        }
+        let tourGIF = URL(fileURLWithPath: "Resources/Gifs/highlights-notch.gif")
+        let tourFrames = CGImageSourceCreateWithURL(tourGIF as CFURL, nil).map(CGImageSourceGetCount)
+        suite.expect(tourFrames.map { $0 > 1 } == true,
+               "the Dynamic Island tour includes an animated GIF in the app resources")
         suite.expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int
@@ -1825,6 +1876,13 @@ enum SwitcherModelFeatureTests {
                "URL cleaner clipboard watching is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.windowMaximizeEnabled] as? Bool == false,
                "green button maximize override is opt-in")
+        suite.expect(WindowMaximizerSupport.excludes(bundleIdentifier: "com.example.game",
+                                                     excludedBundleIdentifiers: [" com.example.game "])
+                && !WindowMaximizerSupport.excludes(bundleIdentifier: "com.example.editor",
+                                                    excludedBundleIdentifiers: ["com.example.game"])
+                && !WindowMaximizerSupport.excludes(bundleIdentifier: nil,
+                                                    excludedBundleIdentifiers: ["com.example.game"]),
+               "only apps on the exception list keep the native green button")
         suite.expect(registeredDefaults[DefaultsKey.keyboardDebounceEnabled] as? Bool == false,
                "keyboard debounce is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keyboardDebounceWindowMs] as? Int == 5,
@@ -1972,6 +2030,70 @@ enum SwitcherModelFeatureTests {
                "a click beyond the slack re-anchors by the full offset")
         suite.expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1240, reportedMidX: 1144, buttonWidth: 197) == nil,
                "clicks near the edge of a wide metrics item stay anchored to the item")
+
+        suite.expect(StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                    ownWindowIsKey: false, closeReason: .escape),
+               "closing the panel hands activation back to the app that was in front before it")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 777,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "an app the person switched to while the panel was open keeps activation")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: true, closeReason: .escape),
+               "a Vorssaint window that took focus from the panel keeps Vorssaint active")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: nil, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "a panel opened while Vorssaint was already in front has nothing to hand back")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 900, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "Vorssaint never hands activation back to itself")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: nil,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "no known frontmost app means nothing is taken from anyone")
+        for (reason, returns) in [(PanelCloseReason.escape, true), (.statusItem, true),
+                                  (.outsideClick, false), (.action, false)] {
+            suite.expect(StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                        ownWindowIsKey: false,
+                                                                        closeReason: reason) == returns,
+                   returns ? "a \(reason) dismissal with nothing taking over hands activation back"
+                           : "a \(reason) close leaves activation to whatever takes over")
+        }
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: nil),
+               "a close Vorssaint did not ask for leaves activation alone")
+
+        let showing: Set<UInt64> = [3, 7]
+        suite.expect(StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[1], [2]],
+                                                                        visibleSpaces: showing),
+               "an app whose windows are all on a desktop that is not showing is not handed activation")
+        suite.expect(!StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[1], [2, 7]],
+                                                                         visibleSpaces: showing),
+               "an app with a window on a desktop that is showing gets activation back")
+        suite.expect(!StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [],
+                                                                         visibleSpaces: showing),
+               "an app with no windows open gets activation back")
+        suite.expect(!StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[]],
+                                                                         visibleSpaces: showing),
+               "a leftover surface on no desktop does not count as a window")
+        suite.expect(StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[], [1]],
+                                                                        visibleSpaces: showing),
+               "a leftover surface does not keep a window on a hidden desktop from counting")
+        suite.expect(!StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[1]],
+                                                                         visibleSpaces: nil),
+               "unknown desktops keep handing activation back")
+
+        let ownApp: (Int) -> Bool = { $0 == 900 }
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(777), current: 501,
+                                                                   isOwnApp: ownApp) == 777,
+               "another app becoming active while the panel is open replaces the remembered app")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(900), current: 501,
+                                                                   isOwnApp: ownApp) == 501,
+               "Vorssaint taking activation back from the panel keeps the remembered app")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(777), current: nil,
+                                                                   isOwnApp: ownApp) == 777,
+               "an app activated after the remembered one was dropped becomes the one to return to")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: PanelActivationChange<Int>.activeSpaceChanged,
+                                                                   current: 501, isOwnApp: ownApp) == nil,
+               "a desktop switch while the panel is open drops the remembered app")
 
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
 
@@ -2155,6 +2277,38 @@ enum SwitcherModelFeatureTests {
                                                                mustShowForSignal: false),
                "the whole-item hiding only applies to the separate-items mode")
 
+        // Dynamic Island may take the icon's place, but only while it runs:
+        // with the island off or removed, nothing else on screen would lead
+        // back to the app.
+        suite.expect(registeredDefaults[DefaultsKey.notchHidesMenuBarIcon] as? Bool == false,
+               "Dynamic Island only takes the icon's place when asked")
+        let islandIconSuite = "com.vorssaint.tests.islandMenuBarIcon"
+        if let islandDefaults = UserDefaults(suiteName: islandIconSuite) {
+            islandDefaults.removePersistentDomain(forName: islandIconSuite)
+            defer { islandDefaults.removePersistentDomain(forName: islandIconSuite) }
+            islandDefaults.set(true, forKey: AppFeature.notch.availabilityKey)
+            islandDefaults.set(true, forKey: DefaultsKey.notchEnabled)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "a running island leaves the icon alone until asked")
+            islandDefaults.set(true, forKey: DefaultsKey.notchHidesMenuBarIcon)
+            suite.expect(MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "a running island takes the icon's place when asked")
+            islandDefaults.set(true, forKey: DefaultsKey.notchHideInFullscreen)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(
+                in: islandDefaults, hiddenInFullscreen: true),
+                   "the menu bar icon returns while the island is hidden in fullscreen")
+            suite.expect(MenuBarSpacingSupport.islandHidesStatusIcon(
+                in: islandDefaults, hiddenInFullscreen: false),
+                   "the saved icon preference resumes when the island leaves fullscreen")
+            islandDefaults.set(false, forKey: DefaultsKey.notchEnabled)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "switching the island off brings the icon back")
+            islandDefaults.set(true, forKey: DefaultsKey.notchEnabled)
+            islandDefaults.set(false, forKey: AppFeature.notch.availabilityKey)
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
+                   "removing the island in the hub brings the icon back")
+        }
+
         // A pinned metric that momentarily has nothing to show keeps its item
         // instead of being taken away and put back every tick.
         suite.expect(MenuBarSpacingSupport.keepsMetricStatusItem(hasRenderedTitle: true, itemExists: false),
@@ -2290,6 +2444,115 @@ enum SwitcherModelFeatureTests {
                    "an on-screen icon does not keep waiting")
             statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
         }
+
+        // MARK: An item macOS never placed is not "on screen" (issue #1394)
+
+        // Measured on macOS 26 with the app switched off under System Settings
+        // > Menu Bar > "Allow in the Menu Bar": AppKit builds the status window
+        // at the bottom-left origin of the main display (AX reports it at
+        // -1,1295 38x24) and never moves it. That rectangle intersects the
+        // screen, which is all the recovery used to ask, so it logged
+        // "appeared" for an icon nobody could see and never said why.
+        let tahoeMain = CGRect(x: 0, y: 0, width: 2304, height: 1296)
+        let tahoePortrait = CGRect(x: -1080, y: -173, width: 1080, height: 1920)
+        let tahoeScreens = [tahoeMain, tahoePortrait]
+        let unplacedFrame = CGRect(x: -1, y: -23, width: 38, height: 24)
+        suite.expect(tahoeMain.intersects(unplacedFrame),
+               "the unplaced frame does intersect the main screen, which is why intersection alone passed it")
+        suite.expect(!StatusItemAnchorSupport.isSettlingStatusFrame(unplacedFrame),
+               "the unplaced frame has real size, so the settling grace does not cover it")
+        suite.expect(!StatusItemPlacementSupport.isPlacedStatusFrame(unplacedFrame, screenFrames: tahoeScreens),
+               "a status window parked at the bottom-left origin is not a placed icon")
+        suite.expect(StatusItemPlacementSupport.isPlacedStatusFrame(CGRect(x: 1792, y: 1269, width: 38, height: 24),
+                                                                    screenFrames: tahoeScreens),
+               "the same item placed in the main display's menu bar is")
+        suite.expect(StatusItemPlacementSupport.isPlacedStatusFrame(CGRect(x: -900, y: 1710, width: 38, height: 24),
+                                                                    screenFrames: tahoeScreens),
+               "a placement in the portrait display's own menu bar counts too")
+        suite.expect(!StatusItemPlacementSupport.isPlacedStatusFrame(CGRect(x: 1792, y: 1269, width: 0, height: 0),
+                                                                     screenFrames: tahoeScreens),
+               "a sizeless frame is not a placement")
+        let iconIsOnScreenCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "private func iconIsOnScreen() -> Bool {").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(iconIsOnScreenCode.contains("StatusItemPlacementSupport.isPlacedStatusFrame("),
+               "the recovery judges placement by the menu bar band, not by screen intersection")
+        suite.expect(iconIsOnScreenCode.contains("statusItem.isVisible == true"),
+               "a hidden item never counts as on screen, whatever frame its window kept")
+        // An item the app keeps out of the bar for Dynamic Island is not
+        // missing, and a rebuild on reopen could strand the panel's anchor.
+        let reopenCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "func applicationShouldHandleReopen(").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(reopenCode.contains("mainItemHiddenByChoice != true, !iconIsOnScreen()"),
+               "reopening the app leaves an item hidden by choice alone and opens Settings")
+        let reshowCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "func reshowStatusItem() {").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(reshowCode.contains("DefaultsKey.menuBarHideIconWithMetrics")
+                     && reshowCode.contains("DefaultsKey.notchHidesMenuBarIcon"),
+               "Show menu bar icon turns off both ways of hiding it")
+
+        // macOS 26 lets the person switch an app's menu bar items off per app,
+        // and remembers the choice in Control Center's group container. The
+        // app cannot override it, so recovery must recognise it and say so
+        // instead of resetting the item's identity for nothing.
+        func tracked(_ bundleID: String, allowed: Bool?) -> [[String: Any]] {
+            var entry: [String: Any] = ["location": ["bundle": ["_0": bundleID]],
+                                        "menuItemLocations": [["bundle": ["_0": bundleID]]]]
+            if let allowed { entry["isAllowed"] = allowed }
+            return [["bundle": ["_0": bundleID]], entry]
+        }
+        let trackedApplications: [Any] = tracked("com.lowtechguys.Clop", allowed: true)
+            + tracked("com.vorssaint.utils", allowed: false)
+            + tracked("com.vorssaint.utils.dev", allowed: true)
+            + tracked("com.example.legacy", allowed: nil)
+        suite.expect(MenuBarAllowanceSupport.allowance(forBundleID: "com.vorssaint.utils",
+                                                       trackedApplications: trackedApplications) == .disallowed,
+               "an app switched off under Allow in the Menu Bar reads as disallowed")
+        suite.expect(MenuBarAllowanceSupport.allowance(forBundleID: "com.vorssaint.utils.dev",
+                                                       trackedApplications: trackedApplications) == .allowed,
+               "a sibling bundle id with its own entry does not bleed over")
+        suite.expect(MenuBarAllowanceSupport.allowance(forBundleID: "com.example.legacy",
+                                                       trackedApplications: trackedApplications) == .unknown,
+               "an entry without the flag is unknown, never a verdict")
+        suite.expect(MenuBarAllowanceSupport.allowance(forBundleID: "com.example.absent",
+                                                       trackedApplications: trackedApplications) == .unknown,
+               "an app Control Center has never tracked is unknown")
+        suite.expect(MenuBarAllowanceSupport.allowance(forBundleID: "com.vorssaint.utils",
+                                                       trackedApplications: ["garbage", 3]) == .unknown,
+               "a malformed store is unknown rather than a crash or a verdict")
+        // The on-disk shape: an outer plist whose trackedApplications value is
+        // itself a binary plist, serialized as data.
+        let innerData = try? PropertyListSerialization.data(fromPropertyList: trackedApplications,
+                                                            format: .binary, options: 0)
+        let outerData = innerData.flatMap {
+            try? PropertyListSerialization.data(fromPropertyList: ["trackedApplications": $0,
+                                                                   "showSpotlight": false],
+                                                format: .binary, options: 0)
+        }
+        suite.expect(outerData.map {
+                MenuBarAllowanceSupport.allowance(forBundleID: "com.vorssaint.utils", groupContainerPlist: $0)
+            } == .disallowed,
+               "the nested Control Center store decodes down to the per-app verdict")
+        suite.expect(MenuBarAllowanceSupport.allowance(forBundleID: "com.vorssaint.utils",
+                                                       groupContainerPlist: Data([0x00, 0x01])) == .unknown,
+               "an unreadable store is unknown")
+        let verifyIconCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "private func verifyIconReappeared(").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(verifyIconCode.contains("MenuBarAllowanceSupport.currentAllowance(")
+                    && verifyIconCode.contains("menuBarIconDisallowedBody"),
+               "recovery names the Allow in the Menu Bar setting instead of blaming a full bar")
+        let allowanceCheck = verifyIconCode.range(of: "MenuBarAllowanceSupport.currentAllowance(")
+        let identityReset = verifyIconCode.range(of: "resetStatusItemPlacementIdentity()")
+        suite.expect(allowanceCheck != nil && identityReset != nil
+                    && allowanceCheck!.lowerBound < identityReset!.lowerBound,
+               "the setting is checked before the identity reset burns the arranged spot")
+        suite.expect(!Strings.enUS.menuBarIconDisallowedBody.isEmpty
+                    && !Strings.ptBR.menuBarIconDisallowedBody.isEmpty
+                    && Strings.enUS.menuBarIconDisallowedBody.contains("Allow in the Menu Bar"),
+               "the hint names the System Settings switch by its own label")
         suite.expect(registeredDefaults[DefaultsKey.panelControlAutoQuit] as? Bool == true,
                "panel auto quit control is visible by default")
         suite.expect(registeredDefaults[DefaultsKey.panelControlShelf] as? Bool == true,
@@ -2417,7 +2680,7 @@ enum SwitcherModelFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.menuBarFanSpeed] as? Bool == false,
                "menu bar fan speed is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricOrder] as? String
-               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTime,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,power,fanSpeed",
+               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTime,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,connectedDevices,power,fanSpeed",
                "menu bar metric order keeps temperature sensors next to their components and disk near live I/O")
         suite.expect(registeredDefaults[DefaultsKey.menuBarCombineTemperatures] as? Bool == true,
                "menu bar combines usage and temperature by default")
@@ -2447,6 +2710,16 @@ enum SwitcherModelFeatureTests {
                "window gestures start with the deliberate control-command chord")
         suite.expect(registeredDefaults[DefaultsKey.windowGestureRaiseWindow] as? Bool == false,
                "window gestures do not change app focus unless requested")
+        suite.expect(registeredDefaults[DefaultsKey.windowLayoutIgnoredApps] as? [String] == [],
+               "window layout ignores no apps by default")
+        suite.expect(WindowLayoutIgnoredApps.contains("com.example.game", in: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.contains("com.example.editor", in: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.contains(nil, in: ["com.example.game"]),
+               "window layout only pauses for the focused app on its list")
+        suite.expect(WindowLayoutIgnoredApps.matches(bundleID: nil,
+                                               executablePath: "/Applications/Game",
+                                               apps: ["/Applications/Game"]),
+               "window layout pauses for a focused executable without a bundle identifier")
         let assignedLayoutShortcutKeys = [
             DefaultsKey.windowLayoutShortcutLeft,
             DefaultsKey.windowLayoutShortcutRight,
@@ -2868,7 +3141,9 @@ enum SwitcherModelFeatureTests {
                                                    movingDown: false) == 1,
                "App Switcher up navigation keeps its existing column behavior")
         let previousPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
+        let previousSwitcherPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.switcherPreviewSize)
         UserDefaults.standard.set("small", forKey: DefaultsKey.previewSize)
+        UserDefaults.standard.set("small", forKey: DefaultsKey.switcherPreviewSize)
         suite.expectClose(Double(PreviewSizing.scale), 0.75,
                     "Preview sizing accepts the Small option")
         suite.expectClose(Double(SwitcherIconRowLayout.scale), 0.75,
@@ -2890,14 +3165,16 @@ enum SwitcherModelFeatureTests {
         // The grid card's chrome is two lines of text that do not change with
         // the preview size. The card does, so the thumbnail has to take every
         // point the chrome leaves, at whichever size is stored.
-        let smallGridScale = PreviewSizing.scale
+        let smallGridScale = PreviewSizing.switcherScale
         let smallGridCardHeight = SwitcherGridCard.height
         let smallGridCardChrome = smallGridCardHeight - SwitcherGridCard.thumbnailHeight
         suite.expect(SwitcherGridCard.fallbackIconSize < SwitcherGridCard.thumbnailHeight,
                "App Switcher Small keeps the stand-in app icon inside its grid card thumbnail")
-        UserDefaults.standard.set("xlarge", forKey: DefaultsKey.previewSize)
+        UserDefaults.standard.set("xlarge", forKey: DefaultsKey.switcherPreviewSize)
+        suite.expect(SwitcherIconRowLayout.scale > 1 && DockPreviewSupport.cardSpacing == 6,
+               "the switcher and Dock Preview each follow their own preview size")
         suite.expectClose(Double(SwitcherGridCard.height / smallGridCardHeight),
-                    Double(PreviewSizing.scale / smallGridScale),
+                    Double(PreviewSizing.switcherScale / smallGridScale),
                     "an App Switcher grid card's height follows the preview size")
         suite.expectClose(Double(SwitcherGridCard.height - SwitcherGridCard.thumbnailHeight),
                     Double(smallGridCardChrome),
@@ -2935,6 +3212,30 @@ enum SwitcherModelFeatureTests {
             UserDefaults.standard.set(previousPreviewSize, forKey: DefaultsKey.previewSize)
         } else {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize)
+        }
+        if let previousSwitcherPreviewSize {
+            UserDefaults.standard.set(previousSwitcherPreviewSize, forKey: DefaultsKey.switcherPreviewSize)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherPreviewSize)
+        }
+        let previewSizeSuite = "com.vorssaint.tests.switcher-preview-size.\(UUID().uuidString)"
+        if let previewSizeDefaults = UserDefaults(suiteName: previewSizeSuite) {
+            previewSizeDefaults.set("large", forKey: DefaultsKey.previewSize)
+            Defaults.migrateSwitcherPreviewSize(in: previewSizeDefaults)
+            let upgradedSwitcherSize = previewSizeDefaults.string(forKey: DefaultsKey.switcherPreviewSize)
+            previewSizeDefaults.set("small", forKey: DefaultsKey.switcherPreviewSize)
+            Defaults.migrateSwitcherPreviewSize(in: previewSizeDefaults)
+            suite.expect(upgradedSwitcherSize == "large"
+                    && previewSizeDefaults.string(forKey: DefaultsKey.switcherPreviewSize) == "small",
+                   "an upgrade keeps the switcher at the preview size it shared with Dock Preview, once")
+            previewSizeDefaults.removePersistentDomain(forName: previewSizeSuite)
+            Defaults.migrateSwitcherPreviewSize(in: previewSizeDefaults)
+            previewSizeDefaults.set("large", forKey: DefaultsKey.previewSize)
+            Defaults.migrateSwitcherPreviewSize(in: previewSizeDefaults)
+            let switcherSize = previewSizeDefaults.string(forKey: DefaultsKey.switcherPreviewSize) ?? "normal"
+            suite.expect(switcherSize == "normal",
+                   "a Dock Preview size chosen after the first launch leaves the switcher at its default size")
+            previewSizeDefaults.removePersistentDomain(forName: previewSizeSuite)
         }
         let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
                                                                  windowShortcut: .switcherWindowDefault)
@@ -3937,6 +4238,40 @@ enum SwitcherModelFeatureTests {
                && appGroups[0].windowCount == 2
                && appGroups[1].representativeIndex == 2,
                "App Switcher icon-row mode keeps one row entry per app")
+        let windowlessApps = [SwitcherItem.appOnly(appName: "Gamma", pid: 303),
+                              SwitcherItem.appOnly(appName: "Delta", pid: 404)]
+        let dividerViewSource = switcherCardSource
+            .replacingOccurrences(of: #"(?s)/\*.*?\*/|//[^\n]*"#, with: "", options: .regularExpression)
+            .filter { !$0.isWhitespace }
+        suite.expect(dividerViewSource.contains("SwitcherSupport.windowlessAppDividerPIDs("),
+               "the switcher view uses the windowless-app boundary decision")
+        let dividerPresentation = sourceBody(of: dividerViewSource, from: ".separatorColor", to: ".onHover")
+        suite.expect(dividerPresentation.contains(".allowsHitTesting(false)")
+               && dividerPresentation.contains(".accessibilityHidden(true)"),
+               "the switcher renders a system-colored windowless-app divider without pointer or accessibility targets")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: []) == [],
+               "an empty app row has no windowless divider")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: groupedSwitcherItems) == []
+               && SwitcherSupport.windowlessAppDividerPIDs(items: windowlessApps) == [],
+               "a row with only one kind of app has no divider")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: groupedSwitcherItems + windowlessApps) == [303],
+               "windowless apps are separated once after all windows of the preceding apps")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [groupedSwitcherItems[0],
+                                                               windowlessApps[0],
+                                                               groupedSwitcherItems[2],
+                                                               windowlessApps[1]]) == [303, 202, 404],
+               "dividers follow each windowless boundary without changing recent-use order")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [windowlessApps[0],
+                                                               groupedSwitcherItems[0]]) == [101],
+               "a leading windowless group has a divider after it, never before the first icon")
+        let dividerHiddenWindow = SwitcherItem.window(id: 4, title: "Hidden", appName: "Hidden", pid: 505,
+                                                      isOnScreen: false, isAppHidden: true, frame: .zero)
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [groupedSwitcherItems[0].withMinimized(true),
+                                                               dividerHiddenWindow] + windowlessApps) == [303],
+               "minimized and hidden windows still belong to apps with windows")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [SwitcherItem.appOnly(appName: "Alpha", pid: 101)]
+                                                        + groupedSwitcherItems + windowlessApps) == [303],
+               "an app with any real window is never marked windowless by an app-only entry")
         var cappedAppWindows: [SwitcherItem] = []
         var cappedAppRepresentatives: [SwitcherItem] = []
         for appIndex in 1...25 {
@@ -4096,6 +4431,8 @@ enum SwitcherModelFeatureTests {
         suite.expect(afterSecondSwitch == [1, 2],
                "App Switcher use history toggles back after two consecutive switcher uses")
 
+        WindowFocusHistoryTests.run { suite.expect($0, $1) }
+
         // Issue #388: the switcher put the app the user had just used far down
         // the list. The order used to come from a history that only the
         // switcher's own commits ever wrote to, so windows picked with the
@@ -4179,16 +4516,16 @@ enum SwitcherModelFeatureTests {
         suite.expect(groupedIconLayout.previewFitsWithoutScrolling(cardCount: 2),
                "App Switcher shows a pair of windows even with a short icon row")
         do {
-            let savedPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
+            let savedPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.switcherPreviewSize)
             defer {
                 if let savedPreviewSize {
-                    UserDefaults.standard.set(savedPreviewSize, forKey: DefaultsKey.previewSize)
+                    UserDefaults.standard.set(savedPreviewSize, forKey: DefaultsKey.switcherPreviewSize)
                 } else {
-                    UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize)
+                    UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherPreviewSize)
                 }
             }
             for size in Defaults.allowedPreviewSizes {
-                UserDefaults.standard.set(size, forKey: DefaultsKey.previewSize)
+                UserDefaults.standard.set(size, forKey: DefaultsKey.switcherPreviewSize)
                 for width in [640.0, 800.0, 1440.0] {
                     for hints in [false, true] {
                         let frame = CGRect(x: 0, y: 0, width: width, height: 900)
@@ -4623,7 +4960,53 @@ enum SwitcherModelFeatureTests {
                                                         targetIsMinimized: false,
                                                         targetStartedMinimized: false,
                                                         ownPID: 99),
-               "App Switcher focus retries can continue during the source-target handoff")
+               "App Switcher focus retries preserve the source handoff while it settles")
+        suite.expect(SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                   handoffSourcePID: 20,
+                                                   targetPID: 10,
+                                                   ownPID: 99) == 20,
+               "a caller's handoff app becomes the focus retry source without a session source")
+        suite.expect(SwitcherSupport.focusRetrySourcePID(sessionSourcePID: 20,
+                                                   handoffSourcePID: 30,
+                                                   targetPID: 10,
+                                                   ownPID: 99) == 20,
+               "a session source outranks a caller's handoff app")
+        suite.expect(SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                   handoffSourcePID: nil,
+                                                   targetPID: 10,
+                                                   ownPID: 99) == nil,
+               "activation without any source never adopts the frontmost app on its own")
+        suite.expect(SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                   handoffSourcePID: 10,
+                                                   targetPID: 10,
+                                                   ownPID: 99) == nil
+               && SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                handoffSourcePID: 99,
+                                                targetPID: 10,
+                                                ownPID: 99) == nil,
+               "the target and this process are never kept as a handoff source")
+        suite.expect(SwitcherSupport.shouldContinueFocusRetry(
+                        targetPID: 10,
+                        sourcePID: SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                                 handoffSourcePID: 20,
+                                                                 targetPID: 10,
+                                                                 ownPID: 99),
+                        frontmostPID: 20,
+                        targetIsMinimized: false,
+                        targetStartedMinimized: false,
+                        ownPID: 99),
+               "Dock Preview and Command Bar ordinary windows keep their settling retry while the retained source is frontmost")
+        suite.expect(!SwitcherSupport.shouldContinueFocusRetry(
+                         targetPID: 10,
+                         sourcePID: SwitcherSupport.focusRetrySourcePID(sessionSourcePID: nil,
+                                                                  handoffSourcePID: 20,
+                                                                  targetPID: 10,
+                                                                  ownPID: 99),
+                         frontmostPID: 30,
+                         targetIsMinimized: false,
+                         targetStartedMinimized: false,
+                         ownPID: 99),
+               "a handoff source still stands down after an unrelated app becomes frontmost")
         suite.expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                          sourcePID: 20,
                                                          frontmostPID: 20,
@@ -4638,6 +5021,13 @@ enum SwitcherModelFeatureTests {
                                                         targetStartedMinimized: true,
                                                         ownPID: 99),
                "App Switcher retries restoration when the selected target started minimized")
+        suite.expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: nil,
+                                                        frontmostPID: 30,
+                                                        targetIsMinimized: true,
+                                                        targetStartedMinimized: true,
+                                                        ownPID: 99),
+               "App Switcher keeps an initial minimized restoration alive without a source app")
         suite.expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                           sourcePID: 20,
                                                           frontmostPID: 10,
@@ -4680,6 +5070,85 @@ enum SwitcherModelFeatureTests {
             .components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
+        let activateBody: String = {
+            guard let start = activatorCode.range(of: "static func activate(_ item: SwitcherItem,"),
+                  let end = activatorCode.range(of: "static func activate(pid: pid_t,",
+                                                range: start.upperBound..<activatorCode.endIndex)
+            else { return "" }
+            return activatorCode[start.lowerBound..<end.lowerBound]
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        }()
+        suite.expect(activateBody.contains("focusRetrySourcePID(")
+               && !activateBody.contains("frontmostApplication"),
+               "activation never adopts the frontmost app as a source on its own")
+        suite.expect(activateBody.contains(
+                "watchTargetMinimizeIfNeeded(windowID: windowID, targetPID: item.pid, "
+                + "targetWindowOwnerPID: windowOwnerPID, sourcePID: sourcePID,")
+               && activateBody.contains("sourcePID: sourcePID, app: app)"),
+               "only the session source arms the minimize restore and Space hops")
+        suite.expect(activateBody.contains("sourcePID: sourcePID, retrySourcePID: retrySourcePID,")
+               && activateBody.contains("sourcePID: retrySourcePID, state: retryState,"),
+               "focus retry guards use the handoff source while staging keeps the session source")
+        suite.expect(activatorCode.contains("activate(item, retry: retry, handoffSourcePID: handoffSourcePID)"),
+               "activation by pid forwards its source only as a handoff")
+        let dockPreviewActivationCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let dockActivateCalls = dockPreviewActivationCode
+            .components(separatedBy: "WindowActivator.activate(")
+            .dropFirst()
+        suite.expect(dockActivateCalls.count >= 3
+               && dockActivateCalls.allSatisfy {
+                   $0.prefix(200).contains("handoffSourcePID: NSWorkspace.shared.frontmostApplication")
+                       && !$0.prefix(200).contains(" sourcePID:")
+               },
+               "Dock Preview passes the frontmost app only as a focus handoff source")
+        let commandBarWindowActivate: String = {
+            let source = ((try? String(
+                contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            guard let start = source.range(of: "WindowActivator.activate(pid:") else { return "" }
+            let before = source[..<start.lowerBound]
+            let sourceCapture = before.range(of: "let handoffSourcePID = NSWorkspace.shared.frontmostApplication",
+                                             options: .backwards)
+            let afterBeat = before.range(of: "afterBeat(", options: .backwards)
+            let call = String(source[start.lowerBound...].prefix(320))
+            guard let sourceCapture, let afterBeat,
+                  sourceCapture.lowerBound < afterBeat.lowerBound,
+                  call.contains("handoffSourcePID: handoffSourcePID") else { return "" }
+            return call
+        }()
+        suite.expect(!commandBarWindowActivate.isEmpty,
+               "Command Bar captures its handoff source before the activation beat")
+        let commitSessionCode: String = {
+            let source = ((try? String(
+                contentsOfFile: "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift",
+                encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            guard let start = source.range(of: "func commitSession()"),
+                  let end = source.range(of: "private func resumePendingCommitAfterClose()",
+                                         range: start.upperBound..<source.endIndex)
+            else { return "" }
+            return String(source[start.lowerBound..<end.lowerBound])
+        }()
+        let handoffCapture = commitSessionCode.range(
+            of: "let handoffSourcePID = NSWorkspace.shared.frontmostApplication")
+        let sessionEnd = commitSessionCode.range(of: "endSession()")
+        suite.expect(handoffCapture != nil && sessionEnd != nil
+               && handoffCapture!.lowerBound < sessionEnd!.lowerBound
+               && commitSessionCode.contains("sourcePID: source?.pid,")
+               && commitSessionCode.contains("handoffSourcePID: handoffSourcePID,"),
+               "App Switcher sessions without a source item keep the app in front as the handoff source")
         let windowScopes = activatorCode
             .components(separatedBy: "windowIDs(ownerPID:")
             .dropFirst()
@@ -5396,20 +5865,30 @@ enum SwitcherModelFeatureTests {
         let state = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                   targetStartedMinimized: false,
                                                   knownWindowIDs: snapshot)
-        suite.expect(state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
-                                    targetMinimizedState: false, targetAppWindowIDs: withHelper,
-                                    targetAppFocusedWindowID: 101, ownPID: 99),
-               "a transparent helper does not cancel the fullscreen focus chain")
         suite.expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
-                                     targetMinimizedState: false, targetAppWindowIDs: [500],
-                                     targetAppFocusedWindowID: 500, ownPID: 99),
+                                    targetMinimizedState: false, targetAppWindowIDs: withHelper,
+                                    targetAppFocusedWindowID: 101,
+                                    targetWindowIsFocused: true,
+                                    stopsWhenTargetFocused: true, ownPID: 99),
+               "a transparent helper does not justify re-raising an already focused target")
+        let fullscreenState = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                            targetStartedMinimized: false,
+                                                            knownWindowIDs: snapshot)
+        suite.expect(fullscreenState.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                             targetMinimizedState: false, targetAppWindowIDs: withHelper,
+                                             targetAppFocusedWindowID: 101,
+                                             targetWindowIsFocused: true, ownPID: 99),
+               "fullscreen retries keep later passes available for an already focused target")
+        suite.expect(!fullscreenState.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                               targetMinimizedState: false, targetAppWindowIDs: [500],
+                                               targetAppFocusedWindowID: 500, ownPID: 99),
                "a new focused window cancels the remaining fullscreen passes")
         var lateReads = 0
         func lateWindows() -> Set<CGWindowID> { lateReads += 1; return [102] }
         func lateFocus() -> CGWindowID? { lateReads += 1; return 102 }
-        suite.expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
-                                     targetMinimizedState: false, targetAppWindowIDs: lateWindows(),
-                                     targetAppFocusedWindowID: lateFocus(), ownPID: 99),
+        suite.expect(!fullscreenState.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                               targetMinimizedState: false, targetAppWindowIDs: lateWindows(),
+                                               targetAppFocusedWindowID: lateFocus(), ownPID: 99),
                "a later pass cannot reclaim focus after the new window closes")
         suite.expect(lateReads == 0, "a cancelled focus chain performs no later window queries")
 
@@ -5426,7 +5905,7 @@ enum SwitcherModelFeatureTests {
                 suite.expect(!pending.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: foreground,
                                                 targetMinimizedState: false, targetAppWindowIDs: [500],
                                                 targetAppFocusedWindowID: focusAfterSwitchingAway(), ownPID: 99),
-                       "a slow focus query cannot reclaim the app after the user leaves it")
+                       "a slow focus query cannot reclaim the app after the user leaves it (destination \(String(describing: destination)), focus \(String(describing: focusResult)))")
             }
         }
 
@@ -5437,6 +5916,23 @@ enum SwitcherModelFeatureTests {
                                       targetMinimizedState: false, targetAppWindowIDs: [101],
                                       targetAppFocusedWindowID: 101, ownPID: 99),
                "the selected target is not new when a partial snapshot missed it")
+        let focused = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                    targetStartedMinimized: false,
+                                                    knownWindowIDs: [102])
+        suite.expect(!focused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                       targetMinimizedState: false, targetAppWindowIDs: [101],
+                                       targetAppFocusedWindowID: 101,
+                                       targetWindowIsFocused: true,
+                                       stopsWhenTargetFocused: true, ownPID: 99),
+               "a focused selected target does not receive a redundant retry")
+        let unfocused = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                       targetStartedMinimized: false,
+                                                       knownWindowIDs: [101, 102])
+        suite.expect(unfocused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                        targetMinimizedState: false, targetAppWindowIDs: [102],
+                                        targetAppFocusedWindowID: 102,
+                                        stopsWhenTargetFocused: true, ownPID: 99),
+               "an unfocused selected target still gets its settling retry")
         let minimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                       targetStartedMinimized: true,
                                                       knownWindowIDs: snapshot)

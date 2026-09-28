@@ -14,15 +14,42 @@ extension NotchNotificationReaderCore where Access == NotchNativeNotificationAcc
                   allowed: { !cancellation.isCancelled && NotchNotificationSupport.isEnabled() && AXIsProcessTrusted() },
                   sourceApplicationName: { labels in
                       guard !labels.isEmpty else { return nil }
-                      let applications = NSWorkspace.shared.runningApplications
-                      let identities = applications.compactMap { app -> (name: String, bundleIdentifier: String)? in
-                          guard let name = app.localizedName, let identifier = app.bundleIdentifier else { return nil }
-                          return (name, identifier)
-                      }
-                      guard let identifier = NotchNotificationSupport.sourceBundleIdentifier(for: labels, applications: identities)
-                      else { return nil }
-                      return applications.first(where: { $0.bundleIdentifier == identifier })?.localizedName
+                      return NotchNotificationSources.source(for: labels)?.name
                   }, allowsNativeClose: { NotchNotificationSupport.dismissesNative() }, nativeCloseTitle: closeTitle)
+    }
+}
+
+/// Resolves a notification's source among running and installed apps, so a
+/// message from a closed app keeps its icon and can still open the app after
+/// its native banner is gone (issue #2027). The installed list is walked on
+/// the notification queue at most every few minutes; the main thread only
+/// reads the last walk.
+enum NotchNotificationSources {
+    typealias Identity = (name: String, bundleIdentifier: String)
+    private static let lock = NSLock()
+    private static var installed: [Identity] = []
+    private static var walkedAt: TimeInterval?
+    private static let maximumAge: TimeInterval = 10 * 60
+
+    static func refreshIfStale() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard lock.withLock({ walkedAt.map { now - $0 >= maximumAge } ?? true }) else { return }
+        let apps = InstalledApps.installedApplications(includeSystemApplications: true)
+            .compactMap { app -> Identity? in app.bundleID.map { (app.name, $0) } }
+        lock.withLock { installed = apps; walkedAt = now }
+    }
+
+    static func source(for labels: [String]) -> (name: String, bundleIdentifier: String)? {
+        let running = NSWorkspace.shared.runningApplications.compactMap { app -> Identity? in
+            guard let name = app.localizedName, let identifier = app.bundleIdentifier else { return nil }
+            return (name, identifier)
+        }
+        let installed = lock.withLock { self.installed }
+        guard let identifier = NotchNotificationSupport.sourceBundleIdentifier(
+            for: labels, running: running, installed: installed) else { return nil }
+        guard let name = (running.first { $0.bundleIdentifier == identifier }
+                          ?? installed.first { $0.bundleIdentifier == identifier })?.name else { return nil }
+        return (name, identifier)
     }
 }
 

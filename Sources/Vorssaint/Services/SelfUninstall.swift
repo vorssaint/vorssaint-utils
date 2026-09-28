@@ -17,25 +17,48 @@ enum SelfUninstall {
 
     /// Resets every TCC permission the app holds, drops the login item and the
     /// optional closed-lid sudoers rule, and leaves the app in place. Calls back
-    /// on the main queue. Used by "Clear all permissions".
-    static func clearPermissions(completion: @escaping () -> Void) {
+    /// on the main queue with whether the rule and permissions were removed.
+    /// Used by "Clear all permissions".
+    static func clearPermissions(completion: @escaping (Bool) -> Void) {
+        func stop(sleepRestored: Bool = false) {
+            DispatchQueue.main.async {
+                if sleepRestored { KeepAwakeManager.shared.resumeAfterSystemTeardown() }
+                Permissions.shared.refresh()
+                FeatureRuntime.shared.sync(AppFeature.allCases)
+                BrightnessService.shared.resumeInputTaps()
+                completion(false)
+            }
+        }
         // Stop every input interceptor FIRST (on the main thread), then revoke.
         // Revoking Accessibility while a tap is live makes the tap callback hang
         // on an AX call and freezes the whole machine's input — see the note on
         // `suspendInputInterceptors`.
         DispatchQueue.main.async {
+            // Mouse acceleration keeps its recovery journal and guard here.
+            // Only a full uninstall deletes that journal, so only it must wait
+            // for a disconnected device to be restored.
             _ = suspendInputInterceptors()
             DispatchQueue.global(qos: .userInitiated).async {
-                detachFromSystem()
-                removeSudoersRuleIfPresent {           // may show one admin prompt
-                    resetTCC()
+                guard restoreSleepBeforeRemoval() else { stop(); return }
+                guard detachFromSystem() else {
+                    stop(sleepRestored: true)
+                    return
+                }
+                removeSudoersRuleIfPresent { ruleRemoved in    // may show one admin prompt
+                    let reset = resetTCC()
                     DispatchQueue.main.async {
                         // The published permissions still say granted. Read the
                         // reset state now, or a grant made before the next poll
                         // looks unchanged and the suspended taps never resume.
                         Permissions.shared.refresh()
+                        // Sleep was restored directly, so the closed-lid session
+                        // state is stale whether or not the reset finished.
+                        KeepAwakeManager.shared.resumeAfterSystemTeardown()
+                        if !ruleRemoved || !reset {
+                            FeatureRuntime.shared.sync(AppFeature.allCases)
+                        }
                         BrightnessService.shared.resumeInputTaps()
-                        completion()
+                        completion(ruleRemoved && reset)
                     }
                 }
             }
@@ -44,23 +67,59 @@ enum SelfUninstall {
 
     /// Clears permissions, removes preferences and saved state, sends the app
     /// bundle to the Trash and quits. Used by "Uninstall Vorssaint completely".
-    static func uninstallCompletely(onFailure: @escaping () -> Void) {
+    /// A failure passes the message explaining what stopped it.
+    static func uninstallCompletely(onFailure: @escaping (String) -> Void) {
+        // A failed reset may have changed some grants. Recheck them before
+        // rearming services in the app that remains installed.
+        func stop(_ body: String, sleepRestored: Bool = false) {
+            DispatchQueue.main.async {
+                if sleepRestored { KeepAwakeManager.shared.resumeAfterSystemTeardown() }
+                Permissions.shared.refresh()
+                FeatureRuntime.shared.sync(AppFeature.allCases)
+                BrightnessService.shared.resumeInputTaps()
+                onFailure(body)
+            }
+        }
         DispatchQueue.main.async {
             guard suspendInputInterceptors() else {
-                BrightnessService.shared.resumeInputTaps()
-                onFailure()
+                stop(L10n.shared.s.advancedUninstallFailedBody)
                 return
             }
             DispatchQueue.global(qos: .userInitiated).async {
-                guard detachFromSystem() else {
-                    DispatchQueue.main.async {
-                        BrightnessService.shared.resumeInputTaps()
-                        onFailure()
-                    }
+                // Sleep may still be restored through the rule, and a refused
+                // rule removal must stop before anything else is removed.
+                guard restoreSleepBeforeRemoval() else {
+                    stop(L10n.shared.s.advancedUninstallFailedBody)
                     return
                 }
-                removeSudoersRuleIfPresent {
-                    resetTCC()
+                removeSudoersRuleIfPresent { ruleRemoved in
+                    guard ruleRemoved else {
+                        stop(L10n.shared.s.advancedClearFailed, sleepRestored: true)
+                        return
+                    }
+                    // The helper must be safely removed before permissions go;
+                    // a failure here keeps the app's existing grants intact.
+                    let fanHelperWasRegistered = FanControlService.hasRegisteredHelperForRemoval
+                    guard detachFanControl() else {
+                        stop(L10n.shared.s.advancedUninstallFailedBody, sleepRestored: true)
+                        return
+                    }
+                    guard resetTCC() else {
+                        // The app stays installed, so restore a helper that was
+                        // registered before the attempted uninstall.
+                        let fanReady = !fanHelperWasRegistered
+                            || FanControlService.restoreRegistrationAfterFailedRemoval()
+                        if fanReady {
+                            stop(L10n.shared.s.advancedClearFailed, sleepRestored: true)
+                        } else {
+                            let warning = FeatureStrings.fanControl(L10n.shared.language).helperUnavailable
+                            stop("\(L10n.shared.s.advancedClearFailed)\n\(warning)", sleepRestored: true)
+                        }
+                        return
+                    }
+                    // Do not clear the launch choice while a failed reset
+                    // could still leave this app installed.
+                    detachLoginItem()
                     removePreferences()
                     DispatchQueue.main.async { trashOwnBundleAndQuit() }
                 }
@@ -81,7 +140,7 @@ enum SelfUninstall {
         // Deactivating Cleaning Mode re-syncs the services it paused back to
         // their preferences, so it has to happen before the suspends below,
         // or it would re-arm the very taps this teardown just stopped.
-        CleaningModeManager.shared.deactivate()
+        CleaningModeManager.shared.deactivateForSystemTeardown()
         ScrollInverter.shared.suspend()
         FocusFollowsMouseService.shared.stop()
         SmoothScrollService.shared.suspend()
@@ -92,6 +151,7 @@ enum SelfUninstall {
         MouseButtonShortcutService.shared.suspend()
         WindowMaximizer.shared.stop()
         WindowLayoutService.shared.suspend()
+        PointerDisplayService.shared.suspend()
         AppSwitcher.shared.suspend()
         DockPreviewService.shared.stop()
         BrightnessService.shared.suspendInputTaps()
@@ -127,17 +187,21 @@ enum SelfUninstall {
 
     @discardableResult
     private static func detachFromSystem() -> Bool {
-        if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag),
-           !restoreSleepBeforeRemoval() {
-            return false
-        }
-        guard FanControlService.restoreAndUnregisterForRemoval() else { return false }
+        guard detachFanControl() else { return false }
+        detachLoginItem()
+        return true
+    }
+
+    private static func detachFanControl() -> Bool {
+        FanControlService.restoreAndUnregisterForRemoval()
+    }
+
+    private static func detachLoginItem() {
         // Unregister the login item (scoped to our bundle id). The stored
         // intent goes with it, or the startup repair would quietly register
         // the item again after the user asked for a clean detach.
         UserDefaults.standard.set(false, forKey: DefaultsKey.launchAtLoginWanted)
         try? SMAppService.mainApp.unregister()
-        return true
     }
 
     /// Puts normal sleep back before the app goes.
@@ -151,6 +215,7 @@ enum SelfUninstall {
     /// anything has, which is why it may ask for the password the launch-time
     /// recovery would have asked for.
     private static func restoreSleepBeforeRemoval() -> Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) else { return true }
         // The flag can outlive the setting, so a stale one must not put a
         // password dialog in front of someone uninstalling. Only a reading that
         // answered, and answered "off", is allowed to skip the rest: a probe
@@ -169,20 +234,20 @@ enum SelfUninstall {
             && !SudoersSupport.sleepDisabled(inPmsetOutput: verification.output)
     }
 
-    private static func removeSudoersRuleIfPresent(then: @escaping () -> Void) {
-        guard Sudoers.ruleFilesPresent || Sudoers.isConfigured() else { then(); return }
-        Sudoers.remove { _ in then() }            // shows the admin password prompt
+    private static func removeSudoersRuleIfPresent(then: @escaping (Bool) -> Void) {
+        guard Sudoers.ruleFilesPresent || Sudoers.isConfigured() else { then(true); return }
+        Sudoers.remove(completion: then)            // shows the admin password prompt
     }
 
     /// `tccutil reset All <bundle id>` clears Accessibility, Screen Recording,
     /// Full Disk Access, Automation and the rest, for this app only. The bundle
     /// id is a constant, so there is nothing to inject.
-    private static func resetTCC() {
-        _ = Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID])
+    @discardableResult
+    private static func resetTCC() -> Bool {
+        Shell.run("/usr/bin/tccutil", ["reset", "All", bundleID]).status == 0
     }
 
     private static func removePreferences() {
-        CommandBarQueryHabits.removeInstallationKey()
         let id = bundleID
         UserDefaults.standard.removePersistentDomain(forName: id)
         let home = NSHomeDirectory()

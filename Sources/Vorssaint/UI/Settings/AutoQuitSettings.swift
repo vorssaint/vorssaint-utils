@@ -33,6 +33,10 @@ struct AutoQuitSettings: View {
                 Text(l10n.s.autoQuitPredictableNote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Label(l10n.s.autoQuitOngoingWorkNote, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // The exception list has one reader, the window check, and that only

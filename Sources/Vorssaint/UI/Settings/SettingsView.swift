@@ -4,9 +4,51 @@
 import AppKit
 import SwiftUI
 
-/// System-Settings-style window: a sidebar of pages on the left, the selected
-/// page on the right. Scales cleanly as features are added, and gives each
-/// feature a page of its own with room for examples and advanced options.
+/// Directory construction is much more expensive than selecting an existing
+/// row. Rebuild only when its language, icon source or availability changes.
+private final class SettingsDirectoryCache {
+    private struct Key: Equatable {
+        let language: AppLanguage
+        let superKeySource: SuperKeySource
+        let featureRevision: Int
+    }
+
+    private var navigationKey: Key?
+    private(set) var sections: [SettingsSidebarSection] = []
+    private(set) var items: [SettingsSidebarItem] = []
+    private var searchKey: Key?
+    private var searchItems: [SettingsSearchItem] = []
+
+    func navigation(strings: Strings, language: AppLanguage,
+                    superKeySource: SuperKeySource, featureRevision: Int,
+                    isAvailable: (AppFeature) -> Bool) -> [SettingsSidebarSection] {
+        let key = Key(language: language, superKeySource: superKeySource,
+                      featureRevision: featureRevision)
+        if navigationKey != key {
+            sections = SettingsDirectory.sidebarSections(
+                strings, language: language, superKeySource: superKeySource,
+                isAvailable: isAvailable)
+            items = sections.flatMap(\.items)
+            navigationKey = key
+        }
+        return sections
+    }
+
+    func search(strings: Strings, language: AppLanguage,
+                superKeySource: SuperKeySource, featureRevision: Int) -> [SettingsSearchItem] {
+        let key = Key(language: language, superKeySource: superKeySource,
+                      featureRevision: featureRevision)
+        if searchKey != key {
+            searchItems = SettingsDirectory.searchItems(
+                strings, language: language, superKeySource: superKeySource)
+            searchKey = key
+        }
+        return searchItems
+    }
+}
+
+/// Settings window with named tools in the sidebar. The detail keeps each
+/// tool's existing settings and section anchor.
 struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
@@ -15,6 +57,9 @@ struct SettingsView: View {
         SuperKeySource.capsLock.rawValue
     @State private var searchQuery = ""
     @State private var activeSearchIndex: Int?
+    @State private var directoryCache = SettingsDirectoryCache()
+    @State private var collapsedSectionIDs: Set<Int> = []
+    @State private var navigationFromSidebar = false
     @FocusState private var sidebarSearchFocused: Bool
 
     private struct SearchResultsSnapshot: Equatable {
@@ -38,23 +83,53 @@ struct SettingsView: View {
         }
     }
 
-    /// The one map of pages, shared with the command bar (SettingsDirectory).
-    private var sidebarSections: [(title: String, items: [SettingsDirectoryItem])] {
-        SettingsDirectory.sections(
-            l10n.s,
-            language: l10n.language,
-            superKeySource: SuperKeySource.sanitized(superKeySourceRaw)
+    private var sidebarSections: [SettingsSidebarSection] {
+        directoryCache.navigation(
+            strings: l10n.s, language: l10n.language,
+            superKeySource: SuperKeySource.sanitized(superKeySourceRaw),
+            featureRevision: features.revision,
+            isAvailable: { features.isAvailable($0) })
+    }
+
+    private var sidebarItems: [SettingsSidebarItem] {
+        _ = sidebarSections
+        return directoryCache.items
+    }
+
+    private var sidebarSelection: Binding<SettingsSidebarItem.ID?> {
+        Binding(
+            get: {
+                SettingsSidebarSupport.selection(for: router.destination, in: sidebarItems,
+                                                 preferredID: router.sidebarFeature.map { .feature($0) })
+            },
+            set: { selectedID in
+                guard let selectedID,
+                      let item = sidebarItems.first(where: { $0.id == selectedID }) else { return }
+                let feature: AppFeature?
+                if case .feature(let selectedFeature) = selectedID {
+                    feature = selectedFeature
+                } else {
+                    feature = nil
+                }
+                navigationFromSidebar = true
+                router.request(item.destination, sidebarFeature: feature)
+            }
         )
     }
 
     var body: some View {
-        let searchResults = SearchResultsSnapshot(
-            query: searchQuery,
-            groups: SettingsSearchSupport.groupedMatchingItems(
+        let searchResults: SearchResultsSnapshot = {
+            guard hasSearchQuery else { return SearchResultsSnapshot(query: searchQuery, groups: []) }
+            return SearchResultsSnapshot(
                 query: searchQuery,
-                items: SettingsDirectory.searchItems(l10n.s, language: l10n.language),
-                isAvailable: { features.isAvailable($0) })
-        )
+                groups: SettingsSearchSupport.groupedMatchingItems(
+                    query: searchQuery,
+                    items: directoryCache.search(
+                        strings: l10n.s, language: l10n.language,
+                        superKeySource: SuperKeySource.sanitized(superKeySourceRaw),
+                        featureRevision: features.revision),
+                    isAvailable: { features.isAvailable($0) }))
+        }()
 
         NavigationSplitView {
             sidebar(searchResults: searchResults)
@@ -76,8 +151,31 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                let strings = SettingsNavigationStrings.localized(l10n.language)
+                Button {
+                    router.goBack(isPageVisible: isPageVisible)
+                } label: {
+                    Label(strings.back, systemImage: "chevron.backward")
+                }
+                .disabled(!router.canGoBack(isPageVisible: isPageVisible))
+                .help(strings.back)
+
+                Button {
+                    router.goForward(isPageVisible: isPageVisible)
+                } label: {
+                    Label(strings.forward, systemImage: "chevron.forward")
+                }
+                .disabled(!router.canGoForward(isPageVisible: isPageVisible))
+                .help(strings.forward)
+            }
+        }
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
-        .onAppear { ensureVisiblePage() }
+        .onAppear {
+            ensureVisiblePage()
+            expandSelectedSection()
+        }
         .onChange(of: features.revision) { _, _ in ensureVisiblePage() }
         .onChange(of: searchResults, initial: true) { previous, current in
             updateSearchSelection(previous: previous, current: current)
@@ -130,51 +228,12 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func sidebarList(searchResults: SearchResultsSnapshot) -> some View {
-        if hasSearchQuery {
-            searchResultsList(searchResults)
-        } else {
-            normalSidebarList
-        }
-    }
-
-    private var normalSidebarList: some View {
-        List(selection: $router.page) {
-            ForEach(sidebarSections, id: \.title) { section in
-                let items = section.items.filter {
-                    FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable }
-                        && SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
-                                                         keywords: $0.keywords)
-                }
-                if !items.isEmpty {
-                    Section(section.title) {
-                        ForEach(items) { item in
-                            Label {
-                                Text(item.title)
-                            } icon: {
-                                Image(systemName: item.icon)
-                                    // The sidebar's automatic icon tint can briefly disappear
-                                    // while the window activates. Resolve it in the icon itself.
-                                    .foregroundStyle(router.page == item.page
-                                        ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
-                            }
-                            .tag(item.page)
-                        }
-                    }
-                }
-            }
-        }
-        .listStyle(.sidebar)
-    }
-
-    @ViewBuilder
-    private func searchResultsList(_ searchResults: SearchResultsSnapshot) -> some View {
         ScrollViewReader { proxy in
-            List {
-                ForEach(searchResults.groups) { group in
-                    searchPageRow(group, searchResults: searchResults)
-                    ForEach(group.suggestions) { suggestion in
-                        searchSuggestionRow(suggestion, searchResults: searchResults)
-                    }
+            List(selection: sidebarSelection) {
+                if hasSearchQuery {
+                    searchResultRows(searchResults)
+                } else {
+                    normalSidebarRows
                 }
             }
             .listStyle(.sidebar)
@@ -187,10 +246,101 @@ struct SettingsView: View {
                     withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(id) }
                 }
             }
+            .onChange(of: hasSearchQuery) { _, searching in
+                // The list stays in place across a search so the field keeps
+                // focus, which also keeps the results' scroll offset. Centering
+                // the chosen tool brings it back into view; near the top, the
+                // pages clamp to where a fresh list starts, and a top anchor
+                // would leave the list's inset hidden.
+                guard !searching else { return }
+                expandSelectedSection()
+                DispatchQueue.main.async { scrollSidebarToSelection(proxy) }
+            }
+            .onChange(of: router.requestID) { _, _ in
+                // A click in the sidebar is already visible. Only external
+                // routes need to reveal and scroll to their destination.
+                let fromSidebar = navigationFromSidebar
+                navigationFromSidebar = false
+                guard !fromSidebar else { return }
+                expandSelectedSection()
+                DispatchQueue.main.async { scrollSidebarToSelection(proxy) }
+            }
             .background {
                 SearchKeyMonitor(customSearchFocused: sidebarSearchFocused) { keyCode in
                     handleSearchKey(keyCode, searchResults: searchResults.items)
                 }
+            }
+        }
+    }
+
+    private var selectedSidebarItem: SettingsSidebarItem.ID? {
+        let items = sidebarItems
+        return SettingsSidebarSupport.selection(for: router.destination, in: items,
+                                                preferredID: router.sidebarFeature.map { .feature($0) })
+            ?? items.first?.id
+    }
+
+    private func scrollSidebarToSelection(_ proxy: ScrollViewProxy) {
+        guard !hasSearchQuery, let selected = selectedSidebarItem else { return }
+        proxy.scrollTo(selected, anchor: .center)
+    }
+
+    private func expandSelectedSection() {
+        guard let selected = selectedSidebarItem,
+              let section = sidebarSections.first(where: { section in
+                  section.items.contains(where: { $0.id == selected })
+              }) else { return }
+        collapsedSectionIDs.remove(section.id)
+    }
+
+    @ViewBuilder
+    private var normalSidebarRows: some View {
+        let sections = sidebarSections
+        let items = directoryCache.items
+        let selectedID = SettingsSidebarSupport.selection(for: router.destination, in: items,
+                                                          preferredID: router.sidebarFeature.map { .feature($0) })
+        ForEach(sections) { section in
+            Section {
+                if !collapsedSectionIDs.contains(section.id) {
+                    ForEach(section.items) { item in
+                        HStack(spacing: 9) {
+                            Image(systemName: item.icon)
+                                .foregroundStyle(selectedID == item.id
+                                    ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
+                                .frame(width: 18)
+                            Text(item.title)
+                        }
+                        .tag(item.id)
+                        .id(item.id)
+                        .help(item.title)
+                    }
+                }
+            } header: {
+                Button {
+                    if !collapsedSectionIDs.insert(section.id).inserted {
+                        collapsedSectionIDs.remove(section.id)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: collapsedSectionIDs.contains(section.id)
+                            ? "chevron.right" : "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .frame(width: 12)
+                        Text(section.title)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func searchResultRows(_ searchResults: SearchResultsSnapshot) -> some View {
+        ForEach(searchResults.groups, id: \.parentSuggestion.id) { group in
+            searchPageRow(group, searchResults: searchResults)
+            ForEach(group.suggestions) { suggestion in
+                searchSuggestionRow(suggestion, searchResults: searchResults)
             }
         }
     }
@@ -339,31 +489,61 @@ struct SettingsView: View {
     private func requestSearchItem(_ suggestion: SettingsSearchSuggestion) {
         activeSearchIndex = nil
         let routed = SettingsSearchSupport.route(for: suggestion)
-        router.request(routed.destination, targetFeature: routed.targetFeature)
+        router.request(routed.destination, targetFeature: routed.targetFeature,
+                       sidebarFeature: suggestion.item.feature)
     }
 
     /// The selected page can leave the sidebar when its last feature is
     /// switched off in the hub; fall back to the hub itself, where the
     /// feature can be brought back.
     private func ensureVisiblePage() {
-        if !FeatureVisibilitySupport.isPageVisible(router.page, isAvailable: { $0.isAvailable }) {
+        if !isPageVisible(router.page) {
             router.page = .features
+            return
         }
+        guard router.destination.sectionAnchor != nil,
+              !sidebarItems.contains(where: { $0.destination == router.destination }) else { return }
+        switch router.page {
+        case .general:
+            // General stays visible when one of its tools is uninstalled.
+            router.request(FeatureSettingsDestination(.general), replacingVisit: true)
+        case .energy:
+            // Energy has no overview row. A history visit to an uninstalled
+            // tool should show another available tool, not an empty detail.
+            if let available = sidebarItems.first(where: { $0.destination.page == .energy }) {
+                router.request(available.destination, replacingVisit: true)
+            }
+        default:
+            break
+        }
+    }
+
+    private func isPageVisible(_ page: SettingsPage) -> Bool {
+        FeatureVisibilitySupport.isPageVisible(page, isAvailable: { $0.isAvailable })
     }
 
     @ViewBuilder
     private var detail: some View {
         switch router.page {
-        case .general: GeneralSettings()
+        case .general:
+            if let anchor = router.destination.sectionAnchor,
+               [.panelConfiguration, .mixer, .soundOutputSwitcher,
+                .audioPriority, .musicBlocking].contains(anchor),
+               sidebarItems.contains(where: { $0.destination == router.destination }) {
+                GeneralToolSettings(anchor: anchor)
+            } else {
+                GeneralSettings()
+            }
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
         case .notch: NotchSettings()
         case .radialMenu: RadialMenuSettings()
         case .commandBar: CommandBarSettings()
-        case .energy: EnergySettings()
+        case .energy: EnergySettings(focus: router.destination.sectionAnchor)
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()
         case .switcher: SwitcherSettings()
+        case .dock: DockSettings()
         case .keyDebounce: KeyboardDebounceSettings()
         case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()
@@ -539,7 +719,7 @@ struct AboutSettings: View {
                     appDelegate()?.showOnboarding()
                 }
                 Button(l10n.s.reviewHighlights) {
-                    appDelegate()?.showUpdateHighlights()
+                    appDelegate()?.showUpdateHighlights(isReview: true)
                 }
                 Link(l10n.s.viewOnGitHub, destination: AppInfo.repositoryURL)
             }

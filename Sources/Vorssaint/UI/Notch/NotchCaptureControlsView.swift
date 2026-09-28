@@ -61,11 +61,15 @@ private struct NotchRecordingAudioOptions: View {
     @ObservedObject private var l10n = L10n.shared
     var focusedControl: FocusState<NotchCaptureControl?>.Binding
     var body: some View {
-        HStack {
+        HStack(spacing: 16) {
             Toggle(FeatureStrings.recorder(l10n.language).systemAudioTrackLabel, isOn: $options.systemAudio)
                 .focused(focusedControl, equals: .systemAudio)
             Toggle(FeatureStrings.recorder(l10n.language).microphoneTrackLabel, isOn: $options.microphone)
                 .focused(focusedControl, equals: .microphone)
-        }.toggleStyle(.button).controlSize(.small)
+        }
+        .toggleStyle(.switch)
+        .tint(.green)
+        .controlSize(.small)
+        .fixedSize()
     }
 }

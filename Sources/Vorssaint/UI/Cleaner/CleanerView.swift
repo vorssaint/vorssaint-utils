@@ -84,7 +84,10 @@ struct CleanerView: View {
     @AppStorage(DefaultsKey.cleanerScheduleWeekday) private var scheduleWeekday = 2
     @AppStorage(DefaultsKey.cleanerLastAutoRun) private var lastAutoRun = 0.0
     @AppStorage(DefaultsKey.cleanerLastAutoFreed) private var lastAutoFreed = 0
+    @AppStorage(DefaultsKey.cleanerLastAutoFailed) private var lastAutoFailed = 0
     @AppStorage(DefaultsKey.cleanerScheduleNotify) private var scheduleNotify = true
+    @AppStorage(DefaultsKey.cleanerScreenshotAgeDays)
+    private var screenshotAgeDays = CleanerPolicy.defaultScreenshotAgeDays
     @ObservedObject private var scheduler = CleanerScheduler.shared
     @ObservedObject private var whatsAppScheduler = WhatsAppDownloadScheduler.shared
     @AppStorage(DefaultsKey.whatsAppDownloadsEnabled) private var whatsAppEnabled = false
@@ -164,14 +167,14 @@ struct CleanerView: View {
     /// judgment calls under optional, unchecked and collapsed.
     private enum DisplayGroup: Int, CaseIterable, Identifiable {
         case loginItems, safeCaches, logs, developer
-        case leftovers, otherCaches, deviceBackups, trash
+        case leftovers, otherCaches, deviceBackups, screenshots, trash
 
         var id: Int { rawValue }
 
         var isSafe: Bool {
             switch self {
             case .loginItems, .safeCaches, .logs, .developer: return true
-            case .leftovers, .otherCaches, .deviceBackups, .trash: return false
+            case .leftovers, .otherCaches, .deviceBackups, .screenshots, .trash: return false
             }
         }
 
@@ -183,6 +186,7 @@ struct CleanerView: View {
             case .developer: return [.developer]
             case .leftovers: return [.leftovers]
             case .deviceBackups: return [.deviceBackups]
+            case .screenshots: return [.screenshots]
             case .trash: return [.trash]
             }
         }
@@ -196,6 +200,7 @@ struct CleanerView: View {
             case .leftovers: return "puzzlepiece"
             case .otherCaches: return "internaldrive"
             case .deviceBackups: return "iphone"
+            case .screenshots: return "camera.viewfinder"
             case .trash: return "trash"
             }
         }
@@ -218,6 +223,7 @@ struct CleanerView: View {
         case .leftovers: return l10n.s.cleanerCatLeftovers
         case .otherCaches: return l10n.s.cleanerCatOtherCaches
         case .deviceBackups: return l10n.s.cleanerCatDeviceBackups
+        case .screenshots: return l10n.s.cleanerCatScreenshots
         case .trash: return l10n.s.cleanerCatTrash
         }
     }
@@ -231,6 +237,9 @@ struct CleanerView: View {
         case .leftovers: return l10n.s.cleanerLeftoversCaption
         case .otherCaches: return l10n.s.cleanerOtherCachesCaption
         case .deviceBackups: return l10n.s.cleanerDeviceBackupsCaption
+        case .screenshots:
+            return String(format: l10n.s.cleanerScreenshotsCaptionFormat,
+                          CleanerPolicy.sanitizedScreenshotAgeDays(screenshotAgeDays))
         case .trash: return l10n.s.cleanerTrashNote
         }
     }
@@ -249,10 +258,11 @@ struct CleanerView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 380)
-            Button(l10n.s.cleanerScan) { cleaner.scan() }
+            Button(l10n.s.cleanerScan) { cleaner.scan(attended: true) }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
             scheduleCard
+            screenshotsCard
             if !compact, !whatsAppEnabled { whatsAppOptInCard }
             // The Settings page has its own full tool for these downloads;
             // the panel gets this one-line home so the feature is findable
@@ -265,6 +275,52 @@ struct CleanerView: View {
         }
         .padding(compact ? 14 : 28)
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Forgotten screenshots
+
+    /// Off plus the offered ages, and the stored value when it came from
+    /// elsewhere (a restored backup) and is not one of them.
+    private var screenshotAgeChoices: [Int] {
+        var choices = CleanerPolicy.screenshotAgeChoices
+        let current = CleanerPolicy.sanitizedScreenshotAgeDays(screenshotAgeDays)
+        if current > 0, !choices.contains(current) {
+            choices.append(current)
+            choices.sort()
+        }
+        return [0] + choices
+    }
+
+    /// How old an untouched screenshot must be to be listed, or off. The
+    /// Settings page explains it; the panel keeps it to one line.
+    private var screenshotsCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "camera.viewfinder").foregroundStyle(.secondary)
+                Text(l10n.s.cleanerCatScreenshots)
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                Picker("", selection: $screenshotAgeDays) {
+                    ForEach(screenshotAgeChoices, id: \.self) { days in
+                        Text(days == 0
+                             ? l10n.s.cleanerScheduleOff
+                             : String(format: l10n.s.cleanerScreenshotsAfterFormat, days))
+                            .tag(days)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+            if !compact {
+                Text(l10n.s.cleanerScreenshotsSettingCaption)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(11)
+        .frame(maxWidth: 380)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
     // MARK: WhatsApp downloads (panel surface)
@@ -640,11 +696,11 @@ struct CleanerView: View {
 
     private var lastRunLine: String {
         let ranAt = Self.nextRunFormatter.string(from: Date(timeIntervalSince1970: lastAutoRun))
-        if lastAutoFreed > 0 {
-            return String(format: l10n.s.cleanerScheduleLastFormat,
-                          Self.byteString(Int64(lastAutoFreed)))
-        }
-        return String(format: l10n.s.cleanerScheduleRanFormat, ranAt)
+        let line = lastAutoFreed > 0
+            ? String(format: l10n.s.cleanerScheduleLastFormat, Self.byteString(Int64(lastAutoFreed)))
+            : String(format: l10n.s.cleanerScheduleRanFormat, ranAt)
+        // A pass that moved nothing still reads as a normal run unless what it left is said.
+        return lastAutoFailed > 0 ? line + " " + l10n.s.uninstallerSomeFailed : line
     }
 
     /// Checked slightly delayed so a just fired authorization prompt has a
@@ -671,6 +727,10 @@ struct CleanerView: View {
             Text(message).foregroundStyle(.secondary)
             if let detail {
                 Text(detail).font(.caption).foregroundStyle(.tertiary)
+            }
+            if cleaner.phase == .scanning {
+                Button(l10n.s.uninstallerCancel) { cleaner.reset() }
+                    .controlSize(compact ? .small : .large)
             }
             Spacer(minLength: compact ? 24 : 0)
         }
@@ -893,6 +953,10 @@ struct PanelCleanerView: View {
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button {
+                    // Closing means cancel: a scan left running would come
+                    // back on the next open. Cleaning in progress is left alone.
+                    let cleaner = JunkCleaner.shared
+                    if cleaner.phase == .scanning { cleaner.reset() }
                     onClose()
                 } label: {
                     Image(systemName: "xmark.circle.fill")

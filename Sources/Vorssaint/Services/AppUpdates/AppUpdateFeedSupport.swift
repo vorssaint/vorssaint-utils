@@ -149,7 +149,7 @@ enum AppUpdateFeedSupport {
             source: .onlineCatalog, name: app.name,
             installedVersion: sameDisplay ? "\(app.version) (\(installed))" : app.version,
             latestVersion: sameDisplay ? "\(display) (\(latest.version))" : display,
-            token: nil, bundlePath: app.path, storePage: nil)
+            token: nil, bundlePath: app.path, storePage: nil, bundleID: app.bundleID)
     }
 
     static func findings(loadResult: LoadResult, format: Format,

@@ -156,6 +156,7 @@ private struct PanelCardModifier: ViewModifier {
 private struct PanelGlassSurface: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.notchPresentation) private var notchPresentation
+    @Environment(\.notchGlassSurface) private var notchGlassSurface
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
 
@@ -168,7 +169,7 @@ private struct PanelGlassSurface: View {
         // expose the system material at the corners, while stroking would duplicate
         // the outline AppKit already draws.
         if notchPresentation {
-            Rectangle().fill(.black)
+            Rectangle().fill(notchGlassSurface ? Color.clear : .black)
         } else {
             surface.ignoresSafeArea()
         }

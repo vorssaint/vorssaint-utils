@@ -55,13 +55,13 @@ enum NotchMediaPresentationProbe {
         var body: some View {
             VStack(spacing: NotchLayout.spacing) {
                 Text("Files").frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: NotchLayout.headerHeight)
+                    .frame(height: model.geometry.headerRowHeight)
                 MediaWorkspaceView(compact: true, media: model.media, initialTool: .videoCompressor,
                                    preservesServiceState: true, workspace: model.workspace,
                                    onContentHeightChange: model.measured, onToolChange: model.willChange)
             }
             .padding(.horizontal, NotchLayout.horizontalInset)
-            .padding(.top, model.geometry.safeContentTop)
+            .padding(.top, model.geometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: model.size.width, height: model.size.height, alignment: .top)
             .background(.black).foregroundStyle(.white)
@@ -84,11 +84,11 @@ enum NotchMediaPresentationProbe {
         let domain = "com.vorssaint.tests.media-motion.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.register(defaults: Defaults.registeredDefaults)
-        defaults.set(CommandLine.arguments.contains("--glass"), forKey: DefaultsKey.liquidGlassEnabled)
+        defaults.set(CommandLine.arguments.contains("--glass"), forKey: DefaultsKey.notchLiquidGlassEnabled)
         let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: 32, cameraWidth: 180, layout: .spacious)
         let model = Model(geometry: geometry, defaults: defaults)
         let host = NotchWindowHost(content: AnyView(Content(model: model)), geometry: geometry, size: model.size,
-                                   quickAccess: { _ in AnyView(Color.clear) })
+                                   quickAccess: { _, _ in AnyView(Color.clear) })
         model.host = host
         host.panel.alphaValue = 0
         host.panel.ignoresMouseEvents = true
@@ -106,7 +106,7 @@ enum NotchMediaPresentationProbe {
         var failures: [String] = []
         let backing = NotchWindowHost(content: AnyView(Color.black), geometry: geometry,
                                       size: CGSize(width: geometry.expanded.width, height: 300),
-                                      quickAccess: { _ in AnyView(Color.clear) })
+                                      quickAccess: { _, _ in AnyView(Color.clear) })
         backing.panel.alphaValue = 0
         backing.panel.ignoresMouseEvents = true
         backing.panel.orderFrontRegardless()
@@ -127,6 +127,12 @@ enum NotchMediaPresentationProbe {
             if !ready { failures.append("layout resize \(Int(height)) did not reserve its drawing area") }
             if !reduceMotion, intermediate < 3 { failures.append("layout resize \(Int(height)) has no visible intermediate frames") }
             print("MEDIA BACKING from=\(Int(from)) to=\(Int(height)) reserved=\(ready) intermediate=\(intermediate)")
+        }
+        // A present made from inside AppKit layout cannot flush the layer tree,
+        // so the frame probe reads stale there; that must not pass for
+        // Mission Control and order the island out on the desktop.
+        if backing.concealedFrameChanges != 0 {
+            failures.append("layout resizes concealed the island \(backing.concealedFrameChanges) times outside Mission Control")
         }
         backing.close()
         for index in [3, 2, 1, 0, 2, 3] {

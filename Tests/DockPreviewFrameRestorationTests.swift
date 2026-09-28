@@ -29,6 +29,7 @@ enum DockPreviewFrameRestorationTests {
         }
     }
     static var currentScreen: Screen?
+    static var checks = 0
     static func screen(_ id: UInt32) -> Screen? { currentScreen }
     static func axFrame(_ rect: CGRect) -> CGRect { rect }
 
@@ -70,7 +71,7 @@ enum DockPreviewFrameRestorationTests {
         drain(for: 0.2)
         suite.expect(WindowActivator.restores == 0, "activation never restores against the Dock-reduced work area")
         currentScreen = screen
-        drain(for: 0.15)
+        drain(until: { WindowActivator.restores > 0 })
         suite.expect(WindowActivator.restores == 1, "the selected window is restored once the work area recovers")
 
         for scenario in 0..<4 {
@@ -78,24 +79,32 @@ enum DockPreviewFrameRestorationTests {
             WindowActivator.focused = scenario == 0 ? 99 : 12
             if scenario == 1 { currentScreen = nil }
             if scenario == 2 { currentScreen?.frame.size.width = 1280 }
+            checks = 0
             restore(SwitcherItem(), original: original, screen: screen,
-                    heldVisibleFrame: bottom, isCurrent: { scenario != 3 }, attempt: 0)
-            drain(for: 0.2)
+                    heldVisibleFrame: bottom, isCurrent: { checks += 1; return scenario != 3 }, attempt: 0)
+            drain(until: { checks > 0 })
             suite.expect(WindowActivator.restores == 1,
                          "focus changes, disconnected or reconfigured displays and newer holds cancel restoration")
         }
         WindowActivator.focused = 12
         currentScreen = Screen(frame: screen.frame, visibleFrame: bottom)
+        checks = 0
         restore(SwitcherItem(), original: original, screen: screen,
-                heldVisibleFrame: bottom, isCurrent: { true }, attempt: 15)
-        drain(for: 0.1)
+                heldVisibleFrame: bottom, isCurrent: { checks += 1; return true }, attempt: 15)
+        drain(until: { checks > 0 })
         currentScreen = screen
-        drain(for: 0.1)
+        drain(for: 0.2)
         suite.expect(WindowActivator.restores == 1, "an unrecovered work area has a bounded retry budget")
     }
 
     private static func drain(for seconds: TimeInterval) {
         let deadline = Date().addingTimeInterval(seconds)
         while Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+    }
+
+    // Waits for the queued check itself, so a slow runner cannot move it past the next step.
+    private static func drain(until done: () -> Bool, timeout: TimeInterval = 5) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !done(), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
     }
 }

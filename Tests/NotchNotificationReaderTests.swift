@@ -86,18 +86,57 @@ enum NotchNotificationReaderTests {
         interruption(suite)
         identity(suite)
         nativeClosing(suite)
+        busyClosing(suite)
+    }
+
+    /// The refresh before a close can spend nearly the whole traversal on a
+    /// large stack. Validation keeps headroom of its own, and a refresh that
+    /// cannot finish still closes nothing.
+    private static func busyClosing(_ suite: TestSuite) {
+        let access = Access(), action = "Name:Close\nTarget:0x0\nSelector:(null)"
+        access.allowClose = true
+        let banners = (0..<22).map { _ in card() }
+        for banner in banners { banner.actions.append(action) }
+        let container = stack(banners)
+        container.strings["AXSubrole"] = "AXNotificationCenterBannerStack"
+        func center(padding: Int) -> [Node] {
+            [container, Node("AXWindow", children: (0..<padding).map { _ in Node("AXGroup") })]
+        }
+        let reader = access.reader()
+        // Plain nodes fill the rest until one more would fail the refresh itself.
+        var padding = 0
+        while padding < 64 {
+            access.roots = center(padding: padding + 1)
+            guard reader.read() != nil else { break }
+            padding += 1
+        }
+        access.roots = center(padding: padding)
+        guard padding < 64, let id = reader.read()?.items.last?.id else {
+            suite.expect(false, "a large stack fills the refresh's traversal budget"); return
+        }
+        suite.expect(reader.closeNative(id) && access.performed == [action],
+                     "a refresh that used nearly every node still leaves validation room to close the banner")
+        access.performed = []
+        access.roots = center(padding: padding + 1)
+        suite.expect(!reader.closeNative(id) && access.performed.isEmpty,
+                     "a refresh that runs out of nodes closes nothing")
     }
 
     private static func nativeClosing(_ suite: TestSuite) {
         let access = Access(), root = card(legacy: true)
         let action = "Name:Close\nTarget:0x0\nSelector:(null)"
         root.actions.append(action)
+        root.strings["AXSubrole"] = "AXNotificationCenterBanner"
         access.roots = [root]
         let reader = access.reader()
         let id = reader.read()!.items[0].id
         suite.expect(!reader.closeNative(id) && access.performed.isEmpty,
                "mirroring cannot close a native notification without a separate opt-in")
         access.allowClose = true
+        root.strings["AXSubrole"] = "AXNotificationCenterAlert"
+        suite.expect(!reader.closeNative(id) && access.performed.isEmpty,
+               "an alarm that becomes a persistent alert cannot be closed automatically")
+        root.strings["AXSubrole"] = "AXNotificationCenterBanner"
         suite.expect(reader.closeNative(id) && access.performed == [action] && access.presses.isEmpty,
                "closing invokes only the original close action, never opens the notification")
         access.performed = []
@@ -112,6 +151,22 @@ enum NotchNotificationReaderTests {
         root.actions = ["AXPress", "Name:Close All\nTarget:0x0\nSelector:(null)"]
         suite.expect(!reader.closeNative(nextID) && access.performed.isEmpty,
                "closing a single banner never falls back to clearing a group")
+        for role in ["AXNotificationCenterAlert", "AXNotificationCenterAlertStack"] {
+            let alert = card(legacy: true)
+            alert.actions.append(action)
+            access.roots = role.hasSuffix("Stack") ? [stack([alert])] : [alert]
+            let alertID = reader.read()!.items[0].id
+            suite.expect(!reader.closeNative(alertID) && access.performed.isEmpty,
+                   "persistent alerts and alarm stacks stay mirrored without dismissing their native sound")
+        }
+        let banner = card()
+        banner.actions.append(action)
+        let container = stack([banner])
+        container.strings["AXSubrole"] = "AXNotificationCenterBannerStack"
+        access.roots = [container]
+        let bannerID = reader.read()!.items[0].id
+        suite.expect(reader.closeNative(bannerID) && access.performed == [action],
+               "transient banners in modern stacks still honor native replacement")
     }
 
     private static func traversal(_ suite: TestSuite) {

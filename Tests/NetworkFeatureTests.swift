@@ -198,6 +198,73 @@ enum NetworkFeatureTests {
                 && Date().timeIntervalSince(timeoutStarted) < 1.5,
                "a stalled subprocess is terminated inside its deadline")
 
+        // The new-session path gives a child what it has under an app launched
+        // from Finder whether or not these tests run in a terminal: no
+        // controlling terminal and nothing on stdin. The plain path still hands
+        // on whatever terminal this process has.
+        let terminalProbe = ["-c", "if (: </dev/tty) 2>/dev/null; then printf terminal; else printf detached; fi"]
+        let testHasTerminal = open("/dev/tty", O_RDONLY | O_NOCTTY)
+        if testHasTerminal >= 0 { close(testHasTerminal) }
+        let plainTerminal = BoundedProcessRunner.run("/bin/sh", terminalProbe, timeout: 2, maxOutputBytes: 1_024,
+                                                     environment: [:])
+        suite.expect(plainTerminal.status == 0
+                && String(decoding: plainTerminal.output, as: UTF8.self)
+                    .hasPrefix(testHasTerminal >= 0 ? "terminal" : "detached"),
+               "a plain subprocess shares the terminal this process has, found "
+               + String(decoding: plainTerminal.output, as: UTF8.self))
+        let sessionTerminal = BoundedProcessRunner.runInNewSession(
+            "/bin/sh", ["-c", terminalProbe[1] + "; read line; printf ' [%s]' \"$line\""], timeout: 2,
+            maxOutputBytes: 1_024, environment: [:])
+        suite.expect(String(decoding: sessionTerminal.output, as: UTF8.self) == "detached []",
+               "a new-session subprocess has no controlling terminal and reads nothing from stdin, found "
+               + String(decoding: sessionTerminal.output, as: UTF8.self))
+        let sessionTTY = BoundedProcessRunner.runInNewSession("/bin/sh", ["-c", "/bin/ps -o tty= -p $$"], timeout: 2,
+                                                              maxOutputBytes: 1_024)
+        suite.expect(sessionTTY.status == 0
+                && String(decoding: sessionTTY.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) == "??",
+               "the kernel reports no terminal for a new-session subprocess, found "
+               + String(decoding: sessionTTY.output, as: UTF8.self))
+        // An interactive zsh takes over the terminal it inherits. Started from
+        // a terminal through a plain Process it is stopped for that until the
+        // timeout; in a session of its own it finishes at once.
+        let interactiveStarted = Date()
+        let interactiveShell = BoundedProcessRunner.runInNewSession(
+            "/bin/zsh", ["-f", "-i", "-c", "print ready"], timeout: 5, maxOutputBytes: 1_024,
+            environment: ["PATH": "/usr/bin:/bin"])
+        suite.expect(!interactiveShell.timedOut && interactiveShell.status == 0
+                && String(decoding: interactiveShell.output, as: UTF8.self).hasSuffix("ready\n")
+                && Date().timeIntervalSince(interactiveStarted) < 2,
+               "an interactive shell in a new session finishes without waiting for a terminal, found "
+               + String(decoding: interactiveShell.output, as: UTF8.self))
+        for (script, expected) in [("exit 3", Int32(3)), ("kill -TERM $$", SIGTERM)] {
+            let plainStatus = BoundedProcessRunner.run("/bin/sh", ["-c", script], timeout: 2, maxOutputBytes: 0).status
+            let sessionStatus = BoundedProcessRunner.runInNewSession("/bin/sh", ["-c", script], timeout: 2,
+                                                                     maxOutputBytes: 0).status
+            suite.expect(plainStatus == expected && sessionStatus == expected,
+                   "a new-session subprocess reports its status as a plain one does: \(script), "
+                   + "found \(plainStatus) and \(sessionStatus)")
+        }
+        let sessionCapped = BoundedProcessRunner.runInNewSession(
+            "/bin/sh", ["-c", "/usr/bin/yes x | /usr/bin/head -c 200000"], timeout: 2, maxOutputBytes: 1_024)
+        suite.expect(sessionCapped.status == 0 && sessionCapped.output.count == 1_024,
+               "a new-session subprocess is drained while retained memory stays bounded")
+        let sessionOrphanStarted = Date()
+        let sessionOrphan = BoundedProcessRunner.runInNewSession(
+            "/bin/sh", ["-c", "/bin/sleep 3 & /usr/bin/printf done"], timeout: 1, maxOutputBytes: 1_024)
+        suite.expect(sessionOrphan.status == 0
+                && String(decoding: sessionOrphan.output, as: UTF8.self) == "done"
+                && Date().timeIntervalSince(sessionOrphanStarted) < 1.5,
+               "a child inheriting a new-session subprocess's stdout cannot leave the reader blocked")
+        let sessionTimeoutStarted = Date()
+        let sessionTimedOut = BoundedProcessRunner.runInNewSession(
+            "/bin/sleep", ["3"], timeout: 0.05, maxOutputBytes: 1_024)
+        suite.expect(sessionTimedOut.timedOut && sessionTimedOut.status == -1
+                && Date().timeIntervalSince(sessionTimeoutStarted) < 1.5,
+               "a stalled new-session subprocess is terminated inside its deadline")
+        suite.expect(BoundedProcessRunner.runInNewSession("/nonexistent/tool", [], timeout: 1,
+                                                          maxOutputBytes: 1_024).status == -1,
+               "a new-session subprocess that cannot start reports failure")
+
         // Reproduces the freeze in issue #971 from the other side: the app's
         // own abandoned waits had filled the shared dispatch pool, so nothing
         // submitted to it ran any more. A runner that waits on a pool thread
@@ -310,10 +377,18 @@ enum NetworkFeatureTests {
                "monitor wakes every tick in the foreground")
         suite.expect(MonitorSamplingPolicy.wakeTicks(for: [], intervalSeconds: 2, foreground: false) == 1,
                "monitor wake cadence defaults to every tick with no needs")
+        suite.expect(MonitorSamplingPolicy.sampleStride(for: .connectedDevices, intervalSeconds: 2, foreground: false) == 5,
+               "connected devices sampling is throttled in background")
+        suite.expect(MonitorSamplingPolicy.sampleStride(for: .connectedDevices, intervalSeconds: 2, foreground: true) == 1,
+               "connected devices sampling runs at 2s cadence in foreground")
+        suite.expect(MonitorSamplingPolicy.wakeTicks(for: [.connectedDevices], intervalSeconds: 2, foreground: false) == 5,
+               "monitor with only connected devices wakes at 10s cadence")
+        suite.expect(MonitorSamplingPolicy.wakeTicks(for: [.power, .connectedDevices], intervalSeconds: 2, foreground: false) == 1,
+               "power and connected devices keep every USB sampling tick reachable")
         // Exactness invariant: the cadence always divides every needed stride,
         // so grid-aligned ticks keep hitting each stride exactly on schedule.
         let wakeKinds: [MonitorSamplingKind] = [.disk, .power, .gpuUsage, .temperature,
-                                                .fanSpeed, .peripheralBattery]
+                                                .fanSpeed, .peripheralBattery, .connectedDevices]
         let cadence = MonitorSamplingPolicy.wakeTicks(for: wakeKinds, intervalSeconds: 2, foreground: false)
         suite.expect(wakeKinds.allSatisfy {
             MonitorSamplingPolicy.sampleStride(for: $0, intervalSeconds: 2, foreground: false) % cadence == 0

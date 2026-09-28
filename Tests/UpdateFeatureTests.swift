@@ -13,6 +13,30 @@ import VMStatisticsCompat
 
 enum UpdateFeatureTests {
     static func run(_ suite: TestSuite) {
+        suite.expect(BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0-beta.7",
+                                                          previousVersion: "3.4.0-beta.6")
+                    && BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0",
+                                                            previousVersion: "3.4.0-beta.6"),
+                    "the display setup invitation recognizes a newer release")
+        for previous in [nil, "", "dev", "3.4.0-beta.7", "3.4.0"] as [String?] {
+            suite.expect(!BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0-beta.7",
+                                                               previousVersion: previous),
+                         "a first install, unknown version, unchanged release or downgrade does not invite: \(previous ?? "nil")")
+        }
+        suite.expect(BrightnessUpdatePromptInfo.needsSetup(
+            notchAvailable: true, brightnessAvailable: true, notchEnabled: true,
+            notchBrightness: true, brightnessEnabled: false),
+            "the invitation targets an enabled island with brightness waiting for display controls")
+        for (notchAvailable, brightnessAvailable, notchEnabled, notchBrightness, brightnessEnabled)
+            in [(false, true, true, true, false), (true, false, true, true, false),
+                (true, true, false, true, false), (true, true, true, false, false),
+                (true, true, true, true, true)] {
+            suite.expect(!BrightnessUpdatePromptInfo.needsSetup(
+                notchAvailable: notchAvailable, brightnessAvailable: brightnessAvailable,
+                notchEnabled: notchEnabled, notchBrightness: notchBrightness,
+                brightnessEnabled: brightnessEnabled),
+                "the invitation skips unavailable, unused or already configured display controls")
+        }
         func activeSet(_ permission: AppPermission,
                        available: Set<AppFeature> = Set(AppFeature.allCases),
                        on: Set<String> = [],
@@ -292,6 +316,112 @@ enum UpdateFeatureTests {
                     keywords: captureSearchKeywords),
                "Screen capture tools and their options find the one settings page")
 
+        let quickToolFeatures: [AppFeature] = [.quickLauncher, .micMute, .scratchpad, .cleaningMode]
+        let quickToolRows = SettingsSidebarSupport.items(
+            page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
+            preferredFeatures: quickToolFeatures, includePage: false,
+            isAvailable: { quickToolFeatures.contains($0) },
+            featureTitle: { $0.rawValue })
+        let generalFeatures: [AppFeature] = [
+            .musicBlock, .mixer, .soundOutputSwitcher, .audioPriority,
+        ]
+        let generalRows = SettingsSidebarSupport.items(
+            page: .general, title: "General", icon: "gearshape",
+            preferredFeatures: [.musicBlock], includePage: true,
+            isAvailable: { generalFeatures.contains($0) },
+            featureTitle: { $0.rawValue })
+        let toolRows = generalRows + quickToolRows
+        func toolRow(_ feature: AppFeature) -> SettingsSidebarItem? {
+            toolRows.first { $0.id == .feature(feature) }
+        }
+        suite.expect(toolRow(.musicBlock)?.icon == AppFeature.musicBlock.symbolName
+                && toolRow(.mixer)?.icon == AppFeature.mixer.symbolName
+                && toolRow(.soundOutputSwitcher)?.icon == AppFeature.soundOutputSwitcher.symbolName
+                && toolRow(.audioPriority)?.icon == AppFeature.audioPriority.symbolName
+                && toolRow(.micMute)?.icon == AppFeature.micMute.symbolName
+                && toolRow(.scratchpad)?.icon == AppFeature.scratchpad.symbolName
+                && toolRow(.cleaningMode)?.icon == AppFeature.cleaningMode.symbolName,
+               "shared Settings pages expose every anchored tool with its own symbol")
+        suite.expect(toolRows.count == Set(toolRows.map(\.id)).count
+                && !quickToolRows.contains { $0.id == .page(.quickTools) }
+                && toolRow(.mixer)?.destination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .mixer)
+                && toolRow(.soundOutputSwitcher)?.destination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .soundOutputSwitcher)
+                && toolRow(.audioPriority)?.destination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .audioPriority)
+                && SettingsSidebarSupport.selection(for: AppFeature.scratchpad.settingsDestination,
+                                                    in: toolRows) == .feature(.scratchpad)
+                && SettingsSidebarSupport.selection(for: AppFeature.audioPriority.settingsDestination,
+                                                    in: toolRows, preferredID: .feature(.audioPriority))
+                    == .feature(.audioPriority),
+               "flat tool rows keep unique identities and select the clicked tool")
+        let menuBarDestination = FeatureSettingsDestination(
+            .general, sectionAnchor: .panelConfiguration)
+        let menuBarRow = SettingsSidebarItem(
+            id: .setting(.panelConfiguration), destination: menuBarDestination,
+            title: "Menu bar", icon: "menubar.rectangle")
+        suite.expect(SettingsSidebarSupport.selection(
+            for: FeatureSettingsDestination(.general),
+            in: generalRows + [menuBarRow]) == .page(.general)
+            && SettingsSidebarSupport.selection(
+                for: menuBarDestination,
+                in: generalRows + [menuBarRow]) == .setting(.panelConfiguration),
+            "General and its menu bar editor keep distinct sidebar selections")
+        let scratchpadOnlyRows = SettingsSidebarSupport.items(
+            page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
+            preferredFeatures: quickToolFeatures, includePage: false,
+            isAvailable: { $0 == .scratchpad },
+            featureTitle: { $0.rawValue })
+        suite.expect(scratchpadOnlyRows.count == 1
+                && scratchpadOnlyRows.first?.id == .feature(.scratchpad)
+                && SettingsSidebarSupport.selection(for: AppFeature.micMute.settingsDestination,
+                                                    in: scratchpadOnlyRows) == .feature(.scratchpad),
+               "the sidebar hides unavailable tools and keeps a visible selection for their page")
+        let scrollingRows = SettingsSidebarSupport.items(
+            page: .mouse, title: "Mouse", icon: "computermouse",
+            preferredFeatures: [.scrollInverter, .scrollHorizontal], includePage: false,
+            isAvailable: { [.scrollInverter, .scrollHorizontal].contains($0) },
+            featureTitle: { $0.rawValue })
+        let sidewaysOnlyRows = SettingsSidebarSupport.items(
+            page: .mouse, title: "Mouse", icon: "computermouse",
+            preferredFeatures: [.scrollInverter, .scrollHorizontal], includePage: false,
+            isAvailable: { $0 == .scrollHorizontal }, featureTitle: { $0.rawValue })
+        suite.expect(scrollingRows.count == 2
+                && Set(scrollingRows.map(\.id)) == [.feature(.scrollInverter),
+                                                    .feature(.scrollHorizontal)]
+                && scrollingRows[0].destination == scrollingRows[1].destination
+                && sidewaysOnlyRows.first?.id == .feature(.scrollHorizontal),
+               "tools sharing a section keep separate named rows")
+        let keyboardDestination = FeatureSettingsDestination(
+            .shortcuts, sectionAnchor: .keyboardBrightnessShortcuts)
+        let keyboardShortcutItem = SettingsSearchSupport.keyboardBrightnessShortcutItem(language: .enUS)
+        let shortcutPageItem = SettingsSearchItem(
+            id: .page(.shortcuts), destination: FeatureSettingsDestination(.shortcuts),
+            title: "Shortcuts", icon: "command")
+        let keyboardShortcutGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "keyboard brightness shortcuts",
+            items: [shortcutPageItem, keyboardShortcutItem],
+            isAvailable: { _ in true })
+        suite.expect(keyboardShortcutGroups.first?.id == .shortcuts
+                && keyboardShortcutGroups.first?.suggestions.first.map {
+                    SettingsSearchSupport.route(for: $0, isAvailable: { _ in true }).destination
+                } == keyboardDestination,
+               "keyboard brightness shortcut search reveals its own Shortcuts section")
+        let keyboardLightGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "keyboard light", items: [shortcutPageItem, keyboardShortcutItem],
+            isAvailable: { _ in true })
+        suite.expect(keyboardLightGroups.first?.suggestions.first.map {
+            SettingsSearchSupport.route(for: $0, isAvailable: { _ in true }).destination
+        } == keyboardDestination,
+               "searching the sidebar label also opens keyboard brightness shortcuts")
+        suite.expect(AppLanguage.allCases.allSatisfy { language in
+            let item = SettingsSearchSupport.keyboardBrightnessShortcutItem(language: language)
+            return SettingsSearchSupport.matches(
+                query: FeatureStrings.brightness(language).keyboardLight,
+                title: item.title, keywords: item.keywords)
+        }, "search finds keyboard brightness shortcuts by their sidebar name in every language")
+
         let settingsFeatureTitles: [AppFeature: String] = [
             .homebrew: "Homebrew",
             .cameraPreview: "Camera Preview",
@@ -477,6 +607,40 @@ enum UpdateFeatureTests {
         suite.expect(hiddenPageRoute.destination == FeatureSettingsDestination(.features)
                 && hiddenPageRoute.targetFeature == nil,
                "a page result with no merged feature identity still falls back to Features generically")
+
+        // Window Layout stays in the sidebar for the green button override alone;
+        // its page row keeps Window Layout's identity from the merge.
+        let windowLayoutPage = SettingsSearchItem(
+            id: .page(.windowLayout), destination: FeatureSettingsDestination(.windowLayout),
+            title: "Window Layout", icon: "rectangle.3.group",
+            keywords: ["Snap to edges", "Keep full screen in these apps"],
+            keywordFeatures: [.windowLayout, .windowMaximizer])
+        let windowLayoutItems = SettingsSearchSupport.combinedItems(
+            pageItems: [windowLayoutPage],
+            featureItems: SettingsSearchSupport.featureItems(language: .enUS) { $0.rawValue })
+        let mergedWindowLayout = windowLayoutItems.first { $0.id == .page(.windowLayout) }!
+        let maximizerOnly: (AppFeature) -> Bool = { $0 == .windowMaximizer }
+        let maximizerOnlyRoute = SettingsSearchSupport.route(for: mergedWindowLayout, isAvailable: maximizerOnly)
+        let noneRoute = SettingsSearchSupport.route(for: mergedWindowLayout) { _ in false }
+        suite.expect(mergedWindowLayout.feature == .windowLayout
+                && maximizerOnlyRoute.destination == FeatureSettingsDestination(.windowLayout)
+                && maximizerOnlyRoute.targetFeature == nil
+                && noneRoute.destination == FeatureSettingsDestination(.features)
+                && noneRoute.targetFeature == .windowLayout,
+               "a page kept visible by another feature opens itself, and falls back to its hub row once hidden")
+        let exceptionGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "keep full screen", items: windowLayoutItems, isAvailable: maximizerOnly)
+        let snapGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "snap", items: windowLayoutItems, isAvailable: maximizerOnly)
+        let pageGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "window layout", items: windowLayoutItems, isAvailable: maximizerOnly)
+        suite.expect(exceptionGroups.map(\.id) == [.windowLayout]
+                && exceptionGroups.first?.suggestions.map(\.title) == ["Keep full screen in these apps"]
+                && snapGroups.isEmpty
+                && pageGroups.first?.id == .windowLayout && pageGroups.first?.parentMatches == true
+                && pageGroups.first.map { SettingsSearchSupport.route(for: $0.pageItem, isAvailable: maximizerOnly) }?
+                    .destination == FeatureSettingsDestination(.windowLayout),
+               "the maximizer alone keeps its settings and the page findable, without Window Layout's own settings")
 
         let homebrewMatches = SettingsSearchSupport.matchingItems(
             query: "  HOMEBREW ", items: combinedSettingsItems)
@@ -1171,6 +1335,15 @@ enum UpdateFeatureTests {
         suite.expect(AppUpdatesSupport.versionCore("3.5.262,260717dcrpwg7m0") == "3.5.262"
                 && AppUpdatesSupport.versionCore("0.0.402") == "0.0.402",
                "the revision after a comma is not part of the version")
+        suite.expect(AppUpdatesSupport.versionCore(" v2.0.11.1,260925abc ") == "2.0.11.1"
+                && AppUpdatesSupport.versionCore("V2.0.11.1") == "2.0.11.1"
+                && !AppUpdatesSupport.isNewer("v2.0.11.1", than: "2.0.11.1")
+                && !AppUpdatesSupport.isNewer("2.0.11.1", than: "V2.0.11.1"),
+               "a leading v/V and surrounding whitespace normalize before numeric comparison")
+        suite.expect(!AppUpdatesSupport.isNewer("2.0.11.1", than: "v2.0.11.1")
+                && AppUpdatesSupport.isNewer("v2.0.11.2", than: "2.0.11.1")
+                && AppUpdatesSupport.versionCore("version1") == "version1",
+               "only a v/V directly before a number is removed, and prefixed versions compare by value")
         suite.expect(AppUpdatesSupport.isNewer("3.5.262,260717dcrpwg7m0", than: "3.5.230")
                 && !AppUpdatesSupport.isNewer("1.130.0", than: "1.130.0"),
                "an update is only newer when the number really grew")

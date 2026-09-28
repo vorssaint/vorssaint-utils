@@ -147,6 +147,20 @@ enum PointerInputFeatureTests {
         suite.expect(KeyboardDebounceConfig.decodeKeyWindows("37:100,bad,40:0,99:999")
                == [37: 100, 40: 0, 99: Defaults.defaultKeyboardDebounceWindowMs],
                "debounce key windows decode and sanitize stored values")
+        let preciseConfig = KeyboardDebounceConfig(enabled: true,
+                                                   globalWindowMs: 1,
+                                                   keyWindows: [:])
+        debounceState.reset()
+        suite.expect(!debounceDown(0, at: 90.0000, config: preciseConfig),
+               "a 1 ms keyboard window accepts the first press")
+        _ = debounceUp(0, at: 90.0005, config: preciseConfig)
+        suite.expect(debounceDown(0, at: 90.0010, config: preciseConfig),
+               "a 1 ms keyboard window still filters a same-key bounce")
+        suite.expect(!debounceDown(11, at: 90.0012, config: preciseConfig),
+               "different keys pressed within 5 ms are never filtered")
+        _ = debounceUp(11, at: 90.0014, config: preciseConfig)
+        suite.expect(!debounceDown(0, at: 90.0015, config: preciseConfig),
+               "the first key is accepted again after another key")
 
         // MARK: Mouse click debounce
 
@@ -209,11 +223,22 @@ enum PointerInputFeatureTests {
                 && !click(0, .up, at: 301, config: disabledClickConfig)
                 && !click(0, .down, at: 302, config: disabledClickConfig),
                "disabled click debounce is a complete pass-through")
+        let preciseClickConfig = MouseClickDebounceConfig(enabled: true, windowMilliseconds: 6)
+        clickState.reset()
+        suite.expect(!click(0, .down, at: 400, config: preciseClickConfig)
+                && !click(0, .up, at: 401, config: preciseClickConfig)
+                && !click(0, .down, at: 407, config: preciseClickConfig)
+                && !click(0, .up, at: 408, config: preciseClickConfig)
+                && click(0, .down, at: 413, config: preciseClickConfig),
+               "a 6 ms window keeps a click 6 ms after release and filters one 5 ms after")
         suite.expect(Defaults.sanitizedMouseClickDebounceWindow(5) == 5
+                && Defaults.sanitizedMouseClickDebounceWindow(6) == 6
                 && Defaults.sanitizedMouseClickDebounceWindow(100) == 100
+                && Defaults.sanitizedMouseClickDebounceWindow(4)
+                    == Defaults.defaultMouseClickDebounceWindowMs
                 && Defaults.sanitizedMouseClickDebounceWindow(0)
                     == Defaults.defaultMouseClickDebounceWindowMs,
-               "mouse click debounce keeps only its conservative settings range")
+               "mouse click debounce accepts any millisecond window from 5 to 100 ms")
         let clickDebounceServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceService.swift",
             encoding: .utf8)) ?? ""
@@ -464,6 +489,114 @@ enum PointerInputFeatureTests {
         suite.expect(!MouseNavigationSupport.shouldPassThrough(bundleIdentifier: nil),
                "an unknown frontmost app keeps the navigation behavior")
 
+        // MARK: Event timestamps at the HID tap (issue #1689)
+
+        // Apple Silicon ticks mach absolute time every 125/3 ns. At the HID
+        // stage hardware events carry those ticks, posted events nanoseconds.
+        let appleSilicon = EventTimestamp.Timebase(numer: 125, denom: 3)
+        let intel = EventTimestamp.Timebase(numer: 1, denom: 1)
+        func ticks(atMilliseconds milliseconds: UInt64) -> UInt64 {
+            milliseconds * 1_000_000 * 3 / 125
+        }
+        let nowTicks = ticks(atMilliseconds: 3_600_000)
+        suite.expect(EventTimestamp.nanoseconds(raw: ticks(atMilliseconds: 3_599_998),
+                                                nowTicks: nowTicks, timebase: appleSilicon)
+                == 3_599_998 * 1_000_000,
+               "a hardware event stamped in mach ticks reads as nanoseconds of uptime")
+        suite.expect(EventTimestamp.nanoseconds(raw: 3_599_999 * 1_000_000,
+                                                nowTicks: nowTicks, timebase: appleSilicon)
+                == 3_599_999 * 1_000_000,
+               "a posted event already stamped in nanoseconds keeps its value")
+        suite.expect(EventTimestamp.nanoseconds(raw: 3_599_999 * 1_000_000,
+                                                nowTicks: 3_600_000 * 1_000_000, timebase: intel)
+                == 3_599_999 * 1_000_000,
+               "a timebase of one nanosecond per tick passes timestamps through")
+        suite.expect(EventTimestamp.nanoseconds(ticks: 3_253_805_719_584, timebase: appleSilicon)
+                == 135_575_238_316_000
+                && EventTimestamp.nanoseconds(ticks: 3_251_232_217_924, timebase: appleSilicon)
+                == 135_468_009_080_166,
+               "tick conversion rounds down like the timestamps a session tap reports")
+        suite.expect(EventTimestamp.nanoseconds(ticks: .max, timebase: appleSilicon) == .max
+                && EventTimestamp.nanoseconds(raw: .max, nowTicks: nowTicks,
+                                              timebase: appleSilicon) == .max,
+               "a nonsense timestamp saturates instead of trapping inside an event tap")
+        let liveEvent = CGEvent(source: nil)
+        let liveTicks = mach_absolute_time()
+        liveEvent?.timestamp = liveTicks
+        let liveFromTicks = liveEvent.map(EventTimestamp.nanoseconds(of:))
+        let liveNanoseconds = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+        liveEvent?.timestamp = liveNanoseconds
+        let liveFromNanoseconds = liveEvent.map(EventTimestamp.nanoseconds(of:))
+        suite.expect(liveFromTicks.map { $0 <= liveNanoseconds && liveNanoseconds - $0 < 1_000_000_000 }
+                == true
+                && liveFromNanoseconds == liveNanoseconds,
+               "events stamped with this Mac's mach clock or uptime nanoseconds share one clock")
+
+        // A 50 ms window measured in raw ticks would last about 2.1 s here.
+        let hidDebounceConfig = KeyboardDebounceConfig(enabled: true,
+                                                       globalWindowMs: 50,
+                                                       keyWindows: [:])
+        func hidKey(_ event: KeyboardDebounceState.EventKind, atMilliseconds milliseconds: UInt64) -> Bool {
+            debounceState.shouldSuppress(
+                keyCode: 0,
+                isAutoRepeat: false,
+                event: event,
+                timestampNanoseconds: EventTimestamp.nanoseconds(
+                    raw: ticks(atMilliseconds: milliseconds), nowTicks: nowTicks, timebase: appleSilicon),
+                config: hidDebounceConfig)
+        }
+        debounceState.reset()
+        suite.expect(!hidKey(.keyDown, atMilliseconds: 3_500_000)
+                && !hidKey(.keyUp, atMilliseconds: 3_500_060)
+                && hidKey(.keyDown, atMilliseconds: 3_500_080)
+                && !hidKey(.keyDown, atMilliseconds: 3_500_120)
+                && !hidKey(.keyUp, atMilliseconds: 3_500_180)
+                && !hidKey(.keyDown, atMilliseconds: 3_500_240),
+               "keyboard debounce on HID ticks drops a 20 ms bounce and accepts a press 60 ms after release")
+        clickState.reset()
+        func hidClick(_ event: MouseClickDebounceEvent, atMilliseconds milliseconds: UInt64) -> Bool {
+            clickState.shouldSuppress(
+                button: 0,
+                event: event,
+                timestampNanoseconds: EventTimestamp.nanoseconds(
+                    raw: ticks(atMilliseconds: milliseconds), nowTicks: nowTicks, timebase: appleSilicon),
+                config: clickConfig)
+        }
+        suite.expect(!hidClick(.down, atMilliseconds: 3_500_000)
+                && !hidClick(.up, atMilliseconds: 3_500_080)
+                && hidClick(.down, atMilliseconds: 3_500_090)
+                && hidClick(.up, atMilliseconds: 3_500_095)
+                && !hidClick(.down, atMilliseconds: 3_500_200)
+                && !hidClick(.up, atMilliseconds: 3_500_280),
+               "click debounce on HID ticks drops a 10 ms bounce and accepts a click 120 ms later")
+
+        // Keys this app posts are recognised on the event itself. Quit
+        // Protection confirms a press by posting a copy of the hardware key
+        // down, which keeps both the hardware timestamp and its source process
+        // id of 0. KeyboardDebounceTapTests feeds these through the tap handler.
+        let ownProcessID = Int64(getpid())
+        let hardwareKeyDown = CGEvent(keyboardEventSource: nil, virtualKey: 13, keyDown: true)
+        hardwareKeyDown?.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
+        hardwareKeyDown?.timestamp = ticks(atMilliseconds: 3_599_990)
+        let quitProtectionCopy = hardwareKeyDown?.copy()
+        quitProtectionCopy?.setIntegerValueField(.eventSourceUserData, value: OwnKeyEvent.quitProtectionMarker)
+        suite.expect(hardwareKeyDown.map(OwnKeyEvent.isPosted) == false,
+               "a hardware key press still goes through key debounce")
+        suite.expect(quitProtectionCopy?.getIntegerValueField(.eventSourceUnixProcessID) == 0
+                && quitProtectionCopy?.timestamp == hardwareKeyDown?.timestamp
+                && quitProtectionCopy.map(OwnKeyEvent.isPosted) == true,
+               "the Quit Protection copy of a held key is recognised although it keeps the hardware pid and time")
+        let snippetSource = CGEventSource(stateID: .hidSystemState)
+        snippetSource?.userData = OwnKeyEvent.textSnippetMarker
+        let snippetKey = CGEvent(keyboardEventSource: snippetSource, virtualKey: 49, keyDown: true)
+        snippetKey?.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
+        suite.expect(snippetKey.map(OwnKeyEvent.isPosted) == true,
+               "text a snippet retypes is recognised by its source marker alone")
+        suite.expect(OwnKeyEvent.isPosted(sourceProcessID: ownProcessID, userData: 0, ownProcessID: ownProcessID)
+                && !OwnKeyEvent.isPosted(sourceProcessID: 1, userData: 0, ownProcessID: ownProcessID)
+                && !OwnKeyEvent.isPosted(sourceProcessID: 0, userData: 0x564F, ownProcessID: ownProcessID),
+               "keys posted by this process skip debounce while other apps' posted keys do not")
+
         // MARK: Smooth scrolling
 
         suite.expect(SmoothScrollSupport.ticks(line: 1, fixedPoint: 1.0) == 1.0,
@@ -573,6 +706,64 @@ enum PointerInputFeatureTests {
         suite.expect(SmoothScrollSupport.sanitizedResponse(-1) == SmoothScrollSupport.responseRange.lowerBound
                 && SmoothScrollSupport.sanitizedResponse(500) == SmoothScrollSupport.responseRange.upperBound,
                "response clamps damaged preferences to its range")
+        suite.expect(SmoothScrollSupport.defaultCoast == 0,
+               "coast ships off so every upgrade keeps the exact shipped curve")
+        suite.expect(SmoothScrollSupport.sanitizedCoast(-1) == SmoothScrollSupport.coastRange.lowerBound
+                && SmoothScrollSupport.sanitizedCoast(500) == SmoothScrollSupport.coastRange.upperBound,
+               "coast clamps damaged preferences to its range")
+        suite.expect(SmoothScrollSupport.frameDelta(
+            remaining: 100,
+            elapsed: SmoothScrollSupport.frameInterval,
+            response: SmoothScrollSupport.defaultResponse,
+            coast: SmoothScrollSupport.defaultCoast
+        ) == defaultFrameDelta,
+               "zero coast emits exactly the shipped first frame")
+        // Coast must slow only the landing. A notch glided at zero coast has
+        // to match the shipped engine frame for frame, and at full coast the
+        // first frame must stay the shipped one while the glide lasts longer.
+        func notchFrames(coast: Int?) -> [Double] {
+            var engine = SmoothScrollSupport.Engine()
+            engine.add(vertical: 40, horizontal: 0)
+            var frames: [Double] = []
+            while engine.isActive && frames.count < 600 {
+                let frame = coast.map {
+                    engine.advance(elapsed: SmoothScrollSupport.frameInterval,
+                                   response: SmoothScrollSupport.defaultResponse, coast: $0)
+                } ?? engine.advance(elapsed: SmoothScrollSupport.frameInterval,
+                                    response: SmoothScrollSupport.defaultResponse)
+                frames.append(frame.vertical)
+            }
+            return frames
+        }
+        let shippedNotch = notchFrames(coast: nil)
+        let fullCoastNotch = notchFrames(coast: SmoothScrollSupport.coastRange.upperBound)
+        suite.expect(notchFrames(coast: SmoothScrollSupport.defaultCoast) == shippedNotch,
+               "zero coast glides a notch exactly like the shipped engine")
+        suite.expect(fullCoastNotch.first == shippedNotch.first
+                && fullCoastNotch.count >= shippedNotch.count * 3 / 2
+                && abs(fullCoastNotch.reduce(0, +) - 40) < 0.000001,
+               "full coast keeps the first frame and lands the same notch later")
+        // The landing slows gradually rather than dropping to a flat crawl.
+        suite.expect(zip(fullCoastNotch.dropLast(), fullCoastNotch.dropFirst().dropLast())
+                .allSatisfy { $0 >= $1 - 0.000001 },
+               "full coast never speeds back up before the glide lands")
+        var reboundEngine = SmoothScrollSupport.Engine()
+        reboundEngine.add(vertical: 40, horizontal: 0)
+        for _ in 0..<10 {
+            _ = reboundEngine.advance(elapsed: SmoothScrollSupport.frameInterval,
+                                      response: SmoothScrollSupport.defaultResponse,
+                                      coast: SmoothScrollSupport.coastRange.upperBound)
+        }
+        let remainingBeforeTick = reboundEngine.remainingVertical
+        reboundEngine.add(vertical: 40, horizontal: 0)
+        let freshTick = reboundEngine.advance(elapsed: SmoothScrollSupport.frameInterval,
+                                              response: SmoothScrollSupport.defaultResponse,
+                                              coast: SmoothScrollSupport.coastRange.upperBound)
+        suite.expect(abs(freshTick.vertical - SmoothScrollSupport.frameDelta(
+                    remaining: remainingBeforeTick + 40,
+                    elapsed: SmoothScrollSupport.frameInterval,
+                    response: SmoothScrollSupport.defaultResponse)) < 0.000001,
+               "a tick during a coasting landing answers at the shipped pace again")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollEnabled] as? Bool == false,
                "smooth scrolling ships off by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.scrollInverterHorizontalEnabled] as? Bool == false,
@@ -585,6 +776,10 @@ enum PointerInputFeatureTests {
                 == SmoothScrollSupport.defaultResponse
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.smoothScrollResponse),
                "smooth scrolling response registers its default and follows settings backups")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollCoast] as? Int
+                == SmoothScrollSupport.defaultCoast
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.smoothScrollCoast),
+               "smooth scrolling coast registers its default and follows settings backups")
 
         var sixtyHertzEngine = SmoothScrollSupport.Engine()
         var oneTwentyHertzEngine = SmoothScrollSupport.Engine()
@@ -617,6 +812,45 @@ enum PointerInputFeatureTests {
                 && abs(sixtyHertzEngine.remainingVertical - oneTwentyHertzEngine.remainingVertical) < 0.000001
                 && abs(sixtyHertzEngine.remainingHorizontal - oneTwentyHertzEngine.remainingHorizontal) < 0.000001,
                "equal elapsed time produces the same glide at 60 and 120 Hz")
+
+        // Full coast still travels every pixel the wheel asked for, on either
+        // cadence: the curve only stretches the response time.
+        var coastSixtyHertzEngine = SmoothScrollSupport.Engine()
+        var coastOneTwentyHertzEngine = SmoothScrollSupport.Engine()
+        coastSixtyHertzEngine.add(vertical: 80, horizontal: -80)
+        coastOneTwentyHertzEngine.add(vertical: 80, horizontal: -80)
+        var coastSixtyHertzTravelled = SmoothScrollSupport.Axes(vertical: 0, horizontal: 0)
+        var coastOneTwentyHertzTravelled = SmoothScrollSupport.Axes(vertical: 0, horizontal: 0)
+        for _ in 0..<600 {
+            let frame = coastSixtyHertzEngine.advance(
+                elapsed: 1.0 / 60.0,
+                response: SmoothScrollSupport.defaultResponse,
+                coast: SmoothScrollSupport.coastRange.upperBound
+            )
+            coastSixtyHertzTravelled = SmoothScrollSupport.Axes(
+                vertical: coastSixtyHertzTravelled.vertical + frame.vertical,
+                horizontal: coastSixtyHertzTravelled.horizontal + frame.horizontal
+            )
+            if frame.finished { break }
+        }
+        for _ in 0..<1200 {
+            let frame = coastOneTwentyHertzEngine.advance(
+                elapsed: 1.0 / 120.0,
+                response: SmoothScrollSupport.defaultResponse,
+                coast: SmoothScrollSupport.coastRange.upperBound
+            )
+            coastOneTwentyHertzTravelled = SmoothScrollSupport.Axes(
+                vertical: coastOneTwentyHertzTravelled.vertical + frame.vertical,
+                horizontal: coastOneTwentyHertzTravelled.horizontal + frame.horizontal
+            )
+            if frame.finished { break }
+        }
+        suite.expect(!coastSixtyHertzEngine.isActive && !coastOneTwentyHertzEngine.isActive
+                && abs(coastSixtyHertzTravelled.vertical - 80) < 0.001
+                && abs(coastSixtyHertzTravelled.horizontal + 80) < 0.001
+                && abs(coastOneTwentyHertzTravelled.vertical - 80) < 0.001
+                && abs(coastOneTwentyHertzTravelled.horizontal + 80) < 0.001,
+               "a full-coast glide lands on the full wheel distance at 60 and 120 Hz")
 
         suite.expect(FocusFollowsMouseSupport.sanitizedDelay(0)
                 == FocusFollowsMouseSupport.delayRange.lowerBound
@@ -1106,6 +1340,28 @@ enum PointerInputFeatureTests {
                                                  positionUnavailable: false, systemDragGestureEnabled: true,
                                                  tapFingers: 3),
                "three-finger tap stands down while the system drag gesture owns it")
+        suite.expect(MiddleClickSupport.radialMenuTapFingers(radialMenuWantsTap: true, middleClickTapFingers: 0) == 4
+                && MiddleClickSupport.radialMenuTapFingers(radialMenuWantsTap: true, middleClickTapFingers: 3) == 4
+                && MiddleClickSupport.radialMenuTapFingers(radialMenuWantsTap: false, middleClickTapFingers: 0) == 0,
+               "a radial menu wheel that asks for the tap gets four fingers, beside a three-finger middle click")
+        suite.expect(MiddleClickSupport.radialMenuTapFingers(radialMenuWantsTap: true, middleClickTapFingers: 4) == 0,
+               "a middle click already on four fingers keeps them")
+        let tapWheel = RadialMenuProfile(name: "Tap", trackpadTap: true)
+        let legacyWheel = Data(#"[{"name":"Old","shortcut":"","mouseButton":"off","items":[]}]"#.utf8)
+        suite.expect(RadialMenuSupport.decodeProfiles(RadialMenuSupport.encodeProfiles([tapWheel])).first?.trackpadTap == true
+                && RadialMenuSupport.decodeProfiles(legacyWheel).first?.trackpadTap == false,
+               "the trackpad tap is saved with its wheel and off for wheels saved before it")
+        suite.expect(RadialMenuSupport.needsAccessibility([tapWheel]),
+               "a wheel opened by the trackpad tap needs the event tap's Accessibility permission")
+        let shortcutTapWheel = RadialMenuProfile(
+            name: "Tap", shortcut: "cmd+shift+space",
+            items: [RadialMenuItem(kind: .app, payload: "/System/Library/CoreServices/Finder.app")],
+            trackpadTap: true)
+        let copiedWheel = shortcutTapWheel.duplicate(named: "Tap 2")
+        suite.expect(copiedWheel.id != shortcutTapWheel.id && copiedWheel.name == "Tap 2"
+                && copiedWheel.items == shortcutTapWheel.items
+                && copiedWheel.shortcut.isEmpty && !copiedWheel.trackpadTap,
+               "a duplicated wheel keeps the actions but leaves the shortcut and the trackpad tap to the original")
         suite.expect(MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
                                                 exceededFingerCount: false, buttonPressedDuring: false,
                                                 positionUnavailable: false, systemDragGestureEnabled: true,

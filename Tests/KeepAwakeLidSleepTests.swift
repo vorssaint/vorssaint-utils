@@ -12,8 +12,22 @@ enum KeepAwakeLidSleepContract {
     }
     enum DispatchQueue {
         static let main = Queue()
+        static let background = Queue()
+        static let native = Queue()
+        enum QoS { case utility, userInitiated }
+        static func global(qos: QoS) -> Queue { background }
         final class Queue {
+            var immediate: [() -> Void] = []
             var pending: [() -> Void] = []
+            func async(execute: @escaping () -> Void) { immediate.append(execute) }
+            func sync<T>(execute: () -> T) -> T { flush(); return execute() }
+            func flush() {
+                while !immediate.isEmpty {
+                    let ready = immediate
+                    immediate.removeAll()
+                    ready.forEach { $0() }
+                }
+            }
             func asyncAfter(deadline: Instant, execute: @escaping () -> Void) { pending.append(execute) }
             func advance() {
                 let ready = pending
@@ -26,8 +40,28 @@ enum KeepAwakeLidSleepContract {
         static var lid: Bool? = true
         static func lidClosed() -> Bool? { lid }
     }
+    /// Only the built-in panel this fixture models; a value the production
+    /// code would treat as "the panel already reads asleep" is `nil`, not 0.
+    enum LidDisplayDimmer {
+        static var reading: Double?
+        static var written: [Double] = []
+        /// True by default; set false to model the panel not being back in
+        /// the online list yet, or the write itself failing.
+        static var writeSucceeds = true
+        static func currentBrightness() -> Double? { reading }
+        @discardableResult
+        static func setBrightness(_ value: Double) -> Bool {
+            guard writeSucceeds else { return false }
+            written.append(value)
+            return true
+        }
+    }
     static let kIOMainPortDefault = 0
     static let kIOReturnSuccess = 0
+    static let KERN_SUCCESS: Int32 = 0
+    static let kIOGeneralInterest = "IOGeneralInterest"
+    typealias IONotificationPortRef = Int
+    typealias io_object_t = Int
     static var port = 1
     static var results = [0]
     static var calls = 0
@@ -37,13 +71,55 @@ enum KeepAwakeLidSleepContract {
     static func IOPMFindPowerManagement(_ value: Int) -> Int { port }
     static func IOPMSleepSystem(_ value: Int) -> Int {
         calls += 1
+        onSleep?()
         return results.count > 1 ? results.removeFirst() : results[0]
     }
     static func IOServiceClose(_ value: Int) { closes += 1 }
+    /// The root-domain general-interest observer the dimming feature keeps.
+    /// Registrations, releases and the queued callback are counted the same
+    /// way `DisplayRestorationTests` models `BrightnessService`'s own use of
+    /// this exact IOKit pattern.
+    enum DimmingObserver {
+        static var registrations = 0
+        static var releasedObjects = 0
+        static var destroyedPorts = 0
+        static var callback: (() -> Void)?
+    }
+    static func IOServiceMatching(_ name: String) -> Int { 1 }
+    static func IOServiceGetMatchingService(_ port: Int, _ matching: Int) -> Int { 2 }
+    static func IOObjectRelease(_ object: Int) { DimmingObserver.releasedObjects += 1 }
+    static func IONotificationPortCreate(_ port: Int) -> Int? { 3 }
+    static func IONotificationPortDestroy(_ port: Int) {
+        DimmingObserver.destroyedPorts += 1
+        DimmingObserver.callback = nil
+    }
+    static func IONotificationPortSetDispatchQueue(_ port: Int, _ queue: DispatchQueue.Queue) {}
+    static func IOServiceAddInterestNotification(
+        _ port: Int, _ root: Int, _ interest: String,
+        _ callback: @escaping (UnsafeMutableRawPointer?, Int, UInt32, UnsafeMutableRawPointer?) -> Void,
+        _ context: UnsafeMutableRawPointer?, _ notification: inout Int
+    ) -> Int32 {
+        DimmingObserver.registrations += 1
+        notification = 4
+        DimmingObserver.callback = { callback(context, root, 0, nil) }
+        return KERN_SUCCESS
+    }
     static func reset() -> Service {
         port = 1; results = [0]; calls = 0; closes = 0
         policy = true; assertions = []; BrightnessService.lid = true
-        DispatchQueue.main.pending.removeAll()
+        LidDisplayDimmer.reading = nil; LidDisplayDimmer.written = []; LidDisplayDimmer.writeSucceeds = true
+        DimmingObserver.registrations = 0; DimmingObserver.releasedObjects = 0
+        DimmingObserver.destroyedPorts = 0; DimmingObserver.callback = nil
+        for queue in [DispatchQueue.main, DispatchQueue.background, DispatchQueue.native] {
+            queue.pending.removeAll(); queue.immediate.removeAll()
+        }
+        UserDefaults.standard.values.removeAll(); UserDefaults.standard.doubles.removeAll()
+        Sudoers.calls = []; Sudoers.results = [true]; Sudoers.disabled = false
+        Sudoers.configured = true; Sudoers.installCompletions = []
+        Sudoers.sleepStateProbeSuspensions = 0; Sudoers.probeWrites = []
+        AdminShell.completions = []; AdminShell.prompts = 0; AdminShell.syncResult = false
+        Shell.status = 0; Shell.output = nil
+        Thread.waits = 0; Thread.onWait = nil; onSleep = nil
         return Service()
     }
 }
@@ -133,5 +209,7 @@ enum KeepAwakeLidSleepTests {
         let missing = C.reset(); C.port = 0
         missing.sleepIfLidAlreadyClosed()
         expect(C.calls == 0 && C.closes == 0, "an unavailable sleep service is not called or closed")
+        KeepAwakeClamshellTests.run(expect: expect)
+        KeepAwakeDimmingTests.run(expect: expect)
     }
 }

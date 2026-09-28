@@ -7,6 +7,8 @@ import Foundation
 /// These objects model native dismissal order without creating windows or reading UI.
 enum NotchDownloadFolderChoiceContract {
     final class Window {
+        struct Level { let rawValue: Int }
+        var level = Level(rawValue: 26)
         var isVisible = true
         var attachedSheet: Panel?
         var focusReturns = 0
@@ -27,12 +29,16 @@ enum NotchDownloadFolderChoiceContract {
         }
     }
     final class Panel {
+        static weak var current: Panel?
         var canChooseFiles = true
         var canChooseDirectories = false
         var allowsMultipleSelection = true
         var directoryURL: URL?
         var message = ""
         var url: Location? = Location()
+        var level = Window.Level(rawValue: 0)
+        var hidesOnDeactivate = true
+        var focused = false
         weak var parent: Window?
         var standalone = false
         private var completed: ((NSApplication.ModalResponse) -> Void)?
@@ -42,10 +48,13 @@ enum NotchDownloadFolderChoiceContract {
             completed = completionHandler
         }
         func begin(completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
+            Self.current = self
             standalone = true
             completed = completionHandler
         }
+        func makeKeyAndOrderFront(_ sender: Any?) { focused = true }
         func finish(_ response: NSApplication.ModalResponse) {
+            if Self.current === self { Self.current = nil }
             parent?.attachedSheet = nil
             completed?(response)
             // Reproduce AppKit restoring a key window after calling completion.
@@ -58,12 +67,13 @@ enum NotchDownloadFolderChoiceContract {
         let settingsWindow = Window()
         var currentEvent: Event?
         var keyWindow: Window?
-        var activatedWithAttachedSheet = false
+        var activatedWithChooser = false
         func activate(ignoringOtherApps: Bool) {
             let notch = NotchService.shared
-            activatedWithAttachedSheet = notch.presentationWindow?.attachedSheet != nil
+            // A pending chooser keeps the island's working surface.
+            activatedWithChooser = Panel.current != nil
             if currentEvent?.window === notch.presentationWindow,
-               !activatedWithAttachedSheet, !notch.pinned { notch.expanded = false }
+               !activatedWithChooser, !notch.pinned { notch.expanded = false }
             keyWindow = settingsWindow
         }
     }
@@ -80,6 +90,7 @@ enum NotchDownloadFolderChoiceContract {
         static var shared = NotchService()
         var presentationWindow: Window? = Window()
         var acceptsSystemFeedback = true
+        var acceptsUserInteraction = true
         var expanded = true
         var selected: NotchModule = .downloads
         var showingAppPanel = false
@@ -119,6 +130,7 @@ enum NotchDownloadFolderChoiceContract {
     static func reset(fromNotch: Bool = true, pinned: Bool = false, menuAction: Bool = false) {
         NSApp = Application()
         DispatchQueue.main = DispatchQueue.Queue()
+        Panel.current = nil
         NotchService.shared = NotchService()
         NotchService.shared.pinned = pinned
         NotchSupport.enabled = true
@@ -140,13 +152,17 @@ enum NotchDownloadFolderChoiceTests {
                 Context.reset(pinned: pinned, menuAction: menu)
                 let service = Context.Service()
                 let notch = Context.NotchService.shared
+                notch.acceptsSystemFeedback = false
                 let window = notch.presentationWindow!
                 service.chooseFolder()
                 guard let panel = service.chooser else { suite.expect(false, "the folder chooser was created"); continue }
-                suite.expect(panel.parent === window && !panel.standalone && Context.NSApp.activatedWithAttachedSheet,
-                       "notch buttons and menus attach the picker before application activation")
+                suite.expect(panel.parent == nil && window.attachedSheet == nil && panel.standalone && panel.focused
+                       && panel.level.rawValue > window.level.rawValue && Context.NSApp.activatedWithChooser
+                       && !panel.hidesOnDeactivate,
+                       "notch buttons and menus focus a standalone picker despite hidden system feedback, begun before activation, "
+                       + "that stays up while another app is active")
                 suite.expect(notch.expanded && notch.pinned == pinned,
-                       "opening the native sheet preserves the working surface and existing pin")
+                       "opening the picker preserves the working surface and existing pin")
                 panel.finish(.OK)
                 suite.expect(Context.NSApp.keyWindow !== window && window.focusReturns == 0,
                        "focus is not restored before native dismissal finishes")
@@ -171,8 +187,9 @@ enum NotchDownloadFolderChoiceTests {
         let settings = Context.Service()
         let backgroundNotch = Context.NotchService.shared.presentationWindow!
         settings.chooseFolder()
-        suite.expect(settings.chooser?.standalone == true && settings.chooser?.parent == nil,
-               "a Settings action never borrows a pinned notch as its parent")
+        suite.expect(settings.chooser?.standalone == true && settings.chooser?.parent == nil
+               && settings.chooser?.level.rawValue == 0 && settings.chooser?.hidesOnDeactivate == true,
+               "a Settings action never borrows a pinned notch as its parent or rises to its level")
         settings.chooser?.finish(.OK)
         Context.DispatchQueue.main.drain()
         suite.expect(backgroundNotch.focusReturns == 0 && Context.NSApp.keyWindow === Context.NSApp.settingsWindow,
@@ -187,7 +204,7 @@ enum NotchDownloadFolderChoiceTests {
             switch interruption {
             case 0: service.stop()
             case 1: Context.AppFeature.notchDownloads.isAvailable = false
-            case 2: Context.NotchService.shared.acceptsSystemFeedback = false
+            case 2: Context.NotchService.shared.acceptsUserInteraction = false
             case 3: Context.NotchService.shared.selected = .music
             case 4: Context.NotchService.shared.expanded = false
             case 5: Context.NotchService.shared.presentationWindow = Context.Window()
@@ -234,5 +251,29 @@ enum NotchDownloadFolderChoiceTests {
         Context.DispatchQueue.main.drain()
         suite.expect(failed.folderUnavailable && failureOrigin.focusReturns == 1 && Context.UserDefaults.standard.values.isEmpty,
                "a failed folder grant returns to the existing error surface without saving or enabling anything")
+
+        Context.reset()
+        let leaving = Context.Service()
+        let leftIsland = Context.NotchService.shared.presentationWindow!
+        leaving.chooseFolder()
+        let islandChooser = leaving.chooser
+        leaving.cancelNotchFolderChoice()
+        Context.DispatchQueue.main.drain()
+        suite.expect(islandChooser != nil && Context.Panel.current == nil && leaving.chooser == nil,
+               "leaving the island's Downloads page closes the chooser begun there")
+        suite.expect(leftIsland.focusReturns == 0 && Context.UserDefaults.standard.values.isEmpty,
+               "the closed island chooser neither saves a folder nor refocuses the island")
+
+        Context.reset(fromNotch: false)
+        let staying = Context.Service()
+        staying.chooseFolder()
+        let settingsChooser = staying.chooser
+        staying.cancelNotchFolderChoice()
+        suite.expect(settingsChooser != nil && Context.Panel.current === settingsChooser && staying.chooser === settingsChooser,
+               "leaving the island's Downloads page leaves a chooser begun in Settings open")
+        settingsChooser?.finish(.OK)
+        Context.DispatchQueue.main.drain()
+        suite.expect(Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsEnabled] as? Bool == true,
+               "the Settings chooser still saves the folder picked after the island's page went away")
     }
 }

@@ -7,7 +7,7 @@ import SwiftUI
 struct NotchDownloadsSettingsControls: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = true
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
@@ -35,7 +35,8 @@ struct NotchDownloadsView: View {
     let size: CGSize
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = true
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
@@ -61,17 +62,20 @@ struct NotchDownloadsView: View {
                     NotchEmptyView(symbol: "arrow.down.circle", message: text.waiting)
                         .frame(maxHeight: .infinity)
                 } else {
-                    let height = max(0, size.height - 20 - NotchLayout.rowSpacing)
-                    let rows = NotchLayout.railRows(count: downloads.items.count,
-                                                    perRow: NotchLayout.railCapacity(width: size.width, itemWidth: 220, spacing: 8),
-                                                    rowHeight: 76, spacing: 8, height: height)
-                    let cardHeight = (height - CGFloat(rows - 1) * 8) / CGFloat(rows)
-                    NotchRail(items: downloads.items, rows: rows, itemWidth: 220, width: size.width) { item in
-                        downloadCard(item).frame(height: cardHeight)
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(downloads.items) { item in
+                                downloadCard(item)
+                            }
+                        }
                     }
+                    .scrollIndicators(.automatic)
                 }
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Another section or a collapse takes the page away; its chooser
+        // could no longer return the folder here. Settings keeps its own.
+        .onDisappear { if !preview { downloads.cancelNotchFolderChoice() } }
     }
 
     private func downloadCard(_ item: NotchDownloadItem) -> some View {
@@ -96,7 +100,7 @@ struct NotchDownloadsView: View {
                 }
             }
             if item.completed {
-                Text(text.completed).font(.caption).foregroundStyle(.secondary)
+                Text(text.saved).font(.caption).foregroundStyle(.secondary)
             } else {
                 if let fraction = item.fraction {
                     NotchMeter(value: fraction)
@@ -127,12 +131,13 @@ struct NotchDownloadStrip: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
 
+    private var geometry: NotchGeometry { service.compactActivityGeometry }
     /// The arrow keeps the shared gap from the top and bottom edges too.
     private var iconSize: CGFloat {
-        min(17, service.geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
+        min(17, geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
     }
     private var iconInset: CGFloat {
-        service.geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
+        geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
     }
 
     var body: some View {
@@ -140,40 +145,47 @@ struct NotchDownloadStrip: View {
         Button { service.open(.downloads) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 6) {
-                    if service.geometry.compactActivityWingWidth >= 40 {
+                    if geometry.compactActivityWingWidth >= 40 {
                         Image(systemName: "arrow.down.circle.fill").font(.system(size: iconSize))
-                        if service.geometry.compactActivityWingWidth >= 94 {
+                        if NotchDownloadSupport.showsCompactName(in: geometry) {
                             Text(item?.name ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle)
                                 .font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.middle)
                         }
                     }
                 }
-                .padding(.leading, service.geometry.compactActivityWingWidth >= 40 ? iconInset : 0)
+                .padding(.leading, geometry.compactActivityWingWidth >= 40 ? iconInset : 0)
                 .padding(.trailing, 4)
                 // Each wing anchors to its own edge, so the silhouette's curve
                 // decides the margin instead of the content's own width.
-                .frame(width: service.geometry.compactActivityWingWidth, alignment: .leading).clipped()
-                Color.clear.frame(width: service.geometry.compactActivityCameraGap)
-                HStack {
-                    Spacer(minLength: 0)
-                    if service.geometry.compactActivityWingWidth >= 36 {
+                .frame(width: geometry.compactActivityWingWidth, alignment: .leading).clipped()
+                Color.clear.frame(width: geometry.compactActivityCameraGap)
+                HStack(spacing: 6) {
+                    // The name widens both wings; the bar fills the side the
+                    // percentage alone would leave as a band of black.
+                    if NotchDownloadSupport.showsCompactName(in: geometry), let fraction = item?.fraction {
+                        NotchMeter(value: fraction, height: 4).padding(.leading, 4)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
+                    if geometry.compactActivityWingWidth >= 36 {
                         if let fraction = item?.fraction {
                             Text(fraction, format: NotchDownloadSupport.percentFormat(l10n.language))
                                 .font(.system(size: NotchDownloadSupport.percentSize, weight: .medium))
                                 .monospacedDigit()
                                 .lineLimit(1).minimumScaleFactor(NotchDownloadSupport.percentMinimumScale)
+                                .layoutPriority(1)
                         } else {
                             ProgressView().controlSize(.mini)
                         }
                     }
                 }
-                .padding(.trailing, service.geometry.compactActivityWingWidth >= 36
-                                    ? NotchDownloadSupport.percentInset(in: service.geometry) : 0)
-                .frame(width: service.geometry.compactActivityWingWidth, alignment: .trailing).clipped()
+                .padding(.trailing, geometry.compactActivityWingWidth >= 36
+                                    ? NotchDownloadSupport.percentInset(in: geometry) : 0)
+                .frame(width: geometry.compactActivityWingWidth, alignment: .trailing).clipped()
             }
-            .frame(height: service.geometry.compactActivityContentHeight)
-            .padding(.horizontal, service.geometry.compactActivityHorizontalPadding)
-            .padding(.top, service.geometry.compactActivityTopPadding)
+            .frame(height: geometry.compactActivityContentHeight)
+            .padding(.horizontal, geometry.compactActivityHorizontalPadding)
+            .padding(.top, geometry.compactActivityTopPadding)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

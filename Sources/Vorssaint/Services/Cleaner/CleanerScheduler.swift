@@ -155,7 +155,7 @@ final class CleanerScheduler: ObservableObject {
                     break
                 }
             }
-        cleaner.scan()
+        cleaner.scan(attended: false)
     }
 
     private func finishRun(freed: Int64, failed: Int) {
@@ -164,6 +164,7 @@ final class CleanerScheduler: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.set(Date().timeIntervalSince1970, forKey: DefaultsKey.cleanerLastAutoRun)
         defaults.set(freed, forKey: DefaultsKey.cleanerLastAutoFreed)
+        defaults.set(failed, forKey: DefaultsKey.cleanerLastAutoFailed)
         notifyIfWanted(freed: freed, failed: failed)
         scheduleNext()
     }

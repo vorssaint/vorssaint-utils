@@ -91,6 +91,7 @@ final class NotchNotificationService: ObservableObject {
         reading = true
         let requested = generation
         queue.async { [weak self] in
+            NotchNotificationSources.refreshIfStale()
             let snapshot = reader.read()
             DispatchQueue.main.async {
                 guard let self, self.generation == requested else { return }
@@ -104,22 +105,18 @@ final class NotchNotificationService: ObservableObject {
     func icon(for app: String) -> NSImage? { appIcons[app] }
 
     private func accept(_ live: [NotchSystemNotification]) {
-        let applications = NSWorkspace.shared.runningApplications
-        let identities = applications.compactMap { app -> (name: String, bundleIdentifier: String)? in
-            guard let name = app.localizedName, let identifier = app.bundleIdentifier else { return nil }
-            return (name, identifier)
-        }
-        for name in Set(live.map { $0.content.app }) {
-            guard let identifier = NotchNotificationSupport.sourceBundleIdentifier(for: [name], applications: identities) else {
-                appIcons[name] = nil
-                continue
+        let sources = Dictionary(uniqueKeysWithValues: Set(live.map { $0.content.app }).map {
+            ($0, NotchNotificationSources.source(for: [$0])?.bundleIdentifier)
+        })
+        for (name, identifier) in sources {
+            guard let identifier else { appIcons[name] = nil; continue }
+            if appIcons[name] == nil {
+                appIcons[name] = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first?.icon
+                    ?? InstalledApps.url(for: identifier).map { NSWorkspace.shared.icon(forFile: $0.path) }
             }
-            appIcons[name] = applications.first(where: { $0.bundleIdentifier == identifier })?.icon
         }
         for item in live {
-            if let identifier = NotchNotificationSupport.sourceBundleIdentifier(for: [item.content.app], applications: identities) {
-                sourceApplications[item.id] = identifier
-            }
+            if let identifier = sources[item.content.app] ?? nil { sourceApplications[item.id] = identifier }
         }
         let arrivals = inbox.update(live)
         trimIcons()

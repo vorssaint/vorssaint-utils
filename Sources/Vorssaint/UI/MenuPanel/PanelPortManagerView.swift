@@ -6,6 +6,7 @@ import SwiftUI
 struct PanelPortManagerView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = PortManagerService.shared
+    @Environment(\.notchPresentation) private var inNotch
     @State private var pending: PortManagerEntry?
     @State private var force = false
 
@@ -17,6 +18,13 @@ struct PanelPortManagerView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             controls
+            if service.refreshFailed {
+                Label(strings.loadFailed, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .panelCard()
+            }
             entriesList
         }
         .onAppear {
@@ -99,7 +107,9 @@ struct PanelPortManagerView: View {
     @ViewBuilder
     private var entriesList: some View {
         if service.filteredEntries.isEmpty {
-            if service.hasLoadedOnce {
+            if service.refreshFailed {
+                EmptyView()
+            } else if service.hasLoadedOnce {
                 emptyState
             } else {
                 loadingState
@@ -160,6 +170,9 @@ struct PanelPortManagerView: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 4).padding(.vertical, 1.5)
                         .background(Color.primary.opacity(0.08), in: Capsule())
+                    if PortManagerSupport.listensOnAllInterfaces(entry.address) {
+                        PortManagerAllInterfacesBadge(strings: strings, fontSize: 8.5, showsLabel: false)
+                    }
                 }
                 Text(entry.processName)
                     .font(.system(size: 10.5))
@@ -173,11 +186,11 @@ struct PanelPortManagerView: View {
             Spacer(minLength: 4)
             if AppFeature.killProcess.isAvailable {
                 HStack(spacing: 4) {
-                    Button(strings.kill) { force = false; pending = entry }
+                    Button(strings.kill) { confirmTermination(entry, force: false) }
                         .buttonStyle(.bordered).controlSize(.mini)
                         .disabled(entry.startedAt == nil
                                   || KillProcessService.isProtected(pid: entry.pid, name: entry.processName))
-                    Button { force = true; pending = entry } label: { Image(systemName: "bolt.fill") }
+                    Button { confirmTermination(entry, force: true) } label: { Image(systemName: "bolt.fill") }
                         .buttonStyle(.bordered).controlSize(.mini)
                         .accessibilityLabel(strings.forceKill)
                         .disabled(entry.startedAt == nil
@@ -188,5 +201,21 @@ struct PanelPortManagerView: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
         .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    /// The alert would hang from the island as a sheet; there it asks on its own.
+    private func confirmTermination(_ entry: PortManagerEntry, force: Bool) {
+        guard inNotch else {
+            self.force = force
+            pending = entry
+            return
+        }
+        DispatchQueue.main.async {
+            guard NSAlert.confirmAboveIsland(String(format: strings.terminateFormat, entry.processName),
+                                             message: String(format: strings.terminateMessageFormat, entry.port, entry.pid),
+                                             action: force ? strings.forceKill : strings.kill, destructive: true,
+                                             cancel: l10n.s.uninstallerCancel) else { return }
+            service.terminate(entry, force: force)
+        }
     }
 }

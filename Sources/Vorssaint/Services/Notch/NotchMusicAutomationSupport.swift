@@ -13,6 +13,10 @@ struct NotchMusicAutomationCapabilities: Equatable {
 
     var canToggle: Bool { commands["playpause"] != nil || (commands["play"] != nil && commands["pause"] != nil) }
 
+    /// Starts playback rather than toggling it, unless the dictionary only
+    /// declares the toggle.
+    var playCommand: Event? { commands["play"] ?? commands["playpause"] }
+
     func event(for command: NotchPlaybackCommand, isPlaying: Bool) -> Event? {
         switch command {
         case .toggle: return commands["playpause"] ?? commands[isPlaying ? "pause" : "play"]

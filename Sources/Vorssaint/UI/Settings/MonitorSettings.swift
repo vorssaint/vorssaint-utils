@@ -371,6 +371,7 @@ private struct MenuBarMetricTiles: View {
             }
             MemoryMenuBarOrderOption()
             NetworkMenuBarOrderOption()
+            DiskMenuBarOrderOption()
         }
         .onAppear { order = MenuBarMetric.order(in: .standard) }
         .onChange(of: order) { _, order in
@@ -440,6 +441,27 @@ private struct MemoryMenuBarOrderOption: View {
                 .onAppear {
                     memoryStyle = Defaults.sanitizedMenuBarMemoryStyle(memoryStyle)
                 }
+        }
+    }
+}
+
+private struct DiskMenuBarOrderOption: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarDiskUsage) private var menuBarDiskUsage = false
+    @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
+
+    var body: some View {
+        if menuBarDiskUsage {
+            SettingsRow(symbol: MenuBarMetric.diskUsage.symbolName, title: l10n.s.diskMenuBarStyleLabel) {
+                Picker(l10n.s.diskMenuBarStyleLabel, selection: $diskStyle) {
+                    Text(l10n.s.diskMenuBarUsedPercentage).tag(DiskMenuBarStyle.percent)
+                    Text(l10n.s.diskMenuBarAvailableSpace).tag(DiskMenuBarStyle.free)
+                    Text(l10n.s.diskMenuBarUsedSpace).tag(DiskMenuBarStyle.used)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+            }
         }
     }
 }

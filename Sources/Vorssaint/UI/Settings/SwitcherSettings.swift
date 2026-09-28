@@ -4,20 +4,20 @@
 import SwiftUI
 
 /// The Switcher page: the app switcher chosen from three drawn layouts, its
-/// shortcuts and options as rows and chips, then Dock Preview, Dock clicks
-/// and the window previews both share.
+/// shortcuts and options as rows and chips, then its window previews.
 struct SwitcherSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
-    @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
+    @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherTakeOverSystemShortcuts) private var switcherTakeOverSystemShortcuts = false
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
+    @AppStorage(DefaultsKey.switcherTreatHiddenAppsLikeMinimized) private var switcherTreatHiddenAppsLikeMinimized = true
     @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
     @AppStorage(DefaultsKey.switcherScreenPlacement) private var switcherScreenPlacement = SwitcherScreenPlacement.fallback.rawValue
     @AppStorage(DefaultsKey.switcherCurrentDisplayOnly) private var switcherCurrentDisplayOnly = false
@@ -25,23 +25,9 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
-    @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
-    @AppStorage(DefaultsKey.dockPreviewCurrentSpaceOnly) private var dockPreviewCurrentSpaceOnly = false
-    @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
-    @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
-    @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
-    @AppStorage(DefaultsKey.dockPreviewOrderByCreation) private var dockPreviewOrderByCreation = false
-    @AppStorage(DefaultsKey.dockPreviewKeepDockVisible) private var dockPreviewKeepDockVisible = false
-    @State private var dockPreviewMoreOptionsExpanded = false
-    @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
-    @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
-    @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
-    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
-    @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
-
+    @AppStorage(DefaultsKey.switcherInstantSelection) private var switcherInstantSelection = false
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
-    private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
     private var switcherWindowlessAppsSelection: Binding<String> {
         Binding(
             get: {
@@ -71,29 +57,17 @@ struct SwitcherSettings: View {
                     switcherOptionsCard
                         .disabled(!switcherEnabled)
                 }
-                if AppFeature.dockPreview.isAvailable {
-                    dockPreviewCard
-                        .settingsSectionAnchor(.dock, cornerRadius: 16)
+                if AppFeature.switcher.isAvailable {
+                    WindowPreviewsCard(sizeKey: DefaultsKey.switcherPreviewSize)
                 }
-                // Clicking a Dock icon is its own installable feature in the
-                // hub, so it gets its own card here.
-                if AppFeature.dockClick.isAvailable {
-                    dockClickCard
-                        .settingsSectionAnchor(.dockClick, cornerRadius: 16)
-                }
-                if AppFeature.switcher.isAvailable || AppFeature.dockPreview.isAvailable {
-                    previewsCard
-                }
-                if switcherEngaged || dockPreviewEngaged {
+                if switcherEngaged {
                     if !permissions.accessibility {
                         SettingsCard(title: l10n.s.permissionRequired) {
                             PermissionRow(kind: .accessibility)
                         }
                     }
                     if !permissions.screenRecording,
-                       SwitcherSupport.needsScreenRecording(switcherEnabled: switcherEngaged,
-                                                            simpleMode: switcherSimpleMode,
-                                                            dockPreviewEnabled: dockPreviewEngaged) {
+                       SwitcherSupport.capturesPreviews(simpleMode: switcherSimpleMode) {
                         SettingsCard {
                             PermissionRow(kind: .screenRecording)
                         }
@@ -183,7 +157,7 @@ struct SwitcherSettings: View {
                         }
                 }
                 Text(String(format: l10n.s.switcherUsageHintFormat,
-                            GlobalShortcutRole.switcher.savedShortcut.displayString))
+                            (GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault).displayString))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -207,6 +181,10 @@ struct SwitcherSettings: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 56, alignment: .trailing)
                 }
+            }
+            SettingsRow(symbol: "cursorarrow.rays", title: l10n.s.switcherInstantSelection,
+                        caption: l10n.s.switcherInstantSelectionCaption) {
+                Toggle(l10n.s.switcherInstantSelection, isOn: $switcherInstantSelection).labelsHidden()
             }
             SettingsRow(symbol: "magnifyingglass", title: l10n.s.switcherSearchPin,
                         caption: l10n.s.switcherSearchPinCaption) {
@@ -238,6 +216,16 @@ struct SwitcherSettings: View {
                 .onChange(of: switcherMinimizedPlacement) { _, _ in
                     AppSwitcher.shared.syncWithPreferences()
                 }
+            if switcherMinimizedPlacement != WindowSwitchMinimizedPlacement.normal.rawValue {
+                SettingsRow(symbol: "eye.slash", title: l10n.s.switcherTreatHiddenAppsLikeMinimized) {
+                    Toggle(l10n.s.switcherTreatHiddenAppsLikeMinimized,
+                           isOn: $switcherTreatHiddenAppsLikeMinimized)
+                        .labelsHidden()
+                        .onChange(of: switcherTreatHiddenAppsLikeMinimized) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
+                }
+            }
             chipRow(symbol: "display.2", title: l10n.s.switcherScreenPlacementLabel,
                     caption: l10n.s.switcherScreenPlacementCaption,
                     selection: $switcherScreenPlacement,
@@ -273,7 +261,9 @@ struct SwitcherSettings: View {
                          choices: [(String, String)]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingsRow(symbol: symbol, title: title, caption: caption) { EmptyView() }
-            HStack(spacing: 8) {
+            // The three screen choices outgrow the card at the default window
+            // width in most languages; wrapping keeps every label whole.
+            FlowLayoutLite(spacing: 8) {
                 ForEach(choices, id: \.0) { value, label in
                     let selected = selection.wrappedValue == value
                     Button {
@@ -301,114 +291,35 @@ struct SwitcherSettings: View {
         }
     }
 
-    // MARK: - Dock
+    // MARK: - State
 
-    private var dockPreviewCard: some View {
-        SettingsCard(title: l10n.s.dockPreviewName) {
-            SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewEnable, caption: dockPreviewCaption) {
-                Toggle(l10n.s.dockPreviewEnable, isOn: $dockPreviewEnabled)
-                    .labelsHidden()
-                    .onChange(of: dockPreviewEnabled) { _, _ in
-                        DockPreviewService.shared.syncWithPreferences()
-                    }
-            }
-            if dockPreviewEnabled {
-                SettingsRow(symbol: "rectangle.3.group", title: l10n.s.switcherCurrentSpaceOnly,
-                            caption: l10n.s.dockPreviewCurrentSpaceOnlyCaption) {
-                    Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $dockPreviewCurrentSpaceOnly)
-                        .labelsHidden()
-                        .onChange(of: dockPreviewCurrentSpaceOnly) { _, _ in
-                            DockPreviewService.shared.syncWithPreferences()
-                        }
-                }
-                SettingsRow(symbol: "timer", title: l10n.s.dockPreviewOpenDelay,
-                            caption: l10n.s.dockPreviewOpenDelayCaption) {
-                    HStack(spacing: 6) {
-                        TextField("", value: dockPreviewOpenDelayBinding,
-                                  formatter: Self.dockPreviewOpenDelayFormatter)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
-                        Stepper("", value: dockPreviewOpenDelayBinding,
-                                in: DockPreviewSupport.openDelayMillisecondsRange,
-                                step: 50)
-                            .labelsHidden()
-                        Text(verbatim: "ms")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                SettingsRow(symbol: "circle.lefthalf.filled", title: l10n.s.dockPreviewBackgroundOpacity,
-                            caption: l10n.s.dockPreviewBackgroundOpacityCaption) {
-                    HStack(spacing: 8) {
-                        Slider(value: dockPreviewBackgroundOpacityBinding,
-                               in: DockPreviewSupport.backgroundOpacityRange,
-                               step: 0.05)
-                            .frame(width: 140)
-                        Text("\(dockPreviewBackgroundOpacityPercent)%")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, alignment: .trailing)
-                    }
-                }
-                SettingsRow(symbol: "xmark.circle", title: l10n.s.dockPreviewQuitAppOnClose,
-                            caption: l10n.s.dockPreviewQuitAppOnCloseCaption) {
-                    Toggle(l10n.s.dockPreviewQuitAppOnClose, isOn: $dockPreviewQuitAppOnClose).labelsHidden()
-                }
-                DisclosureGroup(isExpanded: $dockPreviewMoreOptionsExpanded) {
-                    SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewKeepDockVisible,
-                                caption: l10n.s.dockPreviewKeepDockVisibleCaption) {
-                        Toggle(l10n.s.dockPreviewKeepDockVisible, isOn: $dockPreviewKeepDockVisible)
-                            .labelsHidden()
-                            .disabled(!DockAutohideHold.isSupported && !dockPreviewKeepDockVisible)
-                            .onChange(of: dockPreviewKeepDockVisible) { _, _ in
-                                dockPreview.syncWithPreferences()
-                            }
-                    }
-                    .padding(.top, 6)
-                    SettingsRow(symbol: "clock.arrow.circlepath", title: l10n.s.dockPreviewOrderByCreation,
-                                caption: l10n.s.dockPreviewOrderByCreationCaption) {
-                        Toggle(l10n.s.dockPreviewOrderByCreation, isOn: $dockPreviewOrderByCreation).labelsHidden()
-                    }
-                } label: {
-                    Text(FeatureStrings.recorder(l10n.language).moreOptions)
-                        .font(.subheadline.weight(.medium))
-                }
-            }
-        }
+    private var sanitizedSwitcherAppearanceDelay: Int {
+        SwitcherSupport.sanitizedAppearanceDelay(milliseconds: switcherAppearanceDelay)
     }
 
-    private var dockClickCard: some View {
-        SettingsCard(title: FeatureStrings.hub(l10n.language).titleDockClick) {
-            SettingsRow(symbol: "dock.arrow.down.rectangle", title: l10n.s.dockClickMinimize,
-                        caption: l10n.s.dockClickMinimizeCaption) {
-                Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
-                    .labelsHidden()
-                    .onChange(of: dockClickMinimize) { _, enabled in
-                        if enabled { dockClickHide = false }
-                        DockClickService.shared.syncWithPreferences()
-                    }
+    private var switcherAppearanceDelayBinding: Binding<Double> {
+        Binding(
+            get: { Double(sanitizedSwitcherAppearanceDelay) },
+            set: {
+                switcherAppearanceDelay = SwitcherSupport.sanitizedAppearanceDelay(
+                    milliseconds: Int($0.rounded()))
             }
-            SettingsRow(symbol: "eye.slash", title: l10n.s.dockClickHide, caption: l10n.s.dockClickHideCaption) {
-                Toggle(l10n.s.dockClickHide, isOn: $dockClickHide)
-                    .labelsHidden()
-                    .onChange(of: dockClickHide) { _, enabled in
-                        if enabled { dockClickMinimize = false }
-                        DockClickService.shared.syncWithPreferences()
-                    }
-            }
-            SettingsRow(symbol: "arrow.triangle.2.circlepath", title: l10n.s.dockClickCycleWindows,
-                        caption: l10n.s.dockClickCycleWindowsCaption) {
-                Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
-                    .labelsHidden()
-                    .onChange(of: dockClickCycleWindows) { _, _ in
-                        DockClickService.shared.syncWithPreferences()
-                    }
-            }
-        }
+        )
+    }
+}
+
+/// The window previews card on the Switcher and Dock pages: each page sizes
+/// its own previews, while the minimal look and the exclusions are shared.
+struct WindowPreviewsCard: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
+    @AppStorage private var previewSize: String
+
+    init(sizeKey: String) {
+        _previewSize = AppStorage(wrappedValue: "normal", sizeKey)
     }
 
-    // MARK: - Window previews
-
-    private var previewsCard: some View {
+    var body: some View {
         SettingsCard(title: FeatureStrings.windowPreviewExclusions(l10n.language).sectionTitle) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(l10n.s.previewSizeLabel)
@@ -465,62 +376,6 @@ struct SwitcherSettings: View {
         .accessibilityLabel(title)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
-
-    // MARK: - State
-
-    private var dockPreviewCaption: String {
-        guard dockPreviewEnabled else { return l10n.s.dockPreviewEnableCaption }
-        if !permissions.accessibility { return "\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)" }
-        if !permissions.screenRecording { return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)" }
-        switch dockPreview.blockedReason {
-        case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
-        default:
-            return l10n.s.dockPreviewEnableCaption
-        }
-    }
-
-    private var dockPreviewBackgroundOpacityBinding: Binding<Double> {
-        Binding(
-            get: { DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) },
-            set: { dockPreviewBackgroundOpacity = DockPreviewSupport.sanitizedBackgroundOpacity($0) }
-        )
-    }
-
-    private var sanitizedSwitcherAppearanceDelay: Int {
-        SwitcherSupport.sanitizedAppearanceDelay(milliseconds: switcherAppearanceDelay)
-    }
-
-    private var switcherAppearanceDelayBinding: Binding<Double> {
-        Binding(
-            get: { Double(sanitizedSwitcherAppearanceDelay) },
-            set: {
-                switcherAppearanceDelay = SwitcherSupport.sanitizedAppearanceDelay(
-                    milliseconds: Int($0.rounded()))
-            }
-        )
-    }
-
-    private var dockPreviewBackgroundOpacityPercent: Int {
-        Int((DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) * 100).rounded())
-    }
-
-    private var dockPreviewOpenDelayBinding: Binding<Int> {
-        Binding(
-            get: { DockPreviewSupport.sanitizedOpenDelay(milliseconds: dockPreviewOpenDelay) },
-            set: { dockPreviewOpenDelay = DockPreviewSupport.sanitizedOpenDelay(milliseconds: $0) }
-        )
-    }
-
-    /// Bounded here as well as in the binding: the field rejects an out-of-range
-    /// number as it is typed rather than silently snapping it afterwards.
-    private static let dockPreviewOpenDelayFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .none
-        formatter.minimum = NSNumber(value: DockPreviewSupport.openDelayMillisecondsRange.lowerBound)
-        formatter.maximum = NSNumber(value: DockPreviewSupport.openDelayMillisecondsRange.upperBound)
-        formatter.usesGroupingSeparator = false
-        return formatter
-    }()
 }
 
 /// One of the three switcher layouts, drawn as the switcher would look:

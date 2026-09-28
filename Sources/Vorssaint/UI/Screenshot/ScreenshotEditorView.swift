@@ -23,6 +23,7 @@ struct ScreenshotEditorView: View {
     @State private var toolOptionsShown = false
     @State private var sharing = false
     @State private var sharedRecord: ScreenshotShareRecord?
+    @State private var shareAnchor = ShelfSharePickerAnchor.Anchor()
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
@@ -534,7 +535,7 @@ struct ScreenshotEditorView: View {
     private func textEditorOverlay(zoom: CGFloat) -> some View {
         if let editingID = model.editingTextID,
            let annotation = model.annotations.first(where: { $0.id == editingID }) {
-            let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.stroke,
+            let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.textSize,
                                                                scale: model.scale) * zoom)
             let pad = model.backdropPaddingPixels
             TextField(strings.textPlaceholder, text: $editingText)
@@ -640,7 +641,7 @@ struct ScreenshotEditorView: View {
                         .fixedSize()
                         .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
                         .padding(2)
-                        .opacity(isHovered || isActive ? 0.9 : 0)
+                        .opacity(isHovered || isActive ? 0.9 : 0.55)
                 }
             }
             .background(
@@ -750,10 +751,28 @@ struct ScreenshotEditorView: View {
 
             Divider().frame(height: 16).padding(.horizontal, 3)
 
+            Button {
+                commitEditingTextIfNeeded()
+                guard let url = controller.shareFile() else {
+                    NSSound.beep()
+                    return
+                }
+                shareAnchor.present([url]) { chosen in
+                    if chosen { model.markExported() }
+                }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .background(ShelfSharePickerAnchor(anchor: shareAnchor))
+            .screenshotSafeHelp(strings.shareButton)
+            .accessibilityLabel(strings.shareButton)
+
             if sharingEnabled {
                 shareMenu
-                Divider().frame(height: 16).padding(.horizontal, 3)
             }
+            Divider().frame(height: 16).padding(.horizontal, 3)
 
             Menu {
                 Button(strings.saveButton) {
@@ -816,8 +835,8 @@ struct ScreenshotEditorView: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .disabled(sharing)
-        .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareButton)
-        .accessibilityLabel(strings.shareButton)
+        .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareSectionTitle)
+        .accessibilityLabel(strings.shareSectionTitle)
     }
 
     // MARK: - Bottom row
@@ -835,6 +854,25 @@ struct ScreenshotEditorView: View {
         case .sticker, .pixelate, .crop:
             return false
         }
+    }
+
+    private var showsBlurControls: Bool {
+        if model.tool == .pixelate { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .pixelate
+    }
+
+    /// Text takes a point size where shapes take a thickness.
+    private var showsTextSizeControls: Bool {
+        if model.tool == .text { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .text
     }
 
     private var showsArrowStyleControls: Bool {
@@ -910,6 +948,10 @@ struct ScreenshotEditorView: View {
                 stickerMenu
                 Divider().frame(height: 16)
             }
+            if showsBlurControls {
+                blurLevelControl
+                Divider().frame(height: 16)
+            }
             if showsColorControls {
                 HStack(spacing: 4) {
                     ForEach(ScreenshotSupport.ColorID.allCases, id: \.self) { colorID in
@@ -917,9 +959,13 @@ struct ScreenshotEditorView: View {
                     }
                 }
                 Divider().frame(height: 16)
-                HStack(spacing: 3) {
-                    ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
-                        strokeGlyph(stroke)
+                if showsTextSizeControls {
+                    textSizeControl
+                } else {
+                    HStack(spacing: 3) {
+                        ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
+                            strokeGlyph(stroke)
+                        }
                     }
                 }
                 Divider().frame(height: 16)
@@ -1079,6 +1125,82 @@ struct ScreenshotEditorView: View {
         .buttonStyle(.borderless)
         .screenshotSafeHelp(strings.strokeLabel)
         .accessibilityLabel(strings.strokeLabel)
+    }
+
+    /// Smaller and larger buttons step through the presets; the menu jumps
+    /// straight to any of them.
+    private var textSizeControl: some View {
+        HStack(spacing: 1) {
+            textSizeStepButton(up: false)
+            Menu {
+                Picker(strings.fontSizeLabel, selection: $model.textSize) {
+                    ForEach(ScreenshotSupport.textSizes, id: \.self) { size in
+                        Text("\(size) pt").tag(size)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                Text("\(model.textSize) pt")
+                    .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .frame(height: 24)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            textSizeStepButton(up: true)
+        }
+        .screenshotSafeHelp(strings.fontSizeLabel)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(strings.fontSizeLabel)
+    }
+
+    /// Five steps from a light blur to a heavy one; the middle is the
+    /// strength the tool always had.
+    private var blurLevelControl: some View {
+        let levels = ScreenshotSupport.BlurStrength.levels
+        return HStack(spacing: 5) {
+            Image(systemName: "aqi.low")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Slider(value: Binding(get: { Double(model.blurLevel) },
+                                  set: { model.blurLevel = Int($0.rounded()) }),
+                   in: Double(levels.lowerBound)...Double(levels.upperBound),
+                   step: 1)
+                .controlSize(.mini)
+                .frame(width: 84)
+            Image(systemName: "aqi.high")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(height: 24)
+        .screenshotSafeHelp(strings.blurStrengthLabel)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(strings.blurStrengthLabel)
+        .accessibilityValue("\(model.blurLevel)")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: model.blurLevel = min(levels.upperBound, model.blurLevel + 1)
+            case .decrement: model.blurLevel = max(levels.lowerBound, model.blurLevel - 1)
+            @unknown default: break
+            }
+        }
+    }
+
+    private func textSizeStepButton(up: Bool) -> some View {
+        let next = ScreenshotSupport.steppedTextSize(from: model.textSize, up: up)
+        return Button {
+            if let next { model.textSize = next }
+        } label: {
+            Image(systemName: up ? "textformat.size.larger" : "textformat.size.smaller")
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.borderless)
+        .disabled(next == nil)
+        .accessibilityLabel(strings.fontSizeLabel + (up ? " +" : " −"))
     }
 
     private var annotationShadowButton: some View {
@@ -1464,7 +1586,7 @@ private enum ScreenshotArrowStyleSamples {
             scribbleSeed: 0x5343524942424C59)
         ScreenshotRenderer.drawAnnotations([sample],
                                            in: context,
-                                           pixelated: nil,
+                                           pixelated: [:],
                                            imageSize: pixels,
                                            scale: scale,
                                            annotationShadowsEnabled: false)

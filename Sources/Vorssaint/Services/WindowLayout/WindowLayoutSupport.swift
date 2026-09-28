@@ -28,6 +28,9 @@ enum WindowLayoutShortcutConflict: Equatable {
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftHalf, rightHalf, topHalf, bottomHalf, centerHalf
     case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds, centerTwoThirds
+    case topThird, middleThird, bottomThird, topTwoThirds, bottomTwoThirds
+    case topQuarter, upperMiddleQuarter, lowerMiddleQuarter, bottomQuarter
+    case leftQuarter, leftMiddleQuarter, rightMiddleQuarter, rightQuarter
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
@@ -39,6 +42,9 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     static let shortcutActions: [WindowLayoutAction] = [
         .leftHalf, .rightHalf, .topHalf, .bottomHalf, .centerHalf,
         .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
+        .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
+        .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
+        .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
@@ -91,6 +97,21 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .marginMaximize: return 55
         case .centerTwoThirds: return 56
         case .centerHalf: return 57
+        case .upperMiddleQuarter: return 58
+        case .lowerMiddleQuarter: return 59
+        case .bottomQuarter: return 60
+        case .topThird: return 61
+        case .middleThird: return 62
+        case .bottomThird: return 63
+        case .topTwoThirds: return 64
+        case .bottomTwoThirds: return 65
+        // 56 went to center two thirds upstream, so the top quarter takes the
+        // next free id rather than moving an already-registered shortcut.
+        case .topQuarter: return 66
+        case .leftQuarter: return 67
+        case .leftMiddleQuarter: return 68
+        case .rightMiddleQuarter: return 69
+        case .rightQuarter: return 70
         }
     }
 
@@ -121,6 +142,19 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftTwoThirds: return DefaultsKey.windowLayoutShortcutLeftTwoThirds
         case .rightTwoThirds: return DefaultsKey.windowLayoutShortcutRightTwoThirds
         case .centerTwoThirds: return DefaultsKey.windowLayoutShortcutCenterTwoThirds
+        case .topThird: return DefaultsKey.windowLayoutShortcutTopThird
+        case .middleThird: return DefaultsKey.windowLayoutShortcutMiddleThird
+        case .bottomThird: return DefaultsKey.windowLayoutShortcutBottomThird
+        case .topTwoThirds: return DefaultsKey.windowLayoutShortcutTopTwoThirds
+        case .bottomTwoThirds: return DefaultsKey.windowLayoutShortcutBottomTwoThirds
+        case .topQuarter: return DefaultsKey.windowLayoutShortcutTopQuarter
+        case .upperMiddleQuarter: return DefaultsKey.windowLayoutShortcutUpperMiddleQuarter
+        case .lowerMiddleQuarter: return DefaultsKey.windowLayoutShortcutLowerMiddleQuarter
+        case .bottomQuarter: return DefaultsKey.windowLayoutShortcutBottomQuarter
+        case .leftQuarter: return DefaultsKey.windowLayoutShortcutLeftQuarter
+        case .leftMiddleQuarter: return DefaultsKey.windowLayoutShortcutLeftMiddleQuarter
+        case .rightMiddleQuarter: return DefaultsKey.windowLayoutShortcutRightMiddleQuarter
+        case .rightQuarter: return DefaultsKey.windowLayoutShortcutRightQuarter
         case .previousDisplay: return DefaultsKey.windowLayoutShortcutPreviousDisplay
         case .nextDisplay: return DefaultsKey.windowLayoutShortcutNextDisplay
         case .topLeftSixth: return DefaultsKey.windowLayoutShortcutTopLeftSixth
@@ -156,6 +190,9 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .nextDisplay: return .windowLayoutNextDisplayDefault
         case .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
+                .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
+                .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
+                .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
                 .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds:
             // New actions must never claim a system-wide combination unasked.
             return nil
@@ -220,6 +257,19 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftTwoThirds: return text.leftTwoThirds
         case .rightTwoThirds: return text.rightTwoThirds
         case .centerTwoThirds: return text.centerTwoThirds
+        case .topThird: return text.topThird
+        case .middleThird: return text.middleThird
+        case .bottomThird: return text.bottomThird
+        case .topTwoThirds: return text.topTwoThirds
+        case .bottomTwoThirds: return text.bottomTwoThirds
+        case .topQuarter: return text.topQuarter
+        case .upperMiddleQuarter: return text.upperMiddleQuarter
+        case .lowerMiddleQuarter: return text.lowerMiddleQuarter
+        case .bottomQuarter: return text.bottomQuarter
+        case .leftQuarter: return text.leftQuarter
+        case .leftMiddleQuarter: return text.leftMiddleQuarter
+        case .rightMiddleQuarter: return text.rightMiddleQuarter
+        case .rightQuarter: return text.rightQuarter
         case .topLeftSixth: return text.topLeftSixth
         case .topCenterSixth: return text.topCenterSixth
         case .topRightSixth: return text.topRightSixth
@@ -238,13 +288,25 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightHalf: return "rectangle.righthalf.inset.filled"
         case .leftThird: return "rectangle.leftthird.inset.filled"
         case .rightThird: return "rectangle.rightthird.inset.filled"
-        case .topHalf: return "rectangle.topthird.inset.filled"
-        case .bottomHalf: return "rectangle.bottomthird.inset.filled"
-        case .centerHalf: return "rectangle.center.inset.filled"
-        case .centerThird: return "rectangle.center.inset.filled"
+        case .topHalf: return "rectangle.tophalf.filled"
+        case .bottomHalf: return "rectangle.bottomhalf.filled"
+        case .centerHalf, .centerThird: return "rectangle.center.inset.filled"
         case .leftTwoThirds: return "rectangle.leadinghalf.filled"
         case .rightTwoThirds: return "rectangle.trailinghalf.filled"
+        case .leftQuarter: return "rectangle.portrait.leftthird.inset.filled"
+        case .leftMiddleQuarter: return "rectangle.portrait.lefthalf.inset.filled"
+        case .rightMiddleQuarter: return "rectangle.portrait.righthalf.inset.filled"
+        case .rightQuarter: return "rectangle.portrait.rightthird.inset.filled"
         case .centerTwoThirds: return "rectangle.center.inset.filled"
+        case .topThird: return "rectangle.portrait.topthird.inset.filled"
+        case .middleThird: return "rectangle.portrait.center.inset.filled"
+        case .bottomThird: return "rectangle.portrait.bottomthird.inset.filled"
+        case .topTwoThirds: return "rectangle.portrait.tophalf.inset.filled"
+        case .bottomTwoThirds: return "rectangle.portrait.bottomhalf.inset.filled"
+        case .topQuarter: return "rectangle.topthird.inset.filled"
+        case .upperMiddleQuarter: return "rectangle.tophalf.inset.filled"
+        case .lowerMiddleQuarter: return "rectangle.bottomhalf.inset.filled"
+        case .bottomQuarter: return "rectangle.bottomthird.inset.filled"
         case .topLeftSixth, .topLeft: return "arrow.up.left"
         case .topCenterSixth: return "arrow.up"
         case .topRightSixth, .topRight: return "arrow.up.right"
@@ -276,7 +338,20 @@ enum WindowLayoutGaps {
     }
 }
 
+/// Whether a repeated Left or Right cycles the window through half, two thirds
+/// and one third of the same display instead of
+/// pushing it onto the display beside it.
+enum WindowLayoutSideRepeat {
+    static var cyclesThirds: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutSideRepeatCyclesThirds)
+    }
+}
+
 enum WindowLayoutGeometry {
+    enum DisplayDirection {
+        case left, right, up, down
+    }
+
     /// Points the settle path allows a window to miss its target by. Display
     /// transfer uses the same value to treat a window as filling the source
     /// or flush with an edge, so tuning settle cannot split those checks.
@@ -285,50 +360,159 @@ enum WindowLayoutGeometry {
     static func effectiveAction(for action: WindowLayoutAction,
                                 current _: CGRect,
                                 visibleFrame _: CGRect,
-                                previousAction: WindowLayoutAction? = nil) -> WindowLayoutAction {
+                                previousAction: WindowLayoutAction? = nil,
+                                sideRepeatCyclesThirds: Bool = false) -> WindowLayoutAction {
         if action == .topHalf, previousAction == .topHalf {
             return .maximize
+        }
+        if sideRepeatCyclesThirds, let next = sideCycleAction(for: action, previousAction: previousAction) {
+            return next
         }
         return action
     }
 
-    /// Where a repeated side action goes: asking for the same side again keeps
+    /// The window size cycle for a repeated side action: half, then
+    /// two thirds, then one third, then back to the half. Only sizes reached
+    /// from the same side count, so a left after a right third starts over.
+    static func sideCycleAction(for action: WindowLayoutAction,
+                                previousAction: WindowLayoutAction?) -> WindowLayoutAction? {
+        let cycle: [WindowLayoutAction]
+        switch action {
+        case .leftHalf: cycle = [.leftHalf, .leftTwoThirds, .leftThird]
+        case .rightHalf: cycle = [.rightHalf, .rightTwoThirds, .rightThird]
+        default: return nil
+        }
+        guard let previousAction, let index = cycle.firstIndex(of: previousAction) else { return nil }
+        return cycle[(index + 1) % cycle.count]
+    }
+
+    /// The key a placement records for the size cycle: only a left or right
+    /// half pressed while the cycle is on. Every other placement records none,
+    /// so a two thirds shortcut or a pointer snap is never read back for the
+    /// cycle and the next side press starts again at the half.
+    static func sideCyclePress(for action: WindowLayoutAction,
+                               cyclesThirds: Bool) -> WindowLayoutAction? {
+        guard cyclesThirds, action == .leftHalf || action == .rightHalf else { return nil }
+        return action
+    }
+
+    /// Whether the previous placement was asked for with the same side key,
+    /// the only case in which repeating that key carries on the cycle.
+    static func sideCycleResumes(pressing action: WindowLayoutAction,
+                                 settled: WindowLayoutSettledFrame?) -> Bool {
+        guard let pressed = settled?.pressedAction else { return false }
+        return pressed == action
+    }
+
+    /// Whether the size cycle may advance: only from a window still sitting
+    /// where the previous step left it, either the frame it was read back at
+    /// (an app's minimum size included, so a clamped half still cycles) or the
+    /// frame it asked for (an app that commits its resize late is read back at
+    /// the old frame). A window widened or dragged by hand matches neither.
+    static func sideCycleContinues(current: WindowLayoutFrame,
+                                   settled: WindowLayoutSettledFrame?,
+                                   tolerance: CGFloat) -> Bool {
+        guard let settled else { return false }
+        return current.isClose(to: settled.actual, tolerance: tolerance)
+            || current.isClose(to: settled.requested, tolerance: tolerance)
+    }
+
+    /// Whether a frame read back after the placement was accepted is the app
+    /// committing that placement late rather than a change by hand: every
+    /// edge sits at least as close to the requested frame as the earlier read
+    /// did, within tolerance. A clamped resize that lands moves toward the
+    /// request; a window widened or dragged in the meantime moves away.
+    static func settledFrameRefreshAccepts(actual: WindowLayoutFrame,
+                                           settled: WindowLayoutSettledFrame,
+                                           tolerance: CGFloat) -> Bool {
+        if actual.isClose(to: settled.requested, tolerance: tolerance) { return true }
+        func approaches(_ read: CGFloat, _ earlier: CGFloat, _ requested: CGFloat) -> Bool {
+            abs(read - requested) <= abs(earlier - requested) + tolerance
+        }
+        let requested = settled.requested
+        let earlier = settled.actual
+        return approaches(actual.origin.x, earlier.origin.x, requested.origin.x)
+            && approaches(actual.origin.y, earlier.origin.y, requested.origin.y)
+            && approaches(actual.size.width, earlier.size.width, requested.size.width)
+            && approaches(actual.size.height, earlier.size.height, requested.size.height)
+    }
+
+    /// Where a repeated half action goes: asking for the same half again keeps
     /// pushing that way, so the window leaves through that edge and lands
-    /// against the opposite one on the display beside it. Top and bottom keep
-    /// promoting to maximize instead.
+    /// against the opposite one on the neighbouring display. With the size
+    /// cycle on, a repeated left or right half is spent on the same display
+    /// and never crosses; top and bottom still cross.
     static func displayCrossing(
         for action: WindowLayoutAction,
-        previousAction: WindowLayoutAction?
-    ) -> (action: WindowLayoutAction, movingRight: Bool)? {
+        previousAction: WindowLayoutAction?,
+        sideRepeatCyclesThirds: Bool = false
+    ) -> (action: WindowLayoutAction, direction: DisplayDirection)? {
         guard action == previousAction else { return nil }
+        if sideRepeatCyclesThirds, action == .leftHalf || action == .rightHalf { return nil }
         switch action {
-        case .leftHalf: return (.rightHalf, false)
-        case .rightHalf: return (.leftHalf, true)
+        case .leftHalf: return (.rightHalf, .left)
+        case .rightHalf: return (.leftHalf, .right)
+        case .topHalf: return (.bottomHalf, .up)
+        case .bottomHalf: return (.topHalf, .down)
         default: return nil
         }
     }
 
-    /// The display sitting on one side of this one. Only a display that starts
-    /// further along that side counts, so one stacked above or below never
-    /// answers a sideways push, and the nearest one wins when several share an
-    /// edge. Next and previous display keep their own order, which cycles
-    /// through every screen.
-    static func horizontalNeighbourIndex(currentIndex: Int,
-                                         frames: [CGRect],
-                                         movingRight: Bool) -> Int? {
+    /// The display in one physical direction. Sideways, only a display starting
+    /// further along that axis counts. Vertically, it must lie fully beyond the
+    /// current display edge. The nearest one wins, then the closest center on
+    /// the other axis breaks ties. Next and previous display keep their own
+    /// order, which cycles through every screen.
+    static func neighbourIndex(currentIndex: Int,
+                               frames: [CGRect],
+                               direction: DisplayDirection) -> Int? {
         guard frames.indices.contains(currentIndex) else { return nil }
         let current = frames[currentIndex]
         return frames.indices
-            .filter { movingRight ? frames[$0].minX > current.minX : frames[$0].minX < current.minX }
+            .filter {
+                switch direction {
+                case .left: frames[$0].minX < current.minX
+                case .right: frames[$0].minX > current.minX
+                case .up: frames[$0].minY >= current.maxY
+                case .down: frames[$0].maxY <= current.minY
+                }
+            }
             .min { lhs, rhs in
                 let lhsFrame = frames[lhs]
                 let rhsFrame = frames[rhs]
-                if lhsFrame.minX != rhsFrame.minX {
-                    return movingRight ? lhsFrame.minX < rhsFrame.minX : lhsFrame.minX > rhsFrame.minX
+                let lhsPosition: CGFloat
+                let rhsPosition: CGFloat
+                let lhsCenterDistance: CGFloat
+                let rhsCenterDistance: CGFloat
+                switch direction {
+                case .left, .right:
+                    lhsPosition = lhsFrame.minX
+                    rhsPosition = rhsFrame.minX
+                    lhsCenterDistance = abs(lhsFrame.midY - current.midY)
+                    rhsCenterDistance = abs(rhsFrame.midY - current.midY)
+                case .up:
+                    lhsPosition = lhsFrame.minY
+                    rhsPosition = rhsFrame.minY
+                    lhsCenterDistance = abs(lhsFrame.midX - current.midX)
+                    rhsCenterDistance = abs(rhsFrame.midX - current.midX)
+                case .down:
+                    // minY is the far edge when moving down. Rank by the
+                    // candidate's facing (top) edge, so a taller display
+                    // directly below beats a shorter, offset one.
+                    lhsPosition = lhsFrame.maxY
+                    rhsPosition = rhsFrame.maxY
+                    lhsCenterDistance = abs(lhsFrame.midX - current.midX)
+                    rhsCenterDistance = abs(rhsFrame.midX - current.midX)
                 }
-                let lhsDistance = abs(lhsFrame.midY - current.midY)
-                let rhsDistance = abs(rhsFrame.midY - current.midY)
-                if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+                if lhsPosition != rhsPosition {
+                    return switch direction {
+                    case .right, .up: lhsPosition < rhsPosition
+                    case .left, .down: lhsPosition > rhsPosition
+                    }
+                }
+                if lhsCenterDistance != rhsCenterDistance {
+                    return lhsCenterDistance < rhsCenterDistance
+                }
                 return lhs < rhs
             }
     }
@@ -409,6 +593,10 @@ enum WindowLayoutGeometry {
         let halfHeight = visibleFrame.height / 2
         let thirdWidth = visibleFrame.width / 3
         let twoThirdsWidth = thirdWidth * 2
+        let thirdHeight = visibleFrame.height / 3
+        let twoThirdsHeight = thirdHeight * 2
+        let quarterHeight = visibleFrame.height / 4
+        let quarterWidth = visibleFrame.width / 4
         switch action {
         case .leftHalf:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
@@ -443,6 +631,45 @@ enum WindowLayoutGeometry {
         case .centerTwoThirds:
             return CGRect(x: visibleFrame.midX - twoThirdsWidth / 2, y: visibleFrame.minY,
                           width: twoThirdsWidth, height: visibleFrame.height).integral
+        case .topThird:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.maxY - thirdHeight,
+                          width: visibleFrame.width, height: thirdHeight).integral
+        case .middleThird:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY + thirdHeight,
+                          width: visibleFrame.width, height: thirdHeight).integral
+        case .bottomThird:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                          width: visibleFrame.width, height: thirdHeight).integral
+        case .topTwoThirds:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.maxY - twoThirdsHeight,
+                          width: visibleFrame.width, height: twoThirdsHeight).integral
+        case .bottomTwoThirds:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                          width: visibleFrame.width, height: twoThirdsHeight).integral
+        case .topQuarter:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.maxY - quarterHeight,
+                          width: visibleFrame.width, height: quarterHeight).integral
+        case .upperMiddleQuarter:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY + quarterHeight * 2,
+                          width: visibleFrame.width, height: quarterHeight).integral
+        case .lowerMiddleQuarter:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY + quarterHeight,
+                          width: visibleFrame.width, height: quarterHeight).integral
+        case .bottomQuarter:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                          width: visibleFrame.width, height: quarterHeight).integral
+        case .leftQuarter:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                          width: quarterWidth, height: visibleFrame.height).integral
+        case .leftMiddleQuarter:
+            return CGRect(x: visibleFrame.minX + quarterWidth, y: visibleFrame.minY,
+                          width: quarterWidth, height: visibleFrame.height).integral
+        case .rightMiddleQuarter:
+            return CGRect(x: visibleFrame.minX + quarterWidth * 2, y: visibleFrame.minY,
+                          width: quarterWidth, height: visibleFrame.height).integral
+        case .rightQuarter:
+            return CGRect(x: visibleFrame.maxX - quarterWidth, y: visibleFrame.minY,
+                          width: quarterWidth, height: visibleFrame.height).integral
         case .topLeftSixth:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.midY,
                           width: thirdWidth, height: halfHeight).integral
@@ -514,19 +741,22 @@ enum WindowLayoutGeometry {
         case .rightHalf:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
-        case .topHalf:
+        case .topHalf, .topThird, .topTwoThirds, .topQuarter, .upperMiddleQuarter:
             origin.x = targetRect.minX
             origin.y = targetRect.maxY - size.height
-        case .bottomHalf:
+        case .bottomHalf, .bottomThird, .bottomTwoThirds, .bottomQuarter, .lowerMiddleQuarter:
             origin.x = targetRect.minX
             origin.y = targetRect.minY
-        case .leftThird, .leftTwoThirds:
+        case .leftThird, .leftTwoThirds, .leftQuarter, .leftMiddleQuarter:
             origin.x = targetRect.minX
             origin.y = targetRect.minY
         case .centerThird, .centerHalf, .centerTwoThirds:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.minY
-        case .rightThird, .rightTwoThirds:
+        case .middleThird:
+            origin.x = targetRect.minX
+            origin.y = targetRect.midY - size.height / 2
+        case .rightThird, .rightTwoThirds, .rightMiddleQuarter, .rightQuarter:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
         case .topLeftSixth:
@@ -602,15 +832,15 @@ enum WindowLayoutGeometry {
             return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
-        case .topHalf:
+        case .topHalf, .topThird, .topTwoThirds, .topQuarter, .upperMiddleQuarter:
             return abs(actualRect.maxY - targetRect.maxY) <= anchorTolerance
                 && fullWidth
                 && overlap > 0.45
-        case .bottomHalf:
+        case .bottomHalf, .bottomThird, .bottomTwoThirds, .bottomQuarter, .lowerMiddleQuarter:
             return abs(actualRect.minY - targetRect.minY) <= anchorTolerance
                 && fullWidth
                 && overlap > 0.45
-        case .leftThird, .leftTwoThirds:
+        case .leftThird, .leftTwoThirds, .leftQuarter, .leftMiddleQuarter:
             return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
@@ -618,7 +848,11 @@ enum WindowLayoutGeometry {
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
-        case .rightThird, .rightTwoThirds:
+        case .middleThird:
+            return abs(actualRect.midY - targetRect.midY) <= anchorTolerance
+                && fullWidth
+                && overlap > 0.45
+        case .rightThird, .rightTwoThirds, .rightMiddleQuarter, .rightQuarter:
             return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
@@ -798,6 +1032,16 @@ struct WindowLayoutFrame: Equatable {
             && abs(size.width - other.size.width) <= tolerance
             && abs(size.height - other.size.height) <= tolerance
     }
+}
+
+/// What a placement left behind: the frame it asked for, the one the
+/// window was read back at once the placement was accepted, and the side
+/// key that was pressed for it, so the size cycle follows the last key rather
+/// than the last placement.
+struct WindowLayoutSettledFrame: Equatable {
+    var requested: WindowLayoutFrame
+    var actual: WindowLayoutFrame
+    var pressedAction: WindowLayoutAction? = nil
 }
 
 struct WindowLayoutWindowKey: Hashable {

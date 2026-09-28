@@ -3,19 +3,16 @@
 
 import SwiftUI
 
-/// The General page: how the app starts and looks, and what its menu bar
-/// panel shows. Every control sits in a card with an icon and one plain
-/// sentence, and the panel is edited against a live miniature of itself.
+/// App-wide startup and appearance settings.
 struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var appearance = AppAppearanceController.shared
-    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
-    @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    @State private var launchAtLogin = UserDefaults.standard.bool(
+        forKey: DefaultsKey.launchAtLoginWanted)
     @State private var loginError: String?
+    @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
-    @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
-    @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -24,20 +21,11 @@ struct GeneralSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(l10n.s.tabGeneral).font(.title2.bold())
-                    Text(text.pageDescription).font(.callout).foregroundStyle(.secondary)
-                }
+                Text(l10n.s.tabGeneral).font(.title2.bold())
                 basicsCard
                 appearanceCard
-                menuBarCard
-                    .settingsSectionAnchor(.panelConfiguration, cornerRadius: 16)
                 if AppFeature.keepAwake.isAvailable {
                     shortcutCard
-                }
-                if AppFeature.musicBlock.isAvailable {
-                    mediaKeysCard
-                        .settingsSectionAnchor(.musicBlocking, cornerRadius: 16)
                 }
                 feedbackCard
             }
@@ -45,25 +33,19 @@ struct GeneralSettings: View {
             .frame(maxWidth: .infinity)
             .padding(22)
         }
+        .onAppear { refreshLaunchAtLogin() }
     }
 
     private var basicsCard: some View {
         SettingsCard {
             SettingsRow(symbol: "laptopcomputer", title: l10n.s.launchAtLogin,
                         caption: text.launchAtLoginCaption) {
-                Toggle(l10n.s.launchAtLogin, isOn: $launchAtLogin)
+                Toggle(l10n.s.launchAtLogin, isOn: Binding(
+                    get: { launchAtLogin },
+                    set: { setLaunchAtLogin($0) }
+                ))
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .onChange(of: launchAtLogin) { _, enabled in
-                        do {
-                            try LaunchAtLogin.setEnabled(enabled)
-                            loginError = nil
-                        } catch {
-                            loginError = error.localizedDescription
-                            launchAtLogin = LaunchAtLogin.isEnabled
-                        }
-                    }
-                    .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
             }
             if let loginError {
                 Text(loginError)
@@ -103,32 +85,18 @@ struct GeneralSettings: View {
             if #available(macOS 26.0, *) {
                 Divider()
                 SettingsRow(symbol: "sparkles", title: appearanceStrings.liquidGlass,
-                            caption: text.liquidGlassCaption) {
-                    Toggle(appearanceStrings.liquidGlass, isOn: $appearance.liquidGlassEnabled)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
+                            caption: text.liquidGlassCaption) { EmptyView() }
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(text.liquidGlassOtherWindows, isOn: $appearance.liquidGlassEnabled)
+                        .accessibilityLabel("\(appearanceStrings.liquidGlass), \(text.liquidGlassOtherWindows)")
+                    Toggle(FeatureStrings.notch(l10n.language).title,
+                           isOn: $appearance.notchLiquidGlassEnabled)
+                        .accessibilityLabel("\(appearanceStrings.liquidGlass), \(FeatureStrings.notch(l10n.language).title)")
                 }
+                .toggleStyle(TrailingSwitchToggleStyle())
+                .padding(.leading, settingsRowTextInset)
             }
 #endif
-        }
-    }
-
-    // The panel hosts more than monitoring, so its layout editor lives here
-    // with the app-wide options rather than on the Monitor page (which the
-    // hub can hide entirely).
-    private var menuBarCard: some View {
-        SettingsCard(title: l10n.s.menuBarSection) {
-            Text(text.panelIntro)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            PanelLayoutEditor()
-            Divider()
-            SettingsRow(symbol: nil, title: text.iconMissingTitle, caption: text.iconMissingCaption) {
-                Button(l10n.s.showMenuBarIcon) {
-                    appDelegate()?.reshowStatusItem()
-                }
-            }
         }
     }
 
@@ -155,39 +123,6 @@ struct GeneralSettings: View {
         }
     }
 
-    private var mediaKeysCard: some View {
-        SettingsCard(title: l10n.s.musicBlockSection) {
-            SettingsRow(symbol: "playpause.fill", title: l10n.s.musicBlockTitle,
-                        caption: l10n.s.musicBlockCaption) {
-                Toggle(l10n.s.musicBlockTitle, isOn: $musicBlockEnabled)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .onChange(of: musicBlockEnabled) { _, _ in
-                        MusicLaunchBlocker.shared.syncWithPreferences()
-                    }
-            }
-            if musicBlockEnabled {
-                HStack(spacing: 8) {
-                    Text(l10n.s.musicBlockReplacementLabel)
-                    Spacer()
-                    Text(musicBlockReplacementName)
-                        .foregroundStyle(.secondary)
-                    Button(l10n.s.musicBlockChooseApp) { chooseMusicReplacement() }
-                    if !musicBlockReplacementPath.isEmpty {
-                        Button {
-                            musicBlockReplacementPath = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.leading, settingsRowTextInset)
-            }
-        }
-    }
-
     private var feedbackCard: some View {
         SettingsCard {
             SettingsRow(symbol: "bubble.left.and.text.bubble.right", title: feedbackStrings.sectionTitle,
@@ -199,25 +134,30 @@ struct GeneralSettings: View {
         }
     }
 
-    private var musicBlockReplacementName: String {
-        guard !musicBlockReplacementPath.isEmpty else { return l10n.s.musicBlockReplacementNone }
-        let name = FileManager.default.displayName(atPath: musicBlockReplacementPath)
-        return (name as NSString).deletingPathExtension
+    private func refreshLaunchAtLogin() {
+        let requestID = UUID()
+        loginRefreshID = requestID
+        DispatchQueue.global(qos: .userInitiated).async {
+            let enabled = LaunchAtLogin.isEnabled
+            DispatchQueue.main.async {
+                guard loginRefreshID == requestID else { return }
+                launchAtLogin = enabled
+            }
+        }
     }
 
-    private func chooseMusicReplacement() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.applicationBundle]
-        panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        // Picking the blocked app itself would start a launch-and-kill loop.
-        if let bundleID = Bundle(url: url)?.bundleIdentifier,
-           MusicLaunchBlocker.blockedBundleIDs.contains(bundleID) { return }
-        musicBlockReplacementPath = url.path
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        loginRefreshID = UUID()
+        launchAtLogin = enabled
+        do {
+            try LaunchAtLogin.setEnabled(enabled)
+            loginError = nil
+        } catch {
+            loginError = error.localizedDescription
+            launchAtLogin = LaunchAtLogin.isEnabled
+        }
     }
+
 }
 
 /// Three little desktops with a window on each: the same picture System

@@ -15,6 +15,7 @@ enum NotchActivityTests {
         rulerContracts(suite)
         compactTimerContracts(suite)
         compactMarginContracts(suite)
+        compactDownloadContracts(suite)
         accessoryContracts(suite)
         PeripheralBatteryLifecycleTests.run(suite)
         gateContracts(suite)
@@ -34,6 +35,12 @@ enum NotchActivityTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerSoundEnabled] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerSoundEnabled),
                "the sound preference is registered and included in settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchCoversMenus] as? Bool == true
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCoversMenus),
+               "compact activity stays visible by default and the preference travels with settings backups")
+        suite.expect(NotchSupport.coversMenus(in: defaults), "missing menu-cover preferences use the visible default")
+        defaults.set(false, forKey: DefaultsKey.notchCoversMenus)
+        suite.expect(!NotchSupport.coversMenus(in: defaults), "an explicit choice to leave menus uncovered is preserved")
         suite.expect(NotchTimerAlert.maximumDuration == .seconds(300), "an alarm is limited to five minutes")
         var sounds = 0, stops = 0
         var elapsed: Duration = .zero
@@ -490,6 +497,14 @@ enum NotchActivityTests {
     }
 
     private static func compactTimerContracts(_ suite: TestSuite) {
+        suite.expect(NotchSupport.compactCompanions(timer: true, running: true, downloads: true, agents: true, music: true)
+                        == [.downloads, .agents, .music],
+                     "a running timer offers every supported pair instead of silently choosing one")
+        suite.expect(NotchSupport.compactCompanions(timer: true, running: false, downloads: true, agents: true, music: true)
+                        == [.downloads],
+                     "a paused or finished timer keeps its status mark beside music or agents")
+        suite.expect(NotchSupport.compactCompanions(timer: false, running: true, downloads: true, agents: true, music: true).isEmpty,
+                     "other activities need both wings and cannot be combined")
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         for barHeight: CGFloat in [16, 22, 24, 32, 40, 64] {
             for notched in [false, true] {
@@ -500,13 +515,17 @@ enum NotchActivityTests {
                                                      menuBarHeight: barHeight, compactSideRoom: room)
                         for downloads in [false, true] {
                             let compact = original.compactTimerGeometry(showsDownloads: downloads)
-                            if room.isFinite && room >= 72 {
+                            if room.isFinite && room >= 64 {
                                 suite.expect(!compact.compactActivityUsesFooter
-                                       && compact.compactActivityWingWidth == min(room, downloads ? 80 : 72).rounded(.down),
+                                       && compact.compactActivityWingWidth == min(room, downloads ? 80 : 64).rounded(.down),
                                        "timer wings keep their readable width around larger cameras, including simultaneous downloads")
                                 suite.expect(compact.compactActivityCameraGap == original.cameraWidth
-                                       && compact.compactActivityContentHeight == original.menuBarHeight,
-                                       "narrower timer wings still clear the camera and preserve the menu bar height")
+                                       && compact.compactActivityContentHeight == original.stripHeight,
+                                       "narrower timer wings still clear the camera and keep the cutout's height")
+                                let cover = compact.compactMusicArtworkSide
+                                suite.expect(compact.compactActivityEdgeInset(boxHeight: cover, radius: compact.compactMusicArtworkRadius)
+                                                + cover <= compact.compactActivityWingWidth,
+                                       "the playing track's cover fits the timer's left wing without touching its curve")
                             } else if notched {
                                 suite.expect(!compact.compactActivityUsesFooter && compact.compactActivityWingWidth == 0,
                                        "unavailable menu space retracts timer wings without drawing over adjacent menus")
@@ -523,7 +542,7 @@ enum NotchActivityTests {
                             let positioned = compact.frame(for: compact.compactActivitySize)
                             suite.expect(screen.contains(positioned), "compact timer placement stays within the screen")
                             if notched {
-                                suite.expect(positioned.maxY == screen.maxY && positioned.height == original.menuBarHeight
+                                suite.expect(positioned.maxY == screen.maxY && positioned.height == original.cameraHeight
                                        && compact.compactActivityTopPadding == 0,
                                        "timer and simultaneous downloads stay beside the camera through menu-space changes")
                             }
@@ -532,6 +551,15 @@ enum NotchActivityTests {
                 }
             }
         }
+        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 185, layout: .spacious,
+                                  compactSideRoom: 300)
+        suite.expect(roomy.compactTimerGeometry(showsDownloads: false, wing: 30).compactActivityWingWidth == 44
+                        && roomy.compactTimerGeometry(showsDownloads: false, wing: 30).compactActivitySize.width == 185 + 88,
+                     "a short reading beside the cover narrows the timer's wings, leaving no empty band at the ends")
+        suite.expect(roomy.compactTimerGeometry(showsDownloads: false, wing: 51.2).compactActivityWingWidth == 52
+                        && roomy.compactTimerGeometry(showsDownloads: false, wing: 300).compactActivityWingWidth == 64
+                        && roomy.compactTimerGeometry(showsDownloads: true, wing: 30).compactActivityWingWidth == 80,
+                     "timer wings take what the reading needs up to their old width; a download keeps its own")
     }
 
     /// Compact strips measure their margins from the silhouette rather than
@@ -589,6 +617,85 @@ enum NotchActivityTests {
         }
     }
 
+    /// A crowded menu keeps the short arrow and progress; a wider wing names
+    /// the file again without reserving the same width for every filename.
+    private static func compactDownloadContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: NotchDownloadSupport.percentSize, weight: .medium)
+        for layout in NotchSize.allCases {
+            for barHeight: CGFloat in [24, 32, 37, 44] {
+                for room: CGFloat in [0, 30, 44, 50, 56, 72, 200, 600] {
+                    for notched in [true, false] {
+                        let geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                     cameraWidth: notched ? 180 : 160, layout: layout,
+                                                     menuBarHeight: barHeight, compactSideRoom: room)
+                        let download = geometry.compactDownloadGeometry()
+                        let size = download.compactActivitySize
+                        if download.compactActivityUsesFooter {
+                            suite.expect(notched && room < 44 && size.width == geometry.cameraWidth,
+                                   "only a crowded physical camera still moves a download below it")
+                            continue
+                        }
+                        let wing = download.compactActivityWingWidth
+                        suite.expect(wing == (room >= 44 ? min(56, room) : 0)
+                               && size.width == download.cameraWidth + wing * 2 && size.height == geometry.stripHeight,
+                               "a download's wings hold its arrow and progress beside the camera, never the wide strip")
+                        guard wing > 0 else { continue }
+                        let iconSize = min(17, download.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
+                        suite.expect(download.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2) + iconSize <= wing,
+                               "the download arrow fits its wing past the curved edge")
+                        let inset = NotchDownloadSupport.percentInset(in: download)
+                        for language in AppLanguage.allCases {
+                            let reading = (1.0).formatted(NotchDownloadSupport.percentFormat(language)) as NSString
+                            suite.expect(wing - inset >= reading.size(withAttributes: [.font: font]).width
+                                            * NotchDownloadSupport.percentMinimumScale,
+                                   "a download reading its last percent keeps one whole line in every language")
+                        }
+                    }
+                }
+            }
+        }
+        let narrow = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180,
+                                   menuBarHeight: 32, compactSideRoom: 80)
+        suite.expect(NotchDownloadSupport.compactWing(for: "a.zip", in: narrow) == 56
+                     && !NotchDownloadSupport.showsCompactName(in: narrow.compactDownloadGeometry()),
+                     "crowded menus keep the short download indicator without a clipped file name")
+        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180,
+                                  menuBarHeight: 32, compactSideRoom: 200)
+        let short = NotchDownloadSupport.compactWing(for: "a.zip", in: roomy)
+        let long = NotchDownloadSupport.compactWing(for: "a much longer download filename.zip", in: roomy)
+        suite.expect(short >= 64 && short < NotchDownloadSupport.compactNameWingThreshold
+                     && short < long && long <= 160
+                     && NotchDownloadSupport.compactWing(for: nil, in: roomy) == 56,
+                     "short filenames do not reserve an empty 94-point wing; long names have a cap")
+        for name in ["a.zip", "installer.dmg", "unknown-size.bin"] {
+            let wing = NotchDownloadSupport.compactWing(for: name, in: roomy)
+            let strip = roomy.compactDownloadGeometry(wing: wing)
+            let icon = min(17, strip.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
+            let content = NSHostingView(rootView: HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill").font(.system(size: icon))
+                Text(name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+            }).fittingSize.width
+            suite.expect(strip.compactActivityEdgeInset(boxHeight: icon, radius: icon / 2) + content + 4 <= wing + 0.5,
+                         "the measured download wing holds the whole name \(name) beside its arrow")
+        }
+        for layout in [NotchSize.compact, .spacious] {
+            let wideMenu = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180,
+                                         layout: layout, menuBarHeight: 32, compactSideRoom: 200)
+            suite.expect(wideMenu.compactDownloadGeometry(wing: short).compactActivityWingWidth == short
+                         && wideMenu.compactDownloadGeometry(wing: long).compactActivityWingWidth == long,
+                         "the 440/520-point music preference does not stretch a download beyond its measured name")
+        }
+        for room in [CGFloat(94), 110, 160, 200] {
+            var constrained = roomy
+            constrained.compactSideRoom = room
+            let download = constrained.compactDownloadGeometry(wing: long)
+            suite.expect(download.compactActivityWingWidth == min(room, long)
+                         && NotchDownloadSupport.showsCompactName(in: download),
+                         "a download name fits within measured menu room once 94 points are available")
+        }
+    }
+
     private static func accessoryContracts(_ suite: TestSuite) {
         for (name, symbol) in [("airpods", "airpods"), ("AIRPODS PRO", "airpodspro"),
                                ("My airpods pro 2", "airpodspro"), ("airpods max", "airpodsmax"),
@@ -597,8 +704,32 @@ enum NotchActivityTests {
                    "recognized headset families use their native symbol, with generic audio as fallback")
         }
         suite.expect(NotchAccessorySupport.symbol(for: .keyboard, name: "Keyboard") == "keyboard"
-               && NotchAccessorySupport.symbol(for: .device, name: "Device") == "battery.25percent",
+               && NotchAccessorySupport.symbol(for: .device, name: "Device") == "dot.radiowaves.left.and.right"
+               && NotchAccessorySupport.symbol(for: .device, name: "Alex’s Magic Trackpad") == "rectangle.and.hand.point.up.left",
                "model-specific audio symbols preserve other accessory types")
+        for kind: PeripheralBatteryKind in [.audio, .keyboard, .mouse, .trackpad, .device] {
+            let symbol = NotchAccessorySupport.symbol(for: kind, name: "Device")
+            suite.expect(NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil,
+                         "accessory indicators use symbols available on this macOS version")
+        }
+        // A renamed accessory still announces its Bluetooth class of device.
+        for (major, minor, symbol) in [(UInt32(0x05), UInt32(0x25), "rectangle.and.hand.point.up.left"),
+                                       (0x05, 0x20, "computermouse"), (0x05, 0x10, "keyboard"),
+                                       (0x05, 0x30, "keyboard"), (0x05, 0x02, "gamecontroller"),
+                                       (0x05, 0x03, "av.remote"), (0x04, 0x06, "headphones"),
+                                       (0x04, 0x01, "headphones"), (0x04, 0x05, "hifispeaker"),
+                                       (0x04, 0x08, "car"), (0x02, 0x03, "iphone"), (0x01, 0x03, "laptopcomputer"),
+                                       (0x01, 0x01, "desktopcomputer"), (0x07, 0x01, "applewatch"),
+                                       (0x06, 0x20, "printer"), (0x08, 0x04, "gamecontroller"),
+                                       (0x00, 0x00, "dot.radiowaves.left.and.right"),
+                                       (0x1F, 0x00, "dot.radiowaves.left.and.right")] {
+            let resolved = NotchAccessorySupport.symbol(name: "Kitchen", majorClass: major, minorClass: minor)
+            suite.expect(resolved == symbol && NSImage(systemSymbolName: resolved, accessibilityDescription: nil) != nil,
+                         "a renamed accessory takes its icon from its class of device (\(major), \(minor))")
+        }
+        suite.expect(NotchAccessorySupport.symbol(name: "Alex’s Magic Keyboard", majorClass: 0x05, minorClass: 0x25) == "keyboard"
+               && NotchAccessorySupport.symbol(name: "AirPods Pro", majorClass: 0x04, minorClass: 0x05) == "airpodspro",
+               "a name that says what the accessory is outranks its announced class")
         func device(_ percent: Int, id: String = "HID:1", name: String = "Keyboard") -> PeripheralBatteryDevice {
             PeripheralBatteryDevice(id: id, name: name, percent: percent, kind: .keyboard)
         }
@@ -634,12 +765,15 @@ enum NotchActivityTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
-        suite.expect(NotchTimerSupport.isEnabled(in: defaults) && !NotchCameraSupport.isEnabled(in: defaults)
-               && !NotchAccessorySupport.isEnabled(in: defaults), "on-demand timer is available by default while camera and accessory monitoring remain opt-in")
+        suite.expect(NotchTimerSupport.isEnabled(in: defaults) && NotchCameraSupport.isEnabled(in: defaults)
+               && NotchAccessorySupport.isEnabled(in: defaults), "installed timer, camera and accessory activity start enabled")
         let preferenceKeys = [DefaultsKey.notchTimerEnabled, DefaultsKey.notchCameraEnabled, DefaultsKey.notchAccessoriesEnabled]
+        for key in preferenceKeys { defaults.set(false, forKey: key) }
+        suite.expect(!NotchTimerSupport.isEnabled(in: defaults) && !NotchCameraSupport.isEnabled(in: defaults)
+               && !NotchAccessorySupport.isEnabled(in: defaults), "timer, camera and accessory activity can be turned off")
         for key in preferenceKeys { defaults.set(true, forKey: key) }
         suite.expect(NotchTimerSupport.isEnabled(in: defaults) && NotchCameraSupport.isEnabled(in: defaults)
-               && NotchAccessorySupport.isEnabled(in: defaults), "each explicit opt-in enables its activity")
+               && NotchAccessorySupport.isEnabled(in: defaults), "turning them back on restores their activity")
         suite.expect(NotchCameraSupport.canPresent(expanded: true, selected: .camera, appPanel: false,
             captureControls: false, in: defaults), "the mirror can start only on its selected, expanded surface")
         suite.expect(!NotchCameraSupport.canPresent(expanded: false, selected: .camera, appPanel: false,

@@ -14,10 +14,8 @@ struct NotchCameraView: View {
             if service.isEmbeddedPresented {
                 // The preview takes the height the island leaves beside its
                 // stop button and keeps the camera's own proportions.
-                let previewHeight = max(80, size.height - 28 - NotchLayout.rowSpacing)
                 VStack(spacing: NotchLayout.rowSpacing) {
-                    CameraPreviewView(size: CGSize(width: min(size.width, previewHeight * 4 / 3),
-                                                   height: previewHeight), showsCameraMenu: true)
+                    CameraPreviewView(size: NotchLayout.cameraPreviewSize(in: size), showsCameraMenu: true)
                     Button(text.stopCamera, action: service.hideEmbedded)
                         .buttonStyle(.bordered).controlSize(.small)
                 }

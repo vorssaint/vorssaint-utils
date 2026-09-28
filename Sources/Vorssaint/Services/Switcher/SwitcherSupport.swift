@@ -113,9 +113,20 @@ final class SwitcherWindowFocusRetryState {
                         targetMinimizedState: Bool?,
                         targetAppWindowIDs: @autoclosure () -> Set<CGWindowID>,
                         targetAppFocusedWindowID: @autoclosure () -> CGWindowID?,
+                        targetWindowIsFocused: @autoclosure () -> Bool = false,
+                        stopsWhenTargetFocused: Bool = false,
                         ignoresForeground: Bool = false,
                         ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard isActive else { return false }
+        let observedFrontmostPID = frontmostPID()
+        if stopsWhenTargetFocused,
+           !ignoresForeground,
+           !targetStartedMinimized,
+           observedFrontmostPID == targetPID,
+           targetWindowIsFocused() {
+            isActive = false
+            return false
+        }
         isActive = SwitcherSupport.shouldContinueFocusRetry(
             targetPID: targetPID,
             sourcePID: sourcePID,
@@ -287,8 +298,8 @@ struct SwitcherAppGroup: Identifiable, Equatable {
 /// standing in for them — the number it used to be had drifted 16pt past what
 /// it stood for, and the card spent the difference on nothing.
 enum SwitcherGridCard {
-    static var width: CGFloat { 288 * PreviewSizing.scale }
-    static var height: CGFloat { 214 * PreviewSizing.scale }
+    static var width: CGFloat { 288 * PreviewSizing.switcherScale }
+    static var height: CGFloat { 214 * PreviewSizing.switcherScale }
     static let padding: CGFloat = 10
     static let titleSpacing: CGFloat = 7
     /// One 13pt line over one 10.5pt line, 2pt apart, descenders included.
@@ -301,7 +312,7 @@ enum SwitcherGridCard {
     /// Stands in for a thumbnail that has not arrived, so it has to stay
     /// inside the thumbnail at every preview size (#793 gave it the scale;
     /// naming it is what lets a test hold it to the thumbnail it sits in).
-    static var fallbackIconSize: CGFloat { 80 * PreviewSizing.scale }
+    static var fallbackIconSize: CGFloat { 80 * PreviewSizing.switcherScale }
 }
 
 struct SwitcherIconRowLayout: Equatable {
@@ -314,7 +325,7 @@ struct SwitcherIconRowLayout: Equatable {
     let panelSize: CGSize
     let showsShortcutHints: Bool
 
-    static var scale: CGFloat { min(PreviewSizing.scale, 1.15) }
+    static var scale: CGFloat { min(PreviewSizing.switcherScale, 1.15) }
     static var iconSize: CGFloat { 68 * scale }
     static var selectedIconSize: CGFloat { 78 * scale }
     static let iconTileSpacing: CGFloat = 5
@@ -1230,6 +1241,18 @@ enum SwitcherSupport {
         return groups
     }
 
+    static func windowlessAppDividerPIDs(items: [SwitcherItem]) -> Set<pid_t> {
+        let groups = appGroups(items: items)
+        let windowedPIDs = Set(items.filter { !$0.isAppEntry }.map(\.pid))
+        var dividers: Set<pid_t> = []
+        for (previous, current) in zip(groups, groups.dropFirst()) {
+            if windowedPIDs.contains(previous.pid) != windowedPIDs.contains(current.pid) {
+                dividers.insert(current.pid)
+            }
+        }
+        return dividers
+    }
+
     /// Where a session starts. `pids` is the list in display order, one entry
     /// per position the shortcut steps through: one per window in the grid,
     /// one per app in the icon row.
@@ -1406,6 +1429,21 @@ enum SwitcherSupport {
         })
     }
 
+    /// Source app for the delayed focus guards only. A session source wins;
+    /// otherwise the app a caller saw in front when the activation began keeps
+    /// the handoff retry settling, without reclaiming focus after a later
+    /// unrelated activation. The target and this process are never a handoff.
+    static func focusRetrySourcePID(sessionSourcePID: pid_t?,
+                                    handoffSourcePID: pid_t?,
+                                    targetPID: pid_t,
+                                    ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> pid_t? {
+        if let sessionSourcePID { return sessionSourcePID }
+        guard let handoffSourcePID,
+              handoffSourcePID != targetPID,
+              handoffSourcePID != ownPID else { return nil }
+        return handoffSourcePID
+    }
+
     static func shouldContinueFocusRetry(targetPID: pid_t,
                                          sourcePID: pid_t?,
                                          frontmostPID: @autoclosure () -> pid_t?,
@@ -1423,13 +1461,20 @@ enum SwitcherSupport {
         let initialFrontmostPID = frontmostPID()
         // A hop travels across desktops, and the system fronts whatever sits
         // on top of each one it passes. Which app is in front while that runs
-        // says nothing about where the user wants to be, and reading it as
-        // "they moved on" leaves the window they picked behind that app. Such
-        // a pass gives up for the one signal that does carry intent: the app
-        // moved to a window it opened after the switch.
+        // says nothing about where the user wants to be, so hop passes opt out
+        // of this check and use the app's own focus below. Ordinary retries
+        // must never reclaim a window after an unrelated app is frontmost.
+        // The source app is allowed while the handoff is settling, because
+        // the target may still need its delayed pass.
+        let waitingForInitialMinimizedRestore = targetStartedMinimized
+            && targetIsMinimized
+            && (sourcePID == nil || initialFrontmostPID == sourcePID)
         if !ignoresForeground,
-           let sourcePID, let initialFrontmostPID,
-           initialFrontmostPID != targetPID && initialFrontmostPID != sourcePID && initialFrontmostPID != ownPID {
+           let initialFrontmostPID,
+           initialFrontmostPID != targetPID,
+           initialFrontmostPID != ownPID,
+           initialFrontmostPID != sourcePID,
+           !waitingForInitialMinimizedRestore {
             return false
         }
         // Z-order cannot identify keyboard focus: a new transparent helper

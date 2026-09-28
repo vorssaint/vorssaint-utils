@@ -11,6 +11,7 @@ struct MixerInputDevice: Identifiable, Equatable {
     let uid: String
     let name: String
     let isDefault: Bool
+    let priorityTier: MixerRoutingSupport.PriorityTier
     fileprivate let audioObjectID: AudioObjectID
 }
 
@@ -49,19 +50,24 @@ final class AudioInputDeviceManager: ObservableObject {
     /// for as long as the audio daemon holds the device, and that is exactly
     /// the moment the listeners fire.
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.audioinput.hal", qos: .userInitiated)
-    /// The system input as it was before this app first pointed it somewhere
-    /// else, and the device it was pointed at. Choosing a microphone here
-    /// changes a system setting, so switching the feature off or quitting puts
-    /// the original back.
+    /// The system input before the singular preferred-microphone behavior
+    /// changed it, and the device that behavior applied. Priority selections
+    /// clear this pair and become the new system choice instead of a temporary
+    /// override that stop() would undo.
     private var inputDeviceBeforeOverride: String?
     private var appliedInputDeviceUID: String?
+    /// True while Audio device priority is steering the input: the singular
+    /// preferred-input enforcement steps aside so the two do not fight.
+    private(set) var inputPriorityIsActive = false
 
     private init() {}
 
     /// The microphone selector lives in the mixer panel section, so it
     /// follows the mixer's hub availability.
     func syncWithPreferences() {
-        if AppFeature.mixer.isAvailable {
+        inputPriorityIsActive = AppFeature.audioPriority.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.audioPriorityInputEnabled)
+        if AppFeature.mixer.isAvailable || AppFeature.audioPriority.isAvailable {
             start()
         } else {
             stop()
@@ -81,7 +87,14 @@ final class AudioInputDeviceManager: ObservableObject {
 
     func stop() {
         removeVolumeListeners()
-        restoreOriginalInputDevice()
+        // Priority selections are meant to survive a quit and the next
+        // launch. Only the singular preferred-microphone override is restored.
+        if !inputPriorityIsActive {
+            restoreOriginalInputDevice()
+        } else {
+            inputDeviceBeforeOverride = nil
+            appliedInputDeviceUID = nil
+        }
         guard listenerInstalled else { return }
         listenerInstalled = false
         // A sweep already reading the HAL must not publish into a manager that
@@ -101,11 +114,26 @@ final class AudioInputDeviceManager: ObservableObject {
         if preferredUnavailable { preferredUnavailable = false }
         if lastError != nil { lastError = nil }
         if inputVolume != nil { inputVolume = nil }
+        inputPriorityIsActive = false
+    }
+
+    func setInputPriorityActive(_ active: Bool) {
+        guard inputPriorityIsActive != active else { return }
+        inputPriorityIsActive = active
+        refresh.discardInFlight()
+        if listenerInstalled { refreshAndApply() }
     }
 
     func setPreferredInputDeviceUID(_ uid: String?) {
         volumeWriteLock.withLock { volumeWriteLifetime = UUID() }
         let sanitized = Defaults.sanitizedPreferredInputDeviceUID(uid)
+        // While priority owns input selection, the picker follows the actual
+        // current device. Keep the dormant single preferred choice untouched
+        // so it can resume when priority is disabled.
+        if inputPriorityIsActive {
+            if let sanitized { setCurrentInputDeviceUID(sanitized) }
+            return
+        }
         if let sanitized {
             UserDefaults.standard.set(sanitized, forKey: DefaultsKey.preferredInputDevice)
         } else {
@@ -117,6 +145,38 @@ final class AudioInputDeviceManager: ObservableObject {
         // previous preference and would publish it back for an instant.
         refresh.discardInFlight()
         refreshAndApply()
+    }
+
+    /// Points the system input at a concrete device without changing the
+    /// dormant preferred-microphone setting. A successful selection becomes
+    /// the new persistent system choice, so it also supersedes any restoration
+    /// record left by the singular preferred-microphone behavior. The HAL write
+    /// runs off-main: a device connecting or disappearing is exactly when
+    /// CoreAudio may block.
+    func setCurrentInputDeviceUID(_ uid: String) {
+        volumeWriteLock.withLock { volumeWriteLifetime = UUID() }
+        guard listenerInstalled,
+              uid != currentInputDeviceUID,
+              let device = inputDevices.first(where: { $0.uid == uid }) else { return }
+        refresh.discardInFlight()
+        halQueue.async { [weak self] in
+            let status = Self.setDefaultInputDevice(device.audioObjectID)
+            DispatchQueue.main.async {
+                guard let self, self.listenerInstalled else { return }
+                if status == noErr {
+                    self.inputDeviceBeforeOverride = nil
+                    self.appliedInputDeviceUID = nil
+                    if self.lastError != nil { self.lastError = nil }
+                } else {
+                    let message = "OSStatus \(status)"
+                    if self.lastError != message { self.lastError = message }
+                }
+                // Do not claim the device synchronously. The HAL may publish
+                // the new default a moment later; this refresh is the source
+                // of truth for the picker and priority-list highlight.
+                self.refreshAndApply()
+            }
+        }
     }
 
     func setInputVolume(_ volume: Double) {
@@ -217,6 +277,8 @@ final class AudioInputDeviceManager: ObservableObject {
         let savedUID: String?
         let inputDeviceBeforeOverride: String?
         let mayApplyPreferred: Bool
+        let priorityIsActive: Bool
+        let preferredInputIsActive: Bool
         let volumeGeneration: Int
     }
 
@@ -252,7 +314,9 @@ final class AudioInputDeviceManager: ObservableObject {
             savedUID: Defaults.sanitizedPreferredInputDeviceUID(
                 UserDefaults.standard.string(forKey: DefaultsKey.preferredInputDevice)),
             inputDeviceBeforeOverride: inputDeviceBeforeOverride,
-            mayApplyPreferred: !applyingPreferred,
+            mayApplyPreferred: !applyingPreferred && !inputPriorityIsActive,
+            priorityIsActive: inputPriorityIsActive,
+            preferredInputIsActive: AppFeature.mixer.isAvailable,
             volumeGeneration: volumeRefreshGeneration)
 
         halQueue.async { [weak self] in
@@ -269,9 +333,12 @@ final class AudioInputDeviceManager: ObservableObject {
         let currentUID = defaultInputDeviceUID()
         let devices = inputDevices(defaultUID: currentUID)
         let availableUIDs = Set(devices.map(\.uid))
-        let resolution = MixerRoutingSupport.resolveInputDevice(preferredUID: savedUID,
-                                                                availableUIDs: availableUIDs,
-                                                                currentUID: currentUID)
+        let resolution = MixerRoutingSupport.resolveInputDevice(
+            preferredUID: savedUID,
+            availableUIDs: availableUIDs,
+            currentUID: currentUID,
+            priorityIsActive: request.priorityIsActive,
+            preferredInputIsActive: request.preferredInputIsActive)
 
         guard resolution.shouldApplyPreferred,
               request.mayApplyPreferred,
@@ -394,6 +461,7 @@ final class AudioInputDeviceManager: ObservableObject {
                              uid: $0.uid,
                              name: $0.name,
                              isDefault: $0.uid == device.uid,
+                             priorityTier: $0.priorityTier,
                              audioObjectID: $0.audioObjectID)
         }
         if inputDevices != updated {
@@ -632,11 +700,15 @@ final class AudioInputDeviceManager: ObservableObject {
                 ? nameRef as String
                 : uid
             guard !MicMuteSupport.isOwnDevice(name: name) else { continue }
+            var transportType: UInt32 = 0
+            _ = read(deviceID, kAudioDevicePropertyTransportType, &transportType)
 
             devices.append(MixerInputDevice(id: uid,
                                             uid: uid,
                                             name: name,
                                             isDefault: uid == defaultUID,
+                                            priorityTier: MixerRoutingSupport.PriorityTier(
+                                                transportType: transportType),
                                             audioObjectID: deviceID))
         }
 

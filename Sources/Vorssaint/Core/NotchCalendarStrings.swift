@@ -27,6 +27,10 @@ struct NotchCalendarStrings {
     let month: String
     let emptyDay: String
     let hasEvents: String
+    let countdown: String
+    let countdownHint: String
+    /// Heads the per-calendar checkboxes in Settings.
+    let calendars: String
 }
 
 extension FeatureStrings {
@@ -54,7 +58,10 @@ extension FeatureStrings {
             nextWeek: "Next week",
             month: "Month",
             emptyDay: "No appointments on this day",
-            hasEvents: "Has appointments")
+            hasEvents: "Has appointments",
+            countdown: "Event countdown",
+            countdownHint: "Show the next timed event in the closed island during the hour before it starts. Its title may appear in screen captures.",
+            calendars: "Calendars shown")
         case .ptBR: return NotchCalendarStrings(
             title: "Calendário",
             description: "Veja o mês e seus próximos compromissos no Dynamic Island.",
@@ -77,7 +84,10 @@ extension FeatureStrings {
             nextWeek: "Próxima semana",
             month: "Mês",
             emptyDay: "Nenhum compromisso neste dia",
-            hasEvents: "Tem compromissos")
+            hasEvents: "Tem compromissos",
+            countdown: "Contagem para o próximo evento",
+            countdownHint: "Mostra o próximo evento com horário no notch durante a hora anterior. O título pode aparecer em capturas de tela.",
+            calendars: "Calendários exibidos")
         case .es: return NotchCalendarStrings(
             title: "Calendario",
             description: "Consulta el mes y tus próximas citas en el Dynamic Island.",
@@ -100,7 +110,36 @@ extension FeatureStrings {
             nextWeek: "Semana siguiente",
             month: "Mes",
             emptyDay: "No hay citas este día",
-            hasEvents: "Tiene citas")
+            hasEvents: "Tiene citas",
+            countdown: "Cuenta atrás para el próximo evento",
+            countdownHint: "Muestra el próximo evento con hora en el notch durante la hora anterior. El título puede aparecer en capturas de pantalla.",
+            calendars: "Calendarios mostrados")
+        case .sk: return NotchCalendarStrings(
+            title: "Kalendár",
+            description: "Prezerajte mesiac a nadchádzajúce stretnutia v Dynamic Island.",
+            permission: "Číta vaše kalendáre, aby zobrazil nadchádzajúce stretnutia. Udalosti zostávajú na tomto Macu.",
+            allow: "Povoliť prístup ku kalendáru",
+            denied: "Ak chcete vidieť svoje stretnutia, povoľte prístup ku kalendáru v Systémových nastaveniach.",
+            settings: "Otvoriť Systémové nastavenia",
+            empty: "Žiadne nadchádzajúce stretnutia",
+            next: "Nasleduje",
+            ongoing: "Prebieha teraz",
+            allDay: "Celý deň",
+            untitled: "Udalosť bez názvu",
+            openCalendar: "Otvoriť Kalendár",
+            week: "Nasledujúcich 7 dní",
+            today: "Dnes",
+            requestFailed: "Nepodarilo sa požiadať o prístup ku kalendáru. Skúste to znova.",
+            previousMonth: "Predchádzajúci mesiac",
+            nextMonth: "Nasledujúci mesiac",
+            previousWeek: "Predchádzajúci týždeň",
+            nextWeek: "Nasledujúci týždeň",
+            month: "Mesiac",
+            emptyDay: "V tento deň nemáte žiadne stretnutia",
+            hasEvents: "Má stretnutia",
+            countdown: "Odpočítavanie do udalosti",
+            countdownHint: "Zobrazí ďalšiu udalosť s časom v zatvorenom výreze počas hodiny pred jej začiatkom. Názov sa môže zobraziť na snímkach obrazovky.",
+            calendars: "Zobrazené kalendáre")
         case .de: return NotchCalendarStrings(
             title: "Kalender",
             description: "Den Monat und deine nächsten Termine im Dynamic Island ansehen.",
@@ -123,7 +162,10 @@ extension FeatureStrings {
             nextWeek: "Nächste Woche",
             month: "Monat",
             emptyDay: "Keine Termine an diesem Tag",
-            hasEvents: "Termine vorhanden")
+            hasEvents: "Termine vorhanden",
+            countdown: "Countdown zum nächsten Termin",
+            countdownHint: "Zeigt den nächsten Termin mit Uhrzeit in der geschlossenen Insel in der Stunde vor Beginn. Der Titel kann in Bildschirmaufnahmen erscheinen.",
+            calendars: "Angezeigte Kalender")
         case .fr: return NotchCalendarStrings(
             title: "Calendrier",
             description: "Consultez le mois et vos prochains rendez-vous dans le Dynamic Island.",
@@ -146,7 +188,10 @@ extension FeatureStrings {
             nextWeek: "Semaine suivante",
             month: "Mois",
             emptyDay: "Aucun rendez-vous ce jour-là",
-            hasEvents: "Rendez-vous prévus")
+            hasEvents: "Rendez-vous prévus",
+            countdown: "Compte à rebours du prochain événement",
+            countdownHint: "Affiche le prochain événement avec une heure dans l’encoche pendant l’heure qui précède. Son titre peut apparaître dans les captures d’écran.",
+            calendars: "Calendriers affichés")
         case .it: return NotchCalendarStrings(
             title: "Calendario",
             description: "Consulta il mese e i prossimi appuntamenti nel Dynamic Island.",
@@ -169,7 +214,10 @@ extension FeatureStrings {
             nextWeek: "Settimana successiva",
             month: "Mese",
             emptyDay: "Nessun appuntamento in questo giorno",
-            hasEvents: "Appuntamenti presenti")
+            hasEvents: "Appuntamenti presenti",
+            countdown: "Conto alla rovescia per il prossimo evento",
+            countdownHint: "Mostra il prossimo evento con un orario nell’isola chiusa durante l’ora precedente. Il titolo può apparire nelle acquisizioni dello schermo.",
+            calendars: "Calendari mostrati")
         case .ru: return NotchCalendarStrings(
             title: "Календарь",
             description: "Просматривайте месяц и ближайшие встречи в вырезе экрана.",
@@ -192,7 +240,10 @@ extension FeatureStrings {
             nextWeek: "Следующая неделя",
             month: "Месяц",
             emptyDay: "В этот день встреч нет",
-            hasEvents: "Есть встречи")
+            hasEvents: "Есть встречи",
+            countdown: "Отсчёт до следующего события",
+            countdownHint: "Показывает следующее событие со временем за час до начала. Название может попасть на снимки экрана.",
+            calendars: "Показываемые календари")
         case .tr: return NotchCalendarStrings(
             title: "Takvim",
             description: "Ayı ve yaklaşan randevularınızı çentikte görüntüleyin.",
@@ -215,7 +266,10 @@ extension FeatureStrings {
             nextWeek: "Sonraki hafta",
             month: "Ay",
             emptyDay: "Bu gün için randevu yok",
-            hasEvents: "Randevu var")
+            hasEvents: "Randevu var",
+            countdown: "Sonraki etkinliğe geri sayım",
+            countdownHint: "Saatli bir sonraki etkinliği başlamadan önceki bir saat boyunca çentikte gösterir. Başlığı ekran görüntülerinde görünebilir.",
+            calendars: "Gösterilen takvimler")
         case .ja: return NotchCalendarStrings(
             title: "カレンダー",
             description: "Dynamic Islandで月のカレンダーと今後の予定を確認できます。",
@@ -238,7 +292,10 @@ extension FeatureStrings {
             nextWeek: "次の週",
             month: "月",
             emptyDay: "この日の予定はありません",
-            hasEvents: "予定あり")
+            hasEvents: "予定あり",
+            countdown: "次の予定までのカウントダウン",
+            countdownHint: "開始1時間前から、時刻がある次の予定を閉じたノッチに表示します。タイトルが画面収録やスクリーンショットに映る場合があります。",
+            calendars: "表示するカレンダー")
         case .ko: return NotchCalendarStrings(
             title: "캘린더",
             description: "Dynamic Island에서 월별 달력과 다가오는 일정을 확인하세요.",
@@ -261,7 +318,10 @@ extension FeatureStrings {
             nextWeek: "다음 주",
             month: "월",
             emptyDay: "이 날의 일정 없음",
-            hasEvents: "일정 있음")
+            hasEvents: "일정 있음",
+            countdown: "다음 일정 카운트다운",
+            countdownHint: "시작 1시간 전부터 시간이 지정된 다음 일정을 닫힌 노치에 표시합니다. 제목이 화면 캡처에 나타날 수 있습니다.",
+            calendars: "표시할 캘린더")
         case .zhHans: return NotchCalendarStrings(
             title: "日历",
             description: "在Dynamic Island中浏览月历和即将开始的日程。",
@@ -284,7 +344,10 @@ extension FeatureStrings {
             nextWeek: "下一周",
             month: "月",
             emptyDay: "当天没有日程",
-            hasEvents: "有日程")
+            hasEvents: "有日程",
+            countdown: "下个日程倒计时",
+            countdownHint: "在开始前一小时，于收起的刘海区域显示下个定时日程。标题可能出现在屏幕截图中。",
+            calendars: "显示的日历")
         case .zhTW: return NotchCalendarStrings(
             title: "行事曆",
             description: "在Dynamic Island中瀏覽月曆與即將到來的行程。",
@@ -307,7 +370,10 @@ extension FeatureStrings {
             nextWeek: "下一週",
             month: "月",
             emptyDay: "當天沒有行程",
-            hasEvents: "有行程")
+            hasEvents: "有行程",
+            countdown: "下一個行程倒數",
+            countdownHint: "在開始前一小時，於收合的動態島顯示下一個有時間的行程。標題可能出現在螢幕截圖中。",
+            calendars: "顯示的行事曆")
         case .zhHK: return NotchCalendarStrings(
             title: "日曆",
             description: "在Dynamic Island中瀏覽月曆及即將到來的行程。",
@@ -330,7 +396,36 @@ extension FeatureStrings {
             nextWeek: "下一週",
             month: "月",
             emptyDay: "當天沒有行程",
-            hasEvents: "有行程")
+            hasEvents: "有行程",
+            countdown: "下一個行程倒數",
+            countdownHint: "在開始前一小時，於收合的動態島顯示下一個有時間的行程。標題可能出現在螢幕截圖中。",
+            calendars: "顯示的日曆")
+        case .uk: return NotchCalendarStrings(
+            title: "Календар",
+            description: "Переглядайте місяць та майбутні події у Dynamic Island.",
+            permission: "Читає ваші календарі, щоб показувати майбутні події. Події залишаються на цьому Mac.",
+            allow: "Дозволити доступ до календаря",
+            denied: "Дозвольте доступ до календаря в Системних параметрах, щоб бачити свої події.",
+            settings: "Відкрити Системні параметри",
+            empty: "Немає майбутніх подій",
+            next: "Далі",
+            ongoing: "Зараз триває",
+            allDay: "Увесь день",
+            untitled: "Подія без назви",
+            openCalendar: "Відкрити Календар",
+            week: "Наступні 7 днів",
+            today: "Сьогодні",
+            requestFailed: "Не вдалося запросити доступ до календаря. Спробуйте ще раз.",
+            previousMonth: "Попередній місяць",
+            nextMonth: "Наступний місяць",
+            previousWeek: "Попередній тиждень",
+            nextWeek: "Наступний тиждень",
+            month: "Місяць",
+            emptyDay: "Цього дня немає подій",
+            hasEvents: "Є події",
+            countdown: "Відлік до наступної події",
+            countdownHint: "Показує наступну подію з визначеним часом за годину до початку. Назва може потрапити на знімки екрана.",
+            calendars: "Календарі для показу")
         }
     }
 }

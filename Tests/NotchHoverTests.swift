@@ -36,40 +36,63 @@ enum NotchHoverTests {
         static var active = false
         static func ownsCocoaPoint(_ point: CGPoint) -> Bool { active }
     }
+    final class NSWorkspace {
+        static let shared = NSWorkspace()
+        var accessibilityDisplayShouldReduceMotion = false
+    }
     final class Host {
         var visible = true
         var rect = CGRect.zero
+        var departsContent = true
+        func finishDeparture() { departsContent = false }
+        var isConcealedForMissionControl = false
+        var revealChecks = 0
+        func blocksHoverReveal() -> Bool {
+            revealChecks += 1
+            return isConcealedForMissionControl
+        }
         func containsHover(_ point: CGPoint) -> Bool {
-            visible && CGRect(origin: .zero, size: rect.size)
+            visible && !isConcealedForMissionControl && CGRect(origin: .zero, size: rect.size)
                 .contains(CGPoint(x: point.x - rect.minX, y: rect.maxY - point.y))
         }
     }
-    enum NotchContentTransition { case none, reveal, dismiss, replace }
+    enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
     class State {
+        var hiddenInFullscreen = false
+        var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         var showsSystemFeedback = true, routesNotices = true
-        var running = true, suspended = false, inside = false
+        var running = true, suspended = false, inside = false, hoverEmphasized = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
+        var departingNotice: NotchNotice?
+        var departureWork: DispatchWorkItem?
         var compactActivity: NotchCompactActivity?
+        var compactActivities: [NotchCompactActivity] = []
+        var activityPickerMenuOpen = false
         var hoverState = NotchHoverState()
         var hiddenHoverMonitors: [Any] = []
         var hoverWork: DispatchWorkItem?
         var captureHover: ((Bool) -> Void)?
         func updateCaptureControlsHover(wasInside: Bool) {}
+        func updateCaptureControlsClickThrough() {}
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: -1920, y: 900, width: 1920, height: 1080),
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)
         var compactActivityGeometry: NotchGeometry { geometry.compactMusicGeometry }
         var surfaceSize: CGSize {
+            if fullscreenCompact { return geometry.restingSize(showsContent: false) }
             if let notice {
                 guard noticeExpanded else { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }
                 return geometry.notificationPreviewSize(
                     contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
             }
-            return expanded ? geometry.expanded : peeking ? geometry.peek : geometry.collapsed
+            if expanded { return geometry.expanded }
+            if peeking { return geometry.peek }
+            let resting = compactActivity == nil ? geometry.collapsed : compactActivityGeometry.compactActivitySize
+            return hoverEmphasized ? NotchHoverEmphasis.size(from: resting, geometry: geometry) : resting
         }
         var openings = 0, closures = 0, feedbacks = 0
         var requestedModule: NotchModule?
@@ -86,6 +109,7 @@ enum NotchHoverTests {
             updateBounds()
         }
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
+        func refreshPresentation() { updateBounds() }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
     }
@@ -99,6 +123,7 @@ enum NotchHoverTests {
             DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
             UserDefaults.standard = UserDefaults.Preferences()
             AssistiveKeyboard.active = false
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
             let service = Service()
             if physical {
                 service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
@@ -112,6 +137,94 @@ enum NotchHoverTests {
             NSEvent.mouseLocation = CGPoint(x: service.geometry.screen.minX, y: service.geometry.screen.minY)
             service.hover(false)
         }
+        for physical in [false, true] {
+            for reduced in [false, true] {
+                let picker = fixture(physical: physical)
+                picker.compactActivity = .agents
+                picker.compactActivities = [.agents, .music]
+                NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = reduced
+                picker.hover(true)
+                suite.expect(picker.showsCompactActivityPicker && picker.hoverWork == nil,
+                             "hover exposes named choices without an automatic opening deadline, including Reduce Motion")
+                DispatchQueue.main.advance(2)
+                suite.expect(picker.openings == 0, "the activity chooser stays available while the person decides")
+                picker.activityPickerMenuOpen = true
+                leave(picker)
+                suite.expect(picker.showsCompactActivityPicker, "moving into the combination menu keeps its picker visible")
+                picker.activityPickerMenuOpen = false
+                leave(picker)
+                suite.expect(!picker.showsCompactActivityPicker, "leaving hides the activity chooser")
+                picker.expanded = true
+                picker.inside = true
+                suite.expect(!picker.showsCompactActivityPicker, "the chooser does not cover an open page")
+                picker.expanded = false
+                picker.captureControls = true
+                suite.expect(!picker.showsCompactActivityPicker, "capture controls retain priority")
+                picker.captureControls = nil
+                picker.notice = volume
+                suite.expect(!picker.showsCompactActivityPicker, "system notices retain priority")
+                picker.notice = nil
+                picker.hiddenInFullscreen = true
+                suite.expect(!picker.showsCompactActivityPicker, "full-screen content hiding retains priority")
+            }
+        }
+        for physical in [false, true] {
+            let clickOnly = fixture(physical: physical)
+            UserDefaults.standard.enabled = false
+            let resting = clickOnly.surfaceSize
+            clickOnly.hover(true)
+            let emphasized = clickOnly.surfaceSize
+            suite.expect(emphasized.height == resting.height + 5 && emphasized.width >= resting.width
+                         && emphasized.width <= resting.width + 20 && clickOnly.hoverWork == nil,
+                         "click-only islands pulse within available menu space without scheduling an opening")
+            leave(clickOnly)
+            suite.expect(clickOnly.surfaceSize == resting,
+                         "leaving restores the resting island size")
+        }
+        let hiddenPulse = fixture()
+        UserDefaults.standard.hides = true
+        hiddenPulse.windowHost?.visible = false
+        let hiddenResting = hiddenPulse.surfaceSize
+        hiddenPulse.hover(true)
+        suite.expect(hiddenPulse.surfaceSize == hiddenResting,
+                     "an invisible island does not pulse before its hover reveal")
+        let reducedMotion = fixture()
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
+        let reducedResting = reducedMotion.surfaceSize
+        reducedMotion.hover(true)
+        suite.expect(reducedMotion.surfaceSize == reducedResting,
+                     "Reduce Motion leaves the resting island still on hover")
+        let compactPulse = fixture(physical: true)
+        compactPulse.compactActivity = .music
+        compactPulse.updateBounds()
+        let compactResting = compactPulse.surfaceSize
+        compactPulse.hover(true)
+        suite.expect(compactPulse.surfaceSize.height == compactResting.height + 5,
+                     "a visible compact activity responds to hover without replacing its content")
+        leave(compactPulse)
+        suite.expect(compactPulse.surfaceSize == compactResting,
+                     "the compact activity returns to its original size on exit")
+        let fullscreen = fixture(physical: true)
+        fullscreen.hiddenInFullscreen = true
+        fullscreen.compactActivity = .music
+        UserDefaults.standard.hides = true
+        UserDefaults.standard.expands = false
+        fullscreen.updateBounds()
+        let blackSize = fullscreen.surfaceSize
+        fullscreen.hover(true)
+        suite.expect(blackSize == fullscreen.geometry.restingSize(showsContent: false)
+                     && !fullscreen.hoverEmphasized && fullscreen.hoverWork != nil,
+                     "fullscreen keeps the cutout black but schedules configured hover access even with cached music")
+        DispatchQueue.main.advance(0.26)
+        suite.expect(fullscreen.peeking && fullscreen.openings == 0,
+                     "hover preview remains available from the black fullscreen cutout")
+        let simulatedFullscreen = fixture()
+        simulatedFullscreen.hiddenInFullscreen = true
+        simulatedFullscreen.hover(true)
+        DispatchQueue.main.advance(0.26)
+        suite.expect(simulatedFullscreen.hoverWork == nil && !simulatedFullscreen.peeking
+                     && simulatedFullscreen.openings == 0,
+                     "a simulated cutout hidden in full screen does not open on hover")
         for physical in [false, true] {
             let service = fixture(physical: physical)
             service.hover(true)
@@ -177,6 +290,66 @@ enum NotchHoverTests {
                        "stopping releases both hidden hover observers")
             }
         }
+        for expands in [false, true] {
+            let hidden = fixture()
+            UserDefaults.standard.hides = true
+            UserDefaults.standard.expands = expands
+            hidden.windowHost?.visible = false
+            hidden.windowHost?.isConcealedForMissionControl = true
+            hidden.hover(true)
+            suite.expect(!hidden.inside && hidden.hoverWork == nil,
+                         "Mission Control cannot start a hidden island's hover deadline")
+            hidden.windowHost?.isConcealedForMissionControl = false
+            hidden.hover(true)
+            suite.expect(hidden.inside && hidden.hoverWork != nil,
+                         "leaving Mission Control allows a fresh hidden hover deadline")
+            hidden.windowHost?.isConcealedForMissionControl = true
+            DispatchQueue.main.advance(0.26)
+            suite.expect(hidden.openings == 0 && !hidden.peeking && hidden.windowHost?.revealChecks == 1,
+                         "Mission Control starting during the hover delay blocks expansion and preview")
+
+            let visible = fixture()
+            UserDefaults.standard.expands = expands
+            visible.hover(true)
+            suite.expect(visible.inside && visible.hoverWork != nil,
+                         "a visible island has a pending hover deadline before Mission Control")
+            visible.windowHost?.isConcealedForMissionControl = true
+            DispatchQueue.main.advance(0.26)
+            suite.expect(visible.openings == 0 && !visible.peeking && visible.windowHost?.revealChecks == 1,
+                         "Mission Control blocks a pending visible hover without a mouse-exit event")
+            visible.windowHost?.isConcealedForMissionControl = false
+            visible.missionControlDidRestore()
+            suite.expect(visible.hoverWork != nil,
+                         "restoring Mission Control restarts a hover deadline when the pointer stayed over the island")
+            DispatchQueue.main.advance(0.26)
+            suite.expect(expands ? visible.openings == 1 : visible.peeking,
+                         "the restored hover opens the island after its normal delay")
+        }
+        let capturePreview = fixture()
+        capturePreview.expanded = true
+        capturePreview.updateBounds()
+        var previewHovered: Bool?
+        capturePreview.captureHover = { previewHovered = $0 }
+        capturePreview.windowHost?.isConcealedForMissionControl = true
+        capturePreview.windowHost?.isConcealedForMissionControl = false
+        capturePreview.missionControlDidRestore()
+        suite.expect(previewHovered == true,
+                     "restoring with the pointer over a capture preview keeps its auto-dismiss paused")
+
+        let departed = fixture()
+        departed.hover(true)
+        DispatchQueue.main.advance(0.26)
+        suite.expect(departed.expanded && departed.openedByHover,
+                     "the island is open from hover before Mission Control")
+        departed.windowHost?.isConcealedForMissionControl = true
+        NSEvent.mouseLocation = CGPoint(x: departed.geometry.screen.minX, y: departed.geometry.screen.minY)
+        departed.windowHost?.isConcealedForMissionControl = false
+        departed.missionControlDidRestore()
+        suite.expect(!departed.inside && departed.hoverWork != nil,
+                     "restoration notices that the pointer left while Mission Control owned input")
+        DispatchQueue.main.advance(0.19)
+        suite.expect(departed.closures == 1,
+                     "the hover-open island closes after its normal pointer exit delay")
         for disable: (Service) -> Void in [
             { $0.suspended = true }, { $0.windowHost = nil },
             { _ in UserDefaults.standard.hides = false }, { _ in UserDefaults.standard.enabled = false }

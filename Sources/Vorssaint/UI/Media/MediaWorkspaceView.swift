@@ -1332,7 +1332,8 @@ struct MediaWorkspaceView: View {
     /// One dialog at a time: the modal now starts a run-loop turn after the
     /// click, so a double-click (or clicking both pickers quickly) would queue
     /// a second identical dialog behind the first without this guard.
-    private static var panelModalActive = false
+    /// While it is set, the island keeps its working surface open.
+    private(set) static var panelModalActive = false
 
     private static func runPanelModal(_ panel: NSSavePanel,
                                       completion: @escaping (NSApplication.ModalResponse) -> Void) {
@@ -1341,15 +1342,21 @@ struct MediaWorkspaceView: View {
         if let island = NotchService.shared.presentationWindow, island.isVisible,
            NSApp.currentEvent?.window === island || NSApp.keyWindow === island {
             // The island floats above the modal panel level, so an
-            // application-modal dialog would open behind it. A sheet shares
-            // the island's level and keeps its working surface open.
-            panel.beginSheetModal(for: island) { response in
+            // application-modal dialog would open behind it, and a sheet
+            // moves/reskins the borderless island. Open it on its own,
+            // just above the island.
+            panel.level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+            // Like the sheet it replaces, it stays up while another app is active.
+            panel.hidesOnDeactivate = false
+            panel.begin { response in
                 panelModalActive = false
                 // Dismissal restores the previous key window after this callback.
                 DispatchQueue.main.async { if NotchService.shared.expanded { island.makeKey() } }
                 completion(response)
             }
             NSApp.activate(ignoringOtherApps: true)
+            // Activation alone can leave the nonactivating island holding focus.
+            panel.makeKeyAndOrderFront(nil)
             return
         }
         NSApp.activate(ignoringOtherApps: true)

@@ -453,6 +453,7 @@ struct CommandBarSettings: View {
             var current = CommandBarPreferences.disabledSources(from: disabledSources)
             if isOn { current.remove(source) } else { current.insert(source) }
             disabledSources = CommandBarPreferences.storageValue(for: current)
+            CommandBarService.shared.syncWithPreferences()
         }
     }
 
@@ -543,6 +544,7 @@ struct CommandBarSettings: View {
         var keys = CommandBarPreferences.decodeHidden(hiddenRaw)
         keys.remove(key)
         hiddenRaw = CommandBarPreferences.encodeHidden(keys)
+        CommandBarService.shared.syncWithPreferences()
     }
 }
 
@@ -632,6 +634,8 @@ private struct CommandBarLinkEditor: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Toggle(text.scriptRunsWithoutArgument, isOn: $draft.runsWithoutArgument)
+                        .font(.caption)
+                    Toggle(text.scriptRunsDirectly, isOn: $draft.runsDirectly)
                         .font(.caption)
                 }
             }

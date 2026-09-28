@@ -232,6 +232,7 @@ struct ShelfView: View {
                            contentRevision: shelf.contentRevision,
                            selection: shelf.selection,
                            expandedBatches: shelf.expandedBatches,
+                           pinnedIDs: shelf.pinnedIDs,
                            revealID: shelf.revealTargetID,
                            revealSerial: shelf.addSerial)
                 .frame(height: Self.tileAreaHeight)
@@ -281,9 +282,10 @@ struct ShelfSharePickerAnchor: NSViewRepresentable {
         fileprivate weak var view: NSView?
         private let presenter = ShelfSharePresenter()
 
-        func present(_ urls: [URL]) {
-            guard let view else { return }
-            presenter.present(for: urls, from: view)
+        @discardableResult
+        func present(_ urls: [URL], completion: ((Bool) -> Void)? = nil) -> Bool {
+            guard let view else { return false }
+            return presenter.present(for: urls, from: view, completion: completion)
         }
     }
 

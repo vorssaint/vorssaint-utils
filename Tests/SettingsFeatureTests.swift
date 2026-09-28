@@ -38,6 +38,79 @@ enum SettingsFeatureTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")
         suite.expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
+        let islandKeys: Set<String> = [
+            DefaultsKey.notchEnabled,
+            DefaultsKey.notchShowPlayingMusic,
+            DefaultsKey.notchQuickAccessSide,
+            DefaultsKey.panelControlNotch,
+            AppFeature.notch.availabilityKey,
+            AppFeature.notchCalendar.availabilityKey,
+        ]
+        suite.expect(islandKeys.isSubset(of: backupKeys),
+               "island preferences and availability are eligible for export")
+        let islandBackup = SettingsBackupSupport.payload(appVersion: "3.4.0-beta.5") { key in
+            switch key {
+            case DefaultsKey.notchEnabled: return true
+            case DefaultsKey.notchShowPlayingMusic: return false
+            case DefaultsKey.notchQuickAccessSide: return "controls"
+            case DefaultsKey.panelControlNotch: return false
+            case AppFeature.notch.availabilityKey: return true
+            case AppFeature.notchCalendar.availabilityKey: return false
+            default: return nil
+            }
+        }
+        var islandSettings: [String: Any]?
+        if let data = try? PropertyListSerialization.data(fromPropertyList: islandBackup,
+                                                          format: .xml, options: 0),
+           let parsed = try? PropertyListSerialization.propertyList(from: data,
+                                                                     options: [], format: nil) as? [String: Any] {
+            islandSettings = SettingsBackupSupport.sanitizedSettings(from: parsed)
+        }
+        suite.expect(islandSettings?[DefaultsKey.notchEnabled] as? Bool == true
+                && islandSettings?[DefaultsKey.notchShowPlayingMusic] as? Bool == false
+                && islandSettings?[DefaultsKey.notchQuickAccessSide] as? String == "controls"
+                && islandSettings?[DefaultsKey.panelControlNotch] as? Bool == false
+                && islandSettings?[AppFeature.notch.availabilityKey] as? Bool == true
+                && islandSettings?[AppFeature.notchCalendar.availabilityKey] as? Bool == false,
+               "a current backup round-trips island settings")
+        suite.expect(!SettingsBackupSupport.omitsDynamicIslandSettings(islandSettings ?? [:])
+                && islandKeys.isSubset(of: SettingsBackupSupport.keysToClear(
+                    whenImporting: islandSettings ?? [:])),
+            "a current backup replaces existing island settings")
+        let preIslandBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: 1,
+            SettingsBackupSupport.appVersionKey: "3.3.5",
+            SettingsBackupSupport.settingsKey: [DefaultsKey.switcherEnabled: true],
+        ]
+        let preIslandSettings = SettingsBackupSupport.sanitizedSettings(from: preIslandBackup) ?? [:]
+        let oldKeysToClear = SettingsBackupSupport.keysToClear(whenImporting: preIslandSettings)
+        suite.expect(SettingsBackupSupport.omitsDynamicIslandSettings(preIslandSettings)
+                && islandKeys.isDisjoint(with: oldKeysToClear)
+                && oldKeysToClear.contains(DefaultsKey.switcherEnabled),
+               "a pre-island backup leaves local island settings intact while importing other preferences")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.musicBlockPlayReplacement] as? Bool == true
+                && backupKeys.contains(DefaultsKey.musicBlockPlayReplacement),
+               "replacement playback keeps the current default and its opt-out travels with settings backup")
+        let replacementOptOut = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.musicBlockPlayReplacement ? false : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: replacementOptOut)?[
+                    DefaultsKey.musicBlockPlayReplacement] as? Bool == false,
+               "restoring a backup preserves the choice to open the replacement without playing")
+        let retiredDisplayBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [DefaultsKey.notchDisplay: "chosen"],
+        ]
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: retiredDisplayBackup)?[DefaultsKey.notchDisplay] as? String
+                    == NotchDisplay.automatic.rawValue,
+               "a backup with a display mode this version does not offer restores the automatic choice")
+        let mainDisplayBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [DefaultsKey.notchDisplay: NotchDisplay.main.rawValue],
+        ]
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: mainDisplayBackup)?[DefaultsKey.notchDisplay] as? String
+                    == NotchDisplay.main.rawValue,
+               "a backup keeps the main display choice")
         suite.expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
                "the cleaning mode keep screen visible choice travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.appearance),
@@ -161,6 +234,11 @@ enum SettingsFeatureTests {
                "the apps each mouse feature leaves alone travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
                "the apps the clipboard history skips travel with the settings backup")
+        suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryWindowWidth)
+                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowHeight),
+               "the clipboard window size stays on the display where it was chosen")
+        suite.expect(backupKeys.contains(DefaultsKey.windowLayoutIgnoredApps),
+               "the apps that pause window layout travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.switcherAppRules),
                "per-app switcher rules travel with the settings backup")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
@@ -181,6 +259,9 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.windowPreviewExcludedApps)
                 && (Defaults.registeredDefaults[DefaultsKey.windowPreviewExcludedApps] as? [String]) == [],
                "the window preview exclusion list starts empty and travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.windowMaximizeExcludedApps)
+                && (Defaults.registeredDefaults[DefaultsKey.windowMaximizeExcludedApps] as? [String]) == [],
+               "the green button exception list starts empty and travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.panelShowToggles)
                 && backupKeys.contains(DefaultsKey.panelToggleOrder)
                 && backupKeys.contains(DefaultsKey.panelToggleDarkMode)
@@ -192,9 +273,13 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.fanControlCoolingLevel)
                 && backupKeys.contains(DefaultsKey.fanControlCurves)
                 && backupKeys.contains(DefaultsKey.menuBarFanSpeed)
+                && backupKeys.contains(DefaultsKey.fanControlResume)
                 && !backupKeys.contains(DefaultsKey.fanControlRecoveryNeeded)
-                && !backupKeys.contains(DefaultsKey.fanControlHelperVersion),
+                && !backupKeys.contains(DefaultsKey.fanControlHelperVersion)
+                && !backupKeys.contains(DefaultsKey.fanControlResumeConfiguration),
                "fan display and cooling preferences travel while helper recovery state stays on one Mac")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.fanControlResume] as? Bool == false,
+               "resuming fan control after a restart or sleep is opt-in")
         suite.expect(backupKeys.contains(DefaultsKey.screenshotSharingEnabled),
                "the temporary screenshot links preference travels with settings backup")
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
@@ -202,6 +287,7 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)
                 && !backupKeys.contains(DefaultsKey.micMuteActive)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedVolumes)
+                && !backupKeys.contains(DefaultsKey.micMuteSavedChannelVolumes)
                 && !backupKeys.contains(DefaultsKey.micMuteMutedDevices)
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
@@ -233,7 +319,8 @@ enum SettingsFeatureTests {
                "the backup never carries a note about a start that did not finish")
         suite.expect(backupKeys.contains(DefaultsKey.hasOnboarded)
                 && backupKeys.contains(DefaultsKey.featuresOnboardingVersion)
-                && backupKeys.contains(DefaultsKey.lastUpdateIntroVersion),
+                && backupKeys.contains(DefaultsKey.lastUpdateIntroVersion)
+                && backupKeys.contains(DefaultsKey.brightnessUpdatePromptState),
                "a restored Mac does not replay onboarding or the intros already seen")
         let backupPayload = SettingsBackupSupport.payload(appVersion: "test") { key in
             key == DefaultsKey.switcherEnabled ? true : nil
@@ -279,6 +366,32 @@ enum SettingsFeatureTests {
         let localJavaPath = "/Users/tester/Library/Application Support/RuntimeLauncher"
             + "/java/jre-legacy/zulu-8.jre/Contents/Home/bin/java"
         let exceptionKeys = Set(MouseExceptionScope.allCases.map(\.defaultsKey))
+        let windowLayoutKey = DefaultsKey.windowLayoutIgnoredApps
+        for apps in [["com.apple.Safari", localJavaPath], [localJavaPath],
+                     ["com.apple.Safari", "com.apple.Terminal"], []] {
+            let expected = apps.filter { $0 != localJavaPath }
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == windowLayoutKey ? apps : nil
+            }
+            suite.expect((backup[SettingsBackupSupport.settingsKey] as? [String: Any])?[
+                        windowLayoutKey] as? [String] == expected,
+                   "window layout exports bundle IDs only, keeping an emptied list")
+            let imported = SettingsBackupSupport.sanitizedSettings(from: [
+                SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+                SettingsBackupSupport.settingsKey: [windowLayoutKey: apps],
+            ])
+            suite.expect(imported?[windowLayoutKey] as? [String] == expected,
+                   "window layout rejects executable paths from incoming backups")
+        }
+        for restoredApps: [String]? in [["com.apple.Safari"], [], nil] {
+            let restored = SettingsBackupSupport.restoredExceptionList(
+                restored: restoredApps ?? [], carried: [localJavaPath])
+            suite.expect(restored == (restoredApps ?? []) + [localJavaPath],
+                   "window layout preserves local paths for populated, empty and missing backup lists")
+            suite.expect(SettingsBackupSupport.restoredExceptionList(
+                restored: restored, carried: [localJavaPath]) == restored,
+                   "repeated window layout restores do not duplicate local paths")
+        }
         let mixedExceptionBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
             exceptionKeys.contains(key) ? ["com.apple.Safari", localJavaPath] : nil
         }
@@ -335,12 +448,22 @@ enum SettingsFeatureTests {
         let clearAt = backupServiceLines.firstIndex {
             isCodeLine($0) && $0.contains("defaults.removeObject(forKey: key)")
         }
+        let windowLayoutCaptureAt = backupServiceLines.firstIndex {
+            isCodeLine($0) && $0.contains("let windowLayoutPaths = SettingsBackupSupport.pathIdentities(")
+        }
+        let windowLayoutPutBackAt = backupServiceLines.firstIndex {
+            isCodeLine($0) && $0.contains("carried: windowLayoutPaths), forKey: DefaultsKey.windowLayoutIgnoredApps)")
+        }
         let putBackAt = backupServiceLines.firstIndex {
             isCodeLine($0) && $0.contains("SettingsBackupSupport.restoredExceptionList(")
         }
         let writeAt = backupServiceLines.firstIndex {
             isCodeLine($0) && $0.contains("defaults.set(value, forKey: key)")
         }
+        suite.expect(windowLayoutCaptureAt != nil && windowLayoutPutBackAt != nil
+                && clearAt != nil && writeAt != nil
+                && windowLayoutCaptureAt! < clearAt! && writeAt! < windowLayoutPutBackAt!,
+               "window layout paths are captured before clearing and restored after backup values")
         suite.expect([captureAt, clearAt, putBackAt, writeAt].allSatisfy { $0 != nil }
                 && captureAt! < clearAt! && writeAt! < putBackAt!,
                "a settings restore reads the machine-local entries before clearing "

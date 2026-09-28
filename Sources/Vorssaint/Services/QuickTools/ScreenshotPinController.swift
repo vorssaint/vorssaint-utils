@@ -69,7 +69,7 @@ final class ScreenshotPinController {
 }
 
 /// One pinned capture.
-private final class ScreenshotPinWindow: NSPanel {
+private final class ScreenshotPinWindow: OverlayPanel {
     private let image: CGImage
     private let scale: CGFloat
     private unowned let controller: ScreenshotPinController

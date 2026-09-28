@@ -17,6 +17,7 @@ struct NotchFilesView: View {
     @State private var supportedTools: [MediaTool] = []
     @State private var showingActions = false
     @State private var outputPanel: NSSavePanel?
+    @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
     var body: some View {
@@ -47,6 +48,7 @@ struct NotchFilesView: View {
                                contentRevision: shelf.contentRevision,
                                selection: shelf.selection,
                                expandedBatches: shelf.expandedBatches,
+                               pinnedIDs: shelf.pinnedIDs,
                                revealID: shelf.revealTargetID,
                                revealSerial: shelf.addSerial,
                                sideways: true)
@@ -100,7 +102,8 @@ struct NotchFilesView: View {
         .onDisappear {
             outputPanel?.cancel(nil)
             outputPanel = nil
-            service.keepFileInteractionOpen(false)
+            // Only the island's own page holds the island open.
+            if !preview { service.keepFileInteractionOpen(false) }
         }
         .onChange(of: features.revision) {
             if !AppFeature.mediaTools.isAvailable {
@@ -235,8 +238,7 @@ struct NotchFilesView: View {
         panel.directoryURL = inputs[0].deletingLastPathComponent()
         panel.message = text.archiveHint
         outputPanel = panel
-        NSApp.activate(ignoringOtherApps: true)
-        panel.begin { response in
+        let completed: (NSApplication.ModalResponse) -> Void = { response in
             outputPanel = nil
             guard response == .OK, let destination = panel.url,
                   AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable,
@@ -244,6 +246,25 @@ struct NotchFilesView: View {
             archives.archive(inputs, destination: destination, directory: multiple)
             service.open(.files)
         }
+        guard let island = service.presentationWindow, island.isVisible else {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.begin(completionHandler: completed)
+            return
+        }
+        // The island floats above ordinary windows, and a sheet would move and
+        // reskin it. The panel opens on its own just above it instead, and the
+        // pending outputPanel keeps the island open meanwhile.
+        panel.level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+        // Like the island's other dialogs, it stays up while another app is active.
+        panel.hidesOnDeactivate = false
+        panel.begin { response in
+            completed(response)
+            // Dismissal restores the previous key window after this callback.
+            DispatchQueue.main.async { if service.expanded { island.makeKey() } }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        // Activation alone can leave the nonactivating island holding focus.
+        panel.makeKeyAndOrderFront(nil)
     }
 
 }

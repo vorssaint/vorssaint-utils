@@ -86,6 +86,16 @@ enum NotchNotificationSupport {
         return matches.count == 1 ? matches.first : nil
     }
 
+    /// Many messages arrive while their app is closed, so installed apps can
+    /// name a source too. A running match wins; otherwise the name must stay
+    /// unambiguous across both lists.
+    static func sourceBundleIdentifier(for names: [String],
+                                       running: [(name: String, bundleIdentifier: String)],
+                                       installed: [(name: String, bundleIdentifier: String)]) -> String? {
+        sourceBundleIdentifier(for: names, applications: running)
+            ?? sourceBundleIdentifier(for: names, applications: running + installed)
+    }
+
     /// Native formatted descriptions include the app before the same labelled
     /// message fields. Remove that exact suffix rather than splitting names or
     /// message text at commas, which may be part of their content.

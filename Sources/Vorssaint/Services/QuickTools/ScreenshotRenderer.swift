@@ -24,20 +24,16 @@ enum ScreenshotRenderer {
         return NSColor(srgbRed: c.red, green: c.green, blue: c.blue, alpha: 1)
     }
 
-    static func fontSize(for stroke: ScreenshotSupport.StrokeID, scale: CGFloat) -> CGFloat {
-        switch stroke {
-        case .small: return 13 * scale
-        case .medium: return 19 * scale
-        case .large: return 27 * scale
-        }
+    static func fontSize(for textSize: Int, scale: CGFloat) -> CGFloat {
+        CGFloat(textSize) * scale
     }
 
     /// Measures a text annotation's box for hit-testing and the inline editor.
     static func textBounds(_ text: String,
                            at origin: CGPoint,
-                           stroke: ScreenshotSupport.StrokeID,
+                           textSize: Int,
                            scale: CGFloat) -> CGRect {
-        let font = NSFont.systemFont(ofSize: fontSize(for: stroke, scale: scale), weight: .semibold)
+        let font = NSFont.systemFont(ofSize: fontSize(for: textSize, scale: scale), weight: .semibold)
         let measured = (text.isEmpty ? " " : text).size(withAttributes: [.font: font])
         return CGRect(origin: origin,
                       size: CGSize(width: ceil(measured.width) + 4, height: ceil(measured.height)))
@@ -45,12 +41,12 @@ enum ScreenshotRenderer {
 
     // MARK: - Annotation pass
 
-    /// Draws every annotation over the base content. `pixelated` is the
-    /// redaction source for pixelate rectangles; text being edited inline is
+    /// Draws every annotation over the base content. `pixelated` holds the
+    /// redaction source for pixelate rectangles, one per blur level; text being edited inline is
     /// skipped so the live field is the only visible copy.
     static func drawAnnotations(_ annotations: [ScreenshotSupport.Annotation],
                                 in context: CGContext,
-                                pixelated: CGImage?,
+                                pixelated: [Int: CGImage],
                                 imageSize: CGSize,
                                 scale: CGFloat,
                                 annotationShadowsEnabled: Bool,
@@ -207,7 +203,7 @@ enum ScreenshotRenderer {
                                  scale: CGFloat,
                                  shadowsEnabled: Bool) {
         guard !annotation.text.isEmpty else { return }
-        let font = NSFont.systemFont(ofSize: fontSize(for: annotation.stroke, scale: scale),
+        let font = NSFont.systemFont(ofSize: fontSize(for: annotation.textSize, scale: scale),
                                      weight: .semibold)
         var attributes: [NSAttributedString.Key: Any] = [
             .font: font,
@@ -290,15 +286,17 @@ enum ScreenshotRenderer {
 
     private static func drawPixelate(_ annotation: ScreenshotSupport.Annotation,
                                      in context: CGContext,
-                                     pixelated: CGImage?,
+                                     pixelated: [Int: CGImage],
                                      imageSize: CGSize) {
-        guard let pixelated else { return }
+        guard let pixelated = pixelated[annotation.blurLevel] else { return }
         context.saveGState()
         context.clip(to: annotation.rect)
-        // The pixelated twin is drawn full-size under the clip; flip locally
-        // because CGContext.draw expects an unflipped space.
+        // Expand the sampled mosaic with nearest-neighbor filtering under the
+        // clip. Keeping it small avoids one capture-sized bitmap per blur level.
+        // Flip locally because CGContext.draw expects an unflipped space.
         context.translateBy(x: 0, y: imageSize.height)
         context.scaleBy(x: 1, y: -1)
+        context.interpolationQuality = .none
         context.draw(pixelated, in: CGRect(origin: .zero, size: imageSize))
         context.restoreGState()
     }
@@ -390,9 +388,10 @@ enum ScreenshotRenderer {
     // MARK: - Pixelation source
 
     /// A low-resolution mosaic with per-block color variation.
-    static func pixelatedImage(from image: CGImage) -> CGImage? {
+    static func pixelatedImage(from image: CGImage,
+                               level: Int = ScreenshotSupport.BlurStrength.defaultLevel) -> CGImage? {
         let block = ScreenshotSupport.pixelBlockSize(
-            for: CGSize(width: image.width, height: image.height))
+            for: CGSize(width: image.width, height: image.height), level: level)
         let smallWidth = max(1, image.width / block)
         let smallHeight = max(1, image.height / block)
         guard let small = CGContext(data: nil,
@@ -421,19 +420,7 @@ enum ScreenshotRenderer {
                 }
             }
         }
-        guard let mosaic = small.makeImage() else { return nil }
-
-        guard let full = CGContext(data: nil,
-                                   width: image.width,
-                                   height: image.height,
-                                   bitsPerComponent: 8,
-                                   bytesPerRow: 0,
-                                   space: CGColorSpaceCreateDeviceRGB(),
-                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-        else { return nil }
-        full.interpolationQuality = .none
-        full.draw(mosaic, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        return full.makeImage()
+        return small.makeImage()
     }
 
     // MARK: - Export
@@ -462,7 +449,7 @@ enum ScreenshotRenderer {
     /// optionally downscaled to 1x.
     static func renderExport(baseImage: CGImage,
                              annotations: [ScreenshotSupport.Annotation],
-                             pixelated: CGImage?,
+                             pixelated: [Int: CGImage],
                              scale: CGFloat,
                              annotationShadowsEnabled: Bool,
                              watermark: ScreenshotSupport.WatermarkStyle,
@@ -527,7 +514,7 @@ enum ScreenshotRenderer {
 
     private static func renderFlattened(baseImage: CGImage,
                                         annotations: [ScreenshotSupport.Annotation],
-                                        pixelated: CGImage?,
+                                        pixelated: [Int: CGImage],
                                         scale: CGFloat,
                                         annotationShadowsEnabled: Bool,
                                         watermark: ScreenshotSupport.WatermarkStyle,

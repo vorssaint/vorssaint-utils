@@ -46,8 +46,8 @@ MUTATIONS = [
      ".sink { [weak self, weak mixer] _ in",
      "switching output never replaces its connection notice with stored volume or mute"),
     ("device alerts return to the fixed level width", "notch", "Sources/Vorssaint/Services/Notch/NotchService.swift",
-     "return min(240, max(112, ceil(max(leading + 18 + 8, trailing)) + 32))", "return 112",
-     "power and accessory labels fit beside their icon without truncation"),
+     "return min(maximum, max(88, ceil(max(leading + 18 + 8, trailing)) + padding))", "return 112",
+     "power labels fit and long accessory names use bounded truncation"),
     ("device alert window ignores its content width", "notch", "Sources/Vorssaint/Services/Notch/NotchService.swift",
      "guard noticeExpanded else { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }",
      "guard noticeExpanded else { return geometry.notice }",
@@ -132,16 +132,22 @@ MUTATIONS = [
      "guard matches.count == 1, let entry = matches.first else { return nil }",
      "guard !matches.isEmpty, let entry = matches.first else { return nil }",
      "manifest 404 ambiguous: only usable catalog coverage clears a missing-feed warning"),
-    ("switcher reveal before resize", "switcher", "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",
+    ("switcher ignores resized viewport", "switcher", "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",
      "                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in\n"
      "                            DispatchQueue.main.async {\n"
-     "                                revealSelection(in: proxy, animated: true)\n"
+     "                                revealSelection(in: proxy, animated: false)\n"
      "                            }\n"
      "                        }",
-     "                        .onChange(of: switcher.iconRowLayout.previewContentWidth) { _, _ in\n"
-     "                            revealSelection(in: proxy, animated: true)\n"
-     "                        }",
+     "",
      "previews search/narrowed without changing selection"),
+    ("paused silence writes off the resumed play", "notch", "Sources/Vorssaint/Services/Notch/NotchAudioLevelService.swift",
+     "        if stopWork == nil { silence.giveUp(on: identity) }",
+     "        silence.giveUp(on: identity)",
+     "silence heard during the pause grace does not write the next play off"),
+    ("resumed play keeps a reader still reporting paused silence", "notch", "Sources/Vorssaint/Services/Notch/NotchAudioLevelService.swift",
+     "        guard readerPID != pid || resumeBeforeSound else { return }",
+     "        guard readerPID != pid else { return }",
+     "a delayed silence report from the pause cannot write off the resumed play"),
     ("switcher loses replacement identity", "switcher", "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",
      "                        .onChange(of: appWindows.map(\\.element.id)) { _, _ in",
      "                        .onChange(of: appWindows.count) { _, _ in",

@@ -15,6 +15,7 @@ enum NotchScreenRefreshContract {
         var now: Double = 0
         var jobs: [(Deadline, DispatchWorkItem)] = []
         var pending: Int { jobs.filter { !$0.1.isCancelled }.count }
+        func async(execute work: DispatchWorkItem) { jobs.append((.now(), work)) }
         func asyncAfter(deadline: Deadline, execute work: DispatchWorkItem) { jobs.append((deadline, work)) }
         func advance(_ seconds: Double) {
             now += seconds
@@ -57,7 +58,14 @@ enum NotchScreenRefreshContract {
         var resignations = 0
         func resignKey() { resignations += 1 }
     }
+    enum NSEvent { static var mouseLocation = CGPoint.zero }
+    final class Host {
+        var rect = CGRect.zero
+        func containsHover(_ point: CGPoint) -> Bool { rect.contains(point) }
+    }
     class State {
+        var hiddenInFullscreen = false
+        func fullscreenEnvironmentDidChange() {}
         var running = true
         var suspended = false
         var expanded = false
@@ -70,12 +78,16 @@ enum NotchScreenRefreshContract {
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
         var screenRefreshWork: DispatchWorkItem?
+        var preferenceSyncWork: DispatchWorkItem?
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210, compactSideRoom: 64)
         var panel: Panel? = Panel()
+        var windowHost: Host? = Host()
         var modules: [NotchModule] = [.controls]
         var pinned = false
         var keepsWorkingSurface = false
+        var openedByHover = false
+        var clickedSinceOpening = false
         var preferenceSyncs = 0
         var reads = 0
         var appliedRooms: [CGFloat?] = []
@@ -100,6 +112,28 @@ enum NotchScreenRefreshContract {
             ClipboardHistoryService.shared.remembered = 0
         }
         let service = Service()
+        let preferences = Service()
+        for _ in 0..<100 { preferences.schedulePreferenceSync() }
+        suite.expect(DispatchQueue.main.pending == 1 && preferences.preferenceSyncs == 0,
+                     "a preference burst defers one island sync until drawing has finished")
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 1 && preferences.preferenceSyncWork == nil,
+                     "the deferred sync consumes the entire preference burst once")
+        preferences.schedulePreferenceSync()
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 2, "later preference changes still synchronize the island")
+        preferences.schedulePreferenceSync()
+        preferences.running = false
+        DispatchQueue.main.advance(0)
+        preferences.schedulePreferenceSync()
+        suite.expect(preferences.preferenceSyncs == 2 && DispatchQueue.main.pending == 0,
+                     "pending and later preference notifications cannot restart a stopped island")
+        preferences.running = true
+        preferences.suspended = true
+        preferences.schedulePreferenceSync()
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 3,
+                     "suspended islands still apply preference changes that stop disabled services")
         let initialSize = service.geometry.compactMusicGeometry.compactActivitySize
         var pendingPeak = 0
         var geometryChanged = false
@@ -134,6 +168,17 @@ enum NotchScreenRefreshContract {
         service.screenParametersDidChange()
         suite.expect(service.preferenceSyncs == 2 && DispatchQueue.main.pending == 0,
                "stopping the island makes queued and later screen notifications inert")
+
+        let fullscreen = Service()
+        fullscreen.syncMenuSpaceMonitoring()
+        let fullscreenTimer = fullscreen.menuSpaceTimer
+        fullscreen.hiddenInFullscreen = true
+        fullscreen.syncMenuSpaceMonitoring()
+        suite.expect(fullscreen.menuSpaceTimer == nil && fullscreenTimer?.invalidated == true,
+                     "fullscreen hiding stops menu polling")
+        fullscreen.hiddenInFullscreen = false
+        fullscreen.syncMenuSpaceMonitoring()
+        suite.expect(fullscreen.menuSpaceTimer != nil, "leaving fullscreen restores menu monitoring")
 
         let virtual = Service()
         virtual.geometry.compactSideRoom = nil
@@ -221,6 +266,31 @@ enum NotchScreenRefreshContract {
         suite.expect(simulated.reads == beforeReads + 3, "a suspended island ignores activations")
         simulated.suspended = false
 
+        let hovered = Service()
+        hovered.expanded = true
+        hovered.openedByHover = true
+        hovered.windowHost?.rect = hovered.geometry.frame(for: hovered.geometry.expanded)
+        let onIsland = CGPoint(x: hovered.geometry.screen.midX, y: hovered.geometry.screen.maxY - 1)
+        NSEvent.mouseLocation = onIsland
+        NSWorkspace.shared.frontmostApplication = RunningApplication(bundleIdentifier: "com.example.editor")
+        hovered.applicationDidActivate()
+        suite.expect(hovered.collapses == 0 && hovered.panel?.resignations == 1,
+               "an island hover opened stays under the pointer when reaching it makes the app beneath active, "
+               + "such as a full-screen app on a display without focus")
+        hovered.clickedSinceOpening = true
+        hovered.applicationDidActivate()
+        suite.expect(hovered.collapses == 1,
+               "after a click inside, which may be what opened the other app, the island still closes as it comes forward")
+        hovered.clickedSinceOpening = false
+        NSEvent.mouseLocation = CGPoint(x: hovered.geometry.screen.minX, y: hovered.geometry.screen.minY)
+        hovered.applicationDidActivate()
+        suite.expect(hovered.collapses == 2, "an island hover opened closes when another app activates away from the pointer")
+        hovered.openedByHover = false
+        NSEvent.mouseLocation = onIsland
+        hovered.applicationDidActivate()
+        suite.expect(hovered.collapses == 3,
+               "an island opened by a click or shortcut still closes when another app activates under the pointer")
+
         let covering = Service()
         covering.geometry.compactSideRoom = nil
         covering.accessibilityGranted = false
@@ -245,6 +315,39 @@ enum NotchScreenRefreshContract {
         covering.syncMenuSpaceMonitoring()
         suite.expect(covering.menuSpaceTimer != nil && covering.reads == 1,
                "giving way to the menus again resumes the existing reader")
+
+        let idleSimulated = Service()
+        idleSimulated.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                                               safeAreaTop: 0, cameraWidth: 0)
+        idleSimulated.idleContent = .none
+        idleSimulated.accessibilityGranted = false
+        idleSimulated.coversMenus = true
+        idleSimulated.syncMenuSpaceMonitoring()
+        let idleEmptyBar = NotchMenuBarLayout.sideRoom(screen: idleSimulated.geometry.screen,
+                                                      cameraWidth: idleSimulated.geometry.cameraWidth,
+                                                      barHeight: idleSimulated.geometry.menuBarHeight, occupied: [])
+        suite.expect(idleSimulated.menuSpaceTimer == nil && idleSimulated.appliedRooms == [idleEmptyBar]
+               && idleSimulated.geometry.compactSideRoom == idleEmptyBar,
+               "an external display keeps the idle island visible when menu coverage is enabled")
+        idleSimulated.compactActivity = true
+        idleSimulated.syncMenuSpaceMonitoring()
+        suite.expect(idleSimulated.geometry.compactSideRoom.map { $0 > 0 } == true,
+               "compact activity on a simulated cutout covers the menus")
+
+        let roomsBeforeFocusChange = idleSimulated.appliedRooms
+        NSWorkspace.shared.frontmostApplication = Bundle.main
+        idleSimulated.applicationDidActivate()
+        NSWorkspace.shared.frontmostApplication = RunningApplication(bundleIdentifier: "com.example.editor")
+        idleSimulated.applicationDidActivate()
+        suite.expect(idleSimulated.menuSpaceTimer == nil && idleSimulated.appliedRooms == roomsBeforeFocusChange
+               && idleSimulated.geometry.compactSideRoom == idleEmptyBar,
+               "the external island remains visible when focus moves between Settings and another app")
+        let readsBeforePolicyChange = idleSimulated.reads
+        idleSimulated.accessibilityGranted = true
+        idleSimulated.coversMenus = false
+        idleSimulated.syncMenuSpaceMonitoring()
+        suite.expect(idleSimulated.menuSpaceTimer != nil && idleSimulated.reads == readsBeforePolicyChange + 1,
+               "turning off menu coverage restores the measured-space policy")
 
         let physical = Service()
         physical.idleContent = .none

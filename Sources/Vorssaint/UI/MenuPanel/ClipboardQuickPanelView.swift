@@ -7,8 +7,7 @@ struct ClipboardQuickPanelView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = ClipboardHistoryService.shared
     @FocusState private var searchFocused: Bool
-    @State private var hoveredEntryID: UUID?
-    @State private var previewEntryID: UUID?
+    @State private var previewSelection = QuickPreviewSelection()
     @State private var previewIsEditing = false
 
     private var text: ClipboardFeatureStrings {
@@ -19,20 +18,8 @@ struct ClipboardQuickPanelView: View {
         history.filteredQuickEntries
     }
 
-    private var previewEntry: ClipboardHistoryEntry? {
-        ClipboardHistorySelection.previewEntry(preferredID: previewEntryID,
-                                               visibleEntries: filtered,
-                                               selectedEntry: history.selectedQuickEntry)
-    }
-
     private var canReorderEntries: Bool {
         history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var panelSize: CGSize {
-        history.quickPreviewPresented
-            ? ClipboardHistoryService.quickPanelPreviewSize
-            : ClipboardHistoryService.quickPanelCompactSize
     }
 
     var body: some View {
@@ -47,37 +34,34 @@ struct ClipboardQuickPanelView: View {
                 }
                 if history.quickPreviewPresented {
                     Divider()
-                    ClipboardEntryPreviewSidebar(text: text,
-                                                 entry: previewEntry,
-                                                 isEditing: $previewIsEditing,
-                                                 onClose: { history.setQuickPreviewPresented(false) })
+                    QuickPreviewPane(text: text,
+                                     selection: previewSelection,
+                                     isEditing: $previewIsEditing,
+                                     onClose: { history.setQuickPreviewPresented(false) })
                         .frame(width: 280)
                         .transition(.opacity)
                 }
             }
         }
-        .frame(width: panelSize.width, height: panelSize.height, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.regularMaterial)
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
-            hoveredEntryID = nil
-            previewEntryID = history.selectedQuickEntryID
+            previewSelection.select(history.selectedQuickEntryID)
             DispatchQueue.main.async { searchFocused = true }
         }
         .onDisappear {
-            hoveredEntryID = nil
-            previewEntryID = nil
+            previewSelection.select(nil)
             previewIsEditing = false
         }
         .onChange(of: history.quickSelectionIndex) { _, _ in
-            previewEntryID = history.selectedQuickEntryID
+            previewSelection.select(history.selectedQuickEntryID)
         }
         .onChange(of: history.quickQuery) { _, _ in
-            previewEntryID = history.selectedQuickEntryID
+            previewSelection.select(history.selectedQuickEntryID)
         }
         .onChange(of: history.quickWindowPresentationID) { _, _ in
-            hoveredEntryID = nil
-            previewEntryID = history.selectedQuickEntryID
+            previewSelection.select(history.selectedQuickEntryID)
         }
     }
 
@@ -95,7 +79,7 @@ struct ClipboardQuickPanelView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(previewEntry == nil && !history.quickPreviewPresented)
+            .disabled(history.selectedQuickEntry == nil && !history.quickPreviewPresented)
             .help(text.previewLabel)
             .accessibilityLabel(text.previewLabel)
             Button {
@@ -188,12 +172,11 @@ struct ClipboardQuickPanelView: View {
                               isSelected: history.quickSelectionIsVisible
                                  && history.selectedQuickEntryID == entry.id,
                               isBatchSelected: history.isQuickBatchSelected(entry),
-                              isHovered: hoveredEntryID == entry.id,
                               canReorderEntries: canReorderEntries,
                               previewIsEditing: previewIsEditing,
+                              presentationID: history.quickWindowPresentationID,
                               language: l10n.language,
-                              hoveredEntryID: $hoveredEntryID,
-                              previewEntryID: $previewEntryID)
+                              previewSelection: previewSelection)
                     .equatable()
                     .id(entry.id)
                 if index < entries.count - 1 {
@@ -256,8 +239,7 @@ struct ClipboardQuickPanelView: View {
     }
 
     private func shortcutIndex(for entry: ClipboardHistoryEntry) -> Int? {
-        guard let index = filtered.firstIndex(where: { $0.id == entry.id }), index < 9 else { return nil }
-        return index
+        filtered.prefix(9).firstIndex(where: { $0.id == entry.id })
     }
 
     private func scrollSelectedEntry(with proxy: ScrollViewProxy) {
@@ -269,21 +251,48 @@ struct ClipboardQuickPanelView: View {
     }
 }
 
-/// One row of the list, a view of its own with value inputs so SwiftUI can
-/// skip the rows a change did not touch. Before this every hover, and every
-/// row passing under a still pointer during a scroll, rebuilt the whole list,
-/// which is what made a flick stall for a quarter second at a time.
+/// The sidebar alone observes hover selection. Changing its entry never
+/// invalidates the enclosing list.
+private final class QuickPreviewSelection: ObservableObject {
+    @Published private(set) var entryID: UUID?
+
+    func select(_ id: UUID?) {
+        guard entryID != id else { return }
+        entryID = id
+    }
+}
+
+private struct QuickPreviewPane: View {
+    let text: ClipboardFeatureStrings
+    @ObservedObject var selection: QuickPreviewSelection
+    @Binding var isEditing: Bool
+    let onClose: () -> Void
+    @ObservedObject private var history = ClipboardHistoryService.shared
+
+    var body: some View {
+        ClipboardEntryPreviewSidebar(text: text,
+                                     entry: ClipboardHistorySelection.previewEntry(
+                                        preferredID: selection.entryID,
+                                        visibleEntries: history.filteredQuickEntries,
+                                        selectedEntry: history.selectedQuickEntry),
+                                     isEditing: $isEditing,
+                                     onClose: onClose)
+    }
+}
+
+/// Keep hover within the row so moving the pointer does not rebuild the list.
+/// Value inputs let SwiftUI skip rows unaffected by selection or history changes.
 private struct QuickEntryRow: View, Equatable {
     let entry: ClipboardHistoryEntry
     let shortcutIndex: Int?
     let isSelected: Bool
     let isBatchSelected: Bool
-    let isHovered: Bool
     let canReorderEntries: Bool
     let previewIsEditing: Bool
+    let presentationID: UUID
     let language: AppLanguage
-    @Binding var hoveredEntryID: UUID?
-    @Binding var previewEntryID: UUID?
+    let previewSelection: QuickPreviewSelection
+    @State private var isHovered = false
     /// The pane follows a row only once the pointer has rested on it: while
     /// rows stream under a still pointer during a scroll, every one of them
     /// would otherwise redraw the pane, and a long entry costs a frame or two
@@ -295,16 +304,16 @@ private struct QuickEntryRow: View, Equatable {
     private var l10n: L10n { .shared }
     private var text: ClipboardFeatureStrings { FeatureStrings.clipboard(language) }
 
-    // The bindings are channels back to the list, not part of what the row
-    // looks like, so they stay out of the comparison.
+    // Preview selection is a channel to the sidebar, not part of this row's
+    // appearance, so it stays out of the comparison.
     static func == (lhs: QuickEntryRow, rhs: QuickEntryRow) -> Bool {
         lhs.entry == rhs.entry
             && lhs.shortcutIndex == rhs.shortcutIndex
             && lhs.isSelected == rhs.isSelected
             && lhs.isBatchSelected == rhs.isBatchSelected
-            && lhs.isHovered == rhs.isHovered
             && lhs.canReorderEntries == rhs.canReorderEntries
             && lhs.previewIsEditing == rhs.previewIsEditing
+            && lhs.presentationID == rhs.presentationID
             && lhs.language == rhs.language
     }
 
@@ -346,7 +355,7 @@ private struct QuickEntryRow: View, Equatable {
             // arrow keys took over is not a hover.
             if hovering, NSEvent.mouseLocation == history.keyboardSelectionPointer { return }
             withAnimation(.easeOut(duration: 0.1)) {
-                hoveredEntryID = hovering ? entry.id : (hoveredEntryID == entry.id ? nil : hoveredEntryID)
+                isHovered = hovering
             }
             previewFollowTask?.cancel()
             guard hovering, !previewIsEditing else { return }
@@ -354,8 +363,19 @@ private struct QuickEntryRow: View, Equatable {
             previewFollowTask = Task { @MainActor in
                 try? await Task.sleep(for: Self.previewFollowDelay)
                 guard !Task.isCancelled else { return }
-                previewEntryID = id
+                previewSelection.select(id)
             }
+        }
+        .onChange(of: previewIsEditing) { _, editing in
+            if editing { previewFollowTask?.cancel() }
+        }
+        .onChange(of: presentationID) { _, _ in
+            isHovered = false
+            previewFollowTask?.cancel()
+        }
+        .onDisappear {
+            isHovered = false
+            previewFollowTask?.cancel()
         }
         .onTapGesture { activate(entry) }
     }
@@ -364,18 +384,21 @@ private struct QuickEntryRow: View, Equatable {
     private func entryContent(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .text:
-            Text(entry.preview)
-                .font(.system(size: 12))
-                .lineLimit(2)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .center, spacing: 8) {
+                if let color = entry.color {
+                    ClipboardColorSwatch(color: color, size: 14)
+                }
+                Text(entry.preview)
+                    .font(.system(size: 12))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
             HStack(alignment: .center, spacing: 8) {
-                if let name = entry.imageFile,
-                   let thumbnail = ClipboardImageStore.thumbnail(named: name) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                if let name = entry.imageFile {
+                    ClipboardThumbnailImage(source: .stored(name: name),
+                                            aspectRatio: entry.imageAspectRatio)
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
@@ -388,12 +411,10 @@ private struct QuickEntryRow: View, Equatable {
         case .files:
             if entry.filePaths.count == 1,
                let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path),
-               let thumbnail = ClipboardImageStore.fileThumbnail(atPath: path) {
+               ClipboardImageStore.isImageFile(atPath: path) {
                 HStack(alignment: .center, spacing: 8) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                    ClipboardThumbnailImage(source: .file(path: path),
+                                            aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
@@ -436,6 +457,17 @@ private struct QuickEntryRow: View, Equatable {
                                isHovered: Bool) -> some View {
         if isHovered {
             HStack(spacing: 4) {
+                if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                    Button { history.editImage(entry) } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .frame(width: 24, height: 24)
+                            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .help(text.edit)
+                    .accessibilityLabel(text.edit)
+                }
                 Button {
                     history.copyOnlyQuickEntry(entry)
                 } label: {

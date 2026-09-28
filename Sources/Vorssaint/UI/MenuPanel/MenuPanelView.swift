@@ -26,6 +26,7 @@ final class MenuPanelFocus: ObservableObject {
     @Published private(set) var request: MenuPanelFocusRequest?
     @Published private(set) var activeMetric: MetricDetailKind?
     @Published private(set) var isSwitchingMetricAnchor = false
+    @Published private(set) var popoverIsVisible = false
     private var serial = 0
 
     private init() {}
@@ -55,6 +56,11 @@ final class MenuPanelFocus: ObservableObject {
     func setSwitchingMetricAnchor(_ switching: Bool) {
         isSwitchingMetricAnchor = switching
     }
+
+    func setPopoverVisible(_ visible: Bool) {
+        guard popoverIsVisible != visible else { return }
+        popoverIsVisible = visible
+    }
 }
 
 /// Content of the menu bar popover: keep-awake controls, the volume mixer and
@@ -78,6 +84,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.panelShowUtilities) private var showUtilities = true
     @AppStorage(DefaultsKey.panelShowControls) private var showControls = true
     @AppStorage(DefaultsKey.panelShowToggles) private var showToggles = true
+    @AppStorage(DefaultsKey.panelShowWallpaper) private var showWallpaper = true
     @AppStorage(DefaultsKey.panelSectionOrder) private var sectionOrderRaw = ""
     @State private var navigableContentHeight: CGFloat = 0
     @State private var metricContentHeight: CGFloat = 0
@@ -292,6 +299,7 @@ struct MenuPanelView: View {
         case .utilities: return 500
         case .controls: return 360
         case .toggles: return 420
+        case .wallpaper: return 480
         }
     }
 
@@ -302,7 +310,7 @@ struct MenuPanelView: View {
         case .network: return 330
         case .disk: return 360
         case .battery, .power: return 360
-        case .fan: return 240
+        case .fan, .connectedDevices: return 240
         }
     }
 
@@ -314,15 +322,31 @@ struct MenuPanelView: View {
         switch id {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
-        case .mixer: if showMixer { MixerSection(collapsible: collapsible) }
+        case .mixer: if showMixer { mixerOrPrioritySection(collapsible: collapsible) }
         case .system: if showSystem { SystemSection(collapsible: collapsible) }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
-        case .fanControl: if showFanControl { FanControlSection(collapsible: collapsible) }
+        case .fanControl:
+            // The popover retains its host after closing; detach the curve editor
+            // so cooling heartbeats cannot keep laying out an unseen panel.
+            if showFanControl, notchSize != nil || panelFocus.popoverIsVisible {
+                FanControlSection(collapsible: collapsible)
+            }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)
+        case .wallpaper: if showWallpaper { WallpaperSection(collapsible: collapsible) }
+        }
+    }
+
+    /// Shows the full mixer when installed, or the priority lists on their own.
+    @ViewBuilder
+    private func mixerOrPrioritySection(collapsible: Bool) -> some View {
+        if AppFeature.mixer.isAvailable {
+            MixerSection(collapsible: collapsible)
+        } else {
+            AudioPrioritySection(collapsible: collapsible)
         }
     }
 
@@ -330,7 +354,7 @@ struct MenuPanelView: View {
     /// what keeps the tabs refreshing when Settings flips one of them.
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
         _ = (showKeepAwake, showBrightness, brightnessEnabled, showMixer, showSystem, showNetwork,
-             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles)
+             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles, showWallpaper)
         return PanelLayout.isVisibleInPanel(id)
     }
 
@@ -1900,12 +1924,13 @@ struct QuickControlsSection: View {
     private var switcherIconRowOption: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Text(String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString))
+                let title = String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString)
+                Text(title)
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Toggle("", isOn: $switcherIconRowMode)
+                Toggle(title, isOn: $switcherIconRowMode)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
@@ -2197,7 +2222,7 @@ struct PanelToggleRow: View {
             }
             PanelInlineHideButton(isVisible: visibility)
         } else {
-            Toggle("", isOn: $isOn)
+            Toggle(title, isOn: $isOn)
                 .labelsHidden()
                 .controlSize(.small)
                 .toggleStyle(.switch)
@@ -2474,7 +2499,8 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
     @State private var optionsExpanded = false
     @State private var automationExpanded = false
-    @State private var untilTime = Date()
+    @State private var untilTime = Date().addingTimeInterval(3600)
+    @State private var useEndTime = false
     var collapsible = true
 
     var body: some View {
@@ -2485,7 +2511,7 @@ struct KeepAwakeCard: View {
                 HStack {
                     statusLine
                     Spacer()
-                    Toggle("", isOn: activeBinding)
+                    Toggle(l10n.s.keepAwakeTitle, isOn: activeBinding)
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
@@ -2500,31 +2526,30 @@ struct KeepAwakeCard: View {
                 }
 
                 if !awake.isActive {
-                    HStack {
-                        Text(l10n.s.durationLabel)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        DurationPicker(selection: $defaultDuration)
+                    Picker(l10n.s.durationLabel, selection: $useEndTime) {
+                        Text(l10n.s.durationLabel).tag(false)
+                        Text(l10n.s.keepAwakeUntilLabel).tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    if useEndTime {
+                        KeepAwakeEndTimePicker(selection: $untilTime)
+                    } else {
+                        HStack {
+                            Image(systemName: "timer")
+                                .foregroundStyle(.secondary)
+                            DurationPicker(selection: $defaultDuration)
+                            Spacer(minLength: 0)
+                        }
                     }
 
-                    HStack {
-                        Text(l10n.s.keepAwakeUntilLabel)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        DatePicker("", selection: $untilTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .datePickerStyle(.stepperField)
-                            .controlSize(.small)
-                            .fixedSize()
-                        Button(l10n.s.keepAwakeUntilStart) {
-                            awake.activate(until: KeepAwakeAutomationSupport.resolvedUntilDate(picked: untilTime, now: Date()))
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .font(.system(size: 10))
+                    Button(action: startSession) {
+                        Text(l10n.s.keepAwakeUntilStart)
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                 }
 
                 optionsDisclosure
@@ -2544,7 +2569,6 @@ struct KeepAwakeCard: View {
             keepAwakeIconTint = Defaults.sanitizedKeepAwakeIconTint(keepAwakeIconTint).rawValue
             keepAwakeActiveIcon = Defaults.sanitizedKeepAwakeActiveIcon(keepAwakeActiveIcon).rawValue
             keepAwakeMouseJiggleInterval = Defaults.sanitizedKeepAwakeMouseJiggleInterval(keepAwakeMouseJiggleInterval)
-            untilTime = Date().addingTimeInterval(3600)
         }
     }
 
@@ -2693,7 +2717,7 @@ struct KeepAwakeCard: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Toggle("", isOn: isOn)
+                Toggle(title, isOn: isOn)
                     .toggleStyle(.switch)
                     .controlSize(.mini)
                     .labelsHidden()
@@ -2777,12 +2801,20 @@ struct KeepAwakeCard: View {
             get: { awake.isActive },
             set: { on in
                 if on {
-                    awake.activate(minutes: defaultDuration)
+                    startSession()
                 } else if awake.isActive {
                     awake.toggle()
                 }
             }
         )
+    }
+
+    private func startSession() {
+        if useEndTime {
+            awake.activate(until: KeepAwakeAutomationSupport.resolvedUntilDate(picked: untilTime, now: Date()))
+        } else {
+            awake.activate(minutes: defaultDuration)
+        }
     }
 
     private func grantAccessibility() {
@@ -2808,7 +2840,7 @@ struct KeepAwakeCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn)
+            Toggle(title, isOn: isOn)
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .labelsHidden()

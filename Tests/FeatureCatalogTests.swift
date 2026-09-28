@@ -112,6 +112,86 @@ enum FeatureCatalogTests {
         suite.expect(!smearedUnlock && smeared.progress == 1,
                "four Escapes with a modifier in between never unlock; the next Escape starts at 1")
 
+        // User-requested teardown waits only for real releases corresponding
+        // to mouse-down events observed while Cleaning Mode was active.
+        var cleaningMouseGate = CleaningMouseReleaseGate()
+        cleaningMouseGate.buttonDown(0)
+        suite.expect(!cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown waits when the primary button went down while the overlay was active")
+        suite.expect(!cleaningMouseGate.buttonUp(1),
+               "an unrelated release cannot complete a pending cleaning teardown")
+        suite.expect(cleaningMouseGate.buttonUp(0),
+               "the matching physical release completes the pending cleaning teardown")
+        suite.expect(cleaningMouseGate.deactivationPending,
+               "the cleaning unlock request remains pending until teardown runs")
+        suite.expect(cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown is immediate when no tracked button is held")
+
+        cleaningMouseGate.reset()
+        cleaningMouseGate.buttonDown(0)
+        cleaningMouseGate.buttonDown(2)
+        suite.expect(!cleaningMouseGate.requestDeactivation(),
+               "cleaning teardown waits for every tracked mouse button")
+        suite.expect(!cleaningMouseGate.buttonUp(0),
+               "releasing one of several held buttons keeps cleaning teardown pending")
+        suite.expect(cleaningMouseGate.buttonUp(2),
+               "the last matching release completes a multi-button cleaning teardown")
+
+        cleaningMouseGate.reset()
+        cleaningMouseGate.buttonDown(0)
+        suite.expect(!cleaningMouseGate.buttonUp(0),
+               "a normal click completed before deactivation never schedules teardown by itself")
+        suite.expect(cleaningMouseGate.requestDeactivation(),
+               "a completed click leaves no stale held-button state")
+        cleaningMouseGate.buttonDown(0)
+        _ = cleaningMouseGate.requestDeactivation()
+        cleaningMouseGate.reset()
+        suite.expect(cleaningMouseGate.pressedButtons.isEmpty && !cleaningMouseGate.deactivationPending,
+               "forced cleaning teardown clears tracked mouse lifecycle state")
+
+        var queuedCleaningMouseGate = CleaningMouseReleaseGate()
+        suite.expect(queuedCleaningMouseGate.requestDeactivation(),
+               "cleaning teardown can be queued when no button is held")
+        queuedCleaningMouseGate.buttonDown(0)
+        suite.expect(queuedCleaningMouseGate.deactivationPending
+                && !queuedCleaningMouseGate.pressedButtons.isEmpty,
+               "a new press before queued teardown is still tracked")
+        suite.expect(!queuedCleaningMouseGate.buttonUp(1),
+               "an unrelated release cannot finish a newly tracked press")
+        suite.expect(queuedCleaningMouseGate.buttonUp(0),
+               "the new press must receive its matching release")
+        queuedCleaningMouseGate.buttonDown(2)
+        suite.expect(queuedCleaningMouseGate.deactivationPending
+                && !queuedCleaningMouseGate.pressedButtons.isEmpty,
+               "a press after the last release still postpones queued teardown")
+        suite.expect(queuedCleaningMouseGate.buttonUp(2),
+               "the final new press also needs its matching release")
+
+        var disabledTapMouseGate = CleaningMouseReleaseGate()
+        disabledTapMouseGate.buttonDown(0)
+        _ = disabledTapMouseGate.requestDeactivation()
+        disabledTapMouseGate.invalidateTrackedPresses()
+        suite.expect(disabledTapMouseGate.pressedButtons.isEmpty
+                && disabledTapMouseGate.deactivationPending,
+               "a tap gap forgets stale presses without losing the unlock request")
+        disabledTapMouseGate.buttonDown(1)
+        suite.expect(!disabledTapMouseGate.buttonUp(0),
+               "a release from before the tap gap cannot finish a new press")
+        suite.expect(disabledTapMouseGate.buttonUp(1),
+               "a fresh press after the tap gap still needs its own release")
+
+        var expiredWaitGate = CleaningMouseReleaseGate()
+        expiredWaitGate.buttonDown(1)
+        suite.expect(!expiredWaitGate.requestDeactivation() && expiredWaitGate.releaseWaitExpired()
+                && expiredWaitGate.pressedButtons.isEmpty && expiredWaitGate.deactivationPending,
+               "an unlock stops waiting for a release that never arrives once the wait runs out")
+        var idleWaitGate = CleaningMouseReleaseGate()
+        idleWaitGate.buttonDown(0)
+        suite.expect(!idleWaitGate.releaseWaitExpired() && idleWaitGate.pressedButtons == [0],
+               "the wait limit leaves presses alone when no unlock was asked for")
+        suite.expect(CleaningMouseReleaseGate.releaseWaitLimit > 0 && CleaningMouseReleaseGate.releaseWaitLimit <= 10,
+               "a pending cleaning unlock has a short maximum wait")
+
         // The counters above build their own windows, so nothing else here
         // fails if the shipped constant regresses. Pin it at the source: the
         // 2s window made the gesture impossible for anyone pressing Escape
@@ -125,6 +205,22 @@ enum FeatureCatalogTests {
             .joined(separator: "\n")
         suite.expect(!cleaningCode.isEmpty && cleaningCode.contains("pressWindow: 6.0"),
                "the shipped unlock counter keeps the forgiving 6s press window")
+
+        suite.expect(!cleaningCode.contains("CGEvent(mouseEventSource:"),
+               "Cleaning Mode never synthesizes a global mouse release")
+        suite.expect(!cleaningCode.contains("pressedMouseButtons")
+                && !cleaningCode.contains("CGEventSource.buttonState"),
+               "Cleaning Mode does not infer ownership from a global button-state snapshot")
+        suite.expect(cleaningCode.contains("let shouldFinishUserDeactivation = mouseReleaseGate.deactivationPending")
+                && cleaningCode.contains("mouseReleaseGate.invalidateTrackedPresses()")
+                && cleaningCode.contains("if shouldFinishUserDeactivation {"),
+               "disabled-tap recovery invalidates stale mouse state and preserves a pending user unlock")
+        suite.expect(cleaningCode.contains("self.mouseReleaseGate.deactivationPending,")
+                && cleaningCode.contains("self.mouseReleaseGate.pressedButtons.isEmpty else { return }"),
+               "queued cleaning teardown rechecks the current press state")
+        suite.expect(cleaningCode.contains("armReleaseDeadline()\n        guard mouseReleaseGate.requestDeactivation()")
+                && cleaningCode.contains("releaseDeadline?.cancel()"),
+               "every user unlock arms the release deadline and teardown cancels it")
 
         // The counter above cannot see how events reach it, and the real HID
         // gesture is not reproducible headlessly. Pin the two properties of the
@@ -140,7 +236,7 @@ enum FeatureCatalogTests {
         } ?? cleaningLines.count
         var modifiersReachCounter = false
         var leakedEvents: [String] = []
-        var failOpenReturns = 0
+        var passThroughReturns = 0
         for (index, line) in cleaningLines[(handlerStart ?? handlerEnd)..<handlerEnd].enumerated()
         where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
             let number = (handlerStart ?? 0) + index + 1
@@ -153,15 +249,18 @@ enum FeatureCatalogTests {
                 }
             }
             if line.contains("return Unmanaged.passUnretained(event)") {
-                failOpenReturns += 1
+                passThroughReturns += 1
             } else if line.contains("return"), !line.contains("return nil") {
                 leakedEvents.append("CleaningModeManager.swift:\(number)")
             }
         }
         suite.expect(modifiersReachCounter,
                "flags-changed events feed the unlock counter, so modifiers reset the Escape count")
-        suite.expect(handlerStart != nil && leakedEvents.isEmpty && failOpenReturns == 1,
-               "the cleaning tap swallows normal input and keeps one disabled-session fail-open path: \(leakedEvents)")
+        suite.expect(handlerStart != nil
+               && leakedEvents.isEmpty
+               && passThroughReturns == 2
+               && cleaningCode.contains("if handleMouseButton(type: type, event: event)"),
+               "the cleaning tap swallows locked input while mouse events and disabled-session recovery pass through: \(leakedEvents)")
         suite.expect(cleaningCode.contains("self.deactivate(restoreSuspendedFeatures: false)")
                 && cleaningCode.contains("shouldRestoreSuspendedFeaturesOnSessionReturn = true")
                 && cleaningCode.contains("self.resumeSuspendedFeatures()")
@@ -247,31 +346,47 @@ enum FeatureCatalogTests {
         suite.expect(!MusicLaunchSupport.isMusicLaunchTrigger(subtype: 1, data1: musicKeyData(keyCode: 16)),
                "other system-defined subtypes do not arm the blocker")
         suite.expect(MusicLaunchSupport.shouldBlockLaunch(
-            now: 10, lastTriggerAt: 9.5, secondsSinceUserGesture: 0.1),
-               "a launch in the arm window after a media key is blocked even right after a click")
+            now: 10, lastTriggerAt: 9.5, secondsSinceUserGesture: 1),
+               "an observed media key newer than the user's last gesture can block a launch")
         suite.expect(MusicLaunchSupport.shouldBlockLaunch(
-            now: 10, lastTriggerAt: 8.0, secondsSinceUserGesture: 0.1),
-               "a launch on the arm-window edge is still blocked")
+            now: 10, lastTriggerAt: 8, secondsSinceUserGesture: 3),
+               "a media key on the arm-window edge is still evidence")
+        for age in [0.0, 0.3, 2, 2.1, 100, .infinity] {
+            suite.expect(!MusicLaunchSupport.shouldBlockLaunch(
+                now: 10, lastTriggerAt: nil, secondsSinceUserGesture: age),
+                   "voice, automation, login and unobserved headphone commands remain open without a media key")
+        }
         suite.expect(!MusicLaunchSupport.shouldBlockLaunch(
-            now: 10, lastTriggerAt: 7.9, secondsSinceUserGesture: 0.1),
-               "a launch after the arm window that follows a click is left alone")
-        suite.expect(!MusicLaunchSupport.shouldBlockLaunch(
-            now: 10, lastTriggerAt: nil, secondsSinceUserGesture: 0.3),
-               "a launch right after a click or a key press is the user's, with no media key seen")
-        suite.expect(!MusicLaunchSupport.shouldBlockLaunch(
-            now: 10, lastTriggerAt: nil,
-            secondsSinceUserGesture: MusicLaunchSupport.userGestureWindow),
-               "a launch on the gesture-window edge is still the user's")
+            now: 10, lastTriggerAt: 7.9, secondsSinceUserGesture: 100),
+               "idle time cannot revive an expired media key")
+        for age in [0.0, 0.1, 0.5] {
+            suite.expect(!MusicLaunchSupport.shouldBlockLaunch(
+                now: 10, lastTriggerAt: 9.5, secondsSinceUserGesture: age),
+                   "a newer or simultaneous click or ordinary key takes precedence over the media key")
+        }
         suite.expect(MusicLaunchSupport.shouldBlockLaunch(
-            now: 10, lastTriggerAt: nil, secondsSinceUserGesture: 2.1),
-               "a launch with no recent click or key press came from headphones or a remote command and is blocked")
-        suite.expect(MusicLaunchSupport.shouldBlockLaunch(
-            now: 10, lastTriggerAt: nil, secondsSinceUserGesture: .infinity),
-               "a launch in a session with no gesture at all is blocked, without any media key tap")
+            now: 10, lastTriggerAt: 9.5, secondsSinceUserGesture: .infinity),
+               "a real media key is still useful before the session's first ordinary gesture")
+        for now in [-1.0, .nan, .infinity, -.infinity] {
+            suite.expect(!MusicLaunchSupport.shouldBlockLaunch(
+                now: now, lastTriggerAt: 0, secondsSinceUserGesture: .infinity),
+                   "an invalid current clock cannot justify terminating an app")
+        }
+        for trigger in [-1.0, 11, .nan, .infinity, -.infinity] {
+            suite.expect(!MusicLaunchSupport.shouldBlockLaunch(
+                now: 10, lastTriggerAt: trigger, secondsSinceUserGesture: 100),
+                   "invalid or future trigger timestamps cannot justify terminating an app")
+        }
+        for age in [-1.0, .nan, -.infinity] {
+            suite.expect(!MusicLaunchSupport.shouldBlockLaunch(
+                now: 10, lastTriggerAt: 9.5, secondsSinceUserGesture: age),
+                   "an invalid gesture age preserves the launch")
+        }
+        MusicLaunchBlockerContract.run(suite)
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 69, "feature catalog has 69 features")
+        suite.expect(AppFeature.allCases.count == 73, "feature catalog has 73 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -280,13 +395,13 @@ enum FeatureCatalogTests {
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
+            "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
-            "fanControl",
+            "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
         suite.expect(MouseAccelerationSupport.validatedRegistryID(nil) == nil
                 && MouseAccelerationSupport.validatedRegistryID(0) == nil
@@ -404,15 +519,58 @@ enum FeatureCatalogTests {
                "mouse acceleration uses linear mode when supported and the legacy fallback otherwise")
         suite.expect(AppFeature.switcher.availabilityKey == "featureAvailable.switcher",
                "availability key derives from the raw value")
+
+        let installSuiteName = "com.vorssaint.tests.feature-install.\(UUID().uuidString)"
+        if let installDefaults = UserDefaults(suiteName: installSuiteName) {
+            func savedValues() -> [String: Any] {
+                installDefaults.persistentDomain(forName: installSuiteName) ?? [:]
+            }
+            for feature in AppFeature.allCases
+            where !feature.enabledKeys.isEmpty && feature != .notchLiveEqualizer {
+                feature.enableOnFirstInstall(in: installDefaults, savedValues: savedValues())
+                suite.expect(feature.enabledKeys.contains {
+                    savedValues()[$0] as? Bool == true
+                }, "a new \(feature.rawValue) install saves an enabled main control")
+                for key in feature.enabledKeys { installDefaults.removeObject(forKey: key) }
+            }
+            AppFeature.notchLiveEqualizer.enableOnFirstInstall(in: installDefaults,
+                                                                savedValues: savedValues())
+            suite.expect(savedValues()[DefaultsKey.notchLiveEqualizer] == nil,
+                   "installing the live equalizer leaves its audio recording switch off")
+            AppFeature.windowLayout.enableOnFirstInstall(in: installDefaults,
+                                                          savedValues: savedValues())
+            suite.expect(installDefaults.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled),
+                   "a new window layout install enables its shortcuts")
+            installDefaults.set(false, forKey: DefaultsKey.autoQuitEnabled)
+            AppFeature.autoQuit.enableOnFirstInstall(in: installDefaults, savedValues: savedValues())
+            suite.expect(!installDefaults.bool(forKey: DefaultsKey.autoQuitEnabled),
+                   "reinstalling Quit on close preserves an explicit off choice")
+            installDefaults.set(true, forKey: DefaultsKey.dockClickHide)
+            AppFeature.dockClick.enableOnFirstInstall(in: installDefaults, savedValues: savedValues())
+            suite.expect(!installDefaults.bool(forKey: DefaultsKey.dockClickMinimize),
+                   "a saved alternative does not activate another Dock click action")
+            installDefaults.removePersistentDomain(forName: installSuiteName)
+        } else {
+            suite.expect(false, "feature install defaults suite can be created")
+        }
+        let runtimeSource = (try? String(contentsOfFile: "Sources/Vorssaint/App/FeatureRuntime.swift",
+                                         encoding: .utf8)) ?? ""
+        suite.expect(runtimeSource.contains(
+            "setAvailable(AppFeature.allCases, available, enablingFirstInstalls: false)"),
+               "install all makes features available without switching on their behavior")
+
         suite.expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.portManager.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.wallpaper.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.audioPriority.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager
+                        && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager && $0 != .wallpaper
+                        && $0 != .audioPriority
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -424,11 +582,14 @@ enum FeatureCatalogTests {
                "no hub group is empty")
         suite.expect(AppFeature.features(in: .dynamicIsland) == [
             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
-            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads,
+            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents,
         ], "the Dynamic Island heads its own hub section, followed by its extensions")
         suite.expect(AppFeature.dynamicIslandExtensions
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
                "the Dynamic Island's extensions are every other feature of its section")
+        suite.expect(AppFeature.notch.initialInstallGroup == AppFeature.features(in: .dynamicIsland)
+                     && AppFeature.mixer.initialInstallGroup == [.mixer],
+                     "choosing the island for the first time includes its extensions without changing other features")
         suite.expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
             "automationFinder", "automationTerminal", "automationPlayback", "audioCapture", "microphone", "camera",
@@ -449,6 +610,9 @@ enum FeatureCatalogTests {
         suite.expect(Set(FeaturePreset.windows.features.flatMap(\.onboardingPermissions))
                 == [.accessibility, .screenRecording],
                "the windows first-run choice explains exactly its two broad permissions")
+        suite.expect(AppFeature.musicBlock.permissions == [.accessibility]
+                && AppFeature.musicBlock.onboardingPermissions.isEmpty,
+               "music launch blocking declares its required Accessibility access contextually")
         suite.expect(AppFeature.screenshot.permissions == [.screenRecording]
                 && AppFeature.screenshot.onboardingPermissions == [.screenRecording],
                "screenshots only need the screen recording grant")
@@ -515,6 +679,11 @@ enum FeatureCatalogTests {
                "a wake owing nothing leaves Bluetooth off")
         suite.expect(!BluetoothSleepSupport.restores(owesRestore: true, isPoweredOn: true),
                "Bluetooth the user switched on first is left alone")
+        var readControllerPower = false
+        func controllerPower() -> Bool { readControllerPower = true; return false }
+        _ = BluetoothSleepSupport.restores(owesRestore: false, isPoweredOn: controllerPower())
+        suite.expect(!readControllerPower,
+               "a launch owing no restore never reads the Bluetooth controller")
 
         suite.expect((Defaults.registeredDefaults[DefaultsKey.panelShowFanControl] as? Bool) == true,
                "installing fan control reveals its panel section by default")
@@ -735,6 +904,25 @@ enum FeatureCatalogTests {
                     FanControlConfiguration.encodeCurves([defaultCurve]) ?? "") == [defaultCurve]
                 && FanControlConfiguration.decodeCurves("not json") == nil,
                "stored curves reject duplicate sensors, unsafe slopes and malformed data")
+        let resumedManual = FanControlConfiguration.manual(level: 100)
+        let resumedCurves = FanControlConfiguration.curve([defaultCurve, cpuCurve])
+        suite.expect(FanControlConfiguration.decodeResume(
+                    FanControlConfiguration.encodeResume(resumedManual) ?? "") == resumedManual
+                && FanControlConfiguration.decodeResume(
+                    FanControlConfiguration.encodeResume(resumedCurves) ?? "") == resumedCurves,
+               "a resumed manual speed or curve comes back exactly as the user applied it")
+        suite.expect(FanControlConfiguration.encodeResume(
+                    FanControlConfiguration(mode: .system, manualLevel: 100, curves: [])) == nil
+                && FanControlConfiguration.encodeResume(.manual(level: 37)) == nil
+                && FanControlConfiguration.encodeResume(.curve([descendingCurve])) == nil
+                && FanControlConfiguration.decodeResume(
+                    #"{"curves":[],"manualLevel":100,"mode":"system"}"#) == nil
+                && FanControlConfiguration.decodeResume(
+                    #"{"curves":[],"manualLevel":37,"mode":"manual"}"#) == nil
+                && FanControlConfiguration.decodeResume("") == nil
+                && FanControlConfiguration.decodeResume("not json") == nil,
+               "only a valid manual speed or curve is ever kept or brought back after a restart")
+        FanControlResumeContract.run(suite)
         let addedPoints = FanControlPolicy.addingCurvePoint(to: defaultCurve.points)
         suite.expect(FanControlPolicy.nextCurvePoint(for: defaultCurve.points) == FanControlCurvePoint(temperature: 60, coolingLevel: 50)
                 && addedPoints == [
@@ -990,6 +1178,23 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.accessibility)
                 == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
                "with nothing enabled only on-demand features use accessibility")
+        func radialMenuUsesAccessibility(_ profile: RadialMenuProfile, legacyItems: [RadialMenuItem]) -> Bool {
+            let stored = [DefaultsKey.radialMenuProfiles: RadialMenuSupport.encodeProfiles([profile]),
+                          DefaultsKey.radialMenuItems: RadialMenuSupport.encode(legacyItems)]
+            return AppFeature.activeFeatures(using: .accessibility,
+                                             isAvailable: { _ in true },
+                                             boolFor: { $0 == DefaultsKey.radialMenuEnabled },
+                                             stringFor: { _ in nil },
+                                             dataFor: { stored[$0] ?? nil })
+                .contains(.radialMenu)
+        }
+        let appItem = RadialMenuItem(kind: .app, payload: "/Applications/Safari.app")
+        let shortcutItem = RadialMenuItem(kind: .shortcut, payload: "control+option+command:49")
+        suite.expect(radialMenuUsesAccessibility(
+                    RadialMenuProfile(mouseButton: RadialMenuMouseTrigger.back.rawValue, items: [appItem]),
+                    legacyItems: [appItem])
+                && !radialMenuUsesAccessibility(RadialMenuProfile(items: [appItem]), legacyItems: [shortcutItem]),
+               "radial menu accessibility follows the saved profiles, not the pre-profile wheel")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
@@ -1008,6 +1213,10 @@ enum FeatureCatalogTests {
                 && AppFeature.mouseClickDebounce.permissions == [.accessibility]
                 && AppFeature.mouseClickDebounce.group == .mouseKeyboard,
                "mouse click debounce reports its switch, permission and feature group")
+        suite.expect(activeSet(.accessibility, available: [.musicBlock], on: [DefaultsKey.musicBlockEnabled]) == [.musicBlock]
+                && activeSet(.accessibility, available: [.musicBlock]).isEmpty
+                && activeSet(.accessibility, available: [], on: [DefaultsKey.musicBlockEnabled]).isEmpty,
+               "music blocking requires access only while both enabled and installed")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.finderRenameEnabled]).contains(.finderRename),
                "the enabled Finder rename shortcut uses accessibility")
         suite.expect(!activeSet(.accessibility, available: [], on: [DefaultsKey.scrollInverterEnabled])
@@ -1186,6 +1395,16 @@ enum FeatureCatalogTests {
                 && GlobalShortcutRole.keyboardBrightnessDecrease.group == .mouseKeyboard
                 && GlobalShortcutRole.keyboardBrightnessIncrease.group == .mouseKeyboard,
                "keyboard brightness stays owned by the brightness service but appears with keyboard controls")
+        let shortcutsPage = ShortcutsPage(state: Expansion())
+        let displayBrightness = shortcutsPage.expansionBinding(for: .brightness, in: .energyDisplay)
+        let keyboardLight = shortcutsPage.expansionBinding(for: .brightness, in: .mouseKeyboard)
+        displayBrightness.wrappedValue = true
+        suite.expect(displayBrightness.wrappedValue && !keyboardLight.wrappedValue,
+               "opening brightness in one shortcut group leaves its row in the other group closed")
+        keyboardLight.wrappedValue = true
+        displayBrightness.wrappedValue = false
+        suite.expect(!displayBrightness.wrappedValue && keyboardLight.wrappedValue,
+               "closing brightness in one shortcut group leaves an open row in the other group open")
         suite.expect(GlobalShortcutRole.keyboardBrightnessDecrease.requiredEnableKeys
                 == [DefaultsKey.keyboardBrightnessShortcutsEnabled]
                 && GlobalShortcutRole.keyboardBrightnessIncrease.requiredEnableKeys
@@ -1360,11 +1579,13 @@ enum FeatureCatalogTests {
                 case .tr: return .tr
                 case .ru: return .ru
                 case .es: return .es
+                case .sk: return .sk
                 case .de: return .de
                 case .fr: return .fr
                 case .it: return .it
                 case .ja: return .ja
                 case .ko: return .ko
+                case .uk: return .uk
                 case .zhHans: return .zhHans
                 case .zhTW: return .zhTW
                 case .zhHK: return .zhHK
@@ -1495,6 +1716,26 @@ enum FeatureCatalogTests {
         } else {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.windowGestureEnabled)
         }
+        let radialMenuEnergyKeys = [DefaultsKey.radialMenuProfiles, DefaultsKey.radialMenuMouseButton]
+        let previousRadialMenuEnergy = radialMenuEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
+        func radialMenuEnergy(_ profiles: [RadialMenuProfile]?,
+                              legacyButton: RadialMenuMouseTrigger) -> FeatureEnergyProfile {
+            UserDefaults.standard.set(profiles.flatMap(RadialMenuSupport.encodeProfiles),
+                                      forKey: DefaultsKey.radialMenuProfiles)
+            UserDefaults.standard.set(legacyButton.rawValue, forKey: DefaultsKey.radialMenuMouseButton)
+            return AppFeature.radialMenu.energyProfile
+        }
+        suite.expect(radialMenuEnergy([RadialMenuProfile(mouseButton: RadialMenuMouseTrigger.back.rawValue)],
+                                      legacyButton: .off) == .mouse
+                && radialMenuEnergy([RadialMenuProfile(trackpadTap: true)], legacyButton: .off) == .mouse
+                && radialMenuEnergy([RadialMenuProfile()], legacyButton: .back) == .idle,
+               "radial menu energy follows the saved profiles and their trackpad tap, not the pre-profile button")
+        suite.expect(radialMenuEnergy(nil, legacyButton: .back) == .mouse
+                && radialMenuEnergy(nil, legacyButton: .off) == .idle,
+               "without saved profiles the pre-profile button still decides radial menu energy")
+        for (key, value) in zip(radialMenuEnergyKeys, previousRadialMenuEnergy) {
+            UserDefaults.standard.set(value, forKey: key)
+        }
 
         // MARK: Settings page visibility
 
@@ -1545,20 +1786,48 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.allCases.allSatisfy { $0.settingsDestination.hasValidSectionAnchor },
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
-                == Set(SettingsSectionAnchor.allCases),
-               "every declared Settings section anchor is used by a feature destination")
+                == Set(SettingsSectionAnchor.allCases).subtracting([
+                    .panelConfiguration, .keyboardBrightnessShortcuts,
+                ])
+                && SettingsSectionAnchor.panelConfiguration.page == .general
+                && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts,
+               "feature anchors and standalone Settings anchors reach their pages")
+        suite.expect(AppFeature.dockPreview.settingsDestination
+                == FeatureSettingsDestination(.dock, sectionAnchor: .dock)
+                && AppFeature.dockClick.settingsDestination
+                == FeatureSettingsDestination(.dock, sectionAnchor: .dockClick)
+                && FeatureVisibilitySupport.features(for: .switcher) == [.switcher]
+                && pageVisible(.dock, available: [.dockClick])
+                && !pageVisible(.switcher, available: [.dockPreview, .dockClick]),
+               "Dock Preview and Dock clicks have their own page, apart from the switcher")
+        func dockNeedsAccessibility(available: Set<AppFeature>, on: Set<String>) -> Bool {
+            FeatureVisibilitySupport.isPermissionNeeded(
+                on: .dock, activeFeatures: Array(activeSet(.accessibility, available: available, on: on)))
+        }
+        suite.expect([DefaultsKey.dockClickMinimize, DefaultsKey.dockClickHide, DefaultsKey.dockClickCycleWindows]
+                .allSatisfy { dockNeedsAccessibility(available: [.dockClick], on: [$0]) }
+                && dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockPreviewEnabled])
+                && !dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockClickMinimize])
+                && !dockNeedsAccessibility(available: allFeatures, on: [DefaultsKey.switcherEnabled]),
+               "the Dock page asks for Accessibility while Dock Preview or any Dock click action is on")
+        suite.expect(AppFeature.mixer.settingsDestination
+                == FeatureSettingsDestination(.general, sectionAnchor: .mixer)
+                && AppFeature.soundOutputSwitcher.settingsDestination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .soundOutputSwitcher)
+                && AppFeature.audioPriority.settingsDestination
+                    == FeatureSettingsDestination(.general, sectionAnchor: .audioPriority),
+               "Mixer, output switcher and audio priority have separate General controls")
         suite.expect(AppFeature.windowMaximizer.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
-                && AppFeature.mixer.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration),
-               "panel-oriented features land on General panel configuration")
+                == FeatureSettingsDestination(.windowLayout, sectionAnchor: .windowMaximizer)
+                && pageVisible(.windowLayout, available: [.windowMaximizer])
+                && !pageVisible(.windowLayout,
+                                available: allFeatures.subtracting([.windowLayout, .windowMaximizer])),
+               "the green button override and its exception list keep the window layout page on their own")
         suite.expect(AppFeature.cleaningMode.settingsDestination
                 == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode),
                "cleaning mode lands on Quick Tools cleaning mode section")
         suite.expect(AppFeature.musicBlock.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
-                && AppFeature.soundOutputSwitcher.settingsDestination
-                == FeatureSettingsDestination(.shortcuts, sectionAnchor: .soundOutputSwitcher)
                 && AppFeature.diskImageInstaller.settingsDestination
                 == FeatureSettingsDestination(.features),
                "features without dedicated pages use explicit nearest Settings destinations")
@@ -1693,6 +1962,31 @@ enum FeatureCatalogTests {
                 && historyRouter.pendingFeatureTarget == nil,
                "direct page navigation synchronizes the destination and clears stale reveal requests")
 
+        let generalToolRouter = SettingsRouter()
+        let mixerDestination = FeatureSettingsDestination(.general, sectionAnchor: .mixer)
+        let musicBlockingDestination = FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
+        generalToolRouter.request(mixerDestination)
+        generalToolRouter.request(musicBlockingDestination)
+        generalToolRouter.request(musicBlockingDestination)
+        generalToolRouter.goBack()
+        suite.expect(generalToolRouter.destination == mixerDestination,
+               "Settings Back returns to the previous General tool")
+        generalToolRouter.goBack()
+        suite.expect(generalToolRouter.destination == FeatureSettingsDestination(.general),
+               "Settings Back returns from a General tool to the General overview")
+        generalToolRouter.goForward()
+        generalToolRouter.goForward()
+        suite.expect(generalToolRouter.destination == musicBlockingDestination,
+               "Settings Forward retraces General tools")
+        generalToolRouter.page = .energy
+        generalToolRouter.request(FeatureSettingsDestination(.energy, sectionAnchor: .keepAwake))
+        generalToolRouter.request(FeatureSettingsDestination(.energy, sectionAnchor: .brightness))
+        generalToolRouter.request(FeatureSettingsDestination(.energy, sectionAnchor: .extraBrightness),
+                                  replacingVisit: true)
+        generalToolRouter.goBack()
+        suite.expect(generalToolRouter.destination == FeatureSettingsDestination(.energy, sectionAnchor: .keepAwake),
+               "Settings Back returns to the previous Energy tool, and a fallback replaces the visit")
+
         let hiddenHistoryRouter = SettingsRouter()
         hiddenHistoryRouter.page = .mouse
         hiddenHistoryRouter.page = .about
@@ -1712,6 +2006,25 @@ enum FeatureCatalogTests {
         suite.expect(hiddenHistoryRouter.page == .mouse
                 && hiddenHistoryRouter.cleanerTool == nil,
                "history can revisit re-enabled pages without replaying a stale Cleaner tool hint")
+
+        let toolHistoryRouter = SettingsRouter()
+        let sharedMouseDestination = AppFeature.scrollHorizontal.settingsDestination
+        toolHistoryRouter.request(sharedMouseDestination, sidebarFeature: .scrollHorizontal)
+        suite.expect(toolHistoryRouter.sidebarFeature == .scrollHorizontal,
+               "Settings navigation keeps the requested tool when tools share a section")
+        toolHistoryRouter.request(sharedMouseDestination, sidebarFeature: .scrollInverter)
+        suite.expect(toolHistoryRouter.sidebarFeature == .scrollInverter,
+               "switching between tools on one section updates the selected tool")
+        let audioPriorityDestination = AppFeature.audioPriority.settingsDestination
+        toolHistoryRouter.request(audioPriorityDestination, sidebarFeature: .audioPriority)
+        toolHistoryRouter.page = .about
+        toolHistoryRouter.goBack()
+        suite.expect(toolHistoryRouter.destination == audioPriorityDestination
+                && toolHistoryRouter.sidebarFeature == .audioPriority,
+               "Settings Back restores the selected tool alongside its destination")
+        toolHistoryRouter.goForward()
+        suite.expect(toolHistoryRouter.page == .about && toolHistoryRouter.sidebarFeature == nil,
+               "visiting a generic page clears the previous tool selection")
 
         // MARK: Display brightness (DDC/CI helpers)
 
@@ -1772,6 +2085,28 @@ enum FeatureCatalogTests {
                 && BrightnessSupport.deviceValue(for: -0.2, maximum: 100) == 0
                 && BrightnessSupport.deviceValue(for: 1.7, maximum: 100) == 100,
                "slider values map onto the display's own scale with clamping")
+        let minimum = BrightnessSupport.extendedDimmingRange
+        let black = BrightnessSupport.extendedDimmingComponents(for: 0)
+        let physicalMinimum = BrightnessSupport.extendedDimmingComponents(for: minimum)
+        let full = BrightnessSupport.extendedDimmingComponents(for: 1)
+        suite.expect(black.hardware == 0 && black.picture == 0
+                && physicalMinimum.hardware == 0 && physicalMinimum.picture == 1
+                && full.hardware == 1 && full.picture == 1,
+               "extended dimming reaches black below the hardware minimum and restores the picture above it")
+        suite.expect(BrightnessSupport.extendedDimmingComponents(
+            for: BrightnessSupport.reconnectedDimLevel(0)).picture == 1,
+            "reconnecting a black display restores a visible picture at the hardware minimum")
+        let midway = BrightnessSupport.extendedDimmingComponents(for: minimum / 2)
+        suite.expect(midway.hardware == 0 && midway.picture == 0.5
+                && BrightnessSupport.extendedDimmingComponents(for: 0.625).hardware == 0.5,
+               "only the lower part of the slider scales the picture")
+        suite.expect(BrightnessSupport.extendedDimmingLevel(hardware: 0, remembered: 0.1,
+                                                              pictureDimmed: true) == 0.1
+                && BrightnessSupport.extendedDimmingLevel(hardware: 0, remembered: 0.1,
+                                                             pictureDimmed: false) == minimum
+                && BrightnessSupport.extendedDimmingLevel(hardware: 0.5, remembered: 0.1,
+                                                             pictureDimmed: true) == 0.625,
+               "a rebuild keeps only an app-applied picture dim and honors a changed hardware level")
         suite.expect(BrightnessSupport.steppedKeyboardLightLevel(current: 0.5, direction: -1)
                 == 0.5 - BrightnessSupport.keyboardLightStep
                 && BrightnessSupport.steppedKeyboardLightLevel(current: 0.5, direction: 1)
@@ -1782,6 +2117,13 @@ enum FeatureCatalogTests {
                "keyboard brightness shortcut steps clamp to the supported range")
         suite.expect(BrightnessSupport.steppedKeyboardLightLevel(current: .nan, direction: 1) == 0,
                "an invalid keyboard brightness reading never reaches the private setter")
+        suite.expect(BrightnessSupport.sliderKeyboardLightLevel(0.37) == 0.37
+                && BrightnessSupport.sliderKeyboardLightLevel(-0.2) == 0
+                && BrightnessSupport.sliderKeyboardLightLevel(1.4) == 1,
+               "the keyboard light slider passes levels through and clamps the ends")
+        suite.expect(BrightnessSupport.sliderKeyboardLightLevel(.nan) == nil
+                && BrightnessSupport.sliderKeyboardLightLevel(.infinity) == nil,
+               "a slider value that is not a number never reaches the private setter")
 
         // EDID UUID chunks at fixed positions: vendor, product (little endian),
         // manufacture date, image size.
@@ -1874,6 +2216,11 @@ enum FeatureCatalogTests {
                 && !SettingsBackupSupport.exportKeys().contains(
                     DefaultsKey.brightnessForcedSoftwarePaths),
                "a hand-picked software dimming route never travels in a settings backup")
+        suite.expect(SettingsBackupSupport.machineStateKeys.contains(
+            DefaultsKey.brightnessExtendedDimmingPaths)
+                && !SettingsBackupSupport.exportKeys().contains(
+                    DefaultsKey.brightnessExtendedDimmingPaths),
+               "the per-monitor extended dimming choice stays on this Mac")
         for surface in ["Sources/Vorssaint/UI/Settings/EnergySettings.swift",
                         "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift"] {
             let source = (try? String(contentsOfFile: surface, encoding: .utf8)) ?? ""
@@ -2152,6 +2499,17 @@ enum FeatureCatalogTests {
                                                           displayIsBuiltIn: false,
                                                           overlayReplacesNative: true),
                "with the overlay on, the system target is stepped here so only one OSD draws")
+        // An external keyboard's plain brightness keys must reach the island
+        // or the overlay too, not only the pointer routing (beta feedback).
+        suite.expect(BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: true)
+                && BrightnessSupport.answersPlainBrightnessKeys(followsPointer: true, overlayReplacesNative: false)
+                && !BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: false),
+               "plain brightness keys are answered here whenever the app replaces the system's handling")
+        suite.expect(BrightnessSupport.plainKeyTarget(followsPointer: false, pointerDisplay: 2, systemTarget: 1) == 1
+                && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: 2, systemTarget: 1) == 2
+                && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: nil, systemTarget: 1) == nil
+                && BrightnessSupport.plainKeyTarget(followsPointer: false, pointerDisplay: 2, systemTarget: nil) == nil,
+               "without pointer routing a plain key moves the system's own target, never the pointer's display")
         suite.expect(BrightnessSupport.filledBrightnessSegments(0) == 0
                 && BrightnessSupport.filledBrightnessSegments(0.01) == 1
                 && BrightnessSupport.filledBrightnessSegments(0.5) == 8
@@ -2163,6 +2521,284 @@ enum FeatureCatalogTests {
                 && BrightnessSupport.wholePercent(1.2) == 100
                 && BrightnessSupport.wholePercent(.infinity) == 0,
                "brightness overlay percentage rounds and clamps safely")
+        // Show brightness when adjusting governs the app's overlay. The island
+        // stands in for the system only while it shows notices.
+        suite.expect(BrightnessSupport.overlayReplacesNative(overlayEnabled: true, islandRoutes: false,
+                                                             islandShowsNotices: false),
+               "the opt-in overlay replaces the system's brightness feedback")
+        suite.expect(BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: true,
+                                                             islandShowsNotices: true),
+               "an island that shows notices stands in for the system's brightness feedback")
+        let hiddenIsland = BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: true,
+                                                                   islandShowsNotices: false)
+        suite.expect(!hiddenIsland && !BrightnessSupport.stepsSystemRoutedDisplay(followsPointer: false,
+                                                                                  displayIsBuiltIn: true,
+                                                                                  overlayReplacesNative: hiddenIsland),
+               "with the overlay off, an island hidden until hover leaves the built-in panel's key to the system")
+        suite.expect(!BrightnessSupport.overlayReplacesNative(overlayEnabled: false, islandRoutes: false,
+                                                              islandShowsNotices: true),
+               "an island without brightness leaves the key to the system")
+        suite.expect(!brightnessWorkQueueCode.contains("NotchSupport.routes(.brightness)"),
+               "the app's overlay appears only with its own option, never in place of an island that shows nothing")
 
+    }
+}
+
+/// The production lifecycle and event handlers are extracted into Service.
+/// These doubles replace the workspace, permission, event tap and application
+/// endpoints; no test observes real input, opens an app or terminates a process.
+enum MusicLaunchBlockerContract {
+    enum Environment {
+        static var enabled = true
+        static var playReplacement = true
+        static var available = true
+        static var trusted = true
+        static var createsTap = true
+        static var enablesTap = true
+        static var now: TimeInterval = 10
+        static var gestureAge: TimeInterval = 3
+        static var running: [NSRunningApplication] = []
+    }
+    enum AppFeature {
+        case musicBlock
+        var isAvailable: Bool { Environment.available }
+    }
+    enum UserDefaults {
+        static let standard = Store()
+        final class Store {
+            func bool(forKey key: String) -> Bool {
+                key == DefaultsKey.musicBlockPlayReplacement
+                    ? Environment.playReplacement : Environment.enabled
+            }
+        }
+    }
+    static func AXIsProcessTrusted() -> Bool { Environment.trusted }
+    enum ProcessInfo {
+        static let processInfo = Clock()
+        struct Clock { var systemUptime: TimeInterval { Environment.now } }
+    }
+    final class Tap { var enabled = true }
+    final class CGEvent {
+        let timestamp: TimeInterval
+        let subtype: Int
+        let data1: Int
+        init(at timestamp: TimeInterval, subtype: Int = 8, key: UInt16 = 16,
+             state: Int = 10, repeats: Bool = false) {
+            self.timestamp = timestamp
+            self.subtype = subtype
+            data1 = Int((UInt32(key) << 16) | (UInt32(state) << 8) | (repeats ? 1 : 0))
+        }
+        static func tapIsEnabled(tap: Tap) -> Bool { tap.enabled }
+        static func tapEnable(tap: Tap, enable: Bool) { tap.enabled = enable && Environment.enablesTap }
+    }
+    struct NSEvent {
+        struct Subtype { let rawValue: Int }
+        let subtype: Subtype
+        let data1: Int
+        let timestamp: TimeInterval
+        init?(cgEvent: CGEvent) {
+            subtype = Subtype(rawValue: cgEvent.subtype)
+            data1 = cgEvent.data1
+            timestamp = cgEvent.timestamp
+        }
+    }
+    final class NSRunningApplication {
+        let bundleIdentifier: String?
+        let processIdentifier: pid_t
+        var forceSucceeds = true
+        var terminateSucceeds = true
+        var forceCalls = 0
+        var terminateCalls = 0
+        init(_ pid: pid_t, bundle: String? = "com.apple.Music") {
+            processIdentifier = pid
+            bundleIdentifier = bundle
+        }
+        static func runningApplications(withBundleIdentifier bundle: String) -> [NSRunningApplication] {
+            Environment.running.filter { $0.bundleIdentifier == bundle }
+        }
+        func forceTerminate() -> Bool { forceCalls += 1; return forceSucceeds }
+        func terminate() -> Bool { terminateCalls += 1; return terminateSucceeds }
+    }
+    enum NSWorkspace {
+        static let shared = Workspace()
+        static let willLaunchApplicationNotification = Notification.Name("fixture.willLaunch")
+        static let didLaunchApplicationNotification = Notification.Name("fixture.didLaunch")
+        static let applicationUserInfoKey = "application"
+        final class Workspace { let notificationCenter = NotificationCenter() }
+    }
+    class Fixture {
+        static let blockedBundleIDs: Set<String> = ["com.apple.Music", "com.apple.iTunes"]
+        static var secondsSinceUserGesture: TimeInterval { Environment.gestureAge }
+        var isEnabled: Bool { Environment.enabled && Environment.available }
+        var isMonitoring = false
+        var observers: [NSObjectProtocol] = []
+        var mediaKeyTap: Tap?
+        var lastMediaKeyAt: TimeInterval?
+        var lastMediaKeyCode: UInt16?
+        var judgedLaunchPID: pid_t?
+        var replacementCalls = 0
+        var replacementPlays: [Bool] = []
+        func installMediaKeyTap() {
+            if mediaKeyTap == nil, Environment.createsTap { mediaKeyTap = Tap() }
+        }
+        func removeMediaKeyTap() { mediaKeyTap?.enabled = false; mediaKeyTap = nil }
+        func openReplacementIfConfigured(startingPlayback: Bool) {
+            replacementCalls += 1
+            replacementPlays.append(startingPlayback)
+        }
+    }
+
+    static func run(_ suite: TestSuite) {
+        let service = Service()
+        defer { service.stop() }
+        func reset() {
+            service.stop()
+            service.replacementCalls = 0
+            service.replacementPlays = []
+            Environment.enabled = true
+            Environment.playReplacement = true
+            Environment.available = true
+            Environment.trusted = true
+            Environment.createsTap = true
+            Environment.enablesTap = true
+            Environment.now = 10
+            Environment.gestureAge = 3
+            Environment.running = []
+        }
+        func launch(_ app: NSRunningApplication, did: Bool = false) {
+            service.handleLaunch(Notification(name: did ? NSWorkspace.didLaunchApplicationNotification
+                                                : NSWorkspace.willLaunchApplicationNotification,
+                                               userInfo: [NSWorkspace.applicationUserInfoKey: app]))
+        }
+        func key(at: TimeInterval = 9.5, code: UInt16 = 16, state: Int = 10, repeats: Bool = false,
+                 type: CGEventType = CGEventType(rawValue: 14)!) {
+            let event = CGEvent(at: at, key: code, state: state, repeats: repeats)
+            let passed = service.handleMediaKeyEvent(type: type, event: event)?.takeUnretainedValue()
+            suite.expect(passed === event, "the blocker observes events without swallowing or replacing them")
+        }
+        reset()
+        Environment.trusted = false
+        service.syncWithPreferences()
+        suite.expect(!service.isMonitoring && service.mediaKeyTap == nil && service.observers.isEmpty,
+                     "without Accessibility the blocker has no tap, observer or claimed protection")
+        launch(NSRunningApplication(1))
+        Environment.trusted = true
+        Environment.createsTap = false
+        service.syncWithPreferences()
+        suite.expect(!service.isMonitoring && service.observers.isEmpty,
+                     "a failed tap cannot leave a launch observer making unsupported decisions")
+        Environment.createsTap = true
+        service.syncWithPreferences()
+        let installed = service.observers.count
+        service.syncWithPreferences()
+        suite.expect(service.isMonitoring && service.mediaKeyTap != nil && installed == 2
+                     && service.observers.count == installed,
+                     "granting access starts one observer pair and repeated syncs do not duplicate it")
+        let automatic = NSRunningApplication(2)
+        key()
+        launch(automatic)
+        launch(automatic, did: true)
+        suite.expect(automatic.forceCalls == 1 && automatic.terminateCalls == 0 && service.replacementCalls == 1,
+                     "a detected key blocks one launch and its did-launch cannot repeat termination or replacement")
+        key(code: MusicLaunchSupport.nextTrackKeyCode)
+        launch(NSRunningApplication(50))
+        suite.expect(service.replacementPlays == [true, false],
+                     "only Play/Pause asks the replacement to play; the other media keys only open it")
+        Environment.playReplacement = false
+        key()
+        launch(NSRunningApplication(51))
+        suite.expect(service.replacementPlays == [true, false, false],
+                     "turning off replacement playback still opens it without sending play")
+        Environment.playReplacement = true
+        let second = NSRunningApplication(3)
+        launch(second)
+        suite.expect(second.forceCalls == 0 && service.lastMediaKeyAt == nil,
+                     "the same media key cannot terminate a second launch within its arm window")
+        let manual = NSRunningApplication(4)
+        key()
+        Environment.gestureAge = 0.1
+        launch(manual)
+        Environment.gestureAge = 100
+        launch(manual, did: true)
+        suite.expect(manual.forceCalls == 0 && service.lastMediaKeyAt == nil,
+                     "a later deliberate gesture wins and did-launch cannot reverse that decision")
+        for pid: pid_t in 5...7 {
+            let deliberate = NSRunningApplication(pid)
+            launch(deliberate)
+            suite.expect(deliberate.forceCalls == 0, "voice, automation and login without a media key are left alone")
+        }
+        let delayed = NSRunningApplication(8)
+        key(at: 7)
+        launch(delayed)
+        suite.expect(delayed.forceCalls == 0, "delayed event delivery does not refresh an expired trigger")
+        Environment.running = [NSRunningApplication(40)]
+        key()
+        Environment.running = []
+        let afterExistingPlayer = NSRunningApplication(41)
+        launch(afterExistingPlayer)
+        suite.expect(afterExistingPlayer.forceCalls == 0 && service.lastMediaKeyAt == nil,
+                     "a key sent to a running player cannot arm its later deliberate relaunch")
+        for type in [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput] {
+            key()
+            service.mediaKeyTap?.enabled = false
+            key(type: type)
+            let afterGap = NSRunningApplication(type == .tapDisabledByTimeout ? 9 : 10)
+            launch(afterGap)
+            suite.expect(afterGap.forceCalls == 0 && service.lastMediaKeyAt == nil && service.isMonitoring,
+                         "recovering a disabled tap starts with no stale key evidence")
+        }
+        key()
+        service.mediaKeyTap?.enabled = false
+        let disabled = NSRunningApplication(11)
+        launch(disabled)
+        suite.expect(disabled.forceCalls == 0 && !service.isMonitoring && service.lastMediaKeyAt == nil,
+                     "an untrusted gap detected at launch drops the trigger and reports unavailable")
+        Environment.enablesTap = false
+        key(type: .tapDisabledByTimeout)
+        suite.expect(!service.isMonitoring && service.lastMediaKeyAt == nil,
+                     "a failed recovery never advertises active protection")
+        for missing in ["preference", "feature", "permission"] {
+            reset()
+            service.syncWithPreferences()
+            key()
+            if missing == "preference" { Environment.enabled = false }
+            if missing == "feature" { Environment.available = false }
+            if missing == "permission" { Environment.trusted = false }
+            let afterDisable = NSRunningApplication(20)
+            launch(afterDisable)
+            key()
+            suite.expect(afterDisable.forceCalls == 0 && service.observers.isEmpty
+                         && service.mediaKeyTap == nil && service.lastMediaKeyAt == nil && !service.isMonitoring,
+                         "losing the \(missing) prevents queued launch/event callbacks and tears down resources")
+        }
+        reset()
+        service.syncWithPreferences()
+        key()
+        service.stop()
+        service.syncWithPreferences()
+        let restarted = NSRunningApplication(30)
+        launch(restarted)
+        suite.expect(restarted.forceCalls == 0, "reenabling the feature cannot reuse the prior activation's trigger")
+        for event in [(UInt16(0), 10, false), (16, 11, false), (16, 10, true)] {
+            key(code: event.0, state: event.1, repeats: event.2)
+            suite.expect(service.lastMediaKeyAt == nil, "volume, release and repeat events do not arm a launch")
+        }
+        key()
+        let unrelated = NSRunningApplication(31, bundle: "org.example.other")
+        launch(unrelated)
+        suite.expect(unrelated.forceCalls == 0 && service.lastMediaKeyAt != nil,
+                     "another app's launch is never terminated and does not consume the music trigger")
+        let failed = NSRunningApplication(32)
+        failed.forceSucceeds = false
+        failed.terminateSucceeds = false
+        launch(failed)
+        suite.expect(failed.forceCalls == 1 && failed.terminateCalls == 1 && service.replacementCalls == 0,
+                     "a failed termination does not open a competing replacement app")
+        key()
+        let fallback = NSRunningApplication(33, bundle: "com.apple.iTunes")
+        fallback.forceSucceeds = false
+        launch(fallback)
+        suite.expect(fallback.forceCalls == 1 && fallback.terminateCalls == 1 && service.replacementCalls == 1,
+                     "a successful normal termination still opens the configured replacement once")
     }
 }

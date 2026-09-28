@@ -49,7 +49,7 @@ struct NotchControlsView: View {
             ScrollView(.horizontal) {
                 cardRow(levels: levels, music: music, height: height).frame(width: required)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .frame(height: height)
         } else {
             cardRow(levels: levels, music: music, height: height)
@@ -225,7 +225,9 @@ struct NotchAudioControls: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            // A short card folds its padding so the readout row, the slider and
+            // their gap fit NotchLayout.minimumCardHeight without spilling past the surface.
+            .padding(.vertical, showsDevice ? 10 : 5)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .modifier(NotchControlSurface(cornerRadius: 18))
         }
@@ -241,9 +243,16 @@ struct NotchAudioControls: View {
         }
     }
 
+    /// The level this control sets is already on screen, so the open
+    /// header keeps its title instead of repeating it.
+    private func adjustOutput(volume: Double? = nil, muted: Bool? = nil) {
+        notch.noteOwnVolumeAdjustment()
+        mixer.requestOutputAdjustment(volume: volume, muted: muted)
+    }
+
     private var mute: some View {
         Button {
-            if let muted = mixer.systemOutputMuted { mixer.requestOutputAdjustment(muted: !muted) }
+            if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
         } label: {
             Image(systemName: mixer.systemOutputMuted == true ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .font(.system(size: 12, weight: .medium))
@@ -260,7 +269,7 @@ struct NotchAudioControls: View {
 
     @ViewBuilder private var slider: some View {
         if let level {
-            NotchLevelSlider(value: Binding(get: { level }, set: { mixer.requestOutputAdjustment(volume: $0) }),
+            NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
                              label: FeatureStrings.notch(l10n.language).volume)
                 .frame(height: style == .card ? 28 : 24)
         } else {
@@ -278,7 +287,7 @@ struct NotchAudioControls: View {
         }
         if notch.modules.contains(.mixer) {
             items.append(.separator)
-            items.append(NotchMenuItem(title: l10n.s.mixerSection, symbol: "slider.vertical.3") { notch.select(.mixer) })
+            items.append(NotchMenuItem(title: l10n.s.mixerSection, symbol: NotchModule.mixer.symbol) { notch.select(.mixer) })
         }
         return items
     }
@@ -372,7 +381,8 @@ private struct NotchBrightnessControls: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                // Folds like the audio card above, for the same minimum card height.
+                .padding(.vertical, showsDevice ? 10 : 5)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .modifier(NotchControlSurface(cornerRadius: 18))
             }

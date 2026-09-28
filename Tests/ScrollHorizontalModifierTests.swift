@@ -5,9 +5,52 @@ import CoreGraphics
 import Foundation
 
 enum ScrollHorizontalModifierTests {
+    /// A plain wheel moves a strip that scrolls only sideways, but never one
+    /// that also scrolls down or sits in a list that does.
+    private static func sidewaysStrips(_ suite: TestSuite) {
+        suite.expect(ScrollWheelSupport.wheelMovesStripSideways(
+            stripScrollsHorizontally: true, stripScrollsVertically: false, enclosingScrollsVertically: false),
+            "a wheel moves a strip that only scrolls sideways")
+        suite.expect(!ScrollWheelSupport.wheelMovesStripSideways(
+            stripScrollsHorizontally: true, stripScrollsVertically: false, enclosingScrollsVertically: true),
+            "a list scrolling down around the strip keeps the wheel")
+        suite.expect(!ScrollWheelSupport.wheelMovesStripSideways(
+            stripScrollsHorizontally: true, stripScrollsVertically: true, enclosingScrollsVertically: false),
+            "a view scrolling both ways keeps its own wheel")
+        suite.expect(!ScrollWheelSupport.wheelMovesStripSideways(
+            stripScrollsHorizontally: false, stripScrollsVertically: false, enclosingScrollsVertically: false),
+            "a strip that already fits leaves the wheel alone")
+        for continuous in [false, true] {
+            let event = wheel(continuous: continuous, flags: [], line: -3, point: -30, fixed: -3.5)
+            suite.expect(ScrollWheelSupport.isVerticalOnly(event), "a plain wheel moves only vertically")
+            ScrollWheelSupport.moveVerticalToHorizontal(event)
+            suite.expect(!ScrollWheelSupport.isVerticalOnly(event)
+                && event.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 0
+                && event.getIntegerValueField(.scrollWheelEventDeltaAxis2) == -3
+                && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == -30
+                && event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2) == -3.5
+                && event.flags.isEmpty,
+                "a strip's wheel keeps its signed distances and flags on the horizontal axis")
+        }
+        let diagonal = wheel(flags: [])
+        diagonal.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: 1)
+        suite.expect(!ScrollWheelSupport.isVerticalOnly(diagonal), "a wheel with its own sideways axis is left alone")
+        let source = (try? String(contentsOfFile: "Sources/Vorssaint/Services/HorizontalWheelScrolling.swift",
+                                  encoding: .utf8)) ?? ""
+        suite.expect(source.contains("ScrollWheelSupport.isMouseWheel(")
+            && source.contains(".intersection([.command, .option, .control, .shift]).isEmpty"),
+            "trackpads and modifier combinations keep their own sideways meaning")
+        let panelSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift",
+                                       encoding: .utf8)) ?? ""
+        suite.expect(source.contains("guard !(event.window is NotchPanel)")
+            && panelSource.contains("handleScroll?(event) == true || HorizontalWheelScrolling.handle(event)"),
+            "the island offers the wheel to its own gestures before moving a strip")
+    }
+
     static func run(_ suite: TestSuite) {
         ownWindowGestures(suite)
         ownWindowTargetCache(suite)
+        sidewaysStrips(suite)
         for continuous in [false, true] {
             for modifier in ScrollHorizontalModifier.allCases {
                 for sign: Int64 in [-1, 1] {

@@ -704,17 +704,9 @@ struct CommandBarView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 28, height: 28)
         case .clipboardImage(let name):
-            if let thumbnail = ClipboardImageStore.thumbnail(named: name) {
-                Image(nsImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 28, height: 28)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            } else {
-                Image(systemName: "photo")
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.85))
-            }
+            ClipboardThumbnailImage(source: .stored(name: name), contentMode: .fill)
+                .frame(width: 28, height: 28)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         case .filePath(let path):
             Image(nsImage: CommandBarIconCache.icon(forPath: path))
                 .resizable()

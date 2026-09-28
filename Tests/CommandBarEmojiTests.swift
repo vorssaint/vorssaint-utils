@@ -6,7 +6,7 @@ import Foundation
 typealias EmojiQueryHabits = CommandBarQueryHabits
 
 /// Catalog, action and learning bodies are extracted from production. Only
-/// permissions, panel visibility, typing and the installation key are replaced;
+/// permissions, panel visibility, typing and the session key are replaced;
 /// no keyboard events are sent and preferences live in a disposable domain.
 enum CommandBarEmojiContract {
     enum UserDefaults { static var standard: Foundation.UserDefaults! }
@@ -42,7 +42,6 @@ enum CommandBarEmojiContract {
         static func prepare(_ query: String, cache: inout PreparationCache) -> EmojiQueryHabits.PreparedQuery {
             EmojiQueryHabits.prepare(query, key: key, cache: &cache)
         }
-        static func encode(_ store: EmojiQueryHabits.Store) -> String? { EmojiQueryHabits.encode(store) }
     }
     final class Service {
         typealias CommandBarEntry = CommandBarEmojiContract.CommandBarEntry
@@ -111,6 +110,7 @@ enum CommandBarEmojiContract {
             for action in actions {
                 defaults.removeObject(forKey: DefaultsKey.commandBarUsage)
                 defaults.removeObject(forKey: DefaultsKey.commandBarQueryHabits)
+                service.queryHabitStore.forgetAll()
                 service.mode = .actions
                 service.savedQuery = ":thumb"
                 service.query = ""
@@ -121,12 +121,15 @@ enum CommandBarEmojiContract {
                              "a one-off tone records exactly one use under the original emoji")
                 suite.expect(service.queryMemory.boost(query: "thumb", id: thumbID) > 0,
                              "a one-off tone learns the search saved before opening actions")
-                let habits = EmojiQueryHabits.decode(defaults.string(forKey: DefaultsKey.commandBarQueryHabits))
                 suite.expect(EmojiQueryHabits.boost(
                     for: thumbID,
                     preparedQuery: EmojiQueryHabits.prepare("thumb", key: CommandBarQueryHabits.key),
-                    store: habits, now: Date().timeIntervalSince1970) > 0,
-                             "a one-off tone persists learned searches when the installation key is ready")
+                    store: service.queryHabitStore.store, now: Date().timeIntervalSince1970) > 0,
+                             "a one-off tone learns searches in memory for the current session")
+                suite.expect(defaults.object(forKey: DefaultsKey.commandBarQueryHabits) == nil,
+                             "a one-off tone never persists query learning in preferences")
+                suite.expect(Service().queryHabitStore.store.isEmpty,
+                             "a new service starts without the previous session's query learning")
                 suite.expect(!service.isVisible && Catalog.typed.last == action.title,
                              "the one-off action closes the bar and inserts the chosen tone")
                 suite.expect(defaults.string(forKey: DefaultsKey.commandBarEmojiSkinTone) == tone.rawValue

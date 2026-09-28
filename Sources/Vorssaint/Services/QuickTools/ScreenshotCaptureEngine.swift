@@ -38,6 +38,35 @@ enum ScreenshotCaptureEngine {
                                      includePointer: Bool,
                                      hideVorssaintWindows: Bool,
                                      protectedWindowIDs: Set<CGWindowID>) async -> CGImage? {
+        guard let capture = await prepareDisplayRegion(
+            displayID: displayID, pixelRect: pixelRect, includePointer: includePointer,
+            hideVorssaintWindows: hideVorssaintWindows, protectedWindowIDs: protectedWindowIDs)
+        else { return nil }
+        return await capture.image()
+    }
+
+    /// Immutable capture configuration owned by one scrolling session. Resolving
+    /// shareable windows for every frame adds latency and loses page overlap.
+    final class RegionCapture: @unchecked Sendable {
+        private let filter: SCContentFilter
+        private let configuration: SCStreamConfiguration
+
+        init(filter: SCContentFilter, configuration: SCStreamConfiguration) {
+            self.filter = filter
+            self.configuration = configuration
+        }
+
+        func image() async -> CGImage? {
+            try? await SCScreenshotManager.captureImage(contentFilter: filter,
+                                                       configuration: configuration)
+        }
+    }
+
+    static func prepareDisplayRegion(displayID: CGDirectDisplayID,
+                                     pixelRect: CGRect,
+                                     includePointer: Bool,
+                                     hideVorssaintWindows: Bool,
+                                     protectedWindowIDs: Set<CGWindowID>) async -> RegionCapture? {
         guard let content = try? await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: true),
             let display = content.displays.first(where: { $0.displayID == displayID })
@@ -61,8 +90,7 @@ enum ScreenshotCaptureEngine {
         configuration.height = max(1, Int(clamped.height))
         configuration.showsCursor = includePointer
         configuration.colorSpaceName = CGColorSpace.sRGB
-        return try? await SCScreenshotManager.captureImage(contentFilter: filter,
-                                                           configuration: configuration)
+        return RegionCapture(filter: filter, configuration: configuration)
     }
 
     /// Captures every given screen, keyed by display id. Screens that fail
@@ -157,7 +185,9 @@ enum ScreenshotCaptureEngine {
             }
         }
         var clippedFallback: CGImage?
-        if let image = WindowPreviewProvider.captureViaWindowServer(windowID) {
+        let capturedImage = await WindowPreviewProvider.captureViaWindowServer(windowID)
+        guard !Task.isCancelled else { return nil }
+        if let image = capturedImage {
             let bounds = windowBounds(windowID)
             if bounds.map({ SwitcherSupport.captureCoversWindow(imageWidth: image.width,
                                                                 imageHeight: image.height,
@@ -193,7 +223,11 @@ enum ScreenshotCaptureEngine {
         guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                                     kCGNullWindowID) as? [[String: Any]]
         else { return [] }
-        return info.compactMap { entry in
+        return captureWindows(in: info)
+    }
+
+    private static func captureWindows(in info: [[String: Any]]) -> [ScreenshotCapturePolicy.CaptureWindow] {
+        info.compactMap { entry in
             guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
                   let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
                   let id = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
@@ -206,7 +240,8 @@ enum ScreenshotCaptureEngine {
                 frame: CGRect(x: boundsDict["X"] ?? 0,
                               y: boundsDict["Y"] ?? 0,
                               width: boundsDict["Width"] ?? 0,
-                              height: boundsDict["Height"] ?? 0))
+                              height: boundsDict["Height"] ?? 0),
+                isUntitled: (entry[kCGWindowName as String] as? String)?.isEmpty ?? true)
         }
     }
 
@@ -309,7 +344,31 @@ enum ScreenshotCaptureEngine {
             imageSize: imageBounds.size)
         let cropBounds = ScreenshotSupport.clamp(pixelBounds, to: imageBounds)
         guard !cropBounds.isEmpty else { return nil }
-        return image.cropping(to: cropBounds)
+        let packedBounds = ScreenshotSupport.clamp(
+            CGRect(origin: .zero, size: cropBounds.size), to: imageBounds)
+        guard packedBounds != cropBounds, let alpha = alphaCoverage(of: image) else {
+            return image.cropping(to: cropBounds)
+        }
+        return image.cropping(to: ScreenshotSupport.attachedCaptureCrop(
+            placed: cropBounds, packed: packedBounds, coverage: alpha))
+    }
+
+    /// The image's alpha, one byte per pixel with the top row first, which is
+    /// all it takes to tell where the included windows were drawn.
+    private static func alphaCoverage(of image: CGImage) -> ScreenshotSupport.AlphaCoverage? {
+        let width = image.width, height = image.height
+        guard width > 0, height > 0 else { return nil }
+        var alpha = [UInt8](repeating: 0, count: width * height)
+        let drawn = alpha.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height,
+                                          bitsPerComponent: 8, bytesPerRow: width,
+                                          space: CGColorSpaceCreateDeviceGray(),
+                                          bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue)
+            else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        return drawn ? ScreenshotSupport.AlphaCoverage(alpha: alpha, width: width, height: height) : nil
     }
 
     /// The window's size as the window server knows it, used to tell a whole
@@ -333,13 +392,15 @@ enum ScreenshotCaptureEngine {
                                                     kCGNullWindowID) as? [[String: Any]]
         else { return [] }
         let ownPID = Int32(ProcessInfo.processInfo.processIdentifier)
+        let decorations = ScreenshotCapturePolicy.decorationWindowIDs(frontToBack: captureWindows(in: info))
         return info.compactMap { entry in
             guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
                   let pid = entry[kCGWindowOwnerPID as String] as? Int32,
                   let id = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat]
             else { return nil }
-            guard ScreenshotCapturePolicy.canPickWindow(
+            guard !decorations.contains(id),
+                  ScreenshotCapturePolicy.canPickWindow(
                 id,
                 isOwnWindow: pid == ownPID,
                 hideVorssaintWindows: hideVorssaintWindows,

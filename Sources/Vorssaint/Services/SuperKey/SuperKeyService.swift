@@ -281,6 +281,7 @@ final class SuperKeyService: ObservableObject {
                     self.clearLeftoverMapping()
                     self.isRunning = false
                     Self.isEngaged = false
+                    self.setMappingFailure(.keyboardTapRefused)
                 }
                 return
             }

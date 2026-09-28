@@ -23,6 +23,13 @@ struct ScratchpadView: View {
         VStack(spacing: 0) {
             header
             tabBar
+            if service.saveFailed {
+                Label(text.saveFailed, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+            }
             editor
             footer
         }

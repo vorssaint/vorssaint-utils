@@ -437,6 +437,8 @@ struct RecorderEditorView: View {
 
             Spacer()
 
+            RecorderExportSpeedControl(model: model)
+
             Menu {
                 Picker(strings.qualityLabel, selection: qualityBinding) {
                     Text(strings.qualitySmall).tag(RecorderSupport.Quality.small.rawValue)

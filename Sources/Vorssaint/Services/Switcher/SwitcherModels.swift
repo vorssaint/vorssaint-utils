@@ -161,6 +161,12 @@ struct SwitcherItem: Identifiable, Equatable {
     /// name, so several places have to present them differently.
     var isAppEntry: Bool { windowID == nil }
 
+    /// A hidden app follows the minimized-windows placement only when the
+    /// user explicitly opts in; an actually minimized window always does.
+    func isMinimizedForPlacement(treatHiddenAppsLikeMinimized: Bool) -> Bool {
+        isMinimized || (treatHiddenAppsLikeMinimized && isAppHidden)
+    }
+
     /// What the screen reader hears. An app entry replaces the window title
     /// with its state on screen, so the label has to carry that state too or
     /// the entry sounds identical to a window of the same app.

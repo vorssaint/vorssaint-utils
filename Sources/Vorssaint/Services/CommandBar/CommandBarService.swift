@@ -185,6 +185,7 @@ final class CommandBarService: ObservableObject {
     private var uninstallSelectionEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallSelection] = nil } }
     private var uninstallSelectionLoading = false
     private var uninstallFinderRequestID: UUID?
+    private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
     /// True while the bar is closing, so nothing is rebuilt on the way out.
     private var isTearingDown = false
     private var menusLoading = false
@@ -226,6 +227,7 @@ final class CommandBarService: ObservableObject {
     private var restartURL: URL?
 
     private init() {
+        CommandBarLearning.discardLegacyQueryHabits()
         hotkey.onPress = { [weak self] in self?.toggle() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
@@ -235,7 +237,6 @@ final class CommandBarService: ObservableObject {
 
     func syncWithPreferences() {
         let available = AppFeature.commandBar.isAvailable
-        if available { CommandBarQueryHabits.warmInstallationKey() }
         let enabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarShortcut,
@@ -314,13 +315,6 @@ final class CommandBarService: ObservableObject {
         reloadPreferenceCaches()
         query = ""
         refreshResults()
-        CommandBarQueryHabits.warmInstallationKey { [weak self] in
-            DispatchQueue.main.async {
-                guard let self, self.presentationID == id, self.isVisible else { return }
-                self.preparedHabitQuery.reset()
-                self.refreshResults()
-            }
-        }
         adoptASCIIInputSource()
         present(panel)
         // Ordering the prepared panel is the keystroke path. Home is filled on
@@ -474,13 +468,20 @@ final class CommandBarService: ObservableObject {
     /// missing record would strand the typist on the borrowed layout.
     private var suspendedInputSourceID: String?
 
+    var hasBorrowedInputSource: Bool {
+        suspendedInputSourceID != nil
+    }
+
     /// One-shot switch to the first enabled ASCII layout, read fresh on every
     /// open like every other preference on this path. TIS talks to the
     /// text-input server from the main thread, the way the Super key switch
     /// already does.
     private func adoptASCIIInputSource() {
         let apply = {
-            guard UserDefaults.standard.bool(forKey: DefaultsKey.commandBarASCIILayoutEnabled) else { return }
+            guard UserDefaults.standard.bool(forKey: DefaultsKey.commandBarASCIILayoutEnabled) else {
+                self.restoreSuspendedInputSource()
+                return
+            }
             let currentID = InputSourceSelection.currentSourceID()
             guard let target = InputSourceSelection.asciiLayoutID(
                 currentID: currentID,
@@ -502,20 +503,28 @@ final class CommandBarService: ObservableObject {
 
     private func restoreSuspendedInputSource() {
         guard let sourceID = suspendedInputSourceID else { return }
-        suspendedInputSourceID = nil
         // The switch waits for the next turn of the main loop. A close reached
         // through a key (Esc, Return, ⌘,) runs inside that key event's own
         // dispatch, and TIS quietly ignores a source switch asked for there —
         // the same hide() restores fine from a click or the hotkey, which
         // stand outside any key event. Waiting is safe: the presentation id
         // is captured now, and beginPresentation replaces it on the next
-        // open, so a bar reopened before this block lands has already
-        // borrowed its own layout and a stale restore stands down.
+        // open. Keep the original source until restoration actually runs:
+        // reopening while ASCII is still active borrows the same source.
         let presentationID = self.presentationID
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.presentationID == presentationID else { return }
-            _ = InputSourceSelection.select(sourceID: sourceID)
+            guard let self, self.presentationID == presentationID,
+                  self.suspendedInputSourceID == sourceID else { return }
+            self.restoreBorrowedInputSource()
         }
+    }
+
+    /// The termination path cannot wait for another main-loop turn. Keep a
+    /// refused restoration pending so a later close or termination can retry.
+    func restoreBorrowedInputSource() {
+        guard let sourceID = suspendedInputSourceID,
+              InputSourceSelection.select(sourceID: sourceID) else { return }
+        suspendedInputSourceID = nil
     }
 
     /// Re-fits the panel to its content as the result list grows and
@@ -657,6 +666,15 @@ final class CommandBarService: ObservableObject {
                 return
             }
             NSSound.beep()
+            return
+        }
+        // A script marked to run directly does its work at once, with no
+        // argument and nothing on screen. Direct execution bypasses result
+        // filtering. Do nothing when the row is hidden or Links is disabled.
+        if let link = CommandBarLinks.directRunScript(forStableKey: key, in: CommandBarLinks.decode(
+            UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks))) {
+            guard !hiddenCache.contains(key), isEnabled(.links) else { return }
+            CommandBarCatalog.runScriptDirectly(link)
             return
         }
         // A row that would confirm, ask for input, or keep the field visible
@@ -893,8 +911,6 @@ final class CommandBarService: ObservableObject {
             from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarDisabledSources) ?? "")
         usageCache = CommandBarUsage.decode(
             UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
-        queryHabitStore.reload(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
         shortcutCache = rowShortcuts
         compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
         hasCustomPosition = positionOffset != .zero
@@ -1019,8 +1035,6 @@ final class CommandBarService: ObservableObject {
         UserDefaults.standard.set(CommandBarUsage.encode(usage), forKey: DefaultsKey.commandBarUsage)
         queryMemory.forget(id: entry.id)
         queryHabitStore.remove(resultID: entry.id)
-        UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
-                                  forKey: DefaultsKey.commandBarQueryHabits)
         refreshAfterPreferenceChange()
     }
 
@@ -2084,7 +2098,8 @@ final class CommandBarService: ObservableObject {
     private func confirmUninstallReview(entryID: String) {
         let uninstaller = AppUninstaller.shared
         guard uninstaller.phase == .results, !uninstaller.isRemoving else { return }
-        if uninstaller.selectedHomebrewPackage != nil {
+        if let confirmation = uninstaller.homebrewRemovalConfirmation {
+            pendingHomebrewRemoval = confirmation
             mode = .uninstallHomebrewConfirm(entryID: entryID)
             refreshPanelLayout()
             return
@@ -2096,7 +2111,10 @@ final class CommandBarService: ObservableObject {
     /// checklist, which shows its live progress the same way the menu panel
     /// already does while `AppUninstaller` waits on it.
     private func confirmUninstallHomebrewRemoval(entryID: String) {
-        AppUninstaller.shared.removeSelectedWithHomebrew()
+        if let confirmation = pendingHomebrewRemoval {
+            AppUninstaller.shared.removeSelectedWithHomebrew(confirmation: confirmation)
+        }
+        pendingHomebrewRemoval = nil
         mode = .uninstallReview(entryID: entryID)
         refreshPanelLayout()
     }
@@ -2427,8 +2445,6 @@ final class CommandBarService: ObservableObject {
                 queryHabitStore.record(preparedQuery: prepared,
                                        resultID: entry.id,
                                        now: now)
-                UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
-                                          forKey: DefaultsKey.commandBarQueryHabits)
             }
         }
     }
@@ -2927,7 +2943,7 @@ final class CommandBarService: ObservableObject {
 
     /// Borderless panels refuse key status by default, and the bar's field
     /// needs it for typing while the target app stays active.
-    private final class KeyableBarPanel: NSPanel {
+    private final class KeyableBarPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

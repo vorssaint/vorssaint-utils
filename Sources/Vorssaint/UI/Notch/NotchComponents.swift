@@ -164,8 +164,9 @@ struct NotchArtwork: View {
 }
 
 /// Items fill each column top to bottom and continue sideways, so a short
-/// island scrolls to the side and never down. Columns spread across the full
-/// width whenever everything fits without scrolling.
+/// island scrolls to the side and never down. Whenever everything fits
+/// without scrolling, the items read left to right instead, in rows of equal
+/// cells across the full width, and a short last row sits centered.
 struct NotchRail<Item: Identifiable, Content: View>: View {
     let items: [Item]
     let rows: Int
@@ -177,9 +178,11 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     @ViewBuilder let content: (Item) -> Content
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var columns: Int { NotchLayout.railColumns(count: items.count, rows: rows) }
     private var starts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, rows))) }
+    private var rowStarts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, columns))) }
     private var fits: Bool {
-        CGFloat(starts.count) * itemWidth + CGFloat(max(0, starts.count - 1)) * spacing <= width
+        NotchLayout.railFits(columns: columns, itemWidth: itemWidth, spacing: spacing, width: width)
     }
 
     // Scroll to the column itself: its identity is known before lazy children
@@ -191,8 +194,9 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
 
     var body: some View {
         if fits {
-            HStack(alignment: .top, spacing: spacing) {
-                ForEach(starts, id: \.self) { start in column(start).frame(maxWidth: .infinity) }
+            let cell = (width - CGFloat(max(0, columns - 1)) * spacing) / CGFloat(max(1, columns))
+            VStack(spacing: rowSpacing) {
+                ForEach(rowStarts, id: \.self) { start in row(start, cell: cell) }
             }
         } else {
             ScrollViewReader { proxy in
@@ -202,8 +206,9 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
                     LazyHStack(alignment: .top, spacing: spacing) {
                         ForEach(starts, id: \.self) { start in column(start).frame(width: itemWidth).id(start) }
                     }
+                    .contentShape(Rectangle())
                 }
-                .scrollIndicators(.hidden)
+                .scrollIndicators(.never)
                 .onAppear {
                     if let targetColumn { proxy.scrollTo(targetColumn, anchor: .center) }
                 }
@@ -217,6 +222,15 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
         }
     }
 
+    private func row(_ start: Int, cell: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: spacing) {
+            ForEach(items[start..<min(items.count, start + max(1, columns))]) { item in
+                content(item).frame(width: cell)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private func column(_ start: Int) -> some View {
         VStack(spacing: rowSpacing) {
             ForEach(items[start..<min(items.count, start + max(1, rows))]) { item in
@@ -226,28 +240,168 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     }
 }
 
-/// The base remains opaque black. Optional glass belongs to controls alone.
+private struct NotchGlassSurfaceKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var notchGlassSurface: Bool {
+        get { self[NotchGlassSurfaceKey.self] }
+        set { self[NotchGlassSurfaceKey.self] = newValue }
+    }
+
+    /// A page drawn in Settings to preview the island. It shows what the
+    /// island shows but must leave the island's state and the keyboard alone.
+    var notchSettingsPreview: Bool {
+        get { self[NotchSettingsPreviewKey.self] }
+        set { self[NotchSettingsPreviewKey.self] = newValue }
+    }
+}
+
+private struct NotchSettingsPreviewKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+/// The native host publishes the same path used by its animated mask. Keeping
+/// this in canvas coordinates avoids scaling the glass's corners independently.
+final class NotchBackdropPresentation: ObservableObject {
+    @Published var contour = Path()
+    @Published var usesGlass = false
+    @Published private(set) var fade = NotchGlassFade.open
+
+    /// Measured from the top edge, as the fade is planned: a floating
+    /// capsule's contour starts below it.
+    var openness: Double { Double(fade.openness(atHeight: contourBottom)) }
+    fileprivate var contourBottom: CGFloat { contour.boundingRect.isNull ? 0 : contour.boundingRect.maxY }
+
+    /// How much of the resting black still lies beneath the glass. It lets go
+    /// as the glass opens and is gone once the glass is fully open, so an
+    /// opening never settles over a black that then vanishes at once.
+    var restingBlack: Double { 1 - openness }
+
+    /// Plans a resize from `start` to `end` from what is on screen now.
+    func planFade(from start: CGFloat, to end: CGFloat, endsInGlass: Bool) {
+        setFade(.plan(from: start, to: end, endsInGlass: endsInGlass,
+                      current: usesGlass ? fade.openness(atHeight: start) : 0))
+    }
+
+    func openFully() { setFade(.open) }
+
+    /// The fade follows the moving contour frame by frame; SwiftUI must not
+    /// add an animation of its own on top.
+    private func setFade(_ next: NotchGlassFade) {
+        guard fade != next else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { fade = next }
+    }
+}
+
+struct NotchBackdropShape: Shape {
+    var contour: Path
+    func path(in rect: CGRect) -> Path { contour }
+}
+
+struct NotchWindowBackground: View {
+    @ObservedObject var presentation: NotchBackdropPresentation
+    @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+
+    var body: some View {
+        NotchSurfaceBackground(presentation: presentation, glass: glass)
+    }
+}
+
+/// Keep the upper content dark and open the lower surface into a refractive lip.
+struct NotchSurfaceBackground: View {
+    @ObservedObject var presentation: NotchBackdropPresentation
+    let glass: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var offersGlass: Bool {
+#if compiler(>=6.2)
+        if #available(macOS 26, *) { return glass && !reduceTransparency }
+#endif
+        return false
+    }
+
+    private var showsGlass: Bool { offersGlass && presentation.usesGlass }
+
+    var body: some View {
+        ZStack {
+            // The black the island rests in stays beneath the glass until
+            // the glass has opened, and the glass exists only while that
+            // black lets it show, so the window's resizes at either end of a
+            // transition happen in plain black.
+            Color.black.opacity(showsGlass ? presentation.restingBlack : 1)
+#if compiler(>=6.2)
+            if #available(macOS 26, *), showsGlass, presentation.restingBlack < 1 {
+                let shape = NotchBackdropShape(contour: presentation.contour)
+                Color.clear
+                    .glassEffect(.clear, in: shape)
+                    .environment(\.appearsActive, true)
+                    .materialActiveAppearance(.active)
+                    .overlay {
+                        LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast),
+                                       startPoint: .top, endPoint: .bottom)
+                            .frame(height: presentation.contourBottom)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                            .mask(shape)
+                    }
+            }
+#endif
+        }
+        .environment(\.colorScheme, .dark)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// The dimming over the glass, from the top of the island to its lip. Near
+    /// a black strip the lip closes up, so the last frames of a collapse
+    /// already match the resting island.
+    static func shade(openness: Double, contrast: ColorSchemeContrast) -> [Gradient.Stop] {
+        (0...64).map { index in
+            let t = Double(index) / 64
+            return Gradient.Stop(
+                color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
+                location: t)
+        }
+    }
+}
+
+/// Controls on the glass shell use quiet translucent fills, leaving the
+/// refraction to the island rather than stacking separate glass lenses.
 struct NotchControlSurface: ViewModifier {
     let cornerRadius: CGFloat
     var selected = false
     var interactive = true
-    @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.notchGlassSurface) private var glassSurface
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         Group {
-#if compiler(>=6.2)
-            if #available(macOS 26, *), glass, !reduceTransparency {
-                content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
-                    .glassEffect(.regular.interactive(interactive), in: shape)
+            if glassSurface {
+                content
+                    .background(.white.opacity(selected ? 0.11 : 0.045), in: shape)
+                    .overlay {
+                        shape.strokeBorder(.white.opacity(selected ? 0.16 : 0.065), lineWidth: 0.5)
+                            .allowsHitTesting(false)
+                    }
             } else {
-                content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
-            }
+#if compiler(>=6.2)
+                if #available(macOS 26, *), glass, !reduceTransparency {
+                    content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                        .glassEffect(.regular.interactive(interactive), in: shape)
+                } else {
+                    content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                }
 #else
-            content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
 #endif
+            }
         }
         .overlay {
             shape.strokeBorder(.white.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 0.75)
@@ -366,5 +520,45 @@ private struct NotchMenuAnchorView: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         anchor.view = nsView
+    }
+}
+
+extension NSAlert {
+    /// A SwiftUI alert or confirmation dialog hangs from the island as a
+    /// sheet, which moves and reskins the borderless surface. Inside the
+    /// island a tool asks the same question on its own, just above it, like
+    /// the Scratchpad page does, and the island gets the keyboard back after.
+    static func confirmAboveIsland(_ title: String, message: String, action: String,
+                                   destructive: Bool, cancel: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: action).hasDestructiveAction = destructive
+        // Escape cancels in every language, like the dialog's cancel role.
+        alert.addButton(withTitle: cancel).keyEquivalent = "\u{1b}"
+        return alert.runAboveIsland() == .alertFirstButtonReturn
+    }
+
+    private func runAboveIsland() -> NSApplication.ModalResponse {
+        let island = NotchService.shared.presentationWindow
+        var observers: [NSObjectProtocol] = []
+        if let island {
+            // The modal session puts the alert at the modal panel level, below
+            // the island, and puts it back there when it activates the app or
+            // makes the alert key. Raise it once running and after each of those.
+            let level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+            let alertWindow = window
+            let raise: (Notification) -> Void = { _ in alertWindow.level = level }
+            observers = [NSWindow.didBecomeKeyNotification, NSApplication.didBecomeActiveNotification].map {
+                NotificationCenter.default.addObserver(forName: $0, object: nil, queue: .main, using: raise)
+            }
+            DispatchQueue.main.async { alertWindow.level = level }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let response = runModal()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        // A closed island declines key status, so this only returns to an open one.
+        if let island, island.isVisible { island.makeKey() }
+        return response
     }
 }

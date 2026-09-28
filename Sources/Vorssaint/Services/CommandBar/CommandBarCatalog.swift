@@ -845,6 +845,12 @@ enum CommandBarCatalog {
                         item.destination.page, isAvailable: { $0.isAvailable })
                 else { return nil }
                 id = "settings.feature.\(feature.rawValue)"
+            case .setting(let anchor):
+                guard item.feature.map(\.isAvailable) ?? true,
+                      FeatureVisibilitySupport.isPageVisible(
+                        item.destination.page, isAvailable: { $0.isAvailable })
+                else { return nil }
+                id = "settings.setting.\(anchor.rawValue)"
             }
             return CommandBarEntry(
                 id: id,
@@ -854,7 +860,8 @@ enum CommandBarCatalog {
                 icon: .symbol(item.icon),
                 run: { _ in
                     let routed = SettingsSearchSupport.route(for: item)
-                    openSettings(at: routed.destination, targetFeature: routed.targetFeature)
+                    openSettings(at: routed.destination, targetFeature: routed.targetFeature,
+                                 sidebarFeature: item.feature)
                 })
         }
     }
@@ -1142,8 +1149,15 @@ enum CommandBarCatalog {
                     .map { .appIcon(path: $0.path) } ?? .symbol("macwindow"),
                 countsUsage: false,
                 run: { _ in
+                    // Capture before the beat: the bar never activates, so this
+                    // is still the app in front, and a switch during the delay
+                    // must not become the handoff source for a later reclaim.
+                    let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
                     afterBeat(0.1) {
-                        WindowActivator.activate(pid: pid, windowID: windowID, appName: appName)
+                        WindowActivator.activate(pid: pid,
+                                                 windowID: windowID,
+                                                 appName: appName,
+                                                 handoffSourcePID: handoffSourcePID)
                     }
                 })
         }
@@ -1276,9 +1290,10 @@ enum CommandBarCatalog {
     private static func copyAnswer(_ value: String) {
         GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(value, forType: .string)
-        }, then: {
-            QuickToolHUD.show(icon: "doc.on.doc", message: value)
+            return NSPasteboard.general.setString(value, forType: .string)
+        }, then: { copied in
+            QuickToolHUD.show(icon: copied ? "doc.on.doc" : "exclamationmark.circle",
+                              message: copied ? value : FeatureStrings.commandBar(L10n.shared.language).copyFailed)
         })
     }
 
@@ -1406,6 +1421,18 @@ enum CommandBarCatalog {
         GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.string(forType: .string) ?? ""
         }, then: body)
+    }
+
+    /// A global shortcut pressed on a script marked as running directly: the
+    /// file runs for its side effects, with no argument and nothing on
+    /// screen — not the bar, not a result to copy. A failure beeps, the way
+    /// an app shortcut that would not open does.
+    static func runScriptDirectly(_ link: CommandBarLink) {
+        let path = (link.destination as NSString).expandingTildeInPath
+        DispatchQueue.global(qos: .userInitiated).async {
+            let (status, _) = Shell.run(path, [], maxOutputBytes: 64 * 1024)
+            if status != 0 { DispatchQueue.main.async { NSSound.beep() } }
+        }
     }
 
     /// Return pressed before a script's debounced run has answered yet: runs
@@ -1690,8 +1717,10 @@ enum CommandBarCatalog {
     }
 
     private static func openSettings(at destination: FeatureSettingsDestination,
-                                     targetFeature: AppFeature? = nil) {
-        SettingsRouter.shared.request(destination, targetFeature: targetFeature)
+                                     targetFeature: AppFeature? = nil,
+                                     sidebarFeature: AppFeature? = nil) {
+        SettingsRouter.shared.request(destination, targetFeature: targetFeature,
+                                      sidebarFeature: sidebarFeature)
         appDelegate()?.openSettingsWindow()
     }
 
@@ -1727,32 +1756,26 @@ enum CommandBarCatalog {
     }
 
     /// Brightness lands on the display under the pointer, the screen where
-    /// the bar was just used. The routes may need one refresh when the panel
-    /// or Settings never opened this session.
-    private static func applyBrightness(percent: Int, retried: Bool = false) {
+    /// the bar was just used, and never on another one. The routes may need
+    /// one refresh when the panel or Settings never opened this session, and
+    /// the retry looks for that same display wherever the pointer went since.
+    private static func applyBrightness(percent: Int, display: CGDirectDisplayID? = nil) {
         let service = BrightnessService.shared
         let value = Double(percent) / 100
-        if let display = pointerDisplay(in: service.displays) {
-            service.setBrightness(value, for: display.id, showOSD: true)
+        let pointer = NSEvent.mouseLocation
+        let target = display ?? NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+            .flatMap { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }
+        if let id = target, service.displays.contains(where: { $0.id == id }) {
+            service.setBrightness(value, for: id, showOSD: true)
             return
         }
-        guard !retried else {
+        guard display == nil, let target else {
             NSSound.beep()
             return
         }
         service.refresh()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            applyBrightness(percent: percent, retried: true)
+            applyBrightness(percent: percent, display: target)
         }
-    }
-
-    private static func pointerDisplay(in displays: [BrightnessDisplay]) -> BrightnessDisplay? {
-        guard !displays.isEmpty else { return nil }
-        let pointerScreen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
-        if let number = pointerScreen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
-           let match = displays.first(where: { $0.id == number.uint32Value }) {
-            return match
-        }
-        return displays.first
     }
 }

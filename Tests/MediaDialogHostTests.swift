@@ -8,13 +8,18 @@ import AppKit
 enum MediaDialogHostContract {
     final class Island {
         var isVisible = true
+        var level = NSWindow.Level(rawValue: 26)
         var attachedSheet: NSSavePanel?
         var keyRequests = 0
         func makeKey() { keyRequests += 1 }
     }
     struct Event { let window: Island? }
     final class NSSavePanel {
+        static weak var current: NSSavePanel?
         weak var parent: Island?
+        var level = NSWindow.Level(rawValue: 0)
+        var hidesOnDeactivate = true
+        var focused = false
         var modalRuns = 0
         private var completed: ((NSApplication.ModalResponse) -> Void)?
         func beginSheetModal(for parent: Island, completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
@@ -22,11 +27,17 @@ enum MediaDialogHostContract {
             parent.attachedSheet = self
             completed = completionHandler
         }
+        func begin(completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
+            Self.current = self
+            completed = completionHandler
+        }
+        func makeKeyAndOrderFront(_ sender: Any?) { focused = true }
         func runModal() -> NSApplication.ModalResponse {
             modalRuns += 1
             return .OK
         }
         func finish(_ response: NSApplication.ModalResponse) {
+            if Self.current === self { Self.current = nil }
             parent?.attachedSheet = nil
             completed?(response)
         }
@@ -34,10 +45,10 @@ enum MediaDialogHostContract {
     final class Application {
         var currentEvent: Event?
         var keyWindow: Island?
-        /// Whether the island already had its sheet at each activation.
+        /// Whether the island's own dialog was already up at each activation.
         var activations: [Bool] = []
         func activate(ignoringOtherApps: Bool) {
-            activations.append(NotchService.shared.presentationWindow?.attachedSheet != nil)
+            activations.append(NSSavePanel.current != nil)
         }
     }
     static var NSApp = Application()
@@ -63,6 +74,7 @@ enum MediaDialogHostContract {
     static func reset() {
         NSApp = Application()
         DispatchQueue.main = DispatchQueue.Queue()
+        NSSavePanel.current = nil
         NotchService.shared = NotchService()
         QuickLauncherService.shared = QuickLauncherService()
         Dialogs.panelModalActive = false
@@ -81,13 +93,15 @@ enum MediaDialogHostTests {
             let panel = Context.NSSavePanel()
             var responses: [NSApplication.ModalResponse] = []
             Context.Dialogs.runPanelModal(panel) { responses.append($0) }
-            expect(panel.parent === island && panel.modalRuns == 0 && Context.NSApp.activations == [true],
-                   "a dialog begun from the island attaches to it as a sheet before activation, never as an "
-                   + "application-modal window that opens behind the island")
+            expect(panel.parent == nil && island.attachedSheet == nil && panel.focused && panel.modalRuns == 0
+                   && panel.level.rawValue > island.level.rawValue && Context.NSApp.activations == [true]
+                   && !panel.hidesOnDeactivate,
+                   "a dialog begun from the island opens above it on its own before activation, never as a sheet "
+                   + "that moves the island or an application-modal window that opens behind it")
             let second = Context.NSSavePanel()
             Context.Dialogs.runPanelModal(second) { _ in }
-            expect(second.parent == nil && second.modalRuns == 0 && Context.Dialogs.panelModalActive,
-                   "a second request while the sheet is up is ignored")
+            expect(second.parent == nil && !second.focused && second.modalRuns == 0 && Context.Dialogs.panelModalActive,
+                   "a second request while the dialog is up is ignored")
             panel.finish(.OK)
             expect(responses == [.OK] && !Context.Dialogs.panelModalActive && island.keyRequests == 0,
                    "the completion runs before focus returns, while native dismissal is still restoring key windows")

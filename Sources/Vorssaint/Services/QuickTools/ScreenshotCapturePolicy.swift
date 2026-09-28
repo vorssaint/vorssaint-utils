@@ -46,6 +46,42 @@ enum ScreenshotCapturePolicy {
         let id: CGWindowID
         let ownerPID: pid_t
         let frame: CGRect
+        /// The window list gives it no title. Decorations have none; almost
+        /// every window a person works in does.
+        var isUntitled = false
+    }
+
+    /// How far past the window it frames a decoration may reach on each side.
+    static let decorationMargin: ClosedRange<CGFloat> = 1...32
+
+    /// Windows another process draws around a window, such as a focus border.
+    /// Picking one captures only the painted frame, so a click there has to
+    /// reach the window it surrounds. A decoration has no title, sits directly
+    /// in front of or behind that window and reaches past it by the same small
+    /// margin on every side. Ordinary windows miss at least one of those: two
+    /// maximized apps share a frame, and a window over one maximized with a
+    /// gap has a title.
+    static func decorationWindowIDs(frontToBack windows: [CaptureWindow]) -> Set<CGWindowID> {
+        var decorations: Set<CGWindowID> = []
+        for (index, window) in windows.enumerated() where window.isUntitled {
+            let neighbours = [index - 1, index + 1].filter(windows.indices.contains)
+            if neighbours.contains(where: { frames(window, around: windows[$0]) }) {
+                decorations.insert(window.id)
+            }
+        }
+        return decorations
+    }
+
+    private static func frames(_ decoration: CaptureWindow, around window: CaptureWindow) -> Bool {
+        guard decoration.ownerPID != window.ownerPID else { return false }
+        let margins = [window.frame.minX - decoration.frame.minX,
+                       window.frame.minY - decoration.frame.minY,
+                       decoration.frame.maxX - window.frame.maxX,
+                       decoration.frame.maxY - window.frame.maxY]
+        guard let smallest = margins.min(), let largest = margins.max() else { return false }
+        // A point of slack absorbs rounding.
+        return decorationMargin.contains(smallest) && decorationMargin.contains(largest)
+            && largest - smallest <= 1
     }
 
     /// The windows a capture of one clicked window has to draw. The area is

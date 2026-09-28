@@ -176,6 +176,10 @@ struct GlobalShortcut: Equatable, Hashable {
                                                                modifiers: [.control, .option, .command])
     static let windowDirectionalDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
                                                          modifiers: [.control, .option])
+    // The key beside the modifiers, so one left hand presses it, on the
+    // free control-option-command layer.
+    static let pointerNextDisplayDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Z),
+                                                          modifiers: [.control, .option, .command])
     // Quick tools. Paste plain follows the universal "Paste and Match Style"
     // combination; the others use the free ⌃⌥⌘ letters.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
@@ -712,6 +716,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case displayBrightnessIncrease
     case keyboardBrightnessDecrease
     case keyboardBrightnessIncrease
+    case pointerNextDisplay
 
     var id: String { storageKey }
 
@@ -744,6 +749,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .displayBrightnessIncrease: return DefaultsKey.displayBrightnessIncreaseShortcut
         case .keyboardBrightnessDecrease: return DefaultsKey.keyboardBrightnessDecreaseShortcut
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
+        case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
         }
     }
 
@@ -776,6 +782,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .displayBrightnessIncrease: return .displayBrightnessIncreaseDefault
         case .keyboardBrightnessDecrease: return .keyboardBrightnessDecreaseDefault
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
+        case .pointerNextDisplay: return .pointerNextDisplayDefault
         }
     }
 
@@ -836,6 +843,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessDecrease
         case .keyboardBrightnessIncrease:
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
+        case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
         }
     }
 
@@ -885,6 +893,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayBrightnessShortcutsEnabled]
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease:
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
+        case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
         }
     }
 
@@ -915,6 +924,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenRecorder: return .screenRecorder
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
+        case .pointerNextDisplay: return .windowLayout
         }
     }
 

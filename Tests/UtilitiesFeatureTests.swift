@@ -45,10 +45,45 @@ enum UtilitiesFeatureTests {
         suite.expect(parsedInvalid.count == 1 && parsedInvalid.first?.port == 4000,
                "port parser ignores address lines that lack a port instead of pairing with previous port")
 
+        // MARK: Port manager all-interfaces marker (issue #1785)
+
+        let exposedFixture = """
+        p321
+        cDev Server
+        PTCP
+        n*:5173
+        n0.0.0.0:8000
+        n[::]:8001
+        n127.0.0.1:8002
+        n[::1]:8003
+        n192.168.1.20:8004
+        n[fe80::1]:8005
+        """
+        let exposed = Dictionary(uniqueKeysWithValues: PortManagerSupport.parseLsof(exposedFixture)
+            .map { ($0.port, PortManagerSupport.listensOnAllInterfaces($0.address)) })
+        suite.expect(exposed[5173] == true && exposed[8000] == true && exposed[8001] == true,
+               "wildcard IPv4 and IPv6 binds from lsof are marked as listening on all interfaces")
+        suite.expect(exposed[8002] == false && exposed[8003] == false,
+               "loopback binds stay unmarked because only this Mac can reach them")
+        suite.expect(exposed[8004] == false && exposed[8005] == false,
+               "a bind to one specific address is not reported as all interfaces")
+        suite.expect(!PortManagerSupport.listensOnAllInterfaces("*")
+                && !PortManagerSupport.listensOnAllInterfaces(":80")
+                && !PortManagerSupport.listensOnAllInterfaces(""),
+               "an endpoint without a host part is not marked")
+
         for lang in AppLanguage.allCases {
             let strings = FeatureStrings.portManager(lang)
             suite.expect(!strings.hubDescription.isEmpty,
                    "port manager has a non-empty hub description for \(lang)")
+            suite.expect(!strings.allInterfaces.isEmpty && !strings.allInterfacesHelp.isEmpty
+                   && !strings.allInterfaces.contains("\u{2014}")
+                   && !strings.allInterfacesHelp.contains("\u{2014}"),
+                   "the all-interfaces marker is labelled and explained in \(lang)")
+            if lang != .enUS {
+                suite.expect(strings.allInterfaces != PortManagerFeatureStrings.enUS.allInterfaces,
+                       "the all-interfaces marker is translated for \(lang)")
+            }
         }
         suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityPortManager] as? Bool == true,
                "the port manager panel row ships visible like its siblings and travels in backups")

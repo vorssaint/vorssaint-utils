@@ -68,9 +68,9 @@ final class PermissionGuideOverlay {
 
         // Non-activating, so System Settings keeps focus while the card
         // floats above it; joins every Space so the trip back finds it.
-        let panel = NSPanel(contentRect: frame,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
+        let panel = OverlayPanel(contentRect: frame,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true

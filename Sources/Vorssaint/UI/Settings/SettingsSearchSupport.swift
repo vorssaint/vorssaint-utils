@@ -9,6 +9,7 @@ struct SettingsSearchItem: Identifiable {
     enum ID: Hashable {
         case page(SettingsPage)
         case feature(AppFeature)
+        case setting(SettingsSectionAnchor)
     }
 
     let id: ID
@@ -86,6 +87,19 @@ enum SettingsSearchSupport {
         }
     }
 
+    static func keyboardBrightnessShortcutItem(language: AppLanguage) -> SettingsSearchItem {
+        let brightness = FeatureStrings.brightness(language)
+        return SettingsSearchItem(
+            id: .setting(.keyboardBrightnessShortcuts),
+            destination: FeatureSettingsDestination(
+                .shortcuts, sectionAnchor: .keyboardBrightnessShortcuts),
+            title: brightness.keyboardBrightnessShortcuts,
+            icon: "keyboard",
+            keywords: [brightness.keyboardLight, brightness.keyboardBrightnessDecrease,
+                       brightness.keyboardBrightnessIncrease],
+            feature: .brightness)
+    }
+
     /// A dedicated page row wins over a generated feature row only when their
     /// IDs, full destinations, and the page's one-to-one feature mapping all
     /// agree. The winning page keeps its stable identity and presentation while
@@ -115,7 +129,10 @@ enum SettingsSearchSupport {
               case .feature(let feature) = featureItem.id,
               featureItem.feature == feature,
               pageItem.destination == featureItem.destination else { return false }
-        return FeatureVisibilitySupport.features(for: page) == [feature]
+        // A feature landing on its own section of the page (the green button
+        // override on Window Layout) keeps the page alive without owning it.
+        return FeatureVisibilitySupport.features(for: page)
+            .filter { $0.settingsDestination == FeatureSettingsDestination(page) } == [feature]
     }
 
     /// Where a search or command-bar result should route right now. A
@@ -129,7 +146,7 @@ enum SettingsSearchSupport {
                        isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
         -> (destination: FeatureSettingsDestination, targetFeature: AppFeature?) {
         if let feature = item.feature {
-            guard isAvailable(feature) else {
+            guard isAvailable(feature) || leadsToVisiblePage(item, isAvailable: isAvailable) else {
                 return (FeatureSettingsDestination(.features), feature)
             }
             if item.destination.page == .features {
@@ -141,6 +158,15 @@ enum SettingsSearchSupport {
             return (FeatureSettingsDestination(.features), nil)
         }
         return (item.destination, nil)
+    }
+
+    /// A page row carrying its page's own feature, like Window Layout, still
+    /// leads to that page while another feature there keeps it in the
+    /// sidebar, like the green button override with Window Layout removed.
+    private static func leadsToVisiblePage(_ item: SettingsSearchItem,
+                                           isAvailable: (AppFeature) -> Bool) -> Bool {
+        guard case .page(let page) = item.id, item.destination.page == page else { return false }
+        return FeatureVisibilitySupport.isPageVisible(page, isAvailable: isAvailable)
     }
 
     static func route(for suggestion: SettingsSearchSuggestion,
@@ -196,10 +222,13 @@ enum SettingsSearchSupport {
         guard !foldedQuery.isEmpty else { return [] }
 
         let navigableItems = items.compactMap { item -> SettingsSearchItem? in
-            if let feature = item.feature, !isAvailable(feature) {
+            if let feature = item.feature, !isAvailable(feature),
+               !leadsToVisiblePage(item, isAvailable: isAvailable) {
                 // The utility itself remains navigable through its Features
                 // row, but settings that do not exist until installation must
-                // not make that utility appear as a field-level match.
+                // not make that utility appear as a field-level match. A page
+                // that stays visible keeps the keywords of the features that
+                // are on; the loop below drops the others.
                 var fallbackItem = item
                 fallbackItem.keywords = []
                 fallbackItem.keywordFeatures = []

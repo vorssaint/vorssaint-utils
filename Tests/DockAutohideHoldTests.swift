@@ -13,7 +13,11 @@ enum DockAutohideHoldTests {
         static let willSleepNotification = Notification.Name("hold.sleep")
         static let sessionDidResignActiveNotification = Notification.Name("hold.session")
     }
-    final class WorkspaceCenter { let notificationCenter = NotificationCenter() }
+    final class WorkspaceCenter {
+        let notificationCenter = NotificationCenter()
+        var frontmostApplication: App? = App()
+    }
+    struct App { var processIdentifier: Int32 = 20 }
     static var activationEvents: [String] = []
     struct FrameRestoration {
         func restoration(for item: Int, isCurrent: @escaping () -> Bool) -> (() -> Void)? {
@@ -26,7 +30,9 @@ enum DockAutohideHoldTests {
         static func dockPreviewMayActivate(_ item: Int) -> Bool { mayActivate }
     }
     enum WindowActivator {
-        static func activate(_ item: Int) { activationEvents.append("activate") }
+        static func activate(_ item: Int, handoffSourcePID: Int32? = nil) {
+            activationEvents.append("activate")
+        }
     }
     final class Service {
         typealias SwitcherItem = Int
