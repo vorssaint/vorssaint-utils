@@ -127,6 +127,14 @@ enum PreferencesFeatureTests {
                "invalid keep-awake active icon falls back to the Vorssaint glyph")
         suite.expect(KeepAwakeActiveIcon.eye.systemSymbolName == "eye.fill",
                "keep-awake eye option maps to its menu bar symbol")
+        suite.expect(registeredDefaults[DefaultsKey.menuBarIconSymbol] as? String == "",
+               "the menu bar shows the Vorssaint glyph until a symbol is chosen")
+        suite.expect(Defaults.sanitizedMenuBarIconSymbol("  bolt.fill\n") == "bolt.fill"
+                     && Defaults.sanitizedMenuBarIconSymbol(" ") == ""
+                     && Defaults.sanitizedMenuBarIconSymbol(nil) == "",
+               "a typed menu bar symbol name loses its surrounding spaces, and blank keeps the glyph")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.menuBarIconSymbol),
+               "the chosen menu bar symbol follows settings backups")
         suite.expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: []),
                "no online display does not count as an external display")
         suite.expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true]),

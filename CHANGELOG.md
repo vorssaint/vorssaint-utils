@@ -15,6 +15,7 @@ Scratchpad gains easier formatting and search, Keep Awake starts with one click 
 - App Switcher can browse apps using a mouse wheel or trackpad, with precise wheel movement and consistent scroll direction.
 - Scratchpad adds a formatting toolbar in both the floating pad and Dynamic Island, native text search and an adjustable text size.
 - Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions.
+- Menu bar settings can replace the Vorssaint icon with any SF Symbol.
 
 ### Changed
 - Keep Awake starts with one click from duration chips or an end time; the switch and shortcut restart the last choice, and the panel explains when battery protection prevents a session.
