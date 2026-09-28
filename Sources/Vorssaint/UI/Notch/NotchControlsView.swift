@@ -137,10 +137,8 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { CommandBarService.shared.show() } }
         case .scratchpad:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
-        case .timer, .calendar:
-            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {
-                service.select(item == .timer ? .timer : .calendar)
-            }
+        case .timer: NotchTimerTile(service: service)
+        case .calendar: NotchCalendarTile(service: service)
         case .volume, .brightness, .music: EmptyView()
         }
     }
@@ -437,31 +435,37 @@ private struct NotchBrightnessControls: View {
 
 /// How an active tile reads. Recording and a muted microphone are states the
 /// person has to notice, so they carry their own colour instead of the neutral
-/// selection fill.
+/// selection fill. A timer keeps the orange it has across the island.
 enum NotchTileAccent {
-    case selection, alert, awake
+    case selection, alert, awake, timer
 
     var fill: Color {
         switch self {
         case .selection: return .white
         case .alert: return .red
         case .awake: return .yellow
+        case .timer: return .orange
         }
     }
 
     var glyph: Color {
         switch self {
-        case .selection, .awake: return .black
+        case .selection, .awake, .timer: return .black
         case .alert: return .white
         }
     }
 }
 
 /// A glyph in its own circle over a two-line label, the shape every shortcut
-/// rail in the island shares.
+/// rail in the island shares. A live reading, such as a running timer's
+/// clock, takes the first line and leaves the title one line below it.
 struct NotchActionTile: View {
     let symbol: String
     let title: String
+    var reading: String?
+    /// A shorter title for the line under a reading when `title` does not
+    /// fit whole; help and VoiceOver keep `title`.
+    var compactTitle: String?
     var active = false
     var accent: NotchTileAccent = .selection
     let action: () -> Void
@@ -475,11 +479,7 @@ struct NotchActionTile: View {
                     .frame(width: 40, height: 40)
                     .background(active ? accent.fill : Color.white.opacity(0.075), in: Circle())
                     .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: symbol)
-                Text(title).font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(2).multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.85)
-                    .fixedSize(horizontal: false, vertical: true)
+                label
                     .frame(maxWidth: .infinity)
                     .frame(height: 28, alignment: .top)
             }
@@ -491,8 +491,103 @@ struct NotchActionTile: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 14))
         .accessibilityLabel(title)
+        .accessibilityValue(reading ?? "")
         .accessibilityAddTraits(active ? .isSelected : [])
         .help(title)
+    }
+
+    @ViewBuilder private var label: some View {
+        if let reading {
+            VStack(spacing: 1) {
+                // A later day's start with a 12-hour clock, such as Spanish
+                // "dom, 10:45 p. m.", needs up to 91 pt on a 68 pt line. The
+                // smaller optical size spaces its letters wider, so scaling
+                // alone would still cut it off.
+                Text(reading).font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(.white)
+                    .allowsTightening(true)
+                    .minimumScaleFactor(0.7)
+                ViewThatFits(in: .horizontal) {
+                    readingTitle(title)
+                    if let compactTitle { readingTitle(compactTitle) }
+                }
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+        } else {
+            Text(title).font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(2).multilineTextAlignment(.center)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func readingTitle(_ text: String) -> some View {
+        Text(text).font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white.opacity(0.7))
+    }
+}
+
+/// A running timer, focus cycle or stopwatch keeps its clock on the tile:
+/// opening the island covers the reading the closed island showed.
+private struct NotchTimerTile: View {
+    let service: NotchService
+    @ObservedObject private var timer = NotchTimerService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        if timer.session.isRunning {
+            TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.tickScheduleOffset(
+                for: timer.session, at: timer.now)), by: 1)) { _ in tile }
+        } else {
+            tile
+        }
+    }
+
+    private var tile: some View {
+        let session = timer.session
+        let active = session.hasSession
+        return NotchActionTile(
+            symbol: active ? symbol(session) : NotchControlItem.timer.symbol,
+            title: active ? FeatureStrings.notchActivities(l10n.language).phase(session.phase)
+                : NotchControlItem.timer.title(l10n),
+            reading: active ? NotchTimerSupport.clockText(for: session, at: timer.now) : nil,
+            // A long phase name, such as a Russian short break, would be cut
+            // off on a narrow tile; the module's own title stands in.
+            compactTitle: active ? NotchControlItem.timer.title(l10n) : nil,
+            active: active, accent: .timer) { service.select(.timer) }
+    }
+
+    /// The compact strip's marks, without the circle the tile already draws.
+    private func symbol(_ session: NotchTimerSession) -> String {
+        if session.completed { return "checkmark" }
+        if session.isPaused { return "pause.fill" }
+        return session.countsUp ? "stopwatch" : "timer"
+    }
+}
+
+/// The next appointment's start and title, so the week's agenda is a click
+/// away rather than the only way to see what comes next.
+private struct NotchCalendarTile: View {
+    let service: NotchService
+    @ObservedObject private var calendar = NotchCalendarService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        TimelineView(.everyMinute) { context in tile(now: context.date) }
+    }
+
+    private func tile(now: Date) -> some View {
+        let event = NotchCalendarSupport.tileEvent(calendar.events, now: now)
+        let title = event?.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return NotchActionTile(
+            symbol: NotchControlItem.calendar.symbol,
+            title: title.map { $0.isEmpty ? FeatureStrings.notchCalendar(l10n.language).untitled : $0 }
+                ?? NotchControlItem.calendar.title(l10n),
+            reading: event.map {
+                NotchCalendarSupport.tileStartText($0.start, now: now, locale: l10n.language.formattingLocale())
+            }) { service.select(.calendar) }
     }
 }
 

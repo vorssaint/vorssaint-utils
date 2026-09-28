@@ -306,11 +306,14 @@ enum NotchDestinationContract {
                "returning home is opt-in and preserves the existing opening behavior")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHomeModule] as? String == NotchModule.controls.rawValue,
                "the previously available home option keeps Controls as its initial destination")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchOpensActivity] as? Bool == true,
+               "opening the visible activity stays the default")
         for returnHome in [false, true] {
             defaults.set(returnHome, forKey: DefaultsKey.notchReturnHome)
             let payload = SettingsBackupSupport.payload(appVersion: "test") {
                 if $0 == DefaultsKey.notchReturnHome { return returnHome }
                 if $0 == DefaultsKey.notchHomeModule { return NotchModule.music.rawValue }
+                if $0 == DefaultsKey.notchOpensActivity { return false }
                 if $0 == DefaultsKey.notchHideUntilHover { return true }
                 if $0 == DefaultsKey.notchHoverDelay { return 0.65 }
                 return nil
@@ -320,9 +323,10 @@ enum NotchDestinationContract {
             let restored = decoded.flatMap { SettingsBackupSupport.sanitizedSettings(from: $0) }
             suite.expect(restored?[DefaultsKey.notchReturnHome] as? Bool == returnHome
                    && restored?[DefaultsKey.notchHomeModule] as? String == NotchModule.music.rawValue
+                   && restored?[DefaultsKey.notchOpensActivity] as? Bool == false
                    && restored?[DefaultsKey.notchHoverDelay] as? Double == 0.65
                    && restored?[DefaultsKey.notchHideUntilHover] as? Bool == true,
-                   "the opening behavior, selected page and activation time survive backup and restore")
+                   "the opening behavior, selected page, activity choice and activation time survive backup and restore")
 
             let service = Service()
             service.open(.files)
@@ -385,6 +389,23 @@ enum NotchDestinationContract {
             service.open()
             suite.expect(service.selected == .timer && !service.showingAppPanel && !service.showingSections,
                    "a visible activity wins over a saved app panel or Explore destination")
+
+            defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
+            service.expanded = false
+            service.open()
+            suite.expect(service.showingAppPanel == (destination == .appPanel)
+                   && service.showingSections == (destination == .explore),
+                   "with activities turned off, a visible activity leaves the saved app panel or Explore destination")
+            service.expanded = false
+            service.openActivity(.timer)
+            suite.expect(service.showingAppPanel == (destination == .appPanel)
+                   && service.showingSections == (destination == .explore),
+                   "with activities turned off, a tap on the activity's strip follows the reopening choice too")
+            defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
+            service.expanded = false
+            service.openActivity(.timer)
+            suite.expect(service.selected == .timer && !service.showingAppPanel && !service.showingSections,
+                   "a tap on the activity's strip opens its page while activities open")
         }
         defaults.set("unknown-page", forKey: DefaultsKey.notchHomeModule)
         let invalid = Service()
@@ -395,7 +416,8 @@ enum NotchDestinationContract {
         activityContracts(defaults: defaults) { suite.expect($0, $1) }
     }
 
-    /// What the closed island is already showing is what opening it shows.
+    /// What the closed island is already showing is what opening it shows,
+    /// unless the user turned that off for activities.
     private static func activityContracts(defaults: UserDefaults, expect: (Bool, String) -> Void) {
         let banner = NotchNotice(event: .systemNotification, title: "Alex", detail: "Hello", symbol: "bell.fill",
                                  notification: NotchNotificationContent(app: "Chat", title: "Alex", subtitle: "", body: "Hello"),
@@ -423,6 +445,20 @@ enum NotchDestinationContract {
                 service.open()
                 expect(service.selected == (returnHome ? .controls : .files),
                        "once the activity ends, reopening follows the saved preference again")
+
+                defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
+                service.open(.files)
+                service.expanded = false
+                service.compactActivity = activity
+                expect(service.reopeningModule == (returnHome ? .controls : .files),
+                       "with activities turned off, a peek over \(activity) names the reopening page")
+                service.open()
+                expect(service.selected == (returnHome ? .controls : .files),
+                       "with activities turned off, opening an island that shows \(activity) follows the saved preference")
+                service.open(activity.module)
+                expect(service.selected == activity.module,
+                       "with activities turned off, the page of \(activity) still opens when named")
+                defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
             }
             let hidden = Service()
             defaults.set("timer", forKey: DefaultsKey.notchHiddenModules)
@@ -443,6 +479,15 @@ enum NotchDestinationContract {
             expect(mirrored.selected == .notifications && mirrored.notice == nil && !mirrored.noticeExpanded
                    && mirrored.noticeWork == nil,
                    "opening over a held banner shows the inbox and retires the banner so it cannot return after collapsing")
+            defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
+            let bannerOverMusic = Service()
+            bannerOverMusic.syncWithPreferences()
+            bannerOverMusic.compactActivity = .music
+            bannerOverMusic.notice = banner
+            bannerOverMusic.open()
+            expect(bannerOverMusic.selected == .notifications && bannerOverMusic.notice == nil,
+                   "turning activities off still opens the inbox over a mirrored banner, which is not an activity")
+            defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
             let volume = Service()
             volume.notice = NotchNotice(event: .volume, title: "Volume", detail: "50%", symbol: "speaker.wave.2.fill", level: 0.5)
             volume.open()
