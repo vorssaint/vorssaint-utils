@@ -223,6 +223,20 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "更新前不顯示新功能",
                 showPreviewToggle: "更新前顯示新功能",
                 showPreviewCaption: "每次更新後仍會顯示已安裝功能的變化。")
+        case .he:
+            return WhatsNewStrings(
+                updatedFromFormat: "עודכן מגרסה %@",
+                newFeatures: "תכונות חדשות",
+                yourFeatures: "התכונות שלך",
+                notInstalled: "לא מותקנות",
+                kindNew: "חדש",
+                kindChanged: "שונה",
+                kindFixed: "תוקן",
+                updated: "עודכן",
+                chooseFeatureHint: "בחר תכונה כדי לראות מה השתנה בה.",
+                skipPreviewCheckbox: "אל תציג מה חדש לפני העדכון",
+                showPreviewToggle: "הצג מה חדש לפני העדכון",
+                showPreviewCaption: "מה שהשתנה בתכונות שלך עדיין מופיע אחרי כל עדכון.")
         }
     }
 }

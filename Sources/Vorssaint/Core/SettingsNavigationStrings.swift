@@ -53,6 +53,9 @@ struct SettingsNavigationStrings {
         case .zhTW, .zhHK:
             return Self(go: "前往", back: "上一頁", forward: "下一頁",
                         showSidebar: "顯示側邊欄", hideSidebar: "隱藏側邊欄")
+        case .he:
+            return Self(go: "מעבר אל", back: "אחורה", forward: "קדימה",
+                        showSidebar: "הצגת סרגל הצד", hideSidebar: "הסתרת סרגל הצד")
         }
     }
 }

@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -151,5 +152,13 @@ extension WindowPreviewExclusionStrings {
         addButton: "Додати програму…",
         removeButton: "Видалити",
         caption: "Мініатюри вікон зупиняються, поки одна з цих програм на передньому плані."
+    )
+
+    static let he = WindowPreviewExclusionStrings(
+        sectionTitle: "תמונות ממוזערות של חלונות",
+        listTitle: "השהה באפליקציות אלה",
+        addButton: "הוסף אפליקציה…",
+        removeButton: "הסר",
+        caption: "תמונות ממוזערות של חלונות מפסיקות לפעול כאשר אחת האפליקציות האלה בחזית."
     )
 }

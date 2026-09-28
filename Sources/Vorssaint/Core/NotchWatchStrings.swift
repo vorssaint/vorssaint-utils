@@ -509,6 +509,36 @@ extension FeatureStrings {
             closedNotice: "視窗已關閉",
             sinceFormat: "自 %@ 起觀察",
             sound: "播放聲音")
+        case .he: return NotchWatchStrings(
+            title: "מעקב",
+            description: "הפוך כל חלק בכל חלון לפעילות חיה ב-Dynamic Island, עם התראה כשהוא משתנה, מסתיים או מציג את מה שאתה מחכה לו.",
+            setupHint: "בחר כל חלק בחלון, כמו סרגל התקדמות, סטטוס build או תוצאה במשחק. האי קורא אותו בשבילך ומודיע לך כשהוא משתנה.",
+            choose: "בחר אזור",
+            chooseAgain: "בחר אזור אחר",
+            purpose: "בחר מה לעקוב אחריו",
+            stop: "הפסק מעקב",
+            watchAgain: "עקוב שוב",
+            permissionHint: "מעקב קורא את האזור שבחרת ב-Mac שלך, ולכן הוא צריך את ההרשאה ״הקלטת המסך״. שום דבר לא עוזב את ה-Mac שלך.",
+            allowAccess: "אפשר את ״הקלטת המסך״",
+            tellMe: "הודע לי",
+            changes: "כשהוא משתנה",
+            settles: "כשהוא מפסיק להשתנות",
+            contains: "כשהוא מציג",
+            reaches: "כשהמספר מגיע אל",
+            settlesHint: "אחרי שינוי, הוא צריך להישאר יציב במשך 30 שניות.",
+            textPlaceholder: "טקסט, למשל ״הושלם״",
+            numberPlaceholder: "מספר, למשל 100",
+            noText: "אין טקסט",
+            inIsland: "הצג באי",
+            automatic: "אוטומטי",
+            hidden: "החלון מוסתר. המעקב ימשיך כשהוא יחזור.",
+            changedNotice: "הוא השתנה",
+            settledNotice: "הוא הפסיק להשתנות",
+            showsFormat: "הוא מציג %@",
+            reachedFormat: "הוא הגיע ל-%@",
+            closedNotice: "החלון נסגר",
+            sinceFormat: "במעקב מאז %@",
+            sound: "השמע צליל")
         }
     }
 }

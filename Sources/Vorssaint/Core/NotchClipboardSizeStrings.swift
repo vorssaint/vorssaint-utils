@@ -165,6 +165,11 @@ extension FeatureStrings {
             compact: "精簡",
             comfortable: "寬鬆",
             hint: "精簡項目顯示一到兩行，指標停留時會展開。")
+        case .he: return NotchClipboardSizeStrings(
+            entrySize: "גודל הפריטים",
+            compact: "קומפקטי",
+            comfortable: "מרווח",
+            hint: "פריטים קומפקטיים מציגים שורה או שתיים ונפתחים כשהמצביע נח עליהם.")
         }
     }
 }
