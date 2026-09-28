@@ -16,9 +16,12 @@ struct NotchNotice: Equatable {
     var notificationID: UUID? = nil
     /// The agent an AI notice is about, which tints its mark.
     var agent: AgentProvider? = nil
+    /// A banner that replaces one still on screen keeps at least its width,
+    /// so a burst of messages does not resize the island with each one.
+    var minimumWingWidth: CGFloat = 0
 
     var preferredWingWidth: CGFloat {
-        if notification != nil { return 190 }
+        if let notification { return max(minimumWingWidth, NotchNotificationBannerLayout.wing(for: notification)) }
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
         let trailing = level == nil ? (detail as NSString).size(withAttributes: [.font: font]).width : 0
@@ -1403,6 +1406,10 @@ final class NotchService: ObservableObject {
         guard showsSystemFeedback, NotchSupport.routes(incoming.event),
               NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else { return false }
         noticeWork?.cancel(); noticeWork = nil
+        var incoming = incoming
+        if incoming.notification != nil, let shown = notice, shown.notification != nil, noticeCanPresent, !noticeExpanded {
+            incoming.minimumWingWidth = shown.preferredWingWidth
+        }
         let keepsPreview = noticeExpanded && incoming.notificationID != nil
             && windowHost?.containsHover(NSEvent.mouseLocation) == true
         // Slider and key bursts only replace the displayed value. They never

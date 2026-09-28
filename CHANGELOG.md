@@ -16,6 +16,9 @@ Scratchpad gains easier formatting and search, and mouse wheels can scroll a fix
 - Scratchpad adds a formatting toolbar in both the floating pad and Dynamic Island, native text search and an adjustable text size.
 - Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions.
 
+### Changed
+- Dynamic Island notification banners fit their message instead of always using the same wide strip, and keep one width while several messages arrive in a row.
+
 ### Fixed
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
@@ -26,7 +29,7 @@ Scratchpad gains easier formatting and search, and mouse wheels can scroll a fix
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @gorillasuti, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 
