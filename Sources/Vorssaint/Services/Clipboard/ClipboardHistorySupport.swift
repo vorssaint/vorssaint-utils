@@ -594,6 +594,19 @@ enum ClipboardHistorySelection {
     }
 }
 
+/// Whether reopening the history window takes its list back to the top. The
+/// window is only hidden between uses, so without this the list stays
+/// wherever it was last scrolled.
+enum ClipboardHistoryScrollReset {
+    /// `hiddenFor` is nil when no close was recorded, as on the first open,
+    /// and that counts as closed long enough.
+    static func returnsToTop(enabled: Bool, delaySeconds: Int, hiddenFor: Duration?) -> Bool {
+        guard enabled else { return false }
+        guard let hiddenFor else { return true }
+        return hiddenFor >= .seconds(Defaults.sanitizedClipboardScrollToTopDelay(delaySeconds))
+    }
+}
+
 enum ClipboardHistoryPreview {
     static func handlesSpace(selectionIsVisible: Bool, hasModifiers: Bool) -> Bool {
         selectionIsVisible && !hasModifiers

@@ -113,9 +113,9 @@ struct ClipboardQuickPanelView: View {
                     // than the placement work a lazy stack does per tick.
                     Group {
                         if filtered.count <= Self.eagerRowLimit {
-                            VStack(alignment: .leading, spacing: 0) { sections }
+                            VStack(alignment: .leading, spacing: 0) { topAnchor; sections }
                         } else {
-                            LazyVStack(alignment: .leading, spacing: 0) { sections }
+                            LazyVStack(alignment: .leading, spacing: 0) { topAnchor; sections }
                         }
                     }
                     .padding(.horizontal, 10)
@@ -132,6 +132,9 @@ struct ClipboardQuickPanelView: View {
                 .onChange(of: history.quickQuery) { _, _ in
                     scrollSelectedEntry(with: proxy)
                 }
+                .onChange(of: history.quickScrollToTopRequest) { _, _ in
+                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                }
             }
         }
     }
@@ -139,6 +142,14 @@ struct ClipboardQuickPanelView: View {
     /// Emits the header and rows straight into the enclosing lazy stack. If
     /// wrapped, the whole section becomes one lazy unit and builds every row.
     private static let eagerRowLimit = 300
+
+    /// Above the first section's header, which scrolling to the first row
+    /// would leave cut off.
+    private static let topAnchorID = "clipboard-list-top"
+
+    private var topAnchor: some View {
+        Color.clear.frame(height: 0).id(Self.topAnchorID)
+    }
 
     @ViewBuilder
     private var sections: some View {

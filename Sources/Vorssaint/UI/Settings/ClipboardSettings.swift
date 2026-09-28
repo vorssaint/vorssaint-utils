@@ -18,6 +18,9 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreviewLength)
     private var menuBarPreviewLength = Defaults.defaultClipboardMenuBarPreviewLength
+    @AppStorage(DefaultsKey.clipboardHistoryScrollToTop) private var scrollToTop = false
+    @AppStorage(DefaultsKey.clipboardHistoryScrollToTopDelay)
+    private var scrollToTopDelay = Defaults.defaultClipboardScrollToTopDelay
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showInPanel = true
     @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDelay) private var autoClearOnDelay = false
@@ -139,6 +142,7 @@ struct ClipboardSettings: View {
             limit = Defaults.sanitizedClipboardHistoryLimit(limit)
             autoClearDelay = Defaults.sanitizedClipboardAutoClearDelay(autoClearDelay)
             menuBarPreviewLength = Defaults.sanitizedClipboardMenuBarPreviewLength(menuBarPreviewLength)
+            scrollToTopDelay = Defaults.sanitizedClipboardScrollToTopDelay(scrollToTopDelay)
         }
         .onChange(of: limit) { _, value in
             let sanitized = Defaults.sanitizedClipboardHistoryLimit(value)
@@ -156,6 +160,10 @@ struct ClipboardSettings: View {
         .onChange(of: menuBarPreviewLength) { _, value in
             let sanitized = Defaults.sanitizedClipboardMenuBarPreviewLength(value)
             if sanitized != value { menuBarPreviewLength = sanitized }
+        }
+        .onChange(of: scrollToTopDelay) { _, value in
+            let sanitized = Defaults.sanitizedClipboardScrollToTopDelay(value)
+            if sanitized != value { scrollToTopDelay = sanitized }
         }
     }
 
@@ -186,8 +194,34 @@ struct ClipboardSettings: View {
                 Label(text.shortcut, systemImage: "doc.on.clipboard")
             }
             .disabled(history.entries.isEmpty)
+            // Not tied to the capture toggle: the window still opens the saved
+            // items with capture off, from the panel.
+            Toggle(text.scrollToTop, isOn: $scrollToTop)
+            HStack {
+                Text(text.scrollToTopDelay)
+                Spacer()
+                TextField("", value: $scrollToTopDelay, formatter: Self.scrollToTopDelayFormatter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 60)
+                    .multilineTextAlignment(.trailing)
+                Text(text.autoClearSecondsSuffix)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!scrollToTop)
+            Text(text.scrollToTopCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
+
+    private static let scrollToTopDelayFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = NSNumber(value: Defaults.allowedClipboardScrollToTopDelayRange.lowerBound)
+        formatter.maximum = NSNumber(value: Defaults.allowedClipboardScrollToTopDelayRange.upperBound)
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
 
     @ViewBuilder
     private var clipboardMenuBarPreviewSection: some View {

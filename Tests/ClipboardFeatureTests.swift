@@ -208,6 +208,33 @@ enum ClipboardFeatureTests {
         suite.expect(imageMenuBarPreview == "Image · 400×300",
                "an image copy is labeled the same way every other image row is, not left as bare dimensions")
 
+        // MARK: Clipboard history scroll reset
+
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryScrollToTop] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.clipboardHistoryScrollToTopDelay] as? Int == 0,
+               "the history window keeps its scroll position until asked, and then resets on every open")
+        suite.expect(Defaults.sanitizedClipboardScrollToTopDelay(-5) == 0
+                && Defaults.sanitizedClipboardScrollToTopDelay(30) == 30
+                && Defaults.sanitizedClipboardScrollToTopDelay(99_999) == 3_600,
+               "the scroll reset delay clamps into range instead of jumping to the default")
+        suite.expect(!ClipboardHistoryScrollReset.returnsToTop(enabled: false, delaySeconds: 0,
+                                                               hiddenFor: .seconds(3_600)),
+               "with the option off, reopening keeps the list where it was")
+        suite.expect(ClipboardHistoryScrollReset.returnsToTop(enabled: true, delaySeconds: 0,
+                                                              hiddenFor: .zero),
+               "a zero delay returns to the top on every open, even straight after closing")
+        suite.expect(!ClipboardHistoryScrollReset.returnsToTop(enabled: true, delaySeconds: 10,
+                                                               hiddenFor: .milliseconds(9_900))
+                && ClipboardHistoryScrollReset.returnsToTop(enabled: true, delaySeconds: 10,
+                                                            hiddenFor: .seconds(10)),
+               "reopening within the delay keeps the place; reaching it returns to the top")
+        suite.expect(ClipboardHistoryScrollReset.returnsToTop(enabled: true, delaySeconds: 3_600,
+                                                              hiddenFor: nil),
+               "an opening with no recorded close starts at the top")
+        suite.expect(ClipboardHistoryScrollReset.returnsToTop(enabled: true, delaySeconds: -1,
+                                                              hiddenFor: .zero),
+               "an out-of-range stored delay is clamped rather than blocking the reset")
+
         // MARK: Clipboard auto clear timing
 
         let autoClearCopiedAt = Date(timeIntervalSince1970: 1_000_000)
