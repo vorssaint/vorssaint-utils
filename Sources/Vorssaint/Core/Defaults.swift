@@ -382,6 +382,7 @@ enum DefaultsKey {
     static let menuBarUsageBarMediumThreshold = "menuBarUsageBarMediumThreshold" // percent
     static let menuBarUsageBarHighThreshold = "menuBarUsageBarHighThreshold" // percent
     static let menuBarHideIconWithMetrics = "menuBarHideIconWithMetrics" // glyph hides while metrics render in the main item
+    static let menuBarIconSymbol = "menuBarIconSymbol" // system symbol name drawn instead of the glyph; empty keeps the glyph
     static let menuBarMetricOrder = "menuBarMetricOrder" // comma-separated MenuBarMetric raw values
     static let menuBarCombineTemperatures = "menuBarCombineTemperatures" // usage/charge + temperature in one block when possible
     static let menuBarSeparateMetrics = "menuBarSeparateMetrics" // one status item per active metric
@@ -801,6 +802,7 @@ enum DefaultsKey {
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
+    static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
     // AI agents: what the island reads from Claude Code and Codex, and shows.
     static let notchAgentsEnabled = "notchAgentsEnabled"
@@ -827,6 +829,7 @@ enum DefaultsKey {
     static let notchHoverDelay = "notchHoverDelay"
     static let notchReturnHome = "notchReturnHome"
     static let notchHomeModule = "notchHomeModule"
+    static let notchOpensActivity = "notchOpensActivity"
     static let notchHiddenModules = "notchHiddenModules"
     static let notchModuleOrder = "notchModuleOrder"
     static let notchQuickAccessLayout = "notchQuickAccessLayout"
@@ -834,6 +837,7 @@ enum DefaultsKey {
     static let notchQuickAccessSecond = "notchQuickAccessSecond"
     static let notchQuickAccessThird = "notchQuickAccessThird"
     static let notchVolume = "notchVolume"
+    static let notchMicrophone = "notchMicrophone"
     static let notchBrightness = "notchBrightness"
     static let notchBattery = "notchBattery"
     static let notchClipboard = "notchClipboard"
@@ -1334,6 +1338,7 @@ enum Defaults {
         DefaultsKey.notchAccessoriesEnabled: true,
         DefaultsKey.notchCalendarEnabled: true,
         DefaultsKey.notchCalendarCountdown: false,
+        DefaultsKey.notchCalendarTimeLeft: false,
         DefaultsKey.notchCalendarExcluded: [String](),
         DefaultsKey.notchAgentsEnabled: true,
         DefaultsKey.notchAgentsClaude: true,
@@ -1364,10 +1369,12 @@ enum Defaults {
         DefaultsKey.notchHoverDelay: NotchSupport.defaultHoverDelay,
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
+        DefaultsKey.notchOpensActivity: true,
         DefaultsKey.notchHiddenModules: "",
         DefaultsKey.notchModuleOrder: "",
         DefaultsKey.notchQuickAccessLayout: Data(),
         DefaultsKey.notchVolume: true,
+        DefaultsKey.notchMicrophone: true,
         DefaultsKey.notchBrightness: true,
         DefaultsKey.notchBattery: true,
         DefaultsKey.notchClipboard: true,
@@ -1478,6 +1485,7 @@ enum Defaults {
         DefaultsKey.menuBarUsageBarMediumThreshold: 70,
         DefaultsKey.menuBarUsageBarHighThreshold: 90,
         DefaultsKey.menuBarHideIconWithMetrics: false,
+        DefaultsKey.menuBarIconSymbol: "",
         DefaultsKey.windowLayoutHiddenActions: "",
         DefaultsKey.windowLayoutWindowGap: 0,
         DefaultsKey.windowLayoutScreenGap: 0,
@@ -2171,6 +2179,22 @@ enum Defaults {
             return .vorssaint
         }
         return icon
+    }
+
+    /// A typed symbol name without the spaces around it; empty keeps the
+    /// Vorssaint glyph. Whether this Mac has the symbol is left to the menu
+    /// bar drawing, since a backup can carry a name from a newer macOS.
+    static func sanitizedMenuBarIconSymbol(_ rawValue: String?) -> String {
+        rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    /// What the menu bar icon field saves as it is typed: a name this Mac has
+    /// a symbol for, nothing for the Vorssaint icon, and otherwise the name
+    /// the page opened with, so a typo never leaves a valid half behind.
+    static func menuBarIconSymbolToSave(typed: String?, opening: String,
+                                        exists: (String) -> Bool) -> String {
+        let name = sanitizedMenuBarIconSymbol(typed)
+        return name.isEmpty || exists(name) ? name : opening
     }
 
     static func sanitizedMonitorInterval(_ seconds: Int) -> Int {

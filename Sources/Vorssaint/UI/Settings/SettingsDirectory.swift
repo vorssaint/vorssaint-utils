@@ -149,7 +149,7 @@ enum SettingsDirectory {
             destination: FeatureSettingsDestination(
                 .general, sectionAnchor: .panelConfiguration),
             title: s.menuBarSection, icon: "menubar.rectangle",
-            keywords: [s.showMenuBarIcon]))
+            keywords: [s.showMenuBarIcon, FeatureStrings.generalSettings(language).menuBarIconTitle, "SF Symbols"]))
         if BrightnessService.keyboardLightIsSupported {
             items.append(SettingsSearchSupport.keyboardBrightnessShortcutItem(language: language))
         }

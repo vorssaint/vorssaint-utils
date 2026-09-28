@@ -107,11 +107,28 @@ enum SelfTest {
             }
         }
 
+        // A symbol chosen for the menu bar shares the active symbols' canvas;
+        // a name this Mac lacks must leave the mark, never an empty item.
+        if let symbol = BlackHoleGlyph.customMark(named: "bolt.fill") {
+            if symbol.size != BlackHoleGlyph.pointSize || inkTouchesEdge(of: symbol) {
+                failures.append("chosen menu bar symbol does not fit its canvas")
+            }
+        } else {
+            failures.append("chosen menu bar symbol")
+        }
+        let missingSymbol = "vorssaint.missing.symbol"
+        if BlackHoleGlyph.customMark(named: missingSymbol) != nil
+            || BlackHoleGlyph.mark(symbolName: missingSymbol) !== BlackHoleGlyph.mark(symbolName: "") {
+            failures.append("unknown menu bar symbol does not fall back to the glyph")
+        }
+
         // Tools/MakeIcon.swift writes the glyph PNGs at BlackHoleGlyph.pointSize.
         // Changing the canvas in one and not the other would squash the glyph.
+        // Asked for with no symbol name, since the glyph in use may be a
+        // symbol chosen in the menu bar settings.
         if Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png") == nil {
             warnings.append("menu bar glyph asset not bundled")
-        } else if let rep = BlackHoleGlyph.image(active: false)?
+        } else if let rep = BlackHoleGlyph.mark(symbolName: "")?
             .representations.min(by: { $0.pixelsWide < $1.pixelsWide }) {
             if rep.pixelsWide != Int(BlackHoleGlyph.pointSize.width)
                 || rep.pixelsHigh != Int(BlackHoleGlyph.pointSize.height) {

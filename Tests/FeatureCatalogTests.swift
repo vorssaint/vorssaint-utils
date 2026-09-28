@@ -646,6 +646,21 @@ enum FeatureCatalogTests {
                "both feature pickers refuse an unsupported install from the same rule")
         suite.expect(featureHubSource.contains("installableCount"),
                "the hub counts against what this Mac can install, so install-all can finish")
+        // Issue #2270: nested in the page's plain stack, the lazy stack resized
+        // it as group cards came into view and could keep redoing its layout
+        // until Settings froze. A source check on the page's `content` with
+        // comment lines dropped: it keeps that structure from coming back, not
+        // the scrolling itself, which only a scroll run shows.
+        let hubContentCode = featureHubSource
+            .components(separatedBy: "private var content: some View {").dropFirst().first?
+            .components(separatedBy: "\n    }\n").first ?? ""
+        let compactHubContent = hubContentCode.split(separator: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined()
+            .filter { !$0.isWhitespace }
+        suite.expect(compactHubContent.components(separatedBy: "LazyVStack(").count == 2
+                && compactHubContent.contains("ScrollView{LazyVStack("),
+               "the hub's one lazy stack is its scroll view's own content, never nested in another stack")
         suite.expect(AppFeature.diskImageInstaller.group == .clipboardFiles
                 && AppFeature.diskImageInstaller.enabledKeys.isEmpty
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]

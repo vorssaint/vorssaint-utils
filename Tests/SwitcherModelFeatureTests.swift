@@ -1001,6 +1001,51 @@ enum SwitcherModelFeatureTests {
             hasNormalWindowLevel: true,
             acceptsUndescribedSubroles: false),
                "App Switcher keeps a described floating panel filtered at the normal window level")
+
+        // MARK: Ordinary windows that read as dialogs (issue #2279)
+        suite.expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXDialog",
+            fillsScreen: false,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false,
+            canMinimize: true),
+               "a normal-level window that reads as a dialog but can be minimized stays listed")
+        suite.expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXDialog",
+            fillsScreen: false,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false),
+               "a normal-level dialog that cannot be minimized stays filtered")
+        suite.expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXDialog",
+            fillsScreen: true,
+            hasNormalWindowLevel: false,
+            acceptsUndescribedSubroles: true,
+            canMinimize: true),
+               "a dialog above the normal window level stays filtered even when it can be minimized")
+        suite.expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXDialog",
+            fillsScreen: false,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false,
+            canMinimize: true,
+            isExcludedFromWindowCycle: true),
+               "a minimizable dialog that opts out of window cycling stays filtered")
+        suite.expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXFloatingWindow",
+            fillsScreen: false,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false,
+            canMinimize: true),
+               "a minimize button vouches only for a dialog, not for a floating panel")
+        suite.expect(placementCode.contains("let canMinimize = subrole == \"AXDialog\" && hasNormalWindowLevel")
+               && placementCode.contains("canMinimize: canMinimize"),
+               "window enumeration reads the minimize button only for a normal-level dialog and passes it on")
         suite.expect(SwitcherSupport.sessionSourceItem(frontmostPID: nil,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
@@ -2101,6 +2146,7 @@ enum SwitcherModelFeatureTests {
                "a desktop switch while the panel is open drops the remembered app")
 
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
+        MenuPanelKeyTests.run(suite)
 
         // The built-in display and a taller one placed to its left.
         let builtInScreen = CGRect(x: 0, y: 0, width: 1470, height: 956)

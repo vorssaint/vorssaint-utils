@@ -376,6 +376,10 @@ final class QuickLauncherService: ObservableObject {
     func handlePanelKey(_ event: NSEvent,
                         flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns)) -> NSEvent? {
         if event.keyCode == UInt16(kVK_Escape) {
+            // While an input method is composing in a utility's field, Esc
+            // belongs to it and drops the candidate; the launcher takes the
+            // next one.
+            if (event.window?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
             if activeUtility != nil {
                 activeUtility = nil
             } else if editingOptionsItem != nil {
