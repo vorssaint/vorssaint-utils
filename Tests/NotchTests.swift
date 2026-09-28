@@ -229,9 +229,62 @@ enum NotchTests {
         let size = narrow.noticeSize(wingWidth: long.preferredWingWidth)
         suite.expect(size.width <= narrow.screen.width - 24 && size.height == narrow.menuBarHeight,
                "long device names cannot push a notice past a narrow display")
-        let notification = NotchNotice(event: .systemNotification, title: "Notice", detail: "Body", symbol: "bell",
-            notification: NotchNotificationContent(app: "App", title: "Notice", subtitle: "", body: "Body"))
-        suite.expect(notification.preferredWingWidth == 190, "mirrored notifications keep their existing text layout")
+        notificationBannerContracts(suite, screen: screen)
+    }
+
+    /// Mirrored banners take the width their longer side needs, as the other
+    /// notices do, instead of one wide strip for every message (issue #2266).
+    private static func notificationBannerContracts(_ suite: TestSuite, screen: CGRect) {
+        let layout = NotchNotificationBannerLayout.self
+        func width(_ text: String, _ font: NSFont) -> CGFloat {
+            (text as NSString).size(withAttributes: [.font: font]).width
+        }
+        func banner(app: String = "Messages", _ title: String, subtitle: String = "", _ body: String) -> NotchNotice {
+            NotchNotice(event: .systemNotification, title: title, detail: body, symbol: "bell.fill",
+                        notification: NotchNotificationContent(app: app, title: title, subtitle: subtitle, body: body),
+                        notificationID: UUID())
+        }
+        let short = banner("Alex", "done")
+        let fitted = [short, banner("Verification code", "Your code is 482913"),
+                      banner(app: "Reminders", "", "Stand up"), banner("Alex", "ok\nsee you at the station"),
+                      banner(app: "Calendar", "会议提醒", subtitle: "明天", "项目评审 🚀")]
+        for notice in fitted {
+            guard let content = notice.notification else { continue }
+            let room = notice.preferredWingWidth - layout.inset
+            suite.expect(layout.iconSize + layout.spacing + width(content.compactTitle, layout.titleFont) <= room
+                         && width(content.compactDetail, layout.messageFont) <= room
+                         && notice.preferredWingWidth < layout.wingRange.upperBound,
+                         "a short message and its title fit whole in a banner narrower than the widest one")
+        }
+        suite.expect(short.preferredWingWidth == layout.wingRange.lowerBound,
+                     "a one-word message leaves no band of empty black beside it")
+        // The wing is measured with AppKit; SwiftUI draws the text. The air
+        // has to cover any difference, in every script a banner can carry.
+        for sample in ["done", "Your code is 482913", "会议提醒 项目评审", "🚀🎉 launch", "مرحبا بالعالم", "שלום עולם"] {
+            for font in [layout.titleFont, layout.messageFont] {
+                let drawn = NSHostingView(rootView: Text(sample).font(Font(font as CTFont)).lineLimit(1).fixedSize())
+                    .fittingSize.width
+                suite.expect(drawn <= width(sample, font).rounded(.up) + layout.air,
+                             "a banner's text draws within the width measured for it")
+            }
+        }
+        let long = banner(app: "Mail", "Quarterly planning", subtitle: "Agenda",
+                          String(repeating: "Notes for the meeting ", count: 800))
+        suite.expect(long.preferredWingWidth == layout.wingRange.upperBound,
+                     "a long message keeps the widest banner and wraps or truncates within it")
+        var replacement = short
+        replacement.minimumWingWidth = long.preferredWingWidth
+        suite.expect(replacement.preferredWingWidth == long.preferredWingWidth,
+                     "a banner replacing a wider one keeps its width")
+        for physical in [false, true] {
+            let geometry = NotchGeometry(screen: screen, safeAreaTop: physical ? 32 : 0,
+                                         cameraWidth: physical ? 180 : 0, menuBarHeight: 32)
+            let compact = geometry.noticeSize(wingWidth: short.preferredWingWidth)
+            let widest = geometry.noticeSize(wingWidth: long.preferredWingWidth)
+            suite.expect(compact.width == geometry.cameraWidth + short.preferredWingWidth * 2
+                         && compact.width < widest.width && screen.contains(geometry.frame(for: widest)),
+                         "a short banner narrows around the camera, and the widest stays on the display")
+        }
     }
 
     private static func simulatedMenuBoundsContracts(_ suite: TestSuite) {

@@ -16,9 +16,12 @@ struct NotchNotice: Equatable {
     var notificationID: UUID? = nil
     /// The agent an AI notice is about, which tints its mark.
     var agent: AgentProvider? = nil
+    /// A banner that replaces one still on screen keeps at least its width,
+    /// so a burst of messages does not resize the island with each one.
+    var minimumWingWidth: CGFloat = 0
 
     var preferredWingWidth: CGFloat {
-        if notification != nil { return 190 }
+        if let notification { return max(minimumWingWidth, NotchNotificationBannerLayout.wing(for: notification)) }
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
         let trailing = level == nil ? (detail as NSString).size(withAttributes: [.font: font]).width : 0
@@ -801,7 +804,7 @@ final class NotchService: ObservableObject {
         let showedPicker = showsCompactActivityPicker
         inside = hiddenUntilHover ? geometry.contains(point, in: geometry.collapsed)
             && windowHost?.isConcealedForMissionControl == false
-            : windowHost?.containsHover(point) == true
+            : windowHost?.containsHover(point) == true || pointerOverChildWindow(point)
         hoverState.update(pointerInside: inside)
         let emphasize = inside && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
             && notice == nil && captureControls == nil
@@ -860,7 +863,8 @@ final class NotchService: ObservableObject {
                 guard let self else { return }
                 self.hoverWork = nil
                 guard self.running, !self.suspended, !self.inside,
-                      self.windowHost?.containsHover(NSEvent.mouseLocation) != true else { return }
+                      self.windowHost?.containsHover(NSEvent.mouseLocation) != true,
+                      !self.pointerOverChildWindow(NSEvent.mouseLocation) else { return }
                 self.releaseNotification()
                 guard !self.pinned, !self.heldDrag, !self.keepsWorkingSurface, self.captureControls == nil,
                       !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation),
@@ -1403,6 +1407,10 @@ final class NotchService: ObservableObject {
         guard showsSystemFeedback, NotchSupport.routes(incoming.event),
               NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else { return false }
         noticeWork?.cancel(); noticeWork = nil
+        var incoming = incoming
+        if incoming.notification != nil, let shown = notice, shown.notification != nil, noticeCanPresent, !noticeExpanded {
+            incoming.minimumWingWidth = shown.preferredWingWidth
+        }
         let keepsPreview = noticeExpanded && incoming.notificationID != nil
             && windowHost?.containsHover(NSEvent.mouseLocation) == true
         // Slider and key bursts only replace the displayed value. They never
@@ -2206,13 +2214,25 @@ final class NotchService: ObservableObject {
                 return nil
             }
             let click = clicks.contains(NSEvent.EventTypeMask(rawValue: 1 << event.type.rawValue))
-            if click, event.window === self.panel { self.clickedSinceOpening = true }
-            if click, event.window !== self.panel, !self.keepsWorkingSurface,
+            let islandWindow = self.ownsWindow(event.window)
+            if click, islandWindow { self.clickedSinceOpening = true }
+            if click, !islandWindow, !self.keepsWorkingSurface,
                self.windowHost?.contains(NSEvent.mouseLocation) != true,
                (NSApp.delegate as? AppDelegate)?.isOverStatusItem(NSEvent.mouseLocation) != true,
                !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) { self.collapse() }
             return event
         }) { eventMonitors.append(token) }
+    }
+
+    /// The panel and what hangs from it: a SwiftUI popover opened in the
+    /// island is a child window, so a click in it is not a click away.
+    private func ownsWindow(_ window: NSWindow?) -> Bool {
+        guard let window, let panel else { return false }
+        return sequence(first: window, next: { $0.parent }).contains { $0 === panel }
+    }
+
+    private func pointerOverChildWindow(_ point: CGPoint) -> Bool {
+        panel?.childWindows?.contains { $0.isVisible && $0.frame.contains(point) } == true
     }
 
     private func syncGestures() {
