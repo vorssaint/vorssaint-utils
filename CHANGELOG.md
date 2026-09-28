@@ -19,6 +19,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Dynamic Island lets you choose which calendars appear, grouped by account; hiding a calendar clears its events immediately.
 - Dynamic Island's Controls page shows a running timer's clock and your next appointment on their shortcuts.
 - Dynamic Island can count down the last hour of the calendar event in progress, alongside or instead of the countdown to the next one.
+- Dynamic Island can count down to only the calendar events you choose from their right-click menu, and can combine the event countdown with a timer, music, a download or working AI agents.
 - Dynamic Island shows microphone mute and unmute notices in place of the separate popup, with a Microphone switch in its Indicators settings.
 - Dynamic Island can keep opening on the page chosen in When reopening while music, a timer or another activity is showing.
 - Dynamic Island can follow the pointer between displays, so files dropped on it on one display can be dragged out on another.
@@ -29,6 +30,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Dynamic Island notification banners fit their message instead of always using the same wide strip, and keep one width while several messages arrive in a row.
 - Dynamic Island's screen capture controls place their title and buttons in the top row, beside the camera when they fit, and keep them away from the island's edges, so less of the screen is covered.
 - Escape in Dynamic Island steps back one level, closing the mixer options, month grid, lyrics or queue, or leaving a detail opened inside the island, before it closes the island.
+- Timer and event countdown digits in Dynamic Island roll to each new value, unless Reduce Motion is on.
 
 ### Fixed
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
@@ -50,7 +52,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @cedigang, @daniel-dosiper, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @cedigang, @daniel-dosiper, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain and Pinea.
 
 ## [3.4.0] - 2026-09-27
 

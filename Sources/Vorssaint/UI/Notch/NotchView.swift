@@ -128,7 +128,10 @@ struct NotchView: View {
                         .frame(width: service.compactActivityGeometry.compactActivitySize.width,
                                height: layout.headerHeight, alignment: .top)
                     NotchActivityPicker(activities: service.compactActivities, selected: activity,
-                                        companions: service.compactActivityCompanions, companion: service.compactCompanion,
+                                        combinations: service.compactActivityCombinations,
+                                        combination: service.compactCompanion.map {
+                                            NotchActivityCombination(primary: activity, companion: $0)
+                                        },
                                         columns: layout.columns, language: l10n.language,
                                         select: service.selectCompactActivity, combine: service.selectCompactCombination)
                         .padding(.horizontal, NotchActivityPickerLayout.horizontalInset)
@@ -629,29 +632,29 @@ private struct NotchPageClip: Shape {
 struct NotchActivityPicker: View {
     let activities: [NotchCompactActivity]
     let selected: NotchCompactActivity
-    let companions: [NotchCompactActivity]
-    let companion: NotchCompactActivity?
+    let combinations: [NotchActivityCombination]
+    let combination: NotchActivityCombination?
     let columns: Int
     let language: AppLanguage
     let select: (NotchCompactActivity) -> Void
-    let combine: (NotchCompactActivity) -> Void
+    let combine: (NotchActivityCombination) -> Void
 
     var body: some View {
         VStack(spacing: NotchActivityPickerLayout.spacing) {
             individualChoices
-            if !companions.isEmpty {
+            if !combinations.isEmpty {
                 Menu {
-                    ForEach(companions) { activity in
-                        Button { combine(activity) } label: {
-                            Label(combinationTitle(activity),
-                                  systemImage: companion == activity ? "checkmark" : activity.module.symbol)
+                    ForEach(combinations) { pair in
+                        Button { combine(pair) } label: {
+                            Label(pair.title(language),
+                                  systemImage: combination == pair ? "checkmark" : pair.companion.module.symbol)
                         }
                     }
                 } label: {
-                    Label(companion.map(combinationTitle) ?? FeatureStrings.notch(language).combineActivities,
-                          systemImage: companion == nil ? "plus" : "checkmark")
+                    Label(combination?.title(language) ?? FeatureStrings.notch(language).combineActivities,
+                          systemImage: combination == nil ? "plus" : "checkmark")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(companion == nil ? 0.75 : 1))
+                        .foregroundStyle(.white.opacity(combination == nil ? 0.75 : 1))
                         .frame(height: NotchActivityPickerLayout.combinationHeight)
                 }
                 .menuStyle(.borderlessButton)
@@ -661,15 +664,11 @@ struct NotchActivityPicker: View {
         }
     }
 
-    private func combinationTitle(_ activity: NotchCompactActivity) -> String {
-        NotchCompactActivity.timer.title(language) + " + " + activity.title(language)
-    }
-
     private var individualChoices: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NotchActivityPickerLayout.spacing),
                                  count: columns), spacing: NotchActivityPickerLayout.spacing) {
             ForEach(activities) { activity in
-                let chosen = activity == selected && companion == nil
+                let chosen = activity == selected && combination == nil
                 Button { select(activity) } label: {
                     HStack(spacing: 6) {
                         Image(systemName: activity.module.symbol)

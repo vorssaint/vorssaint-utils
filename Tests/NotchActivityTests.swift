@@ -497,14 +497,24 @@ enum NotchActivityTests {
     }
 
     private static func compactTimerContracts(_ suite: TestSuite) {
-        suite.expect(NotchSupport.compactCompanions(timer: true, running: true, downloads: true, agents: true, music: true)
-                        == [.downloads, .agents, .music],
+        func companions(of primary: NotchCompactActivity, timer: Bool = true, running: Bool = true,
+                        calendar: Bool = true) -> [NotchCompactActivity] {
+            NotchSupport.compactCompanions(of: primary, timer: timer, running: running, downloads: true, agents: true,
+                                           calendar: calendar, music: true)
+        }
+        suite.expect(companions(of: .timer) == [.downloads, .agents, .calendar, .music],
                      "a running timer offers every supported pair instead of silently choosing one")
-        suite.expect(NotchSupport.compactCompanions(timer: true, running: false, downloads: true, agents: true, music: true)
-                        == [.downloads],
-                     "a paused or finished timer keeps its status mark beside music or agents")
-        suite.expect(NotchSupport.compactCompanions(timer: false, running: true, downloads: true, agents: true, music: true).isEmpty,
-                     "other activities need both wings and cannot be combined")
+        suite.expect(companions(of: .timer, running: false) == [.downloads],
+                     "a paused or finished timer keeps its status mark beside agents, an event or music")
+        suite.expect(companions(of: .timer, timer: false).isEmpty && companions(of: .calendar, calendar: false).isEmpty,
+                     "an activity that is not showing offers no pair")
+        suite.expect(companions(of: .calendar, running: false) == [.downloads, .agents, .music],
+                     "an event's clock keeps its side beside a download, agents or music, whatever the timer does")
+        suite.expect([NotchCompactActivity.downloads, .agents, .music].allSatisfy { companions(of: $0).isEmpty },
+                     "downloads, agents and music need both wings and cannot lead a pair")
+        suite.expect(NotchActivityCombination(primary: .calendar, companion: .music).title(.enUS) == "Calendar + Music"
+                     && NotchActivityCombination(primary: .timer, companion: .calendar).title(.enUS) == "Timer + Calendar",
+                     "a pair is named after the activity keeping the right of the camera first")
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         for barHeight: CGFloat in [16, 22, 24, 32, 40, 64] {
             for notched in [false, true] {

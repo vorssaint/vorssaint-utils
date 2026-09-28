@@ -241,8 +241,10 @@ final class NotchService: ObservableObject {
     }
 
     var hasCalendarActivity: Bool {
-        guard let countdown = NotchCalendarService.shared.countdown,
-              countdown.ongoing ? NotchCalendarSupport.showsTimeLeft() : NotchCalendarSupport.showsCountdown()
+        let calendar = NotchCalendarService.shared
+        guard let countdown = calendar.countdown,
+              countdown.ongoing ? NotchCalendarSupport.showsTimeLeft()
+                : NotchCalendarSupport.showsCountdown(chosen: calendar.isChosen(countdown.event))
         else { return false }
         return countdown.isShown(at: Date())
     }
@@ -269,14 +271,15 @@ final class NotchService: ObservableObject {
         let labelWidth = activities.map {
             ($0.title(L10n.shared.language) as NSString).size(withAttributes: [.font: font]).width
         }.max() ?? 0
+        let combinations = compactActivityCombinations
         let sizes = activities.map { compactGeometry(for: $0).compactActivitySize }
-            + compactActivityCompanions.map { compactGeometry(for: .timer, companion: $0).compactActivitySize }
+            + combinations.map { compactGeometry(for: $0.primary, companion: $0.companion).compactActivitySize }
         // Switching the chosen strip must not move the buttons under the pointer.
         let strip = CGSize(width: sizes.map(\.width).max() ?? geometry.cameraWidth,
                            height: sizes.map(\.height).max() ?? geometry.stripHeight)
         return NotchActivityPickerLayout(count: activities.count, labelWidth: labelWidth,
                                          stripSize: strip, screenWidth: geometry.screen.width,
-                                         hasCombinations: !compactActivityCompanions.isEmpty)
+                                         hasCombinations: !combinations.isEmpty)
     }
 
     func selectCompactActivity(_ activity: NotchCompactActivity) {
@@ -288,25 +291,37 @@ final class NotchService: ObservableObject {
         }
     }
 
-    func selectCompactCombination(_ companion: NotchCompactActivity) {
-        guard compactActivityCompanions.contains(companion) else { return }
+    func selectCompactCombination(_ combination: NotchActivityCombination) {
+        let companions = compactCompanions(of: combination.primary)
+        guard companions.contains(combination.companion) else { return }
         hoverWork?.cancel(); hoverWork = nil
         mutatePresentation(transitionContent: .replace) {
             objectWillChange.send()
-            activitySelection.select(.timer, companion: companion, available: compactActivities,
-                                     companions: compactActivityCompanions)
+            activitySelection.select(combination.primary, companion: combination.companion,
+                                     available: compactActivities, companions: companions)
         }
     }
 
-    var compactActivityCompanions: [NotchCompactActivity] {
-        NotchSupport.compactCompanions(timer: hasTimerActivity, running: NotchTimerService.shared.session.isRunning,
-                                       downloads: hasDownloadActivity, agents: hasAgentActivity, music: hasMusicActivity)
+    /// The pairs `primary` supports now.
+    func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] {
+        NotchSupport.compactCompanions(of: primary, timer: hasTimerActivity,
+                                       running: NotchTimerService.shared.session.isRunning,
+                                       downloads: hasDownloadActivity, agents: hasAgentActivity,
+                                       calendar: hasCalendarActivity, music: hasMusicActivity)
+    }
+
+    /// Every pair the picker offers, in the activities' own order.
+    var compactActivityCombinations: [NotchActivityCombination] {
+        compactActivities.flatMap { primary in
+            compactCompanions(of: primary).map { NotchActivityCombination(primary: primary, companion: $0) }
+        }
     }
 
     /// A single activity never borrows another activity's wing implicitly.
     var compactCompanion: NotchCompactActivity? {
-        guard compactActivity == .timer, let companion = activitySelection.companion,
-              compactActivityCompanions.contains(companion) else { return nil }
+        guard let companion = activitySelection.companion, let activity = compactActivity,
+              activity == activitySelection.preferred, compactCompanions(of: activity).contains(companion)
+        else { return nil }
         return companion
     }
 
@@ -318,8 +333,7 @@ final class NotchService: ObservableObject {
     private var compactMusicIsVisible: Bool { compactActivityIsVisible && compactActivity == .music }
 
     var compactActivityGeometry: NotchGeometry {
-        let activity = compactActivity
-        return compactGeometry(for: activity, companion: activity == .timer ? compactCompanion : nil)
+        compactGeometry(for: compactActivity, companion: compactCompanion)
     }
 
     private func compactGeometry(for activity: NotchCompactActivity?, companion: NotchCompactActivity? = nil) -> NotchGeometry {
@@ -338,19 +352,27 @@ final class NotchService: ObservableObject {
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing)
-        case .calendar: return geometry.compactCalendarGeometry(wing: calendarStripWing)
+        case .calendar: return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion))
         default: return geometry
         }
     }
 
-    /// The wider of the two sides, the event's title or its clock and the
-    /// time beside it, measured with the strip's fonts and its clearance from the curve.
-    private var calendarStripWing: CGFloat {
+    /// The wider of the two sides, measured with the strip's fonts and its
+    /// clearance from the curve: alone, the event's title or its clock and
+    /// the time beside it; paired, the event's dot and clock or the mark of
+    /// what shares the island, with air beside the camera.
+    private func calendarStripWing(for companion: NotchCompactActivity?) -> CGFloat {
         guard let countdown = NotchCalendarService.shared.countdown else {
             return NotchGeometry.calendarWingRange.upperBound
         }
         let provisional = geometry.compactCalendarGeometry(wing: NotchGeometry.calendarWingRange.lowerBound)
         let inset = provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0)
+        if let companion {
+            let sides = max(inset + calendarClockWidth, companionMarkWidth(companion, in: provisional))
+                + NotchTimerSupport.stripCameraGap
+            // A download keeps room for its percentage, as beside a timer.
+            return companion == .downloads ? max(80, sides) : sides
+        }
         func width(_ text: String, _ font: NSFont) -> CGFloat {
             (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
         }
@@ -382,21 +404,38 @@ final class NotchService: ObservableObject {
         let reading = (NotchAgentSupport.readingShape(text) as NSString).size(withAttributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
-        let mark: CGFloat
+        return max(reading, companionMarkWidth(companion, in: provisional)) + NotchTimerSupport.stripCameraGap
+    }
+
+    /// The width of the mark at a strip's left end, the timer's own without a
+    /// companion, drawn as `NotchCompanionMark` draws it, with its clearance
+    /// from the silhouette's curve.
+    private func companionMarkWidth(_ companion: NotchCompactActivity?, in provisional: NotchGeometry) -> CGFloat {
+        let height = provisional.compactActivityContentHeight
         switch companion {
         case .music:
-            mark = provisional.compactMusicArtworkSide + provisional.compactMusicArtworkInset
+            return provisional.compactMusicArtworkSide + provisional.compactMusicArtworkInset
         case .agents:
             let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
             let side = NotchTimerSupport.stripAgentMarkSize(height: height, working: working)
-            mark = CGFloat(max(1, working)) * (side * 1.45 + 1) + CGFloat(max(0, working - 1))
+            return CGFloat(max(1, working)) * (side * 1.45 + 1) + CGFloat(max(0, working - 1))
                 + provisional.compactActivityEdgeInset(boxHeight: side + 4, radius: (side + 4) / 2)
+        case .calendar:
+            return provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0) + calendarClockWidth
         default:
             // Every mark the strip shows is about a square of its point size.
             let side = NotchTimerSupport.stripIconSize(height: height)
-            mark = side + provisional.compactActivityEdgeInset(boxHeight: side, radius: side / 2)
+            return side + provisional.compactActivityEdgeInset(boxHeight: side, radius: side / 2)
         }
-        return max(reading, mark) + NotchTimerSupport.stripCameraGap
+    }
+
+    /// An event's dot and the widest clock its hour can show, so the island
+    /// keeps its size while the minutes count down.
+    private var calendarClockWidth: CGFloat {
+        NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripClockSpacing
+            + ("00:00" as NSString).size(withAttributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
+            ]).width.rounded(.up)
     }
 
     /// The wider of the two sides, the reading or the working agents' marks,
@@ -1731,7 +1770,8 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
-        activitySelection.reconcile(available: compactActivities, companions: compactActivityCompanions)
+        activitySelection.reconcile(available: compactActivities,
+                                    companions: activitySelection.preferred.map { compactCompanions(of: $0) } ?? [])
         if fullscreenCompact {
             finishMusicDeparture()
             presentedMusic = nil

@@ -138,7 +138,7 @@ enum NotchPresentationRefreshContract {
     class State: ObservableObject {
         var activitySelection = NotchActivitySelection()
         var compactActivities: [NotchCompactActivity] = []
-        var compactActivityCompanions: [NotchCompactActivity] = []
+        func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] { [] }
         var showsCompactActivityPicker = false
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
