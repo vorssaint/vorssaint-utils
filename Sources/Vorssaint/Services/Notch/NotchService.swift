@@ -1140,6 +1140,9 @@ final class NotchService: ObservableObject {
         if toggle, expanded, showingAppPanel, !showingSections { collapse(); return }
         MenuPanelFocus.shared.showNormalPanel()
         open(.controls, appPanel: true)
+        // The toggling route is the menu bar's. Opened from there, the panel
+        // has nothing behind it and closes on Escape, like the menu panel.
+        if toggle { detailHasPage = false }
     }
 
     func openQuickPanel(toggle: Bool = false) -> Bool {
@@ -1160,6 +1163,8 @@ final class NotchService: ObservableObject {
         guard metricIsAvailable(metric) else { return }
         if toggle, expanded, selectedMetric == metric, !showingSections { collapse(); return }
         open(.system, metric: metric)
+        // A metric opened from its menu bar item closes on Escape, like the popover.
+        if toggle { detailHasPage = false }
     }
 
     func goBack() {

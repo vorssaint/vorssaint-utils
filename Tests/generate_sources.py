@@ -653,6 +653,8 @@ def main():
           + declaration(notch, "    func goBack()")
           + declaration(notch, "    private func stepBack()").replace("private func", "func", 1)
           + declaration(notch, "    func setPageLayer(")
+          + declaration(notch, "    func openAppPanel(")
+          + declaration(notch, "    func showMetric(")
           + declaration(notch, "    var reopeningDestination:")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + declaration(notch, "    func openActivity(")

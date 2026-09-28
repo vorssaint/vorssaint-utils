@@ -65,7 +65,7 @@ struct NotchMixerView: View {
         // Escape closes the options before the island.
         .onChange(of: showingOptions) { _, showing in
             guard !preview else { return }
-            NotchService.shared.setPageLayer(.mixer, close: showing ? toggleOptions : nil)
+            NotchService.shared.setPageLayer(.mixer, close: showing ? closeOptions : nil)
         }
         .onDisappear { if !preview { NotchService.shared.setPageLayer(.mixer, close: nil) } }
     }
@@ -73,6 +73,12 @@ struct NotchMixerView: View {
     private func toggleOptions() {
         editingVolumeID = nil
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { showingOptions.toggle() }
+    }
+
+    /// What Escape does: it only ever closes the options.
+    private func closeOptions() {
+        editingVolumeID = nil
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { showingOptions = false }
     }
 
     @ViewBuilder private var desk: some View {

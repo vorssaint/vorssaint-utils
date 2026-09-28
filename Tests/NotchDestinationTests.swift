@@ -220,6 +220,22 @@ enum NotchDestinationContract {
                          "a detail the island opened on closes on Escape like the menu panel (app panel: \(appPanel))")
         }
 
+        for route in ["metric", "app panel"] {
+            let menuBar = Service()
+            menuBar.open(.music)
+            if route == "metric" { menuBar.showMetric(.cpu, toggle: true) } else { menuBar.openAppPanel(toggle: true) }
+            let detail = menuBar.selectedMetric == .cpu || menuBar.showingAppPanel
+            menuBar.stepBack()
+            suite.expect(detail && !menuBar.expanded,
+                         "a \(route) opened from the menu bar over an open island closes on Escape like the menu panel")
+        }
+        let tile = Service()
+        tile.open(.system)
+        tile.showMetric(.cpu)
+        tile.stepBack()
+        suite.expect(tile.expanded && tile.selected == .system && tile.selectedMetric == nil,
+                     "a metric opened from its tile inside the island steps back to the page")
+
         let switched = Service()
         switched.open(.system, metric: .cpu)
         switched.toggleSections()
