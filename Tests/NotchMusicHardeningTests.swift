@@ -126,6 +126,12 @@ enum NotchMusicCommandContract {
         func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
     }
     enum DispatchQueue { static var main = Scheduler() }
+    /// Records the song still published each time a new one is announced.
+    final class TrackChanges {
+        var shown: () -> NotchPlayback? = { nil }
+        var announcedOver: [NotchPlayback?] = []
+        func send() { announcedOver.append(shown()) }
+    }
     final class Process { var isRunning = true }
     final class Pipe {
         let fileHandleForWriting = Handle()
@@ -150,6 +156,7 @@ enum NotchMusicHardeningTests {
         sourcePreference(suite)
         artworkInheritance(suite)
         trackChanges(suite)
+        playbackGap(suite)
         NotchPlaybackRoutingTests.run(suite)
         lyricExpansion(suite)
         lyricLifecycle(suite)
@@ -324,6 +331,62 @@ enum NotchMusicHardeningTests {
                      "after the reader stops, a player's first song is not a change")
         suite.expect(NotchEvent.track.priority == 0 && NotchEvent.track.duration == 3,
                      "a new song gives way to any other notice and leaves after three seconds")
+    }
+
+    /// A player moving on to its next song can report nothing playing for a
+    /// moment. The production reading path keeps the last song through it.
+    private static func playbackGap(_ suite: TestSuite) {
+        typealias Contract = NotchMusicCommandContract
+        Contract.DispatchQueue.main = Contract.Scheduler()
+        defer { Contract.DispatchQueue.main = Contract.Scheduler() }
+        let service = Contract.Service()
+        service.trackChanges.shown = { [unowned service] in service.playback }
+        let player = NotchPlaybackSource(pid: 42, bundleIdentifier: "org.example.player", isMusicApp: true,
+                                         isPlaying: true, hasTrack: true)
+        let other = NotchPlaybackSource(pid: 202, bundleIdentifier: "test.browser", isMusicApp: false,
+                                        isPlaying: false, hasTrack: true)
+        func reading(_ playback: NotchPlayback?, sources: [NotchPlaybackSource] = [player, other]) -> Contract.Service.Reading {
+            Contract.Service.Reading(playback: playback, artwork: nil, tint: nil, sources: sources,
+                                     automatic: true, selectedPID: nil)
+        }
+        func controllable(_ item: String) -> NotchPlayback {
+            var song = playback(item)
+            song.commandContext = NotchPlaybackContext(pid: 42, revision: UUID())
+            song.canSendCommandsDirectly = true
+            return song
+        }
+        let current = controllable("current"), next = controllable("next")
+        service.start()
+        service.receive(reading(current))
+        service.receive(reading(nil, sources: [other]))
+        suite.expect(service.playback == current && service.sources == [player, other] && !service.awaitingPlayback,
+                     "a player between songs keeps its last song and sources instead of the empty page")
+        suite.expect(!service.send(.next) && !service.commandFailed,
+                     "the held song's controls send nothing, so a press cannot read as a failure")
+        service.receive(reading(nil, sources: [other]))
+        suite.expect(Contract.DispatchQueue.main.jobs.count == 1, "another empty reading does not extend the grace period")
+        service.receive(reading(next))
+        suite.expect(service.playback == next && service.gapWork == nil && service.trackChanges.announcedOver == [current],
+                     "the next song replaces the held one at once, announced while the old one is still shown")
+        suite.expect(service.send(.next), "the next song's controls work at once")
+        Contract.DispatchQueue.main.drain()
+        suite.expect(service.playback == next, "the ended gap cannot clear the next song later")
+        service.receive(reading(nil, sources: [other]))
+        Contract.DispatchQueue.main.drain()
+        suite.expect(service.playback == nil && service.sources == [other] && !service.awaitingPlayback,
+                     "playback that stays gone empties the page after the grace period, with the latest sources")
+        service.receive(reading(next))
+        service.receive(reading(nil, sources: [other]))
+        service.selectSource(other.selection)
+        Contract.DispatchQueue.main.drain()
+        suite.expect(service.playback == nil && service.awaitingPlayback,
+                     "choosing another source during a gap still waits for that source's first reading")
+        service.receive(reading(current))
+        service.receive(reading(nil, sources: [other]))
+        service.stop()
+        Contract.DispatchQueue.main.drain()
+        suite.expect(service.playback == nil && service.gapWork == nil,
+                     "stopping during a gap ends it, and the held song cannot come back")
     }
 
     /// The adapter flags bytes equal to its previous reading as unchanged,

@@ -953,7 +953,31 @@ enum NotchPresentationProbe {
                 timerHost.close()
             }
         }
-        print("NOTCH PROBE \(failures.isEmpty ? "OK" : "FAILED") samples=\(samples) openingNativeResizes=\(openingResizes) repeatedUpdates=1000 fileDrops=\(accepted) topError=\(maxAnchorError) contentError=\(maxContentError) timerTransitions=\(timerTransitions)")
+        // Following the pointer moves the resting island to another display:
+        // it lands at the top of that display at once and keeps its own Space.
+        var displayMoves = 0
+        if let other = NSScreen.screens.first(where: { $0.frame != screen.frame }) {
+            let away = NotchGeometry(screen: other.frame, safeAreaTop: other.safeAreaInsets.top,
+                                     cameraWidth: other.safeAreaInsets.top > 0 ? 210 : 0)
+            let traveller = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry,
+                                            size: geometry.collapsed, background: surface)
+            traveller.panel.alphaValue = 0
+            traveller.panel.ignoresMouseEvents = true
+            traveller.panel.orderFrontRegardless()
+            for target in [away, geometry, away] {
+                traveller.present(size: target.collapsed, geometry: target, animated: true)
+                displayMoves += 1
+                if !traveller.panel.isVisible || !target.screen.contains(traveller.panel.frame)
+                    || !matchesNativeFrame(traveller.panel.frame, target.frame(for: target.collapsed)) {
+                    failures.append("moving to another display left the island off that display's top")
+                }
+                if traveller.overlayProbeHolds == false {
+                    failures.append("moving to another display took the island out of its own Space")
+                }
+            }
+            traveller.close()
+        }
+        print("NOTCH PROBE \(failures.isEmpty ? "OK" : "FAILED") samples=\(samples) openingNativeResizes=\(openingResizes) repeatedUpdates=1000 fileDrops=\(accepted) topError=\(maxAnchorError) contentError=\(maxContentError) timerTransitions=\(timerTransitions) displayMoves=\(displayMoves)")
         failures.forEach { print($0) }
         exit(failures.isEmpty ? 0 : 1)
     }

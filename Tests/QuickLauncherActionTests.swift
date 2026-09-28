@@ -21,6 +21,12 @@ enum QuickLauncherContract {
         }
         let keyCode: UInt16
         var modifierFlags: ModifierFlags = []
+        var window: Window?
+    }
+    final class Window { var firstResponder: AnyObject? }
+    final class NSTextView {
+        var composing = false
+        func hasMarkedText() -> Bool { composing }
     }
 
     struct State {
@@ -152,6 +158,7 @@ enum QuickLauncherContract {
         suite.expect(QuickLauncherItem.allCases.allSatisfy { !tile.display($0).0.isEmpty },
                      "every tile has an icon")
         presentationContracts(suite)
+        compositionContracts(suite)
     }
 
     private static func presentationContracts(_ suite: TestSuite) {
@@ -192,5 +199,32 @@ enum QuickLauncherContract {
         events.removeAll()
         suite.expect(launcher.selectedIndex == nil && launcher.handlePanelKey(enter) == nil && events.isEmpty,
                      "an empty launcher has no imaginary initial action")
+    }
+
+    /// Each Esc step, reached while a utility's field holds an input method
+    /// that is still composing: none may take the key from it.
+    private static func compositionContracts(_ suite: TestSuite) {
+        let field = NSTextView()
+        let window = Window()
+        window.firstResponder = field
+        let escape = NSEvent(keyCode: UInt16(kVK_Escape), window: window)
+        let steps: [(name: String, open: (Launcher) -> Void, closed: (Launcher) -> Bool)] = [
+            ("the hosted utility", { $0.activeUtility = .homebrew }, { $0.activeUtility == nil }),
+            ("the options card", { $0.isEditing = true; $0.editingOptionsItem = .clipboard },
+             { $0.editingOptionsItem == nil && $0.isEditing }),
+            ("edit mode", { $0.isEditing = true }, { !$0.isEditing }),
+            ("the launcher", { _ in }, { _ in events == ["hide"] }),
+        ]
+        for step in steps {
+            let launcher = Launcher()
+            step.open(launcher)
+            events.removeAll()
+            field.composing = true
+            suite.expect(launcher.handlePanelKey(escape) != nil && !step.closed(launcher) && events.isEmpty,
+                         "a composing input method keeps Esc from closing \(step.name)")
+            field.composing = false
+            suite.expect(launcher.handlePanelKey(escape) == nil && step.closed(launcher),
+                         "Esc closes \(step.name) once composition ends")
+        }
     }
 }

@@ -24,6 +24,8 @@ struct GeneralToolSettings: View {
                             .fixedSize(horizontal: false, vertical: true)
                         PanelLayoutEditor()
                         Divider()
+                        MenuBarIconSymbolRow()
+                        Divider()
                         SettingsRow(symbol: nil, title: text.iconMissingTitle,
                                     caption: text.iconMissingCaption) {
                             Button(l10n.s.showMenuBarIcon) {
@@ -55,6 +57,61 @@ struct GeneralToolSettings: View {
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
             .padding(22)
+        }
+    }
+}
+
+/// Draws a system symbol in the menu bar in place of the Vorssaint glyph. The
+/// icon follows the typing: a name this Mac has a symbol for is kept at once,
+/// and any other name brings back the icon the page opened with, so a typo
+/// never leaves a valid half of the name behind.
+private struct MenuBarIconSymbolRow: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarIconSymbol) private var savedName = ""
+    @State private var draft = BlackHoleGlyph.chosenSymbolName
+    @State private var openingName = BlackHoleGlyph.chosenSymbolName
+
+    private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
+
+    var body: some View {
+        let name = Defaults.sanitizedMenuBarIconSymbol(draft)
+        VStack(alignment: .leading, spacing: 6) {
+            SettingsRow(symbol: nil, title: text.menuBarIconTitle, caption: text.menuBarIconCaption) {
+                HStack(spacing: 6) {
+                    TextField(text.menuBarIconTitle, text: $draft, prompt: Text(verbatim: "bolt.fill"))
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .frame(width: 140)
+                    // Kept in place while hidden, so the caption beside the
+                    // field does not reflow as the name is typed or cleared.
+                    Button {
+                        draft = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(text.menuBarIconReset)
+                    .accessibilityLabel(text.menuBarIconReset)
+                    .opacity(draft.isEmpty ? 0 : 1)
+                    .disabled(draft.isEmpty)
+                    .accessibilityHidden(draft.isEmpty)
+                }
+            }
+            if !name.isEmpty, BlackHoleGlyph.customMark(named: name) == nil {
+                Text(text.menuBarIconUnknown)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, settingsRowTextInset)
+            }
+        }
+        .onChange(of: draft) { _, newValue in
+            let kept = Defaults.menuBarIconSymbolToSave(typed: newValue, opening: openingName) {
+                BlackHoleGlyph.customMark(named: $0) != nil
+            }
+            if kept != savedName { savedName = kept }
         }
     }
 }

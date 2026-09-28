@@ -75,8 +75,7 @@ struct NotchView: View {
                 .frame(maxHeight: .infinity)
                 .accessibilityHidden(true)
             } else {
-                NotchCaptureControlsView(options: options, service: service)
-                    .padding(.horizontal, 18).padding(.top, service.geometry.safeContentTop)
+                NotchCaptureControlsView(options: options, service: service, layout: service.captureControlsLayout)
             }
         } else if service.expanded {
             expanded
