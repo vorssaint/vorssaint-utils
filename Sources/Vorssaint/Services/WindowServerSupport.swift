@@ -150,6 +150,26 @@ enum WindowServerSupport {
         return nil
     }
 
+    static func keyboardZoomTarget(in windows: [[String: Any]],
+                                   at point: CGPoint,
+                                   receivingProcessID: pid_t,
+                                   ownProcessID: pid_t,
+                                   focusedWindowID: (pid_t) -> CGWindowID?) -> pid_t? {
+        guard receivingProcessID > 0, receivingProcessID != ownProcessID,
+              let focusedWindowID = focusedWindowID(receivingProcessID) else { return nil }
+        for window in windows {
+            guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == receivingProcessID,
+                  let bounds = bounds(from: window), bounds.contains(point),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0 else { continue }
+            guard (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value == focusedWindowID else {
+                return nil
+            }
+            return receivingProcessID
+        }
+        return nil
+    }
+
     /// The traffic light a click landed on, if any. `CGRect.contains` decides
     /// what the point is over, so the far edge belongs to the window next to
     /// this one rather than to both. Once a window does contain the point the

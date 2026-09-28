@@ -52,7 +52,7 @@ struct ScrollZoomAction {
     let delta: Double
 }
 
-struct ScrollZoomPreferences {
+struct ScrollZoomPreferences: Equatable {
     let verticalZoom: ScrollHorizontalModifier?
     let horizontalZoom: ScrollHorizontalModifier?
     let pinchZoom: ScrollHorizontalModifier?
@@ -92,6 +92,44 @@ struct ScrollZoomPreferences {
             }
         }
         return nil
+    }
+}
+
+struct ScrollZoomGestureState {
+    private(set) var preferences: ScrollZoomPreferences?
+    private(set) var pinchModifier: ScrollHorizontalModifier?
+    private var acceptsEvents = false
+
+    mutating func update(_ preferences: ScrollZoomPreferences) -> Bool {
+        guard self.preferences != preferences else { return false }
+        self.preferences = preferences
+        acceptsEvents = false
+        return endPinch()
+    }
+
+    mutating func start() { acceptsEvents = preferences?.isEnabled == true }
+
+    mutating func stop() -> Bool {
+        acceptsEvents = false
+        preferences = nil
+        return endPinch()
+    }
+
+    func accepts(_ preferences: ScrollZoomPreferences) -> Bool {
+        acceptsEvents && self.preferences == preferences
+    }
+
+    mutating func beginPinch(_ modifier: ScrollHorizontalModifier) -> (endPrevious: Bool, begin: Bool) {
+        let changed = pinchModifier != modifier
+        let endPrevious = changed && pinchModifier != nil
+        pinchModifier = modifier
+        return (endPrevious, changed)
+    }
+
+    mutating func endPinch() -> Bool {
+        guard pinchModifier != nil else { return false }
+        pinchModifier = nil
+        return true
     }
 }
 
