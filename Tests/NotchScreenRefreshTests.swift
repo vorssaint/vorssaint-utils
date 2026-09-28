@@ -15,6 +15,7 @@ enum NotchScreenRefreshContract {
         var now: Double = 0
         var jobs: [(Deadline, DispatchWorkItem)] = []
         var pending: Int { jobs.filter { !$0.1.isCancelled }.count }
+        func async(execute work: DispatchWorkItem) { jobs.append((.now(), work)) }
         func asyncAfter(deadline: Deadline, execute work: DispatchWorkItem) { jobs.append((deadline, work)) }
         func advance(_ seconds: Double) {
             now += seconds
@@ -74,10 +75,10 @@ enum NotchScreenRefreshContract {
         var compactActivity: Bool?
         var accessibilityGranted = true
         var coversMenus = false
-        var menuBarHidden = false
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
         var screenRefreshWork: DispatchWorkItem?
+        var preferenceSyncWork: DispatchWorkItem?
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210, compactSideRoom: 64)
         var panel: Panel? = Panel()
@@ -111,6 +112,28 @@ enum NotchScreenRefreshContract {
             ClipboardHistoryService.shared.remembered = 0
         }
         let service = Service()
+        let preferences = Service()
+        for _ in 0..<100 { preferences.schedulePreferenceSync() }
+        suite.expect(DispatchQueue.main.pending == 1 && preferences.preferenceSyncs == 0,
+                     "a preference burst defers one island sync until drawing has finished")
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 1 && preferences.preferenceSyncWork == nil,
+                     "the deferred sync consumes the entire preference burst once")
+        preferences.schedulePreferenceSync()
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 2, "later preference changes still synchronize the island")
+        preferences.schedulePreferenceSync()
+        preferences.running = false
+        DispatchQueue.main.advance(0)
+        preferences.schedulePreferenceSync()
+        suite.expect(preferences.preferenceSyncs == 2 && DispatchQueue.main.pending == 0,
+                     "pending and later preference notifications cannot restart a stopped island")
+        preferences.running = true
+        preferences.suspended = true
+        preferences.schedulePreferenceSync()
+        DispatchQueue.main.advance(0)
+        suite.expect(preferences.preferenceSyncs == 3,
+                     "suspended islands still apply preference changes that stop disabled services")
         let initialSize = service.geometry.compactMusicGeometry.compactActivitySize
         var pendingPeak = 0
         var geometryChanged = false
@@ -300,31 +323,31 @@ enum NotchScreenRefreshContract {
         idleSimulated.accessibilityGranted = false
         idleSimulated.coversMenus = true
         idleSimulated.syncMenuSpaceMonitoring()
-        suite.expect(idleSimulated.appliedRooms.isEmpty && idleSimulated.geometry.compactSideRoom == nil,
-               "a simulated cutout with nothing to show still gives way to the menus")
+        let idleEmptyBar = NotchMenuBarLayout.sideRoom(screen: idleSimulated.geometry.screen,
+                                                      cameraWidth: idleSimulated.geometry.cameraWidth,
+                                                      barHeight: idleSimulated.geometry.menuBarHeight, occupied: [])
+        suite.expect(idleSimulated.menuSpaceTimer == nil && idleSimulated.appliedRooms == [idleEmptyBar]
+               && idleSimulated.geometry.compactSideRoom == idleEmptyBar,
+               "an external display keeps the idle island visible when menu coverage is enabled")
         idleSimulated.compactActivity = true
         idleSimulated.syncMenuSpaceMonitoring()
         suite.expect(idleSimulated.geometry.compactSideRoom.map { $0 > 0 } == true,
                "compact activity on a simulated cutout covers the menus")
 
-        let hiddenBar = Service()
-        hiddenBar.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
-                                           safeAreaTop: 0, cameraWidth: 0)
-        hiddenBar.idleContent = .none
-        hiddenBar.coversMenus = true
-        hiddenBar.menuBarHidden = true
-        hiddenBar.syncMenuSpaceMonitoring()
-        let hiddenEmptyBar = NotchMenuBarLayout.sideRoom(screen: hiddenBar.geometry.screen,
-                                                         cameraWidth: hiddenBar.geometry.cameraWidth,
-                                                         barHeight: hiddenBar.geometry.menuBarHeight, occupied: [])
-        suite.expect(hiddenBar.menuSpaceTimer == nil && hiddenBar.reads == 0
-               && hiddenBar.geometry.compactSideRoom == hiddenEmptyBar && (hiddenEmptyBar ?? 0) > 0,
-               "a simulated cutout under a hidden menu bar has no menus to give way to, "
-               + "so an app whose menus report no frame cannot take it away")
-        hiddenBar.coversMenus = false
-        hiddenBar.syncMenuSpaceMonitoring()
-        suite.expect(hiddenBar.menuSpaceTimer != nil && hiddenBar.reads == 1,
-               "choosing to leave the menus uncovered still gives way to a hidden bar's menus")
+        let roomsBeforeFocusChange = idleSimulated.appliedRooms
+        NSWorkspace.shared.frontmostApplication = Bundle.main
+        idleSimulated.applicationDidActivate()
+        NSWorkspace.shared.frontmostApplication = RunningApplication(bundleIdentifier: "com.example.editor")
+        idleSimulated.applicationDidActivate()
+        suite.expect(idleSimulated.menuSpaceTimer == nil && idleSimulated.appliedRooms == roomsBeforeFocusChange
+               && idleSimulated.geometry.compactSideRoom == idleEmptyBar,
+               "the external island remains visible when focus moves between Settings and another app")
+        let readsBeforePolicyChange = idleSimulated.reads
+        idleSimulated.accessibilityGranted = true
+        idleSimulated.coversMenus = false
+        idleSimulated.syncMenuSpaceMonitoring()
+        suite.expect(idleSimulated.menuSpaceTimer != nil && idleSimulated.reads == readsBeforePolicyChange + 1,
+               "turning off menu coverage restores the measured-space policy")
 
         let physical = Service()
         physical.idleContent = .none

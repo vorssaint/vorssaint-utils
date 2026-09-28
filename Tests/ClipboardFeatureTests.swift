@@ -146,6 +146,37 @@ enum ClipboardFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
 
+        // MARK: Clipboard quick window sizing
+
+        let desktop = NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let compactSize = ClipboardHistoryWindowSizing.contentSize(
+            preview: false, savedWidth: 0, savedHeight: 0, visibleFrame: desktop)
+        let previewSize = ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 0, savedHeight: 0, visibleFrame: desktop)
+        suite.expect(compactSize == NSSize(width: 560, height: 420)
+                && previewSize == NSSize(width: 840, height: 500),
+               "clipboard quick window retains its original compact and preview sizes by default")
+        suite.expect(ClipboardHistoryWindowSizing.minimumSize(preview: false)
+                == NSSize(width: 560, height: 300)
+                && ClipboardHistoryWindowSizing.minimumSize(preview: true)
+                    == NSSize(width: 840, height: 380),
+               "the narrowest clipboard window leaves room for batch actions in both layouts")
+        let taller = ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 700, savedHeight: 640, visibleFrame: desktop)
+        suite.expect(taller == NSSize(width: 980, height: 720)
+                && ClipboardHistoryWindowSizing.savedCompactSize(from: taller, preview: true)
+                    == NSSize(width: 700, height: 640),
+               "a resized preview returns to the same chosen list size")
+        let shortScreen = NSRect(x: 0, y: 0, width: 1050, height: 700)
+        suite.expect(ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 1000, savedHeight: 900, visibleFrame: shortScreen)
+                == NSSize(width: 1018, height: 668),
+               "a saved size is limited to the visible display")
+        suite.expect(ClipboardHistoryWindowSizing.contentSize(
+            preview: false, savedWidth: .infinity, savedHeight: -1, visibleFrame: desktop)
+                == compactSize,
+               "invalid saved dimensions fall back to the original size")
+
         // MARK: Clipboard menu bar preview
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryMenuBarPreview] as? Bool == false,
@@ -300,11 +331,11 @@ enum ClipboardFeatureTests {
             suite.expect(alertStrings.caption.contains("12"),
                    "\(language.rawValue) monitor alert caption explains the sustained alert window")
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
-            expectFormat(alertStrings.cpuTemperatureBodyFormat, ["d"],
+            expectFormat(alertStrings.cpuTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
-            expectFormat(alertStrings.batteryTemperatureBodyFormat, ["d"],
+            expectFormat(alertStrings.batteryTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) battery temperature alert format")
         }
         suite.expect(FeatureStrings.monitorAlerts(.enUS).cooldown == "Repeat the same alert after",
@@ -739,6 +770,9 @@ enum ClipboardPreviewContract {
     class Fixture {
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0
+        var filterCache: (query: String, stamp: Int, imageLabel: String,
+                          result: [ClipboardHistoryEntry])?
+        var foldedCandidateCache: (imageLabel: String, candidates: [ClipboardHistorySearchCandidate])?
         var pendingWrite: ((Bool) -> Void)?
         func writeToPasteboard(_ list: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
             pendingWrite = completion
@@ -823,5 +857,47 @@ enum ClipboardPreviewContract {
         service.togglePin(heavy[0])
         suite.expect(service.entries.first { $0.id == heavy[0].id }?.isPinned == false,
                      "unpinning is never refused by the size of the saved file")
+        searchFolding(suite)
+    }
+
+    /// #1885: typing searches the history once per keystroke, so the folded
+    /// text has to be reused between keystrokes and still rank exactly as a
+    /// fresh fold would.
+    private static func searchFolding(_ suite: TestSuite) {
+        var pinned = ClipboardHistoryEntry(text: "Token CLEANUP\tnote")
+        pinned.pinnedAt = Date()
+        let texts = ["Deploy checklist final", "Final database\ndeploy plan", "Reunião com João"]
+        let entries = [pinned] + texts.map { ClipboardHistoryEntry(text: $0) }
+        let service = Service()
+        service.setEntries(entries)
+        let unfolded = entries.enumerated().map { index, entry in
+            ClipboardHistorySearchCandidate(index: index, text: entry.text, isPinned: entry.isPinned)
+        }
+        for query in ["deploy final", "cleanup token", "reuniao JOAO", "plan deploy", "missing", "", "  "] {
+            let expected = ClipboardHistorySearch.rankedIndexes(candidates: unfolded, matching: query)
+                .map { entries[$0].id }
+            suite.expect(service.filteredEntries(matching: query).map(\.id) == expected,
+                         "searching folded history text ranks \"\(query)\" like a fresh fold")
+        }
+
+        service.foldedCandidateCache = nil
+        _ = service.filteredEntries(matching: "")
+        suite.expect(service.foldedCandidateCache == nil,
+                     "an empty search lists the history without folding it")
+
+        _ = service.filteredEntries(matching: "d")
+        guard var cache = service.foldedCandidateCache else {
+            suite.expect(false, "a search keeps the folded history for the next keystroke")
+            return
+        }
+        cache.candidates[0].text = "sentinel only in the cache"
+        service.foldedCandidateCache = cache
+        suite.expect(service.filteredEntries(matching: "sentinel").map(\.id) == [pinned.id],
+                     "the next keystroke reuses the folded history instead of folding it again")
+
+        let added = ClipboardHistoryEntry(text: "Sentinel copied later")
+        service.setEntries(entries + [added])
+        suite.expect(service.filteredEntries(matching: "sentinel").map(\.id) == [added.id],
+                     "a history change folds the new text and drops the old fold")
     }
 }

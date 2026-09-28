@@ -13,6 +13,7 @@ import VMStatisticsCompat
 
 enum SwitcherModelFeatureTests {
     static func run(_ suite: TestSuite) {
+        ScrollingTitleMotionTests.run(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
@@ -277,6 +278,14 @@ enum SwitcherModelFeatureTests {
                == SwitcherSupport.defaultAppearanceDelayMilliseconds
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherAppearanceDelay),
                "App Switcher keeps the current appearance delay by default and carries the choice in backups")
+        suite.expect(registeredDefaults[DefaultsKey.switcherInstantSelection] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherInstantSelection),
+               "App Switcher keeps smooth selection by default and carries instant selection in backups")
+        let instantSelectionBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.switcherInstantSelection ? true : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: instantSelectionBackup)?[DefaultsKey.switcherInstantSelection] as? Bool == true,
+               "App Switcher restores the instant selection choice from a settings backup")
         suite.expect(SwitcherSupport.appearanceDelayMillisecondsRange
                .contains(SwitcherSupport.defaultAppearanceDelayMilliseconds),
                "the default App Switcher appearance delay is one the slider accepts")
@@ -1594,24 +1603,19 @@ enum SwitcherModelFeatureTests {
                "update showcase intro starts unseen")
         suite.expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
-               "support prompt is deliberately pinned to 3.3.2")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.1"),
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
+               "support prompt is deliberately pinned to the 3.4 stable series")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.3.2")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil),
                "support prompt shows once after updating to its pinned release")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.2"),
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
                "support prompt stays hidden after it is seen")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.0", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.1", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
-               "support prompt never leaks into another release")
-        suite.expect(SupportUpdateIntroStep.support.next == .social
-               && SupportUpdateIntroStep.social.next == nil,
-               "update intro moves from support to social updates")
-        suite.expect(SupportUpdateIntroStep.support.previous == nil
-               && SupportUpdateIntroStep.social.previous == .support,
-               "update intro navigates back without closing")
-        suite.expect(SupportUpdateIntroStep.allCases == [.support, .social],
-               "update intro page indicators follow the navigation order")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.4.0"),
+               "premature support markers from beta onboarding do not suppress the stable invitation")
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0-beta.7", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.5.0", lastSeenVersion: nil),
+               "support prompt never leaks into another release series")
         suite.expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
                "the community action uses the permanent Discord invitation")
         suite.expect(AppInfo.coffeeURL.absoluteString == "https://buymeacoffee.com/vorssaint",
@@ -1624,31 +1628,51 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.0-beta.6",
+        suite.expect(plistVersion == "3.4.0",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "93",
+        suite.expect(plistBuild == "95",
                "every app version needs its own incremented bundle build")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
-               "the support prompt remains deliberately pinned to 3.3.2")
-        suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0-beta.1",
-               "the prepared tour belongs to the first 3.4 beta without changing the installed version")
-        for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.5", "3.4.0-beta.10"] {
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
+               "the support prompt is prepared for the 3.4 final release")
+        suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0",
+               "the stable release has its own tour marker without changing the installed version")
+        for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.5", "3.4.0-beta.6", "3.4.0-beta.7", "3.4.0-beta.10"] {
             suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
                    && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: "3.3.3"),
                    "the notch tour introduces this beta cycle to new and returning users")
-            suite.expect(!UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion),
+            suite.expect(!UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion),
                    "the beta tour does not repeat after it has been seen")
             suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
-                   "beta updates do not request the support and social introduction")
+                   "beta updates do not request the support introduction")
         }
-        for version in ["3.3.5", "3.4.0", "3.4.1", "3.4.0-rc.1", "3.4.0-beta.0", "3.4.0-beta.no", "3.4.0-beta.2.no", "3.4.0-beta.2.1.1", "3.5.0-beta.1", "4.0.0"] {
+        suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil)
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.3.2")
+               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0",
+                                                      lastSeenVersion: UpdateHighlightsInfo.releaseVersion),
+               "the final release shows its tour once to upgraders")
+        suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0",
+                                                      lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion),
+               "beta tour viewers also see the final release tour")
+        for version in ["3.3.5", "3.5.0", "3.4.1-beta.1", "3.4.0-rc.1", "3.4.0-beta.0", "3.4.0-beta.no", "3.4.0-beta.2.no", "3.4.0-beta.2.1.1", "3.5.0-beta.1", "4.0.0"] {
             suite.expect(!UpdateHighlightsInfo.matchesRelease(version)
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
                    "previewing from the current build and other release cycles cannot consume the future beta tour")
         }
-        suite.expect(FileManager.default.fileExists(atPath: "Resources/Images/highlights-notch.png"),
-               "the notch tour bundles its static layout illustration")
+        for version in ["3.4.0", "3.4.1", "3.4.2", "3.4.10", "3.4.99"] {
+            suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
+                   && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion)
+                   && SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0"),
+                   "direct hotfix upgraders still receive the stable tour and support invitation")
+            suite.expect(UpdateHighlightsInfo.seenVersion(for: version) == UpdateHighlightsInfo.releaseVersion
+                   && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion)
+                   && !SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
+                   "all stable patches share completion markers and never repeat completed introductions")
+        }
+        let tourGIF = URL(fileURLWithPath: "Resources/Gifs/highlights-notch.gif")
+        let tourFrames = CGImageSourceCreateWithURL(tourGIF as CFURL, nil).map(CGImageSourceGetCount)
+        suite.expect(tourFrames.map { $0 > 1 } == true,
+               "the Dynamic Island tour includes an animated GIF in the app resources")
         suite.expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int
@@ -1873,6 +1897,70 @@ enum SwitcherModelFeatureTests {
                "a click beyond the slack re-anchors by the full offset")
         suite.expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1240, reportedMidX: 1144, buttonWidth: 197) == nil,
                "clicks near the edge of a wide metrics item stay anchored to the item")
+
+        suite.expect(StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                    ownWindowIsKey: false, closeReason: .escape),
+               "closing the panel hands activation back to the app that was in front before it")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 777,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "an app the person switched to while the panel was open keeps activation")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: true, closeReason: .escape),
+               "a Vorssaint window that took focus from the panel keeps Vorssaint active")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: nil, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "a panel opened while Vorssaint was already in front has nothing to hand back")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 900, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "Vorssaint never hands activation back to itself")
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: nil,
+                                                                     ownWindowIsKey: false, closeReason: .escape),
+               "no known frontmost app means nothing is taken from anyone")
+        for (reason, returns) in [(PanelCloseReason.escape, true), (.statusItem, true),
+                                  (.outsideClick, false), (.action, false)] {
+            suite.expect(StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                        ownWindowIsKey: false,
+                                                                        closeReason: reason) == returns,
+                   returns ? "a \(reason) dismissal with nothing taking over hands activation back"
+                           : "a \(reason) close leaves activation to whatever takes over")
+        }
+        suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
+                                                                     ownWindowIsKey: false, closeReason: nil),
+               "a close Vorssaint did not ask for leaves activation alone")
+
+        let showing: Set<UInt64> = [3, 7]
+        suite.expect(StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[1], [2]],
+                                                                        visibleSpaces: showing),
+               "an app whose windows are all on a desktop that is not showing is not handed activation")
+        suite.expect(!StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[1], [2, 7]],
+                                                                         visibleSpaces: showing),
+               "an app with a window on a desktop that is showing gets activation back")
+        suite.expect(!StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [],
+                                                                         visibleSpaces: showing),
+               "an app with no windows open gets activation back")
+        suite.expect(!StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[]],
+                                                                         visibleSpaces: showing),
+               "a leftover surface on no desktop does not count as a window")
+        suite.expect(StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[], [1]],
+                                                                        visibleSpaces: showing),
+               "a leftover surface does not keep a window on a hidden desktop from counting")
+        suite.expect(!StatusItemAnchorSupport.handbackWouldSwitchDesktop(windowSpaces: [[1]],
+                                                                         visibleSpaces: nil),
+               "unknown desktops keep handing activation back")
+
+        let ownApp: (Int) -> Bool = { $0 == 900 }
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(777), current: 501,
+                                                                   isOwnApp: ownApp) == 777,
+               "another app becoming active while the panel is open replaces the remembered app")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(900), current: 501,
+                                                                   isOwnApp: ownApp) == 501,
+               "Vorssaint taking activation back from the panel keeps the remembered app")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: .appActivated(777), current: nil,
+                                                                   isOwnApp: ownApp) == 777,
+               "an app activated after the remembered one was dropped becomes the one to return to")
+        suite.expect(StatusItemAnchorSupport.panelActivationSource(after: PanelActivationChange<Int>.activeSpaceChanged,
+                                                                   current: 501, isOwnApp: ownApp) == nil,
+               "a desktop switch while the panel is open drops the remembered app")
 
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
 

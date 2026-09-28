@@ -79,6 +79,24 @@ enum NotchModule: String, CaseIterable, Identifiable {
     }
 }
 
+enum NotchReopeningDestination: String, CaseIterable {
+    case appPanel, explore
+}
+
+/// ⌘1 to ⌘9 on the island's clipboard page paste the entry at that place in
+/// the visible list, as in the quick panel.
+struct NotchClipboardPastePress: Equatable {
+    let serial: Int
+    let index: Int
+
+    /// The digit row by physical key, so every layout keeps the shortcut.
+    static func index(keyCode: UInt16, commandOnly: Bool) -> Int? {
+        guard commandOnly else { return nil }
+        let digitKeys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
+        return digitKeys.firstIndex(of: keyCode)
+    }
+}
+
 enum NotchDisplay: String, CaseIterable {
     case automatic, builtIn, main
 }
@@ -338,8 +356,20 @@ enum NotchHoverEmphasis {
     }
 }
 
-enum NotchCompactActivity: Equatable {
+enum NotchCompactActivity: String, Identifiable {
     case timer, downloads, agents, calendar, music
+
+    var id: String { rawValue }
+
+    func title(_ language: AppLanguage) -> String {
+        switch self {
+        case .timer: return FeatureStrings.notchActivities(language).timer
+        case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
+        case .agents: return FeatureStrings.notchAgents(language).title
+        case .calendar: return FeatureStrings.notchCalendar(language).title
+        case .music: return FeatureStrings.notch(language).music
+        }
+    }
 
     var module: NotchModule {
         switch self {
@@ -350,6 +380,63 @@ enum NotchCompactActivity: Equatable {
         case .music: return .music
         }
     }
+}
+
+/// A choice lasts only while that activity remains available. Returning work
+/// must not silently revive a choice from an earlier session.
+struct NotchActivitySelection {
+    private(set) var preferred: NotchCompactActivity?
+    private(set) var companion: NotchCompactActivity?
+
+    mutating func select(_ activity: NotchCompactActivity, companion: NotchCompactActivity? = nil,
+                         available: [NotchCompactActivity], companions: [NotchCompactActivity] = []) {
+        guard available.contains(activity) else { return }
+        if let companion, activity != .timer || !companions.contains(companion) { return }
+        preferred = activity
+        self.companion = companion
+    }
+
+    mutating func reconcile(available: [NotchCompactActivity], companions: [NotchCompactActivity] = []) {
+        if let preferred, !available.contains(preferred) { self.preferred = nil }
+        if preferred != .timer || companion.map({ !companions.contains($0) }) == true { companion = nil }
+    }
+
+    func current(available: [NotchCompactActivity]) -> NotchCompactActivity? {
+        if let preferred, available.contains(preferred) { return preferred }
+        return available.first
+    }
+}
+
+struct NotchActivityPickerLayout {
+    static let rowHeight: CGFloat = 32
+    static let spacing: CGFloat = 6
+    static let horizontalInset: CGFloat = 24
+    static let verticalInset: CGFloat = 12
+    static let combinationHeight: CGFloat = 24
+    let columns: Int
+    let headerHeight: CGFloat
+    let size: CGSize
+
+    init(count: Int, labelWidth: CGFloat, stripSize: CGSize, screenWidth: CGFloat,
+         hasCombinations: Bool = false) {
+        columns = min(3, max(1, count))
+        headerHeight = stripSize.height
+        let rows = (max(1, count) + columns - 1) / columns
+        let width = CGFloat(columns) * (labelWidth + 48)
+            + CGFloat(columns - 1) * Self.spacing + Self.horizontalInset * 2
+        // The taller picker has deeper shoulders than a compact strip. Keep
+        // the entire original strip inside those shoulders, not at its edge.
+        size = CGSize(width: min(max(stripSize.width + Self.horizontalInset * 2, width), max(1, screenWidth - 24)),
+                      height: headerHeight + CGFloat(rows) * Self.rowHeight
+                        + CGFloat(rows - 1) * Self.spacing + Self.verticalInset * 2
+                        + (hasCombinations ? Self.combinationHeight + Self.spacing : 0))
+    }
+}
+
+enum NotchControlSetupRequirement: Equatable {
+    case feature(AppFeature)
+    case page(NotchModule, feature: AppFeature?)
+    case none
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
@@ -374,6 +461,25 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
+        }
+    }
+
+    var setupRequirement: NotchControlSetupRequirement {
+        switch self {
+        case .volume: return .feature(.mixer)
+        case .brightness: return .feature(.brightness)
+        case .keepAwake: return .feature(.keepAwake)
+        case .microphone: return .feature(.micMute)
+        case .screenshot: return .feature(.screenshot)
+        case .recording: return .feature(.screenRecorder)
+        case .commandBar: return .feature(.commandBar)
+        case .scratchpad: return .feature(.scratchpad)
+        case .panel: return .none
+        case .mixer: return .page(.mixer, feature: .mixer)
+        case .speedTest: return .page(.system, feature: .monitorNetwork)
+        case .music: return .page(.music, feature: nil)
+        case .timer: return .page(.timer, feature: .notchTimer)
+        case .calendar: return .page(.calendar, feature: .notchCalendar)
         }
     }
 
@@ -595,7 +701,11 @@ enum NotchQuickAccessLayout {
             indices[button.side] = index + 1
             let count = configuration.buttons.filter { $0.side == button.side }.count
             let edge = button.side == .bottom ? body.maxY : button.side == .left ? body.minX : body.maxX
-            let top = button.side == .bottom ? body.midX - CGFloat(count - 1) * rowSpacing / 2 : headerTop
+            let span = CGFloat(count - 1) * rowSpacing
+            // Short pages lift a crowded column to balance its top and bottom
+            // margins. Keep the usual header alignment when there is room.
+            let sideTop = max(body.minY + diameter / 2 + gap, min(headerTop, body.midY - span / 2))
+            let top = button.side == .bottom ? body.midX - span / 2 : sideTop
             return NotchQuickAccessPlacement(button: button, index: index, edge: edge, top: top)
         }
     }
@@ -697,29 +807,29 @@ enum NotchSupport {
         return query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : ids.first
     }
 
-    /// A working agent outranks the music it plays over: its turn ends on its
-    /// own, while music is there all day.
+    /// Automatic order until the user chooses one of the live activities.
     static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false,
                                 calendar: Bool = false, music: Bool) -> NotchCompactActivity? {
-        if timer { return .timer }
-        if downloads { return .downloads }
-        if agents { return .agents }
-        if calendar { return .calendar }
-        return music ? .music : nil
+        compactActivities(timer: timer, downloads: downloads, agents: agents,
+                          calendar: calendar, music: music).first
     }
 
-    /// The timer's orange clock says what it is on its own, so the wing its
-    /// mark would take shows the next activity instead, in the same order.
-    /// A download takes it in any state, as before; music and agents only
-    /// while the timer runs, since a paused or finished timer needs its mark:
-    /// above a minute its clock alone reads the same as a running one.
-    /// Every other strip fills both wings with its own content.
-    static func compactCompanion(timer: Bool, running: Bool, downloads: Bool, agents: Bool,
-                                 music: Bool) -> NotchCompactActivity? {
-        guard timer else { return nil }
-        if downloads { return .downloads }
-        guard running else { return nil }
-        return compactActivity(timer: false, downloads: false, agents: agents, music: music)
+    static func compactActivities(timer: Bool, downloads: Bool, agents: Bool,
+                                  calendar: Bool, music: Bool) -> [NotchCompactActivity] {
+        let candidates: [(Bool, NotchCompactActivity)] = [
+            (timer, .timer), (downloads, .downloads), (agents, .agents),
+            (calendar, .calendar), (music, .music)
+        ]
+        return candidates.compactMap { $0.0 ? $0.1 : nil }
+    }
+
+    /// Supported, explicit pairs. A paused or finished timer needs its own
+    /// mark beside music or agents; downloads already carry their status.
+    static func compactCompanions(timer: Bool, running: Bool, downloads: Bool, agents: Bool,
+                                  music: Bool) -> [NotchCompactActivity] {
+        guard timer else { return [] }
+        return [(downloads, NotchCompactActivity.downloads), (running && agents, .agents),
+                (running && music, .music)].compactMap { $0.0 ? $0.1 : nil }
     }
 
     static func gestureIsOverHeader(expanded: Bool, peeking: Bool, fromTop: CGFloat, safeTop: CGFloat,
@@ -911,12 +1021,16 @@ enum NotchSupport {
         return min(1, max(0, current + Double(direction.signum()) / (fine ? 64 : 16)))
     }
 
-    static func screenIndex(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int) -> Int? {
+    /// A laptop with its lid closed has no built-in screen to show on, so the
+    /// built-in choice hides the island there. A Mac without a built-in panel
+    /// never has one, so that choice keeps the main display.
+    static func screenIndex(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int,
+                            hasLid: Bool = true) -> Int? {
         guard !builtIn.isEmpty, builtIn.count == notched.count else { return nil }
         let fallback = builtIn.indices.contains(main) ? main : 0
         switch preference {
         case .main: return fallback
-        case .builtIn: return builtIn.firstIndex(of: true) ?? fallback
+        case .builtIn: return builtIn.firstIndex(of: true) ?? (hasLid ? nil : fallback)
         case .automatic:
             return builtIn.indices.first { builtIn[$0] && notched[$0] }
                 ?? notched.firstIndex(of: true) ?? fallback
@@ -1546,6 +1660,16 @@ struct NotchGlassFade: Equatable {
 /// Free room on both sides of the camera, in Cocoa screen coordinates.
 /// Unknown/occupied camera space is distinct from a known zero-width wing.
 enum NotchMenuBarLayout {
+    /// A successful AX read can contain menu items from another display.
+    /// Without an item on this display, its menu space remains unknown.
+    static func measuredSideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
+                                 menuItems: [CGRect], statusItems: [CGRect]) -> CGFloat? {
+        let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
+        guard menuItems.contains(where: { $0.intersects(bar) }) else { return nil }
+        return sideRoom(screen: screen, cameraWidth: cameraWidth, barHeight: barHeight,
+                        occupied: menuItems + statusItems)
+    }
+
     static func sideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
                          occupied: [CGRect]) -> CGFloat? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)

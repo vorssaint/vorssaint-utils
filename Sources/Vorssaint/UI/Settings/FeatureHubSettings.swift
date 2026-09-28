@@ -444,6 +444,7 @@ private struct FeatureHubRow: View {
 
     private var accessibilityTitle: String {
         let title = feature.hubTitle(l10n.s, hub: hub)
+        if feature == .notch { return "\(title). \(hub.experimentalBadge)" }
         return feature.isBeta ? "\(title). \(l10n.s.betaFeatureWarning)" : title
     }
 
@@ -532,6 +533,15 @@ private struct FeatureHubRow: View {
                 HStack(spacing: 6) {
                     Text(feature.hubTitle(l10n.s, hub: hub))
                         .foregroundStyle(installed ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    if feature == .notch {
+                        Text(hub.experimentalBadge.uppercased())
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .foregroundStyle(.orange)
+                            .background(Capsule().fill(Color.orange.opacity(0.14)))
+                            .accessibilityHidden(true)
+                    }
                     if feature.isBeta {
                         Text(l10n.s.betaBadge)
                             .font(.system(size: 8, weight: .bold))

@@ -164,7 +164,7 @@ struct ScreenshotCaptureSettings: View {
             }
 
             Section {
-                Toggle(strings.autoCopyToggle, isOn: $copyToClipboard)
+                Toggle(strings.autoCopyToggle, isOn: autoCopyBinding)
                 Text(strings.autoCopyCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -224,6 +224,22 @@ struct ScreenshotCaptureSettings: View {
         .sheet(isPresented: $showingSharePrivacy) {
             ScreenshotSharePrivacyView()
         }
+    }
+
+    /// The after-capture action can copy too, so the toggle reads on while
+    /// either one copies. Turning it off clears both. Otherwise captures keep
+    /// reaching the clipboard while the switch shows off.
+    private var autoCopyBinding: Binding<Bool> {
+        Binding {
+            copyToClipboard || defaultAction.copiesToClipboard
+        } set: { isOn in
+            copyToClipboard = isOn
+            if !isOn { defaultActionRaw = defaultAction.withoutCopy.rawValue }
+        }
+    }
+
+    private var defaultAction: ScreenshotDefaultAction {
+        ScreenshotDefaultAction(rawValue: defaultActionRaw) ?? .none
     }
 
     private var defaultActionRow: some View {

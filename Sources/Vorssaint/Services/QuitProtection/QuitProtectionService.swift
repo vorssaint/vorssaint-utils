@@ -21,7 +21,7 @@ final class QuitProtectionService: ObservableObject {
         let switcherSessionGeneration: UInt64
     }
 
-    private static let syntheticMarker: Int64 = 0x5652535341494E54
+    private static let syntheticMarker = OwnKeyEvent.quitProtectionMarker
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var activationObserver: NSObjectProtocol?

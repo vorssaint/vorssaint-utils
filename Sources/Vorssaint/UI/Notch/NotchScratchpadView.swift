@@ -37,6 +37,12 @@ struct NotchScratchpadView: View {
             } else {
                 VStack(spacing: 6) {
                     toolbar
+                    if pad.saveFailed {
+                        Label(text.saveFailed, systemImage: "exclamationmark.triangle")
+                            .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     ZStack(alignment: .topLeading) {
                         PlainTextEditor(text: $pad.text, textColor: .white, textContainerInset: Self.editorInset) { view in
                             view.insertionPointColor = .white

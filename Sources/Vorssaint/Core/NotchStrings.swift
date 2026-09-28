@@ -5,6 +5,7 @@ import Foundation
 
 struct NotchStrings {
     let title: String
+    let combineActivities: String
     let enable: String
     let description: String
     let menuBarAccessHint: String
@@ -102,6 +103,7 @@ extension FeatureStrings {
 extension NotchStrings {
     static let enUS = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Combine",
         enable: "Enable Dynamic Island",
         description: "Your music, controls and everyday tools, together at the top of your screen. Optional. Turn it off to keep using the separate panels.",
         menuBarAccessHint: "Allow Accessibility so Dynamic Island can appear on this display without covering the menus.",
@@ -133,7 +135,7 @@ extension NotchStrings {
         system: "System",
         disabled: "Enable the corresponding feature to use it here.",
         files: "Files",
-        hideInFullscreen: "Hide in full screen",
+        hideInFullscreen: "Hide content in full screen",
         showInCaptures: "Show in screenshots and videos",
         clipboardWindow: "Open clipboard history in the Dynamic Island",
         tools: "Tools",
@@ -176,6 +178,7 @@ extension NotchStrings {
 
     static let ptBR = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Combinar",
         enable: "Ativar Dynamic Island",
         description: "Sua música, controles e ferramentas do dia a dia, juntos no topo da tela. Opcional. Desative para continuar usando os painéis separados.",
         menuBarAccessHint: "Permita Acessibilidade para a Dynamic Island aparecer nesta tela sem cobrir os menus.",
@@ -207,7 +210,7 @@ extension NotchStrings {
         system: "Sistema",
         disabled: "Ative o recurso correspondente para usá-lo aqui.",
         files: "Arquivos",
-        hideInFullscreen: "Ocultar em tela cheia",
+        hideInFullscreen: "Ocultar conteúdo em tela cheia",
         showInCaptures: "Aparecer em capturas de tela e vídeos",
         clipboardWindow: "Abrir o histórico de cópias no Dynamic Island",
         tools: "Ferramentas",
@@ -250,6 +253,7 @@ extension NotchStrings {
 
     static let es = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Combinar",
         enable: "Activar Dynamic Island",
         description: "Tu música, controles y herramientas cotidianas, juntos en la parte superior de la pantalla. Opcional. Desactívalo para seguir usando los paneles por separado.",
         menuBarAccessHint: "Permite Accesibilidad para que Dynamic Island aparezca en esta pantalla sin cubrir los menús.",
@@ -281,7 +285,7 @@ extension NotchStrings {
         system: "Sistema",
         disabled: "Activa la función correspondiente para usarla aquí.",
         files: "Archivos",
-        hideInFullscreen: "Ocultar en pantalla completa",
+        hideInFullscreen: "Ocultar contenido en pantalla completa",
         showInCaptures: "Mostrar en capturas de pantalla y vídeos",
         clipboardWindow: "Abrir el historial del portapapeles en el Dynamic Island",
         tools: "Herramientas",
@@ -324,6 +328,7 @@ extension NotchStrings {
 
     static let sk = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Kombinovať",
         enable: "Zapnúť Dynamic Island",
         description: "Vaša hudba, ovládacie prvky a bežné nástroje na jednom mieste v hornej časti obrazovky. Voliteľné. Vypnutím budete naďalej používať samostatné panely.",
         menuBarAccessHint: "Povoľte Prístupnosť, aby sa Dynamic Island mohol zobraziť na tomto displeji bez prekrývania ponúk.",
@@ -355,7 +360,7 @@ extension NotchStrings {
         system: "Systém",
         disabled: "Zapnite príslušnú funkciu, aby ste ju tu mohli používať.",
         files: "Súbory",
-        hideInFullscreen: "Skryť v celej obrazovke",
+        hideInFullscreen: "Skryť obsah v režime celej obrazovky",
         showInCaptures: "Zobraziť v snímkach obrazovky a videách",
         clipboardWindow: "Otvoriť históriu schránky v Dynamic Island",
         tools: "Nástroje",
@@ -398,6 +403,7 @@ extension NotchStrings {
 
     static let de = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Kombinieren",
         enable: "Dynamic Island aktivieren",
         description: "Musik, Steuerelemente und alltägliche Werkzeuge am oberen Bildschirmrand. Optional. Deaktiviere die Funktion, um die separaten Bereiche weiter zu nutzen.",
         menuBarAccessHint: "Erlaube die Bedienungshilfen, damit Dynamic Island auf diesem Bildschirm erscheint, ohne die Menüs zu verdecken.",
@@ -429,7 +435,7 @@ extension NotchStrings {
         system: "System",
         disabled: "Aktiviere die entsprechende Funktion, um sie hier zu nutzen.",
         files: "Dateien",
-        hideInFullscreen: "Im Vollbild ausblenden",
+        hideInFullscreen: "Inhalt im Vollbild ausblenden",
         showInCaptures: "In Screenshots und Videos anzeigen",
         clipboardWindow: "Zwischenablageverlauf in der Dynamic Island öffnen",
         tools: "Werkzeuge",
@@ -472,6 +478,7 @@ extension NotchStrings {
 
     static let fr = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Combiner",
         enable: "Activer Dynamic Island",
         description: "Votre musique, vos commandes et vos outils du quotidien, réunis en haut de l’écran. Facultatif. Désactivez cette option pour continuer à utiliser les panneaux séparés.",
         menuBarAccessHint: "Autorisez l’accessibilité pour afficher Dynamic Island sur cet écran sans masquer les menus.",
@@ -503,7 +510,7 @@ extension NotchStrings {
         system: "Système",
         disabled: "Activez la fonction correspondante pour l’utiliser ici.",
         files: "Fichiers",
-        hideInFullscreen: "Masquer en plein écran",
+        hideInFullscreen: "Masquer le contenu en plein écran",
         showInCaptures: "Afficher dans les captures d’écran et les vidéos",
         clipboardWindow: "Ouvrir l’historique du presse-papiers dans l’encoche",
         tools: "Outils",
@@ -546,6 +553,7 @@ extension NotchStrings {
 
     static let it = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Combina",
         enable: "Attiva Dynamic Island",
         description: "Musica, controlli e strumenti quotidiani, insieme nella parte superiore dello schermo. Facoltativo. Disattiva questa opzione per continuare a usare i pannelli separati.",
         menuBarAccessHint: "Consenti Accessibilità per mostrare Dynamic Island su questo schermo senza coprire i menu.",
@@ -577,7 +585,7 @@ extension NotchStrings {
         system: "Sistema",
         disabled: "Attiva la funzione corrispondente per usarla qui.",
         files: "File",
-        hideInFullscreen: "Nascondi a schermo intero",
+        hideInFullscreen: "Nascondi i contenuti a schermo intero",
         showInCaptures: "Mostra nelle schermate e nei video",
         clipboardWindow: "Apri la cronologia degli appunti nel Dynamic Island",
         tools: "Strumenti",
@@ -620,6 +628,7 @@ extension NotchStrings {
 
     static let ru = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Объединить",
         enable: "Включить Dynamic Island",
         description: "Музыка, управление и повседневные инструменты в верхней части экрана. Необязательно. Отключите, чтобы продолжить пользоваться отдельными панелями.",
         menuBarAccessHint: "Разрешите универсальный доступ, чтобы Dynamic Island отображалась на этом экране, не закрывая меню.",
@@ -651,7 +660,7 @@ extension NotchStrings {
         system: "Система",
         disabled: "Включите соответствующую функцию, чтобы использовать её здесь.",
         files: "Файлы",
-        hideInFullscreen: "Скрывать в полноэкранном режиме",
+        hideInFullscreen: "Скрывать содержимое в полноэкранном режиме",
         showInCaptures: "Показывать на снимках экрана и в видео",
         clipboardWindow: "Открывать историю буфера обмена в вырезе",
         tools: "Инструменты",
@@ -694,6 +703,7 @@ extension NotchStrings {
 
     static let tr = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Birleştir",
         enable: "Dynamic Island’u etkinleştir",
         description: "Müziğiniz, denetimleriniz ve günlük araçlarınız ekranın üst kısmında bir arada. İsteğe bağlıdır. Ayrı panelleri kullanmaya devam etmek için kapatın.",
         menuBarAccessHint: "Dynamic Island’ın bu ekranda menüleri kapatmadan görünmesi için Erişilebilirlik izni verin.",
@@ -725,7 +735,7 @@ extension NotchStrings {
         system: "Sistem",
         disabled: "Burada kullanmak için ilgili özelliği etkinleştirin.",
         files: "Dosyalar",
-        hideInFullscreen: "Tam ekranda gizle",
+        hideInFullscreen: "Tam ekranda içeriği gizle",
         showInCaptures: "Ekran görüntülerinde ve videolarda göster",
         clipboardWindow: "Pano geçmişini çentikte aç",
         tools: "Araçlar",
@@ -768,6 +778,7 @@ extension NotchStrings {
 
     static let ja = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "組み合わせる",
         enable: "Dynamic Islandを有効にする",
         description: "音楽、コントロール、毎日のツールを画面上部にまとめます。 必要に応じて有効にできます。オフにすると、個別のパネルを引き続き使用できます。",
         menuBarAccessHint: "メニューを隠さずにこのディスプレイにDynamic Islandを表示するには、アクセシビリティを許可してください。",
@@ -799,7 +810,7 @@ extension NotchStrings {
         system: "システム",
         disabled: "対応する機能を有効にすると、ここで使用できます。",
         files: "ファイル",
-        hideInFullscreen: "フルスクリーン時に非表示",
+        hideInFullscreen: "フルスクリーン時に内容を非表示",
         showInCaptures: "スクリーンショットと動画に表示",
         clipboardWindow: "クリップボード履歴をDynamic Islandで開く",
         tools: "ツール",
@@ -842,6 +853,7 @@ extension NotchStrings {
 
     static let ko = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "함께 표시",
         enable: "Dynamic Island 활성화",
         description: "음악, 제어 기능과 일상 도구를 화면 상단에 모아 보세요. 선택 기능입니다. 끄면 기존의 개별 패널을 계속 사용할 수 있습니다.",
         menuBarAccessHint: "이 디스플레이에서 메뉴를 가리지 않고 Dynamic Island를 표시하려면 손쉬운 사용을 허용하세요.",
@@ -873,7 +885,7 @@ extension NotchStrings {
         system: "시스템",
         disabled: "여기서 사용하려면 해당 기능을 활성화하세요.",
         files: "파일",
-        hideInFullscreen: "전체 화면에서 숨기기",
+        hideInFullscreen: "전체 화면에서 콘텐츠 숨기기",
         showInCaptures: "스크린샷 및 동영상에 표시",
         clipboardWindow: "Dynamic Island에서 클립보드 기록 열기",
         tools: "도구",
@@ -916,6 +928,7 @@ extension NotchStrings {
 
     static let zhHans = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "组合显示",
         enable: "启用Dynamic Island",
         description: "音乐、控制和日常工具，汇聚在屏幕顶部。 可选功能。关闭后可继续使用独立面板。",
         menuBarAccessHint: "请允许辅助功能权限，让 Dynamic Island 在此显示器上显示而不遮挡菜单。",
@@ -947,7 +960,7 @@ extension NotchStrings {
         system: "系统",
         disabled: "启用相应功能后即可在此使用。",
         files: "文件",
-        hideInFullscreen: "全屏时隐藏",
+        hideInFullscreen: "全屏时隐藏内容",
         showInCaptures: "在截图和视频中显示",
         clipboardWindow: "在Dynamic Island中打开剪贴板历史记录",
         tools: "工具",
@@ -990,6 +1003,7 @@ extension NotchStrings {
 
     static let zhTW = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "組合顯示",
         enable: "啟用Dynamic Island",
         description: "音樂、控制項與日常工具，匯聚在螢幕頂端。 選用功能。關閉後可繼續使用獨立面板。",
         menuBarAccessHint: "請允許輔助使用權限，讓 Dynamic Island 在此顯示器上顯示而不遮擋選單。",
@@ -1021,7 +1035,7 @@ extension NotchStrings {
         system: "系統",
         disabled: "啟用對應功能後即可在此使用。",
         files: "檔案",
-        hideInFullscreen: "全螢幕時隱藏",
+        hideInFullscreen: "全螢幕時隱藏內容",
         showInCaptures: "在截圖與影片中顯示",
         clipboardWindow: "在Dynamic Island中開啟剪貼簿記錄",
         tools: "工具",
@@ -1064,6 +1078,7 @@ extension NotchStrings {
 
     static let zhHK = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "組合顯示",
         enable: "啟用Dynamic Island",
         description: "音樂、控制項與日常工具，集中在螢幕頂端。 選用功能。關閉後可繼續使用獨立面板。",
         menuBarAccessHint: "請允許輔助使用權限，讓 Dynamic Island 在此顯示器上顯示而不遮擋選單。",
@@ -1095,7 +1110,7 @@ extension NotchStrings {
         system: "系統",
         disabled: "啟用相應功能後即可在此使用。",
         files: "檔案",
-        hideInFullscreen: "全螢幕時隱藏",
+        hideInFullscreen: "全螢幕時隱藏內容",
         showInCaptures: "在截圖與影片中顯示",
         clipboardWindow: "在Dynamic Island中開啟剪貼簿記錄",
         tools: "工具",
@@ -1138,6 +1153,7 @@ extension NotchStrings {
 
     static let uk = NotchStrings(
         title: "Dynamic Island",
+        combineActivities: "Поєднати",
         enable: "Увімкнути Dynamic Island",
         description: "Ваша музика, елементи керування та повсякденні інструменти, зібрані у верхній частині екрана. Необов’язково. Вимкніть, щоб і надалі користуватися окремими панелями.",
         menuBarAccessHint: "Надайте дозвіл «Доступність», щоб Dynamic Island з’являвся на цьому дисплеї, не затуляючи меню.",
@@ -1169,7 +1185,7 @@ extension NotchStrings {
         system: "Система",
         disabled: "Увімкніть відповідну функцію, щоб використовувати її тут.",
         files: "Файли",
-        hideInFullscreen: "Приховувати в повноекранному режимі",
+        hideInFullscreen: "Приховувати вміст у повноекранному режимі",
         showInCaptures: "Показувати на знімках і відео",
         clipboardWindow: "Відкривати історію буфера обміну у Dynamic Island",
         tools: "Інструменти",

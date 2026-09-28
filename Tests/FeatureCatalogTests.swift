@@ -2085,6 +2085,28 @@ enum FeatureCatalogTests {
                 && BrightnessSupport.deviceValue(for: -0.2, maximum: 100) == 0
                 && BrightnessSupport.deviceValue(for: 1.7, maximum: 100) == 100,
                "slider values map onto the display's own scale with clamping")
+        let minimum = BrightnessSupport.extendedDimmingRange
+        let black = BrightnessSupport.extendedDimmingComponents(for: 0)
+        let physicalMinimum = BrightnessSupport.extendedDimmingComponents(for: minimum)
+        let full = BrightnessSupport.extendedDimmingComponents(for: 1)
+        suite.expect(black.hardware == 0 && black.picture == 0
+                && physicalMinimum.hardware == 0 && physicalMinimum.picture == 1
+                && full.hardware == 1 && full.picture == 1,
+               "extended dimming reaches black below the hardware minimum and restores the picture above it")
+        suite.expect(BrightnessSupport.extendedDimmingComponents(
+            for: BrightnessSupport.reconnectedDimLevel(0)).picture == 1,
+            "reconnecting a black display restores a visible picture at the hardware minimum")
+        let midway = BrightnessSupport.extendedDimmingComponents(for: minimum / 2)
+        suite.expect(midway.hardware == 0 && midway.picture == 0.5
+                && BrightnessSupport.extendedDimmingComponents(for: 0.625).hardware == 0.5,
+               "only the lower part of the slider scales the picture")
+        suite.expect(BrightnessSupport.extendedDimmingLevel(hardware: 0, remembered: 0.1,
+                                                              pictureDimmed: true) == 0.1
+                && BrightnessSupport.extendedDimmingLevel(hardware: 0, remembered: 0.1,
+                                                             pictureDimmed: false) == minimum
+                && BrightnessSupport.extendedDimmingLevel(hardware: 0.5, remembered: 0.1,
+                                                             pictureDimmed: true) == 0.625,
+               "a rebuild keeps only an app-applied picture dim and honors a changed hardware level")
         suite.expect(BrightnessSupport.steppedKeyboardLightLevel(current: 0.5, direction: -1)
                 == 0.5 - BrightnessSupport.keyboardLightStep
                 && BrightnessSupport.steppedKeyboardLightLevel(current: 0.5, direction: 1)
@@ -2194,6 +2216,11 @@ enum FeatureCatalogTests {
                 && !SettingsBackupSupport.exportKeys().contains(
                     DefaultsKey.brightnessForcedSoftwarePaths),
                "a hand-picked software dimming route never travels in a settings backup")
+        suite.expect(SettingsBackupSupport.machineStateKeys.contains(
+            DefaultsKey.brightnessExtendedDimmingPaths)
+                && !SettingsBackupSupport.exportKeys().contains(
+                    DefaultsKey.brightnessExtendedDimmingPaths),
+               "the per-monitor extended dimming choice stays on this Mac")
         for surface in ["Sources/Vorssaint/UI/Settings/EnergySettings.swift",
                         "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift"] {
             let source = (try? String(contentsOfFile: surface, encoding: .utf8)) ?? ""

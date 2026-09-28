@@ -468,26 +468,39 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     /// is the cheap hint, and the frame probe, which waits on the window
     /// server, runs only while one is up or the island is concealed.
     private func syncMissionControlMonitoring() {
+        updateMissionControlTimer()
+        if panel.isVisible { refreshMissionControlState(now: true) }
+    }
+
+    private var missionControlCheckInterval: TimeInterval {
+        overviewWasVisible || concealedForMissionControl ? 0.08 : 0.25
+    }
+
+    private func updateMissionControlTimer() {
         guard panel.isVisible || concealedForMissionControl else {
             missionControlTimer?.invalidate()
             missionControlTimer = nil
             return
         }
-        if missionControlTimer == nil {
-            let timer = Timer(timeInterval: 0.08, repeats: true) { [weak self] _ in
+        let interval = missionControlCheckInterval
+        if missionControlTimer?.timeInterval != interval {
+            missionControlTimer?.invalidate()
+            let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
                 self?.refreshMissionControlState()
             }
-            timer.tolerance = 0.04
+            timer.tolerance = interval / 2
             missionControlTimer = timer
             RunLoop.main.add(timer, forMode: .common)
         }
-        if panel.isVisible { refreshMissionControlState(now: true) }
     }
 
     private func refreshMissionControlState(now immediate: Bool = false) {
         let now = ProcessInfo.processInfo.systemUptime
-        guard immediate || now - lastMissionControlCheck >= 0.08 else { return }
+        guard immediate || now - lastMissionControlCheck >= missionControlCheckInterval else { return }
         lastMissionControlCheck = now
+        // Most of the time no overview is up. Poll less often then, but keep
+        // the original restore cadence and immediate checks before revealing.
+        defer { updateMissionControlTimer() }
         let overview = NotchFrameProbe.overviewIsVisible(on: currentGeometry.screen)
         let appeared = overview && !overviewWasVisible
         overviewWasVisible = overview
@@ -788,6 +801,7 @@ final class NotchPanel: NSPanel {
     // Status items own the screen edge at their level, even when our view's
     // hit test includes it. Keep the island above them, below native menus.
     static let normalLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
+    static let fullscreenLevel = NSWindow.Level.floating
     var acceptsKeyFocus = false
     var handleScroll: ((NSEvent) -> Bool)?
     var visibilityDidChange: (() -> Void)?

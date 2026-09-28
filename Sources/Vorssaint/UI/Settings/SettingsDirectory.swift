@@ -231,7 +231,8 @@ enum SettingsDirectory {
                                        ]),
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [
-                                        (.switcher, [s.switcherEnable, s.switcherWindowlessApps,
+                                        (.switcher, [s.switcherEnable, s.switcherInstantSelection,
+                                                     s.switcherWindowlessApps,
                                                      s.switcherShowShortcutHints,
                                                      FeatureStrings.switcherAppRules(language).listTitle,
                                                      FeatureStrings.switcherAppRules(language)

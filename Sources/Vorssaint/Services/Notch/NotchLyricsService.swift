@@ -167,7 +167,7 @@ final class NotchLyricsService: ObservableObject {
     private func canReturnToLyrics(_ window: NSWindow, track expected: NotchMusicIdentity) -> Bool {
         let notch = NotchService.shared
         return visible && track == expected && NotchLyricsSupport.isEnabled()
-            && notch.acceptsSystemFeedback && notch.presentationWindow === window && window.isVisible
+            && notch.acceptsUserInteraction && notch.presentationWindow === window && window.isVisible
             && notch.expanded && notch.selected == .music && !notch.showingAppPanel
             && notch.selectedMetric == nil && notch.captureControls == nil
     }

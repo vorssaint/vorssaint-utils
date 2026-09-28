@@ -38,7 +38,6 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.mouseClickDebounceWindowMs) private var mouseClickDebounceWindow =
         Defaults.defaultMouseClickDebounceWindowMs
     @State private var smoothScrollMoreOptionsExpanded = false
-    @State private var mouseClickDebounceMoreOptionsExpanded = false
 
     private var mouseClickDebounceText: MouseClickDebounceStrings {
         FeatureStrings.mouseClickDebounce(l10n.language)
@@ -397,28 +396,22 @@ struct MouseSettings: View {
                     }
             }
             if mouseClickDebounceEnabled {
-                DisclosureGroup(isExpanded: $mouseClickDebounceMoreOptionsExpanded) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Stepper(value: mouseClickDebounceWindowBinding,
-                                in: Defaults.allowedMouseClickDebounceWindowRange,
-                                step: 5) {
-                            HStack {
-                                Text(mouseClickDebounceText.windowLabel)
-                                Spacer()
-                                Text("\(Defaults.sanitizedMouseClickDebounceWindow(mouseClickDebounceWindow)) ms")
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                            }
+                VStack(alignment: .leading, spacing: 6) {
+                    Stepper(value: mouseClickDebounceWindowBinding,
+                            in: Defaults.allowedMouseClickDebounceWindowRange,
+                            step: 1) {
+                        HStack {
+                            Text(mouseClickDebounceText.windowLabel)
+                            Spacer()
+                            Text("\(Defaults.sanitizedMouseClickDebounceWindow(mouseClickDebounceWindow)) ms")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
                         }
-                        Text(mouseClickDebounceText.windowCaption)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.top, 6)
-                } label: {
-                    Text(mouseClickDebounceText.moreOptions)
-                        .font(.subheadline.weight(.medium))
+                    Text(mouseClickDebounceText.windowCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.leading, settingsRowTextInset)
             }

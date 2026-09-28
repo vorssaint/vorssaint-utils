@@ -41,13 +41,14 @@ private extension View {
 }
 
 /// Content of the switcher panel: a grid of large window cards with live
-/// thumbnails, hover/keyboard selection and a springy highlight.
+/// thumbnails, hover/keyboard selection and an optional springy highlight.
 struct SwitcherView: View {
     @EnvironmentObject private var switcher: AppSwitcher
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.switcherIconRowMode) private var iconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var simpleMode = false
+    @AppStorage(DefaultsKey.switcherInstantSelection) private var instantSelection = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var mergeWindowsByApp = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var showsShortcutHints = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
@@ -161,6 +162,7 @@ struct SwitcherView: View {
                         WindowCard(window: window,
                                    preview: window.previewWindowID.flatMap { switcher.previews[$0] },
                                    isSelected: index == switcher.selectedIndex,
+                                   animatesSelection: !instantSelection,
                                    onCommit: {
                                        switcher.select(index: index)
                                        switcher.commitSession()
@@ -182,7 +184,7 @@ struct SwitcherView: View {
             .scrollDisabled(switcher.grid.rows <= switcher.grid.visibleRows)
             .onChange(of: switcher.selectedIndex) { _, newIndex in
                 guard switcher.windows.indices.contains(newIndex) else { return }
-                withAnimation(.easeOut(duration: 0.15)) {
+                withAnimation(instantSelection ? nil : .easeOut(duration: 0.15)) {
                     proxy.scrollTo(switcher.windows[newIndex].id, anchor: nil)
                 }
             }
@@ -309,6 +311,7 @@ struct SwitcherView: View {
                                     SwitcherWindowPreviewTile(window: window,
                                                               preview: window.previewWindowID.flatMap { switcher.previews[$0] },
                                                               isSelected: index == switcher.selectedIndex,
+                                                              instantSelection: instantSelection,
                                                               onCommit: {
                                                                   switcher.select(index: index)
                                                                   switcher.commitSession()
@@ -492,6 +495,7 @@ struct SwitcherView: View {
                                  windowCount: group.windowCount,
                                  showsWindowTitle: false,
                                  isSelected: group.pid == selectedWindow?.pid,
+                                 animatesSelection: !instantSelection,
                                  onCommit: {
                                      switcher.select(index: index)
                                      switcher.commitSession()
@@ -529,6 +533,7 @@ struct SwitcherView: View {
                     windowCount: 1,
                     showsWindowTitle: true,
                     isSelected: index == switcher.selectedIndex,
+                    animatesSelection: !instantSelection,
                     onCommit: {
                         switcher.select(index: index)
                         switcher.commitSession()
@@ -554,7 +559,7 @@ struct SwitcherView: View {
         }
         .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
         .offset(x: overflow ? iconRowOverflowOffset(tileWidth: tileWidth) : 0)
-        .animation(.easeOut(duration: SwitcherSupport.iconRowEdgeHoverAnimationDuration),
+        .animation(instantSelection ? nil : .easeOut(duration: SwitcherSupport.iconRowEdgeHoverAnimationDuration),
                    value: switcher.iconRowFirstVisibleIndex)
         .frame(width: switcher.iconRowLayout.appRowContentWidth,
                height: SwitcherIconRowLayout.rowHeight,
@@ -583,7 +588,7 @@ struct SwitcherView: View {
         let index = switcher.selectedIndex
         guard switcher.windows.indices.contains(index) else { return }
         let id = switcher.windows[index].id
-        guard animated, #available(macOS 26, *) else {
+        guard animated, !instantSelection, #available(macOS 26, *) else {
             proxy.scrollTo(id, anchor: .center)
             return
         }
@@ -674,6 +679,7 @@ private struct SwitcherIconTile: View {
     let windowCount: Int
     let showsWindowTitle: Bool
     let isSelected: Bool
+    let animatesSelection: Bool
     let onCommit: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
@@ -758,7 +764,8 @@ private struct SwitcherIconTile: View {
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onTapGesture(perform: onCommit)
         .scaleEffect(isSelected ? 1 : 0.96)
-        .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isSelected)
+        .animation(animatesSelection ? .spring(response: 0.24, dampingFraction: 0.82) : nil,
+                   value: isSelected)
         .accessibilityLabel(spokenLabel)
     }
 }
@@ -767,6 +774,7 @@ private struct SwitcherWindowPreviewTile: View {
     let window: SwitcherItem
     let preview: CGImage?
     let isSelected: Bool
+    let instantSelection: Bool
     let onCommit: () -> Void
     let onClose: () -> Void
 
@@ -864,7 +872,7 @@ private struct SwitcherWindowPreviewTile: View {
             onCommit()
         }
         .onHover { isHovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: showsCloseButton)
+        .animation(instantSelection ? nil : .easeOut(duration: 0.12), value: showsCloseButton)
         .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow,
                                                hiddenApp: l10n.s.panelHiddenItem,
                                                otherDesktop: l10n.s.switcherOtherDesktop))
@@ -924,6 +932,7 @@ private struct WindowCard: View {
     let window: SwitcherItem
     let preview: CGImage?
     let isSelected: Bool
+    let animatesSelection: Bool
     let onCommit: () -> Void
     let onClose: () -> Void
 
@@ -1054,8 +1063,8 @@ private struct WindowCard: View {
         }
         .onHover { isHovering = $0 }
         .scaleEffect(isSelected ? 1.0 : 0.97)
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isSelected)
-        .animation(.easeOut(duration: 0.12), value: showsCloseButton)
+        .animation(animatesSelection ? .spring(response: 0.25, dampingFraction: 0.8) : nil,
+                   value: isSelected)
         .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow,
                                                hiddenApp: l10n.s.panelHiddenItem,
                                                otherDesktop: l10n.s.switcherOtherDesktop))
@@ -1123,6 +1132,7 @@ private struct WindowCard: View {
         }
         .buttonStyle(.plain)
         .opacity(showsCloseButton ? 1 : 0)
+        .animation(.easeOut(duration: 0.12), value: showsCloseButton)
         .allowsHitTesting(showsCloseButton)
         .onHover { isCloseHovering = $0 }
         .help(l10n.s.dockPreviewCloseWindow)

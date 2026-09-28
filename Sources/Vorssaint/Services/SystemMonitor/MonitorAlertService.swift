@@ -151,7 +151,8 @@ final class MonitorAlertService {
               let temperature = snapshot.cpuTemperature else { return }
         send(.cpuTemperature,
              title: strings.cpuTemperatureTitle,
-             body: String(format: strings.cpuTemperatureBodyFormat, Int(temperature.rounded())))
+             body: String(format: strings.cpuTemperatureBodyFormat,
+                          Self.formattedTemperature(temperature, defaults: defaults)))
     }
 
     private func lowBattery(from snapshot: SystemSnapshot,
@@ -182,7 +183,12 @@ final class MonitorAlertService {
         send(.batteryTemperature,
              title: strings.batteryTemperatureTitle,
              body: String(format: strings.batteryTemperatureBodyFormat,
-                          Int(temperature.rounded())))
+                          Self.formattedTemperature(temperature, defaults: defaults)))
+    }
+
+    private static func formattedTemperature(_ celsius: Double, defaults: UserDefaults) -> String {
+        let unit = TemperatureUnit(rawValue: defaults.string(forKey: DefaultsKey.temperatureUnit) ?? "") ?? .celsius
+        return MetricFormat.temperature(celsius, unit: unit)
     }
 
     private func send(_ kind: MonitorAlertKind, title: String, body: String) {

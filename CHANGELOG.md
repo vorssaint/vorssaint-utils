@@ -7,10 +7,100 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island gives a small spring response when the pointer reaches its closed surface.
+Everyday controls and package management behave more reliably across desktop layouts, large clipboard histories and networks that require a proxy or mirror. The update also improves input timing and makes save failures and system prompts easier to handle.
+
+### Fixed
+- Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
+- Closing the menu bar panel returns focus to the previous app without switching desktops.
+- Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
+- Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
+- Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
+- Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
+- Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
+
+### Contributors
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @IanHollow, @iva-zhu, @Kernel-Hunter, @PathGao, @shlok1806, @trac3r00, @tyteachestech and @Yahddyyp.
+
+## [3.4.0] - 2026-09-27
+
+### Summary
+Dynamic Island brings music, live activities and everyday tools together at the top of your screen, including a dedicated view of your AI agents. Version 3.4.0 also expands window management, capture and clipboard tools, adds automatic audio device switching, and improves everyday reliability and performance.
+
+If you use Extra Brightness on 3.3.5, turn it off before updating so it cannot cover the administrator password prompt.
+
+### Dynamic Island
+- An optional, experimental island for Macs with or without a camera cutout, with customizable layouts, click or hover opening, gestures and keyboard navigation.
+- Control music with seeking, synchronized lyrics and the player's queue. Follow music apps automatically or choose a playback source; online lyric lookup requires separate consent.
+- Keep timers, focus cycles and a stopwatch within reach, browse your calendar, and preview or revisit notifications.
+- Choose which activity stays visible beside the camera, or combine a timer with music, a download or a working AI agent.
+- Follow local AI agent activity, plan limits, API value and usage history, with alerts for completed tasks and usage limits. Usage data stays on your Mac.
+- Reach Clipboard History, Shelf, Scratchpad, the volume mixer and device controls without leaving the island. Drag in files for storage or media tools, and manage captures from its header.
+- Arrange sections and shortcuts with a live preview, choose where the island reopens, and customize its outline, Liquid Glass, display and full-screen behavior.
+
+### Added
+- Screenshots gain custom watermarks, sharing, pinning and editor shortcuts. Screenshot and recording editors offer adjustable blur strength, and recordings can export at speeds from 0.25× to 4×.
+- Clipboard History gains a resizable window, image editing and color swatches. Shelf keeps pinned items across restarts and accepts complete attachments dragged from other apps.
+- Window Layout adds quarter rows and columns, vertical thirds, app exceptions and width cycling. New shortcuts help move windows and the pointer between displays, including stacked monitors.
+- App Switcher adds filtering by the pointer's display and optional instant selection. Dock Preview gains an experimental option to keep an auto-hidden Dock visible while browsing.
+- Audio device priority switches to the highest-ranked connected output or microphone. The volume mixer adds microphone volume, pinned apps and a saved custom order.
+- Display controls add extra dimming for supported external monitors, custom brightness shortcuts and optional built-in display dimming with the lid closed. Keyboard brightness is adjustable from the panel.
+- Command Bar adds scientific calculations, emoji skin tones and up to 64 custom shortcuts.
+- Keep Awake adds separate Duration and Until modes and stricter automation conditions. Fan Control can optionally resume a manual speed or curve after restart or sleep.
+- An optional wallpaper gallery in the menu panel.
+- Slovak and Ukrainian translations throughout the app.
 
 ### Changed
+- Settings gains grouped navigation, Back and Forward buttons and clearer feature setup. Newly installed features start their main behavior unless a previous choice was saved.
+- Package management offers direct installation from search and groups dependencies; Cleaner and Uninstaller scans can be cancelled.
+- Lower temporary memory use in the screenshot editor.
+
+### Fixed
+- Bug fixes in App Switcher, Dock Preview and multi-display behavior, including window focus, unwanted resizing, slow previews and panel placement.
+- Bug fixes in screenshots and recordings, including image sharpness, scrolling captures, audio synchronization, saving and capture shortcuts during a recording.
+- Bug fixes in Clipboard History and audio controls, including recovery after clipboard service restarts or stalled playback, and clearer handling of failed copies and microphone changes.
+- Reliability fixes for permission resets, keyboard input, sleep restoration, cleaning, uninstalling and menu bar icon recovery, with clearer reporting when an operation cannot finish.
+
+### Contributors
+Thanks to @1119350264, @adnn-alc, @akeslo, @akune, @anandghegde, @ancoesat, @aniruddhaadak80, @archieamas11, @bebricoOOOOOOf, @Borisserz, @brandom, @cdbrandt729-code, @celltower, @cjscld, @COMEBACKISREAL, @dajiaohuang, @DarkEden-coding, @delfu, @DiogoDuart3, @DocEmmetBrown, @drybx, @EdenRochmanSharabi, @ethanbeau, @EugeneCarldotme, @fakepooh, @fermincasagrande, @frixaco, @Frozen0wl, @GabrielDazzi, @georgebnov, @GolamRafi27oo, @ilim-cell, @iltonandrew, @integral-llc, @iva-zhu, @JashRashne, @justin-chiam, @Kernel-Hunter, @kirolos-esmat, @KumarSashank, @kxnstandin, @loburets, @Logimon, @MakhBeth, @maodijim, @marcelharinck, @MaximilianMauroner, @MrDXTR, @muskecan, @naveenkrdy, @NongKnot, @npcmail010, @overstock718, @owendaw, @PathGao, @pergioa, @rado9904, @ranak8811, @rkrkrkk, @root800080, @ruvelro, @samanyudas, @Samuel61904, @samueljim, @santi-ug, @sarat03, @shlok1806, @stephansann, @tenbux, @trac3r00, @tuttopassastudios, @Yahddyyp, @Yash121l, @ywu73, @zamai, @zeuslcf, @zorahrel, Azelance, Brain, DucemMortis, Jets, Monolithic capacitor, Mower, Pinea and Slipshady.
+
+## [3.4.0-beta.7] - 2026-09-26
+
+### Summary
+External monitors gain extra dimming, and Clipboard History gains a resizable window. Dynamic Island lets you choose the activity to display or combine a timer with another activity, and improves clipboard access and full-screen controls. Screen capture is more responsive, and the volume mixer can recover stalled audio.
+
+### Added
+- External monitors with readable brightness control offer optional Extra dimming in Settings. The lower part of the slider dims the picture below the monitor's hardware minimum, while the rest keeps using hardware brightness.
+- Clipboard History's separate window resizes by dragging an edge or corner, and remembers the chosen size.
+- Dynamic Island's Clipboard page pastes the first nine entries with ⌘1–⌘9, as the separate window does, and shows the shortcuts while the island has the keyboard.
+- App Switcher can skip highlight, scrolling and panel resize animations while browsing, with smooth selection still the default.
+- Dynamic Island's fan card opens Fan Control with its manual speed and curve controls, and still shows each fan's speed when the fan helper is unavailable.
+- When several activities are active, hovering over the closed Dynamic Island reveals named choices. Select one activity on its own, or use Combine to show a timer beside music, a working agent or a download; the choice lasts while that activity remains available.
+
+### Changed
+- AI agent usage reads large logs with less temporary memory and avoids unnecessary display updates. Alerts queued by a stopped session no longer appear after restarting the feature.
 - The closed Dynamic Island gently grows on hover before a click or a configured hover opening, while respecting Reduce Motion and available menu bar space.
+- On displays without a camera cutout, Dynamic Island stays visible through app and display focus changes when Show over the menus is enabled, including at rest. With that option off, it uses measured free space only after finding menu geometry on the chosen display.
+- With Hide content in full screen enabled, Dynamic Island keeps a black, clickable cutout over the camera in full screen, and clicking, hovering or a shortcut opens its tools. A simulated cutout stays hidden until a shortcut opens it.
+- Unavailable cards in Dynamic Island settings open the feature, island section or Displays setting they need. After updating, island users whose brightness feedback waits for Control displays are invited once to turn it on.
+- Liquid Glass has separate switches for Dynamic Island and for other windows and panels. The island keeps its current look after updating.
+- Command Bar shortcuts allow up to 64 bindings, enough for every letter and other commands.
+- The mouse extra-click filter shows its window directly in Settings and can be tuned in 1 ms steps.
+- Quit on Close's Settings warns that apps such as screen recorders may keep working after their last window closes, and points to Exceptions to prevent an unwanted quit.
+
+### Fixed
+- Scrolling screenshots respond faster to wheel, keyboard and scrollbar movement, preserve completed content after later capture failures and avoid transparent seams. The screenshot preview releases focus before opening the editor.
+- Long window titles in App Switcher and Dock previews stay still when Reduce Motion is enabled.
+- Dynamic Island stays off external monitors in closed-lid mode when Built-in display is selected, and returns to the laptop display when it becomes available again. While hidden it does no background work, and a finished timer rings once the island is back. Macs without a built-in display keep the island on the main display.
+- Dynamic Island sends a player's supported Play or Pause command when available, improving control of radio streams.
+- Temperature alerts show their limits and notifications in the selected temperature unit.
+- With inactive apps hidden, the volume mixer shows an app as soon as it starts playing.
+- Volume mixer detects audio processing that stalls after initially working and attempts recovery without requiring a reset or restart. Adjusting an app's volume also checks its audio path.
+- Clipboard History no longer refreshes the whole list when the pointer moves between entries.
+- Turning off automatic copy for screenshots also stops the after-capture Copy action, so captures no longer reach the clipboard. Save and copy becomes Save.
+- Screenshot, text and color shortcuts work during a recording when their capture menu is turned off, and leave the recording running. With the menu on, they still wait for the recording to end.
+
+### Contributors
+Thanks to @1119350264, @EugeneCarldotme, @loburets, @ranak8811, @ruvelro, @Samuel61904 and @stephansann.
 
 ## [3.4.0-beta.6] - 2026-09-25
 

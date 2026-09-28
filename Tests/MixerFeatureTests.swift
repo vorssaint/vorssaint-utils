@@ -425,8 +425,8 @@ enum MixerFeatureTests {
                                                        isPlaying: true,
                                                        now: 100.4,
                                                        window: 1.5)
-               == .note(RenderLook(cycles: 9, at: 100.4), recheckAfter: nil),
-               "an advancing count is healthy and needs no extra pass")
+               == .note(RenderLook(cycles: 9, at: 100.4), recheckAfter: 1.5),
+               "an advancing count keeps checking for a later stall without a HAL event")
         suite.expect(MixerRoutingSupport.engineRenderVerdict(previous: RenderLook(cycles: 7, at: 100),
                                                        cycles: 7,
                                                        isPlaying: true,
@@ -447,6 +447,37 @@ enum MixerFeatureTests {
                                                        window: 1.5)
                == .stalled(recheckAfter: 1.5),
                "a clock that jumps backwards waits a full window before judging")
+
+        // Drive only the checks requested by the watchdog, with no HAL events
+        // or user interaction. A stream that worked first must still recover
+        // when it later freezes, and pausing must stop the checks.
+        do {
+            var previous: RenderLook?
+            var nextCheck: Double? = 0
+            var detectedStall = false
+            for cycles: UInt64 in [10, 20, 30, 30] {
+                guard let now = nextCheck else { break }
+                let verdict = MixerRoutingSupport.engineRenderVerdict(
+                    previous: previous, cycles: cycles, isPlaying: true, now: now)
+                nextCheck = nil
+                switch verdict {
+                case .note(let observation, let delay):
+                    previous = observation
+                    nextCheck = now + delay
+                case .stalled(let delay):
+                    nextCheck = now + delay
+                case .wedged:
+                    detectedStall = true
+                case nil:
+                    break
+                }
+            }
+            suite.expect(detectedStall,
+                         "scheduled checks catch a stream freezing after successful playback")
+            suite.expect(MixerRoutingSupport.engineRenderVerdict(
+                previous: previous, cycles: 30, isPlaying: false, now: 100) == nil,
+                         "pausing after successful playback stops render checks")
+        }
 
         // The wedged tap that verdict tears down is also the one whose
         // `AudioHardwareDestroyProcessTap` parks inside the HAL. Serialized,

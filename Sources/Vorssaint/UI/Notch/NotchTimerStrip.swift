@@ -4,7 +4,7 @@
 import SwiftUI
 
 /// The clock keeps the right of the camera. The left shows the timer's mark,
-/// or whatever shares the island with it: a download, working agents or the
+/// or its explicitly chosen companion: a download, working agents or the
 /// music playing, each opening its own page. The wings are as wide as the
 /// wider side needs, and both sit at the ends, where the island shows.
 struct NotchTimerStrip: View {

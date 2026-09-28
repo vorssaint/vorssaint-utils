@@ -31,6 +31,7 @@ final class NotchAudioLevelService: ObservableObject {
     func syncWithPreferences() {
         enabled = AppFeature.notchLiveEqualizer.isAvailable && NotchSupport.isEnabled()
             && NotchAudioLevelSupport.isSupported && NotchAudioLevelSupport.isEnabled()
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if enabled {
             if subscription == nil {
                 silence.rearm()
@@ -150,7 +151,7 @@ final class NotchAudioLevelService: ObservableObject {
     }
 
     private func receive(_ next: [Double], from pid: pid_t) {
-        guard reader != nil, readerPID == pid else { return }
+        guard reader != nil, readerPID == pid, levels != next else { return }
         levels = next
     }
 }

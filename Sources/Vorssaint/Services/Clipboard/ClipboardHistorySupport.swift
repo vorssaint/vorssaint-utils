@@ -3,6 +3,38 @@
 
 import AppKit
 
+enum ClipboardHistoryWindowSizing {
+    static let compactDefault = NSSize(width: 560, height: 420)
+    static let compactMinimum = NSSize(width: 560, height: 300)
+    static let previewExtra = NSSize(width: 280, height: 80)
+
+    static func minimumSize(preview: Bool) -> NSSize {
+        NSSize(width: compactMinimum.width + (preview ? previewExtra.width : 0),
+               height: compactMinimum.height + (preview ? previewExtra.height : 0))
+    }
+
+    static func contentSize(preview: Bool, savedWidth: Double, savedHeight: Double,
+                            visibleFrame: NSRect) -> NSSize {
+        let minimum = minimumSize(preview: preview)
+        let width = savedWidth.isFinite && savedWidth >= compactMinimum.width
+            ? CGFloat(savedWidth) : compactDefault.width
+        let height = savedHeight.isFinite && savedHeight >= compactMinimum.height
+            ? CGFloat(savedHeight) : compactDefault.height
+        let requested = NSSize(width: width + (preview ? previewExtra.width : 0),
+                               height: height + (preview ? previewExtra.height : 0))
+        return NSSize(width: max(minimum.width, min(requested.width, visibleFrame.width - 32)),
+                      height: max(minimum.height, min(requested.height, visibleFrame.height - 32)))
+    }
+
+    static func savedCompactSize(from contentSize: NSSize, preview: Bool) -> NSSize? {
+        let width = contentSize.width - (preview ? previewExtra.width : 0)
+        let height = contentSize.height - (preview ? previewExtra.height : 0)
+        guard width.isFinite, height.isFinite,
+              width >= compactMinimum.width, height >= compactMinimum.height else { return nil }
+        return NSSize(width: width, height: height)
+    }
+}
+
 /// Main-thread capture admission. Expiring a result does not release the
 /// actual queued read; stop/start must not release it either.
 struct ClipboardHistoryCaptureState {
@@ -460,15 +492,19 @@ struct ClipboardHistorySearchCandidate {
 }
 
 enum ClipboardHistorySearch {
+    /// `textIsNormalized` is for callers that already ran every candidate's
+    /// text through `normalized(_:)` once and search it on every keystroke:
+    /// folding long entries is what made typing lag (#1885).
     static func rankedIndexes(candidates: [ClipboardHistorySearchCandidate],
-                              matching query: String) -> [Int] {
+                              matching query: String,
+                              textIsNormalized: Bool = false) -> [Int] {
         let normalizedQuery = normalized(query)
         let tokens = queryTokens(normalizedQuery)
         guard !tokens.isEmpty else { return candidates.map(\.index) }
 
         return candidates
             .compactMap { candidate -> (index: Int, score: Int, originalOrder: Int)? in
-                let text = normalized(candidate.text)
+                let text = textIsNormalized ? candidate.text : normalized(candidate.text)
                 guard tokens.allSatisfy({ text.contains($0) }) else { return nil }
                 return (candidate.index,
                         score(for: text,
@@ -482,6 +518,12 @@ enum ClipboardHistorySearch {
                 return $0.originalOrder < $1.originalOrder
             }
             .map(\.index)
+    }
+
+    /// Whether the query filters at all; an empty one lists every candidate
+    /// in order, so there is nothing to fold for it.
+    static func hasSearchTerms(_ query: String) -> Bool {
+        !queryTokens(normalized(query)).isEmpty
     }
 
     static func matches(_ text: String, query: String) -> Bool {
@@ -521,7 +563,7 @@ enum ClipboardHistorySearch {
             .filter { !$0.isEmpty }
     }
 
-    private static func normalized(_ value: String) -> String {
+    static func normalized(_ value: String) -> String {
         value
             // No locale: Turkish folds a dotted I to a dotless one, and a
             // search that inherited the Mac's locale would stop finding

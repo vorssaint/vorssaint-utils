@@ -257,6 +257,15 @@ final class ScreenshotQuickPreviewController {
         guard !model.disabledActions.contains(requested) else { return }
         dismissWork?.cancel()
         dismissWork = nil
+        if requested == .edit {
+            // Release the island's non-activating key panel before promoting
+            // the app and constructing another SwiftUI window. Defer past the
+            // button's current update rather than nesting editor layout in it.
+            let action = action
+            close()
+            DispatchQueue.main.async { _ = action(requested) }
+            return
+        }
         guard !action(requested).isEmpty else {
             scheduleAutoDismiss()
             return

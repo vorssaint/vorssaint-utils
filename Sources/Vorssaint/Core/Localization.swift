@@ -389,6 +389,8 @@ struct Strings {
     let switcherTakeOverSystemShortcutsCaption: String
     let switcherAppearanceDelay: String
     let switcherAppearanceDelayCaption: String
+    let switcherInstantSelection: String
+    let switcherInstantSelectionCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherWindowlessApps: String
@@ -461,6 +463,7 @@ struct Strings {
     let autoQuitStep1: String
     let autoQuitStep2: String
     let autoQuitPredictableNote: String
+    let autoQuitOngoingWorkNote: String
     let autoQuitExceptionsTitle: String
     let autoQuitExceptionsCaption: String
     let autoQuitExceptionsEmpty: String
@@ -1503,6 +1506,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Desativa os atalhos correspondentes de apps e janelas do macOS somente enquanto o alternador do Vorssaint estiver ativo. Todos os apps abertos continuam acessíveis.",
         switcherAppearanceDelay: "Atraso de exibição",
         switcherAppearanceDelayCaption: "Quanto tempo o atalho precisa ficar pressionado antes de o alternador aparecer.",
+        switcherInstantSelection: "Seleção instantânea",
+        switcherInstantSelectionCaption: "Move o destaque e a rolagem imediatamente ao navegar por apps e janelas.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -1573,6 +1578,7 @@ extension Strings {
         autoQuitStep1: "Feche a última janela de um app (⌘W ou o botão vermelho).",
         autoQuitStep2: "O app é encerrado sozinho. Diálogos de “salvar?” continuam aparecendo.",
         autoQuitPredictableNote: "Apps que normalmente rodam sem janela nunca são encerrados.",
+        autoQuitOngoingWorkNote: "Alguns apps fecham a última janela e continuam trabalhando, como um gravador de tela depois que a captura começa. Esses também são encerrados, a menos que estejam na lista de exceções.",
         autoQuitExceptionsTitle: "Exceções",
         autoQuitExceptionsCaption: "Apps nesta lista continuam abertos mesmo sem nenhuma janela.",
         autoQuitExceptionsEmpty: "Nenhuma exceção",
@@ -2581,6 +2587,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Disables the matching macOS app and window shortcuts only while Vorssaint’s switcher is active. All running apps stay reachable.",
         switcherAppearanceDelay: "Appearance delay",
         switcherAppearanceDelayCaption: "How long the shortcut must be held before the switcher appears.",
+        switcherInstantSelection: "Instant selection",
+        switcherInstantSelectionCaption: "Moves the highlight and scroll position immediately as you browse apps and windows.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app’s windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",
@@ -2651,6 +2659,7 @@ extension Strings {
         autoQuitStep1: "Close an app’s last window (⌘W or the red button).",
         autoQuitStep2: "The app quits on its own. “Save changes?” dialogs still appear.",
         autoQuitPredictableNote: "Apps that normally run without a window are never quit.",
+        autoQuitOngoingWorkNote: "Some apps close their last window while they keep working, such as a screen recorder once capture starts. Those are quit too, unless they are on the Exceptions list.",
         autoQuitExceptionsTitle: "Exceptions",
         autoQuitExceptionsCaption: "Apps on this list stay open even with no windows.",
         autoQuitExceptionsEmpty: "No exceptions",

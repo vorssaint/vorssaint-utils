@@ -84,7 +84,7 @@ enum NotchMediaPresentationProbe {
         let domain = "com.vorssaint.tests.media-motion.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.register(defaults: Defaults.registeredDefaults)
-        defaults.set(CommandLine.arguments.contains("--glass"), forKey: DefaultsKey.liquidGlassEnabled)
+        defaults.set(CommandLine.arguments.contains("--glass"), forKey: DefaultsKey.notchLiquidGlassEnabled)
         let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: 32, cameraWidth: 180, layout: .spacious)
         let model = Model(geometry: geometry, defaults: defaults)
         let host = NotchWindowHost(content: AnyView(Content(model: model)), geometry: geometry, size: model.size,

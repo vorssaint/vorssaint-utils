@@ -21,7 +21,7 @@ enum NotchPresentationProbe {
     /// is only registered, so nothing is written to disk.
     private static let glassDefaults: UserDefaults = {
         let defaults = UserDefaults(suiteName: "com.vorssaint.tests.notch-presentation")!
-        defaults.register(defaults: [DefaultsKey.liquidGlassEnabled: CommandLine.arguments.contains("--glass")])
+        defaults.register(defaults: [DefaultsKey.notchLiquidGlassEnabled: CommandLine.arguments.contains("--glass")])
         return defaults
     }()
 

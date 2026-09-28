@@ -10,7 +10,12 @@ import Foundation
 /// gamma route, so both have to go before the monitor takes the slider back
 /// (issue #1589).
 enum SoftwareDimmingRouteContract {
-    struct Route { var ddcPathKey: String? }
+    struct Route {
+        var ddcPathKey: String?
+        var maximum: UInt16 = 100
+        var extendedDimming = true
+        var lastDDCValue: UInt16?
+    }
 
     final class Queue {
         var jobs: [() -> Void] = []
@@ -39,6 +44,7 @@ enum SoftwareDimmingRouteContract {
         var isBuiltIn = false
         var method: Method? = .ddc
         var readable = false
+        var canChooseDimming = true
     }
 
     final class Log {
@@ -101,12 +107,98 @@ enum SoftwareDimmingRouteTests {
         expect(on.lastApplied[display] == 0.35 && on.levelKnownAt[display] != nil,
                "the level the gamma route is about to use is kept")
 
+        Context.reset()
+        let extended = Context.Service()
+        extended.routes[display] = Context.Route(ddcPathKey: path)
+        extended.lastApplied[display] = 0.1
+        extended.levelKnownAt[display] = Date()
+        extended.pendingLevels[display] = 0.05
+        extended.setExtendedDimmingPreferred(true, for: display)
+        expect(Context.UserDefaults.standard.stringArray(
+            forKey: DefaultsKey.brightnessExtendedDimmingPaths) == [path]
+                && extended.refreshes == 1
+                && extended.pendingLevels[display] == nil,
+               "extended dimming is saved for this monitor and drops a write in the old slider scale")
+        extended.setExtendedDimmingPreferred(false, for: display)
+        expect(Context.UserDefaults.standard.stringArray(
+            forKey: DefaultsKey.brightnessExtendedDimmingPaths) == []
+                && extended.lastApplied[display] == nil
+                && extended.levelKnownAt[display] == nil,
+               "turning extended dimming off clears its remembered slider level")
+        extended.workQueue.drain()
+        Context.DispatchQueue.main.drain()
+        expect(extended.softwareDims.isEmpty && extended.refreshes == 2,
+               "turning extended dimming off leaves an unchanged gamma curve alone")
+
+        Context.reset()
+        let dimmedExtended = Context.Service()
+        dimmedExtended.routes[display] = Context.Route(ddcPathKey: path)
+        dimmedExtended.dimmedDisplays.insert(display)
+        dimmedExtended.setExtendedDimmingPreferred(false, for: display)
+        dimmedExtended.workQueue.drain()
+        Context.DispatchQueue.main.drain()
+        expect(dimmedExtended.softwareDims.map(\.value) == [1]
+                && dimmedExtended.refreshes == 1,
+               "turning extended dimming off restores a curve the app actually dimmed")
+
+        let restoration = Context.Service()
+        restoration.gammaBaselines = [
+            display: Context.Service.GammaTable(fingerprint: "display-7"),
+            8: Context.Service.GammaTable(fingerprint: "display-8"),
+            9: Context.Service.GammaTable(fingerprint: "another-monitor"),
+        ]
+        restoration.dimmedDisplays = [display, 9]
+        restoration.restoreAllGamma()
+        expect(restoration.events == ["restore:7"]
+                && restoration.gammaBaselines.isEmpty && restoration.dimmedDisplays.isEmpty,
+               "stopping restores only curves this app dimmed on the same monitor")
+
+        Context.reset()
+        let combined = Context.Service()
+        combined.routes[display] = Context.Route(ddcPathKey: path, lastDDCValue: 50)
+        let monitor = "monitor" as CFString
+        expect(combined.writeExtendedBrightness(0.125, to: display,
+                                                route: combined.routes[display]!, service: monitor),
+               "the lower slider range can dim a readable DDC monitor")
+        expect(combined.events == ["ddc:0", "picture:0.5"]
+                && combined.routes[display]?.lastDDCValue == 0,
+               "the monitor reaches its hardware minimum before the picture dims")
+        combined.events = []
+        expect(combined.writeExtendedBrightness(0.0625, to: display,
+                                                route: combined.routes[display]!, service: monitor)
+                && combined.events == ["picture:0.25"],
+               "dragging within the software range does not repeat a slow DDC write")
+        combined.events = []
+        expect(combined.writeExtendedBrightness(0.625, to: display,
+                                                route: combined.routes[display]!, service: monitor)
+                && combined.events == ["picture:1.0", "ddc:50"],
+               "the unmodified picture returns before hardware brightness rises")
+        combined.dimmedDisplays.insert(display)
+        combined.softwareSucceeds = false
+        combined.events = []
+        expect(!combined.writeExtendedBrightness(1, to: display,
+                                                 route: combined.routes[display]!, service: monitor)
+                && combined.events == ["picture:1.0"],
+               "a failed picture restore never raises the hardware brightness")
+
         // Which rows offer the choice at all. The rule is the same on both
         // surfaces, since they share the control.
         let row = Context.Row()
         expect(row.offered, "a monitor whose channel takes writes and answers no reads is offered the choice")
         row.display.readable = true
-        expect(!row.offered, "a monitor whose channel answers reads is left on DDC without asking")
+        expect(row.offered, "a readable DDC monitor offers optional dimming below its hardware minimum")
+        row.compact = true
+        expect(!row.offered, "the compact panel leaves the extra dimming choice to Settings")
+        row.chosen = true
+        expect(row.offered, "extra dimming stays in the compact panel once it is on, so it can be turned off")
+        row.chosen = false
+        row.display.readable = false
+        expect(row.offered, "the compact panel keeps the write-only way out")
+        row.display.readable = true
+        row.compact = false
+        row.display.canChooseDimming = false
+        expect(!row.offered, "a display with no stable connection path cannot save a dimming choice")
+        row.display.canChooseDimming = true
         row.display.readable = false
         row.display.isBuiltIn = true
         expect(!row.offered, "the built-in display never routes over DDC, so it is never asked about")
