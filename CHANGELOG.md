@@ -42,6 +42,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Holding or dragging an icon in the Dock no longer opens the Shelf, in Dynamic Island or in the menu bar drop zone.
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Mouse side buttons go back and forward again in Safari, Finder and other apps on keyboard layouts such as German and French.
+- Radial menu profiles refuse a shortcut that another profile or feature already uses, and other shortcut settings now warn when a combination belongs to a radial menu profile.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
 - The menu bar panel opens centered under its icon again, without a gray band along its top and right edges on macOS 14 and 15, and tall tabs no longer open it beside the icon.
 - Scrolling the Features page in Settings no longer stutters or freezes the app.
