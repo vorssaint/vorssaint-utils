@@ -21,7 +21,7 @@ struct NotchCalendarStrip: View {
                 let title = countdown.event.title.trimmingCharacters(in: .whitespacesAndNewlines)
                 let displayTitle = title.isEmpty ? text.untitled : title
                 let remaining = NotchCalendarSupport.countdownText(until: countdown.target, now: context.date)
-                Button { service.open(.calendar) } label: {
+                Button { service.openActivity(.calendar) } label: {
                     Group {
                         if usesFullRow {
                             fullRow(countdown, title: displayTitle, remaining: remaining)

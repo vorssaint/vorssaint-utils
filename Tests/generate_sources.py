@@ -651,6 +651,8 @@ def main():
               .replace("NotchSupport.routesScratchpad()", "NotchSupport.routesScratchpad(in: ReviewDefaults.current)")
           + declaration(notch, "    var reopeningDestination:")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
+          + declaration(notch, "    func openActivity(")
+              .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + declaration(notch, "    var reopeningModule:")
           + declaration(notch, "    private func updateSession(").replace("private func", "func", 1)
               .replace("AppFeature.mixer.isAvailable", "AppFeature.mixer.isAvailable(in: ReviewDefaults.current)")

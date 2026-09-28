@@ -718,6 +718,14 @@ final class NotchService: ObservableObject {
         reopeningDestination.module
     }
 
+    /// A compact strip opens its activity's page, as opening the island does:
+    /// unless the user turned off opening the visible activity, in which case
+    /// the reopening choice decides here too.
+    func openActivity(_ module: NotchModule) {
+        let opensActivity = UserDefaults.standard.object(forKey: DefaultsKey.notchOpensActivity) as? Bool ?? true
+        if opensActivity { open(module) } else { open() }
+    }
+
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
               appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false) {
         guard NotchSupport.isEnabled(), !suspended else { return }

@@ -54,7 +54,7 @@ struct NotchMusicStrip: View {
     private var showsArtist: Bool { geometry.compactActivityContentHeight >= 28 }
 
     var body: some View {
-        Button { service.open(.music) } label: {
+        Button { service.openActivity(.music) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 8) {
                     if geometry.compactActivityWingWidth > 0 {

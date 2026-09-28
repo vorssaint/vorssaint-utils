@@ -305,7 +305,16 @@ enum NotchDestinationContract {
             suite.expect(service.showingAppPanel == (destination == .appPanel)
                    && service.showingSections == (destination == .explore),
                    "with activities turned off, a visible activity leaves the saved app panel or Explore destination")
+            service.expanded = false
+            service.openActivity(.timer)
+            suite.expect(service.showingAppPanel == (destination == .appPanel)
+                   && service.showingSections == (destination == .explore),
+                   "with activities turned off, a tap on the activity's strip follows the reopening choice too")
             defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
+            service.expanded = false
+            service.openActivity(.timer)
+            suite.expect(service.selected == .timer && !service.showingAppPanel && !service.showingSections,
+                   "a tap on the activity's strip opens its page while activities open")
         }
         defaults.set("unknown-page", forKey: DefaultsKey.notchHomeModule)
         let invalid = Service()
