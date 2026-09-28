@@ -20,6 +20,9 @@ final class AgentUsageStore {
     /// Turns gone quiet, by log file: not shown as working, but work that
     /// resumes after an approval or a long command goes on with them.
     private(set) var waiting: [String: AgentLiveSession] = [:]
+    /// Logs whose turn has replied and waits on background work. The session
+    /// writes nothing meanwhile, yet it is still working.
+    private(set) var awaiting: Set<String> = []
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -83,6 +86,7 @@ final class AgentUsageStore {
                 }
             case .turnEnded(let date, let completed, let duration):
                 guard tracksTurns else { continue }
+                awaiting.remove(file)
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
                 guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
@@ -91,6 +95,9 @@ final class AgentUsageStore {
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
+            case .awaitingBackground(let pending):
+                guard tracksTurns else { continue }
+                if pending { awaiting.insert(file) } else { awaiting.remove(file) }
             }
         }
         return events
@@ -101,6 +108,7 @@ final class AgentUsageStore {
     @discardableResult
     func forget(file: String) -> Bool {
         waiting[file] = nil
+        awaiting.remove(file)
         return turns.removeValue(forKey: file) != nil
     }
 
@@ -172,11 +180,15 @@ final class AgentUsageStore {
     /// A turn that has written nothing for this long is not being worked on:
     /// its process ended without a word, or it waits on something outside.
     /// It waits aside for a while, since work can resume after an approval
-    /// or a long command.
+    /// or a long command. A turn waiting on background work is quiet by
+    /// design, so it keeps working until it would stop waiting altogether.
     func closeIdleTurns(now: Date, after idle: TimeInterval) {
-        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle {
+        for (file, turn) in turns {
+            let limit = awaiting.contains(file) ? Self.resumeWindow(for: turn.provider) : idle
+            guard now.timeIntervalSince(turn.lastActivity) >= limit else { continue }
             turns[file] = nil
             waiting[file] = turn
+            awaiting.remove(file)
         }
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
     }
