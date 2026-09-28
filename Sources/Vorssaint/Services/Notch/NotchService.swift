@@ -2148,6 +2148,10 @@ final class NotchService: ObservableObject {
         }) { eventMonitors.append(token) }
         if let token = NSEvent.addLocalMonitorForEvents(matching: clicks.union(.keyDown), handler: { [weak self] event in
             guard let self else { return event }
+            // While an input method is composing, Esc belongs to it and
+            // drops the candidate; the island takes the next one.
+            if event.type == .keyDown, event.window === self.panel, event.keyCode == 53,
+               (self.panel?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
             if event.type == .keyDown, event.window === self.panel, self.captureControls == nil {
                 let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
                 if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "k" {
