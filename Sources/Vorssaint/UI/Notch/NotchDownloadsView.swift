@@ -142,7 +142,7 @@ struct NotchDownloadStrip: View {
 
     var body: some View {
         let item = downloads.items.first { $0.active && !$0.completed }
-        Button { service.open(.downloads) } label: {
+        Button { service.openActivity(.downloads) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 6) {
                     if geometry.compactActivityWingWidth >= 40 {
