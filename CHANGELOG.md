@@ -7,15 +7,19 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Keyboard and mouse debounce now follows the configured timing. Scratchpad warns when notes cannot be saved, and Extra Brightness steps aside for store purchase and administrator prompts.
+Everyday controls and package management behave more reliably across desktop layouts, large clipboard histories and networks that require a proxy or mirror. The update also improves input timing and makes save failures and system prompts easier to handle.
 
 ### Fixed
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
+- Closing the menu bar panel returns focus to the previous app without switching desktops.
+- Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
+- Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
+- Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @Kernel-Hunter, @PathGao and @shlok1806.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @IanHollow, @iva-zhu, @Kernel-Hunter, @PathGao, @shlok1806, @trac3r00, @tyteachestech and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 

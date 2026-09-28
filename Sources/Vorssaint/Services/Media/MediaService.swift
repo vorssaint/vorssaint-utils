@@ -126,6 +126,23 @@ private final class MediaCancellationToken {
     }
 }
 
+private final class AsyncResultBox<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<T, Error>?
+
+    func set(_ result: Result<T, Error>) {
+        lock.lock()
+        self.result = result
+        lock.unlock()
+    }
+
+    func get() -> Result<T, Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        return result
+    }
+}
+
 /// A workspace can outlive its visible panel while its requested export runs.
 final class MediaWorkspaceSelection: ObservableObject {
     @Published var inputURLs: [URL] = []
@@ -1062,13 +1079,13 @@ final class MediaService: ObservableObject {
     private func runAsync<T>(token: MediaCancellationToken,
                              _ operation: @escaping () async throws -> T) throws -> T {
         let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<T, Error>?
+        let resultBox = AsyncResultBox<T>()
 
         let task = Task {
             do {
-                result = .success(try await operation())
+                resultBox.set(.success(try await operation()))
             } catch {
-                result = .failure(error)
+                resultBox.set(.failure(error))
             }
             semaphore.signal()
         }
@@ -1080,7 +1097,7 @@ final class MediaService: ObservableObject {
             }
         }
         try checkCancellation(token)
-        guard let result else {
+        guard let result = resultBox.get() else {
             throw MediaFailureBox(.failed("Video metadata unavailable."))
         }
         return try result.get()
