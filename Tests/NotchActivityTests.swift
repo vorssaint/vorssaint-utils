@@ -718,8 +718,7 @@ enum NotchActivityTests {
                                        (0x05, 0x30, "keyboard"), (0x05, 0x02, "gamecontroller"),
                                        (0x05, 0x03, "av.remote"), (0x04, 0x06, "headphones"),
                                        (0x04, 0x01, "headphones"), (0x04, 0x05, "hifispeaker"),
-                                       (0x04, 0x08, "car"), (0x02, 0x03, "iphone"), (0x01, 0x03, "laptopcomputer"),
-                                       (0x01, 0x01, "desktopcomputer"), (0x07, 0x01, "applewatch"),
+                                       (0x04, 0x08, "car"), (0x07, 0x01, "applewatch"),
                                        (0x06, 0x20, "printer"), (0x08, 0x04, "gamecontroller"),
                                        (0x00, 0x00, "dot.radiowaves.left.and.right"),
                                        (0x1F, 0x00, "dot.radiowaves.left.and.right")] {
@@ -747,6 +746,14 @@ enum NotchActivityTests {
                "invalid telemetry cannot masquerade as a recharge")
         _ = battery.consume([device(30)])
         suite.expect(battery.consume([device(10)]).count == 1, "a new discharge after actual recharge can warn again")
+        for major in [UInt32(0x01), 0x02, 0x03] {
+            suite.expect(!NotchAccessorySupport.announcesConnection(majorClass: major),
+                         "a phone, tablet, computer or access point linking up on its own is not announced (\(major))")
+        }
+        for major in [UInt32(0x00), 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x1F] {
+            suite.expect(NotchAccessorySupport.announcesConnection(majorClass: major),
+                         "accessories and devices without a declared class announce their connection (\(major))")
+        }
         var connections = NotchAccessoryConnectionState()
         connections.establishBaseline(["AA:01"])
         suite.expect(!connections.connected("AA:01"), "initially connected accessories do not replay connection banners")
