@@ -484,7 +484,8 @@ def main():
           + "extension NotchVolumeFeedbackTests {\nfinal class Service: State {\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func bindVolumeEvents(", "    private func volumeChanged(",
-              "    private func showVolume(", "    func showCurrentVolume(", "    func noteOwnVolumeAdjustment("])
+              "    func showCurrentVolume(", "    func noteOwnVolumeAdjustment("])
+          + declaration(notch, "    func showVolume(").replace("    func", "    @discardableResult func", 1)
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
@@ -540,6 +541,7 @@ def main():
           + "}\n}\n")
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
           + declaration(notch, "    func show(_ incoming:").replace("NotchSupport.routes(incoming.event)", "true")
+            .replace("    func", "    @discardableResult\n    func", 1)
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private var hiddenUntilHover:", "    private var hiddenAtRestInFullscreen:", "    func hover(",
               "    var showsCompactActivityPicker:",
@@ -548,7 +550,8 @@ def main():
               "    private func syncNoticeWithPreferences(",
               "    private func releaseNotification(", "    private func scheduleNoticeDismissal(",
               "    private func dismissNotice(", "    private func endDeparture(", "    private var noticeCanPresent:",
-              "    private func syncHiddenHoverMonitoring(", "    private func removeHiddenHoverMonitors("])
+              "    private func syncHiddenHoverMonitoring(", "    private func removeHiddenHoverMonitors(",
+              "    private func scheduleTrackNotice("])
           .replace("NotchSupport.routes(notice.event)", "routesNotices")
           + "}\n}\n")
     music_visibility = "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
@@ -902,11 +905,13 @@ def main():
           + "}\n}\n")
 
     music = "Sources/Vorssaint/Services/Notch/NotchMusicService.swift"
-    write("NotchMusicControls.swift", "import Foundation\n\nextension NotchMusicCommandContract {\n"
+    write("NotchMusicControls.swift", "import AppKit\n\nextension NotchMusicCommandContract {\n"
           + "final class Service {\ntypealias Command = NotchPlaybackCommand\n"
           + "var playback: NotchPlayback?\nvar generation = UUID()\nvar queueRequest: UUID?\n"
           + "var sources: [NotchPlaybackSource] = []\nvar sourceIsAutomatic = true\n"
           + "var artwork: NSObject?\nvar artworkTint: NotchArtworkTint?\n"
+          + "func updateArtwork(_ image: NSImage?, tint: NotchArtworkTint?, playback: NotchPlayback?) { artwork = image; artworkTint = tint }\n"
+          + "let trackChanges = TrackChanges()\nvar gapReading: Reading?\nvar gapWork: DispatchWorkItem?\nfunc updateQueue() {}\n"
           + "func updateAutomation(for playback: NotchPlayback?) {}\nfunc setQueueVisible(_ visible: Bool) { queueVisible = visible }\n"
           + "var queueVisible = true\nvar queueLoading = false\nvar queueActionPending = false\n"
           + "var commandFailed = false\nvar queueActionFailed = false\nvar commandPending = false\n"
@@ -921,13 +926,17 @@ def main():
           + "var selectedSourcePID: Int32?\nvar chosenSource: NotchPlaybackSource.Selection?\nvar restoringSource = false\n"
           + "var launchedAt: TimeInterval?\nvar uptime: TimeInterval = 0\nvar trackChange = NotchTrackChange()\n"
           + "func launch() { guard wantsPlayback, process == nil else { return }; launches += 1; process = Process(); input = Pipe(); commandWriter.start(); launchedAt = uptime; restoreSource() }\n"
-          + "func disconnect() { generation = UUID(); commandWriter.stop(); process = nil; input = nil; playback = nil }\n"
+          + "func disconnect() { endPlaybackGap(); generation = UUID(); commandWriter.stop(); process = nil; input = nil; playback = nil }\n"
           + declaration(music, "    func start()")
           + declaration(music, "    func stop()")
           + declaration(music, "    private func connectionEnded()").replace("private func", "func", 1)
             .replace("ProcessInfo.processInfo.systemUptime", "uptime")
           + declaration(music, "    private func restoreSource()").replace("private func", "func", 1)
           + declaration(music, "    private func acceptsSourceReply(").replace("private func", "func", 1)
+          + declaration(music, "    private struct Reading {").replace("private struct", "struct", 1)
+          + declaration(music, "    private func receive(").replace("private func", "func", 1)
+          + declaration(music, "    private func endPlaybackGap()").replace("private func", "func", 1)
+          + declaration(music, "    private func apply(").replace("private func", "func", 1)
           + declaration(music, "    func seek(")
           + declaration(music, "    func selectSource(")
           + declaration(music, "    func send(_ command: Command)").replace("    func", "    @discardableResult\n    func", 1)
