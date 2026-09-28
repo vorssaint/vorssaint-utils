@@ -87,6 +87,8 @@ enum NotchHoverTests {
         var captureHover: ((Bool) -> Void)?
         func updateCaptureControlsHover(wasInside: Bool) {}
         func updateCaptureControlsClickThrough() {}
+        var childWindowFrames: [CGRect] = []
+        func pointerOverChildWindow(_ point: CGPoint) -> Bool { childWindowFrames.contains { $0.contains(point) } }
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: -1920, y: 900, width: 1920, height: 1080),
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)
@@ -480,6 +482,15 @@ enum NotchHoverTests {
         AssistiveKeyboard.active = true
         DispatchQueue.main.advance(1)
         expect(keyboard.closures == 0, "moving to the Accessibility Keyboard preserves the working panel")
+
+        let popover = fixture()
+        popover.open(nil, takeFocus: false)
+        popover.childWindowFrames = [CGRect(x: popover.geometry.screen.minX, y: popover.geometry.screen.minY,
+                                            width: 240, height: 200)]
+        leave(popover)
+        DispatchQueue.main.advance(1)
+        expect(popover.closures == 0 && popover.inside,
+               "moving into a popover hanging from the island keeps a hover-opened panel")
         notificationContracts(fixture: fixture, leave: leave, expect: expect)
         trackNoticeContracts(fixture: fixture, expect: expect)
     }
@@ -763,5 +774,28 @@ enum NotchHoverTests {
         leave(interrupted)
         DispatchQueue.main.advance(0.2)
         expect(interrupted.closures == 0 && interrupted.notice == nil, "leaving afterwards has nothing left to close")
+
+        // A burst keeps the banner's width, so the island does not resize
+        // with each message and a banner held near its end stays in reach.
+        let wide = banner(String(repeating: "A long message in a busy chat ", count: 8))
+        let burst = fixture(false)
+        leave(burst)
+        expect(burst.show(wide) && burst.show(banner("ok")), "precondition: a burst replaces the banner")
+        expect(burst.surfaceSize == burst.geometry.noticeSize(wingWidth: wide.preferredWingWidth),
+               "a message replacing a banner still on screen keeps its width")
+        DispatchQueue.main.advance(3.1)
+        let alone = banner("ok")
+        expect(burst.notice == nil && burst.show(alone) && alone.preferredWingWidth < wide.preferredWingWidth
+               && burst.surfaceSize == burst.geometry.noticeSize(wingWidth: alone.preferredWingWidth),
+               "the next message on its own takes only the width it needs")
+        let held = fixture(false)
+        leave(held)
+        expect(held.show(wide), "precondition: a wide banner is shown")
+        let frame = held.geometry.frame(for: held.surfaceSize)
+        NSEvent.mouseLocation = CGPoint(x: frame.maxX - 4, y: frame.midY)
+        held.hover(true)
+        expect(held.show(banner("ok")) && held.windowHost?.containsHover(NSEvent.mouseLocation) == true
+               && held.noticeWork == nil,
+               "a message arriving over a banner held near its end stays under the pointer")
     }
 }
