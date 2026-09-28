@@ -17,6 +17,7 @@ enum StatusItemGestureTests {
         testButtonGeometry(suite)
         testDragMargin(suite)
         testReleaseWatch(suite)
+        StatusItemGestureAdapterTests.run(suite)
     }
 
     /// A click with no gesture assigned must stay immediate: the waiting that
@@ -181,7 +182,7 @@ enum StatusItemGestureTests {
         let point = CGPoint(x: 120, y: 300)
         let settings = StatusItemGesture.Settings(middle: .keepAwake, hold: .screenshot)
 
-        var idle = StatusItemGesture()
+        let idle = StatusItemGesture()
         suite.expect(!idle.watchesForRelease, "a gesture at rest watches nothing")
 
         var press = StatusItemGesture()

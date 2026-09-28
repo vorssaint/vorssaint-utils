@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Combine
 import CoreGraphics
 import os.log
 
@@ -37,6 +38,7 @@ final class StatusItemGestureHandler {
     private var middleTap: CFMachPort?
     private var middleRunLoopSource: CFRunLoopSource?
     private var requestedAccessibilityForMiddle = false
+    private var accessibilityObserver: AnyCancellable?
 
     init(owner: StatusItemController, settings: StatusItemGesture.Settings) {
         self.owner = owner
@@ -54,23 +56,35 @@ final class StatusItemGestureHandler {
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.cancel() }
         log("handler created middle=\(settings.middle.rawValue) hold=\(settings.hold.rawValue)")
+        watchAccessibility()
         syncMiddleTap()
     }
 
     // MARK: - Middle-click tap
 
+    private func watchAccessibility() {
+        accessibilityObserver = Permissions.shared.$accessibility
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] granted in
+                self?.syncMiddleTap(accessibilityGranted: granted, requestPermission: false)
+            }
+    }
+
     /// Installed only while a middle-click action is assigned, so a Mac that
     /// never uses this gesture pays neither the permission nor the tap.
-    private func syncMiddleTap() {
+    private func syncMiddleTap(accessibilityGranted: Bool = AXIsProcessTrusted(),
+                               requestPermission: Bool = true) {
         guard settings.middle != .none else {
             tearDownMiddleTap()
             return
         }
-        guard AXIsProcessTrusted() else {
+        guard accessibilityGranted else {
+            cancel()
             tearDownMiddleTap()
             // The one thing the user cannot guess: this gesture is the only
             // one that needs Accessibility. Ask once, in context.
-            if !requestedAccessibilityForMiddle {
+            if requestPermission && !requestedAccessibilityForMiddle {
                 requestedAccessibilityForMiddle = true
                 Permissions.shared.requestAccessibility()
                 log("middle tap needs Accessibility; asked once")
@@ -136,7 +150,10 @@ final class StatusItemGestureHandler {
         let appKitPoint = StatusItemGesture.appKitPoint(displayPoint: event.location,
                                                         primaryHeight: primaryHeight)
         let frame = mainButtonFrame()
-        guard StatusItemGesture.claims(appKitPoint, frame: frame) else { return }
+        guard StatusItemGesture.claims(appKitPoint, frame: frame) else {
+            cancel()
+            return
+        }
         if type == .otherMouseDown {
             gesture.middleDown(at: appKitPoint, settings: settings)
         } else {
@@ -157,9 +174,10 @@ final class StatusItemGestureHandler {
     }
 
     func sync(settings new: StatusItemGesture.Settings) {
-        guard new != settings else { return }
-        cancel()
-        settings = new
+        if new != settings {
+            cancel()
+            settings = new
+        }
         syncMiddleTap()
     }
 
@@ -182,16 +200,18 @@ final class StatusItemGestureHandler {
     @discardableResult
     func buttonClick(_ event: NSEvent) -> Bool {
         guard observedLeftUp != event.timestamp else { return true }
-        // The status button sends its action while the button is still down,
-        // handing over an event stamped with the press time. Ending the press
-        // there is exactly what turned every long press into a single click, so
-        // the release is left to the watcher.
-        guard NSEvent.pressedMouseButtons & 0x1 == 0 else { return true }
         guard let point = point(event, inset: dragMargin) else {
             return false
         }
         if !gesture.isActive {
+            observedLeftDown = event.timestamp
             emit(gesture.leftDown(at: point, time: event.timestamp))
+        }
+        // A missed monitor down must still start the release watcher. Do not
+        // finish a press while the physical button is held.
+        if NSEvent.pressedMouseButtons & 0x1 != 0 {
+            schedule()
+            return true
         }
         emit(gesture.leftUp(at: point, time: event.timestamp, settings: settings,
                             tolerance: dragMargin))
