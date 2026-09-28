@@ -2407,9 +2407,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// the top instead of hanging below it.
     private func centerIntroWindow(_ window: NSWindow) {
         let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
-        if let host = window.contentViewController as? NSHostingController<UpdateHighlightsView>,
-           host.rootView.availableSize != visible.size {
-            host.rootView.availableSize = visible.size
+        // The root is wrapped by appLayoutDirection(), so the cast has to name
+        // the wrapper and the size has to be set on the content inside it. As
+        // NSHostingController<UpdateHighlightsView> this silently matched
+        // nothing in every language, leaving a reopened window sized for the
+        // display it was last on.
+        if let host = window.contentViewController as? NSHostingController<MirroredView<UpdateHighlightsView>>,
+           host.rootView.content.availableSize != visible.size {
+            host.rootView.content.availableSize = visible.size
         }
         if let host = window.contentViewController as? NSHostingController<WhatsNewDigestView>,
            host.rootView.availableSize != visible.size {
