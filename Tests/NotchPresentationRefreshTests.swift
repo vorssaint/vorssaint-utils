@@ -561,6 +561,17 @@ enum NotchPresentationRefreshContract {
         held.heldMusic = NotchCompactMusicSnapshot(track: 1)
         suite.expect(held.compactMusicTransition(.none, animated: true) == .depart && held.departingMusic?.track == 1,
                      "music that stops before a new song's notice departs as the song still on screen")
+        held.rememberPresentedMusic(playback: NotchPlayback(track: 2), artwork: nil, tint: nil)
+        suite.expect(held.heldMusic == nil && held.presentedMusic == nil,
+                     "a strip hidden for another reason ends the hold, so it returns with the live song")
+        let holding = Service()
+        holding.expanded = false
+        holding.compactActivity = .music
+        holding.compactActivityIsVisible = true
+        holding.heldMusic = NotchCompactMusicSnapshot(track: 1)
+        holding.rememberPresentedMusic(playback: NotchPlayback(track: 2), artwork: nil, tint: nil)
+        suite.expect(holding.heldMusic?.track == 1 && holding.presentedMusic?.track == 2,
+                     "while the strip stays on screen, a new reading keeps the song it shows")
 
         let replacement = Service()
         replacement.expanded = false

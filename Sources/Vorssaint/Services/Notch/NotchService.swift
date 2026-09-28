@@ -1649,7 +1649,12 @@ final class NotchService: ObservableObject {
     }
 
     private func rememberPresentedMusic(playback: NotchPlayback?, artwork: NSImage?, tint: NotchArtworkTint?) {
-        guard compactMusicIsVisible, panel?.isVisible == true, let playback else { presentedMusic = nil; return }
+        guard compactMusicIsVisible, panel?.isVisible == true, let playback else {
+            presentedMusic = nil
+            // Whatever hid the strip ends the hold; it comes back with the live song.
+            if heldMusic != nil { heldMusic = nil }
+            return
+        }
         presentedMusic = NotchCompactMusicSnapshot(playback: playback, artwork: artwork,
                                                   tint: tint, geometry: compactActivityGeometry)
     }

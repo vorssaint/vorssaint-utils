@@ -381,7 +381,12 @@ enum NotchMusicHardeningTests {
         Contract.DispatchQueue.main.drain()
         suite.expect(service.playback == nil && service.awaitingPlayback,
                      "choosing another source during a gap still waits for that source's first reading")
+        service.receive(reading(current))
+        service.receive(reading(nil, sources: [other]))
         service.stop()
+        Contract.DispatchQueue.main.drain()
+        suite.expect(service.playback == nil && service.gapWork == nil,
+                     "stopping during a gap ends it, and the held song cannot come back")
     }
 
     /// The adapter flags bytes equal to its previous reading as unchanged,
