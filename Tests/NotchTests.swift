@@ -165,6 +165,86 @@ enum NotchTests {
                      "simulated header controls are never covered by an invisible collapse button")
     }
 
+    private static func captureControlsLayoutContracts(_ suite: TestSuite) {
+        let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        func titleWidth(_ language: AppLanguage) -> CGFloat {
+            (FeatureStrings.screenshot(language).screenCaptureTitle as NSString)
+                .size(withAttributes: [.font: font]).width.rounded(.up)
+        }
+        for language in AppLanguage.allCases {
+            let host = NSHostingView(rootView: Text(FeatureStrings.screenshot(language).screenCaptureTitle)
+                .font(.system(size: 12, weight: .semibold)).fixedSize())
+            host.layoutSubtreeIfNeeded()
+            suite.expect(host.fittingSize.width <= titleWidth(language) + 0.5,
+                         "the measured capture title covers the \(language.rawValue) title as drawn (\(host.fittingSize.width))")
+        }
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        var geometries: [NotchGeometry] = []
+        for camera: CGFloat in [180, 185, 210, 240] {
+            for cameraHeight: CGFloat in [32, 38] {
+                for layout: NotchSize in [.compact, .spacious] {
+                    geometries.append(NotchGeometry(screen: screen, safeAreaTop: cameraHeight,
+                                                    cameraWidth: camera, layout: layout))
+                }
+                for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 10) {
+                    geometries.append(NotchGeometry(screen: screen, safeAreaTop: cameraHeight, cameraWidth: camera,
+                                                    layout: .custom, customWidth: width))
+                }
+            }
+        }
+        let clearance = NotchCaptureControlsLayout.cameraClearance
+        for geometry in geometries {
+            let previousHeight = geometry.safeContentTop + 28 + 12 + NotchLayout.shortcutHeight + 16
+            for language in AppLanguage.allCases {
+                let title = titleWidth(language)
+                let layout = NotchCaptureControlsLayout(geometry: geometry, titleWidth: title, capturesAudio: false)
+                suite.expect(layout.size.width == geometry.expandedWidth
+                             && layout.headerTop + layout.headerHeight + 12 >= geometry.cameraHeight,
+                             "capture tools keep the island's width and begin below the camera")
+                if layout.cameraGap > 0 {
+                    suite.expect(layout.headerTop == 0 && layout.headerHeight == geometry.headerRowHeight
+                                 && layout.cameraGap == geometry.cameraWidth
+                                 && layout.sideWidth * 2 + layout.cameraGap == geometry.contentWidth,
+                                 "capture controls beside the camera share the open header's row and sides")
+                    suite.expect(title + clearance <= layout.sideWidth
+                                 && NotchCaptureControlsLayout.narrowButtonsWidth + clearance <= layout.sideWidth,
+                                 "the \(language.rawValue) capture title and buttons stay clear of the camera")
+                    suite.expect(layout.size.height < previousHeight,
+                                 "capture controls beside the camera cover less of the screen")
+                } else {
+                    suite.expect(layout.headerTop == geometry.safeContentTop
+                                 && layout.headerHeight == NotchCaptureControlsLayout.rowHeight
+                                 && layout.size.height == previousHeight,
+                                 "a capture title too wide for the camera's side keeps its row below the camera")
+                }
+            }
+        }
+        for layout: NotchSize in [.compact, .spacious] {
+            for camera: CGFloat in [185, 210] {
+                let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: camera, layout: layout)
+                suite.expect(NotchCaptureControlsLayout(geometry: geometry, titleWidth: titleWidth(.enUS),
+                                                        capturesAudio: false).cameraGap == camera,
+                             "both presets put the English capture title beside the camera")
+            }
+        }
+        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, layout: .spacious)
+        suite.expect(AppLanguage.allCases.allSatisfy {
+            NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth($0), capturesAudio: false).cameraGap > 0
+        }, "every capture title fits beside a narrow camera in the spacious preset")
+        let crowded = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 210, layout: .compact)
+        suite.expect(NotchCaptureControlsLayout(geometry: crowded, titleWidth: titleWidth(.es),
+                                                capturesAudio: false).cameraGap == 0,
+                     "the longest capture title keeps its row below a wide camera in the compact preset")
+        let audio = NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth(.enUS), capturesAudio: true)
+        let silent = NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth(.enUS), capturesAudio: false)
+        suite.expect(audio.size.height == silent.size.height + 40, "recording keeps room for its audio switches")
+        let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious)
+        let top = NotchCaptureControlsLayout(geometry: simulated, titleWidth: titleWidth(.es), capturesAudio: false)
+        suite.expect(top.headerTop == 0 && top.cameraGap == 0 && top.headerHeight == NotchLayout.headerHeight
+                     && top.size.height < simulated.safeContentTop + 28 + 12 + NotchLayout.shortcutHeight + 16,
+                     "without a camera the capture title and buttons take the top row, as the open header does")
+    }
+
     private static func noticeLayoutContracts(_ suite: TestSuite) {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         func width(_ text: String) -> CGFloat {
@@ -534,6 +614,7 @@ enum NotchTests {
         activitySelectionContracts(suite)
         railContracts(suite)
         presentationSpacingContracts(suite)
+        captureControlsLayoutContracts(suite)
         noticeLayoutContracts(suite)
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)

@@ -467,15 +467,21 @@ final class NotchService: ObservableObject {
             || (captureControls != nil && !captureControlsCollapsed)
     }
 
+    /// The open capture controls, measured with their title's font.
+    var captureControlsLayout: NotchCaptureControlsLayout {
+        let title = FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle as NSString
+        let width = title.size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width
+        return NotchCaptureControlsLayout(geometry: geometry, titleWidth: width.rounded(.up),
+                                          capturesAudio: captureControls?.selectedTool.capturesAudio == true)
+    }
+
     var surfaceSize: CGSize {
         if fullscreenCompact { return geometry.restingSize(showsContent: false) }
-        if let captureControls {
+        if captureControls != nil {
             if captureControlsCollapsed {
                 return CGSize(width: geometry.cameraWidth + 56, height: geometry.stripHeight)
             }
-            return CGSize(width: geometry.expanded.width,
-                          height: geometry.safeContentTop + 28 + 12 + NotchLayout.shortcutHeight + 16
-                            + (captureControls.selectedTool.capturesAudio ? 40 : 0))
+            return captureControlsLayout.size
         }
         if expanded { return expandedSize }
         if dragPlaceholder { return CGSize(width: geometry.peek.width, height: geometry.safeContentTop + 66) }

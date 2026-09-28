@@ -433,6 +433,47 @@ struct NotchActivityPickerLayout {
     }
 }
 
+/// Screen capture controls keep their title and buttons where the open
+/// island keeps its header: at the top, beside a physical camera when the
+/// title and the buttons each fit whole on their side, or in a row below it.
+struct NotchCaptureControlsLayout {
+    /// The row below a camera, as tall as its buttons.
+    static let rowHeight: CGFloat = 28
+    static let buttonSpacing: CGFloat = 6
+    /// The repeat key, collapse and close at their narrowest, as squares.
+    static let narrowButtonsWidth: CGFloat = 28 * 3 + buttonSpacing * 2
+    /// Room the title and the buttons keep from the camera.
+    static let cameraClearance: CGFloat = 8
+    /// From the top of the island to the top of the title row.
+    let headerTop: CGFloat
+    let headerHeight: CGFloat
+    /// The camera between the title and the buttons; 0 when one row holds both.
+    let cameraGap: CGFloat
+    /// Each side of the camera, from the island's inset to the cutout.
+    let sideWidth: CGFloat
+    let size: CGSize
+
+    /// `titleWidth` is measured with the title's font.
+    init(geometry: NotchGeometry, titleWidth: CGFloat, capturesAudio: Bool) {
+        let side = (geometry.contentWidth - geometry.headerCameraGap) / 2
+        let fits = max(titleWidth, Self.narrowButtonsWidth) + Self.cameraClearance <= side
+        // Without a camera one row spans the top, as the open header does.
+        if geometry.headerTopInset == 0, geometry.headerCameraGap == 0 || fits {
+            headerTop = 0
+            headerHeight = geometry.headerRowHeight
+            cameraGap = geometry.headerCameraGap
+        } else {
+            headerTop = geometry.safeContentTop
+            headerHeight = Self.rowHeight
+            cameraGap = 0
+        }
+        sideWidth = cameraGap > 0 ? side : 0
+        size = CGSize(width: geometry.expandedWidth,
+                      height: headerTop + headerHeight + 12 + NotchLayout.shortcutHeight + 16
+                        + (capturesAudio ? 40 : 0))
+    }
+}
+
 enum NotchControlSetupRequirement: Equatable {
     case feature(AppFeature)
     case page(NotchModule, feature: AppFeature?)
