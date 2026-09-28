@@ -1221,7 +1221,7 @@ extension NotchStrings {
         automatic: "Автоматично",
         builtIn: "Вбудований дисплей",
         mainDisplay: "Основний дисплей",
-        followPointer: "Стежити за вказівником",
+        followPointer: "За вказівником",
         hover: "Відкривати, коли вказівник зупиняється на Dynamic Island",
         modules: "Що показувати",
         events: "Більше опцій",

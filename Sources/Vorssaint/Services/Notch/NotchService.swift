@@ -1386,6 +1386,8 @@ final class NotchService: ObservableObject {
     private func missionControlDidRestore() {
         if captureControls != nil { updateCaptureControlsClickThrough() }
         else { hover(windowHost?.containsHover(NSEvent.mouseLocation) == true) }
+        // A pointer that crossed displays during Mission Control is followed now.
+        schedulePointerFollow()
     }
 
     func endCaptureControls() {
@@ -1867,8 +1869,9 @@ final class NotchService: ObservableObject {
     /// area along, so the file can land on either display; an open page, a
     /// notice or a drag out of the island stays where it is.
     private var canFollowPointer: Bool {
+        // A song held for its New track notice keeps its old display's geometry.
         !expanded && !peeking && notice == nil && captureControls == nil && !heldDrag
-            && !choosingFileDropDestination && !keepsWorkingSurface
+            && !choosingFileDropDestination && !keepsWorkingSurface && heldMusic == nil
     }
 
     private func schedulePointerFollow() {
@@ -1973,12 +1976,19 @@ final class NotchService: ObservableObject {
         menuSpaceGeneration += 1
     }
 
+    /// Displays that share Spaces show the menu bar on the main one only.
+    private var displayHasMenuBar: Bool {
+        NSScreen.screensHaveSeparateSpaces || NSScreen.withMenuBar?.frame == geometry.screen
+    }
+
     private func syncMenuSpaceMonitoring() {
         guard !hiddenInFullscreen else { stopMenuSpaceMonitoring(); return }
         // The explicit cover-menus choice also keeps a simulated island at
         // rest. Otherwise its visibility follows AX menu measurements, which
         // can change just because focus moves to another app or display.
-        if running, !suspended, NotchSupport.coversMenus() {
+        // A display without a menu bar, beside the main one when displays
+        // share Spaces, has no menus to leave room for either.
+        if running, !suspended, NotchSupport.coversMenus() || !displayHasMenuBar {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
             stopMenuSpaceMonitoring()
