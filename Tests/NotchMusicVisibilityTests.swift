@@ -76,10 +76,12 @@ enum NotchMusicVisibilityTests {
         var hasDownloadActivity = false
         var downloadName: String?
         var hasAgentActivity = false
+        var hasKeepAwakeActivity = false
         var timerStripWing: CGFloat = 44
         func timerStripWing(for companion: NotchCompactActivity?) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
         var calendarStripWing: CGFloat = 120
+        var keepAwakeStripWing: CGFloat = 44
         var notchNeedsMonitor = false
         var heldDrag = false
         var pinned = false
@@ -282,5 +284,13 @@ enum NotchMusicVisibilityTests {
         service.notice = nil
         suite.expect(service.surfaceSize == service.compactActivityGeometry.compactActivitySize,
                "dismissing a device notice restores the underlying activity's width")
+        service.hasKeepAwakeActivity = true
+        suite.expect(service.compactActivity == .downloads, "a download outranks a running Keep Awake session")
+        service.hasDownloadActivity = false
+        suite.expect(service.compactActivity == .keepAwake
+                     && service.compactActivityGeometry == service.geometry.compactTimerGeometry(
+                        showsDownloads: false, wing: service.keepAwakeStripWing)
+                     && service.surfaceSize == service.compactActivityGeometry.compactActivitySize,
+                     "a running Keep Awake session takes the timer's wings in the closed island")
     }
 }

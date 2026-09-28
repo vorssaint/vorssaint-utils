@@ -647,10 +647,10 @@ enum NotchTests {
     }
 
     private static func activitySelectionContracts(_ suite: TestSuite) {
-        for mask in 0..<32 {
+        for mask in 0..<64 {
             let available = NotchSupport.compactActivities(
                 timer: mask & 1 != 0, downloads: mask & 2 != 0, agents: mask & 4 != 0,
-                calendar: mask & 8 != 0, music: mask & 16 != 0)
+                calendar: mask & 8 != 0, music: mask & 16 != 0, keepAwake: mask & 32 != 0)
             var selection = NotchActivitySelection()
             suite.expect(selection.current(available: available) == available.first,
                          "available activities keep automatic priority until a choice is made")
@@ -675,7 +675,7 @@ enum NotchTests {
                      "starting another activity does not steal an explicit choice")
         selection.select(.downloads, available: [.agents, .music])
         suite.expect(selection.preferred == .music, "a late click on a removed choice is ignored")
-        let all: [NotchCompactActivity] = [.timer, .downloads, .agents, .calendar, .music]
+        let all: [NotchCompactActivity] = [.timer, .downloads, .agents, .calendar, .music, .keepAwake]
         let pairs: [NotchCompactActivity] = [.downloads, .agents, .music]
         for companion in pairs {
             selection.select(.timer, companion: companion, available: all, companions: pairs)
@@ -719,12 +719,12 @@ enum NotchTests {
             }
         }
         for language in AppLanguage.allCases {
-            let activities: [NotchCompactActivity] = [.timer, .downloads, .agents, .calendar, .music]
+            let activities: [NotchCompactActivity] = [.timer, .downloads, .agents, .calendar, .music, .keepAwake]
             let font = NSFont.systemFont(ofSize: 12, weight: .medium)
             let width = activities.map {
                 ($0.title(language) as NSString).size(withAttributes: [.font: font]).width
             }.max()!
-            for count in 2...5 {
+            for count in 2...6 {
                 let layout = NotchActivityPickerLayout(count: count, labelWidth: width,
                     stripSize: CGSize(width: 300, height: 32), screenWidth: 1024)
                 let cell = (layout.size.width - NotchActivityPickerLayout.horizontalInset * 2

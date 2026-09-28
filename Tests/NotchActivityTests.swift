@@ -16,9 +16,85 @@ enum NotchActivityTests {
         compactTimerContracts(suite)
         compactMarginContracts(suite)
         compactDownloadContracts(suite)
+        keepAwakeContracts(suite)
         accessoryContracts(suite)
         PeripheralBatteryLifecycleTests.run(suite)
         gateContracts(suite)
+    }
+
+    /// Keep Awake as an activity: off until turned on, gated like the others,
+    /// last in the automatic order, and read in whole minutes like a timer.
+    private static func keepAwakeContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-keep-awake"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: AppFeature.keepAwake.availabilityKey)
+        suite.expect(!NotchKeepAwakeSupport.showsActivity(in: defaults),
+                     "Keep Awake stays out of the closed island until it is turned on")
+        defaults.set(true, forKey: DefaultsKey.notchKeepAwakeActivity)
+        suite.expect(NotchKeepAwakeSupport.showsActivity(in: defaults), "the activity follows its own switch")
+        defaults.set(false, forKey: AppFeature.keepAwake.availabilityKey)
+        suite.expect(!NotchKeepAwakeSupport.showsActivity(in: defaults),
+                     "removing Keep Awake from the hub removes its activity")
+        defaults.set(true, forKey: AppFeature.keepAwake.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(!NotchKeepAwakeSupport.showsActivity(in: defaults), "the island's master switch gates it too")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchKeepAwakeActivity),
+                     "the switch travels in settings backup")
+
+        suite.expect(NotchSupport.compactActivity(timer: false, downloads: false, music: true, keepAwake: true) == .music
+                     && NotchSupport.compactActivity(timer: false, downloads: false, calendar: true,
+                                                     music: false, keepAwake: true) == .calendar
+                     && NotchSupport.compactActivity(timer: false, downloads: false, music: false, keepAwake: true) == .keepAwake,
+                     "a session that can run all day yields to every other activity")
+        suite.expect(NotchCompactActivity.keepAwake.module == .controls
+                     && NotchCompactActivity.keepAwake.symbol == NotchControlItem.keepAwake.symbol,
+                     "the activity opens Controls, where the Keep Awake tile is, and shows the tile's mark")
+
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let locale = Locale(identifier: "en_US")
+        func text(_ seconds: TimeInterval) -> String {
+            NotchKeepAwakeSupport.compactText(until: now.addingTimeInterval(seconds), now: now, locale: locale)
+        }
+        suite.expect(text(30 * 60) == "30m" && text(30 * 60 - 0.5) == "30m" && text(29 * 60 + 1) == "30m"
+                     && text(29 * 60) == "29m",
+                     "a new half-hour session reads 30m until a whole minute has passed")
+        suite.expect(text(60 * 60) == "1h00" && text(61 * 60) == "1h01" && text(8 * 3600) == "8h00"
+                     && text(26 * 3600 + 5 * 60) == "26h05",
+                     "hours read as the timer's do, past the timer's three hours")
+        suite.expect(text(59 * 60) == "59m" && text(1) == "1m" && text(0) == "1m" && text(-30) == "1m",
+                     "the last minute, and an end the session has not reached yet, still read one minute")
+        for seconds: TimeInterval in [1, 59.5, 60, 61, 1799.5, 3600, 3601, 28_800] {
+            let end = now.addingTimeInterval(seconds)
+            let start = NotchKeepAwakeSupport.tickStart(until: end, now: now)
+            let next = start.addingTimeInterval(60)
+            let minutes = NotchKeepAwakeSupport.minutesLeft(until: end, now: now)
+            suite.expect(start <= now && next > now
+                         && NotchKeepAwakeSupport.minutesLeft(until: end, now: next.addingTimeInterval(-0.001)) == minutes
+                         && NotchKeepAwakeSupport.minutesLeft(until: end, now: next) == max(1, minutes - 1),
+                         "the minute clock wakes when the reading changes, \(seconds) seconds before the end")
+        }
+
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        for barHeight: CGFloat in [22, 24, 32, 40] {
+            for notched in [false, true] {
+                let original = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                             cameraWidth: notched ? 180 : 0, menuBarHeight: barHeight,
+                                             compactSideRoom: 200)
+                for end in [nil, now.addingTimeInterval(45 * 60), now.addingTimeInterval(26 * 3600)] {
+                    let wing = NotchKeepAwakeSupport.stripWing(until: end, now: now, locale: locale, in: original)
+                    let compact = original.compactTimerGeometry(showsDownloads: false, wing: wing)
+                    suite.expect(!compact.compactActivityUsesFooter
+                                 && compact.compactActivityWingWidth >= min(wing, NotchTimerSupport.stripWingRange.upperBound)
+                                 && compact.compactActivityWingWidth >= 42,
+                                 "the cup and the time left keep readable wings beside the camera")
+                }
+            }
+        }
     }
 
     private static func alertContracts(_ suite: TestSuite) {

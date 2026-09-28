@@ -384,7 +384,7 @@ enum NotchHoverEmphasis {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, downloads, agents, calendar, music
+    case timer, downloads, agents, calendar, music, keepAwake
 
     var id: String { rawValue }
 
@@ -395,9 +395,11 @@ enum NotchCompactActivity: String, Identifiable {
         case .agents: return FeatureStrings.notchAgents(language).title
         case .calendar: return FeatureStrings.notchCalendar(language).title
         case .music: return FeatureStrings.notch(language).music
+        case .keepAwake: return Strings.localized(language).keepAwakeTitle
         }
     }
 
+    /// Keep Awake has no page of its own: its tile is on Controls.
     var module: NotchModule {
         switch self {
         case .timer: return .timer
@@ -405,7 +407,12 @@ enum NotchCompactActivity: String, Identifiable {
         case .agents: return .agents
         case .calendar: return .calendar
         case .music: return .music
+        case .keepAwake: return .controls
         }
+    }
+
+    var symbol: String {
+        self == .keepAwake ? NotchControlItem.keepAwake.symbol : module.symbol
     }
 }
 
@@ -890,16 +897,18 @@ enum NotchSupport {
 
     /// Automatic order until the user chooses one of the live activities.
     static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false,
-                                calendar: Bool = false, music: Bool) -> NotchCompactActivity? {
+                                calendar: Bool = false, music: Bool, keepAwake: Bool = false) -> NotchCompactActivity? {
         compactActivities(timer: timer, downloads: downloads, agents: agents,
-                          calendar: calendar, music: music).first
+                          calendar: calendar, music: music, keepAwake: keepAwake).first
     }
 
+    /// Keep Awake comes last: a session can run all day, even more than
+    /// music plays, and it only says that the Mac stays awake.
     static func compactActivities(timer: Bool, downloads: Bool, agents: Bool,
-                                  calendar: Bool, music: Bool) -> [NotchCompactActivity] {
+                                  calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
         let candidates: [(Bool, NotchCompactActivity)] = [
             (timer, .timer), (downloads, .downloads), (agents, .agents),
-            (calendar, .calendar), (music, .music)
+            (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }
     }
