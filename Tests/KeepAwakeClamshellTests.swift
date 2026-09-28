@@ -15,15 +15,22 @@ extension KeepAwakeLidSleepContract {
         static let keepAwakePauseWhenLocked = "pause"
         static let dimScreenOnLidClose = "dimScreen"
         static let dimmedDisplaySavedBrightness = "dimmedDisplaySavedBrightness"
+        static let defaultDuration = "defaultDuration"
+        static let keepAwakeSwitchUsesUntil = "switchUsesUntil"
+        static let keepAwakeUntilTime = "untilTime"
     }
     enum UserDefaults {
         static let standard = Store()
         final class Store {
             var values: [String: Bool] = [:]
             var doubles: [String: Double] = [:]
+            var integers: [String: Int] = [:]
             func bool(forKey key: String) -> Bool { values[key] ?? false }
             func set(_ value: Bool, forKey key: String) { values[key] = value }
             func set(_ value: Double, forKey key: String) { doubles[key] = value }
+            func set(_ value: Int, forKey key: String) { integers[key] = value }
+            func integer(forKey key: String) -> Int { integers[key] ?? 0 }
+            func double(forKey key: String) -> Double { doubles[key] ?? 0 }
             func object(forKey key: String) -> Any? { doubles[key] }
             func removeObject(forKey key: String) { doubles[key] = nil }
         }
@@ -126,6 +133,45 @@ enum KeepAwakeClamshellTests {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        let switching = C.reset()
+        switching.activate(minutes: 15)
+        switching.activate(until: Date().addingTimeInterval(3600))
+        expect(switching.isActive && switching.sessionMinutes == nil && switching.endDate != nil,
+               "an end time replacing a preset session leaves no duration chip selected")
+        switching.activate(minutes: 30)
+        expect(switching.sessionMinutes == 30,
+               "a preset replacing an end-time session selects that preset")
+        switching.deactivate(reason: .manual); C.drain()
+
+        typealias prefs = KeepAwakeLidSleepContract.UserDefaults
+        typealias Key = KeepAwakeLidSleepContract.DefaultsKey
+        let lastPick = C.reset()
+        let end = Date().addingTimeInterval(3600)
+        lastPick.activate(until: end)
+        lastPick.deactivate(reason: .manual); C.drain()
+        lastPick.startLastPick()
+        expect(lastPick.endDate == end && lastPick.sessionMinutes == nil,
+               "the switch restarts a started end time unchanged")
+        lastPick.activate(minutes: 30)
+        lastPick.deactivate(reason: .manual); C.drain()
+        lastPick.startLastPick()
+        expect(lastPick.sessionMinutes == 30,
+               "a preset started from any entry point is what the switch restarts")
+        lastPick.deactivate(reason: .manual); C.drain()
+        prefs.standard.set(true, forKey: Key.keepAwakeSwitchUsesUntil)
+        prefs.standard.set(Date().addingTimeInterval(-60).timeIntervalSinceReferenceDate,
+                                  forKey: Key.keepAwakeUntilTime)
+        lastPick.startLastPick()
+        expect(lastPick.sessionMinutes == 30,
+               "an end time that already passed restarts the saved duration, not a session into tomorrow")
+        lastPick.resumeAfterSystemTeardown(); C.drain()
+        expect(lastPick.isActive && lastPick.sessionMinutes == 30,
+               "clearing permissions keeps the running preset selected")
+        lastPick.deactivate(reason: .manual); C.drain()
+        prefs.standard.integers = [:]
+        prefs.standard.set(false, forKey: Key.keepAwakeSwitchUsesUntil)
+        prefs.standard.removeObject(forKey: Key.keepAwakeUntilTime)
+
         let staleStatus = C.reset(); staleStatus.isActive = true
         staleStatus.refreshPasswordlessStatus()
         staleStatus.enableClamshell()
