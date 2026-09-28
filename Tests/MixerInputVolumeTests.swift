@@ -81,6 +81,8 @@ enum MixerInputVolumeContract {
             microphone.append(muted)
             return true
         }
+        var retractions = 0
+        func retractMicrophoneNotice() { retractions += 1 }
     }
     enum L10n {
         static let shared = Strings()
@@ -771,12 +773,15 @@ enum MixerInputVolumeContract {
         HAL.readOnly.insert(HAL.key(20))
         HAL.running = [20]
         NotchService.shared.microphone = []
+        NotchService.shared.retractions = 0
         QuickToolHUD.messages = []
         MicMuteService.shared.setMuted(true)
         DispatchQueue.drain()
         check(
             QuickToolHUD.messages == ["mute partial"] && NotchService.shared.microphone.isEmpty,
             "a microphone left open keeps its whole warning in the floating confirmation")
+        check(NotchService.shared.retractions == 1,
+              "a partial result takes back the island notice of the press before it")
         NotchService.shared.showsMicrophone = false
         NotchService.shared.microphone = []
         HAL.reset()

@@ -1494,12 +1494,19 @@ final class NotchService: ObservableObject {
     @discardableResult
     func showMicrophone(muted: Bool) -> Bool {
         // Only the closed island draws this notice. While it is open or busy
-        // the panel keeps the job, and still reaches a pointer on another display.
+        // the floating confirmation keeps the job.
         guard noticeCanPresent else { return false }
         let text = L10n.shared.s
         return show(NotchNotice(event: .microphone, title: "",
                                 detail: muted ? text.micMutedHUD : text.micUnmutedHUD,
                                 symbol: muted ? "mic.slash.fill" : "mic.fill"))
+    }
+
+    /// A partial result is confirmed by the floating panel alone, so the
+    /// notice left by the press before it must not contradict the warning.
+    func retractMicrophoneNotice() {
+        guard notice?.event == .microphone else { return }
+        dismissNotice()
     }
 
     /// The close button of a held preview also takes the message out of the

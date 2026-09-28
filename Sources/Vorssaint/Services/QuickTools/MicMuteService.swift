@@ -240,6 +240,7 @@ final class MicMuteService: ObservableObject {
         // A partial result keeps the floating confirmation: the whole
         // sentence matters, and it is longer than the island's wings.
         if outcome.failed {
+            NotchService.shared.retractMicrophoneNotice()
             QuickToolHUD.show(icon: "exclamationmark.triangle",
                               message: muted ? L10n.shared.s.micMutePartialHUD : L10n.shared.s.micUnmutePartialHUD)
             return
