@@ -180,8 +180,10 @@ struct NotchSettings: View {
             SettingsCard {
                 switchRow("capsule", text.showOutline, isOn: $outlineEnabled)
             }
-            // Only a physical camera has an outline to match.
-            if notch.geometry.isNotched {
+            // Only a physical camera has an outline to match. Any notched
+            // display counts, wherever the island is right now: it can be
+            // off, withdrawn with the lid closed or on another display.
+            if NSScreen.screens.contains(where: { $0.safeAreaInsets.top > 0 }) {
                 SettingsCard(title: text.cameraFit) {
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
                         // Whole points keep the island centred on the camera's pixels.
@@ -694,7 +696,9 @@ struct NotchSettings: View {
             .precision(.fractionLength(0...1)).locale(Locale(identifier: l10n.language.rawValue)))
         return GridRow {
             Text(title).fixedSize().accessibilityHidden(true)
-            Slider(value: bounded, in: range, step: step) { Text(title) }.labelsHidden().accessibilityValue(formatted)
+            // The Custom size card has sliders with the same names.
+            Slider(value: bounded, in: range, step: step) { Text(title) }.labelsHidden()
+                .accessibilityLabel("\(text.cameraFit), \(title)").accessibilityValue(formatted)
             Text(formatted).monospacedDigit().foregroundStyle(.secondary).frame(width: 38)
         }
     }

@@ -347,9 +347,11 @@ enum SettingsDirectory {
                                       icon: "macbook",
                                       keywords: [FeatureStrings.notch(language).description,
                                                  FeatureStrings.notchEditor(language).hideMenuBarIcon,
-                                                 FeatureStrings.notch(language).cameraFit,
                                                  "notch", "camera", "music", "clipboard",
-                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens"]),
+                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens"]
+                                          // The fit card only appears with a camera housing to fit.
+                                          + (NSScreen.screens.contains(where: { $0.safeAreaInsets.top > 0 })
+                                             ? [FeatureStrings.notch(language).cameraFit] : [])),
                 SettingsDirectoryItem(page: .commandBar,
                                       title: FeatureStrings.commandBar(language).pageTitle,
                                       icon: "command",

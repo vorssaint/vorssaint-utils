@@ -126,9 +126,12 @@ struct NotchCameraFit: Equatable {
     let width: CGFloat
     let height: CGFloat
 
+    /// Whole points keep the island centred on the camera's pixels, and half
+    /// points are whole pixels on the notched panels; a value written by hand
+    /// is brought back to those steps.
     init(width: Double, height: Double) {
-        self.width = NotchSize.clamped(width, to: Self.widthRange, fallback: 0)
-        self.height = NotchSize.clamped(height, to: Self.heightRange, fallback: 0)
+        self.width = NotchSize.clamped(width, to: Self.widthRange, fallback: 0).rounded()
+        self.height = (NotchSize.clamped(height, to: Self.heightRange, fallback: 0) * 2).rounded() / 2
     }
 
     static func current(in defaults: UserDefaults = .standard) -> NotchCameraFit {
