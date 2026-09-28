@@ -44,6 +44,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -392,4 +393,28 @@ extension DiskImageInstallerStrings {
         installedKeptDownloadBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження збережено.",
         installingFormat: "Встановлення %@…"
     )
+
+    static let th = DiskImageInstallerStrings(
+        title: "Disk image installer",
+        hubDescription: "ติดตั้งแอปเดียวภายในดิสก์อิมเมจและล้างข้อมูลการดาวน์โหลด",
+        useUserApplications: "ติดตั้งในโฟลเดอร์ Applications ภายในโฟลเดอร์บ้านของคุณ",
+        applicationsFolder: "the Applications folder",
+        userApplicationsFolder: "โฟลเดอร์ Applications ภายในโฟลเดอร์บ้านของคุณ",
+        promptTitle: "Install this app?",
+        promptBodyFormat: "%@ จะถูกคัดลอกไปยัง %@ และดิสก์อิมเมจจะถูกดีดออก",
+        installButton: "ติดตั้ง",
+        installedTitle: "App installed",
+        installedBodyFormat: "%@ is ready in %@. The disk image was ejected and its download moved to Trash.",
+        installedKeepingMountBodyFormat: "%@ ได้รับการติดตั้งใน %@ แต่ดิสก์อิมเมจไม่สามารถดีดออกได้ การดาวน์โหลดถูกเก็บไว้",
+        installedKeepingDownloadBodyFormat: "%@ ได้รับการติดตั้งใน %@ และดิสก์อิมเมจถูกดีดออก แต่การดาวน์โหลดไม่สามารถย้ายไปยังถังขยะได้",
+        failedTitle: "Could not install",
+        failedBody: "Nothing was changed. You can still drag the app to Applications.",
+        verificationFailedBody: "This Mac could not verify the app, so nothing was installed.",
+        alreadyInstalledBodyFormat: "%@ is already in Applications.",
+        trashDownloadOption: "Move the download to Trash",
+        revealAppOption: "Show the installed app in Finder",
+        installedKeptDownloadBodyFormat: "%@ พร้อมแล้วใน %@ อิมเมจของดิสก์ถูกดีดออกและการดาวน์โหลดจะถูกเก็บไว้",
+        installingFormat: "Installing %@…"
+    )
+
 }

@@ -79,6 +79,7 @@ struct MediaImageConverterStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -982,4 +983,65 @@ extension MediaImageConverterStrings {
         batchSummaryHeaderFormat: "Збережено: %d, не вдалося: %d",
         batchSummaryItemFormat: "%@ -> %@"
     )
+
+    static let th = MediaImageConverterStrings(
+        filesSelectedFormat: "เลือกไฟล์ %d แล้ว",
+        profile: "Profile",
+        noProfile: "No profile",
+        profileName: "Profile name",
+        saveAsNew: "Save new",
+        updateProfile: "อัปเดต",
+        deleteProfile: "ลบโปรไฟล์",
+        profileModified: "Modified",
+        profileDefaultNameFormat: "โปรไฟล์ %d",
+        presetWeb: "เว็บ",
+        presetSocial: "Social",
+        presetDocs: "Docs",
+        resize: "Resize",
+        resizeNone: "No change",
+        resizeMax: "ฝั่งแม็กซ์",
+        resizeWidth: "ความกว้าง",
+        resizeHeight: "Height",
+        resizeExact: "Custom",
+        exactStretch: "Stretch",
+        exactFit: "Fit",
+        exactFill: "Fill",
+        height: "Height",
+        watermark: "ลายน้ำ",
+        watermarkOff: "ปิด",
+        watermarkText: "ข้อความ",
+        watermarkLogo: "Logo",
+        watermarkBoth: "Text + logo",
+        watermarkTextPlaceholder: "ข้อความลายน้ำ",
+        noLogo: "No logo",
+        chooseLogo: "Choose logo",
+        position: "ตำแหน่ง",
+        topLeft: "ซ้ายบน",
+        topRight: "Top right",
+        center: "Center",
+        bottomLeft: "Bottom left",
+        bottomRight: "Bottom right",
+        opacity: "Opacity",
+        margin: "Margin",
+        scale: "Scale",
+        rename: "เปลี่ยนชื่อ",
+        preview: "Preview",
+        outputName: "เอาท์พุต",
+        background: "Background",
+        backgroundTransparent: "โปร่งใส",
+        backgroundWhite: "สีขาว",
+        backgroundBlack: "Black",
+        preserveDate: "Keep original modified date",
+        saveInSubfolder: "บันทึกในโฟลเดอร์ย่อย \"แปลงแล้ว\"",
+        moreOptions: "More options",
+        tooLarge: "These dimensions are too large to process safely. Choose a smaller size.",
+        copySummary: "Copy summary",
+        savedBytesFormat: "%@ saved",
+        grewBytesFormat: "%@ ใหญ่ขึ้น",
+        batchSavedFormat: "%d images saved",
+        batchPartialFormat: "%d บันทึกแล้ว %d ล้มเหลว",
+        batchSummaryHeaderFormat: "%d บันทึกแล้ว %d ล้มเหลว",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
 }

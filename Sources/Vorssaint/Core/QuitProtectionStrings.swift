@@ -72,6 +72,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -601,4 +602,40 @@ extension QuitProtectionStrings {
         optionKey: "Option",
         controlKey: "Control"
     )
+
+    static let th = QuitProtectionStrings(
+        name: "Quit & close protection",
+        description: "Protects ⌘Q and ⌘W from accidental presses",
+        intro: "Configure each shortcut independently. The original action passes only after the selected confirmation.",
+        enabled: "Protect this shortcut",
+        enabledCaption: "Other Command shortcuts continue to work normally.",
+        mode: "Confirmation mode",
+        hold: "Hold to confirm",
+        doublePress: "Double press",
+        extraModifier: "Require extra modifier",
+        holdDuration: "Hold duration",
+        doublePressInterval: "Double press interval",
+        modifier: "Extra modifier",
+        appScope: "Applications",
+        allApps: "All applications",
+        selectedOnly: "Selected applications only",
+        allExceptSelected: "All except selected applications",
+        exceptions: "ข้อยกเว้น",
+        noExceptions: "No applications selected",
+        addApp: "เพิ่มแอปพลิเคชัน…",
+        feedback: "Show visual feedback",
+        accessibilityCaption: "Protection uses Accessibility to observe only ⌘Q and ⌘W globally.",
+        holdQuitHUDFormat: "กด %@ ค้างไว้เพื่อออก",
+        holdCloseHUDFormat: "Hold %@ to close",
+        doubleQuitHUDFormat: "Press %@ again to quit",
+        doubleCloseHUDFormat: "Press %@ again to close",
+        extraQuitHUDFormat: "ใช้ %@ เพื่อออก",
+        extraCloseHUDFormat: "ใช้ %@ เพื่อปิด",
+        cancelHint: "Esc cancels",
+        releaseHint: "ปล่อยเพื่อยืนยัน",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
 }

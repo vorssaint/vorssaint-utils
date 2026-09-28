@@ -33,6 +33,7 @@ extension FeatureStrings {
         case .ja: return .ja
         case .ko: return .ko
         case .uk: return .uk
+        case .th: return .th
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -53,6 +54,20 @@ extension SettingsPageStrings {
         switcherLayoutIcons: "Великі значки",
         switcherLayoutSimple: "Простий список"
     )
+
+    static let th = SettingsPageStrings(
+        energyDescription: "Keep the Mac awake, control your displays and save battery.",
+        monitorDescription: "สิ่งที่แถบเมนูและแผงแสดงเกี่ยวกับ Mac ของคุณ และเมื่อใดที่ควรเตือนคุณ",
+        mouseDescription: "Give the wheel, the side buttons and the trackpad new jobs.",
+        switcherDescription: "Switch between apps and windows your way.",
+        dockTitle: "ท่าเรือ",
+        dockDescription: "See an app’s windows from its Dock icon, and choose what a click on it does.",
+        switcherLayoutWindows: "Window previews",
+        switcherLayoutWindowsCaption: "One preview per window, minimized ones included.",
+        switcherLayoutIcons: "Large icons",
+        switcherLayoutSimple: "Simple list"
+    )
+
 
     static let enUS = SettingsPageStrings(
         energyDescription: "Keep the Mac awake, control your displays and save battery.",

@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -152,4 +153,13 @@ extension AppearanceStrings {
         dark: "Темний",
         liquidGlass: "Liquid Glass"
     )
+
+    static let th = AppearanceStrings(
+        label: "การแสดงผล",
+        system: "ระบบ",
+        light: "สว่าง",
+        dark: "มืด",
+        liquidGlass: "Liquid Glass"
+    )
+
 }

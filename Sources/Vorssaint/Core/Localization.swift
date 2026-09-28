@@ -35,11 +35,12 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
+    case th = "th"
 
     var id: String { rawValue }
 
     /// How this language agrees a counted noun with the number in front of
-    /// it. Three of the fifteen put a distinct form between one and many, and
+    /// it. Three of the sixteen put a distinct form between one and many, and
     /// they disagree on which numbers take it, so the count itself is not
     /// enough to pick a form without knowing the language's rule.
     var countAgreement: CountAgreement {
@@ -68,6 +69,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
         case .uk: return "Українська"
+        case .th: return "ไทย"
         }
     }
 
@@ -96,7 +98,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
-            ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
+            ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("th", .th), ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -129,6 +131,7 @@ final class L10n: ObservableObject {
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
         case .uk: return .uk
+        case .th: return .th
         }
     }
 

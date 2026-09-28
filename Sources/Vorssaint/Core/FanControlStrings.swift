@@ -67,6 +67,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -760,4 +761,51 @@ extension FanControlFeatureStrings {
         helperUnavailable: "Захищений контролер вентиляторів недоступний. Дозвольте Vorssaint у розділі «Автозапуск» і спробуйте знову.",
         resumeAfterRestart: "Відновлювати після перезавантаження або сну"
     )
+
+    static let th = FanControlFeatureStrings(
+        title: "Fan Control",
+        hubDescription: "Control fans manually or with temperature curves while seeing live and target RPM",
+        showInPanel: "Show Fan Control in the panel",
+        settingsCaption: "Adds manual fan speeds and temperature curves to the menu bar panel.",
+        fanNameFormat: "แฟน %d",
+        rpmFormat: "%d RPM",
+        allowControl: "Allow fan control",
+        approvalCaption: "อนุญาตให้ Vorssaint ในรายการเข้าสู่ระบบใช้ตัวควบคุมพัดลมที่ได้รับการป้องกัน",
+        openSettings: "เปิดการตั้งค่าระบบ",
+        noFans: "This Mac has no controllable fan.",
+        unsupported: "Fan control is not available on this Mac.",
+        alreadyControlled: "Another process is controlling the fans. Return it to system control first.",
+        failed: "The fans returned to system control because the requested control could not be verified.",
+        safetyCaption: "การควบคุมจะยังคงทำงานอยู่จนกว่าคุณจะกลับสู่ระบบ โดยจะกลับมาโดยอัตโนมัติหากแอพตัดการเชื่อมต่อ Mac พักเครื่อง การอ่านเซ็นเซอร์ล้มเหลว หรือความดันความร้อนเพิ่มขึ้น",
+        safetyStopped: "กลับสู่การควบคุมระบบเนื่องจากการควบคุมพัดลมถูกขัดจังหวะ",
+        menuBarTitle: "Fan speed",
+        systemControl: "ระบบ",
+        manualControl: "Manual",
+        customCurve: "Curve",
+        mode: "โหมดควบคุม",
+        coolingIntensity: "Fan speed",
+        currentRPMFormat: "ปัจจุบัน %d รอบต่อนาที",
+        targetRPMFormat: "Target %d RPM",
+        applyManual: "Apply manual control",
+        applyCurve: "ใช้เส้นโค้งพัดลม",
+        returnToSystem: "Use system control",
+        temperatureUnavailable: "The selected temperature sensor stopped responding. Fan control returned to System.",
+        curveUnavailable: "A selected temperature sensor is not available on this Mac.",
+        sensor: "Temperature sensor",
+        temperature: "อุณหภูมิ",
+        fanSpeed: "Fan speed",
+        addPoint: "Add point",
+        addSensor: "Add sensor",
+        removePoint: "Remove point",
+        removeSensor: "Remove sensor",
+        curveGraph: "เส้นโค้งอุณหภูมิและความเร็วพัดลม",
+        averageSoC: "SoC เฉลี่ย",
+        hottestSoC: "Hottest SoC",
+        averageCPU: "Average CPU",
+        hottestCPU: "Hottest CPU",
+        hottestGPU: "Hottest GPU",
+        helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
+        resumeAfterRestart: "Resume after restart or sleep"
+    )
+
 }

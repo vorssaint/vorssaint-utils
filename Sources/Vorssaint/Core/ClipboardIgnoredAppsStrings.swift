@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -136,4 +137,12 @@ extension ClipboardIgnoredAppsStrings {
         removeButton: "Видалити",
         caption: "Все, що ви копіюєте в цих програмах, не зберігається в історії."
     )
+
+    static let th = ClipboardIgnoredAppsStrings(
+        listTitle: "Apps to skip",
+        addButton: "Add an app…",
+        removeButton: "เอาออก",
+        caption: "Nothing you copy in these apps is saved to the history."
+    )
+
 }

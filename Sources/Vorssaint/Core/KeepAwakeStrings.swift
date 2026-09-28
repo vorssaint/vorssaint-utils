@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 
@@ -82,6 +83,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -160,6 +162,12 @@ extension KeepAwakeDisplaySleepStrings {
         allowDisplaySleep: "Дозволити дисплею засинати",
         allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
     )
+
+    static let th = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Allow the display to sleep",
+        allowDisplaySleepCaption: "ทำให้ Mac ตื่นอยู่เสมอในขณะที่จอแสดงผลติดตามตัวตั้งเวลาปิดเครื่องตามปกติ"
+    )
+
 }
 
 extension KeepAwakeAutomationStrings {
@@ -491,4 +499,27 @@ extension KeepAwakeAutomationStrings {
         matchAll: "Усі",
         automationCaptionAll: "Запускається лише коли всі обрані умови активні."
     )
+
+    static let th = KeepAwakeAutomationStrings(
+        automationSection: "Automation",
+        automationCaption: "เริ่มต้นเมื่อเงื่อนไขใดๆ ที่เลือกทำงานอยู่",
+        automationOff: "ปิด",
+        externalDisplayToggle: "External display",
+        externalDisplayActive: "ทำงานขณะเชื่อมต่อจอแสดงผลภายนอก",
+        powerToggle: "พลัง",
+        powerActive: "Active while connected to power",
+        runningAppsToggle: "Applications",
+        runningAppsActive: "Active while a selected app is running",
+        runningAppsListTitle: "Selected apps",
+        runningAppsAddButton: "Add an app…",
+        runningAppsRemoveButton: "เอาออก",
+        runningAppsListCaption: "Keep Awake starts while any of these apps is open, even in the background.",
+        automationActive: "Active because an automatic condition is met",
+        pauseWhenLockedToggle: "หยุดชั่วคราวในขณะที่ Mac ถูกล็อค",
+        pauseWhenLockedCaption: "Follows normal sleep rules while locked and resumes the remaining session after you unlock.",
+        matchAny: "Any",
+        matchAll: "ทั้งหมด",
+        automationCaptionAll: "Starts only when every selected condition is active."
+    )
+
 }

@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -152,4 +153,13 @@ extension MouseClickDebounceStrings {
         windowLabel: "Фільтрувати вікно",
         windowCaption: "Повторний клац усередині цього інтервалу вважається випадковим дублікатом."
     )
+
+    static let th = MouseClickDebounceStrings(
+        title: "Extra click filter",
+        caption: "Ignores rapid extra clicks from worn mouse buttons without slowing normal clicks.",
+        moreOptions: "More options",
+        windowLabel: "Filter window",
+        windowCaption: "การคลิกซ้ำภายในช่วงเวลานี้จะถือเป็นการคลิกซ้ำโดยไม่ตั้งใจ"
+    )
+
 }

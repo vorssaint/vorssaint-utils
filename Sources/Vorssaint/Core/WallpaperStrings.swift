@@ -46,6 +46,7 @@ extension FeatureStrings {
         case .ja: return .ja
         case .ko: return .ko
         case .uk: return .uk
+        case .th: return .th
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -363,6 +364,33 @@ extension WallpaperFeatureStrings {
         previousPage: "Назад",
         nextPage: "Далі"
     )
+
+    static let th = WallpaperFeatureStrings(
+        pageTitle: "วอลล์เปเปอร์",
+        hubDescription: "Pick a still wallpaper without opening System Settings",
+        panelDescription: "Pick a still wallpaper without opening System Settings.",
+        filterAll: "ทั้งหมด",
+        filterOwn: "รูปภาพของคุณ",
+        filterApple: "แอปเปิล",
+        applyAllDisplays: "Show on all Spaces",
+        addImage: "เพิ่มรูปภาพ",
+        addFolder: "เพิ่มโฟลเดอร์",
+        removeAdded: "เอาออก",
+        doneRemoving: "เสร็จสิ้น",
+        sourceUnavailable: "ไม่พร้อมใช้งาน",
+        addImagePrompt: "Choose images to keep in Vorssaint’s wallpaper list",
+        addFolderPrompt: "เลือกโฟลเดอร์รูปภาพที่จะเก็บไว้ในรายการวอลเปเปอร์ของ Vorssaint",
+        openSystemSettings: "เปิดการตั้งค่าวอลเปเปอร์",
+        emptyAll: "ไม่พบวอลเปเปอร์",
+        emptyOwn: "No pictures added yet",
+        emptyApple: "No Apple stills found",
+        downloading: "กำลังดาวน์โหลด...",
+        downloadFailed: "Could not download the wallpaper",
+        applyFailed: "Could not set the wallpaper",
+        previousPage: "ก่อนหน้า",
+        nextPage: "ต่อไป"
+    )
+
 
     static let zhHans = WallpaperFeatureStrings(
         pageTitle: "壁纸",

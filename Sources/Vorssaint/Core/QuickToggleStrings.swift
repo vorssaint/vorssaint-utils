@@ -52,6 +52,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -475,4 +476,33 @@ extension QuickToggleFeatureStrings {
         screenSaverCaption: "Запускається одразу, на кожному дисплеї.",
         actionFailed: "Не вдалося завершити."
     )
+
+    static let th = QuickToggleFeatureStrings(
+        pageTitle: "สลับอย่างรวดเร็ว",
+        hubDescription: "One-click actions like dark mode and Trash",
+        panelCaption: "One-click system actions in the menu bar panel and in the quick panel.",
+        darkModeToDark: "Switch to dark mode",
+        darkModeToLight: "Switch to light mode",
+        darkModeCaption: "เปลี่ยนรูปลักษณ์ของทั้งระบบ",
+        emptyTrashTitle: "Empty the Trash",
+        emptyTrashCaption: "Removes everything from the Trash.",
+        emptyTrashConfirmTitle: "Empty the Trash?",
+        emptyTrashConfirmMessage: "รายการทั้งหมดในถังขยะจะถูกลบออก สิ่งนี้ไม่สามารถยกเลิกได้",
+        emptyTrashConfirmButton: "Empty the Trash",
+        ejectTitle: "นำดิสก์ทั้งหมดออก",
+        ejectCaption: "Safely ejects every external disk.",
+        hiddenFilesShow: "Show hidden files",
+        hiddenFilesHide: "ซ่อนไฟล์ที่ซ่อนอยู่",
+        desktopIconsHide: "Hide desktop icons",
+        desktopIconsShow: "Show desktop icons",
+        finderRestartCaption: "The Finder restarts to apply it.",
+        lockScreenTitle: "Lock the screen",
+        lockScreenCaption: "จะขอรหัสผ่านเพื่อกลับมา",
+        displayOffTitle: "Turn off the display",
+        displayOffCaption: "The Mac keeps running with the screen off.",
+        screenSaverTitle: "เริ่มโปรแกรมรักษาหน้าจอ",
+        screenSaverCaption: "Starts right away, on every display.",
+        actionFailed: "Could not complete."
+    )
+
 }

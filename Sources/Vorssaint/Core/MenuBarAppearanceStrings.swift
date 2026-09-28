@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -232,4 +233,18 @@ extension MenuBarAppearanceStrings {
         mediumFrom: "Середній від",
         highFrom: "Високий від"
     )
+
+    static let th = MenuBarAppearanceStrings(
+        label: "Usage display",
+        values: "ค่านิยม",
+        bars: "Bars",
+        caption: "Bars apply to CPU, GPU, memory and disk usage. Other readings stay numeric.",
+        customize: "Bar colors and limits",
+        normalColor: "Normal color",
+        mediumColor: "Medium color",
+        highColor: "High color",
+        mediumFrom: "Medium from",
+        highFrom: "สูงจาก"
+    )
+
 }

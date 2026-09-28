@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -423,4 +424,29 @@ extension SuperKeyStrings {
         mappingSystemRefused: "macOS відхилила прив’язку клавіш. Перепідключіть клавіатуру або перезавантажте Mac, потім увімкніть знову.",
         keyboardTapRefused: "macOS не дозволила Vorssaint стежити за клавіатурою. Вимкніть і знову ввімкніть Vorssaint у розділі «Системні параметри › Приватність і безпека › Доступність», а потім знову ввімкніть цю функцію."
     )
+
+    static let th = SuperKeyStrings(
+        pageTitle: "ปุ่ม Super",
+        hubDescription: "Turns one key into the modifier combination you choose.",
+        enableToggle: "ใช้คีย์นี้เป็นคีย์ซุปเปอร์",
+        enableCaption: "กดค้างไว้แล้วกดปุ่มใดก็ได้ เลือกตัวแก้ไขอย่างน้อยหนึ่งรายการด้านล่าง",
+        modifierKeysNote: "Keep this key set to its default action in System Settings › Keyboard › Modifier Keys.",
+        sourceKey: "Key to hold",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Right %@",
+        holdHint: "ถือ",
+        soloSection: "A tap on its own",
+        soloCaption: "What a quick tap does when no other key is pressed.",
+        soloNothing: "ไม่มีอะไร",
+        soloCapsLock: "Turn capitals on and off",
+        soloEscape: "Press Escape",
+        activeNow: "Working now",
+        panelCaptionFormat: "%1$@ holds %2$@.",
+        manageButton: "ตั้งค่า...",
+        soloInputSource: "สลับแหล่งอินพุต กดค้างไว้เพื่อ Caps Lock",
+        mappingForeignMapping: "Another app’s key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
+        mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again.",
+        keyboardTapRefused: "macOS would not let Vorssaint watch the keyboard. Turn Vorssaint off and on in System Settings › Privacy & Security › Accessibility, then switch this on again."
+    )
+
 }

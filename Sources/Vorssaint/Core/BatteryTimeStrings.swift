@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -120,4 +121,11 @@ extension BatteryTimeFeatureStrings {
         systemEstimate: "Системна оцінка",
         calculating: "Обчислення…"
     )
+
+    static let th = BatteryTimeFeatureStrings(
+        title: "Battery time remaining",
+        systemEstimate: "System estimate",
+        calculating: "Calculating…"
+    )
+
 }

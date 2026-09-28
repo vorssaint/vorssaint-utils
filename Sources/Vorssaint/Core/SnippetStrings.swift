@@ -92,6 +92,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -231,6 +232,75 @@ extension SnippetFeatureStrings {
         soundPickerLabel: "Звук",
         soundUnavailable: "Звук недоступний"
     )
+
+    static let th = SnippetFeatureStrings(
+        pageTitle: "Text snippets",
+        hubDescription: "ทริกเกอร์แบบสั้นจะขยายเป็นข้อความแบบเต็ม",
+        enable: "Expand snippets while typing",
+        enableCaption: "พิมพ์ทริกเกอร์ทุกที่และจะกลายเป็นข้อความ ทุกอย่างจะคงอยู่บน Mac เครื่องนี้",
+        addButton: "Add snippet",
+        newTitle: "ตัวอย่างใหม่",
+        editTitle: "Edit snippet",
+        nameLabel: "Name",
+        namePlaceholder: "Personal email",
+        triggerLabel: "Trigger",
+        triggerPlaceholder: ";อีเมล",
+        replacementLabel: "ข้อความ",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "ขยาย",
+        expansionImmediate: "Right away",
+        expansionDelimiter: "After space, Tab or Return",
+        variablesHint: "Variables: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "They become the date, the time and the copied text at the moment of expansion.",
+        emptyList: "ยังไม่มีตัวอย่าง เพิ่มอันแรก",
+        duplicateTrigger: "Another snippet already uses this trigger.",
+        triggerTooShort: "The trigger needs at least 2 characters.",
+        deleteButton: "Delete",
+        saveButton: "บันทึก",
+        manageButton: "Manage snippets",
+        ignoreCaseLabel: "Ignore capitalization",
+        libraryTitle: "Quick snippet menu",
+        libraryToggle: "Open snippets from a menu",
+        libraryCaption: "The shortcut opens a searchable menu. Picking a snippet types it right where your cursor is.",
+        librarySearchPlaceholder: "Search snippets",
+        libraryNoResults: "No snippet matches the search.",
+        libraryEmpty: "Nothing to show yet. Add snippets, or turn on “Show in the quick menu” for the ones you use most.",
+        libraryFooterHint: "↩ inserts · esc closes",
+        folderLabel: "Folder",
+        folderPlaceholder: "Work",
+        showInLibraryLabel: "Show in the quick menu",
+        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}. A -tz(...) part sets the timezone, like {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}, or use the date/time button above. A -tz(...) part sets the timezone, like {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insert date/time",
+        dateTimeEditButton: "Edit date/time",
+        dateTimeTypeLabel: "พิมพ์",
+        dateTimeKindDate: "วันที่",
+        dateTimeKindTime: "เวลา",
+        dateTimeKindDateTime: "วันที่และเวลา",
+        dateTimeStyleLabel: "สไตล์",
+        dateTimeStyleShort: "สั้น",
+        dateTimeStyleMedium: "ปานกลาง",
+        dateTimeStyleLong: "Long",
+        dateTimeStyleFull: "Full",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Custom",
+        dateTimeStyleLocaleNote: "ลักษณะที่มีชื่อจะบันทึกรูปแบบที่ภูมิภาค Mac ของคุณใช้อยู่ในขณะนี้",
+        dateTimeTimezoneLabel: "Timezone",
+        dateTimeTimezoneDeviceDefault: "ค่าเริ่มต้นของอุปกรณ์",
+        dateTimeTimezoneValid: "เขตเวลาที่ถูกต้อง",
+        dateTimeTimezoneInvalid: "Unrecognized timezone",
+        dateTimeTimezoneClear: "ล้างเขตเวลา",
+        dateTimeTimezoneSearchPlaceholder: "Search timezones",
+        dateTimePatternLabel: "ลวดลาย",
+        dateTimePreviewLabel: "Preview",
+        dateTimeConfirmInsert: "Insert",
+        dateTimeConfirmUpdate: "อัปเดต",
+        soundToggle: "Play a sound when a typed trigger expands",
+        soundCaption: "เสียงของระบบแบบสั้นจะเล่นทุกครั้งที่ทริกเกอร์ที่พิมพ์ขยายออก",
+        soundPickerLabel: "Sound",
+        soundUnavailable: "Sound unavailable"
+    )
+
 }
 
 extension SnippetFeatureStrings {

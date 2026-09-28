@@ -38,6 +38,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -69,6 +70,21 @@ extension BackupFeatureStrings {
         importAction: "Імпортувати та перезапустити",
         invalidFile: "Цей файл не є коректною резервною копією Vorssaint."
     )
+
+    static let th = BackupFeatureStrings(
+        title: "Backup",
+        description: "Take your setup to another Mac: export every preference to a file and import it there. Your Scratchpad notes, clipboard history, Shelf items and system permissions never leave this Mac.",
+        exportButton: "Export settings…",
+        importButton: "Import settings…",
+        exported: "บันทึกข้อมูลสำรองแล้ว",
+        exportFailed: "Could not save the backup.",
+        importConfirmTitle: "นำเข้าการตั้งค่าเหล่านี้หรือไม่",
+        importConfirmBody: "การตั้งค่าปัจจุบันของคุณจะถูกแทนที่ด้วยไฟล์และแอปจะรีสตาร์ท ไม่มีอะไรแตะต้องบน Mac เครื่องนี้อีก",
+        importMissingIslandBody: "This backup has no Dynamic Island settings. This Mac’s island settings will be kept. Re-export with Vorssaint 3.4 or newer on the other Mac to copy them. Other settings will be imported and the app will restart.",
+        importAction: "นำเข้าและรีสตาร์ท",
+        invalidFile: "This file is not a valid Vorssaint backup."
+    )
+
 }
 
 extension BackupFeatureStrings {

@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -217,4 +218,17 @@ extension CameraPreviewFeatureStrings {
         permName: "Камера",
         permExplain: "Показує вашу камеру лише у вікні попереднього перегляду, щоб ви могли перевірити, як виглядаєте перед дзвінком. Нічого не записується та не залишає ваш Mac."
     )
+
+    static let th = CameraPreviewFeatureStrings(
+        pageTitle: "Camera preview",
+        hubDescription: "Opens a floating mirror with your camera",
+        panelCaption: "Check how you look before a call",
+        openButton: "Open preview",
+        cameraMenuLabel: "กล้อง",
+        deniedMessage: "การเข้าถึงกล้องสำหรับ Vorssaint ถูกปิดอยู่ในการตั้งค่าระบบ",
+        noCameraMessage: "No camera detected",
+        permName: "กล้อง",
+        permExplain: "Shows your camera only in the preview window, so you can check how you look before a call. Nothing is recorded or leaves your Mac."
+    )
+
 }

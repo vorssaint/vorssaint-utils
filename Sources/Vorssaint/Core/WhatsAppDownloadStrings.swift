@@ -62,6 +62,7 @@ struct WhatsAppDownloadStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -502,6 +503,13 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: uk.lastRunFormat, nextRunFormat: uk.nextRunFormat,
             firstMessageFormat: uk.firstMessageFormat, localNote: uk.localNote,
             notificationFormat: uk.notificationFormat, scanFailed: uk.scanFailed, manageButton: uk.manageButton)
+        case .th: return OperationalStrings(
+            automaticCaption: th.automaticCaption, retentionCaption: th.retentionCaption,
+            manualIntro: th.manualIntro, resultsFormat: th.resultsFormat,
+            selectRules: th.selectRules, cleanSelectedFormat: th.cleanSelectedFormat,
+            lastRunFormat: th.lastRunFormat, nextRunFormat: th.nextRunFormat,
+            firstMessageFormat: th.firstMessageFormat, localNote: th.localNote,
+            notificationFormat: th.notificationFormat, scanFailed: th.scanFailed, manageButton: th.manageButton)
         case .enUS: return OperationalStrings(
             automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
             manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
@@ -603,4 +611,48 @@ extension WhatsAppDownloadStrings {
         scanFailed: "Не вдалося перевірити папку «Викачане». Перевірте «Файли та папки» в Системних параметрах.",
         manageButton: "Керувати…"
     )
+
+    static let th = WhatsAppDownloadStrings(
+        title: "WhatsApp downloads",
+        hubDescription: "Keeps WhatsApp files in Downloads under control",
+        intro: "Finds files that macOS confirms came from WhatsApp. File contents and chats are never read.",
+        automatic: "Clean up automatically",
+        automaticCaption: "Checks once a day and sends matching files older than your limit to the Trash.",
+        folder: "Watched folder",
+        accessReady: "Downloads is accessible",
+        accessDenied: "Vorssaint cannot access Downloads. Allow it in Files & Folders.",
+        fileTypes: "File types",
+        allTypes: "ทั้งหมด",
+        image: "รูปภาพ",
+        video: "วิดีโอ",
+        audio: "Audio and voice notes",
+        document: "เอกสาร",
+        archive: "ไฟล์บีบอัด",
+        other: "อื่นๆ",
+        retention: "Keep for",
+        retentionCaption: "Recently edited files wait for the full period again.",
+        daysFormat: "%d days",
+        manualIntro: "Scan at any time. The initial selection follows your types and age limit; you can review every confirmed file.",
+        noFiles: "No confirmed WhatsApp files found in Downloads.",
+        resultsFormat: "%1$d confirmed files · %2$@",
+        selectRules: "Select by my rules",
+        cleanSelectedFormat: "Move %1$d to Trash · %2$@",
+        keep: "Keep",
+        manageAgain: "Manage again",
+        activity: "Activity",
+        neverRun: "ยังไม่มีการล้างข้อมูล",
+        lastRunFormat: "Last cleanup %@: %d files · %@ · %d failed",
+        nextRunFormat: "Next automatic check %@.",
+        firstTitle: "แล้วไฟล์ที่มีอยู่ล่ะ?",
+        firstMessageFormat: "%d existing files already match your rules. Choose whether automation may manage them or only future downloads.",
+        futureOnly: "Only future downloads",
+        includeExisting: "Include existing files",
+        trashNote: "Files are moved to the Trash and remain recoverable until you empty it.",
+        localNote: "Only local file metadata is inspected. Vorssaint never reads chats or file contents.",
+        notificationTitle: "การล้างข้อมูล WhatsApp",
+        notificationFormat: "%1$d files (%2$@) moved to the Trash. %3$d failed.",
+        scanFailed: "Downloads could not be scanned. Check Files & Folders in System Settings.",
+        manageButton: "Manage…"
+    )
+
 }

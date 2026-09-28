@@ -110,6 +110,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "Полиця заповнена",
                 fullBody: "Вкладення збереглося, але на полиці більше немає місця.",
                 okButton: "OK")
+        case .th:
+            return .init(
+                failedTitle: "ไม่สามารถเพิ่มไฟล์แนบได้",
+                failedBody: "ไฟล์ยังบันทึกลงใน Shelf ไม่เสร็จสมบูรณ์",
+                fullTitle: "Shelf เต็มแล้ว",
+                fullBody: "ไฟล์แนบบันทึกเสร็จสมบูรณ์แล้วแต่ไม่มีพื้นที่ว่างเหลือบน Shelf",
+                okButton: "ตกลง")
         }
     }
 }

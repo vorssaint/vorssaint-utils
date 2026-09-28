@@ -52,6 +52,7 @@ struct WhatsAppOrganizerStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -550,4 +551,38 @@ extension WhatsAppOrganizerStrings {
         notificationFormat: "Впорядковано файлів: %1$d. Оброблено дублікатів: %2$d. Не вдалося: %3$d.",
         privacyNote: "Для точного виявлення дублікатів байти файлів читаються локально лише під час обчислення криптографічного дайджесту. Вміст та чати ніколи не зберігаються та не завантажуються."
     )
+
+    static let th = WhatsAppOrganizerStrings(
+        title: "Automatic organization",
+        experimental: "Experimental",
+        description: "Moves stable WhatsApp downloads to a dedicated folder and detects exact repeat downloads.",
+        enabled: "จัดระเบียบโดยอัตโนมัติ",
+        enabledCaption: "WhatsApp อาจดาวน์โหลดไฟล์ที่ถูกย้ายอีกครั้ง Vorssaint ไม่สามารถป้องกันการดาวน์โหลดผ่านเครือข่ายได้ แต่สามารถตรวจจับและละทิ้งสำเนาพิเศษที่เหมือนกันได้",
+        destination: "Destination folder",
+        chooseFolder: "Choose…",
+        useDefault: "Use Downloads/WhatsApp",
+        invalidDestination: "Choose a folder other than Downloads itself.",
+        organization: "Folder structure",
+        flat: "No subfolders",
+        byType: "ตามประเภทไฟล์",
+        byMonth: "ตามปีและเดือน",
+        delay: "Wait before moving",
+        minutesFormat: "%d minutes",
+        duplicateAction: "When the same file is downloaded again",
+        trashDuplicate: "ย้ายสำเนาใหม่ไปที่ถังขยะ",
+        keepBoth: "Keep both copies",
+        replaceExisting: "แทนที่สำเนาที่จัดระเบียบ",
+        duplicateCaption: "รายการซ้ำจะได้รับการยืนยันด้วยไดเจสต์ SHA-256 ส่วนตัว สำเนาที่จัดระเบียบจะถูกตรวจสอบอีกครั้งก่อนที่จะทิ้งสำเนาอื่น",
+        organizeNow: "Organize eligible files now",
+        undo: "Undo last organization",
+        waiting: "Watching Downloads",
+        working: "กำลังจัดระเบียบไฟล์ WhatsApp...",
+        resultFormat: "%1$d moved · %2$d duplicates · %3$d failed",
+        lastRunFormat: "องค์กรล่าสุด %@: %d ย้าย · %d ซ้ำ · %d ล้มเหลว",
+        neverRun: "ยังไม่มีองค์กรใดดำเนินการ",
+        notificationTitle: "WhatsApp organization",
+        notificationFormat: "%1$d files organized. %2$d duplicate downloads handled. %3$d failed.",
+        privacyNote: "To identify exact duplicates, file bytes are read locally only while calculating a cryptographic digest. Contents and chats are never stored or uploaded."
+    )
+
 }

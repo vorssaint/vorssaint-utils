@@ -60,6 +60,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -588,4 +589,40 @@ extension MouseButtonFeatureStrings {
         spacesFollowsDragLabel: "Space слідує за перетягуванням",
         spacesFollowsDragCaption: "Перетягування вправо підтягує Space ліворуч, як на трекпеді, коли робочий стіл слідує за пальцем."
     )
+
+    static let th = MouseButtonFeatureStrings(
+        pageTitle: "Mouse button shortcuts",
+        hubDescription: "Extra buttons and side-wheel directions press a key combination you choose.",
+        enableLabel: "Use extra buttons as shortcuts",
+        enableCaption: "Each extra button or side-wheel direction can press a key combination for you. While it has a shortcut, it stops doing what it did before.",
+        addButton: "Add a button or side wheel",
+        captureWaiting: "Now press an extra button or move the side wheel.",
+        captureCancel: "ยกเลิก",
+        captureBlind: "Vorssaint cannot watch the mouse right now.",
+        captureUnsupported: "อินพุตนั้นไม่สามารถใช้ทางลัดได้ ใช้ปุ่มพิเศษหรือทิศทางล้อด้านข้าง",
+        captureWheel: "That button already opens the radial menu. Pick another one, or free it there first.",
+        captureExists: "That button or direction is already on the list below.",
+        captureHint: "หากไม่มีสิ่งใดเกิดขึ้น ซอฟต์แวร์ของเมาส์ของคุณอาจใช้การควบคุมนั้นอยู่แล้ว",
+        backButtonName: "Back side button",
+        forwardButtonName: "ปุ่มด้านข้างไปข้างหน้า",
+        otherButtonFormat: "ปุ่ม %d",
+        setShortcutButton: "Set shortcut",
+        removeButton: "เอาออก",
+        emptyCaption: "No shortcuts yet. Add a button or side-wheel direction.",
+        rowWheelNote: "ปุ่มนี้จะเปิดเมนูแบบรัศมีทันที ดังนั้นทางลัดจึงรอ",
+        manageButton: "ตั้งค่า...",
+        panelCaption: "ปุ่มพิเศษและทิศทางของล้อด้านข้างกดคีย์ผสมที่คุณเลือก",
+        sideWheelLeftName: "Side wheel left",
+        sideWheelRightName: "Side wheel right",
+        spacesEnableLabel: "Switch Spaces by dragging a button",
+        spacesEnableCaption: "Hold the chosen button and drag: left or right moves one Space over, up opens Mission Control, down opens App Exposé. A short click still does what it always did.",
+        spacesPickButton: "เลือกปุ่ม",
+        spacesShortcutsOffNote: "The Mission Control keyboard shortcuts are switched off in System Settings, so this gesture has nothing to ask for.",
+        spacesCaptureWaiting: "Now press an extra button.",
+        spacesCaptureUnsupported: "That input cannot be held for a drag. Use an extra button.",
+        spacesCaptureExists: "That button already has a shortcut. Pick another one.",
+        spacesFollowsDragLabel: "Spaces follow the drag",
+        spacesFollowsDragCaption: "Dragging right brings the Space on the left, the way a trackpad swipe carries it along with your fingers."
+    )
+
 }

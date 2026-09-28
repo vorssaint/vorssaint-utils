@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .ja: return .ja
         case .ko: return .ko
         case .uk: return .uk
+        case .th: return .th
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -73,6 +74,30 @@ extension GeneralSettingsStrings {
         sectionControls: "Перемикачі функцій миші, клавіатури й вікон.",
         sectionToggles: "Дії одним натисканням, як-от темний режим і вимкнення мікрофона."
     )
+
+    static let th = GeneralSettingsStrings(
+        pageDescription: "How Vorssaint starts, how it looks and what its menu bar panel shows.",
+        appearanceCaption: "Applies to Vorssaint’s own windows and panels, not to the whole Mac.",
+        launchAtLoginCaption: "เปิดเองทุกครั้งที่คุณเปิดเครื่อง Mac",
+        liquidGlassCaption: "See-through, glass-like panels.",
+        liquidGlassOtherWindows: "Other windows and panels",
+        panelIntro: "Click Vorssaint’s icon in the menu bar to open the panel. Its tabs appear in this order.",
+        panelReorderHint: "Drag to reorder. Switch off anything you don’t need.",
+        iconMissingTitle: "ไม่พบไอคอนใช่ไหม",
+        iconMissingCaption: "A crowded menu bar can hide it, especially on Macs with a notch.",
+        sectionKeepAwake: "Keeps your Mac awake for as long as you want.",
+        sectionDisplays: "Brightness of your screens.",
+        sectionMixer: "ปริมาณของแต่ละแอป แถบเลื่อนอย่างละ 1 รายการ",
+        sectionSystem: "Processor, graphics and memory at a glance.",
+        sectionNetwork: "Internet speed and which apps are using it.",
+        sectionDisks: "พื้นที่ว่างและกิจกรรมดิสก์",
+        sectionPower: "Battery, charging and power use.",
+        sectionFanControl: "ความเร็วพัดลมและเส้นโค้งพัดลมของคุณเอง",
+        sectionUtilities: "Screenshots, cleaner, updates and other tools.",
+        sectionControls: "Switches for mouse, keyboard and window features.",
+        sectionToggles: "One-click actions like dark mode and muting the mic."
+    )
+
 
     static let enUS = GeneralSettingsStrings(
         pageDescription: "How Vorssaint starts, how it looks and what its menu bar panel shows.",

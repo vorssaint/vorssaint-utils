@@ -450,6 +450,33 @@ extension FeatureStrings {
             accessoryDescription: "Показує підключені аксесуари та один раз попереджає, коли їхній заряд падає до 20%.",
             connected: "Підключено",
             lowBattery: "Низький заряд")
+        case .th: return NotchActivityStrings(
+            timer: "ตัวจับเวลา",
+            timerDescription: "ตัวจับเวลา นาฬิกาจับเวลา และรอบโฟกัสใน Dynamic Island",
+            pomodoro: "โพโมโดโร",
+            stopwatch: "นาฬิกาจับเวลา",
+            focus: "โฟกัส",
+            shortBreak: "พักสั้น",
+            longBreak: "พักยาว",
+            pomodoroHint: "เริ่มแต่ละช่วงเมื่อคุณพร้อม วงจรจะเสร็จสิ้นหลังจากช่วงโฟกัสสุดท้าย",
+            totalSessions: "จำนวนช่วงทั้งหมด",
+            longBreakInterval: "ช่วงโฟกัสก่อนพักยาว",
+            sessionProgress: "ช่วงที่ %d จาก %d",
+            pomodoroFinished: "โพโมโดโรเสร็จสิ้น",
+            minutes: "นาที",
+            start: "เริ่ม",
+            resume: "ทำต่อ",
+            finished: "หมดเวลา",
+            soundEnabled: "เล่นเสียงเมื่อเสร็จสิ้น",
+            camera: "กระจกกล้อง",
+            cameraUnavailable: "ไม่สามารถเปิดกล้องได้ โปรดลองเปิดใหม่อีกครั้ง",
+            cameraHint: "เปิดดูกระจกสดได้ที่นี่ กล้องจะหยุดทำงานเมื่อคุณออกจากหน้าจอนี้",
+            startCamera: "เริ่มเปิดกล้อง",
+            stopCamera: "หยุดกล้อง",
+            accessories: "การเตือนอุปกรณ์เสริม",
+            accessoryDescription: "แสดงอุปกรณ์เสริมที่เชื่อมต่อและเตือนหนึ่งครั้งเมื่อแบตเตอรี่ลดลงเหลือ 20%",
+            connected: "เชื่อมต่อแล้ว",
+            lowBattery: "แบตเตอรี่ต่ำ")
         }
     }
 }

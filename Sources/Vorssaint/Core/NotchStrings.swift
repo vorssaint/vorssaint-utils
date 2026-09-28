@@ -96,6 +96,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -1225,5 +1226,81 @@ extension NotchStrings {
         quickAccessLeft: "Ліворуч",
         quickAccessRight: "Праворуч"
     )
+
+    static let th = NotchStrings(
+        title: "เกาะไดนามิก",
+        combineActivities: "รวมกัน",
+        enable: "Enable Dynamic Island",
+        description: "Your music, controls and everyday tools, together at the top of your screen. Optional. Turn it off to keep using the separate panels.",
+        menuBarAccessHint: "Allow Accessibility so Dynamic Island can appear on this display without covering the menus.",
+        display: "จอภาพ",
+        automatic: "อัตโนมัติ",
+        builtIn: "Built-in display",
+        mainDisplay: "Main display",
+        hover: "Open when the pointer rests on the Dynamic Island",
+        modules: "What appears",
+        events: "More options",
+        clipboardActivity: "Notify when something is copied",
+        captureActivity: "แสดงตัวอย่างภาพหน้าจอที่นี่",
+        privacy: "เนื้อหาที่คัดลอกยังคงเป็นส่วนตัวจนกว่าคุณจะเปิดคลิปบอร์ด ตัวเลือกเหล่านี้เป็นไปตามการตั้งค่าของคุณสมบัติดั้งเดิม",
+        open: "เปิดเกาะไดนามิก",
+        collapse: "ทรุด",
+        pin: "เปิดต่อครับ",
+        unpin: "Allow automatic closing",
+        panel: "Open app panel",
+        dropHint: "Drop files here",
+        empty: "เลือกสิ่งที่ปรากฏในการตั้งค่า Dynamic Island",
+        volume: "ระดับเสียง",
+        brightness: "ความสว่าง",
+        battery: "แบตเตอรี่",
+        onBattery: "เกี่ยวกับแบตเตอรี่",
+        charging: "กำลังชาร์จ",
+        charged: "ชาร์จเต็มแล้ว",
+        lowBattery: "Low battery",
+        controls: "การควบคุม",
+        system: "ระบบ",
+        disabled: "เปิดใช้งานคุณสมบัติที่เกี่ยวข้องเพื่อใช้ที่นี่",
+        files: "ไฟล์",
+        hideInFullscreen: "Hide content in full screen",
+        showInCaptures: "Show in screenshots and videos",
+        clipboardWindow: "เปิดประวัติคลิปบอร์ดใน Dynamic Island",
+        tools: "เครื่องมือ",
+        size: "ขนาด",
+        showOutline: "Show outline",
+        compact: "กะทัดรัด",
+        spacious: "Spacious",
+        hoverExpand: "ขยายเต็มที่เมื่อโฮเวอร์",
+        shelfWindow: "เปิดชั้นวางไฟล์ใน Dynamic Island",
+        dragReveal: "Show a drop target while dragging",
+        captureControls: "แสดงตัวควบคุมการจับภาพหน้าจอใน Dynamic Island",
+        quickPanel: "Open the quick panel in the Dynamic Island",
+        appPanel: "Open the app panel in the Dynamic Island",
+        idleContent: "While inactive",
+        idleNone: "ไม่มีอะไร",
+        coverMenus: "Show over the menus",
+        coverMenusHint: "Keeps the timer, music and other compact activity on screen when the menu bar has no room, covering the menus beside the camera.",
+        controlShortcuts: "Controls and shortcuts",
+        activity: "Activity",
+        playingMusic: "แสดงเพลงขณะเล่น",
+        custom: "Custom",
+        width: "ความกว้าง",
+        maximumHeight: "Maximum height",
+        sizeHint: "Controls stay compact. Longer lists use up to this height.",
+        hapticFeedback: "Haptic feedback",
+        hapticHint: "แตะเบา ๆ เมื่อเปิด สลับส่วน หรือปรับนาทีของตัวจับเวลาบนแทร็กแพดที่ใช้งานร่วมกันได้",
+        playbackPosition: "Playback position",
+        musicHint: "ส่วนควบคุมเพลงและการเล่นของคุณจะปรากฏที่นี่",
+        music: "Music",
+        captures: "จับภาพ",
+        newTrack: "New track",
+        customizeTools: "Customize tools",
+        switchSection: "Switch section",
+        sectionsTitle: "สำรวจ",
+        searchSections: "Find a section",
+        sectionKeyboardHint: "Use the arrow keys, then press Return",
+        quickAccessLeft: "Left",
+        quickAccessRight: "ขวา"
+    )
+
 
 }

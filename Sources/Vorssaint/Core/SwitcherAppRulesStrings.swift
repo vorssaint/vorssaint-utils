@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -200,4 +201,16 @@ extension SwitcherAppRulesStrings {
         hidden: "Ніколи не показувати",
         caption: "Виберіть, як кожна програма з’являється. Програми без правила використовують вибір вище."
     )
+
+    static let th = SwitcherAppRulesStrings(
+        listTitle: "กฎตามแอป",
+        addButton: "Add an app…",
+        removeButton: "เอาออก",
+        behaviorLabel: "Switcher behavior",
+        showWithoutWindows: "Show without windows",
+        windowsOnly: "หน้าต่างเท่านั้น",
+        hidden: "ไม่เคยแสดง",
+        caption: "เลือกวิธีที่แต่ละแอปจะปรากฏ แอปที่ไม่มีกฎให้ใช้ตัวเลือกด้านบน"
+    )
+
 }

@@ -1,0 +1,24 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint ใช้การทำงานอัตโนมัติ (Automation) เพื่อย้ายไฟล์ ย้ายรายการไปยังถังขยะ เปิดคำสั่งที่ร้องขอ และควบคุมการเล่นในแอปสื่อของคุณ";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint ใช้เสียงของแต่ละแอปเพื่อปรับระดับเสียงในมิกเซอร์ ขยับแถบคลื่นดนตรีของ Dynamic Island และรวมเสียงของ Mac ในการบันทึกหน้าจอที่คุณเริ่ม โดยไม่มีข้อมูลใดออกจาก Mac ของคุณ";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint ใช้บลูทูธเพื่ออ่านระดับแบตเตอรี่ของอุปกรณ์ต่อพ่วงที่เชื่อมต่อเท่านั้น โดยไม่มีข้อมูลใดออกจาก Mac ของคุณ";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint บันทึกเสียงไมโครโฟนเมื่อคุณเปิดใช้งานสำหรับการบันทึกหน้าจอเท่านั้น เสียงจะคงอยู่บน Mac ของคุณเว้นแต่คุณเลือกที่จะสร้างลิงก์ชั่วคราว";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint แสดงกล้องของคุณในหน้าต่างแสดงตัวอย่างที่คุณเปิดเท่านั้น เพื่อให้คุณสามารถตรวจสอบความเรียบร้อยก่อนเริ่มโทร ไม่มีการบันทึกหรือส่งข้อมูลใดออกจาก Mac ของคุณ";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint ตรวจสอบข้อมูลเมทาดาต้าภายในเครื่องในโฟลเดอร์ดาวน์โหลด เพื่อตรวจทาน จัดระเบียบ หรือย้ายไฟล์ WhatsApp ที่คุณยืนยันไปยังถังขยะเท่านั้น ตัวล้างยังค้นหาภาพหน้าจอที่ลืมไว้เมื่อคุณบันทึกภาพหน้าจอไว้ที่นี่";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint จัดระเบียบไฟล์ดาวน์โหลด WhatsApp ที่ได้รับการยืนยันไว้ในโฟลเดอร์ปลายทางที่คุณเลือกอย่างชัดเจน ตัวล้างยังค้นหาภาพหน้าจอที่ลืมไว้เมื่อคุณบันทึกภาพหน้าจอไว้ที่นี่";
+"NSDocumentsFolderUsageDescription" = "Vorssaint จัดระเบียบไฟล์ดาวน์โหลด WhatsApp ที่ได้รับการยืนยันไว้ในโฟลเดอร์ปลายทางที่คุณเลือกอย่างชัดเจน ตัวล้างยังค้นหาภาพหน้าจอที่ลืมไว้เมื่อคุณบันทึกภาพหน้าจอไว้ที่นี่";
+"NSNetworkVolumesUsageDescription" = "Vorssaint จัดระเบียบไฟล์ดาวน์โหลด WhatsApp ที่ได้รับการยืนยันไว้ในโฟลเดอร์ปลายทางที่คุณเลือกอย่างชัดเจน ตัวล้างยังค้นหาภาพหน้าจอที่ลืมไว้เมื่อคุณบันทึกภาพหน้าจอไว้ที่นี่";
+"NSRemovableVolumesUsageDescription" = "Vorssaint จัดระเบียบไฟล์ดาวน์โหลด WhatsApp ที่ได้รับการยืนยันไว้ในโฟลเดอร์ปลายทางที่คุณเลือกอย่างชัดเจน ตัวล้างยังค้นหาภาพหน้าจอที่ลืมไว้เมื่อคุณบันทึกภาพหน้าจอไว้ที่นี่";
+"NSCalendarsFullAccessUsageDescription" = "แสดงนัดหมายที่กำลังจะมาถึงของคุณในรอยบาก กิจกรรมในปฏิทินจะคงอยู่บน Mac เครื่องนี้";

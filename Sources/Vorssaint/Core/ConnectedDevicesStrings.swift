@@ -35,6 +35,7 @@ extension FeatureStrings {
         case .ja: return .ja
         case .ko: return .ko
         case .uk: return .uk
+        case .th: return .th
         case .zhHans: return .zhHans
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
@@ -160,6 +161,17 @@ private extension ConnectedDevicesFeatureStrings {
         oneConnected: "Підключено 1 пристрій",
         devicesConnectedFormat: "Підключено пристроїв: %d"
     )
+
+    static let th = ConnectedDevicesFeatureStrings(
+        title: "Connected Devices",
+        hubDescription: "Count connected external USB peripherals",
+        noDevices: "No external devices connected",
+        unnamedDevice: "USB Device",
+        menuBarLabel: "ยูเอสบี",
+        oneConnected: "1 device connected",
+        devicesConnectedFormat: "เชื่อมต่ออุปกรณ์ %d แล้ว"
+    )
+
 
     static let zhHans = ConnectedDevicesFeatureStrings(
         title: "已连接设备",

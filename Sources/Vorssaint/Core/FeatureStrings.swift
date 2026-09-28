@@ -21,6 +21,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 
@@ -41,6 +42,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 
@@ -61,6 +63,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 
@@ -81,6 +84,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 
@@ -101,6 +105,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 
@@ -3065,6 +3070,16 @@ extension SettingsCategoryStrings {
         app: "Програма",
         appManagement: "Керування програмами"
     )
+
+    static let th = SettingsCategoryStrings(
+        essentials: "สิ่งจำเป็น",
+        windowsControls: "Window controls",
+        files: "ไฟล์",
+        utilities: "สาธารณูปโภค",
+        app: "App",
+        appManagement: "App management"
+    )
+
 }
 
 extension ClipboardFeatureStrings {
@@ -3128,6 +3143,68 @@ extension ClipboardFeatureStrings {
         menuBarPreviewLength: "Довжина перегляду",
         menuBarPreviewLengthSuffix: "симв."
     )
+
+    static let th = ClipboardFeatureStrings(
+        title: "Clipboard",
+        enable: "Save clipboard history",
+        caption: "Stores copied text so you can reuse it later. Everything stays local and can be cleared anytime.",
+        localNote: "ทุกอย่างจะคงอยู่บน Mac เครื่องนี้ รายการที่มีขนาดใหญ่มากจะถูกละเว้น",
+        skipSensitive: "Skip text that looks sensitive",
+        skipSensitiveCaption: "Avoids saving short no-space strings that look like passwords, tokens or keys.",
+        limit: "Limit",
+        limitUnlimited: "Unlimited",
+        showInPanel: "แสดงในแผง",
+        shortcut: "History shortcut",
+        shortcutCaption: "เปิดหน้าต่างด่วนพร้อมการค้นหา รายการที่ปักหมุด และทางลัด ⌘1 ถึง ⌘9 สำหรับการวางในแอปก่อนหน้า",
+        shortcutHint: "Click a row to paste it into the previous app. ⌘-click selects several; ⌘C copies without pasting.",
+        clickRowShortcut: "Click row",
+        commandClickShortcut: "⌘ Click",
+        pinned: "ปักหมุดแล้ว",
+        recent: "ล่าสุด",
+        pin: "เข็มหมุด",
+        unpin: "เลิกปักหมุด",
+        clearRecent: "Clear recent",
+        clearAll: "Clear unpinned",
+        empty: "ไม่มีข้อความที่บันทึกไว้",
+        disabled: "เปิดใช้งานประวัติเพื่อเริ่มบันทึกข้อความที่คัดลอก",
+        search: "ค้นหาข้อความที่คัดลอก",
+        copy: "คัดลอก",
+        copied: "Copied",
+        delete: "Delete item",
+        selectMultiple: "เพิ่มลงในกอง",
+        unselectMultiple: "Remove from pile",
+        selectShortcutAction: "Select",
+        pasteSelectedFormat: "วาง %d",
+        copySelectedFormat: "คัดลอก %d",
+        clearSelection: "ล้างการเลือก",
+        moveUp: "เลื่อนขึ้น",
+        moveDown: "เลื่อนลง",
+        noResults: "ไม่มีผลลัพธ์",
+        newestFirst: "ใหม่ล่าสุดก่อน",
+        active: "Saving new text",
+        includeImagesFiles: "Also save copied images and files",
+        includeImagesFilesCaption: "Images join the history and files are remembered as links to their location. Pin and paste them like any text item.",
+        imageEntryLabel: "ภาพ",
+        fileCountFormat: "%d ไฟล์",
+        pasteImageAsFile: "Paste copied images as files",
+        pasteImageAsFileCaption: "When Finder is active, ⌘V saves a copied image as a PNG in the current folder.",
+        previewLabel: "Preview",
+        edit: "แก้ไข",
+        cancel: "ยกเลิก",
+        save: "บันทึก",
+        autoClearEnable: "Auto clear clipboard with a delay of",
+        autoClearSecondsSuffix: "seconds",
+        autoClearOnSleep: "Clear clipboard on computer sleep",
+        autoClearOnDisplaySleep: "Clear clipboard on display sleep",
+        autoClearOnScreenLock: "ล้างคลิปบอร์ดในการล็อคหน้าจอ",
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        deleteSelectedFormat: "ลบ %d",
+        menuBarPreview: "แสดงสำเนาล่าสุดในแถบเมนู",
+        menuBarPreviewCaption: "Shows a shortened preview of your last copy next to the icon. Click it to open the history.",
+        menuBarPreviewLength: "Preview length",
+        menuBarPreviewLengthSuffix: "characters"
+    )
+
 }
 
 extension WindowLayoutFeatureStrings {
@@ -3219,6 +3296,96 @@ extension WindowLayoutFeatureStrings {
         gapLarge: "Великий",
         gapExtraLarge: "Дуже великий"
     )
+
+    static let th = WindowLayoutFeatureStrings(
+        title: "Window layout",
+        caption: "Arrange windows into screen sections or move and resize them with a trackpad or mouse.",
+        showInPanel: "แสดงในแผง",
+        gestureSection: "Window dragging",
+        gestureEnable: "Move and resize by dragging",
+        gestureCaption: "On a trackpad or mouse, hold the shown modifier keys and drag anywhere inside a window.",
+        gestureModifiers: "กุญแจสำคัญในการเคลื่อนย้าย",
+        gestureMove: "Drag to move",
+        gestureResize: "Add Shift and drag to resize",
+        gestureResizeHint: "The starting point chooses the nearest edge or corner. On a mouse, right-button drag also resizes.",
+        gestureRaiseWindow: "Bring the dragged window to front",
+        shortcuts: "ปุ่มลัด",
+        shortcutsCaption: "Use global shortcuts to arrange the active window without opening the panel.",
+        permissionCaption: "Uses Accessibility only to move and resize windows.",
+        noWindow: "ไม่พบหน้าต่างที่ใช้งานอยู่",
+        missingPermission: "Grant Accessibility to move windows.",
+        failed: "ไม่สามารถย้ายหน้าต่างนี้ได้",
+        done: "Window arranged.",
+        restored: "Window restored.",
+        noRestore: "ไม่มีเค้าโครงก่อนหน้าที่จะกู้คืน",
+        target: "Active window",
+        halves: "Halves",
+        thirds: "สาม",
+        quarterRows: "แถวไตรมาส",
+        quarterColumns: "คอลัมน์ไตรมาส",
+        sixths: "Sixths",
+        corners: "Corners",
+        other: "Actions",
+        leftHalf: "Left",
+        rightHalf: "ขวา",
+        topHalf: "Top",
+        bottomHalf: "ด้านล่าง",
+        centerHalf: "Center half",
+        leftThird: "ซ้าย 1/3",
+        centerThird: "Center 1/3",
+        rightThird: "Right 1/3",
+        leftTwoThirds: "ซ้าย 2/3",
+        rightTwoThirds: "ขวา 2/3",
+        centerTwoThirds: "Center 2/3",
+        topThird: "Top 1/3",
+        middleThird: "Middle 1/3",
+        bottomThird: "Bottom 1/3",
+        topTwoThirds: "Top 2/3",
+        bottomTwoThirds: "Bottom 2/3",
+        topQuarter: "Top 1/4",
+        upperMiddleQuarter: "กลางบน 1/4",
+        lowerMiddleQuarter: "Lower middle 1/4",
+        bottomQuarter: "Bottom 1/4",
+        leftQuarter: "Left 1/4",
+        leftMiddleQuarter: "กลางซ้าย 1/4",
+        rightMiddleQuarter: "กลางขวา 1/4",
+        rightQuarter: "Right 1/4",
+        topLeftSixth: "Top left 1/6",
+        topCenterSixth: "Top center 1/6",
+        topRightSixth: "บนขวา 1/6",
+        bottomLeftSixth: "Bottom left 1/6",
+        bottomCenterSixth: "Bottom center 1/6",
+        bottomRightSixth: "Bottom right 1/6",
+        topLeft: "ซ้ายบน",
+        topRight: "Top right",
+        bottomLeft: "Bottom left",
+        bottomRight: "Bottom right",
+        maximize: "Maximize",
+        center: "Center",
+        nextDisplay: "จอแสดงผลถัดไป",
+        restore: "คืนค่า",
+        fullScreen: "Full Screen",
+        previousDisplay: "Previous display",
+        edgeSnapEnable: "สแน็ปหน้าต่างที่ขอบหน้าจอ",
+        edgeSnapCaption: "Turn this on, choose the highlighted areas below, then drag a window title bar to one and release.",
+        edgeSnapSystemConflict: "macOS is using the same edges. Turn off window tiling in Desktop & Dock so Vorssaint can take over.",
+        edgeSnapOpenSystemSettings: "Open Desktop & Dock",
+        edgeSnapWaitingForSystem: "Enabled in Vorssaint. It starts working as soon as macOS tiling is off.",
+        marginMaximize: "Maximize with Margin",
+        gapsSection: "Gaps",
+        gapsCaption: "Space between snapped windows, and between windows and the screen edge.",
+        windowGap: "Window gap",
+        screenGap: "ช่องว่างหน้าจอ",
+        sideRepeatCycle: "Repeat Left or Right to cycle sizes",
+        sideRepeatCycleCaption: "Half, then two thirds, then one third on the same display. Off, with more than one display, the repeat moves the window to the next display on that side.",
+        gapNone: "ไม่มี",
+        gapTiny: "Tiny",
+        gapSmall: "เล็ก",
+        gapMedium: "ปานกลาง",
+        gapLarge: "ใหญ่",
+        gapExtraLarge: "ใหญ่พิเศษ"
+    )
+
 }
 
 extension MonitorAlertFeatureStrings {
@@ -3256,6 +3423,42 @@ extension MonitorAlertFeatureStrings {
         batteryTemperatureTitle: "Гарячий акумулятор",
         batteryTemperatureBodyFormat: "Акумулятор нагрівся до %@."
     )
+
+    static let th = MonitorAlertFeatureStrings(
+        section: "Alerts",
+        caption: "Alerts fire when their selected limits are reached. CPU use and temperature alerts ignore spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
+        notificationsDenied: "การแจ้งเตือนสำหรับ Vorssaint ปิดอยู่ในการตั้งค่าระบบ ดังนั้นจึงไม่สามารถแสดงการแจ้งเตือนได้",
+        cpu: "ซีพียูสูง",
+        cpuTemperature: "High CPU temperature",
+        memory: "Critical memory pressure",
+        disk: "Low disk space",
+        battery: "Low battery",
+        cpuThreshold: "CPU above",
+        cpuTemperatureThreshold: "Temperature above",
+        diskThreshold: "Free space below",
+        batteryThreshold: "แบตเตอรี่ด้านล่าง",
+        cooldown: "Repeat the same alert after",
+        cooldown2: "2 minutes",
+        cooldown5: "5 นาที",
+        cooldown15: "15 นาที",
+        cooldown30: "30 นาที",
+        cooldown60: "1 ชั่วโมง",
+        cpuTitle: "ซีพียูสูง",
+        cpuBodyFormat: "CPU stayed above %d%% for a few seconds.",
+        cpuTemperatureTitle: "ซีพียูร้อน",
+        cpuTemperatureBodyFormat: "CPU reached %@.",
+        memoryTitle: "Critical memory",
+        memoryBody: "Memory pressure reached the critical level.",
+        diskTitle: "Low disk space",
+        diskBodyFormat: "%@ has less than %d%% free.",
+        batteryTitle: "Low battery",
+        batteryBodyFormat: "Battery is at %d%%.",
+        batteryTemperature: "High battery temperature",
+        batteryTemperatureThreshold: "Temperature above",
+        batteryTemperatureTitle: "Hot battery",
+        batteryTemperatureBodyFormat: "แบตเตอรี่ถึง %@"
+    )
+
 }
 
 extension MixerFeatureStrings {
@@ -3271,4 +3474,18 @@ extension MixerFeatureStrings {
         arrange: "Утримуйте Command і перетягуйте, щоб змінити порядок",
         actions: "Дії"
     )
+
+    static let th = MixerFeatureStrings(
+        hideInactiveApps: "ซ่อนแอปที่ไม่ได้ใช้งาน",
+        pin: "Pin to Top",
+        unpin: "เลิกปักหมุด",
+        moveUp: "Move Up",
+        moveDown: "เลื่อนลง",
+        pinFirst: "Pin to Front",
+        moveLeft: "Move Left",
+        moveRight: "Move Right",
+        arrange: "Hold Command and drag to reorder",
+        actions: "Actions"
+    )
+
 }

@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -536,4 +537,37 @@ extension FeedbackStrings {
         commandSubtitle: "Надіслати відгук",
         diagnosticsChannelLabel: "Канал оновлення"
     )
+
+    static let th = FeedbackStrings(
+        sectionTitle: "Feedback",
+        sectionCaption: "Send a bug report or feature idea directly to the person who maintains Vorssaint.",
+        openButton: "Send feedback",
+        windowTitle: "Send feedback",
+        bugTitle: "Bug",
+        featureTitle: "Feature idea",
+        messageLabel: "What would you like to share?",
+        bugPlaceholder: "Tell me what happened and what you expected.",
+        featurePlaceholder: "Describe the idea and how it would help.",
+        charactersFormat: "%d จาก 2,000 อักขระ",
+        includeDiagnostics: "Include technical details",
+        includeDiagnosticsCaption: "Adds only the technical details shown below. It does not include logs.",
+        whatSentTitle: "What will be sent",
+        whatSentBasic: "Your chosen category and the text above.",
+        whatSentDiagnostics: "The technical details listed below.",
+        privacyNote: "No name, account, email, device identifier, logs, screenshots, files or clipboard content are included. Your public IP is temporarily processed for abuse protection and is not attached to the feedback.",
+        retentionNote: "After delivery, the text remains in private support channels until the service owner deletes it. An undelivered copy is permanently deleted after 7 days.",
+        sendButton: "Send feedback",
+        sending: "Sending…",
+        sentTitle: "Feedback sent",
+        sentCaption: "ขอบคุณ ไม่มีการส่งข้อมูลการติดต่อ ดังนั้นคุณจะไม่ได้รับการตอบกลับโดยตรง",
+        unavailableError: "Could not connect. Check your internet connection and try again.",
+        rateLimitError: "Too many submissions from this network. Please try again later.",
+        genericError: "Could not send the feedback right now.",
+        done: "เสร็จสิ้น",
+        commandBug: "Report a bug",
+        commandFeature: "แนะนำฟีเจอร์หน่อย",
+        commandSubtitle: "Send feedback",
+        diagnosticsChannelLabel: "Update channel"
+    )
+
 }

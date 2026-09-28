@@ -57,6 +57,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -555,4 +556,38 @@ extension KillProcessFeatureStrings {
         killFailedMessage: "Процес, можливо, вже завершився або потребує додаткових привілеїв.",
         adminPromptFormat: "Vorssaint потрібен адміністративний доступ для завершення «%@»."
     )
+
+    static let th = KillProcessFeatureStrings(
+        pageTitle: "Kill Process",
+        browseSubtitle: "Browse & Kill",
+        hubDescription: "Search running processes and force quit, restart, or kill process trees",
+        searchPlaceholder: "Filter by name",
+        columnProcess: "Process",
+        columnCPU: "ซีพียู",
+        columnMemory: "หน่วยความจำ",
+        columnPID: "PID",
+        groupToggle: "กระบวนการที่เกี่ยวข้องกับกลุ่ม",
+        groupCaption: "กระบวนการช่วยเหลือกลุ่มภายใต้แอปที่รับผิดชอบ",
+        commandBarToggle: "แสดงในแถบคำสั่ง",
+        commandBarCaption: "Adds running processes to the Command Bar, so you can find and kill them without opening Settings.",
+        refreshTooltip: "รีเฟรช",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Processes: %d",
+        killButton: "Kill",
+        forceKillButton: "Force Kill",
+        killAllFormat: "Kill All “%@”",
+        killTreeButton: "ฆ่าแผนผังกระบวนการ",
+        restartButton: "รีสตาร์ท",
+        copyPID: "Copy PID",
+        copyPath: "คัดลอกเส้นทาง",
+        emptyStateTitle: "No Processes Found",
+        confirmKillFormat: "Kill %@?",
+        confirmForceKillFormat: "Force Kill %@?",
+        confirmKillAllFormat: "Kill all “%@” processes?",
+        confirmKillTreeFormat: "Kill %@ and all its child processes?",
+        killFailedTitle: "Couldn’t Kill Process",
+        killFailedMessage: "The process may have already exited or require additional privileges.",
+        adminPromptFormat: "Vorssaint needs administrator access to end “%@”."
+    )
+
 }

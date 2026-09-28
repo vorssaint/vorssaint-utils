@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -200,4 +201,16 @@ extension RecentCaptureStrings {
         remove: "Видалити з історії",
         clear: "Очистити історію"
     )
+
+    static let th = RecentCaptureStrings(
+        title: "Recent captures",
+        empty: "จับภาพหน้าจอหรือบันทึกสิ่งที่บันทึกไว้เพื่อค้นหาได้ที่นี่",
+        screenshot: "ภาพถ่ายหน้าจอ",
+        recording: "Recording",
+        restore: "คืนค่า",
+        open: "เปิด",
+        remove: "Remove from history",
+        clear: "ล้างประวัติ"
+    )
+
 }

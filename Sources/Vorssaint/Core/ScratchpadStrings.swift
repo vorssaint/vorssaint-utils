@@ -58,6 +58,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -601,4 +602,41 @@ extension ScratchpadFeatureStrings {
         previewFormatting: "Показувати форматування",
         editText: "Редагувати текст"
     )
+
+    static let th = ScratchpadFeatureStrings(
+        pageTitle: "Scratchpad",
+        hubDescription: "Floating pads for short-lived notes",
+        panelCaption: "Quick notes in separate tabs",
+        openButton: "Open scratchpad",
+        placeholder: "Type anything. It saves by itself.",
+        copyAll: "Copy all",
+        copied: "Copied",
+        exportAction: "บันทึกเป็นไฟล์",
+        exportFailed: "ไม่สามารถบันทึกไฟล์ได้",
+        loadFailed: "บันทึกของคุณไม่สามารถเปิดได้ พวกเขาถูกทิ้งให้ไม่เปลี่ยนแปลง",
+        saveFailed: "บันทึกย่อของคุณไม่สามารถบันทึกได้ คัดลอกไปที่อื่นก่อนที่จะออก",
+        clearAction: "ล้าง",
+        retentionTitle: "ชัดเจนด้วยตัวของมันเอง",
+        retentionNever: "ไม่เลย",
+        retentionDay: "หลังจากไม่ได้ใช้งานมาหนึ่งวัน",
+        retentionWeek: "After a week unused",
+        retentionMonth: "After a month unused",
+        retentionCaption: "แพดจะว่างเปล่าเมื่อข้อความยาวขนาดนั้นโดยไม่มีการแก้ไข",
+        closeOnClickOutside: "Close when I click outside",
+        keepOpen: "เปิดต่อครับ",
+        backgroundOpacity: "Pad background",
+        backgroundTranslucent: "โปร่งแสง",
+        backgroundOpaque: "Opaque",
+        newPad: "New scratchpad",
+        padActions: "Scratchpad actions",
+        renamePad: "Rename scratchpad",
+        closePad: "Close scratchpad",
+        saveName: "บันทึก",
+        cancel: "ยกเลิก",
+        deletePadMessageFormat: "Delete “%@” and everything in it?",
+        padLimitFormat: "คุณสามารถเก็บ scratchpads ได้สูงสุด %d",
+        previewFormatting: "Show formatting",
+        editText: "Edit text"
+    )
+
 }

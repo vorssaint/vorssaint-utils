@@ -58,6 +58,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -571,4 +572,39 @@ extension BrightnessFeatureStrings {
         islandPromptMessage: "Dynamic Island показує зміни яскравості, лише коли в налаштуваннях «Дисплеї» увімкнено «Керування дисплеями».",
         islandPromptKeepOff: "Залишити вимкненим"
     )
+
+    static let th = BrightnessFeatureStrings(
+        pageTitle: "Displays",
+        hubDescription: "Brightness and power controls for every display",
+        enable: "Control displays",
+        enableCaption: "Brightness and on or off controls for the built-in screen and external monitors, here and in the menu bar panel.",
+        externalCaption: "External monitors are adjusted through the same protocol as their own buttons. When the connection cannot carry it, as with HDMI adapters, the slider dims the picture instead, so brightness control works either way.",
+        noDisplays: "No display found.",
+        displayOff: "ปิด",
+        turnOffDisplay: "Turn off display",
+        turnOnDisplay: "Turn on display",
+        lastDisplayCaption: "At least one display must stay on.",
+        switchUnavailable: "Display switching is unavailable on this Mac.",
+        switchFailed: "Could not change this display.",
+        openLidToEnable: "เปิดฝาเพื่อเปิดจอแสดงผลในตัว",
+        keysToggle: "Brightness keys follow the pointer",
+        keysCaption: "The keyboard brightness keys change the display under the pointer.",
+        osdToggle: "Show brightness when adjusting",
+        osdCaption: "Shows the brightness percentage when you use the brightness keys or sliders.",
+        displayBrightnessShortcuts: "Use display brightness shortcuts",
+        displayBrightnessShortcutCaption: "Shortcuts adjust the primary display, or the display under the pointer when pointer following is on.",
+        displayBrightnessDecrease: "ลดความสว่างของจอแสดงผล",
+        displayBrightnessIncrease: "เพิ่มความสว่างของจอแสดงผล",
+        keyboardLight: "Keyboard light",
+        keyboardLightCaption: "เปิดหรือปิดไฟแบ็คไลท์ของคีย์บอร์ด",
+        keyboardBrightnessShortcuts: "ใช้ปุ่มลัดความสว่างของแป้นพิมพ์",
+        keyboardBrightnessDecrease: "Decrease keyboard brightness",
+        keyboardBrightnessIncrease: "Increase keyboard brightness",
+        softwareDimming: "Dim the picture",
+        extendedDimming: "ลดแสงเป็นพิเศษ",
+        islandPromptTitle: "Show brightness in the Dynamic Island?",
+        islandPromptMessage: "The Dynamic Island shows brightness changes only while “Control displays” is on in Displays settings.",
+        islandPromptKeepOff: "ปิดไว้"
+    )
+
 }

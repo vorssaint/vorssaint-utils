@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -168,4 +169,14 @@ extension DiskExclusionStrings {
         customPlaceholder: "Назва диска або тому",
         caption: "Диски з цього списку ніколи не демонтуються при використанні «Вийняти всі диски»."
     )
+
+    static let th = DiskExclusionStrings(
+        listTitle: "ไดรฟ์ที่ไม่รวม",
+        addButton: "เพิ่มไดรฟ์...",
+        otherDrive: "Other drive name…",
+        removeButton: "เอาออก",
+        customPlaceholder: "Drive or volume name",
+        caption: "Drives in this list are never unmounted when using Eject all disks."
+    )
+
 }

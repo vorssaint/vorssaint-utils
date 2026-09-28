@@ -41,6 +41,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -70,6 +71,20 @@ extension PermissionGuideStrings {
         startOver: "Почати заново",
         relaunch: "Перезапустити для застосування"
     )
+
+    static let th = PermissionGuideStrings(
+        title: "One step left",
+        stepOpen: "macOS opened System Settings on the right list.",
+        stepToggle: "Turn Vorssaint on in that list.",
+        stepReturn: "Come back. This card notices by itself.",
+        waiting: "กำลังรอการอนุญาต...",
+        granted: "Permission granted!",
+        closeHelp: "ปิด",
+        staleHint: "Already on in that list? That entry belongs to an earlier copy of the app. Start over to replace it.",
+        startOver: "Start over",
+        relaunch: "Relaunch to apply"
+    )
+
 }
 
 extension PermissionGuideStrings {

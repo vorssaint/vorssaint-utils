@@ -65,6 +65,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .th: return .th
         }
     }
 }
@@ -713,4 +714,48 @@ extension AppUpdateStrings {
         incompleteCheck: "Перевірку не завершено",
         onlineUnavailable: "Онлайн-перевірку не вдалося завершити. Інші результати все ще показуються."
     )
+
+    static let th = AppUpdateStrings(
+        pageTitle: "App updates",
+        hubDescription: "Find and install updates for the apps you have",
+        caption: "ค้นหาแอพเวอร์ชั่นใหม่กว่าบน Mac เครื่องนี้ และช่วยให้คุณทำการอัพเดทแต่ละครั้งให้เสร็จสิ้นจากแหล่งที่มาดั้งเดิม",
+        panelCaption: "See which apps have a newer version",
+        checkNow: "ตรวจสอบทันที",
+        checking: "กำลังตรวจสอบ",
+        lastCheckFormat: "Last checked %@",
+        neverChecked: "ยังไม่ได้ตรวจสอบ",
+        upToDate: "ไม่พบรายการอัปเดต",
+        partialUpToDate: "ไม่พบการอัปเดตในการตรวจสอบบางส่วนนี้",
+        coverageNote: "Checks the original sources of installed apps and a public catalog. Updates install through their original source.",
+        selectAll: "เลือกทั้งหมด",
+        clearSelection: "ล้าง",
+        updateSelectedFormat: "Update %d",
+        updateOne: "อัปเดต",
+        openAppStore: "Open the App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Opens the App Store, where this update is installed",
+        frequencyLabel: "Check in the background",
+        frequencyOff: "ปิด",
+        frequencyDaily: "ทุกวัน",
+        frequencyWeekly: "ทุกสัปดาห์",
+        nextCheckFormat: "Next check %@",
+        notifyToggle: "Tell me when an app has an update",
+        includeStoreToggle: "Include apps from the App Store",
+        includeStoreCaption: "Checks store versions using this Mac’s region. Apple installs these updates.",
+        packageMissing: "Homebrew is not installed, so apps cannot be updated from here yet.",
+        notificationBodyFormat: "%@ apps have a newer version.",
+        notificationBodyOne: "One app has a newer version.",
+        showInPanel: "แสดงในแผง",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "แหล่งที่มา",
+        includeHomebrewToggle: "Include Homebrew apps",
+        onlineBadge: "ออนไลน์",
+        openApp: "เปิด",
+        openAppHint: "Opens the app so its own updater can finish",
+        includeOnlineToggle: "Include other installed apps",
+        includeOnlineCaption: "ตรวจสอบโดยตรงกับนักพัฒนาแอปเมื่อได้รับการสนับสนุน จากนั้นใช้แค็ตตาล็อกสาธารณะ ตัวอัปเดตของแอปจะติดตั้งการอัปเดต",
+        incompleteCheck: "Check incomplete",
+        onlineUnavailable: "The online check could not be completed. Other results are still shown."
+    )
+
 }
