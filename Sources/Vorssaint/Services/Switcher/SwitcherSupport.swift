@@ -723,10 +723,11 @@ enum SwitcherSupport {
     /// Every subrole the app did describe is left alone: a dialog, a sheet or
     /// a floating panel is filtered as before unless it fills the screen.
     /// The one exception is a normal-level `AXDialog` that can be minimized.
-    /// AppKit also gives that subrole to an app's ordinary windows while the
-    /// app is hidden, and one still carrying it once the app is back would
-    /// drop out of the list (issue #2279). A dialog has no working minimize
-    /// button.
+    /// AppKit gives that subrole to every window of a hidden app, and a window
+    /// that still carries it after the app is shown again (reported on macOS 26,
+    /// issue #2279) would otherwise drop out of the list. Alerts and panels read
+    /// `AXDialog` too but have no working minimize button, unless the app made
+    /// the panel miniaturizable; such a panel is listed like a window.
     ///
     /// A surface the app asked the window server to keep out of window cycling
     /// stays out of the switcher however it describes itself.
