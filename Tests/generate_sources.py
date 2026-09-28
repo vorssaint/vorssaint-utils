@@ -1009,6 +1009,9 @@ def main():
     keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"
     keep_awake_methods = [
         "    func refreshPasswordlessStatus(",
+        "    func activate(minutes:",
+        "    func activate(until date:",
+        "    func startLastPick(",
         "    func resumeAfterSystemTeardown(",
         "    private func activate(end:",
         "    func deactivate(reason:",
@@ -1043,7 +1046,8 @@ def main():
           + "var clamshellSetupInProgress = false\nvar clamshellSetupFailed = false\n"
           + "var clamshellSetupRetried = false\nvar passwordlessClamshell = true\n"
           + "var recoveryCompleted = false\nvar screenLocked = false\nvar assertionsHeld = false\n"
-          + "var endTimer: Timer?\nvar endDate: Date?\nvar sessionTrigger: SessionTrigger?\n"
+          + "var automationSuppressedUntilConditionsClear = false\n"
+          + "var endTimer: Timer?\nvar endDate: Date?\nvar sessionTrigger: SessionTrigger?\nvar sessionMinutes: Int?\n"
           + "var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()\n"
           + "var onSessionEnded: ((EndReason) -> Void)?\n"
           + "var lidDimmingNotificationPort: IONotificationPortRef?\nvar lidDimmingNotification: io_object_t = 0\n"
