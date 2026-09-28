@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Scratchpad gains easier formatting and search, and mouse wheels can scroll a fixed distance per notch. The update also improves app updates, Dynamic Island, App Switcher and reliability across input, clipboard, package management and desktop layouts.
+Scratchpad gains easier formatting and search, Keep Awake starts with one click from duration chips, and mouse wheels can scroll a fixed distance per notch. The update also improves app updates, Dynamic Island, App Switcher and reliability across input, clipboard, package management and desktop layouts.
 
 ### Added
 - App Updates can ignore one release or exclude an app from update results and alerts.
@@ -16,9 +16,13 @@ Scratchpad gains easier formatting and search, and mouse wheels can scroll a fix
 - Scratchpad adds a formatting toolbar in both the floating pad and Dynamic Island, native text search and an adjustable text size.
 - Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions.
 
+### Changed
+- Keep Awake starts with one click from duration chips or an end time; the switch and shortcut restart the last choice, and the panel explains when battery protection prevents a session.
+
 ### Fixed
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
+- Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
@@ -26,7 +30,7 @@ Scratchpad gains easier formatting and search, and mouse wheels can scroll a fix
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 
