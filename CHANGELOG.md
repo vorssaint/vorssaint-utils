@@ -21,6 +21,7 @@ Scratchpad gains easier formatting and search, Keep Awake starts with one click 
 
 ### Fixed
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
+- Mouse side buttons go back and forward again in Safari, Finder and other apps on keyboard layouts such as German and French.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
@@ -30,7 +31,7 @@ Scratchpad gains easier formatting and search, Keep Awake starts with one click 
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @cedigang, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 
