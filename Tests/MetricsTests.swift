@@ -74,7 +74,10 @@ struct MetricsTests {
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
-            ("features", { FeatureCatalogTests.run(suite) }),
+            ("features", {
+                FeatureCatalogTests.run(suite)
+                MenuPanelSectionGateContract.run(suite)
+            }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
                 PortManagerRefreshTests.run(suite)
