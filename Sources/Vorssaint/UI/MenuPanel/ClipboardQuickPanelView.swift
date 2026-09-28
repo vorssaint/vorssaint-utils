@@ -22,6 +22,10 @@ struct ClipboardQuickPanelView: View {
         history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var searchTokens: [String] {
+        ClipboardHistorySearch.searchTokens(for: history.quickQuery)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             toolbar
@@ -168,6 +172,7 @@ struct ClipboardQuickPanelView: View {
                 .padding(.vertical, 6)
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                 QuickEntryRow(entry: entry,
+                              tokens: searchTokens,
                               shortcutIndex: shortcutIndex(for: entry),
                               isSelected: history.quickSelectionIsVisible
                                  && history.selectedQuickEntryID == entry.id,
@@ -284,6 +289,7 @@ private struct QuickPreviewPane: View {
 /// Value inputs let SwiftUI skip rows unaffected by selection or history changes.
 private struct QuickEntryRow: View, Equatable {
     let entry: ClipboardHistoryEntry
+    let tokens: [String]
     let shortcutIndex: Int?
     let isSelected: Bool
     let isBatchSelected: Bool
@@ -308,6 +314,7 @@ private struct QuickEntryRow: View, Equatable {
     // appearance, so it stays out of the comparison.
     static func == (lhs: QuickEntryRow, rhs: QuickEntryRow) -> Bool {
         lhs.entry == rhs.entry
+            && lhs.tokens == rhs.tokens
             && lhs.shortcutIndex == rhs.shortcutIndex
             && lhs.isSelected == rhs.isSelected
             && lhs.isBatchSelected == rhs.isBatchSelected
@@ -388,10 +395,16 @@ private struct QuickEntryRow: View, Equatable {
                 if let color = entry.color {
                     ClipboardColorSwatch(color: color, size: 14)
                 }
-                Text(entry.preview)
-                    .font(.system(size: 12))
-                    .lineLimit(2)
-                    .truncationMode(.tail)
+                if tokens.isEmpty {
+                    Text(entry.preview)
+                        .font(.system(size: 12))
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                } else {
+                    Text(SearchHighlightText.highlighted(entry.preview, tokens: tokens, fontSize: 12))
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
@@ -402,9 +415,14 @@ private struct QuickEntryRow: View, Equatable {
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
-                Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
+                let imageLabel = "\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)"
+                if tokens.isEmpty {
+                    Text(imageLabel)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(SearchHighlightText.highlighted(imageLabel, tokens: tokens, fontSize: 11.5, baseColor: .secondary))
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
@@ -418,10 +436,17 @@ private struct QuickEntryRow: View, Equatable {
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(entry.fileNames.first ?? entry.preview)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                        let name = entry.fileNames.first ?? entry.preview
+                        if tokens.isEmpty {
+                            Text(name)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        } else {
+                            Text(SearchHighlightText.highlighted(name, tokens: tokens, fontSize: 12))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                         if let dim = ClipboardImageStore.imageDimensionsLabel(atPath: path) {
                             Text("\(text.imageEntryLabel) · \(dim)")
                                 .font(.system(size: 11.5))
@@ -433,16 +458,29 @@ private struct QuickEntryRow: View, Equatable {
                 .help(path)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(fileTitle(entry))
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if entry.filePaths.count > 1 {
-                        Text(entry.preview)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
+                    let title = fileTitle(entry)
+                    if tokens.isEmpty {
+                        Text(title)
+                            .font(.system(size: 12))
                             .lineLimit(1)
-                            .truncationMode(.tail)
+                            .truncationMode(.middle)
+                    } else {
+                        Text(SearchHighlightText.highlighted(title, tokens: tokens, fontSize: 12))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    if entry.filePaths.count > 1 {
+                        if tokens.isEmpty {
+                            Text(entry.preview)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        } else {
+                            Text(SearchHighlightText.highlighted(entry.preview, tokens: tokens, fontSize: 10, baseColor: .secondary))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

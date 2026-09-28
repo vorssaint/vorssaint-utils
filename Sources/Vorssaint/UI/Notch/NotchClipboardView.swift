@@ -31,6 +31,10 @@ struct NotchClipboardView: View {
     /// Moving swaps neighbours in the list, which a search would misreport.
     private var canReorder: Bool { query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    private var searchTokens: [String] {
+        ClipboardHistorySearch.searchTokens(for: query)
+    }
+
     var body: some View {
         VStack(spacing: NotchLayout.rowSpacing) {
             HStack(spacing: 8) {
@@ -246,17 +250,23 @@ struct NotchClipboardView: View {
     @ViewBuilder private func preview(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .image:
+            let imageLabel = "\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)"
             if let name = entry.imageFile {
                 ClipboardThumbnailImage(source: .stored(name: name),
                                         aspectRatio: entry.imageAspectRatio,
-                                        failureText: "\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
+                                        failureText: imageLabel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
+                    .help(imageLabel)
             } else {
-                Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
-                    .font(.system(size: 12))
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                if searchTokens.isEmpty {
+                    Text(imageLabel)
+                        .font(.system(size: 12))
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                } else {
+                    Text(SearchHighlightText.highlighted(imageLabel, tokens: searchTokens, fontSize: 12, baseColor: .secondary))
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
             }
         case .files:
             // One image file shows itself; anything else reads as its name
@@ -269,15 +279,26 @@ struct NotchClipboardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .help(path)
             } else {
-                Label(entry.filePaths.count == 1
-                      ? (entry.fileNames.first ?? entry.preview)
-                      : String(format: text.fileCountFormat, entry.filePaths.count),
-                      systemImage: "folder")
-                    .font(.system(size: 12))
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .help(entry.filePaths.joined(separator: "\n"))
+                let title = entry.filePaths.count == 1
+                    ? (entry.fileNames.first ?? entry.preview)
+                    : String(format: text.fileCountFormat, entry.filePaths.count)
+                Label {
+                    if searchTokens.isEmpty {
+                        Text(title)
+                            .font(.system(size: 12))
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                    } else {
+                        Text(SearchHighlightText.highlighted(title, tokens: searchTokens, fontSize: 12))
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                    }
+                } icon: {
+                    Image(systemName: "folder")
+                        .font(.system(size: 12))
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .help(entry.filePaths.joined(separator: "\n"))
             }
         case .text:
             HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -285,10 +306,16 @@ struct NotchClipboardView: View {
                     ClipboardColorSwatch(color: color, size: 12)
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                 }
-                Text(entry.preview)
-                    .font(.system(size: 12))
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
+                if searchTokens.isEmpty {
+                    Text(entry.preview)
+                        .font(.system(size: 12))
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                } else {
+                    Text(SearchHighlightText.highlighted(entry.preview, tokens: searchTokens, fontSize: 12))
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }

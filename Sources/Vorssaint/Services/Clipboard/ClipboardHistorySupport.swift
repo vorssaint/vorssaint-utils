@@ -534,6 +534,35 @@ enum ClipboardHistorySearch {
         return tokens.allSatisfy { normalizedText.contains($0) }
     }
 
+    /// Non-empty search tokens from a raw query, split by whitespace.
+    static func searchTokens(for query: String) -> [String] {
+        query.split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    /// Finds all matching character ranges in `text` for the given tokens,
+    /// matching case-insensitively, diacritic-insensitively, and width-insensitively.
+    static func highlightRanges(in text: String, tokens: [String]) -> [Range<String.Index>] {
+        guard !text.isEmpty, !tokens.isEmpty else { return [] }
+        var ranges: [Range<String.Index>] = []
+        for token in tokens {
+            guard !token.isEmpty else { continue }
+            var search = text.startIndex..<text.endIndex
+            while search.lowerBound < text.endIndex,
+                  let r = text.range(of: token,
+                                     options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                                     range: search) {
+                ranges.append(r)
+                if r.upperBound == search.lowerBound {
+                    break
+                }
+                search = r.upperBound..<text.endIndex
+            }
+        }
+        return ranges
+    }
+
     private static func score(for text: String,
                               normalizedQuery: String,
                               tokens: [String],

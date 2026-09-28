@@ -25,6 +25,10 @@ struct PanelClipboardView: View {
         query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var searchTokens: [String] {
+        ClipboardHistorySearch.searchTokens(for: query)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
@@ -146,10 +150,16 @@ struct PanelClipboardView: View {
                 if let color = entry.color {
                     ClipboardColorSwatch(color: color, size: 12)
                 }
-                Text(entry.preview)
-                    .font(.system(size: 10.5))
-                    .lineLimit(3)
-                    .truncationMode(.tail)
+                if searchTokens.isEmpty {
+                    Text(entry.preview)
+                        .font(.system(size: 10.5))
+                        .lineLimit(3)
+                        .truncationMode(.tail)
+                } else {
+                    Text(SearchHighlightText.highlighted(entry.preview, tokens: searchTokens, fontSize: 10.5))
+                        .lineLimit(3)
+                        .truncationMode(.tail)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
@@ -160,9 +170,14 @@ struct PanelClipboardView: View {
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
-                Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                let imageLabel = "\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)"
+                if searchTokens.isEmpty {
+                    Text(imageLabel)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(SearchHighlightText.highlighted(imageLabel, tokens: searchTokens, fontSize: 10, baseColor: .secondary))
+                }
             }
         case .files:
             if entry.filePaths.count == 1,
@@ -173,10 +188,17 @@ struct PanelClipboardView: View {
                                             aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    Text(entry.fileNames.first ?? entry.preview)
-                        .font(.system(size: 10.5))
-                        .lineLimit(2)
-                        .truncationMode(.middle)
+                    let name = entry.fileNames.first ?? entry.preview
+                    if searchTokens.isEmpty {
+                        Text(name)
+                            .font(.system(size: 10.5))
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                    } else {
+                        Text(SearchHighlightText.highlighted(name, tokens: searchTokens, fontSize: 10.5))
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                    }
                 }
                 .help(path)
             } else {
@@ -184,12 +206,19 @@ struct PanelClipboardView: View {
                     Image(systemName: "folder")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Text(entry.filePaths.count == 1
+                    let title = entry.filePaths.count == 1
                          ? (entry.fileNames.first ?? entry.preview)
-                         : String(format: text.fileCountFormat, entry.filePaths.count))
-                        .font(.system(size: 10.5))
-                        .lineLimit(2)
-                        .truncationMode(.middle)
+                         : String(format: text.fileCountFormat, entry.filePaths.count)
+                    if searchTokens.isEmpty {
+                        Text(title)
+                            .font(.system(size: 10.5))
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                    } else {
+                        Text(SearchHighlightText.highlighted(title, tokens: searchTokens, fontSize: 10.5))
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                    }
                 }
                 .help(entry.filePaths.joined(separator: "\n"))
             }

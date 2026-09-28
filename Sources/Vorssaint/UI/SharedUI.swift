@@ -276,3 +276,33 @@ extension View {
         padding(.leading, 25)
     }
 }
+
+enum SearchHighlightText {
+    /// Builds an AttributedString with matched query token ranges styled in accent color and semibold weight.
+    static func highlighted(
+        _ text: String,
+        tokens: [String],
+        fontSize: CGFloat,
+        baseWeight: Font.Weight = .regular,
+        baseColor: Color = .primary,
+        highlightColor: Color = .accentColor,
+        highlightWeight: Font.Weight = .semibold
+    ) -> AttributedString {
+        var attributed = AttributedString(text)
+        attributed.font = .system(size: fontSize, weight: baseWeight)
+        attributed.foregroundColor = baseColor
+
+        guard !tokens.isEmpty, !text.isEmpty else { return attributed }
+
+        let ranges = ClipboardHistorySearch.highlightRanges(in: text, tokens: tokens)
+        guard !ranges.isEmpty else { return attributed }
+
+        for range in ranges {
+            if let attributedRange = Range(range, in: attributed) {
+                attributed[attributedRange].foregroundColor = highlightColor
+                attributed[attributedRange].font = .system(size: fontSize, weight: highlightWeight)
+            }
+        }
+        return attributed
+    }
+}
