@@ -499,8 +499,14 @@ struct NotchActionTile: View {
     @ViewBuilder private var label: some View {
         if let reading {
             VStack(spacing: 1) {
+                // A later day's start with a 12-hour clock, such as Spanish
+                // "dom, 10:45 p. m.", needs up to 91 pt on a 68 pt line. The
+                // smaller optical size spaces its letters wider, so scaling
+                // alone would still cut it off.
                 Text(reading).font(.system(size: 11, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(.white)
+                    .allowsTightening(true)
+                    .minimumScaleFactor(0.7)
                 ViewThatFits(in: .horizontal) {
                     readingTitle(title)
                     if let compactTitle { readingTitle(compactTitle) }
