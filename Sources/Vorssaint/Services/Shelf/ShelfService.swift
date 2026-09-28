@@ -570,6 +570,13 @@ final class ShelfService: ObservableObject {
         dragRestingChangeCount = dragBaselineChangeCount
     }
 
+    /// A drag from one of our own windows never reaches the global monitor,
+    /// so no gesture closes after it. What it left on the drag pasteboard is
+    /// absorbed here, or the next press in the Dock would count it (#2212).
+    func absorbOwnDrag() {
+        dragRestingChangeCount = NSPasteboard(name: .drag).changeCount
+    }
+
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
         (pasteboard.types ?? []).contains {
             ShelfPasteboardSupport.isDroppablePasteboardType($0.rawValue)
