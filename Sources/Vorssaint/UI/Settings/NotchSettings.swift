@@ -695,8 +695,8 @@ struct NotchSettings: View {
         return GridRow {
             Text(title).fixedSize().accessibilityHidden(true)
             // The Custom size card has sliders with the same names.
-            Slider(value: bounded, in: range, step: step) { Text(title) }.labelsHidden()
-                .accessibilityLabel("\(text.cameraFit), \(title)").accessibilityValue(formatted)
+            Slider(value: bounded, in: range, step: step) { Text("\(text.cameraFit), \(title)") }.labelsHidden()
+                .accessibilityValue(formatted)
             Text(formatted).monospacedDigit().foregroundStyle(.secondary).frame(width: 38)
         }
     }
