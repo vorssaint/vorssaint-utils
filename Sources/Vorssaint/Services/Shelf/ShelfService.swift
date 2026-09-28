@@ -206,11 +206,14 @@ final class ShelfService: ObservableObject {
     @Published private(set) var hotkeyRegistrationFailed = false
     private var interactionDepth = 0
     /// Drag-pasteboard change count captured when the current gesture started.
-    /// Finder bumps the count after this point; Dock stacks can publish the
-    /// drag contents first. The drag pasteboard retains the previous drag's
-    /// items indefinitely, so only a bump during the current gesture may read
-    /// as content being dragged.
+    /// Finder bumps the count after this point. The drag pasteboard retains
+    /// the previous drag's items indefinitely, so only a bump during the
+    /// current gesture may read as content being dragged.
     private var dragBaselineChangeCount = 0
+    /// Drag-pasteboard change count when the previous gesture ended, which is
+    /// where a gesture in the Dock counts from: a Dock stack can publish its
+    /// drag before the mouse-down reaches the monitor.
+    private var dragRestingChangeCount = 0
     /// Whether the current gesture's start was observed. macOS 27 moves
     /// windows in the window server, and the title-bar mouse-down (sometimes
     /// the mouse-up too) never reaches global monitors while the dragged
@@ -540,7 +543,8 @@ final class ShelfService: ObservableObject {
     private func isContentDragActive() -> Bool {
         let pasteboard = NSPasteboard(name: .drag)
         return ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: dragBaselineChangeCount,
+            gestureChangeCount: dragBaselineChangeCount,
+            restingChangeCount: dragRestingChangeCount,
             changeCount: pasteboard.changeCount,
             beganInDock: dragBeganInDock,
             hasDroppableContent: { pasteboardHasDroppableContent(pasteboard) })
@@ -563,6 +567,7 @@ final class ShelfService: ObservableObject {
         if !isInternalDragActive { NotchService.shared.fileDragChanged(false) }
         sawGestureStart = false
         dragBaselineChangeCount = NSPasteboard(name: .drag).changeCount
+        dragRestingChangeCount = dragBaselineChangeCount
     }
 
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
