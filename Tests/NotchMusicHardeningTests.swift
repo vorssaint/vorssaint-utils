@@ -111,6 +111,8 @@ enum NotchQueueContract {
     typealias NotchQueueSupport = Preferences
 }
 
+enum NotchQueueHoldContract {}
+
 /// Production control and recovery methods run with a deterministic scheduler
 /// and a recording pipe, without a player process or a window.
 enum NotchMusicCommandContract {
@@ -155,6 +157,7 @@ enum NotchMusicHardeningTests {
         lyricLifecycle(suite)
         lyricPicker(suite)
         queueSelection(suite)
+        queueHold(suite)
         framing(suite)
         pendingCommands(suite)
         controlLifecycle(suite)
@@ -668,6 +671,62 @@ enum NotchMusicHardeningTests {
         service.queueActionPending = false
         service.playQueued(row)
         suite.expect(service.commands.count == 1, "a hidden queue cannot enqueue another row action")
+        service.queueVisible = true
+        service.commands.removeAll()
+        service.upcoming = NotchQueueSnapshot(requestID: selected.requestID, currentIdentifier: "current", pid: 42,
+            items: [NotchQueueItem(id: "next", offset: 2, title: "Next", artist: "", duration: 0, artwork: Data([1]))],
+            canPlay: true)
+        service.playQueued(row)
+        suite.expect(service.commands == [.queuePlay(selected)], "a row drawn before its cover arrived still plays")
+    }
+
+    private static func queueHold(_ suite: TestSuite) {
+        let service = NotchQueueHoldContract.Service()
+        let request = UUID()
+        let cover = Data([1, 2, 3])
+        func reply(anchor: String, pid: Int32 = 42, rows: [[String: Any]]) -> [String: Any] {
+            ["queueRequest": request.uuidString, "queueAvailable": true, "currentIdentifier": anchor,
+             "pid": pid, "queueCanPlay": true, "queueItems": rows]
+        }
+        let covered = reply(anchor: "a", rows: [["id": "b", "offset": 1, "title": "B", "artworkBase64": cover.base64EncodedString()],
+                                                ["id": "c", "offset": 2, "title": "C"]])
+        service.queueRequest = request
+        service.playback = playback("a")
+        service.queueReply = covered
+        service.updateQueue()
+        suite.expect(service.upcoming?.items.map(\.id) == ["b", "c"] && service.upcomingArtwork == ["b": cover]
+               && !service.upcomingIsHeld, "a decoded queue publishes the covers its rows carry")
+        let shown = service.upcoming
+        service.playback = playback("b")
+        service.updateQueue()
+        suite.expect(service.upcoming == shown && service.upcomingArtwork == ["b": cover],
+               "a song change keeps the rows and covers on screen until the new song's queue arrives")
+        suite.expect(service.upcomingIsHeld && service.upcomingRows.map(\.id) == ["c"],
+               "held rows leave out the song now playing and refuse row actions")
+        service.queueReply = reply(anchor: "b", rows: [["id": "c", "offset": 1, "title": "C"]])
+        service.updateQueue()
+        suite.expect(service.upcoming?.currentIdentifier == "b" && !service.upcomingIsHeld
+               && service.upcomingRows.map(\.id) == ["c"], "the new song's queue replaces the held rows")
+        var anonymous = playback("b")
+        anonymous.itemIdentifier = nil
+        var old = covered
+        old["queueRequest"] = UUID().uuidString
+        let endings: [(NotchPlayback, [String: Any])] = [
+            (playback("b"), ["queueRequest": request.uuidString, "queueAvailable": false]),
+            (playback("b"), reply(anchor: "a", pid: 43, rows: [])),
+            (playback("b"), old),
+            (anonymous, covered)
+        ]
+        for (current, ending) in endings {
+            service.playback = playback("a")
+            service.queueReply = covered
+            service.updateQueue()
+            service.playback = current
+            service.queueReply = ending
+            service.updateQueue()
+            suite.expect(service.upcoming == nil && service.upcomingArtwork.isEmpty,
+                   "an unavailable queue, another player, an old request or an unidentified song clears the rows")
+        }
     }
 
     private static func framing(_ suite: TestSuite) {

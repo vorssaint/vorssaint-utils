@@ -936,6 +936,16 @@ def main():
           + "func send(_ command: NotchPlaybackCommand) -> Bool { commands.append(command); return sendAllowed && command.message != nil }\n"
           + declaration(music, "    func playQueued(")
           + "}\n}\n")
+    write("NotchQueueHold.swift", "import Foundation\n\nextension NotchQueueHoldContract {\n"
+          + "final class Service {\nvar queueEnabled = true\nvar queueRequest: UUID?\nvar queueReply: [String: Any]?\n"
+          + "var playback: NotchPlayback?\nvar queueCovers = NotchQueueCovers<Data>()\nvar upcomingArtwork: [String: Data] = [:]\n"
+          + declaration(music, "    @Published private(set) var upcoming:")
+            .replace("@Published private(set) ", "", 1).replace("NSImage.init(data:)", "{ $0 }", 1)
+          + declaration(music, "    var upcomingIsHeld:")
+          + declaration(music, "    var upcomingRows:")
+          + declaration(music, "    private func updateQueue()").replace("private func", "func", 1)
+            .replace("NotchQueueSupport.isEnabled()", "queueEnabled", 1)
+          + "}\n}\n")
     write("NotchMusicAutomationBodies.swift", "import Foundation\n\nextension NotchMusicAutomationFlowContract {\n"
           + "final class Service {\ntypealias Command = NotchPlaybackCommand\nvar playback: NotchPlayback?\n"
           + "var automationAvailability: NotchMusicAutomation.Availability?\nvar automationTarget: NotchMusicAutomation.Target?\n"

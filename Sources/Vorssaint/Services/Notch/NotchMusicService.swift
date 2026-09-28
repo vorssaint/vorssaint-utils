@@ -21,7 +21,15 @@ final class NotchMusicService: ObservableObject {
     @Published private(set) var commandPending = false
     @Published private(set) var automationAvailability: NotchMusicAutomation.Availability?
     @Published private(set) var requestingAutomation = false
-    @Published private(set) var upcoming: NotchQueueSnapshot?
+    @Published private(set) var upcoming: NotchQueueSnapshot? {
+        didSet {
+            guard upcoming != oldValue else { return }
+            queueCovers.update(upcoming, decode: NSImage.init(data:))
+            upcomingArtwork = queueCovers.images
+        }
+    }
+    @Published private(set) var upcomingArtwork: [String: NSImage] = [:]
+    private var queueCovers = NotchQueueCovers<NSImage>()
     @Published private(set) var queueLoading = false
     @Published private(set) var queueActionPending = false
     @Published private(set) var queueActionFailed = false
@@ -289,6 +297,7 @@ final class NotchMusicService: ObservableObject {
         queueRequest = nil
         queueReply = nil
         upcoming = nil
+        queueCovers = .init()
         queueLoading = false
         queueActionPending = false
         queueActionFailed = false
@@ -354,7 +363,9 @@ final class NotchMusicService: ObservableObject {
     }
 
     func syncQueuePreference() {
-        if !NotchQueueSupport.isEnabled() { setQueueVisible(false) }
+        guard !NotchQueueSupport.isEnabled() else { return }
+        setQueueVisible(false)
+        queueCovers = .init()
     }
 
     func refreshQueue() {
@@ -370,11 +381,21 @@ final class NotchMusicService: ObservableObject {
         if !send(.queue(request)) { queueLoading = false; queueActionFailed = true }
     }
 
+    var upcomingIsHeld: Bool {
+        guard let upcoming else { return false }
+        return upcoming.currentIdentifier != playback?.itemIdentifier || upcoming.pid != playback?.track.appPID
+    }
+
+    var upcomingRows: [NotchQueueItem] {
+        upcoming?.items.filter { $0.id != playback?.itemIdentifier } ?? []
+    }
+
     func playQueued(_ item: NotchQueueItem) {
         guard queueVisible, NotchQueueSupport.isEnabled(), let request = queueRequest, let upcoming,
               let playback, upcoming.currentIdentifier == playback.itemIdentifier,
               upcoming.pid == playback.track.appPID, upcoming.canPlay,
-              upcoming.items.contains(item), !queueActionPending else { return }
+              upcoming.items.contains(where: { $0.id == item.id && $0.offset == item.offset }),
+              !queueActionPending else { return }
         queueActionFailed = false
         queueActionPending = true
         let selected = NotchQueueSelection(requestID: request, pid: upcoming.pid,
@@ -399,7 +420,10 @@ final class NotchMusicService: ObservableObject {
             upcoming = nil
             return
         }
-        upcoming = NotchQueueSupport.decode(queueReply, requestID: request, playback: playback)
+        let next = NotchQueueSupport.decode(queueReply, requestID: request, playback: playback)
+        if next == nil, upcoming != nil,
+           NotchQueueSupport.awaitsSongQueue(queueReply, requestID: request, playback: playback) { return }
+        upcoming = next
     }
 
     func seek(to position: Double, in track: RadialNowPlayingSnapshot, context: NotchPlaybackContext?) {
