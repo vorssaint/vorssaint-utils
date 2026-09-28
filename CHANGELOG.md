@@ -25,12 +25,13 @@ Scratchpad gains easier formatting and search, Keep Awake starts with one click 
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
+- Dock Preview and App Switcher keep every window of an app shown again after being hidden, instead of only its front window.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @daniel-dosiper, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 
