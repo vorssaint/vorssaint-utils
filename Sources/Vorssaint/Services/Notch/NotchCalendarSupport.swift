@@ -156,6 +156,24 @@ enum NotchCalendarSupport {
         }
     }
 
+    /// The Controls tile names the next start at any distance within the
+    /// week read, not only in the countdown's hour. An appointment already
+    /// in progress is known; the one after it is what comes next.
+    static func tileEvent(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
+        ordered(events).first { !$0.allDay && $0.start > now }
+    }
+
+    /// A start later today reads as its time; a later day adds its weekday.
+    static func tileStartText(_ start: Date, now: Date, locale: Locale, calendar: Calendar = .current) -> String {
+        var style = calendar.isDate(start, inSameDayAs: now)
+            ? Date.FormatStyle.dateTime.hour().minute()
+            : Date.FormatStyle.dateTime.weekday(.abbreviated).hour().minute()
+        style.locale = locale
+        style.calendar = calendar
+        style.timeZone = calendar.timeZone
+        return start.formatted(style)
+    }
+
     static func countdownTransition(_ events: [NotchCalendarEvent], now: Date) -> Date? {
         ordered(events).filter { !$0.allDay && $0.start > now }
             .flatMap { [$0.start.addingTimeInterval(-countdownLeadTime), $0.start] }

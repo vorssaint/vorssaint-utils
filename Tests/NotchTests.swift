@@ -1907,6 +1907,12 @@ enum NotchTests {
         suite.expect(NotchCalendarSupport.countdownEvent([event("edge", hour, hour + 60)], now: now)?.id == "edge"
                      && NotchCalendarSupport.countdownEvent([event("outside", hour + 1, hour + 61)], now: now) == nil,
                      "the countdown appears only in the hour before a start")
+        suite.expect(NotchCalendarSupport.tileEvent(entries, now: now) == later
+                     && NotchCalendarSupport.tileEvent([allDay, current, tomorrow], now: now) == tomorrow
+                     && NotchCalendarSupport.tileEvent([allDay, current], now: now) == nil,
+                     "the Controls tile names the next timed start at any distance, past ongoing and all-day events")
+        suite.expect(NotchCalendarSupport.tileEvent([later], now: later.start) == nil,
+                     "an appointment leaves the tile once it starts")
         suite.expect(NotchCalendarSupport.countdownTransition([event("future", hour + 600, hour + 900)], now: now)
                      == now.addingTimeInterval(600)
                      && NotchCalendarSupport.countdownTransition([later], now: now) == later.start,
@@ -1936,6 +1942,15 @@ enum NotchTests {
         let rollover = NotchCalendarSupport.nextRefresh([], now: late, calendar: calendar)
         suite.expect(rollover.timeIntervalSince(late) == 60 && calendar.component(.day, from: rollover) == 9,
                "calendar refresh reaches the next local day across daylight saving time")
+        func start(day: Int, hour: Int, minute: Int = 0) -> Date {
+            calendar.date(from: DateComponents(year: 2026, month: 3, day: day, hour: hour, minute: minute))!
+        }
+        let british = Locale(identifier: "en_GB")
+        suite.expect(NotchCalendarSupport.tileStartText(start(day: 9, hour: 10, minute: 30), now: start(day: 9, hour: 9),
+                                                        locale: british, calendar: calendar) == "10:30"
+                     && NotchCalendarSupport.tileStartText(start(day: 10, hour: 9), now: start(day: 9, hour: 9),
+                                                           locale: british, calendar: calendar) == "Tue 09:00",
+                     "the tile reads a start today as its time and adds the weekday for a later day, in the calendar's zone")
         calendarMonthContracts(suite)
     }
 
