@@ -468,6 +468,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/InputSourceSelection.swift
         Sources/Vorssaint/Services/SessionActivity.swift
         Sources/Vorssaint/Services/SessionActivitySupport.swift
+        Sources/Vorssaint/Services/EventTimestamp.swift
+        Sources/Vorssaint/Services/OwnKeyEvent.swift
         Sources/Vorssaint/Services/ScrollWheelSupport.swift
         Sources/Vorssaint/Services/HorizontalWheelScrolling.swift
         Sources/Vorssaint/Services/SmoothScrollSupport.swift

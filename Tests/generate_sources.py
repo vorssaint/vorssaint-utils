@@ -135,6 +135,13 @@ def main():
           + declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
                         "    func exportText(")
           + "}\n}\n")
+    write("ScratchpadSave.swift", "import Foundation\n"
+          + "extension ScratchpadSaveContract {\nfinal class Service: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    func commitEdits(", "    private func flushSave(", "    private func save(",
+                        "    func createPad("])
+          + "}\n}\n")
     write("MusicLaunchBlockerLifecycle.swift", "import AppKit\nimport Foundation\n"
           + "extension MusicLaunchBlockerContract {\nfinal class Service: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Audio/MusicLaunchBlocker.swift", prefix)
@@ -268,6 +275,11 @@ def main():
                                    "    private func handleDockHoldInput(type:",
                                    "    private func handle(type:",
                                    "    func commit("])
+          + "}\n")
+    write("KeyboardDebounceTap.swift", "import ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
+          + "extension KeyboardDebounceTapTests.Service {\n"
+          + declaration("Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceService.swift",
+                        "    private func handle(type:").replace("private func", "func", 1)
           + "}\n")
     # Entire input/mute services retain their production control flow. Only
     # visibility, scheduling, defaults and HAL transport are replaced by fixtures.

@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Keyboard and mouse debounce now follows the configured timing. Scratchpad warns when notes cannot be saved, and Extra Brightness steps aside for store purchase and administrator prompts.
+
+### Fixed
+- Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
+- Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
+- Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
+
+### Contributors
+Thanks to @Kernel-Hunter, @PathGao and @shlok1806.
+
 ## [3.4.0] - 2026-09-27
 
 ### Summary

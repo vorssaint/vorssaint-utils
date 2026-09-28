@@ -23,6 +23,7 @@ struct MetricsTests {
             ("pointer-input", {
                 PointerOnDisplayContract.run(suite)
                 PointerInputFeatureTests.run(suite)
+                KeyboardDebounceTapTests.run(suite)
                 PointerDisplayLookupContract.run(suite)
                 SuperKeyTapContract.run(suite)
                 PointerScreenContract.run(suite)

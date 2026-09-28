@@ -44,6 +44,7 @@ enum NotchCompactTests {
         @Published var isPreviewing = false
         @Published var pads: [ScratchpadPad] = []
         @Published var selectedPadID: UUID?
+        @Published var saveFailed = false
         var canCreatePad: Bool { true }
         var canClosePad: Bool { false }
         var selectedPadName: String { "pad" }
