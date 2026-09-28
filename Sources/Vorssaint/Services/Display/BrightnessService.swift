@@ -1292,26 +1292,12 @@ final class BrightnessService: ObservableObject {
         step(displayID, method: method, delta: keyStep.limited(press.delta), showOSD: showOSD)
     }
 
-    /// Marks the Option-Shift presses this app sends on to the system, so its
-    /// own tap lets them through.
-    private static let systemQuarterStepMarker: Int64 = 0x564F4252 // "VOBR"
-
     /// One brightness key press sent on as the system's own Option-Shift
     /// quarter steps: the system moves its display and shows its usual
     /// feedback, only in finer steps. Main thread only.
     private static func postSystemQuarterSteps(increase: Bool, count: Int) {
-        let halves = BrightnessSupport.systemQuarterStepHalves(increase: increase)
-        for _ in 0..<count {
-            for half in halves {
-                guard let event = NSEvent.otherEvent(
-                    with: .systemDefined, location: .zero,
-                    modifierFlags: NSEvent.ModifierFlags(rawValue: half.flags),
-                    timestamp: 0, windowNumber: 0, context: nil,
-                    subtype: 8, data1: half.data1, data2: -1)?.cgEvent
-                else { continue }
-                event.setIntegerValueField(.eventSourceUserData, value: systemQuarterStepMarker)
-                event.post(tap: .cgSessionEventTap)
-            }
+        for event in BrightnessSupport.systemQuarterStepEvents(increase: increase, count: count) {
+            event.post(tap: .cgSessionEventTap)
         }
     }
 
@@ -1456,7 +1442,7 @@ final class BrightnessService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         // The quarter steps this app sends on below belong to the system.
-        guard event.getIntegerValueField(.eventSourceUserData) != Self.systemQuarterStepMarker else {
+        guard event.getIntegerValueField(.eventSourceUserData) != BrightnessSupport.systemQuarterStepMarker else {
             return Unmanaged.passUnretained(event)
         }
         guard running, let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),

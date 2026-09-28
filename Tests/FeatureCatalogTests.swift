@@ -2589,6 +2589,21 @@ enum FeatureCatalogTests {
                 && downHalves.compactMap({ BrightnessSupport.brightnessKeyEvent(subtype: 8, data1: $0.data1) })
                 .allSatisfy { $0.delta < 0 },
                "a sent-on quarter step decodes as the same key, pressed and released")
+        for increase in [true, false] {
+            let events = BrightnessSupport.systemQuarterStepEvents(increase: increase, count: 2)
+            let decoded = events.compactMap { NSEvent(cgEvent: $0) }
+            suite.expect(events.count == 4 && decoded.count == 4
+                    && decoded.allSatisfy {
+                        $0.type == .systemDefined && $0.subtype.rawValue == 8 && ($0.data1 >> 16) == (increase ? 2 : 3)
+                            && $0.modifierFlags.contains([.option, .shift])
+                            && $0.modifierFlags.intersection([.command, .control]).isEmpty
+                    }
+                    && decoded.map { ($0.data1 >> 8) & 0xFF } == [0x0A, 0x0B, 0x0A, 0x0B]
+                    && events.allSatisfy {
+                        $0.getIntegerValueField(.eventSourceUserData) == BrightnessSupport.systemQuarterStepMarker
+                    },
+                   "each finer step posts the system's Option-Shift press and release, marked as this app's")
+        }
         suite.expect(BrightnessSupport.plainKeyTarget(followsPointer: false, pointerDisplay: 2, systemTarget: 1) == 1
                 && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: 2, systemTarget: 1) == 2
                 && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: nil, systemTarget: 1) == nil

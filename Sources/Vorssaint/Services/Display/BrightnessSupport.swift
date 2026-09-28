@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 
 /// Pure DDC/CI helpers for the display brightness feature: packet building,
@@ -377,6 +378,29 @@ enum BrightnessSupport {
         let optionShift: UInt = 0x80000 | 0x20000
         return [0x0A, 0x0B].map { state in
             ((keyCode << 16) | (state << 8), UInt(state << 8) | optionShift)
+        }
+    }
+
+    /// Marks the Option-Shift presses this app sends on to the system, so its
+    /// own tap lets them through.
+    static let systemQuarterStepMarker: Int64 = 0x564F4252 // "VOBR"
+
+    /// One brightness key press sent on as `count` of the system's own
+    /// Option-Shift quarter steps, each a press and a release carrying the
+    /// marker. Posting is left to the caller.
+    static func systemQuarterStepEvents(increase: Bool, count: Int) -> [CGEvent] {
+        let halves = systemQuarterStepHalves(increase: increase)
+        return (0..<max(0, count)).flatMap { _ in
+            halves.compactMap { half -> CGEvent? in
+                guard let event = NSEvent.otherEvent(
+                    with: .systemDefined, location: .zero,
+                    modifierFlags: NSEvent.ModifierFlags(rawValue: half.flags),
+                    timestamp: 0, windowNumber: 0, context: nil,
+                    subtype: 8, data1: half.data1, data2: -1)?.cgEvent
+                else { return nil }
+                event.setIntegerValueField(.eventSourceUserData, value: systemQuarterStepMarker)
+                return event
+            }
         }
     }
 
