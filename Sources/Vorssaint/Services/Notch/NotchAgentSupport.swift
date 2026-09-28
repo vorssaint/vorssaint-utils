@@ -71,7 +71,11 @@ enum NotchAgentSupport {
     }
 
     static func key(for provider: AgentProvider) -> String {
-        provider == .claude ? DefaultsKey.notchAgentsClaude : DefaultsKey.notchAgentsCodex
+        switch provider {
+        case .claude: return DefaultsKey.notchAgentsClaude
+        case .codex: return DefaultsKey.notchAgentsCodex
+        case .opencode: return DefaultsKey.notchAgentsOpencode
+        }
     }
 
     /// Every card in the saved order; cards added later join at the end.

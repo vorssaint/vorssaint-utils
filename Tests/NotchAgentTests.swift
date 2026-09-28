@@ -16,6 +16,7 @@ enum NotchAgentTests {
         claudeParsing(suite)
         claudeTurns(suite)
         codexParsing(suite)
+        opencodeParsing(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -435,6 +436,114 @@ enum NotchAgentTests {
                                                state: &aborted, now: now)
                         == [.turnEnded(AgentTimestamp.parse("2026-09-22T15:00:00.000Z"), completed: false, duration: 10.961)],
                      "an aborted turn ends without counting as finished")
+    }
+
+    // MARK: OpenCode database
+
+    private static func opencodeMessage(role: String, model: String = "gpt-6-sol",
+                                        input: Int = 100, output: Int = 20, cacheRead: Int = 0,
+                                        cacheWrite: Int = 0, reasoning: Int = 0, cost: Double = 0.01,
+                                        created: Int64 = 1_790_000_000_000, completed: Int64? = 1_790_000_005_000,
+                                        cwd: String = "/Users/me/code/app") -> [String: Any] {
+        var time: [String: Any] = ["created": NSNumber(value: created)]
+        if let completed { time["completed"] = NSNumber(value: completed) }
+        return ["role": role, "modelID": model, "providerID": "nvidia",
+                "path": ["cwd": cwd, "root": cwd],
+                "cost": NSNumber(value: cost),
+                "tokens": ["input": input, "output": output, "reasoning": reasoning,
+                           "cache": ["read": cacheRead, "write": cacheWrite], "total": input + output + cacheRead],
+                "time": time]
+    }
+
+    private static func opencodeParsing(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 1_790_000_010)
+        // A user prompt ends the previous turn and starts the next one, so the
+        // turn it closes reports as finished.
+        let user = AgentOpenCodeParser.entries(messageID: "u1", sessionID: "s", data: [
+            "role": "user", "time": ["created": NSNumber(value: 1_790_000_000_000.0)]], directory: nil, now: now)
+        suite.expect(user.count == 2 && user[1] == .turnBegan(Date(timeIntervalSince1970: 1_790_000_000)),
+                     "a prompt opens a turn at its own time")
+        // An assistant reply becomes usage with the store's token shape, priced
+        // from the list when the family is known.
+        let entries = AgentOpenCodeParser.entries(messageID: "m1", sessionID: "s9",
+                                                  data: opencodeMessage(role: "assistant", model: "gpt-6-sol",
+                                                                        input: 100, output: 20, cacheRead: 30, cost: 0.5,
+                                                                        cwd: "/Users/me/code/web"),
+                                                  directory: "/Users/me/code/fallback", now: now)
+        guard case .usage(let key, let record, _)? = entries.first(where: {
+            if case .usage = $0 { return true }; return false
+        }) else {
+            suite.expect(false, "an assistant reply yields its usage")
+            return
+        }
+        suite.expect(key == "opencode:m1" && record.provider == .opencode && record.session == "s9"
+                        && record.project == "web" && record.model == "gpt-6-sol",
+                     "an OpenCode reply is keyed by message and named by its folder")
+        suite.expect(record.tokens == AgentTokens(input: 100, cacheWrite: 0, cacheRead: 30, output: 20),
+                     "input, cache and output map onto the shared token shape")
+        let priced = AgentPricing.cost(AgentBillable(tokens: record.tokens), model: "gpt-6-sol").cost
+        suite.expect(record.cost == priced, "a listed family shows the list price like the other agents")
+        // Anything the list does not name shows what OpenCode recorded, even zero.
+        let free = AgentOpenCodeParser.entries(messageID: "m2", sessionID: "s",
+                                               data: opencodeMessage(role: "assistant",
+                                                                     model: "muse-spark-1.3-contributor-free",
+                                                                     input: 50, output: 10, cost: 0),
+                                               directory: nil, now: now)
+        let freeRecord = free.compactMap { if case .usage(_, let record, _) = $0 { return record }; return nil }.first
+        suite.expect(freeRecord?.cost == 0 && freeRecord?.model == "muse-spark-1.3-contributor-free",
+                     "an unlisted model shows the actual cost OpenCode recorded")
+        // A placeholder without tokens is still work going on, without usage.
+        let placeholder = AgentOpenCodeParser.entries(messageID: "m3", sessionID: "s", data: [
+            "role": "assistant", "modelID": "gpt-6-sol", "path": ["cwd": "/Users/me/code/app"],
+            "cost": NSNumber(value: 0),
+            "tokens": ["input": 0, "output": 0, "reasoning": 0, "cache": ["read": 0, "write": 0]],
+            "time": ["created": NSNumber(value: 1_790_000_000_000.0)]], directory: nil, now: now)
+        suite.expect(!placeholder.contains { if case .usage = $0 { return true }; return false }
+                        && placeholder == [.turnActive(Date(timeIntervalSince1970: 1_790_000_000))],
+                     "a reply with nothing counted moves the turn without recording usage")
+        suite.expect(AgentOpenCodeParser.project(cwd: "/Users/me/code/app/.claude/worktrees/fix-1", root: nil, directory: nil) == "app"
+                        && AgentOpenCodeParser.project(cwd: nil, root: nil, directory: "/tmp/example/") == "example"
+                        && AgentOpenCodeParser.project(cwd: nil, root: nil, directory: nil) == "",
+                     "a worktree belongs to its repository and a bare folder to its name")
+        suite.expect(AgentOpenCodeDatabase.databaseURL(home: URL(fileURLWithPath: "/Users/me"))
+                        == URL(fileURLWithPath: "/Users/me/.local/share/opencode/opencode.db"),
+                     "the database lives where OpenCode keeps it")
+        // Names read the way people say them, without the provider prefix.
+        suite.expect(AgentPricing.displayName("nvidia/nemotron-3-super-120b-a12b") == "Nemotron 3 Super 120B A12B"
+                        && AgentPricing.displayName("muse-spark-1.3-contributor-free") == "Muse Spark 1.3 Contributor Free"
+                        && AgentPricing.displayName("moonshotai/kimi-k3") == "Kimi K3",
+                     "OpenCode models read without their provider and snapshot dates")
+
+        // Turns flow through the store like the other agents'.
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        let file = "opencode:s"
+        let began = Date(timeIntervalSince1970: 1_790_000_000)
+        store.apply(user, file: file, provider: .opencode, tracksTurns: true, modified: began, now: began)
+        suite.expect(store.live.count == 1 && store.live.first?.provider == .opencode,
+                     "a prompt shows OpenCode as working")
+        let replyAt = Date(timeIntervalSince1970: 1_790_000_005)
+        let finished = store.apply(entries, file: file, provider: .opencode, tracksTurns: true,
+                                   modified: replyAt, now: replyAt)
+        suite.expect(finished.isEmpty && store.live.first?.model == "gpt-6-sol"
+                        && store.live.first?.project == "web",
+                     "a reply joins the turn with its model and project")
+        let nextUser = AgentOpenCodeParser.entries(messageID: "u2", sessionID: "s", data: [
+            "role": "user", "time": ["created": NSNumber(value: 1_790_000_100_000.0)]], directory: nil, now: now)
+        let done = store.apply(nextUser, file: file, provider: .opencode, tracksTurns: true,
+                               modified: Date(timeIntervalSince1970: 1_790_000_100),
+                               now: Date(timeIntervalSince1970: 1_790_000_100))
+        guard case .finished(let provider, let duration, _, _, let project)? = done.first else {
+            suite.expect(false, "the next prompt finishes the turn it follows")
+            return
+        }
+        suite.expect(provider == .opencode && duration == 100 && project == "web" && store.live.count == 1,
+                     "a finished OpenCode turn reports its length and project, and the next one is working")
+        // A newer price list never rewrites what OpenCode recorded.
+        let before = store.records.first { $0.provider == .opencode }?.cost
+        store.reprice()
+        suite.expect(store.records.first { $0.provider == .opencode }?.cost == before,
+                     "repricing keeps OpenCode's recorded cost")
     }
 
     private static func timestamps(_ suite: TestSuite) {
@@ -947,7 +1056,14 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsOpencode)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "an agent can be left out")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsCodex)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsOpencode)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .codex, .opencode],
+                     "all three agents start enabled")
+        suite.expect(NotchAgentSupport.key(for: .opencode) == DefaultsKey.notchAgentsOpencode,
+                     "OpenCode has its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsFinishAlert)
         defaults.set(95.0, forKey: DefaultsKey.notchAgentsLimitThreshold)
         defaults.set(-4.0, forKey: DefaultsKey.notchAgentsDailyBudget)
@@ -956,6 +1072,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
+                    DefaultsKey.notchAgentsOpencode,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,

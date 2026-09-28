@@ -82,6 +82,9 @@ final class AgentUsageService: ObservableObject {
     private var warned: [String: (provider: AgentProvider, window: AgentLimitWindow)] = [:]
     private var budgetDay: Date?
     private var lastRootCheck = Date.distantPast
+    /// How far into the OpenCode database reading has got. Reset on every
+    /// fresh start, like the file cursors.
+    private var opencodeCursor = AgentOpenCodeCursor()
 
     private init() {}
 
@@ -126,6 +129,7 @@ final class AgentUsageService: ObservableObject {
             guard readerSession >= 0 else { return }
             watch(AgentLogRoot.all(home: home).filter { enabled.contains($0.provider) })
             filesChanged([], rescan: true)
+            if enabled.contains(.opencode), readOpenCode() { checkLimits() }
             startPolling()
             // Time went by meanwhile: a window or the day may have moved on.
             schedulePublish()
@@ -155,6 +159,7 @@ final class AgentUsageService: ObservableObject {
             watchedRoots = []
             store = AgentUsageStore()
             cursors.removeAll()
+            opencodeCursor = AgentOpenCodeCursor()
             published = AgentUsageSnapshot()
             previousLimits.removeAll()
             warned.removeAll()
@@ -195,6 +200,7 @@ final class AgentUsageService: ObservableObject {
             enabled = providers
             store = AgentUsageStore()
             cursors.removeAll()
+            opencodeCursor = AgentOpenCodeCursor()
             // Prices first, so the first read is already priced.
             loadPrices()
             let roots = AgentLogRoot.all(home: home).filter { providers.contains($0.provider) }
@@ -203,6 +209,9 @@ final class AgentUsageService: ObservableObject {
                 guard !cancellation.isCancelled else { return }
                 read(file.path, provider: file.provider)
             }
+            guard !cancellation.isCancelled else { return }
+            // OpenCode reads from its database, not from log files.
+            if providers.contains(.opencode) { readOpenCode() }
             guard !cancellation.isCancelled else { return }
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
@@ -256,6 +265,31 @@ final class AgentUsageService: ObservableObject {
                     || UInt64(info.st_ino) != cursor.identity else { continue }
             if read(path, provider: cursor.provider) { changed = true }
         }
+        // OpenCode has no log files to watch; its database is polled instead.
+        if enabled.contains(.opencode), readOpenCode() { changed = true }
+        return changed
+    }
+
+    /// Reads what OpenCode wrote since the last look. True when that changed
+    /// what is stored. Runs on `queue`.
+    @discardableResult
+    private func readOpenCode() -> Bool {
+        guard let cancellation = readerCancellation, !cancellation.isCancelled,
+              enabled.contains(.opencode) else { return false }
+        let now = Date()
+        var changed = false
+        // The database read is bounded by the horizon and the overlap; each
+        // session's rows apply in log order while they are alive.
+        let batches = AgentOpenCodeReader.readNew(home: home, cursor: &opencodeCursor, now: now)
+        for (sessionID, entries) in batches {
+            guard !cancellation.isCancelled else { break }
+            guard !entries.isEmpty else { continue }
+            changed = true
+            let file = "opencode:\(sessionID)"
+            let finished = store.apply(entries, file: file, provider: .opencode,
+                                       tracksTurns: true, modified: now, now: now)
+            finished.forEach(report)
+        }
         return changed
     }
 
@@ -279,6 +313,7 @@ final class AgentUsageService: ObservableObject {
             switch provider {
             case .claude: entries = AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
             case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
+            case .opencode: return
             }
             guard !entries.isEmpty else { return }
             changed = true

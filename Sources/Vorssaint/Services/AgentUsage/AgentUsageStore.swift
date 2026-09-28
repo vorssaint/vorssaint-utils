@@ -151,10 +151,12 @@ final class AgentUsageStore {
         turns[file] = turn
     }
 
-    /// Prices every response again, after a newer list arrives.
+    /// Prices every response again, after a newer list arrives. OpenCode
+    /// rows keep what OpenCode recorded: the list prices a few of its models,
+    /// but the database holds the actual cost for all seventy-five providers.
     func reprice() {
         summary.invalidate()
-        for position in records.indices {
+        for position in records.indices where records[position].provider != .opencode {
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             records[position].cost = priced.cost
             records[position].savings = priced.savings

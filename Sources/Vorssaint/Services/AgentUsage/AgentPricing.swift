@@ -257,7 +257,9 @@ enum AgentPricing {
 
     /// Readable model names: "claude-opus-5-5" reads "Opus 5.5" and
     /// "gpt-6-astra" reads "GPT-6 Astra". Built from the name itself, so a
-    /// model no list knows yet still reads well.
+    /// model no list knows yet still reads well, including the many providers
+    /// OpenCode records ("nvidia/nemotron-3-super-120b-a12b" reads
+    /// "Nemotron 3 Super").
     static func displayName(_ model: String) -> String {
         let id = normalized(model)
         guard !id.isEmpty else { return "" }
@@ -272,19 +274,31 @@ enum AgentPricing {
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
         }
-        guard id.hasPrefix("gpt-") else { return id }
-        var parts = id.dropFirst(4).split(separator: "-").map(String.init)
-        // An alias names whatever it points to today.
-        parts.removeAll { $0 == "latest" }
-        // A dated snapshot, "-2026-10-01" or "-20261001", is the same model.
-        parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
-        if parts.count >= 4, let year = Int(parts[parts.count - 3]), (2000...2100).contains(year),
-           parts.suffix(2).allSatisfy({ $0.count == 2 && $0.allSatisfy(\.isNumber) }) {
-            parts.removeLast(3)
+        if id.hasPrefix("gpt-") {
+            var parts = id.dropFirst(4).split(separator: "-").map(String.init)
+            // An alias names whatever it points to today.
+            parts.removeAll { $0 == "latest" }
+            // A dated snapshot, "-2026-10-01" or "-20261001", is the same model.
+            parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
+            if parts.count >= 4, let year = Int(parts[parts.count - 3]), (2000...2100).contains(year),
+               parts.suffix(2).allSatisfy({ $0.count == 2 && $0.allSatisfy(\.isNumber) }) {
+                parts.removeLast(3)
+            }
+            guard let first = parts.first else { return "GPT" }
+            let head = first.first?.isNumber == true ? "GPT-" + first : "GPT " + first.capitalized
+            return ([head] + parts.dropFirst().map(\.capitalized)).joined(separator: " ")
         }
-        guard let first = parts.first else { return "GPT" }
-        let head = first.first?.isNumber == true ? "GPT-" + first : "GPT " + first.capitalized
-        return ([head] + parts.dropFirst().map(\.capitalized)).joined(separator: " ")
+        // Any other family, as OpenCode's providers record them: drop a
+        // snapshot date and title-case the rest, keeping version numbers.
+        var parts = id.split(separator: "-").map(String.init)
+        parts.removeAll { $0 == "latest" }
+        parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
+        guard !parts.isEmpty else { return id }
+        return parts.map { part in
+            // A version like "3.5", "120b" or "a12b" keeps its shape; words read.
+            if part.first?.isNumber == true || part.count <= 2 { return part.uppercased() == part ? part : part.capitalized }
+            return part.capitalized
+        }.joined(separator: " ")
     }
 }
 

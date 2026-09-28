@@ -70,6 +70,7 @@ enum AgentUsageReadTests {
                 switch provider {
                 case .claude: entries += AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
+                case .opencode: break
                 }
             }
             let reference = AgentUsageStore()
