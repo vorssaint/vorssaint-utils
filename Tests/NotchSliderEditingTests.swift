@@ -77,6 +77,11 @@ enum NotchSliderEditingTests {
                      && SliderScroll.step(dx: 0, dy: -10, precise: true, inverted: true) > 0
                      && SliderScroll.step(dx: 2, dy: -10, precise: true, inverted: true) == 10 * SliderScroll.pointStep,
                "fingers moving up or right raise the level along the gesture's main axis")
+        suite.expect(SliderScroll.step(dx: -10, dy: 0, precise: true, inverted: true, mirrored: true) > 0
+                     && SliderScroll.step(dx: 10, dy: 0, precise: false, inverted: false, mirrored: true) > 0
+                     && SliderScroll.step(dx: 10, dy: 0, precise: true, inverted: true, mirrored: true) < 0
+                     && SliderScroll.step(dx: 0, dy: -10, precise: true, inverted: true, mirrored: true) > 0,
+               "along a mirrored bar the fingers follow the thumb to the left, and up still raises it")
 
         var pad = SliderScroll()
         suite.expect(pad.handle(.changed, dx: 0, dy: -40, precise: true, inverted: true,

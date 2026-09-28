@@ -1375,7 +1375,7 @@ final class ClipboardHistoryService: ObservableObject {
                                                visibleFrame: { $0.screen?.visibleFrame ?? NSScreen.pointerVisibleFrame })
         panel.delegate = sizeLimit
         panelSizeLimit = sizeLimit
-        let host = NSHostingController(rootView: ClipboardQuickPanelView())
+        let host = NSHostingController(rootView: ClipboardQuickPanelView().localizedLayoutDirection())
         // AppKit owns the window size; SwiftUI fills its content view.
         host.sizingOptions = []
         panel.contentViewController = host
@@ -1539,7 +1539,8 @@ final class ClipboardHistoryService: ObservableObject {
                 return nil
             }
             if let step = ClipboardHistoryNavigation.step(keyCode: event.keyCode, modifiers: modifiers,
-                                                          key: key, layout: self.quickLayout) {
+                                                          key: key, layout: self.quickLayout,
+                                                          isRTL: L10n.shared.language.isRTL) {
                 self.moveQuickSelection(step)
                 return nil
             }

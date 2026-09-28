@@ -294,6 +294,8 @@ struct ScreenshotWatermarkPopover: View {
                 }
             }
         }
+        // Each cell is a corner of the capture, which is never mirrored.
+        .environment(\.layoutDirection, .leftToRight)
     }
 
     // MARK: - Bindings

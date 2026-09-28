@@ -976,13 +976,26 @@ final class NotchService: ObservableObject {
         return hoverEmphasized ? NotchHoverEmphasis.size(from: resting, geometry: geometry) : resting
     }
 
-    /// How far the island's centre sits right of the camera's. Only a closed
-    /// notice beside a camera, or the music strip naming its song, reaches
-    /// further toward its wider side. A capsule runs its strips end to end.
+    /// How far the island's centre sits toward the trailing side of the
+    /// camera's, which is the right in a language read left to right. Only a
+    /// closed notice beside a camera, or the music strip naming its song,
+    /// reaches further toward its wider side. A capsule runs its strips end
+    /// to end. This is the shift in reading order, which SwiftUI's offsets
+    /// follow; the window, the drawn silhouette and the hover area live on
+    /// the screen and take `physicalSurfaceShift`.
     var surfaceShift: CGFloat {
         guard !geometry.floats, !fullscreenCompact, captureControls == nil, !expanded, !dragPlaceholder else { return 0 }
         if let notice { return noticeExpanded ? 0 : geometry.noticeShift(notice.wings(in: geometry)) }
         return namedMusicWings.map { ($0.trailing - $0.leading) / 2 } ?? 0
+    }
+
+    /// `surfaceShift` as the screen sees it, right of the camera's. A mirrored
+    /// strip lays its leading wing on the right, so the island reaches toward
+    /// the wider wing on the opposite side from the one a left-to-right
+    /// strip does, and a window placed by the reading-order value would sit
+    /// off the camera it is meant to surround.
+    var physicalSurfaceShift: CGFloat {
+        L10n.shared.language.isRTL ? -surfaceShift : surfaceShift
     }
 
     /// The open island around the Command Bar: the bar's width within the
@@ -1817,10 +1830,15 @@ final class NotchService: ObservableObject {
             if let target = highlightedSection, filteredSections.contains(target) { select(target) }
             return true
         }
+        // The gallery fills along the reading direction, so a mirrored one
+        // puts the section before the highlight under the right arrow. The
+        // side arrows only reach here while nothing is typed; with a query in
+        // the field they stay with the caret, below.
+        let isRTL = L10n.shared.language.isRTL
         let direction: QuickToolsSupport.GridDirection
         switch event.keyCode {
-        case 123 where sectionQuery.isEmpty: direction = .left
-        case 124 where sectionQuery.isEmpty: direction = .right
+        case 123 where sectionQuery.isEmpty: direction = QuickToolsSupport.readingDirection(.left, isRTL: isRTL)
+        case 124 where sectionQuery.isEmpty: direction = QuickToolsSupport.readingDirection(.right, isRTL: isRTL)
         case 125: direction = .down
         case 126: direction = .up
         default: return false
@@ -2280,7 +2298,8 @@ final class NotchService: ObservableObject {
     @discardableResult
     func updateFileDrop(at point: CGPoint) -> Bool {
         let targeted = choosingFileDropDestination
-            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize).contains(point)
+            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize,
+                                                   isRTL: L10n.shared.language.isRTL).contains(point)
         if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
         return !targeted || NotchFileToolsService.shared.canAcceptMediaDrop
     }
@@ -2706,7 +2725,7 @@ final class NotchService: ObservableObject {
             NotificationCenter.default.post(name: .notchMascotRestYields, object: nil)
         }
         var presented = expanded ? expandedGeometry : geometry
-        presented.surfaceShift = surfaceShift
+        presented.surfaceShift = physicalSurfaceShift
         windowHost?.present(size: size, geometry: presented, animated: animated,
                             transitionContent: contentTransition,
                             quickAccess: expanded && captureControls == nil && !showingCommandBar && !access.buttons.isEmpty
@@ -2739,7 +2758,7 @@ final class NotchService: ObservableObject {
             activationRect = (expanded ? expandedGeometry : compactActivityIsVisible ? compactActivityGeometry : geometry)
                 .activationArea(in: size, hasHeader: expanded || peeking, compactActivity: compactActivityIsVisible, expandedHeader: expanded)
                 // Over the camera, wherever a strip reaching to one side puts it.
-                .offsetBy(dx: -surfaceShift, dy: 0)
+                .offsetBy(dx: -physicalSurfaceShift, dy: 0)
         }
         let text = FeatureStrings.notch(L10n.shared.language)
         windowHost?.setActivationArea(activationRect, title: expanded ? text.collapse : text.open,

@@ -55,7 +55,8 @@ final class QuitAppsPanelController {
             strings: FeatureStrings.quickToggles(L10n.shared.language),
             cancelTitle: L10n.shared.s.uninstallerCancel,
             quitOne: { [weak self] pid in self?.quitOne(pid) },
-            activate: { [weak self] focus in self?.activate(focus) })
+            activate: { [weak self] focus in self?.activate(focus) }
+        ).localizedLayoutDirection()
         let host = NSHostingController(rootView: content)
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
@@ -193,8 +194,10 @@ final class QuitAppsPanelController {
             if case .row(let pid) = model.focus { quitOne(pid) }
         case kVK_UpArrow: model.move(.up)
         case kVK_DownArrow: model.move(.down)
-        case kVK_LeftArrow: model.move(.left)
-        case kVK_RightArrow: model.move(.right)
+        // The button bar runs in reading order, so the side arrows step along
+        // it the way the row is read: a mirrored bar swaps them.
+        case kVK_LeftArrow: model.move(L10n.shared.language.isRTL ? .right : .left)
+        case kVK_RightArrow: model.move(L10n.shared.language.isRTL ? .left : .right)
         case kVK_Tab: model.move(flags.contains(.shift) ? .previous : .next)
         default:
             guard flags.isDisjoint(with: [.command, .control]),

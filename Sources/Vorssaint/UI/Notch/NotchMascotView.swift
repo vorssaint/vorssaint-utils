@@ -1316,6 +1316,10 @@ struct NotchMascotActivityVisit: ViewModifier {
                                height: track.height)
                         .offset(x: rightWing ? hidden.upperBound : clearance)
                         .frame(width: track.width, alignment: .leading)
+                        // The track and its hidden span are measured on the
+                        // screen, left to right, so the black laid over them is
+                        // placed the same way in every language.
+                        .environment(\.layoutDirection, .leftToRight)
                         .transition(.opacity)
                 }
             }

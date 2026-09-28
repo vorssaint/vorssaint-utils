@@ -72,11 +72,18 @@ struct NotchLockScreenIsland: View {
                         .padding(.trailing, max(0, min(geometry.compactMusicBarsInset, wing - NotchLayout.compactMusicBarsWidth)))
                         .frame(width: wing, height: size.height, alignment: .trailing)
                 }
+                // The padlock stands where the music strip's cover does, so it
+                // follows the strip's reading direction.
+                .localizedLayoutDirection()
             }
             .frame(width: size.width, height: size.height)
             .padding(.leading, origin.x)
             .padding(.top, origin.y)
             .frame(width: window?.width ?? size.width, height: window?.height ?? size.height, alignment: .topLeading)
+            // `origin` is where the island sits on the screen, measured from
+            // the window's left edge, so placing it is physical in every
+            // language: only what is drawn inside the island mirrors.
+            .environment(\.layoutDirection, .leftToRight)
             .accessibilityHidden(true)
     }
 }

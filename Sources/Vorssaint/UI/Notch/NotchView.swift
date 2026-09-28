@@ -42,8 +42,11 @@ struct NotchView: View {
             // stops scrolling between cards and the island loses focus. A fill
             // too faint to see takes hit tests and keeps the surface in this
             // window, as the opaque black of a black island does.
-            .background(shape.offset(x: service.surfaceShift).fill(Color.black.opacity(0.01)))
-            .contentShape(shape.offset(x: service.surfaceShift))
+            // A shape's offset moves its path and is not mirrored with the
+            // layout, so it takes the shift as the screen sees it, where the
+            // window host draws the silhouette.
+            .background(shape.offset(x: service.physicalSurfaceShift).fill(Color.black.opacity(0.01)))
+            .contentShape(shape.offset(x: service.physicalSurfaceShift))
             // The backdrop is a separate, non-interactive hosting view. Claim
             // empty space here so SwiftUI keeps the taps that land on it. This
             // draws nothing, so it does not hold a click in this window at the
@@ -150,8 +153,12 @@ struct NotchView: View {
                     }
                     // Beside a camera the notice reaches further toward its
                     // wider side, and takes clicks all the way to its end.
+                    // The notice's own offset mirrors with the layout; this
+                    // shape's does not, so it is turned to the side the
+                    // notice actually reaches in a mirrored strip.
                     .contentShape(Rectangle().offset(x: floats ? 0
-                        : service.geometry.noticeShift(notice.wings(in: service.geometry))))
+                        : service.geometry.noticeShift(notice.wings(in: service.geometry))
+                            * (l10n.language.isRTL ? -1 : 1)))
                 }
                 // A floating capsule lights up under the pointer. Beside a
                 // camera the wash would outline the housing, so the notch keeps
@@ -417,7 +424,7 @@ struct NotchView: View {
 
     @ViewBuilder private func bandLeading(_ band: NotchBand) -> some View {
         if service.showingSections {
-            NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
+            NotchIconButton(symbol: "chevron.backward", title: l10n.s.obBack, action: service.toggleSections)
             // Beside the camera the field takes the rest of its side.
             NotchSectionSearch(service: service, maximumFieldWidth: band.besideCamera ? .infinity : 150)
                 .frame(maxWidth: .infinity, alignment: .leading)

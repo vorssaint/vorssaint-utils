@@ -823,6 +823,16 @@ enum ClipboardFeatureTests {
                "plain side arrows walk the cards")
         suite.expect(step(.list, kVK_RightArrow) == nil && step(.list, kVK_LeftArrow) == nil,
                "the list leaves plain side arrows to the search field's caret")
+        func mirroredStep(_ layout: ClipboardHistoryLayout, _ keyCode: Int,
+                          _ modifiers: NSEvent.ModifierFlags = []) -> Int? {
+            ClipboardHistoryNavigation.step(keyCode: UInt16(keyCode), modifiers: modifiers, key: nil,
+                                            layout: layout, isRTL: true)
+        }
+        suite.expect(mirroredStep(.cards, kVK_LeftArrow) == 1 && mirroredStep(.cards, kVK_RightArrow) == -1
+                     && mirroredStep(.cards, kVK_DownArrow) == 1 && mirroredStep(.cards, kVK_UpArrow) == -1,
+               "a mirrored strip walks towards its start with the right arrow and leaves down and up alone")
+        suite.expect(mirroredStep(.list, kVK_LeftArrow) == nil && mirroredStep(.cards, kVK_LeftArrow, [.shift]) == nil,
+               "a mirrored list, or a side arrow with a modifier, still leaves the caret alone")
 
         // MARK: Clipboard menu bar preview
 

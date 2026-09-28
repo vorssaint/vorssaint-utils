@@ -69,7 +69,7 @@ final class RadialNowPlayingService {
             self?.dismissDetails()
             RadialNowPlayingApplication.open(snapshot)
         }
-        let host = NSHostingController(rootView: card)
+        let host = NSHostingController(rootView: card.localizedLayoutDirection())
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
         let panel = ensurePanel()
