@@ -814,7 +814,7 @@ def main():
     write("QuickLauncherBodies.swift", "import Foundation\nimport Carbon.HIToolbox\n" + protocol + "\n\nextension QuickLauncherContract {\n"
           + declaration(service, "enum QuickLauncherItem:")
           + "final class Launcher {\nvar isEditing = false\nvar activeUtility: QuickLauncherItem?\n"
-          + "var editingOptionsItem: QuickLauncherItem?\nvar selectedIndex: Int?\nvar presentationID = UUID()\n"
+          + "var editingOptionsItem: QuickLauncherItem?\nvar selectedIndex: Int?\nvar keyboardIndex: Int?\nvar presentationID = UUID()\n"
           + "var candidates: [QuickLauncherItem] = QuickLauncherItem.allCases\n"
           + "var visibleItems: [QuickLauncherItem] { candidates.filter { $0.feature.isAvailable(in: ReviewDefaults.current) } }\n"
           + 'func hide() { events.append("hide") }\n'
@@ -825,6 +825,7 @@ def main():
           + declaration(service, "    func activateSelection()")
           + declaration(service, "    func activate(at index:")
           + declaration(service, "    func moveSelection(")
+          + declaration(service, "    func select(")
           + declaration(service, "    func handlePanelKey(")
           + declaration(service, "    private static func digitIndex(")
           + "}\nstruct Tile {\nvar keepAwake = State()\nvar micMute = State()\nvar recorder = State()\n"
