@@ -30,19 +30,22 @@ enum NotchAccessorySupport {
         }
     }
 
+    /// Phones, tablets, computers and network access points are not
+    /// accessories, and their Bluetooth links come and go without anyone
+    /// reaching for them. Every other class announces a connection,
+    /// including a device that declares no class at all.
+    static func announcesConnection(majorClass: UInt32) -> Bool {
+        !(0x01...0x03).contains(majorClass)
+    }
+
     /// A name says what an accessory is only until someone renames it. The
-    /// Bluetooth class of device it announces still does, from a phone or a
-    /// speaker down to the trackpad that sets a pointer's digitizer bits.
+    /// Bluetooth class of device it announces still does, from a speaker or
+    /// a car down to the trackpad that sets a pointer's digitizer bits.
     /// Major and minor classes as the Bluetooth assigned numbers define them.
     static func symbol(name: String, majorClass: UInt32, minorClass: UInt32) -> String {
         let named = PeripheralBatterySupport.kind(product: name, primaryUsagePage: nil, primaryUsage: nil, usagePairs: [])
         guard named == .device else { return symbol(for: named, name: name) }
         switch (majorClass, minorClass) {
-        case (0x01, 0x03): return "laptopcomputer"
-        case (0x01, 0x04), (0x01, 0x05): return "ipad"
-        case (0x01, 0x06): return "applewatch"
-        case (0x01, _): return "desktopcomputer"
-        case (0x02, _): return "iphone"
         case (0x04, 0x04): return "mic"
         case (0x04, 0x05), (0x04, 0x07), (0x04, 0x0A): return "hifispeaker"
         case (0x04, 0x08): return "car"

@@ -16,9 +16,12 @@ struct NotchNotice: Equatable {
     var notificationID: UUID? = nil
     /// The agent an AI notice is about, which tints its mark.
     var agent: AgentProvider? = nil
+    /// A banner that replaces one still on screen keeps at least its width,
+    /// so a burst of messages does not resize the island with each one.
+    var minimumWingWidth: CGFloat = 0
 
     var preferredWingWidth: CGFloat {
-        if notification != nil { return 190 }
+        if let notification { return max(minimumWingWidth, NotchNotificationBannerLayout.wing(for: notification)) }
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
         let trailing = level == nil ? (detail as NSString).size(withAttributes: [.font: font]).width : 0
@@ -217,10 +220,10 @@ final class NotchService: ObservableObject {
     }
 
     var hasCalendarActivity: Bool {
-        guard NotchCalendarSupport.showsCountdown(),
-              let event = NotchCalendarService.shared.countdownEvent else { return false }
-        let now = Date()
-        return event.start > now && event.start.timeIntervalSince(now) <= NotchCalendarSupport.countdownLeadTime
+        guard let countdown = NotchCalendarService.shared.countdown,
+              countdown.ongoing ? NotchCalendarSupport.showsTimeLeft() : NotchCalendarSupport.showsCountdown()
+        else { return false }
+        return countdown.isShown(at: Date())
     }
 
     var compactActivity: NotchCompactActivity? {
@@ -319,10 +322,10 @@ final class NotchService: ObservableObject {
         }
     }
 
-    /// The wider of the two sides, the event's title or its clock and start
-    /// time, measured with the strip's fonts and its clearance from the curve.
+    /// The wider of the two sides, the event's title or its clock and the
+    /// time beside it, measured with the strip's fonts and its clearance from the curve.
     private var calendarStripWing: CGFloat {
-        guard let event = NotchCalendarService.shared.countdownEvent else {
+        guard let countdown = NotchCalendarService.shared.countdown else {
             return NotchGeometry.calendarWingRange.upperBound
         }
         let provisional = geometry.compactCalendarGeometry(wing: NotchGeometry.calendarWingRange.lowerBound)
@@ -331,7 +334,7 @@ final class NotchService: ObservableObject {
             (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
         }
         let language = L10n.shared.language
-        let trimmed = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = countdown.event.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = trimmed.isEmpty ? FeatureStrings.notchCalendar(language).untitled : trimmed
         let titleSide = NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripTitleSpacing
             + width(title, .systemFont(ofSize: 11, weight: .semibold))
@@ -339,7 +342,7 @@ final class NotchService: ObservableObject {
         // while the minutes count down.
         let clockSide = width("00:00", .monospacedDigitSystemFont(ofSize: 13, weight: .medium))
             + NotchCalendarSupport.stripClockSpacing
-            + width(NotchCalendarSupport.startText(event.start, locale: language.formattingLocale()),
+            + width(NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
                     .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
         return inset + max(titleSide, clockSide)
     }
@@ -1404,6 +1407,10 @@ final class NotchService: ObservableObject {
         guard showsSystemFeedback, NotchSupport.routes(incoming.event),
               NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else { return false }
         noticeWork?.cancel(); noticeWork = nil
+        var incoming = incoming
+        if incoming.notification != nil, let shown = notice, shown.notification != nil, noticeCanPresent, !noticeExpanded {
+            incoming.minimumWingWidth = shown.preferredWingWidth
+        }
         let keepsPreview = noticeExpanded && incoming.notificationID != nil
             && windowHost?.containsHover(NSEvent.mouseLocation) == true
         // Slider and key bursts only replace the displayed value. They never
@@ -1443,7 +1450,7 @@ final class NotchService: ObservableObject {
         open(selectedNotice.event == .download ? .downloads : selectedNotice.event == .timer ? .timer
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
-             : selectedNotice.event == .track ? .music : .controls)
+             : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer : .controls)
     }
 
     /// Skipping through songs, or a title that lands before its artist, shows
@@ -1479,6 +1486,27 @@ final class NotchService: ObservableObject {
                                 title: FeatureStrings.brightness(L10n.shared.language).keyboardLight,
                                 detail: "\(BrightnessSupport.wholePercent(level))%",
                                 symbol: "keyboard", level: level))
+    }
+
+    /// The microphone switch reports here the way the volume does: its mark
+    /// on one side of the camera, what happened on the other. False leaves
+    /// the confirmation to its own panel.
+    @discardableResult
+    func showMicrophone(muted: Bool) -> Bool {
+        // Only the closed island draws this notice. While it is open or busy
+        // the floating confirmation keeps the job.
+        guard noticeCanPresent else { return false }
+        let text = L10n.shared.s
+        return show(NotchNotice(event: .microphone, title: "",
+                                detail: muted ? text.micMutedHUD : text.micUnmutedHUD,
+                                symbol: muted ? "mic.slash.fill" : "mic.fill"))
+    }
+
+    /// A partial result is confirmed by the floating panel alone, so the
+    /// notice left by the press before it must not contradict the warning.
+    func retractMicrophoneNotice() {
+        guard notice?.event == .microphone else { return }
+        dismissNotice()
     }
 
     /// The close button of a held preview also takes the message out of the
@@ -2381,7 +2409,7 @@ final class NotchService: ObservableObject {
                 }.store(in: &subscriptions)
         }
         if modules.contains(.calendar) {
-            NotchCalendarService.shared.$countdownEvent.removeDuplicates()
+            NotchCalendarService.shared.$countdown.removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()
