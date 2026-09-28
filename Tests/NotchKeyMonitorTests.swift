@@ -76,6 +76,7 @@ enum NotchKeyMonitorTests {
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180)
         func collapse() { NotchKeyMonitorTests.actions.append("collapse") }
+        func stepBack() { NotchKeyMonitorTests.actions.append("stepBack") }
         func toggleSections() { NotchKeyMonitorTests.actions.append("sections") }
         func select(_ module: NotchModule) { selected = module }
         func handleSectionKey(_ event: NSEvent) -> Bool { false }
@@ -99,8 +100,8 @@ enum NotchKeyMonitorTests {
                             field: NSTextView, action: String)] = [
             ("the gallery search", .controls, true, false, NSTextView(isFieldEditor: true), "sections"),
             ("a Tools utility", .tools, false, false, NSTextView(isFieldEditor: true), "tools"),
-            ("the app panel", .tools, false, true, NSTextView(isFieldEditor: true), "collapse"),
-            ("the Scratchpad editor", .scratchpad, false, false, NSTextView(isFieldEditor: false), "collapse"),
+            ("the app panel", .tools, false, true, NSTextView(isFieldEditor: true), "stepBack"),
+            ("the Scratchpad editor", .scratchpad, false, false, NSTextView(isFieldEditor: false), "stepBack"),
         ]
         for destination in destinations {
             service.selected = destination.module
