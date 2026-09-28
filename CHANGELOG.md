@@ -43,6 +43,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Mouse side buttons go back and forward again in Safari, Finder and other apps on keyboard layouts such as German and French.
 - Radial menu profiles refuse a shortcut that another profile or feature already uses, and other shortcut settings now warn when a combination belongs to a radial menu profile.
+- The Keyboard Shortcuts page lists the shortcuts radial menu profiles use and links to the Radial menu page to change them, instead of showing an outdated shortcut whose changes had no effect.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
 - The menu bar panel opens centered under its icon again, without a gray band along its top and right edges on macOS 14 and 15, and tall tabs no longer open it beside the icon.
 - Scrolling the Features page in Settings no longer stutters or freezes the app.
