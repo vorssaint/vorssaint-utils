@@ -97,6 +97,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self?.captureStatusClick()
             self?.toggleMainPopover()
         }
+        statusController.onDelayedLeftClick = { [weak self] point in
+            self?.captureStatusClick(at: point)
+            self?.toggleMainPopover()
+        }
+        statusController.onQuickAction = { [weak self] action in
+            self?.performStatusItemAction(action)
+        }
         statusController.onRightClick = { [weak self] button in
             if AppFeature.keepAwake.isAvailable
                 && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRightClickToggle) {
@@ -609,7 +616,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         weak var button: NSStatusBarButton?
     }
 
-    private func captureStatusClick() {
+    private func captureStatusClick(at point: NSPoint? = nil) {
+        if let point {
+            lastStatusClick = (point, Date())
+            return
+        }
         guard let event = NSApp.currentEvent,
               Self.statusClickEventTypes.contains(event.type),
               (0...Self.statusClickFreshness).contains(ProcessInfo.processInfo.systemUptime - event.timestamp)
@@ -1882,11 +1893,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             if MenuBarAllowanceSupport.currentAllowance() == .disallowed {
                 self.isReshowingStatusItem = false
                 self.logStatusItemPlacement("disallowed by system")
-                let s = L10n.shared.s
+                let strings = L10n.shared.s
                 NSApp.activate(ignoringOtherApps: true)
                 let alert = NSAlert()
-                alert.messageText = s.menuBarIconStillHiddenTitle
-                alert.informativeText = s.menuBarIconDisallowedBody
+                alert.messageText = strings.menuBarIconStillHiddenTitle
+                alert.informativeText = strings.menuBarIconDisallowedBody
                 alert.runModal()
                 return
             }
@@ -1904,14 +1915,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             self.isReshowingStatusItem = false
             self.logStatusItemPlacement("still hidden")
-            let s = L10n.shared.s
-            var body = s.menuBarIconStillHiddenBody
+            let strings = L10n.shared.s
+            var body = strings.menuBarIconStillHiddenBody
             if let manager = Self.runningMenuBarManagerName() {
-                body += "\n\n" + String(format: s.menuBarIconManagerHintFormat, manager, manager)
+                body += "\n\n" + String(format: strings.menuBarIconManagerHintFormat, manager, manager)
             }
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
-            alert.messageText = s.menuBarIconStillHiddenTitle
+            alert.messageText = strings.menuBarIconStillHiddenTitle
             alert.informativeText = body
             alert.runModal()
         }
@@ -2225,9 +2236,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             window.setContentSize(fitting)
         }
         let size = window.frame.size
-        let x = min(max(visible.midX - size.width / 2, visible.minX), max(visible.minX, visible.maxX - size.width))
-        let y = min(max(visible.midY - size.height / 2, visible.minY), max(visible.minY, visible.maxY - size.height))
-        window.setFrameOrigin(NSPoint(x: x.rounded(), y: y.rounded()))
+        let maxOriginX = max(visible.minX, visible.maxX - size.width)
+        let maxOriginY = max(visible.minY, visible.maxY - size.height)
+        let originX = min(max(visible.midX - size.width / 2, visible.minX), maxOriginX)
+        let originY = min(max(visible.midY - size.height / 2, visible.minY), maxOriginY)
+        window.setFrameOrigin(NSPoint(x: originX.rounded(), y: originY.rounded()))
     }
 
     /// The pre-install update preview, shown before any download from BOTH the

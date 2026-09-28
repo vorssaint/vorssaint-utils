@@ -55,6 +55,8 @@ enum SettingsBackupSupport {
         DefaultsKey.commandBarLinks,
         DefaultsKey.commandBarRowShortcuts,
         DefaultsKey.language,
+        DefaultsKey.statusItemMiddleClickAction,
+        DefaultsKey.statusItemLongPressAction,
         DefaultsKey.appVolumes,
         DefaultsKey.appOutputDevices,
         DefaultsKey.mixerHiddenApps,
