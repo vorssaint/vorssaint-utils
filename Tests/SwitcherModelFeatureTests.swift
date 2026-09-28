@@ -2537,6 +2537,79 @@ enum SwitcherModelFeatureTests {
             .components(separatedBy: "\n    }").first ?? "")
         suite.expect(reopenCode.contains("mainItemHiddenByChoice != true, !iconIsOnScreen()"),
                "reopening the app leaves an item hidden by choice alone and opens Settings")
+        // macOS 27's Siri app reopens running apps on almost every interaction;
+        // only a reopen the person asked for may rebuild the icon or open anything.
+        let reopenJudged = reopenCode.range(of: "guard ReopenRequestSupport.isPersonOpeningApp(")
+        let reopenRebuild = reopenCode.range(of: "recreateStatusItem()")
+        suite.expect(reopenJudged != nil && reopenRebuild != nil
+                     && reopenJudged!.lowerBound < reopenRebuild!.lowerBound
+                     && reopenCode.contains("ReopenRequestSupport.currentSender()"),
+               "reopening judges who asked before it touches the icon, the panel or Settings")
+        typealias ReopenSender = ReopenRequestSupport.Sender
+        let personReopens: [(ReopenSender?, String)] = [
+            (ReopenSender(bundleIdentifier: "com.apple.finder",
+                          executablePath: "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder",
+                          isApplication: true), "Finder"),
+            (ReopenSender(bundleIdentifier: "com.apple.dock",
+                          executablePath: "/System/Library/CoreServices/Dock.app/Contents/MacOS/Dock",
+                          isApplication: true), "the Dock"),
+            (ReopenSender(bundleIdentifier: "com.apple.Spotlight", executablePath: nil,
+                          isApplication: true), "Spotlight"),
+            // On macOS 27 the search field opened with Command-Space lives in the Siri app.
+            (ReopenSender(bundleIdentifier: "com.apple.campo",
+                          executablePath: "/System/Applications/Siri AI.app/Contents/MacOS/Siri AI",
+                          isApplication: true), "the macOS 27 search field"),
+            (ReopenSender(bundleIdentifier: "com.apple.apps.launcher", executablePath: nil,
+                          isApplication: true), "the Apps launcher"),
+            (ReopenSender(bundleIdentifier: "com.example.launcher",
+                          executablePath: "/Applications/Launcher.app/Contents/MacOS/Launcher",
+                          isApplication: true), "a third-party launcher"),
+            (ReopenSender(bundleIdentifier: "com.example.ShortcutLauncher", executablePath: nil,
+                          isApplication: true), "another developer's app named after shortcuts"),
+            (ReopenSender(bundleIdentifier: nil, executablePath: nil, isApplication: false),
+             "open(1), gone by the time the event is read"),
+            (ReopenSender(bundleIdentifier: nil, executablePath: "/usr/bin/osascript", isApplication: false),
+             "a script run in Terminal"),
+            (nil, "an event without a sender"),
+        ]
+        for (sender, source) in personReopens {
+            suite.expect(ReopenRequestSupport.isPersonOpeningApp(sender),
+                         "reopening from \(source) still brings the app back")
+        }
+        let automaticReopens: [(ReopenSender, String)] = [
+            (ReopenSender(bundleIdentifier: "com.apple.WorkflowKit.BackgroundShortcutRunner",
+                          executablePath: "/System/Library/PrivateFrameworks/WorkflowKit.framework/XPCServices/"
+                              + "BackgroundShortcutRunner.xpc/Contents/MacOS/BackgroundShortcutRunner",
+                          isApplication: true), "the Shortcuts action runner"),
+            (ReopenSender(bundleIdentifier: nil,
+                          executablePath: "/System/Library/PrivateFrameworks/WorkflowKit.framework/XPCServices/"
+                              + "BackgroundShortcutRunner.xpc/Contents/MacOS/BackgroundShortcutRunner",
+                          isApplication: false), "the same runner before LaunchServices lists it"),
+            (ReopenSender(bundleIdentifier: "com.apple.shortcuts", executablePath: nil,
+                          isApplication: true), "the Shortcuts app"),
+            (ReopenSender(bundleIdentifier: "com.apple.Siri", executablePath: nil,
+                          isApplication: true), "Siri"),
+            (ReopenSender(bundleIdentifier: nil, executablePath: "/usr/libexec/linkd",
+                          isApplication: false), "the App Intents daemon"),
+            (ReopenSender(bundleIdentifier: nil,
+                          executablePath: "/System/Library/PrivateFrameworks/VoiceShortcuts.framework/Versions/A/"
+                              + "Support/siriactionsd",
+                          isApplication: false), "Siri's actions daemon"),
+            (ReopenSender(bundleIdentifier: nil,
+                          executablePath: "/System/Library/PrivateFrameworks/IntelligenceFlowRuntime.framework/"
+                              + "Versions/A/intelligenceflowd",
+                          isApplication: false), "an Apple Intelligence service"),
+        ]
+        for (sender, source) in automaticReopens {
+            suite.expect(!ReopenRequestSupport.isPersonOpeningApp(sender),
+                         "a reopen sent by \(source) opens nothing")
+        }
+        suite.expect(ReopenRequestSupport.logName(ReopenSender(bundleIdentifier: nil, executablePath: "/usr/libexec/linkd",
+                                                               isApplication: false)) == "linkd"
+                     && ReopenRequestSupport.logName(ReopenSender(bundleIdentifier: "com.apple.finder",
+                                                                  executablePath: "/System/Library/CoreServices/Finder.app",
+                                                                  isApplication: true)) == "com.apple.finder",
+               "the log names the sender by bundle identifier, or by executable without its path")
         let reshowCode = stripCommentLines((statusAnchorAppDelegateSource
             .components(separatedBy: "func reshowStatusItem() {").last ?? "")
             .components(separatedBy: "\n    }").first ?? "")

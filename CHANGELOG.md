@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island can follow the pointer between displays, fit the notch, step back with Escape and show a running timer and the next appointment on Controls. Scratchpad gains easier formatting and search, Keep Awake starts with one click from duration chips, and brightness keys can move in finer steps. The update also fixes Dynamic Island music and notices, windows shown again in Dock Preview and App Switcher, mouse side buttons on non-US keyboards and a Settings freeze.
+Dynamic Island can follow the pointer between displays, fit the notch, step back with Escape and show a running timer and the next appointment on Controls. Scratchpad gains easier formatting and search, Keep Awake starts with one click from duration chips, and brightness keys can move in finer steps. The update also fixes Dynamic Island music and notices, windows shown again in Dock Preview and App Switcher, mouse side buttons on non-US keyboards, a Settings freeze and Settings opening by itself when using Siri AI.
 
 ### Added
 - App Updates can ignore one release or exclude an app from update results and alerts.
@@ -43,6 +43,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Mouse side buttons go back and forward again in Safari, Finder and other apps on keyboard layouts such as German and French.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
+- Opening or using Siri AI on macOS 27 no longer opens Vorssaint's Settings or menu bar panel.
 - Scrolling the Features page in Settings no longer stutters or freezes the app.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
