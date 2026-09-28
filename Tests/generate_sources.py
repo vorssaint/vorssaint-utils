@@ -97,6 +97,12 @@ def main():
               "    private func closePopoverNow("])
           + "var popoverAnchor: PanelAnchor?\nvar lastGoodPanelAnchor: PanelAnchor?\n"
           + "}\n}\n")
+    write("MenuPanelKey.swift", "import Foundation\nimport Carbon.HIToolbox\n"
+          + "extension MenuPanelKeyTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration(panel, prefix).replace("private ", "", 1) for prefix in [
+              "    private func handlePopoverKeyDown(", "    private func isPlainPopoverHoldKey(",
+              "    private func isTextEditingActive("])
+          + "}\n}\n")
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
     write("DisplayRestoration.swift", "import CoreGraphics\nimport Foundation\n"
           + "extension DisplayRestorationTests {\nfinal class BrightnessService: Fixture {\n"

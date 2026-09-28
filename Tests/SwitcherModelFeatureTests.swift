@@ -2101,6 +2101,7 @@ enum SwitcherModelFeatureTests {
                "a desktop switch while the panel is open drops the remembered app")
 
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
+        MenuPanelKeyTests.run(suite)
 
         // The built-in display and a taller one placed to its left.
         let builtInScreen = CGRect(x: 0, y: 0, width: 1470, height: 956)
