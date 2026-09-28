@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island can follow the pointer between displays, fit the notch, step back with Escape and show a running timer and the next appointment on Controls. Scratchpad gains easier formatting and search, Keep Awake starts with one click from duration chips, and brightness keys can move in finer steps. The update also fixes the off-center menu bar panel on macOS 14 and 15, Dynamic Island music and notices, windows shown again in Dock Preview and App Switcher, mouse side buttons on non-US keyboards and a Settings freeze.
+Dynamic Island floats as a capsule on displays without a notch, can show on every display or follow the pointer between them, fit the notch, step back with Escape and show a running timer and the next appointment on Controls. Scratchpad gains easier formatting and search, Keep Awake starts with one click from duration chips, and brightness keys can move in finer steps. The update also fixes the off-center menu bar panel on macOS 14 and 15, Dynamic Island music and notices, windows shown again in Dock Preview and App Switcher, mouse side buttons on non-US keyboards and a Settings freeze.
 
 ### Added
 - App Updates can ignore one release or exclude an app from update results and alerts.
@@ -23,6 +23,8 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Dynamic Island can keep opening on the page chosen in When reopening while music, a timer or another activity is showing.
 - Dynamic Island can follow the pointer between displays, so files dropped on it on one display can be dragged out on another.
 - Dynamic Island can be fitted to the notch's width and height on Macs where an edge of the notch shows around it.
+- On displays without a notch, such as external monitors, Dynamic Island floats as a capsule in the middle of the menu bar and opens from it, as a phone's island does; a song shows its title for a few seconds as it starts, then only its cover and sound bars. Layout settings can make the capsule wider, taller or lower, or keep the simulated notch instead.
+- Dynamic Island can show on every display at once: the island under the pointer responds, the others show what it shows closed, and a click on any of them opens it there.
 
 ### Changed
 - Keep Awake starts with one click from duration chips or an end time; the switch and shortcut restart the last choice, and the panel explains when battery protection prevents a session.
@@ -32,6 +34,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 
 ### Fixed
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
+- The activity chosen in the closed Dynamic Island stays chosen when a song changes or an agent pauses between turns, instead of switching back to the timer.
 - Dynamic Island keeps the current song on screen while a player loads the next one, instead of briefly showing an empty music page and changing size. With the New track indicator on, the compact island keeps the previous song until the indicator shows the next one.
 - Clicking the Now Playing cover in Dynamic Island, or the radial menu's Now Playing card, brings the playing app to the front instead of doing nothing, and shows its window again when it was closed.
 - Dynamic Island accessory alerts no longer show a connection notice when a phone, tablet or computer connects to the Mac over Bluetooth.
@@ -51,7 +54,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @0miicr0n, @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @bweh, @cedigang, @daniel-dosiper, @Goonwb, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain.
+Thanks to @0miicr0n, @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @bweh, @cedigang, @daniel-dosiper, @Goonwb, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @rhymeswithjazz, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain.
 
 ## [3.4.0] - 2026-09-27
 

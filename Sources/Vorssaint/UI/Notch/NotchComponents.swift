@@ -268,10 +268,13 @@ final class NotchBackdropPresentation: ObservableObject {
     @Published var contour = Path()
     @Published var usesGlass = false
     @Published private(set) var fade = NotchGlassFade.open
+    /// The menu bar a floating capsule leaves below itself, part of the
+    /// surface height a fade is planned in.
+    var floatingGap: CGFloat = 0
 
     /// Measured from the top edge, as the fade is planned: a floating
-    /// capsule's contour starts below it.
-    var openness: Double { Double(fade.openness(atHeight: contourBottom)) }
+    /// capsule's contour starts below it and ends above the surface's bottom.
+    var openness: Double { Double(fade.openness(atHeight: contourBottom + floatingGap)) }
     fileprivate var contourBottom: CGFloat { contour.boundingRect.isNull ? 0 : contour.boundingRect.maxY }
 
     /// How much of the resting black still lies beneath the glass. It lets go

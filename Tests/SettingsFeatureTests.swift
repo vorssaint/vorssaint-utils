@@ -118,6 +118,13 @@ enum SettingsFeatureTests {
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: pointerDisplayBackup)?[DefaultsKey.notchDisplay] as? String
                     == NotchDisplay.pointer.rawValue,
                "a backup keeps the choice to follow the pointer, which belongs to no single Mac")
+        let allDisplaysBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [DefaultsKey.notchDisplay: NotchDisplay.all.rawValue],
+        ]
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: allDisplaysBackup)?[DefaultsKey.notchDisplay] as? String
+                    == NotchDisplay.all.rawValue,
+               "a backup keeps the choice of every display")
         suite.expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
                "the cleaning mode keep screen visible choice travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.appearance),

@@ -69,6 +69,7 @@ struct MetricsTests {
             ("notch", {
                 NotchTests.run(suite)
                 NotchCompactTests.run(suite)
+                NotchCapsuleTests.run(suite)
                 NotchVolumeKeyTests.run(suite)
                 NotchSettingsTabRowTests.run(suite)
             }),

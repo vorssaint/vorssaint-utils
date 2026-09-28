@@ -8,6 +8,8 @@ import SwiftUI
 /// as the reading, and both sit at the ends, where the island shows.
 struct NotchAgentStrip: View {
     @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
@@ -22,7 +24,7 @@ struct NotchAgentStrip: View {
         // Resolve layout once per presentation update. The timeline captures
         // these values, so ticking the clock never remeasures the island or
         // walks the preferences for every font, inset and frame.
-        let geometry = service.compactActivityGeometry
+        let geometry = displayGeometry ?? service.compactActivityGeometry
         let working = working
         let tint = working.first?.tint ?? .white
         let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2

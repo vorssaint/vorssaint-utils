@@ -9,13 +9,15 @@ import SwiftUI
 /// wider side needs, and both sit at the ends, where the island shows.
 struct NotchTimerStrip: View {
     @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var timer = NotchTimerService.shared
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var l10n = L10n.shared
 
-    private var geometry: NotchGeometry { service.compactActivityGeometry }
+    private var geometry: NotchGeometry { displayGeometry ?? service.compactActivityGeometry }
     private var companion: NotchCompactActivity? { service.compactCompanion }
     private var iconSize: CGFloat {
         let size = NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight)

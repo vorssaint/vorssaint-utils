@@ -77,9 +77,11 @@ enum NotchMusicVisibilityTests {
         var downloadName: String?
         var hasAgentActivity = false
         var timerStripWing: CGFloat = 44
-        func timerStripWing(for companion: NotchCompactActivity?) -> CGFloat { timerStripWing }
+        func timerStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
+        func agentStripWing(in geometry: NotchGeometry) -> CGFloat { agentStripWing }
         var calendarStripWing: CGFloat = 120
+        func calendarStripWing(in geometry: NotchGeometry) -> CGFloat { calendarStripWing }
         var notchNeedsMonitor = false
         var heldDrag = false
         var pinned = false
@@ -95,6 +97,7 @@ enum NotchMusicVisibilityTests {
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
         var expandedSize: CGSize { geometry.expanded }
+        var capsuleSurfaceSize: CGSize? { nil }
         var captureControlsLayout: NotchCaptureControlsLayout {
             NotchCaptureControlsLayout(geometry: geometry, titleWidth: 90, capturesAudio: false)
         }

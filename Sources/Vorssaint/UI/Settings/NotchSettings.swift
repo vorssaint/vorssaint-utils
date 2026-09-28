@@ -28,6 +28,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLiveEqualizer) private var liveEqualizer = false
     @AppStorage(DefaultsKey.notchEnabled) private var enabled = false
     @AppStorage(DefaultsKey.notchDisplay) private var display = NotchDisplay.automatic.rawValue
+    @AppStorage(DefaultsKey.notchSilhouette) private var silhouette = NotchSilhouette.capsule.rawValue
     @AppStorage(DefaultsKey.notchOpenOnHover) private var hover = false
     @AppStorage(DefaultsKey.notchHideInFullscreen) private var hideInFullscreen = false
     @AppStorage(DefaultsKey.notchHideUntilHover) private var hideUntilHover = false
@@ -59,6 +60,9 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCustomHeight) private var customHeight = NotchSize.defaultHeight
     @AppStorage(DefaultsKey.notchCameraFitWidth) private var cameraFitWidth = 0.0
     @AppStorage(DefaultsKey.notchCameraFitHeight) private var cameraFitHeight = 0.0
+    @AppStorage(DefaultsKey.notchCapsuleFitWidth) private var capsuleFitWidth = 0.0
+    @AppStorage(DefaultsKey.notchCapsuleFitHeight) private var capsuleFitHeight = 0.0
+    @AppStorage(DefaultsKey.notchCapsuleFitDrop) private var capsuleFitDrop = 0.0
     @AppStorage(DefaultsKey.notchHapticFeedback) private var hapticFeedback = true
     @AppStorage(DefaultsKey.notchShelf) private var shelfWindow = true
     @AppStorage(DefaultsKey.notchDragReveal) private var dragReveal = true
@@ -81,7 +85,7 @@ struct NotchSettings: View {
 
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
-         String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, String(hover), hidden, order, String(volume),
+         String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight), String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, silhouette, String(hover), hidden, order, String(volume),
          String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled)]
     }
 
@@ -177,6 +181,29 @@ struct NotchSettings: View {
                     Text(text.sizeHint).font(.caption).foregroundStyle(.secondary)
                 }
             }
+            // Only a display without a camera can float the island.
+            if NotchSupport.hasDisplayWithoutNotch {
+                SettingsCard(title: text.withoutNotch) {
+                    HStack(spacing: 10) {
+                        silhouetteChoice(.capsule, title: text.capsuleShape)
+                        silhouetteChoice(.notch, title: text.notchShape)
+                    }
+                }
+                if NotchSilhouette(rawValue: silhouette) ?? .capsule == .capsule {
+                    SettingsCard(title: text.capsuleFit) {
+                        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                            // Even widths keep the capsule centred on whole points.
+                            fitSlider(text.width, card: text.capsuleFit, value: $capsuleFitWidth,
+                                      range: NotchCapsuleFit.widthRange, step: 2)
+                            fitSlider(text.height, card: text.capsuleFit, value: $capsuleFitHeight,
+                                      range: NotchCapsuleFit.heightRange, step: 1)
+                            fitSlider(text.fromTop, card: text.capsuleFit, value: $capsuleFitDrop,
+                                      range: NotchCapsuleFit.dropRange, step: 1)
+                        }
+                        Text(text.capsuleFitHint).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
             SettingsCard {
                 switchRow("capsule", text.showOutline, isOn: $outlineEnabled)
             }
@@ -185,8 +212,10 @@ struct NotchSettings: View {
                 SettingsCard(title: text.cameraFit) {
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
                         // Whole points keep the island centred on the camera's pixels.
-                        fitSlider(text.width, value: $cameraFitWidth, range: NotchCameraFit.widthRange, step: 1)
-                        fitSlider(text.height, value: $cameraFitHeight, range: NotchCameraFit.heightRange, step: 0.5)
+                        fitSlider(text.width, card: text.cameraFit, value: $cameraFitWidth,
+                                  range: NotchCameraFit.widthRange, step: 1)
+                        fitSlider(text.height, card: text.cameraFit, value: $cameraFitHeight,
+                                  range: NotchCameraFit.heightRange, step: 0.5)
                     }
                     Text(text.cameraFitHint).font(.caption).foregroundStyle(.secondary)
                 }
@@ -506,6 +535,8 @@ struct NotchSettings: View {
                     choice(text.mainDisplay, symbol: "display", selected: display == NotchDisplay.main.rawValue) { display = NotchDisplay.main.rawValue }
                     choice(text.followPointer, symbol: "cursorarrow.motionlines",
                            selected: display == NotchDisplay.pointer.rawValue) { display = NotchDisplay.pointer.rawValue }
+                    choice(text.allDisplays, symbol: "rectangle.on.rectangle",
+                           selected: display == NotchDisplay.all.rawValue) { display = NotchDisplay.all.rawValue }
                 }
             }
             SettingsCard(title: editor.destinations) {
@@ -547,6 +578,20 @@ struct NotchSettings: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: symbol).font(.system(size: 20, weight: .medium))
+                Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2).multilineTextAlignment(.center)
+            }.frame(maxWidth: .infinity, minHeight: 68).padding(8)
+                .foregroundStyle(selected ? Color.accentColor : .primary)
+                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1) }
+        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// Each outline in a slice of menu bar, drawn as the island draws it.
+    private func silhouetteChoice(_ item: NotchSilhouette, title: String) -> some View {
+        let selected = (NotchSilhouette(rawValue: silhouette) ?? .capsule) == item
+        return Button { silhouette = item.rawValue } label: {
+            VStack(spacing: 10) {
+                NotchSilhouetteSample(silhouette: item)
                 Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2).multilineTextAlignment(.center)
             }.frame(maxWidth: .infinity, minHeight: 68).padding(8)
                 .foregroundStyle(selected ? Color.accentColor : .primary)
@@ -689,15 +734,16 @@ struct NotchSettings: View {
     }
 
     /// A correction around zero, signed so the untouched value reads as none.
-    private func fitSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double) -> some View {
+    private func fitSlider(_ title: String, card: String, value: Binding<Double>, range: ClosedRange<Double>,
+                           step: Double) -> some View {
         let bounded = Binding(get: { NotchSize.clamped(value.wrappedValue, to: range, fallback: 0) },
                               set: { value.wrappedValue = NotchSize.clamped($0, to: range, fallback: 0) })
         let formatted = bounded.wrappedValue.formatted(.number.sign(strategy: .always(includingZero: false))
             .precision(.fractionLength(0...1)).locale(Locale(identifier: l10n.language.rawValue)))
         return GridRow {
             Text(title).fixedSize().accessibilityHidden(true)
-            // The Custom size card has sliders with the same names.
-            Slider(value: bounded, in: range, step: step) { Text("\(text.cameraFit), \(title)") }.labelsHidden()
+            // Other cards have sliders with the same names.
+            Slider(value: bounded, in: range, step: step) { Text("\(card), \(title)") }.labelsHidden()
                 .accessibilityValue(formatted)
             Text(formatted).monospacedDigit().foregroundStyle(.secondary).frame(width: 38)
         }
@@ -741,3 +787,38 @@ struct NotchSettings: View {
 }
 
 extension NotchControlItem: PanelOrderItem {}
+
+/// A standard menu bar on a display without a camera, at half size, with
+/// the resting island in it.
+private struct NotchSilhouetteSample: View {
+    let silhouette: NotchSilhouette
+
+    var body: some View {
+        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 0,
+                                     cameraWidth: 0, menuBarHeight: 24, silhouette: silhouette)
+        let island = geometry.restingSize(showsContent: false)
+        ZStack(alignment: .top) {
+            Rectangle().fill(.primary.opacity(0.08)).frame(height: geometry.menuBarHeight)
+            // Menus on the left and status items on the right, clear of the island.
+            HStack(spacing: 9) {
+                ForEach([26, 36, 30], id: \.self) { width in
+                    Capsule().fill(.primary.opacity(0.22)).frame(width: CGFloat(width), height: 8)
+                }
+                Spacer(minLength: 0)
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle().fill(.primary.opacity(0.22)).frame(width: 12, height: 12)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(height: geometry.menuBarHeight)
+            NotchShape.island(height: island.height, geometry: geometry).fill(.black)
+                .frame(width: island.width, height: island.height)
+        }
+        .frame(width: 400, height: 48, alignment: .top)
+        .background(.primary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .scaleEffect(0.5)
+        .frame(width: 200, height: 24)
+        .accessibilityHidden(true)
+    }
+}

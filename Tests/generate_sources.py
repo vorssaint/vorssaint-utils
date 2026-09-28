@@ -605,6 +605,19 @@ def main():
           + declaration(notch, "    private var canFollowPointer:").replace("private var", "var", 1)
           + declaration(notch, "    private func schedulePointerFollow()").replace("private func", "func", 1)
           + declaration(notch, "    private func followPointer()").replace("private func", "func", 1)
+          + declaration(notch, "    private func move(to screen:").replace("private func", "func", 1)
+          + "}\n}\n")
+    write("NotchMirrors.swift", "import AppKit\nextension NotchMirrorContract {\nfinal class Service: State {\n"
+          + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    private func syncMirrors()", "    private func mirrorSurface(", "    private func mirrorSideRoom(",
+              "    private func closeMirrors()", "    private func updateFullscreenDisplays()",
+              "    private func bringIsland("])
+          .replace("NotchSupport.hidesUntilHover()", "hidesUntilHover")
+          .replace("NotchSupport.coversMenus()", "coversMenus")
+          .replace("NotchSupport.showsInCaptures()", "showsInCaptures")
+          .replace("UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled)", "outlineEnabled")
+          .replace("UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)", "hidesInFullscreen")
+          .replace("FeatureStrings.notch(L10n.shared.language).open", "openTitle")
           + "}\n}\n")
     write("NotchSectionScrollRoute.swift", "import AppKit\nextension NotchSectionPagingTests {\nfinal class Service: State {\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
