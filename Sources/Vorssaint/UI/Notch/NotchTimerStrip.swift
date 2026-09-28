@@ -47,7 +47,7 @@ struct NotchTimerStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Button { service.open(companion?.module ?? .timer) } label: {
+            Button { service.openActivity(companion?.module ?? .timer) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 28 {
                         switch companion {
@@ -107,7 +107,7 @@ struct NotchTimerStrip: View {
         let now = timer.now
         let text = NotchTimerSupport.compactText(for: timer.session, at: now,
                                                  locale: Locale(identifier: l10n.language.rawValue))
-        return Button { service.open(.timer) } label: {
+        return Button { service.openActivity(.timer) } label: {
             Group {
                 if geometry.compactActivityWingWidth >= 42 {
                     Text(text)
