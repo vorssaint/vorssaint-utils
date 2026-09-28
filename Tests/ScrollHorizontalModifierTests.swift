@@ -227,6 +227,13 @@ enum ScrollHorizontalModifierTests {
         )
         suite.expect(installedZoom.isEnabled && installedZoom.zoom.verticalZoom == .control,
                      "scroll zoom runs only while its feature is installed")
+        let removedZoom = ScrollDirectionPreferences(
+            isAvailable: { _ in false },
+            boolFor: { $0 == DefaultsKey.verticalZoomEnabled },
+            stringFor: { _ in ScrollZoomModifier.control.rawValue }
+        )
+        suite.expect(!removedZoom.isEnabled && !removedZoom.zoom.isEnabled,
+                     "removing Zoom stops a zoom-only shared tap after relaunch")
 
         // Saved settings remain on through removal/reinstallation. Exercise all
         // installation and toggle combinations without changing the user's defaults.
