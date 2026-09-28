@@ -25,6 +25,9 @@ enum NotchAgentTests {
         reading(suite)
         AgentUsageReadTests.run(suite)
         claudeApp(suite)
+        hubs(suite)
+        hubRouting(suite)
+        hubClient(suite)
         preferences(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
@@ -52,6 +55,108 @@ enum NotchAgentTests {
         let body = toolResult ? #"[{"type":"tool_result","content":"ok"}]},"toolUseResult":{"stdout":"ok"}"#
             : "\"\(content)\"}"
         return line(#"{"type":"user","timestamp":"\#(time)","sessionId":"s1","cwd":"/Users/me/code/app","isMeta":\#(meta),"message":{"role":"user","content":\#(body)}"#)
+    }
+
+    // MARK: Hubs
+
+    private static func hubs(_ suite: TestSuite) {
+        suite.expect(AgentHub.normalizedURL(" hub.example.net:8310/management.html ") == "https://hub.example.net:8310"
+                        && AgentHub.normalizedURL("HTTP://100.64.0.2:8317/") == "http://100.64.0.2:8317",
+                     "a hub address keeps its scheme, host and port, and a missing scheme means https")
+        suite.expect(AgentHub.normalizedURL("") == nil && AgentHub.normalizedURL("ftp://hub") == nil
+                        && AgentHub.normalizedURL("https://me:secret@hub") == nil,
+                     "an address without a web scheme and host, or with a password in it, is refused")
+        let hub = AgentHub(url: "https://hub.example.net:8310", label: "", key: "k")
+        suite.expect(hub.name == "hub.example.net"
+                        && hub.management("auth-files")?.absoluteString == "https://hub.example.net:8310/v0/management/auth-files",
+                     "a hub without a label goes by its host, and its API sits at the root")
+
+        func body(_ json: String) -> Data { Data(json.utf8) }
+        suite.expect(AgentHubParser.state(status: 401, body: body(#"{"error":"invalid management key"}"#)) == .wrongKey
+                        && AgentHubParser.state(status: 403, body: body(#"{"error":"remote management disabled"}"#)) == .remoteDisabled
+                        && AgentHubParser.state(status: 403, body: body(#"{"error":"IP banned due to too many failed attempts. Try again in 29m"}"#)) == .blocked
+                        && AgentHubParser.state(status: 403, body: body(#"{"error":"remote management key not set"}"#)) == .managementOff
+                        && AgentHubParser.state(status: 404, body: Data()) == .managementOff
+                        && AgentHubParser.state(status: 500, body: Data()) == .failed(status: 500),
+                     "each refusal from the hub names its own fix")
+
+        let files = body("""
+        {"files":[
+          {"id":"claude-b@x.com.json","auth_index":"a2","name":"claude-b@x.com.json","provider":"claude","email":"b@x.com","disabled":false},
+          {"id":"codex.json","auth_index":"c1","name":"codex-team.json","type":"codex","disabled":false,
+           "id_token":{"chatgpt_account_id":"acct-1","chatgpt_plan_type":"pro"}},
+          {"id":"claude-a.json","auth_index":"a1","name":"claude-a.json","provider":"claude","email":"a@x.com"},
+          {"id":"off.json","auth_index":"a3","provider":"claude","email":"off@x.com","disabled":true},
+          {"id":"gemini.json","auth_index":"g1","provider":"gemini","email":"g@x.com"}
+        ]}
+        """)
+        let accounts = AgentHubParser.accounts(files, hub: hub) ?? []
+        suite.expect(accounts.map(\.index) == ["a1", "a2", "c1"],
+                     "the listing keeps enabled Claude and Codex accounts, Claude first, by name")
+        suite.expect(accounts.last?.name == "codex-team" && accounts.last?.chatGPTAccount == "acct-1"
+                        && accounts.first?.email == "a@x.com" && accounts.first?.hubName == "hub.example.net",
+                     "an account without an email goes by its file name, and a Codex one keeps its workspace")
+        suite.expect(AgentHubParser.accounts(body(#"{"error":"x"}"#), hub: hub) == nil,
+                     "a listing in another shape is not read as an empty pool")
+
+        let proxied = AgentHubParser.proxied(body(#"{"status_code":429,"header":{},"body":"{\"error\":\"slow down\"}"}"#))
+        suite.expect(proxied?.status == 429 && String(decoding: proxied?.body ?? Data(), as: UTF8.self) == #"{"error":"slow down"}"#,
+                     "a proxied call hands back the provider's own status and body")
+
+        let claude = AgentHubParser.claudeWindows(body("""
+        {"five_hour":{"utilization":37.5,"resets_at":"2026-09-26T23:00:00.000Z"},
+         "seven_day":{"utilization":120,"resets_at":"2026-10-01T08:00:00Z"},
+         "limits":[{"kind":"weekly_scoped","percent":12,"resets_at":"2026-10-01T08:00:00Z","scope":{"model":{"display_name":"Opus"}}},
+                   {"kind":"other","percent":90}]}
+        """)) ?? []
+        suite.expect(claude.map(\.kind) == [.session, .weekly, .weekly] && claude.map(\.usedPercent) == [37.5, 100, 12]
+                        && claude.last?.scope == "Opus",
+                     "a Claude reading gives the session, the week and each model's own week, capped at 100")
+        suite.expect(claude.first?.resetsAt == ISO8601DateFormatter().date(from: "2026-09-26T23:00:00Z")
+                        && claude[1].resetsAt != nil,
+                     "Claude reset times read with or without fractions of a second")
+
+        let observed = Date(timeIntervalSince1970: 1_790_000_000)
+        let codex = AgentHubParser.codexUsage(body("""
+        {"plan_type":"plus","rate_limit":{
+          "primary_window":{"used_percent":64,"limit_window_seconds":604800,"reset_at":1790300000},
+          "secondary_window":{"used_percent":8,"limit_window_seconds":18000,"reset_after_seconds":600}}}
+        """), observed: observed)
+        suite.expect(codex?.windows.map(\.kind) == [.session, .weekly] && codex?.windows.map(\.usedPercent) == [8, 64],
+                     "Codex windows are told apart by their length, not their slot")
+        suite.expect(codex?.windows.first?.resetsAt == observed.addingTimeInterval(600)
+                        && codex?.windows.last?.resetsAt == Date(timeIntervalSince1970: 1_790_300_000)
+                        && codex?.plan?.name.isEmpty == false,
+                     "a Codex reading places each renewal and names the plan")
+        suite.expect(AgentHubParser.codexUsage(body(#"{"rate_limit":null}"#), observed: observed) == nil
+                        && AgentHubParser.claudeWindows(body("{}")) == nil,
+                     "a reading without windows is a failed read, not an empty allowance")
+
+        var first = accounts[0]
+        first.limits = AgentLimits(provider: .claude, windows: claude, observedAt: observed, source: .hub)
+        let tiles = NotchAgentSupport.tiles(cards: [.limits, .spend], providers: [.claude], accounts: [first, accounts[2]])
+        suite.expect(tiles.map(\.id) == ["limits.claude", "limits.claude.\(first.id)", "limits.codex.\(accounts[2].id)", "spend"],
+                     "every hub account gets its own limits card after this Mac's agents")
+        suite.expect(Set(tiles.map(\.id)).count == tiles.count, "two accounts of one provider never share a card id")
+
+        let saved = Data(#"[{"url":"https://hub.example.net:8310","label":"","key":"k"}]"#.utf8)
+        let decoded = try? JSONDecoder().decode([AgentHub].self, from: saved)
+        suite.expect(decoded?.first?.names == [:] && decoded?.first?.key == "k",
+                     "a hub saved before accounts had names still loads")
+        var renamed = hub
+        renamed.names["a1"] = "Work"
+        suite.expect(renamed.sameConnection(as: hub) && renamed != hub
+                        && !AgentHub(url: hub.url, label: "", key: "other").sameConnection(as: hub),
+                     "renaming an account keeps the hub's connection, and a new key starts a new one")
+
+        let email = "someone.long@example.com"
+        let hidden = NotchAgentSupport.scrambled(email)
+        suite.expect(hidden == NotchAgentSupport.scrambled(email) && hidden.count == email.count && hidden != email,
+                     "a hidden name is the same stand-in every time, as long as the real one")
+        suite.expect(hidden.firstIndex(of: "@") == email.firstIndex(of: "@")
+                        && hidden.filter { $0 == "." }.count == 2
+                        && !hidden.contains("someone") && !hidden.contains("example"),
+                     "a hidden email keeps its shape and none of its words")
     }
 
     // MARK: Pricing
@@ -967,6 +1072,9 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
         suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "turning price updates off stops the download")
+        suite.expect(!NotchAgentSupport.hidesAccountNames(in: defaults), "hub account names show until the person hides them")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsHideAccountNames)
+        suite.expect(NotchAgentSupport.hidesAccountNames(in: defaults), "hiding account names is a saved choice")
         suite.expect(AppFeature.notchAgents.group == .dynamicIsland && AppFeature.notchAgents.permissions.isEmpty
                         && AppFeature.availabilityDefaults[AppFeature.notchAgents.availabilityKey] as? Bool == true,
                      "the AI page is a Dynamic Island extension that needs no system permission")
@@ -998,6 +1106,259 @@ enum NotchAgentTests {
         let strip = geometry.compactAgentGeometry(wing: 72)
         suite.expect(!strip.compactActivityUsesFooter && strip.compactActivityWingWidth == 72,
                      "a working agent stays beside the camera")
+    }
+
+    // MARK: Turns through a hub
+
+    private static func hubRouting(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 1_790_440_000)
+        let local = "http://127.0.0.1:8317", remote = "https://hub.example.net:8310"
+        let config = """
+        model_provider = "openai"
+        [model_providers.cliproxy]
+        base_url = "http://localhost:8317/v1"
+        [model_providers."remote"]
+        base_url = "https://hub.example.net:8310/v1"
+        [model_providers.elsewhere]
+        base_url = "https://api.example.com/v1"
+        [model_providers.stale]
+        base_url = "http://127.0.0.1:8000/v1"
+        [profiles.fast]
+        base_url = "http://127.0.0.1:8317/v1"
+        """
+        suite.expect(AgentHubRoutes.codex(config: config, hubs: [local, remote]) == ["cliproxy": local, "remote": remote]
+                        && AgentHubRoutes.codex(config: config, hubs: []).isEmpty,
+                     "each Codex model provider maps to the one hub its host and port reach")
+        suite.expect(AgentHubRoutes.claude(settings: Data(#"{"env":{"ANTHROPIC_BASE_URL":"http://localhost:8317"}}"#.utf8),
+                                           hubs: [remote, local]) == local
+                        && AgentHubRoutes.claude(settings: Data(#"{"env":{}}"#.utf8), hubs: [local]) == nil,
+                     "Claude Code reaches a hub only when its settings name the hub's address")
+        suite.expect(AgentLogParser.issuer(of: "msg_011C") == .claude && AgentLogParser.issuer(of: "resp_031f") == .codex
+                        && AgentLogParser.issuer(of: "chatcmpl-9x") == .codex && AgentLogParser.issuer(of: "") == nil,
+                     "a response id names the API that issued it")
+
+        let store = AgentUsageStore()
+        for (file, provider) in [("proxied", "cliproxy"), ("own", "openai")] {
+            var state = AgentLogState()
+            let meta = line(#"{"timestamp":"2026-09-26T14:22:36.244Z","type":"session_meta","payload":{"id":"\#(file)","cwd":"/a","model_provider":"\#(provider)"}}"#)
+            let started = line(#"{"timestamp":"2026-09-26T14:22:37.000Z","type":"event_msg","payload":{"type":"task_started","started_at":1790432557}}"#)
+            for data in [meta, started] {
+                store.apply(AgentLogParser.parseCodex(data, state: &state, now: now), file: file,
+                            provider: .codex, tracksTurns: true, modified: now)
+            }
+        }
+        suite.expect(Dictionary(uniqueKeysWithValues: store.live.map { ($0.id, $0.route) }) == ["proxied": "cliproxy", "own": ""],
+                     "a Codex turn keeps the model provider its session names")
+
+        // Hub A serves the ChatGPT models, and cs4.5 as a Claude alias. Hub B
+        // has one nearly spent ChatGPT account no session here can reach.
+        func window(_ id: String, used: Double) -> AgentLimitWindow {
+            AgentLimitWindow(id: id, kind: .weekly, minutes: 10_080, scope: nil, usedPercent: used,
+                             resetsAt: now.addingTimeInterval(86_400))
+        }
+        func account(_ index: String, _ provider: AgentProvider, hub: String = local, used: Double?,
+                     models: Set<String>) -> AgentHubAccount {
+            var result = AgentHubAccount(hub: hub, hubName: "hub", index: index, provider: provider,
+                                         name: "\(index)@x.com", email: "\(index)@x.com", chatGPTAccount: nil,
+                                         limits: used.map { AgentLimits(provider: provider, windows: [window(index, used: $0)],
+                                                                        observedAt: now, source: .hub) })
+            result.models = models
+            return result
+        }
+        let pool = [account("one", .codex, used: 40, models: ["gpt-6-astra", "gpt-5.6-sol"]),
+                    account("two", .codex, used: 90, models: ["gpt-6-astra", "gpt-5.6-sol"]),
+                    account("free", .codex, used: 99, models: ["gpt-5.6-sol"]),
+                    account("anthropic", .claude, used: 5, models: ["claude-opus-5-5", "cs4.5"]),
+                    account("other", .codex, hub: remote, used: 98, models: ["gpt-6-astra"])]
+        let hubs = AgentHubContext(codexRoutes: ["cliproxy": local, "remote": remote], claudeHub: nil, accounts: pool)
+        suite.expect(hubs.account(serving: "GPT-6-Astra", on: local, issuer: nil) == .codex
+                        && hubs.account(serving: "cs4.5", on: local, issuer: nil) == .claude
+                        && hubs.account(serving: "mystery", on: local, issuer: nil) == nil
+                        && hubs.account(serving: "mystery", on: local, issuer: .codex) == .codex,
+                     "a hub names the account kind from the models it lists, and an issuer settles what it does not")
+
+        func session(_ provider: AgentProvider, model: String, route: String = "",
+                     issuer: AgentProvider? = nil) -> AgentLiveSession {
+            AgentLiveSession(id: provider.rawValue + model, provider: provider, started: now.addingTimeInterval(-60),
+                             lastActivity: now, model: model, project: "", tokens: AgentTokens(), cost: 0,
+                             route: route, issuer: issuer)
+        }
+        func snapshot(_ live: [AgentLiveSession], context: AgentHubContext = hubs,
+                      pool: [AgentHubAccount] = pool) -> AgentUsageSnapshot {
+            var result = AgentUsageSummary.snapshot(
+                records: [], limits: [.codex: AgentLimits(provider: .codex, windows: [window("own", used: 10)], observedAt: now,
+                                                          source: .sessionLog),
+                                      .claude: AgentLimits(provider: .claude, windows: [window("own", used: 20)],
+                                                           observedAt: now, source: .claudeApp)],
+                live: live, plans: [:], providers: [.claude, .codex], now: now)
+            result.pool = pool
+            result.hubs = context
+            return result
+        }
+        let routed = snapshot([session(.codex, model: "gpt-6-astra", route: "cliproxy")])
+        suite.expect(NotchAgentSupport.liveLimit(routed, now: now)?.used == 0.9
+                        && NotchAgentSupport.stripReading(routed, readout: .limit, display: .remaining, now: now) == AgentFormat.percent(0.1),
+                     "a hub turn reads the account with the least left on its own hub, among those serving its model")
+        suite.expect(NotchAgentSupport.liveLimit(snapshot([session(.codex, model: "gpt-6-astra", route: "remote")]), now: now)?.used
+                        == 0.98,
+                     "a turn routed to another hub reads that hub's accounts")
+        suite.expect(NotchAgentSupport.liveLimit(snapshot([session(.codex, model: "gpt-6-astra")]), now: now)?.used == 0.1,
+                     "a turn on the agent's own sign-in reads its own plan")
+        let borrowed = snapshot([session(.claude, model: "gpt-5.6-sol", issuer: .codex)],
+                                context: AgentHubContext(codexRoutes: [:], claudeHub: local, accounts: pool))
+        suite.expect(NotchAgentSupport.liveLimit(borrowed, now: now)?.used == 0.99
+                        && NotchAgentSupport.liveLimit(borrowed, now: now)?.provider == .claude,
+                     "Claude Code sent to a hub by its settings reads that hub's accounts serving its model")
+        let claudeThroughHub = snapshot([session(.claude, model: "claude-opus-5-5", issuer: .claude)],
+                                        context: AgentHubContext(codexRoutes: [:], claudeHub: local, accounts: pool))
+        suite.expect(NotchAgentSupport.liveLimit(claudeThroughHub, now: now)?.used == 0.05,
+                     "a Claude model through the hub reads the hub's Claude account, not the local sign-in")
+        let unknownHub = snapshot([session(.claude, model: "gpt-5.6-sol", issuer: .codex)])
+        suite.expect(NotchAgentSupport.liveLimit(unknownHub, now: now) == nil
+                        && NotchAgentSupport.stripReading(unknownHub, readout: .limit, display: .used, now: now) == "1:00",
+                     "a proxied turn whose hub nothing names shows the time rather than any account's limit")
+        let unread = snapshot([session(.codex, model: "gpt-6-astra", route: "cliproxy")],
+                              pool: [account("three", .codex, used: nil, models: ["gpt-6-astra"])])
+        suite.expect(NotchAgentSupport.liveLimit(unread, now: now) == nil,
+                     "without a hub reading, a routed turn has no limit to show")
+
+        func record(_ provider: AgentProvider, model: String, route: String = "", issuer: AgentProvider? = nil,
+                    cost: Double) -> AgentUsageRecord {
+            AgentUsageRecord(provider: provider, date: now.addingTimeInterval(-600), model: model, project: "app", session: "s",
+                             tokens: AgentTokens(input: 100, cacheWrite: 0, cacheRead: 0, output: 10), cost: cost, savings: 0,
+                             route: route, issuer: issuer)
+        }
+        let records = [record(.claude, model: "claude-opus-5-5", issuer: .claude, cost: 5),
+                       record(.claude, model: "gpt-5.6-sol", issuer: .codex, cost: 2),
+                       record(.codex, model: "gpt-6-astra", cost: 3),
+                       record(.codex, model: "gpt-6-astra", route: "cliproxy", cost: 4),
+                       record(.codex, model: "cs4.5", route: "cliproxy", cost: 1),
+                       record(.codex, model: "mystery", route: "cliproxy", cost: 0.5),
+                       record(.codex, model: "llama", route: "ollama", cost: 0.25)]
+        let summary = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:], providers: [.claude, .codex],
+                                                 hubs: hubs, now: now)
+        let spent = summary.usage(.today)
+        suite.expect(spent.byProvider[.claude]?.cost == 6 && spent.byProvider[.codex]?.cost == 9
+                        && spent.unattributed.cost == 0.75 && spent.total.cost == 15.75,
+                     "hub use counts under the account the evidence names, and the rest stays unattributed, each once")
+        suite.expect(spent.own(.claude).cost == 5 && spent.own(.codex).cost == 3 && spent.own(.codex).requests == 1,
+                     "a plan's own spending leaves out every proxied turn")
+        suite.expect(summary.days.last?.byProvider[.codex]?.cost == 9 && summary.days.last?.unattributed.cost == 0.75
+                        && summary.days.last?.total.cost == 15.75
+                        && spent.models.first { $0.name == AgentPricing.displayName("cs4.5") }?.provider == .claude,
+                     "the trend and the models follow the same account as spending, aliases included")
+        let throughSettings = AgentUsageSummary.snapshot(
+            records: [record(.claude, model: "claude-opus-5-5", issuer: .claude, cost: 5)], limits: [:], live: [], plans: [:],
+            providers: [.claude], hubs: AgentHubContext(codexRoutes: [:], claudeHub: local, accounts: pool), now: now).usage(.today)
+        suite.expect(throughSettings.byProvider[.claude]?.cost == 5 && throughSettings.own(.claude).cost == 0,
+                     "Claude Code sent to a hub by its settings leaves the local plan multiple alone")
+        let noHub = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:], providers: [.claude, .codex],
+                                               now: now).usage(.today)
+        suite.expect(noHub.byProvider[.claude]?.cost == 7 && noHub.byProvider[.codex]?.cost == 8.75 && noHub.viaHub.isEmpty,
+                     "without a hub added, every response counts under the agent that made it")
+        suite.expect(NotchAgentSupport.readProviders(switched: [.claude], hasHubs: false) == [.claude]
+                        && NotchAgentSupport.readProviders(switched: [], hasHubs: true) == [.claude, .codex],
+                     "with a hub added, every agent's logs are read whatever its switch says")
+
+        let app = AgentLimits(provider: .claude, windows: [AgentLimitWindow(id: "claude.fh", kind: .session, minutes: 300,
+                                                                            scope: nil, usedPercent: 40, resetsAt: nil)],
+                              observedAt: now, source: .claudeApp)
+        let hubReading = AgentLimits(provider: .claude, windows: [AgentLimitWindow(id: "hub.claude.five_hour", kind: .session,
+                                                                                   minutes: 300, scope: nil, usedPercent: 85,
+                                                                                   resetsAt: nil)],
+                                     observedAt: now, source: .hub)
+        suite.expect(AgentLimitSupport.crossings(previous: AgentLimitSupport.canonical(app),
+                                                 current: AgentLimitSupport.canonical(hubReading), threshold: 80).count == 1,
+                     "a Claude app reading and a hub reading of the same account compare window by window")
+    }
+
+    // MARK: Hub client
+
+    /// Records every management request a reading makes and answers it from
+    /// a script. The tests need no network.
+    private final class ScriptedHub: @unchecked Sendable {
+        private let lock = NSLock()
+        private var log: [String] = []
+        let answer: @Sendable (String, URLRequest) -> AgentHubClient.Outcome
+
+        init(answer: @escaping @Sendable (String, URLRequest) -> AgentHubClient.Outcome) { self.answer = answer }
+
+        var requests: [String] { lock.withLock { log } }
+
+        /// "list", "models" or "call:<auth index>".
+        func send(_ request: URLRequest, key: String) -> AgentHubClient.Outcome {
+            let path = request.url?.path ?? ""
+            var name = "list"
+            if path.hasSuffix("/auth-files/models") {
+                name = "models"
+            } else if path.hasSuffix("/api-call") {
+                let call = (try? JSONSerialization.jsonObject(with: request.httpBody ?? Data())) as? [String: Any]
+                name = "call:" + (call?["auth_index"] as? String ?? "")
+            }
+            lock.withLock { log.append(name) }
+            return answer(name, request)
+        }
+    }
+
+    private static func hubClient(_ suite: TestSuite) {
+        let hub = AgentHub(url: "https://hub.example.net:8310", label: "", key: "k")
+        let files = (0..<6).map { #"{"provider":"codex","auth_index":"i\#($0)","name":"f\#($0).json","email":"a\#($0)@x.com"}"# }
+        let listing = Data(#"{"files":[\#(files.joined(separator: ","))]}"#.utf8)
+        let usage = #"{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":5,"limit_window_seconds":18000}}}"#
+        func ok(_ body: String) -> AgentHubClient.Outcome { .success(AgentHubClient.Response(status: 200, body: Data(body.utf8))) }
+        func proxied(_ status: Int, _ body: String) -> AgentHubClient.Outcome {
+            let escaped = body.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+            return ok(#"{"status_code":\#(status),"body":"\#(escaped)"}"#)
+        }
+        func read(_ scripted: ScriptedHub, cancelFirst: Bool = false) -> AgentHubClient.Reading? {
+            let done = DispatchSemaphore(value: 0)
+            let box = ReadingBox()
+            Task.detached {
+                if cancelFirst { withUnsafeCurrentTask { $0?.cancel() } }
+                box.value = await AgentHubClient.read(hub) { scripted.send($0, key: $1) }
+                done.signal()
+            }
+            return done.wait(timeout: .now() + 5) == .success ? box.value : nil
+        }
+
+        let healthy = ScriptedHub { name, _ in
+            switch name {
+            case "list": return .success(AgentHubClient.Response(status: 200, body: listing))
+            case "models": return ok(#"{"models":[{"id":"GPT-6-Astra"}]}"#)
+            case "call:i2": return proxied(401, #"{"error":"token expired"}"#)
+            default: return proxied(200, usage)
+            }
+        }
+        let fine = read(healthy)
+        suite.expect(fine?.state == .ready(accounts: 6) && fine?.accounts?.filter(\.failed).map(\.index) == ["i2"]
+                        && fine?.accounts?.first?.models == ["gpt-6-astra"],
+                     "an upstream 401 inside a proxied answer fails only that account, and each account lists its models")
+
+        let revoked = ScriptedHub { name, _ in
+            switch name {
+            case "list": return .success(AgentHubClient.Response(status: 200, body: listing))
+            case "call:i1": return .success(AgentHubClient.Response(status: 401, body: Data(#"{"error":"invalid key"}"#.utf8)))
+            case "models": return ok(#"{"models":[]}"#)
+            default: return proxied(200, usage)
+            }
+        }
+        let refused = read(revoked)
+        let calls = revoked.requests.filter { $0.hasPrefix("call:") }
+        suite.expect(refused?.state == .wrongKey && refused?.accounts == nil,
+                     "a management 401 while reading accounts fails the hub, not one account")
+        suite.expect(!calls.contains("call:i4") && !calls.contains("call:i5"),
+                     "after the hub refuses its key, no later batch sends it again")
+
+        let cancelled = ScriptedHub { name, _ in
+            name == "list" ? .success(AgentHubClient.Response(status: 200, body: listing)) : proxied(200, usage)
+        }
+        let stopped = read(cancelled, cancelFirst: true)
+        suite.expect(stopped?.accounts == nil && cancelled.requests.allSatisfy { $0 == "list" },
+                     "a cancelled reading starts no account request")
+    }
+
+    private final class ReadingBox: @unchecked Sendable {
+        var value: AgentHubClient.Reading?
     }
 
     private static func formatting(_ suite: TestSuite) {

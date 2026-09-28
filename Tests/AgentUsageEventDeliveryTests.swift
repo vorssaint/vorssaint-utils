@@ -25,6 +25,7 @@ enum AgentUsageEventDeliveryTests {
         var session = 1
         var readerSession = 1
         var providers: [AgentProvider] = [.claude, .codex]
+        var shownProviders: [AgentProvider] = [.claude, .codex]
         let events = Events()
     }
 
@@ -48,8 +49,8 @@ enum AgentUsageEventDeliveryTests {
                                                   tokens: 30, project: "example")
         let window = AgentLimitWindow(id: "test", kind: .session, minutes: 300, scope: nil,
                                       usedPercent: 90, resetsAt: nil)
-        let events: [AgentUsageEvent] = [finished, .limitWarning(provider: .claude, window: window),
-                                       .limitReset(provider: .claude, window: window),
+        let events: [AgentUsageEvent] = [finished, .limitWarning(provider: .claude, window: window, account: nil),
+                                       .limitReset(provider: .claude, window: window, account: nil),
                                        .budgetReached(spent: 2, budget: 1)]
         for event in events { host.report(event) }
         // Stop/restart can finish on main before any queued event is delivered.
@@ -73,12 +74,24 @@ enum AgentUsageEventDeliveryTests {
         host.running = true
 
         host.providers = [.codex]
+        host.shownProviders = [.codex]
         host.report(finished)
         host.report(events[1])
         host.report(events[2])
         drain()
         suite.expect(host.events.values.isEmpty, "delivery still respects disabled providers")
+        // With a hub added, the service still reads an agent switched off. Its
+        // turns finish as usual, but its own plan no longer warns. Hub accounts do.
         host.providers = [.claude, .codex]
+        let hubWarning = AgentUsageEvent.limitWarning(provider: .claude, window: window, account: "hub#1")
+        host.report(finished)
+        host.report(events[1])
+        host.report(hubWarning)
+        drain()
+        suite.expect(host.events.values == [finished, hubWarning],
+                     "a switched-off agent read for a hub still finishes, and only hub accounts warn")
+        host.events.values.removeAll()
+        host.shownProviders = [.claude, .codex]
         NotchAgentSupport.minimum = 30
         host.report(finished)
         NotchAgentSupport.threshold = nil

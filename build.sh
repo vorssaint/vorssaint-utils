@@ -281,6 +281,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentHub.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentHubClient.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift

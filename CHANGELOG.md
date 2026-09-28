@@ -30,6 +30,11 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Dynamic Island's screen capture controls place their title and buttons in the top row, beside the camera when they fit, and keep them away from the island's edges, so less of the screen is covered.
 - Escape in Dynamic Island steps back one level, closing the mixer options, month grid, lyrics or queue, or leaving a detail opened inside the island, before it closes the island.
 
+### Changed
+- A Plan limit reading beside the camera turns orange and then red as the allowance runs low, and the Settings preview shows how it looks at the warning share.
+- With a CLIProxyAPI hub added, Spending, Now, Trend, Models, Projects and Activity count every installed agent, even one switched off. The switches then only choose which of this Mac's sign-ins get a limits card.
+- Spending, Trend and Models count a turn through a hub under the kind of account that served it, whichever agent asked. The hub's own list of models for each account decides that, along with the API that issued a Claude Code response, never the model's name. Use the evidence cannot place shows as Unknown account. The plan multiple counts only spending on the plan itself, and every response is counted once.
+
 ### Fixed
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
 - Dynamic Island keeps the current song on screen while a player loads the next one, instead of briefly showing an empty music page and changing size. With the New track indicator on, the compact island keeps the previous song until the indicator shows the next one.
@@ -48,6 +53,9 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
+- A turn that goes through a CLIProxyAPI hub no longer shows the agent's own plan limit beside the camera. The reading now shows the account with the least left among the accounts the working turns can use: those on the hub each turn reaches, serving its model.
+- Removing a hub, replacing its key or turning the AI section off cancels a hub reading still under way, and a key revoked while accounts are being read stops every further request instead of counting toward the hub's ban.
+- The Claude card shared with a hub account raises limit warnings from the same latest reading it shows.
 
 ### Contributors
 Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @cedigang, @daniel-dosiper, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain.

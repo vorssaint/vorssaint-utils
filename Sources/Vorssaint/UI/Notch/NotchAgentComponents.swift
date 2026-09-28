@@ -14,6 +14,9 @@ extension AgentProvider {
     }
 }
 
+/// Use whose account the evidence cannot name, apart from either agent.
+let agentUnknownTint = Color.white.opacity(0.45)
+
 /// Green reads as fine and red as trouble only when it earns it: the agent's
 /// own color while there is room, orange once a window runs low.
 func agentLimitTint(_ provider: AgentProvider, usedFraction: Double) -> Color {
@@ -41,7 +44,10 @@ struct NotchAgentCardHeader<Accessory: View>: View {
     var tint: Color = .secondary
     /// A card about one agent wears its mark instead of the symbol.
     var provider: AgentProvider? = nil
+    /// Scrambles and blurs the title until the pointer rests on it.
+    var hidesTitle = false
     @ViewBuilder var accessory: Accessory
+    @State private var revealed = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -55,10 +61,16 @@ struct NotchAgentCardHeader<Accessory: View>: View {
                     .foregroundStyle(tint)
                     .frame(width: 13)
             }
-            Text(title)
+            let hidden = hidesTitle && !revealed
+            Text(hidden ? NotchAgentSupport.scrambled(title) : title)
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(1)
+                // A hub account's title is an email, and both ends tell accounts apart.
+                .truncationMode(.middle)
+                .blur(radius: hidden ? 3.5 : 0)
+                .onHover { inside in if hidesTitle { revealed = inside } }
+                .animation(.easeOut(duration: 0.15), value: revealed)
             Spacer(minLength: 4)
             accessory
         }
@@ -206,7 +218,12 @@ struct NotchAgentBars: View {
     @Binding var hovered: Date?
 
     var body: some View {
-        let values = buckets.map { bucket in providers.map { bucket.byProvider[$0]?.weight(byCost: byCost) ?? 0 } }
+        // The last slot holds use whose account nobody can name, so a bar
+        // stands as tall as its whole total.
+        let tints = providers.map(\.tint) + [agentUnknownTint]
+        let values = buckets.map { bucket in
+            providers.map { bucket.byProvider[$0]?.weight(byCost: byCost) ?? 0 } + [bucket.unattributed.weight(byCost: byCost)]
+        }
         let peak = max(values.map { $0.reduce(0, +) }.max() ?? 0, .leastNonzeroMagnitude)
         GeometryReader { proxy in
             let count = CGFloat(max(1, buckets.count))
@@ -222,10 +239,10 @@ struct NotchAgentBars: View {
                             Capsule().fill(.white.opacity(0.1)).frame(height: 2)
                         } else {
                             VStack(spacing: 0) {
-                                ForEach(providers.indices.reversed(), id: \.self) { slot in
+                                ForEach(tints.indices.reversed(), id: \.self) { slot in
                                     if parts[slot] > 0 {
                                         Rectangle()
-                                            .fill(providers[slot].tint.opacity(hovered == nil || hovered == bucket.start ? 0.95 : 0.5))
+                                            .fill(tints[slot].opacity(hovered == nil || hovered == bucket.start ? 0.95 : 0.5))
                                             .frame(height: max(1, proxy.size.height * parts[slot] / peak))
                                     }
                                 }

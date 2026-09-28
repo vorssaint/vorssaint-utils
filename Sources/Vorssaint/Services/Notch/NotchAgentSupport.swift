@@ -46,7 +46,9 @@ struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
     let provider: AgentProvider?
-    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") }
+    /// A hub account's id. Nil for the account signed in on this Mac.
+    var account: String?
+    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (account.map { "." + $0 } ?? "") }
 }
 
 enum NotchAgentSupport {
@@ -68,6 +70,14 @@ enum NotchAgentSupport {
         AgentProvider.allCases.filter {
             defaults.object(forKey: key(for: $0)) as? Bool ?? true
         }
+    }
+
+    /// The agents whose logs the service reads. With a hub added, it reads
+    /// every agent, since its turns may go through the hub, and spending and
+    /// activity count them whatever the switches say. The switches then only choose which of
+    /// this Mac's sign-ins get a limits tile.
+    static func readProviders(switched: [AgentProvider], hasHubs: Bool) -> [AgentProvider] {
+        hasHubs ? AgentProvider.allCases : switched
     }
 
     static func key(for provider: AgentProvider) -> String {
@@ -127,6 +137,26 @@ enum NotchAgentSupport {
         return value.isFinite && value > 0 ? value : nil
     }
 
+    /// Whether hub account names stay scrambled and blurred on the island.
+    static func hidesAccountNames(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchAgentsHideAccountNames)
+    }
+
+    /// A stand-in as long as `name`, the same every time for the same name,
+    /// that keeps the marks that give an email its shape. Blurred, it reads
+    /// as an address without giving one away.
+    static func scrambled(_ name: String) -> String {
+        let alphabet = Array("abcdefghjkmnpqrstuvwxyz23456789")
+        var state: UInt32 = 0x811c9dc5
+        for byte in name.utf8 { state = (state ^ UInt32(byte)) &* 0x01000193 }
+        return String(name.map { character -> Character in
+            if "@.-_".contains(character) { return character }
+            state = (state ^ (state >> 13)) &* 0x85ebca6b
+            state = (state ^ (state >> 16)) &* 0xc2b2ae35
+            return alphabet[Int(state % UInt32(alphabet.count))]
+        })
+    }
+
     /// Whether the public price list may be downloaded once a day.
     static func updatesPrices(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchAgentsPriceUpdates) as? Bool ?? true
@@ -158,10 +188,45 @@ enum NotchAgentSupport {
         case .cost:
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
-            guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = AgentLimitSupport.binding(snapshot.limits[provider], now: now) else { return elapsed() }
-            return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
+            guard let limit = liveLimit(snapshot, now: now) else { return elapsed() }
+            return AgentFormat.percent(display == .used ? limit.used : 1 - limit.used)
         }
+    }
+
+    /// Whose account a working turn draws on, by the same evidence as its
+    /// responses.
+    static func account(of session: AgentLiveSession, hubs: AgentHubContext?) -> AgentAccount {
+        AgentUsageSummary.account(provider: session.provider, model: session.model, route: session.route,
+                                  issuer: session.issuer, hubs: hubs)
+    }
+
+    /// The share used of the tightest allowance any working turn draws on,
+    /// with the agent running that turn. A turn on the agent's own sign-in
+    /// draws on that plan. A turn through a hub draws on that hub's accounts
+    /// of the kind serving it, and only those serving its model, and the one
+    /// with the least left binds first. A turn whose hub or account the
+    /// evidence cannot name counts toward none. Nil while no candidate has a
+    /// reading.
+    static func liveLimit(_ snapshot: AgentUsageSnapshot, now: Date) -> (provider: AgentProvider, used: Double)? {
+        var tightest: (provider: AgentProvider, used: Double)?
+        for session in snapshot.live {
+            let windows: [AgentLimitWindow]
+            switch account(of: session, hubs: snapshot.hubs) {
+            case .own(let provider):
+                windows = AgentLimitSupport.binding(snapshot.limits[provider], now: now).map { [$0] } ?? []
+            case .proxy(let hub?, let kind?):
+                let model = session.model.lowercased()
+                windows = snapshot.pool
+                    .filter { $0.hub == hub && $0.provider == kind && ($0.models.isEmpty || $0.models.contains(model)) }
+                    .compactMap { AgentLimitSupport.binding($0.limits, now: now) }
+            case .proxy:
+                windows = []
+            }
+            for window in windows where window.usedFraction > tightest?.used ?? -1 {
+                tightest = (session.provider, window.usedFraction)
+            }
+        }
+        return tightest
     }
 
     /// Every digit takes the same width, so a reading's shape, not its value,
@@ -178,9 +243,13 @@ enum NotchAgentSupport {
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
-    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider]) -> [NotchAgentTile] {
+    /// The limits card becomes one tile per account. This Mac's agents come
+    /// first, then every hub account.
+    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
+                      accounts: [AgentHubAccount] = []) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             card == .limits ? providers.map { NotchAgentTile(card: .limits, provider: $0) }
+                + accounts.map { NotchAgentTile(card: .limits, provider: $0.provider, account: $0.id) }
                 : [NotchAgentTile(card: card, provider: nil)]
         }
     }

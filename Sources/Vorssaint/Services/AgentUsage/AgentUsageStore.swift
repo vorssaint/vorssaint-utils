@@ -20,6 +20,8 @@ final class AgentUsageStore {
     /// Turns gone quiet, by log file: not shown as working, but work that
     /// resumes after an approval or a long command goes on with them.
     private(set) var waiting: [String: AgentLiveSession] = [:]
+    /// The model provider each Codex log names, by file.
+    private var routes: [String: String] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -35,10 +37,13 @@ final class AgentUsageStore {
 
     var live: [AgentLiveSession] { Array(turns.values) }
 
-    func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
+    /// `limitProviders` keeps the limits of only those agents, when the page
+    /// shows some agents' use but not their own sign-in.
+    func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>,
+                  limitProviders: Set<AgentProvider>? = nil, hubs: AgentHubContext? = nil, now: Date,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
-        summary.snapshot(records: records, limits: limits, live: live, plans: plans,
-                         providers: providers, now: now, calendar: calendar)
+        summary.snapshot(records: records, limits: limitProviders.map { kept in limits.filter { kept.contains($0.key) } } ?? limits,
+                         live: live, plans: plans, providers: providers, hubs: hubs, now: now, calendar: calendar)
     }
 
     /// Applies one file's entries and returns the turns they finished.
@@ -55,6 +60,9 @@ final class AgentUsageStore {
                 if (limits[reading.provider]?.observedAt ?? .distantPast) <= reading.observedAt {
                     limits[reading.provider] = reading
                 }
+            case .route(let route):
+                routes[file] = route
+                if turns[file] != nil { turns[file]?.route = route }
             case .plan(let plan, let date):
                 // An archived session read again from its start holds an
                 // older plan than the one in use.
@@ -70,7 +78,8 @@ final class AgentUsageStore {
                 waiting[file] = nil
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
-                                               model: "", project: "", tokens: AgentTokens(), cost: 0)
+                                               model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                               route: routes[file] ?? "")
             case .turnActive(let date):
                 guard tracksTurns else { continue }
                 let moment = date ?? modified
@@ -79,7 +88,8 @@ final class AgentUsageStore {
                     turns[file] = turn
                 } else {
                     turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
-                                                   model: "", project: "", tokens: AgentTokens(), cost: 0)
+                                                   model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                                   route: routes[file] ?? "")
                 }
             case .turnEnded(let date, let completed, let duration):
                 guard tracksTurns else { continue }
@@ -101,6 +111,7 @@ final class AgentUsageStore {
     @discardableResult
     func forget(file: String) -> Bool {
         waiting[file] = nil
+        routes[file] = nil
         return turns.removeValue(forKey: file) != nil
     }
 
@@ -145,6 +156,7 @@ final class AgentUsageStore {
         turn.cost += extra
         turn.lastActivity = max(turn.lastActivity, record.date)
         if !subagent {
+            if record.issuer != nil { turn.issuer = record.issuer }
             if !record.model.isEmpty { turn.model = record.model }
             if !record.project.isEmpty { turn.project = record.project }
         }

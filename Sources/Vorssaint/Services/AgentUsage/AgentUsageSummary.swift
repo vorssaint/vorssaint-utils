@@ -52,24 +52,122 @@ struct AgentShare: Equatable, Identifiable {
     var totals: AgentTotals
 }
 
+/// Whose account paid for a response or a turn.
+enum AgentAccount: Equatable {
+    /// The agent's own sign-in on this Mac.
+    case own(AgentProvider)
+    /// Some other service stood between. `hub` is the added hub it went
+    /// through, and `account` the kind of account that served it, each nil
+    /// while the evidence cannot say.
+    case proxy(hub: String?, account: AgentProvider?)
+
+    /// The provider whose totals take the response. Nil for an account the
+    /// evidence cannot name.
+    var paidBy: AgentProvider? {
+        switch self {
+        case .own(let provider): return provider
+        case .proxy(_, let account): return account
+        }
+    }
+
+    var isProxy: Bool {
+        if case .proxy = self { return true }
+        return false
+    }
+}
+
+/// What ties a turn to a hub and to one of its accounts.
+struct AgentHubContext: Equatable {
+    /// Codex model providers, each with the hub its address reaches.
+    var codexRoutes: [String: String] = [:]
+    /// The hub Claude Code's settings send it to.
+    var claudeHub: String?
+    /// The kinds of account each hub serves a model with, by hub and by
+    /// lowercased model id.
+    var served: [String: [String: Set<AgentProvider>]] = [:]
+
+    init(codexRoutes: [String: String] = [:], claudeHub: String? = nil,
+         served: [String: [String: Set<AgentProvider>]] = [:]) {
+        self.codexRoutes = codexRoutes
+        self.claudeHub = claudeHub
+        self.served = served
+    }
+
+    /// Builds the served models from each hub's account listing.
+    init(codexRoutes: [String: String], claudeHub: String?, accounts: [AgentHubAccount]) {
+        var served: [String: [String: Set<AgentProvider>]] = [:]
+        for account in accounts {
+            for model in account.models { served[account.hub, default: [:]][model, default: []].insert(account.provider) }
+        }
+        self.init(codexRoutes: codexRoutes, claudeHub: claudeHub, served: served)
+    }
+
+    /// The one kind of account `hub` serves `model` with. When the hub lists
+    /// several or none, a response's issuer can still settle it, as long as
+    /// the hub does not rule that kind out.
+    func account(serving model: String, on hub: String, issuer: AgentProvider?) -> AgentProvider? {
+        let kinds = served[hub]?[model.lowercased()] ?? []
+        if kinds.count == 1 { return kinds.first }
+        guard let issuer, kinds.isEmpty || kinds.contains(issuer) else { return nil }
+        return issuer
+    }
+}
+
 struct AgentPeriodUsage: Equatable {
     var total = AgentTotals()
+    /// Use by whose account paid for it. A response through a hub counts
+    /// under the kind of account that served it, whichever agent asked.
     var byProvider: [AgentProvider: AgentTotals] = [:]
+    /// The part of `byProvider` that went through a proxy rather than the
+    /// agent's own sign-in. Every response has one log, so nothing here
+    /// counts twice.
+    var viaHub: [AgentProvider: AgentTotals] = [:]
+    /// Use through a proxy whose account the logs and the hub cannot name.
+    /// It is inside `total` but under neither provider.
+    var unattributed = AgentTotals()
     var models: [AgentShare] = []
     var projects: [AgentShare] = []
 
     /// Whether every response in the period could be priced.
     var fullyPriced: Bool { total.unpriced == 0 }
+
+    mutating func add(_ delta: AgentTotals, paidBy account: AgentAccount) {
+        total += delta
+        guard let provider = account.paidBy else { unattributed += delta; return }
+        byProvider[provider, default: AgentTotals()] += delta
+        if account.isProxy { viaHub[provider, default: AgentTotals()] += delta }
+    }
+
+    /// What an agent spent on its own sign-in, the use its plan pays for.
+    func own(_ provider: AgentProvider) -> AgentTotals {
+        var own = byProvider[provider] ?? AgentTotals()
+        guard let hub = viaHub[provider] else { return own }
+        own.tokens = AgentTokens(input: own.tokens.input - hub.tokens.input,
+                                 cacheWrite: own.tokens.cacheWrite - hub.tokens.cacheWrite,
+                                 cacheRead: own.tokens.cacheRead - hub.tokens.cacheRead,
+                                 output: own.tokens.output - hub.tokens.output,
+                                 reasoning: own.tokens.reasoning - hub.tokens.reasoning)
+        own.cost -= hub.cost
+        own.savings -= hub.savings
+        own.requests -= hub.requests
+        own.unpriced -= hub.unpriced
+        return own
+    }
 }
 
 /// A day or an hour of use.
 struct AgentBucket: Equatable, Identifiable {
     let start: Date
     var byProvider: [AgentProvider: AgentTotals] = [:]
+    var unattributed = AgentTotals()
     var id: Date { start }
 
     var total: AgentTotals {
-        byProvider.values.reduce(into: AgentTotals()) { $0 += $1 }
+        byProvider.values.reduce(into: unattributed) { $0 += $1 }
+    }
+
+    mutating func add(_ delta: AgentTotals, paidBy provider: AgentProvider?) {
+        if let provider { byProvider[provider, default: AgentTotals()] += delta } else { unattributed += delta }
     }
 }
 
@@ -100,6 +198,14 @@ struct AgentUsageSnapshot: Equatable {
     var lastActivity: [AgentProvider: Date] = [:]
     /// Providers with anything on disk: usage, limits or a turn.
     var seen: Set<AgentProvider> = []
+    /// Accounts pooled by the CLIProxyAPI hubs the person added, apart from
+    /// the one signed in on this Mac, which keeps its own tile.
+    var accounts: [AgentHubAccount] = []
+    /// Every hub account, including one folded into this Mac's Claude tile.
+    var pool: [AgentHubAccount] = []
+    /// What ties a turn to a hub and to one of its accounts. Nil until the
+    /// person adds a hub.
+    var hubs: AgentHubContext?
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
@@ -112,9 +218,39 @@ enum AgentUsageSummary {
     static let blockHistory: TimeInterval = 24 * 3600
     static let burnWindow: TimeInterval = 30 * 60
 
+    /// Whose account paid for a response, from evidence alone.
+    ///
+    /// The connection comes from configuration. A Codex session names its
+    /// model provider, and Codex's config says which hub that reaches.
+    /// Claude Code logs no address, so only a base URL in its settings ties
+    /// it to a hub. The account comes from the hub, which lists the models
+    /// each account serves, or from the id of a Claude Code response, which
+    /// the upstream API issued. A model's name decides nothing, because a hub
+    /// can serve aliases and providers of its own. Whatever the evidence
+    /// cannot settle stays unknown.
+    static func account(provider: AgentProvider, model: String, route: String, issuer: AgentProvider?,
+                        hubs: AgentHubContext?) -> AgentAccount {
+        guard let hubs else { return .own(provider) }
+        switch provider {
+        case .codex:
+            guard !route.isEmpty else { return .own(.codex) }
+            // A model provider that reaches no added hub is some other service.
+            guard let hub = hubs.codexRoutes[route] else { return .proxy(hub: nil, account: nil) }
+            return .proxy(hub: hub, account: hubs.account(serving: model, on: hub, issuer: nil))
+        case .claude:
+            if let hub = hubs.claudeHub {
+                return .proxy(hub: hub, account: hubs.account(serving: model, on: hub, issuer: issuer))
+            }
+            // Anthropic issued the response, and no setting sends Claude Code
+            // anywhere else, so this is the sign-in on this Mac.
+            if issuer == .claude { return .own(.claude) }
+            return .proxy(hub: nil, account: issuer)
+        }
+    }
+
     static func snapshot(records: [AgentUsageRecord], limits: [AgentProvider: AgentLimits],
                          live: [AgentLiveSession], plans: [AgentProvider: AgentPlan],
-                         providers: Set<AgentProvider>, now: Date,
+                         providers: Set<AgentProvider>, hubs: AgentHubContext? = nil, now: Date,
                          calendar: Calendar = .autoupdatingCurrent) -> AgentUsageSnapshot {
         var snapshot = AgentUsageSnapshot(loaded: true, now: now)
         snapshot.limits = limits.filter { providers.contains($0.key) }
@@ -149,9 +285,13 @@ enum AgentUsageSummary {
             }
             guard let first = starts.first, record.date >= first, record.date < tomorrow,
                   let day = index(of: record.date, in: starts) else { continue }
-            days[day].byProvider[record.provider, default: AgentTotals()].add(record)
+            let paid = account(provider: record.provider, model: record.model, route: record.route,
+                               issuer: record.issuer, hubs: hubs)
+            var delta = AgentTotals()
+            delta.add(record)
+            days[day].add(delta, paidBy: paid.paidBy)
             if day == lastDay, let hour = index(of: record.date, in: hourStarts) {
-                hours[hour].byProvider[record.provider, default: AgentTotals()].add(record)
+                hours[hour].add(delta, paidBy: paid.paidBy)
             }
             // One name per model string, not per response: the history can
             // hold tens of thousands of them.
@@ -162,12 +302,11 @@ enum AgentUsageSummary {
                 name = AgentPricing.displayName(record.model)
                 names[record.model] = name
             }
-            let modelID = record.provider.rawValue + ":" + name
+            let modelID = (paid.paidBy?.rawValue ?? "?") + ":" + name
             for period in AgentPeriod.allCases where day > lastDay - period.days {
-                periods[period, default: AgentPeriodUsage()].total.add(record)
-                periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
+                periods[period, default: AgentPeriodUsage()].add(delta, paidBy: paid)
                 models[period, default: [:]][modelID, default: AgentShare(
-                    id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
+                    id: modelID, name: name.isEmpty ? "?" : name, provider: paid.paidBy, totals: AgentTotals())]
                     .totals.add(record)
                 if !record.project.isEmpty {
                     projects[period, default: [:]][record.project, default: AgentShare(
@@ -211,9 +350,12 @@ enum AgentUsageSummary {
     }
 
     static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {
+        // A hub can put one model under both accounts, so equal weight and
+        // name still need the account to give one order every time.
         shares.sorted {
             let left = $0.totals.weight(byCost: byCost), right = $1.totals.weight(byCost: byCost)
-            return left != right ? left > right : $0.name < $1.name
+            if left != right { return left > right }
+            return $0.name != $1.name ? $0.name < $1.name : $0.id < $1.id
         }
     }
 
@@ -258,6 +400,8 @@ final class AgentUsageSummaryCache {
     private var history: AgentUsageSnapshot?
     private var calendar: Calendar?
     private var providers: Set<AgentProvider> = []
+    /// What ties responses to hubs and accounts. Nil until the person adds a hub.
+    private var hubs: AgentHubContext?
     private var models: [AgentPeriod: [String: AgentShare]] = [:]
     private var projects: [AgentPeriod: [String: AgentShare]] = [:]
     private var names: [String: String] = [:]
@@ -286,14 +430,17 @@ final class AgentUsageSummaryCache {
 
     func snapshot(records: [AgentUsageRecord], limits: [AgentProvider: AgentLimits],
                   live: [AgentLiveSession], plans: [AgentProvider: AgentPlan],
-                  providers: Set<AgentProvider>, now: Date,
+                  providers: Set<AgentProvider>, hubs: AgentHubContext? = nil, now: Date,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
         accumulatedRecords = 0
+        // A hub added or removed, or a hub serving other models, moves past
+        // responses between accounts, so the totals start over.
         let rebuild = history == nil || self.calendar != calendar || self.providers != providers
-            || now < lastTime || !calendar.isDate(lastTime, inSameDayAs: now)
+            || self.hubs != hubs || now < lastTime || !calendar.isDate(lastTime, inSameDayAs: now)
         if rebuild {
             self.calendar = calendar
             self.providers = providers
+            self.hubs = hubs
             models.removeAll(keepingCapacity: true)
             projects.removeAll(keepingCapacity: true)
             names.removeAll(keepingCapacity: true)
@@ -378,18 +525,21 @@ final class AgentUsageSummaryCache {
             delta.requests -= 1
             delta.unpriced -= previous.cost == nil ? 1 : 0
         }
-        history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
+        // The same response keeps its model and route when it streams again,
+        // so its earlier reading sat under the same account.
+        let paid = AgentUsageSummary.account(provider: record.provider, model: record.model, route: record.route,
+                                             issuer: record.issuer, hubs: hubs)
+        history!.days[day].add(delta, paidBy: paid.paidBy)
         if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
-            history!.hours[hour].byProvider[record.provider, default: AgentTotals()] += delta
+            history!.hours[hour].add(delta, paidBy: paid.paidBy)
         }
         let name = names[record.model] ?? AgentPricing.displayName(record.model)
         names[record.model] = name
-        let modelID = record.provider.rawValue + ":" + name
+        let modelID = (paid.paidBy?.rawValue ?? "?") + ":" + name
         for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
-            history!.periods[period]!.total += delta
-            history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta
+            history!.periods[period]!.add(delta, paidBy: paid)
             models[period, default: [:]][modelID, default: AgentShare(
-                id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())].totals += delta
+                id: modelID, name: name.isEmpty ? "?" : name, provider: paid.paidBy, totals: AgentTotals())].totals += delta
             if !record.project.isEmpty {
                 projects[period, default: [:]][record.project, default: AgentShare(
                     id: record.project, name: record.project, provider: nil, totals: AgentTotals())].totals += delta
@@ -427,6 +577,20 @@ enum AgentLimitSupport {
             $0.usedPercent != $1.usedPercent ? $0.usedPercent < $1.usedPercent
                 : ($0.resetsAt ?? .distantPast) < ($1.resetsAt ?? .distantPast)
         }
+    }
+
+    /// The same reading with each window named by what it covers, meaning
+    /// its kind, length and model. Readings of one account from different
+    /// sources then compare window by window.
+    static func canonical(_ limits: AgentLimits) -> AgentLimits {
+        var result = limits
+        result.windows = limits.windows.map { window in
+            AgentLimitWindow(id: "\(limits.provider.rawValue).\(window.kind.rawValue).\(window.minutes ?? 0)."
+                                + (window.scope?.lowercased() ?? ""),
+                             kind: window.kind, minutes: window.minutes, scope: window.scope,
+                             usedPercent: window.usedPercent, resetsAt: window.resetsAt)
+        }
+        return result
     }
 
     /// Windows that reached `threshold` percent between two readings of the

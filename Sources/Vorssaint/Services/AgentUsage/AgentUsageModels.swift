@@ -69,6 +69,14 @@ struct AgentUsageRecord: Equatable {
     var cost: Double?
     /// What cache reads saved against paying the full input price.
     var savings: Double
+    /// The model provider a Codex session named, empty for the ChatGPT
+    /// sign-in, as on a live turn.
+    var route = ""
+    /// Whose API issued the response, from its id. Claude Code logs the id
+    /// the upstream service gave, so an OpenAI id means a proxy stood
+    /// between. Nil when the id says nothing, as with Codex, whose proxies
+    /// hand back ids of the same shape whoever served the turn.
+    var issuer: AgentProvider?
 }
 
 /// A usage allowance and how much of it is spent, as the provider reports it.
@@ -96,6 +104,8 @@ struct AgentLimits: Equatable {
         case claudeApp
         /// Copied by the agent into its session log with each response.
         case sessionLog
+        /// Asked of the provider by a CLIProxyAPI hub the person added.
+        case hub
     }
 
     let provider: AgentProvider
@@ -121,12 +131,18 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+    /// The model provider a Codex session names in its log, empty for the
+    /// ChatGPT sign-in. A provider pointed at a hub routes the turn there.
+    var route = ""
+    /// Whose API issued the turn's latest response, as on its records.
+    var issuer: AgentProvider?
 }
 
 /// Something worth a moment in the closed island.
 enum AgentUsageEvent: Equatable {
     case finished(provider: AgentProvider, duration: TimeInterval, cost: Double, tokens: Int, project: String)
-    case limitWarning(provider: AgentProvider, window: AgentLimitWindow)
-    case limitReset(provider: AgentProvider, window: AgentLimitWindow)
+    /// `account` is a hub account's id. It is nil for the one signed in on this Mac.
+    case limitWarning(provider: AgentProvider, window: AgentLimitWindow, account: String?)
+    case limitReset(provider: AgentProvider, window: AgentLimitWindow, account: String?)
     case budgetReached(spent: Double, budget: Double)
 }

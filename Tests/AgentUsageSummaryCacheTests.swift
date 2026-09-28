@@ -91,6 +91,51 @@ enum AgentUsageSummaryCacheTests {
         cache.invalidate()
         check("repricing rebuilds cost, savings and unpriced totals")
         storeIntegration(suite, now: now, calendar: calendar)
+        hubs(suite)
+    }
+
+    /// Responses through a hub move between Claude and Codex by the model
+    /// that served them, and the cache must file them the same way.
+    private static func hubs(_ suite: TestSuite) {
+        let now = AgentTimestamp.parse("2026-09-26T20:00:00Z")!
+        let cache = AgentUsageSummaryCache()
+        func record(_ provider: AgentProvider, _ model: String, route: String = "", ago: Double) -> AgentUsageRecord {
+            AgentUsageRecord(provider: provider, date: now.addingTimeInterval(-ago), model: model, project: "p",
+                             session: "s", tokens: AgentTokens(input: 100, output: 10), cost: 0.5, savings: 0,
+                             route: route)
+        }
+        var records = (0..<200).map { index -> AgentUsageRecord in
+            switch index % 4 {
+            case 0: return record(.claude, "claude-opus-5-5", ago: Double(index) * 3_000)
+            case 1: return record(.claude, "gpt-5.6-sol", ago: Double(index) * 3_000)
+            case 2: return record(.codex, "gpt-6-astra", route: "cliproxy", ago: Double(index) * 3_000)
+            default: return record(.codex, "claude-opus-5-5", route: "cliproxy", ago: Double(index) * 3_000)
+            }
+        }
+        // Hub A serves one model with each kind of account. Claude Code's GPT
+        // turns carry no issuer here and no setting names a hub, so they stay
+        // unattributed, which the cache must also keep apart.
+        var routes: AgentHubContext? = AgentHubContext(
+            codexRoutes: ["cliproxy": "http://127.0.0.1:8317"], claudeHub: nil,
+            served: ["http://127.0.0.1:8317": ["gpt-6-astra": [.codex], "claude-opus-5-5": [.claude]]])
+        func check(_ message: String) {
+            let actual = cache.snapshot(records: records, limits: [:], live: [], plans: [:], providers: [.claude, .codex],
+                                        hubs: routes, now: now)
+            let expected = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+                                                       providers: [.claude, .codex], hubs: routes, now: now)
+            suite.expect(actual == expected, message)
+        }
+        check("the cache files hub responses under the account that served them, as a full summary does")
+        records.append(record(.claude, "gpt-5.6-sol", ago: 0))
+        cache.recordChanged(at: records.count - 1, previous: nil)
+        check("an appended hub response lands under the served account")
+        let position = records.count - 1
+        cache.recordChanged(at: position, previous: records[position])
+        records[position].cost! += 0.25
+        check("a streamed hub response corrects the same account once")
+        suite.expect(cache.accumulatedRecords == 1, "a hub response streamed again accumulates one delta")
+        routes = nil
+        check("removing the last hub files every response under its own agent again")
     }
 
     private static func storeIntegration(_ suite: TestSuite, now: Date, calendar: Calendar) {

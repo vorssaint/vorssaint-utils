@@ -24,7 +24,6 @@ struct NotchAgentStrip: View {
         // walks the preferences for every font, inset and frame.
         let geometry = service.compactActivityGeometry
         let working = working
-        let tint = working.first?.tint ?? .white
         let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
         let iconSize = min(working.count > 1 ? 11.0 : 14.0, max(8, budget - 4))
         let textSize = NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight)
@@ -48,12 +47,12 @@ struct NotchAgentStrip: View {
             Button { service.openActivity(.agents) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 42 {
-                        NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
+                        NotchAgentReadoutTimeline(readout: chosenReadout) { date in
                             let text = reading(at: date)
                             Text(text)
                                 .font(.system(size: textSize, weight: .medium))
                                 .monospacedDigit()
-                                .foregroundStyle(tint)
+                                .foregroundStyle(agentStripTint(usage.snapshot, readout: chosenReadout, now: date))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
                                 // A reading that gains a digit, like an hour
@@ -83,10 +82,22 @@ struct NotchAgentStrip: View {
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 
+    private var chosenReadout: NotchAgentReadout { NotchAgentReadout(rawValue: readout) ?? .elapsed }
+
     private func reading(at now: Date) -> String {
-        NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
+        NotchAgentSupport.stripReading(usage.snapshot, readout: chosenReadout,
                                        display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
     }
+}
+
+/// The working agent's color, or the warning a limit reading earns as it
+/// runs low, so a strip close to a limit says so before the notice does.
+func agentStripTint(_ snapshot: AgentUsageSnapshot, readout: NotchAgentReadout, now: Date) -> Color {
+    if readout == .limit, let limit = NotchAgentSupport.liveLimit(snapshot, now: now) {
+        return agentLimitTint(limit.provider, usedFraction: limit.used)
+    }
+    let working = AgentProvider.allCases.first { provider in snapshot.live.contains { $0.provider == provider } }
+    return working?.tint ?? .white
 }
 
 /// Keep the original one-second cadence for time-dependent readings, but
