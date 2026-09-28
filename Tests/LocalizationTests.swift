@@ -7,7 +7,7 @@ enum LocalizationTests {
     static let languages: [(AppLanguage, Strings)] = [
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
         (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
-        (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
+        (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK), (.he, .he),
     ]
 
     static func fields(_ value: Any) -> [String: String] {
