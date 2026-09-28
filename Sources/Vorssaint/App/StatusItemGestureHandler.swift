@@ -174,11 +174,12 @@ final class StatusItemGestureHandler {
     }
 
     func sync(settings new: StatusItemGesture.Settings) {
-        if new != settings {
+        let changed = new != settings
+        if changed {
             cancel()
             settings = new
         }
-        syncMiddleTap()
+        syncMiddleTap(requestPermission: changed)
     }
 
     func cancel() {

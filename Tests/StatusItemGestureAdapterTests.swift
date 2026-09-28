@@ -171,7 +171,9 @@ enum StatusItemGestureAdapterTests {
         Permissions.shared.requests = 0
         let host = Host()
         host.watchAccessibility()
-        host.sync(settings: host.settings)
+        let assigned = host.settings
+        host.settings = .init(hold: .screenshot)
+        host.sync(settings: assigned)
         suite.expect(host.middleTap == nil && Permissions.shared.requests == 1,
                      "assigning middle-click without permission asks once and installs no tap")
         Permissions.shared.accessibility = true
@@ -200,5 +202,17 @@ enum StatusItemGestureAdapterTests {
         Permissions.shared.accessibility = false
         suite.expect(alreadyGranted.middleTap == nil && Permissions.shared.requests == 0,
                      "revoking a preexisting grant tears down quietly, without a new prompt")
+        alreadyGranted.sync(settings: alreadyGranted.settings)
+        alreadyGranted.sync(settings: alreadyGranted.settings)
+        suite.expect(alreadyGranted.middleTap == nil && Permissions.shared.requests == 0,
+                     "unrelated settings changes after revocation do not reopen the permission guide")
+        Permissions.shared.accessibility = true
+        suite.expect(alreadyGranted.middleTap != nil && alreadyGranted.installations == 2,
+                     "regranting a preexisting permission restores the tap without a prompt")
+        alreadyGranted.tearDownMiddleTap()
+        alreadyGranted.sync(settings: alreadyGranted.settings)
+        suite.expect(alreadyGranted.middleTap != nil && alreadyGranted.installations == 3
+                     && Permissions.shared.requests == 0,
+                     "unchanged settings still retry a missing tap silently when permission is available")
     }
 }
