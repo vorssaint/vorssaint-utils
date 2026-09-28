@@ -576,6 +576,7 @@ final class NotchService: ObservableObject {
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
+            NotchLockScreenService.shared.sync(session)
             return
         }
         // Checked before any service starts, so each preference change while
@@ -648,6 +649,7 @@ final class NotchService: ObservableObject {
         let fallback = restoreCapture ? captureFallback : captureClose
         clearCapture()
         tearDownPresentation()
+        NotchLockScreenService.shared.close()
         observers.forEach { $0.0.removeObserver($0.1) }
         observers.removeAll()
         session = NotchSessionState()
@@ -2251,7 +2253,8 @@ final class NotchService: ObservableObject {
             self?.updateSession { $0.sleeping = true }
         }
         observe(workspace, NSWorkspace.didWakeNotification) { [weak self] in
-            self?.updateSession { $0.sleeping = false }
+            // Sleep ends a screen saver even when its stop goes unannounced.
+            self?.updateSession { $0.sleeping = false; $0.screenSaverRunning = false }
         }
         observe(workspace, NSWorkspace.screensDidSleepNotification) { [weak self] in
             self?.updateSession { $0.displaysSleeping = true }
@@ -2270,7 +2273,14 @@ final class NotchService: ObservableObject {
             self?.updateSession { $0.locked = true }
         }
         observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { [weak self] in
-            self?.updateSession { $0.locked = false }
+            // No screen saver outlasts an unlock, whether or not its stop was announced.
+            self?.updateSession { $0.locked = false; $0.screenSaverRunning = false }
+        }
+        observe(distributed, Notification.Name("com.apple.screensaver.didstart")) { [weak self] in
+            self?.updateSession { $0.screenSaverRunning = true }
+        }
+        observe(distributed, Notification.Name("com.apple.screensaver.didstop")) { [weak self] in
+            self?.updateSession { $0.screenSaverRunning = false }
         }
     }
 
@@ -2318,7 +2328,14 @@ final class NotchService: ObservableObject {
         guard running else { return }
         let couldPresent = session.canPresent
         let timerCouldRun = session.canRunTimer
+        let wasLocked = session.locked
         change(&session)
+        // An unlock is someone at the Mac, even when the display's wake is
+        // announced after it.
+        if session.locked != wasLocked, session.locked ? session.hearsLockChange : session.onConsole,
+           NotchLockScreenSupport.playsSounds() {
+            NotchLockScreenService.shared.playSound(locking: session.locked)
+        }
         if couldPresent != session.canPresent {
             if session.canPresent {
                 syncWithPreferences()
@@ -2334,6 +2351,10 @@ final class NotchService: ObservableObject {
                 if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
             }
         }
+        // After the island's own teardown or return: what the lock screen
+        // starts is not stopped under it, and what the island takes back is
+        // not stopped as the lock screen leaves.
+        NotchLockScreenService.shared.sync(session)
         // A dark display does not stop an alarm while the same user and Mac
         // remain awake. Privacy changes still apply when presentation is
         // already suspended by the display.
