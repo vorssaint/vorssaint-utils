@@ -2524,7 +2524,7 @@ final class NotchService: ObservableObject {
         showVolume(volume, muted: muted)
     }
 
-    /// Levels set outside the island, like the command bar's, report here
+    /// Levels set outside the island, like Command Bar's, report here
     /// too. The observer skips a level that matches the current one and a new
     /// output's first reading. False leaves the confirmation to the caller.
     @discardableResult
