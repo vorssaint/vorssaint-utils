@@ -529,13 +529,16 @@ enum CommandBarCatalog {
             numericRange: 0...100,
             run: { value in
                 guard let value else { return }
-                let applied = AppVolumeMixer.setSystemOutputVolume(Double(value) / 100)
-                if applied {
-                    QuickToolHUD.show(icon: "speaker.wave.2",
-                                      message: "\(FeatureStrings.commandBar(L10n.shared.language).volumeTitle) \(value)%")
-                } else {
+                let level = Double(value) / 100
+                guard AppVolumeMixer.setSystemOutputVolume(level) else {
                     NSSound.beep()
+                    return
                 }
+                // Dynamic Island shows the level itself, and a floating copy
+                // would sit right below it.
+                if NotchSupport.routes(.volume), NotchService.shared.showVolume(level) { return }
+                QuickToolHUD.show(icon: "speaker.wave.2",
+                                  message: "\(FeatureStrings.commandBar(L10n.shared.language).volumeTitle) \(value)%")
             }))
         }
 

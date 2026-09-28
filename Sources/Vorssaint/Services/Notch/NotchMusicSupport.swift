@@ -26,6 +26,10 @@ struct NotchArtworkTint: Equatable {
 }
 
 struct NotchPlayback: Equatable {
+    /// How long a song stays shown after a reading finds nothing playing,
+    /// which a player moving on to its next song can report for a moment.
+    static let gapGracePeriod: TimeInterval = 1.5
+
     let track: RadialNowPlayingSnapshot
     let isPlaying: Bool
     let elapsed: TimeInterval

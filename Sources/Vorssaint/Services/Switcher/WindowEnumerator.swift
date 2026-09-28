@@ -901,14 +901,20 @@ enum WindowEnumerator {
             let windowID = role == (kAXWindowRole as String)
                 ? AXWindowResolver.windowID(for: window)
                 : nil
-            let hasNormalWindowLevel = subrole == "AXUnknown"
+            let hasNormalWindowLevel = (subrole == "AXUnknown" || subrole == "AXDialog")
                 && (windowID.map(normalLevelWindowIDs.contains) ?? false)
+            // A hidden app's ordinary windows read as dialogs too (issue
+            // #2279). Only a normal-level dialog pays for the button read.
+            let canMinimize = subrole == "AXDialog" && hasNormalWindowLevel
+                && !isCancelled()
+                && hasWorkingMinimizeButton(window)
             return SwitcherSupport.isSwitchableNonstandardWindow(
                 role: role,
                 subrole: subrole,
                 fillsScreen: fillsScreen,
                 hasNormalWindowLevel: hasNormalWindowLevel,
                 acceptsUndescribedSubroles: acceptsUndescribedSubroles,
+                canMinimize: canMinimize,
                 // A borderless helper stays in the app's window list even when
                 // the app asks the window server to keep it out of cycling.
                 isExcludedFromWindowCycle: windowID
@@ -916,6 +922,14 @@ enum WindowEnumerator {
         }
         guard !isCancelled() else { return false }
         return stringAttribute(window, kAXRoleAttribute as String) == "AXWindow"
+    }
+
+    private static func hasWorkingMinimizeButton(_ window: AXUIElement) -> Bool {
+        guard let button = accessibilityWindowAttribute(window, kAXMinimizeButtonAttribute as String) else {
+            return false
+        }
+        AXUIElementSetMessagingTimeout(button, 0.35)
+        return boolAttribute(button, kAXEnabledAttribute as String)
     }
 
     private static func isFullscreenWindow(_ window: AXUIElement,

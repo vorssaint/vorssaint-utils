@@ -172,6 +172,9 @@ enum SettingsBackupSupport {
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
         DefaultsKey.brightnessForcedSoftwarePaths,
         DefaultsKey.brightnessExtendedDimmingPaths,
+        // A fit measured against one Mac's camera housing would misfit another's.
+        DefaultsKey.notchCameraFitWidth,
+        DefaultsKey.notchCameraFitHeight,
     ]
 
     /// The file's content: an envelope with the format version, the app

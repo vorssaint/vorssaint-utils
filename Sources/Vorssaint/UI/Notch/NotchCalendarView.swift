@@ -71,7 +71,15 @@ struct NotchCalendarView: View {
             // moving the strip within it keeps the loaded events.
             if !Calendar.current.isDate(previous, equalTo: date, toGranularity: .month) { calendar.showMonth(date) }
         }
-        .onDisappear { if ownsMonth { calendar.showMonth(nil) } }
+        // Escape returns from the month grid to the strip before the island closes.
+        .onChange(of: showingMonth && !showsMonth) { _, showing in
+            guard !preview else { return }
+            NotchService.shared.setPageLayer(.calendar, close: showing ? { showingMonth = false } : nil)
+        }
+        .onDisappear {
+            if ownsMonth { calendar.showMonth(nil) }
+            if !preview { NotchService.shared.setPageLayer(.calendar, close: nil) }
+        }
     }
 
     /// The month the service reads belongs to the island's own page; a preview

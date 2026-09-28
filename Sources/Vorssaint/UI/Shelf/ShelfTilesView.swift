@@ -709,6 +709,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
         // dragged tiles out of the shelf. A cancelled drag leaves them.
         DispatchQueue.main.async {
             ShelfService.shared.completeInternalDrag(dropAccepted: operation != [])
+            ShelfService.shared.absorbOwnDrag()
         }
     }
 

@@ -19,9 +19,11 @@ struct NotchMusicStrip: View {
     @ObservedObject private var l10n = L10n.shared
 
     private var geometry: NotchGeometry { snapshot?.geometry ?? service.compactActivityGeometry }
-    private var playback: NotchPlayback? { snapshot?.playback ?? music.playback }
-    private var artwork: NSImage? { snapshot == nil ? music.artwork : snapshot?.artwork }
-    private var tint: NotchArtworkTint? { snapshot == nil ? music.artworkTint : snapshot?.tint }
+    /// A new song stays off the strip until its notice has shown it.
+    private var shown: NotchCompactMusicSnapshot? { snapshot ?? service.heldMusic }
+    private var playback: NotchPlayback? { shown?.playback ?? music.playback }
+    private var artwork: NSImage? { shown == nil ? music.artwork : shown?.artwork }
+    private var tint: NotchArtworkTint? { shown == nil ? music.artworkTint : shown?.tint }
     /// A physical camera's wings are fitted to the cover and the bars; a
     /// simulated one keeps a little air beside its drawn cutout.
     private var innerInset: CGFloat { geometry.isNotched ? 0 : 8 }
@@ -52,7 +54,7 @@ struct NotchMusicStrip: View {
     private var showsArtist: Bool { geometry.compactActivityContentHeight >= 28 }
 
     var body: some View {
-        Button { service.open(.music) } label: {
+        Button { service.openActivity(.music) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 8) {
                     if geometry.compactActivityWingWidth > 0 {

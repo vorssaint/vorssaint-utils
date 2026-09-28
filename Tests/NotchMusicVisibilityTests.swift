@@ -95,6 +95,9 @@ enum NotchMusicVisibilityTests {
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
         var expandedSize: CGSize { geometry.expanded }
+        var captureControlsLayout: NotchCaptureControlsLayout {
+            NotchCaptureControlsLayout(geometry: geometry, titleWidth: 90, capturesAudio: false)
+        }
         func syncMenuSpaceMonitoring() {}
         func removeCaptureControlsClickThrough() {}
         func refreshPresentation() {}
