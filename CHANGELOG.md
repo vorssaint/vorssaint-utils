@@ -24,9 +24,10 @@ Scratchpad gains easier formatting and search, and mouse wheels can scroll a fix
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
+- Dynamic Island keeps the current song on screen while a player loads the next one, instead of briefly showing the empty music page and changing size, and the compact island keeps the previous song until the New track notice shows the next one.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @gorillasuti, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 

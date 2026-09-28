@@ -80,6 +80,10 @@ final class NotchService: ObservableObject {
     /// A compact notice stays drawn while the island closes around it.
     @Published private(set) var departingNotice: NotchNotice?
     @Published private(set) var departingMusic: NotchCompactMusicSnapshot?
+    /// The compact track on screen when a new song arrives, kept while the
+    /// song's notice waits for playback to settle, so the notice rather than
+    /// the strip is where the new song first appears.
+    @Published private(set) var heldMusic: NotchCompactMusicSnapshot?
     @Published private(set) var captureActions: AnyView?
     @Published private(set) var captureContent: AnyView?
     /// Bumped when Command-W asks the Scratchpad page to close its selected
@@ -640,6 +644,7 @@ final class NotchService: ObservableObject {
         finishMusicDeparture()
         presentedMusic = nil
         trackWork?.cancel(); trackWork = nil
+        heldMusic = nil
         subscriptions.removeAll()
         stopPower()
         NotchMusicService.shared.stop()
@@ -1446,12 +1451,16 @@ final class NotchService: ObservableObject {
     }
 
     /// Skipping through songs, or a title that lands before its artist, shows
-    /// one notice for where playback settles.
+    /// one notice for where playback settles. Until then the compact strip
+    /// keeps the song it showed.
     private func scheduleTrackNotice() {
         trackWork?.cancel()
+        if heldMusic == nil, let presentedMusic { heldMusic = presentedMusic }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.trackWork = nil
+            // Released once the notice covers the strip, or when none can.
+            defer { if self.heldMusic != nil { self.heldMusic = nil } }
             // The open island already shows the song, or holds something else
             // the person is doing.
             guard !self.expanded, !self.peeking, !self.dragPlaceholder, self.captureControls == nil,
@@ -1602,7 +1611,8 @@ final class NotchService: ObservableObject {
         guard requested == .none, animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
               panel?.isVisible == true, let presentedMusic, !musicVisible else { return requested }
         if canKeepDeparting {
-            departingMusic = presentedMusic
+            // A held track is the one on screen.
+            departingMusic = heldMusic ?? presentedMusic
             return .depart
         }
         // Another compact activity took the same place as the disappearing track.
@@ -2314,7 +2324,9 @@ final class NotchService: ObservableObject {
                 }.store(in: &subscriptions)
         }
         if NotchSupport.routes(.track) {
-            NotchMusicService.shared.trackChanges.receive(on: DispatchQueue.main)
+            // Received at once, on the main thread, while the strip still
+            // shows the previous song.
+            NotchMusicService.shared.trackChanges
                 .sink { [weak self] in self?.scheduleTrackNotice() }
                 .store(in: &subscriptions)
         }

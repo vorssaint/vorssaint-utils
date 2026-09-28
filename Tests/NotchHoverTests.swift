@@ -57,6 +57,12 @@ enum NotchHoverTests {
         }
     }
     enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
+    enum NotchMusicService {
+        static let shared = Reader()
+        final class Reader { var playback: NotchPlayback? }
+    }
+    /// The strip's track by title; the real snapshot also holds its cover and geometry.
+    struct NotchCompactMusicSnapshot: Equatable { let title: String }
     class State {
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
@@ -69,6 +75,9 @@ enum NotchHoverTests {
         var noticeWork: DispatchWorkItem?
         var departingNotice: NotchNotice?
         var departureWork: DispatchWorkItem?
+        var trackWork: DispatchWorkItem?
+        var presentedMusic: NotchCompactMusicSnapshot?
+        var heldMusic: NotchCompactMusicSnapshot?
         var compactActivity: NotchCompactActivity?
         var compactActivities: [NotchCompactActivity] = []
         var activityPickerMenuOpen = false
@@ -472,6 +481,49 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(1)
         expect(keyboard.closures == 0, "moving to the Accessibility Keyboard preserves the working panel")
         notificationContracts(fixture: fixture, leave: leave, expect: expect)
+        trackNoticeContracts(fixture: fixture, expect: expect)
+    }
+
+    /// A new song's notice waits for playback to settle, and the compact
+    /// strip keeps the song it showed until the notice covers it.
+    private static func trackNoticeContracts(fixture: (Bool) -> Service, expect: (Bool, String) -> Void) {
+        func song(_ title: String, playing: Bool = true) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: "Artist", album: nil, artworkData: nil,
+                                                          appBundleIdentifier: "org.example.player", appPID: 42),
+                          isPlaying: playing, elapsed: 0, duration: 200, rate: 1, sampledAt: Date(), canSeek: false)
+        }
+        defer { NotchMusicService.shared.playback = nil }
+        let skipped = fixture(false)
+        skipped.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+        NotchMusicService.shared.playback = song("New")
+        skipped.scheduleTrackNotice()
+        expect(skipped.heldMusic?.title == "Old" && skipped.notice == nil,
+               "a new song leaves the strip on the song it showed while the notice waits")
+        DispatchQueue.main.advance(0.3)
+        skipped.presentedMusic = NotchCompactMusicSnapshot(title: "New")
+        NotchMusicService.shared.playback = song("Newer")
+        skipped.scheduleTrackNotice()
+        DispatchQueue.main.advance(0.49)
+        expect(skipped.heldMusic?.title == "Old" && skipped.notice == nil,
+               "skipping again restarts the wait and keeps the song still on screen")
+        DispatchQueue.main.advance(0.02)
+        expect(skipped.notice?.event == .track && skipped.notice?.title == "Newer" && skipped.heldMusic == nil,
+               "the notice shows where playback settled and releases the strip behind it")
+        for block: (Service) -> Void in [{ $0.expanded = true },
+                                         { _ in NotchMusicService.shared.playback = song("New", playing: false) }] {
+            let blocked = fixture(false)
+            blocked.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+            NotchMusicService.shared.playback = song("New")
+            blocked.scheduleTrackNotice()
+            block(blocked)
+            DispatchQueue.main.advance(0.5)
+            expect(blocked.notice == nil && blocked.heldMusic == nil,
+                   "a notice that cannot show releases the strip to the current song")
+        }
+        let hidden = fixture(false)
+        NotchMusicService.shared.playback = song("New")
+        hidden.scheduleTrackNotice()
+        expect(hidden.heldMusic == nil, "nothing is held when the strip was not on screen")
     }
 
     /// A mirrored banner arrives with its own dismissal pending, as `show`

@@ -167,6 +167,7 @@ enum NotchPresentationRefreshContract {
         }
         var compactMusicIsVisible: Bool { compactActivityIsVisible && compactActivity == .music }
         var presentedMusic: NotchCompactMusicSnapshot?
+        var heldMusic: NotchCompactMusicSnapshot?
         var departingMusic: NotchCompactMusicSnapshot?
         var musicDepartureWork: DispatchWorkItem?
         var noticeExpanded = false
@@ -553,6 +554,13 @@ enum NotchPresentationRefreshContract {
         suite.expect(closing.compactMusicTransition(.none, animated: true) == .reveal
                      && closing.departingMusic == nil,
                      "new playback interrupts a departing track and reveals its replacement")
+
+        let held = Service()
+        held.expanded = false
+        held.presentedMusic = NotchCompactMusicSnapshot(track: 2)
+        held.heldMusic = NotchCompactMusicSnapshot(track: 1)
+        suite.expect(held.compactMusicTransition(.none, animated: true) == .depart && held.departingMusic?.track == 1,
+                     "music that stops before a new song's notice departs as the song still on screen")
 
         let replacement = Service()
         replacement.expanded = false
