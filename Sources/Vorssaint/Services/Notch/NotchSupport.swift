@@ -720,10 +720,11 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone
 
     var preferenceKey: String {
         switch self {
+        case .microphone: return DefaultsKey.notchMicrophone
         case .track: return DefaultsKey.notchTrackChange
         case .timer: return DefaultsKey.notchTimerEnabled
         case .accessory: return DefaultsKey.notchAccessoriesEnabled
@@ -741,7 +742,7 @@ enum NotchEvent: String, CaseIterable {
 
     var priority: Int {
         switch self {
-        case .volume, .brightness, .keyboardLight: return 3
+        case .volume, .brightness, .keyboardLight, .microphone: return 3
         case .capture, .timer: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
@@ -750,7 +751,7 @@ enum NotchEvent: String, CaseIterable {
 
     var duration: TimeInterval {
         switch self {
-        case .volume, .brightness, .keyboardLight: return 1.6
+        case .volume, .brightness, .keyboardLight, .microphone: return 1.6
         case .systemNotification, .track: return 3
         case .timer, .download: return 6
         case .agents: return 5
@@ -955,6 +956,7 @@ enum NotchSupport {
         case .systemNotification: return NotchNotificationSupport.isEnabled(in: defaults)
         case .keyboardLight: return AppFeature.brightness.isAvailable(in: defaults)
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)
+        case .microphone: return AppFeature.micMute.isAvailable(in: defaults)
         case .brightness:
             return AppFeature.brightness.isAvailable(in: defaults)
                 && defaults.bool(forKey: DefaultsKey.brightnessControlEnabled)

@@ -295,6 +295,18 @@ enum CommandBarFeatureTests {
                    "the retry after a refresh looks for the display the command started on, found \(set) and \(BrightnessHost.Sound.beeps) beeps")
         }
         BrightnessHost.Service.shared.onRefresh = nil
+        let volumeActionCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("id: \"action.volume\"")
+        }.map {
+            commandBarCatalogLines[$0...]
+                .prefix { !$0.contains("id: \"action.soundMute\"") }
+                .filter(isCodeLine)
+                .joined(separator: "\n")
+        } ?? ""
+        suite.expect(volumeActionCode.contains("QuickToolHUD.show(")
+                && volumeActionCode.components(separatedBy: "QuickToolHUD.show(")[0]
+                    .contains("NotchSupport.routes(.volume), NotchService.shared.showVolume(level) { return }"),
+               "volume from the bar reports in Dynamic Island when it can, and floats its confirmation only otherwise")
 
         // MARK: Compact mode, what an empty field shows
         suite.expect(CommandBarHome.showsBrowseList(compact: false, hasCategory: false, isPeeking: false),

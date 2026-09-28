@@ -78,6 +78,10 @@ enum NotchDestinationContract {
         var hoverState = NotchHoverState()
         var hoverWork: DispatchWorkItem?
         var requestedDetail: MetricDetailKind?
+        var detailHasPage = false
+        var pageLayers: [NotchModule: () -> Void] = [:]
+        var captureControls: AnyObject?
+        var heldDrag = false
         var presentationSyncs = 0
         var presentationTearDowns = 0
         var captureControlsCancel: (() -> Void)?
@@ -110,6 +114,7 @@ enum NotchDestinationContract {
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         scratchpadContracts(defaults: defaults, suite: suite)
         reopeningContracts(defaults: defaults, suite: suite)
+        stepBackContracts(suite)
         for resting in [NotchIdleContent.none, .music] {
             defaults.set(resting.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)
@@ -187,6 +192,108 @@ enum NotchDestinationContract {
         sessionContracts(suite)
     }
 
+    /// Escape steps back through what the island shows, then closes it.
+    private static func stepBackContracts(_ suite: TestSuite) {
+        let metric = Service()
+        metric.open(.system)
+        metric.open(.system, metric: .cpu)
+        metric.stepBack()
+        suite.expect(metric.expanded && metric.selected == .system && metric.selectedMetric == nil,
+                     "Escape steps back from a detail opened on its page, as the Back button does")
+        metric.stepBack()
+        suite.expect(!metric.expanded, "Escape closes the island once nothing lies behind the page")
+
+        let panel = Service()
+        panel.open(.music)
+        panel.open(.controls, appPanel: true)
+        panel.stepBack()
+        suite.expect(panel.expanded && panel.selected == .controls && !panel.showingAppPanel,
+                     "Escape steps back from the app panel opened inside the island")
+
+        // Closing passes for any page, so these first check a detail is open.
+        for appPanel in [false, true] {
+            let direct = Service()
+            direct.open(appPanel ? .controls : .system, appPanel: appPanel, metric: appPanel ? nil : .cpu)
+            let detail = direct.showingAppPanel || direct.selectedMetric == .cpu
+            direct.stepBack()
+            suite.expect(detail && !direct.expanded,
+                         "a detail the island opened on closes on Escape like the menu panel (app panel: \(appPanel))")
+        }
+
+        for route in ["a metric", "the app panel"] {
+            let menuBar = Service()
+            menuBar.open(.music)
+            if route == "a metric" { menuBar.showMetric(.cpu, toggle: true) } else { menuBar.openAppPanel(toggle: true) }
+            let detail = menuBar.selectedMetric == .cpu || menuBar.showingAppPanel
+            menuBar.stepBack()
+            suite.expect(detail && !menuBar.expanded,
+                         "\(route) opened from the menu bar over an open island closes on Escape like the menu panel")
+        }
+        let tile = Service()
+        tile.open(.system)
+        tile.showMetric(.cpu)
+        tile.stepBack()
+        suite.expect(tile.expanded && tile.selected == .system && tile.selectedMetric == nil,
+                     "a metric opened from its tile inside the island steps back to the page")
+
+        let switched = Service()
+        switched.open(.system, metric: .cpu)
+        switched.toggleSections()
+        switched.toggleSections()
+        switched.open(.system, metric: .memory)
+        let switchedDetail = switched.selectedMetric == .memory && !switched.showingSections
+        switched.stepBack()
+        suite.expect(switchedDetail && !switched.expanded,
+                     "passing through the gallery or switching details keeps a direct detail closing on Escape")
+
+        let gallery = Service()
+        gallery.open(.system)
+        gallery.open(.system, metric: .cpu)
+        gallery.toggleSections()
+        gallery.toggleSections()
+        gallery.stepBack()
+        suite.expect(gallery.expanded && gallery.selected == .system && gallery.selectedMetric == nil,
+                     "the gallery opened over a detail keeps its way back to the page")
+
+        let reopened = Service()
+        reopened.open(.system)
+        reopened.open(.system, metric: .cpu)
+        // Capture controls close the island without clearing its detail.
+        reopened.expanded = false
+        reopened.open(.system, metric: .cpu)
+        let reopenedDetail = reopened.expanded && reopened.selectedMetric == .cpu
+        reopened.stepBack()
+        suite.expect(reopenedDetail && !reopened.expanded, "a detail the island reopens on has nothing behind it")
+
+        var closes: [NotchModule] = []
+        let layered = Service()
+        layered.open(.music)
+        layered.setPageLayer(.music) { closes.append(.music); layered.setPageLayer(.music, close: nil) }
+        layered.setPageLayer(.calendar) { closes.append(.calendar) }
+        layered.stepBack()
+        suite.expect(layered.expanded && closes == [.music], "Escape closes the page's own layer before the island")
+        layered.stepBack()
+        suite.expect(!layered.expanded && closes == [.music], "only the visible page's layer answers Escape")
+
+        let covered = Service()
+        covered.open(.system)
+        covered.setPageLayer(.system) { closes.append(.system) }
+        covered.open(.system, metric: .cpu)
+        covered.stepBack()
+        suite.expect(covered.selectedMetric == nil && closes == [.music],
+                     "a detail steps back before a layer of the page it covers")
+
+        for blocker in ["drag", "capture"] {
+            let held = Service()
+            held.open(.system)
+            held.open(.system, metric: .cpu)
+            if blocker == "drag" { held.heldDrag = true } else { held.captureControls = NSObject() }
+            held.stepBack()
+            suite.expect(held.expanded && held.selectedMetric == .cpu,
+                         "Escape leaves the island as it is during a \(blocker), like closing does")
+        }
+    }
+
     private static func scratchpadContracts(defaults: UserDefaults, suite: TestSuite) {
         let service = Service()
         suite.expect(service.showScratchpad(toggle: true) && service.expanded && service.selected == .scratchpad,
@@ -215,11 +322,14 @@ enum NotchDestinationContract {
                "returning home is opt-in and preserves the existing opening behavior")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHomeModule] as? String == NotchModule.controls.rawValue,
                "the previously available home option keeps Controls as its initial destination")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchOpensActivity] as? Bool == true,
+               "opening the visible activity stays the default")
         for returnHome in [false, true] {
             defaults.set(returnHome, forKey: DefaultsKey.notchReturnHome)
             let payload = SettingsBackupSupport.payload(appVersion: "test") {
                 if $0 == DefaultsKey.notchReturnHome { return returnHome }
                 if $0 == DefaultsKey.notchHomeModule { return NotchModule.music.rawValue }
+                if $0 == DefaultsKey.notchOpensActivity { return false }
                 if $0 == DefaultsKey.notchHideUntilHover { return true }
                 if $0 == DefaultsKey.notchHoverDelay { return 0.65 }
                 return nil
@@ -229,9 +339,10 @@ enum NotchDestinationContract {
             let restored = decoded.flatMap { SettingsBackupSupport.sanitizedSettings(from: $0) }
             suite.expect(restored?[DefaultsKey.notchReturnHome] as? Bool == returnHome
                    && restored?[DefaultsKey.notchHomeModule] as? String == NotchModule.music.rawValue
+                   && restored?[DefaultsKey.notchOpensActivity] as? Bool == false
                    && restored?[DefaultsKey.notchHoverDelay] as? Double == 0.65
                    && restored?[DefaultsKey.notchHideUntilHover] as? Bool == true,
-                   "the opening behavior, selected page and activation time survive backup and restore")
+                   "the opening behavior, selected page, activity choice and activation time survive backup and restore")
 
             let service = Service()
             service.open(.files)
@@ -294,6 +405,23 @@ enum NotchDestinationContract {
             service.open()
             suite.expect(service.selected == .timer && !service.showingAppPanel && !service.showingSections,
                    "a visible activity wins over a saved app panel or Explore destination")
+
+            defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
+            service.expanded = false
+            service.open()
+            suite.expect(service.showingAppPanel == (destination == .appPanel)
+                   && service.showingSections == (destination == .explore),
+                   "with activities turned off, a visible activity leaves the saved app panel or Explore destination")
+            service.expanded = false
+            service.openActivity(.timer)
+            suite.expect(service.showingAppPanel == (destination == .appPanel)
+                   && service.showingSections == (destination == .explore),
+                   "with activities turned off, a tap on the activity's strip follows the reopening choice too")
+            defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
+            service.expanded = false
+            service.openActivity(.timer)
+            suite.expect(service.selected == .timer && !service.showingAppPanel && !service.showingSections,
+                   "a tap on the activity's strip opens its page while activities open")
         }
         defaults.set("unknown-page", forKey: DefaultsKey.notchHomeModule)
         let invalid = Service()
@@ -304,7 +432,8 @@ enum NotchDestinationContract {
         activityContracts(defaults: defaults) { suite.expect($0, $1) }
     }
 
-    /// What the closed island is already showing is what opening it shows.
+    /// What the closed island is already showing is what opening it shows,
+    /// unless the user turned that off for activities.
     private static func activityContracts(defaults: UserDefaults, expect: (Bool, String) -> Void) {
         let banner = NotchNotice(event: .systemNotification, title: "Alex", detail: "Hello", symbol: "bell.fill",
                                  notification: NotchNotificationContent(app: "Chat", title: "Alex", subtitle: "", body: "Hello"),
@@ -332,6 +461,20 @@ enum NotchDestinationContract {
                 service.open()
                 expect(service.selected == (returnHome ? .controls : .files),
                        "once the activity ends, reopening follows the saved preference again")
+
+                defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
+                service.open(.files)
+                service.expanded = false
+                service.compactActivity = activity
+                expect(service.reopeningModule == (returnHome ? .controls : .files),
+                       "with activities turned off, a peek over \(activity) names the reopening page")
+                service.open()
+                expect(service.selected == (returnHome ? .controls : .files),
+                       "with activities turned off, opening an island that shows \(activity) follows the saved preference")
+                service.open(activity.module)
+                expect(service.selected == activity.module,
+                       "with activities turned off, the page of \(activity) still opens when named")
+                defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
             }
             let hidden = Service()
             defaults.set("timer", forKey: DefaultsKey.notchHiddenModules)
@@ -352,6 +495,15 @@ enum NotchDestinationContract {
             expect(mirrored.selected == .notifications && mirrored.notice == nil && !mirrored.noticeExpanded
                    && mirrored.noticeWork == nil,
                    "opening over a held banner shows the inbox and retires the banner so it cannot return after collapsing")
+            defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
+            let bannerOverMusic = Service()
+            bannerOverMusic.syncWithPreferences()
+            bannerOverMusic.compactActivity = .music
+            bannerOverMusic.notice = banner
+            bannerOverMusic.open()
+            expect(bannerOverMusic.selected == .notifications && bannerOverMusic.notice == nil,
+                   "turning activities off still opens the inbox over a mirrored banner, which is not an activity")
+            defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
             let volume = Service()
             volume.notice = NotchNotice(event: .volume, title: "Volume", detail: "50%", symbol: "speaker.wave.2.fill", level: 0.5)
             volume.open()
