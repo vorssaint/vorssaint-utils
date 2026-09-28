@@ -95,8 +95,9 @@ final class MouseNavigationService: ObservableObject {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         observeWebHandlerChanges()
-        // Which keys carry Back and Forward depends on the keyboard in use, so
-        // the answer is asked for now and again on every keyboard change.
+        // Which keys carry Back and Forward depends on the keyboard in use.
+        // The Go menu answers on every click; without it the answer is asked
+        // for now and again on every keyboard change.
         MouseNavigationKeys.refresh()
         keyboardObserver = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
@@ -274,18 +275,21 @@ final class MouseNavigationService: ObservableObject {
     }
 
     private func perform(_ direction: MouseNavigationDirection) {
-        switch pressMenuItem(shortcut: MouseNavigationKeys.shortcut(for: direction)) {
-        case .pressed:
-            return
-        case .pressFailed:
-            postCommand(direction)
-        case .noNavigationCommand:
-            // No verified Back or Forward in this app. Posting the shortcut
-            // blindly is not an option: the same keys deeper in other menus
-            // are editing commands (shift code left, rearrange layers) and a
-            // stray side click must never touch the document.
-            return
+        for shortcut in MouseNavigationKeys.candidates(for: direction) {
+            switch pressMenuItem(shortcut: shortcut) {
+            case .pressed:
+                return
+            case .pressFailed:
+                postCommand(shortcut)
+                return
+            case .noNavigationCommand:
+                continue
+            }
         }
+        // No verified Back or Forward in this app. Posting the shortcut
+        // blindly is not an option: the same keys deeper in other menus are
+        // editing commands (shift code left, rearrange layers) and a stray
+        // side click must never touch the document.
     }
 
     /// Prefer the app's actual enabled menu item. This preserves app-specific
@@ -357,12 +361,11 @@ final class MouseNavigationService: ObservableObject {
         return value as? T
     }
 
-    private func postCommand(_ direction: MouseNavigationDirection) {
+    private func postCommand(_ shortcut: MouseNavigationKeys.Shortcut) {
         // The key that carries the command is the one this keyboard would use,
         // which is not the bracket key on keyboards that cannot type brackets
         // without Option.
-        guard let stroke = MouseNavigationKeys.keyStroke(
-            for: MouseNavigationKeys.shortcut(for: direction).character) else { return }
+        guard let stroke = MouseNavigationKeys.keyStroke(for: shortcut.character) else { return }
         let source = CGEventSource(stateID: .hidSystemState)
         guard let down = CGEvent(keyboardEventSource: source,
                                  virtualKey: stroke.keyCode,
