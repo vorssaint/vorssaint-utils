@@ -162,9 +162,12 @@ enum NotchNotificationBannerLayout {
     static let spacing: CGFloat = 8
     static let wingRange: ClosedRange<CGFloat> = 88...190
     /// The inset from the island's curved end, and a little air so the
-    /// fitted text neither touches the camera nor truncates.
+    /// fitted text never truncates where SwiftUI rounds its width.
     static let inset: CGFloat = 16
     static let air: CGFloat = 6
+    /// The fonts the banner draws with, so it is measured in the same ones.
+    static let titleFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+    static let messageFont = NSFont.systemFont(ofSize: 11)
 
     static func wing(for content: NotchNotificationContent) -> CGFloat {
         func width(_ text: String, _ font: NSFont) -> CGFloat {
@@ -172,8 +175,8 @@ enum NotchNotificationBannerLayout {
             // reached long before this much text.
             (String(text.prefix(240)) as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
         }
-        let title = iconSize + spacing + width(content.compactTitle, .systemFont(ofSize: 11, weight: .semibold))
-        let detail = width(content.compactDetail, .systemFont(ofSize: 11))
+        let title = iconSize + spacing + width(content.compactTitle, titleFont)
+        let detail = width(content.compactDetail, messageFont)
         return min(wingRange.upperBound, max(wingRange.lowerBound, max(title, detail) + inset + air))
     }
 }

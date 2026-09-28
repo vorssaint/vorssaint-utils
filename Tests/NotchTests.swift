@@ -251,13 +251,23 @@ enum NotchTests {
         for notice in fitted {
             guard let content = notice.notification else { continue }
             let room = notice.preferredWingWidth - layout.inset
-            suite.expect(layout.iconSize + layout.spacing + width(content.compactTitle, .systemFont(ofSize: 11, weight: .semibold)) <= room
-                         && width(content.compactDetail, .systemFont(ofSize: 11)) <= room
+            suite.expect(layout.iconSize + layout.spacing + width(content.compactTitle, layout.titleFont) <= room
+                         && width(content.compactDetail, layout.messageFont) <= room
                          && notice.preferredWingWidth < layout.wingRange.upperBound,
                          "a short message and its title fit whole in a banner narrower than the widest one")
         }
         suite.expect(short.preferredWingWidth == layout.wingRange.lowerBound,
                      "a one-word message leaves no band of empty black beside it")
+        // The wing is measured with AppKit; SwiftUI draws the text. The air
+        // has to cover any difference, in every script a banner can carry.
+        for sample in ["done", "Your code is 482913", "会议提醒 项目评审", "🚀🎉 launch", "مرحبا بالعالم", "שלום עולם"] {
+            for font in [layout.titleFont, layout.messageFont] {
+                let drawn = NSHostingView(rootView: Text(sample).font(Font(font as CTFont)).lineLimit(1).fixedSize())
+                    .fittingSize.width
+                suite.expect(drawn <= width(sample, font).rounded(.up) + layout.air,
+                             "a banner's text draws within the width measured for it")
+            }
+        }
         let long = banner(app: "Mail", "Quarterly planning", subtitle: "Agenda",
                           String(repeating: "Notes for the meeting ", count: 800))
         suite.expect(long.preferredWingWidth == layout.wingRange.upperBound,
