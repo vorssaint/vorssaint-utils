@@ -18,6 +18,7 @@ enum DefaultsKey {
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
     static let supportUpdateIntroVersion = "supportUpdateIntroVersion"
     static let updateHighlightsSeenVersion = "updateHighlightsSeenVersion"
+    static let featureHubKeptFeatures = "featureHubKeptFeatures" // comma-joined AppFeature raw values
     static let brightnessUpdatePromptState = "brightnessUpdatePromptState"
     static let updateShowcaseIntroVersion = "updateShowcaseIntroVersion"
     static let updateShowcaseMediaOverride = "updateShowcaseMediaOverride"
@@ -1803,6 +1804,7 @@ enum Defaults {
         migrateLiquidGlassIsland(in: defaults)
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
+        migrateLinearScrollAvailability(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
         migrateBatteryTemperatureVisibility(in: defaults)
         migrateSwitcherPreviewSize(in: defaults)
@@ -1969,6 +1971,15 @@ enum Defaults {
         }
         defaults.set(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
                      forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+    }
+
+    /// Linear scrolling reached development builds installed, before new
+    /// features became opt-in. Whoever switched it on keeps it installed.
+    static func migrateLinearScrollAvailability(in defaults: UserDefaults) {
+        guard defaults.object(forKey: AppFeature.linearScroll.availabilityKey) == nil,
+              defaults.object(forKey: DefaultsKey.linearScrollEnabled) as? Bool == true
+        else { return }
+        defaults.set(true, forKey: AppFeature.linearScroll.availabilityKey)
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {

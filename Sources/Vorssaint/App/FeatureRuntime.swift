@@ -23,6 +23,11 @@ final class FeatureRuntime: ObservableObject {
     /// keys off, including the install-then-uninstall-again case.
     private var loadedThisSession = Set(AppFeature.allCases.filter(\.isAvailable))
 
+    /// What was installed when the app came up. A feature installed later in
+    /// the session has not had its chance yet, so it is never offered for
+    /// uninstalling as unused until the next launch.
+    private let availableAtLaunch = Set(AppFeature.allCases.filter(\.isAvailable))
+
     private init() {}
 
     /// True while something that loaded this session is now uninstalled, so
@@ -160,6 +165,31 @@ final class FeatureRuntime: ObservableObject {
             UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         finishAvailabilityChange()
+    }
+
+    /// Installed switches that were never once turned on, for the Features
+    /// page to offer as one batch, minus the ones the person chose to keep.
+    func neverSwitchedOnFeatures() -> [AppFeature] {
+        let saved = savedPreferences()
+        let kept = Self.keptFeatures()
+        return AppFeature.neverSwitchedOn(isAvailable: \.isAvailable,
+                                          boolFor: UserDefaults.standard.bool(forKey:),
+                                          isSaved: { saved[$0] != nil })
+            .filter { availableAtLaunch.contains($0) && !kept.contains($0) }
+    }
+
+    /// Stops offering these features as unused. A later one that turns out
+    /// never used is still offered, on its own merits.
+    func keep(_ features: [AppFeature]) {
+        let kept = Self.keptFeatures().union(features)
+        UserDefaults.standard.set(kept.map(\.rawValue).sorted().joined(separator: ","),
+                                  forKey: DefaultsKey.featureHubKeptFeatures)
+    }
+
+    private static func keptFeatures() -> Set<AppFeature> {
+        Set((UserDefaults.standard.string(forKey: DefaultsKey.featureHubKeptFeatures) ?? "")
+            .split(separator: ",")
+            .compactMap { AppFeature(rawValue: String($0)) })
     }
 
     /// Bulk install or uninstall for the hub's "all" buttons.

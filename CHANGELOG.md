@@ -13,7 +13,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - App Updates can ignore one release or exclude an app from update results and alerts.
 - App Switcher can browse apps using a mouse wheel or trackpad, with precise wheel movement and consistent scroll direction.
 - Scratchpad adds a formatting toolbar in both the floating pad and Dynamic Island, native text search and an adjustable text size.
-- Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions.
+- Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions, installed from the Features page.
 - Brightness keys and display brightness shortcuts can move in half or quarter steps, chosen in Displays settings.
 - Menu bar settings can replace the Vorssaint icon with any SF Symbol.
 - Dynamic Island lets you choose which calendars appear, grouped by account; hiding a calendar clears its events immediately.
@@ -23,14 +23,18 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Dynamic Island can keep opening on the page chosen in When reopening while music, a timer or another activity is showing.
 - Dynamic Island can follow the pointer between displays, so files dropped on it on one display can be dragged out on another.
 - Dynamic Island can be fitted to the notch's width and height on Macs where an edge of the notch shows around it.
+- The Features page offers to uninstall features that are installed but were never turned on, with Undo, or to keep them.
 
 ### Changed
+- The menu bar panel lists Utilities, Controls and Quick toggles one line per tool in a single card. Descriptions move to tooltips and edit mode, while permission notes, status and side effects such as a Finder restart stay on the row.
+- New features wait on the Features page instead of installing themselves on update, starting with linear scrolling.
 - Keep Awake starts with one click from duration chips or an end time; the switch and shortcut restart the last choice, and the panel explains when battery protection prevents a session.
 - Dynamic Island notification banners fit their message instead of always using the same wide strip, and keep one width while several messages arrive in a row.
 - Dynamic Island's screen capture controls place their title and buttons in the top row, beside the camera when they fit, and keep them away from the island's edges, so less of the screen is covered.
 - Escape in Dynamic Island steps back one level, closing the mixer options, month grid, lyrics or queue, or leaving a detail opened inside the island, before it closes the island.
 
 ### Fixed
+- VoiceOver reads the name of every menu bar panel tab instead of its symbol.
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
 - Dynamic Island keeps the current song on screen while a player loads the next one, instead of briefly showing an empty music page and changing size. With the New track indicator on, the compact island keeps the previous song until the indicator shows the next one.
 - Clicking the Now Playing cover in Dynamic Island, or the radial menu's Now Playing card, brings the playing app to the front instead of doing nothing, and shows its window again when it was closed.
