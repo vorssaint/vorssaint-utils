@@ -15,7 +15,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Scratchpad adds a formatting toolbar in both the floating pad and Dynamic Island, native text search and an adjustable text size.
 - Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions.
 - Brightness keys and display brightness shortcuts can move in half or quarter steps, chosen in Displays settings.
-- Menu bar settings can replace the Vorssaint icon with any SF Symbol.
+- Menu bar settings can replace the Vorssaint icon with one picked from a gallery of symbols, or with any SF Symbol typed by name.
 - Dynamic Island lets you choose which calendars appear, grouped by account; hiding a calendar clears its events immediately.
 - Dynamic Island's Controls page shows a running timer's clock and your next appointment on their shortcuts.
 - Dynamic Island can count down the last hour of the calendar event in progress, alongside or instead of the countdown to the next one.
