@@ -1442,7 +1442,7 @@ final class NotchService: ObservableObject {
         open(selectedNotice.event == .download ? .downloads : selectedNotice.event == .timer ? .timer
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
-             : selectedNotice.event == .track ? .music : .controls)
+             : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer : .controls)
     }
 
     /// Skipping through songs, or a title that lands before its artist, shows
@@ -1478,6 +1478,20 @@ final class NotchService: ObservableObject {
                                 title: FeatureStrings.brightness(L10n.shared.language).keyboardLight,
                                 detail: "\(BrightnessSupport.wholePercent(level))%",
                                 symbol: "keyboard", level: level))
+    }
+
+    /// The microphone switch reports here the way the volume does: its mark
+    /// on one side of the camera, what happened on the other. False leaves
+    /// the confirmation to its own panel.
+    @discardableResult
+    func showMicrophone(muted: Bool) -> Bool {
+        // Only the closed island draws this notice. While it is open or busy
+        // the panel keeps the job, and still reaches a pointer on another display.
+        guard noticeCanPresent else { return false }
+        let text = L10n.shared.s
+        return show(NotchNotice(event: .microphone, title: "",
+                                detail: muted ? text.micMutedHUD : text.micUnmutedHUD,
+                                symbol: muted ? "mic.slash.fill" : "mic.fill"))
     }
 
     /// The close button of a held preview also takes the message out of the

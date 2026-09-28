@@ -600,7 +600,7 @@ enum NotchTests {
         let enabledByDefault = [DefaultsKey.notchNotificationsEnabled, DefaultsKey.notchCameraEnabled,
                                 DefaultsKey.notchAgentsEnabled, DefaultsKey.notchDownloadsEnabled,
                                 DefaultsKey.notchLyricsEnabled, DefaultsKey.notchQueueEnabled,
-                                DefaultsKey.notchKeyboardLight,
+                                DefaultsKey.notchKeyboardLight, DefaultsKey.notchMicrophone,
                                 DefaultsKey.notchAccessoriesEnabled, DefaultsKey.notchClipboard,
                                 DefaultsKey.notchCapture, DefaultsKey.notchTrackChange]
         suite.expect(enabledByDefault.allSatisfy { firstDefaults[$0] as? Bool == true },
@@ -731,6 +731,14 @@ enum NotchTests {
         defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchSupport.routes(.track, in: defaults), "a hidden music section announces no new song")
         defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(NotchSupport.routes(.microphone, in: defaults), "the microphone switch reports in the island by default")
+        defaults.set(false, forKey: DefaultsKey.notchMicrophone)
+        suite.expect(!NotchSupport.routes(.microphone, in: defaults),
+                     "turning microphone notices off keeps the switch's own confirmation")
+        defaults.set(true, forKey: DefaultsKey.notchMicrophone)
+        defaults.set(false, forKey: AppFeature.micMute.availabilityKey)
+        suite.expect(!NotchSupport.routes(.microphone, in: defaults), "a removed microphone mute announces nothing in the island")
+        defaults.set(true, forKey: AppFeature.micMute.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.notchTrackChange)
         let initialLayout = NotchQuickAccessConfiguration.current(in: defaults)
         suite.expect(initialLayout.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.timer)]
@@ -1004,7 +1012,7 @@ enum NotchTests {
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
                                 DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
-                                DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
+                                DefaultsKey.notchMicrophone, DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
                                 DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow, DefaultsKey.notchCapture,
                                 DefaultsKey.notchTrackChange, DefaultsKey.notchMusicActivity, DefaultsKey.notchHideInCaptures, DefaultsKey.panelControlNotch,
                                 AppFeature.notch.availabilityKey]

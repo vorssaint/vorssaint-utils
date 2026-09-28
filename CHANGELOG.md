@@ -12,6 +12,7 @@ Scratchpad gains easier formatting and search, and mouse wheels can scroll a fix
 ### Added
 - App Updates can ignore one release or exclude an app from update results and alerts.
 - Dynamic Island lets you choose which calendars appear, grouped by account; hiding a calendar clears its events immediately.
+- Dynamic Island shows microphone mute and unmute notices in place of the separate popup, with a Microphone switch in its Indicators settings.
 - App Switcher can browse apps using a mouse wheel or trackpad, with precise wheel movement and consistent scroll direction.
 - Scratchpad adds a formatting toolbar in both the floating pad and Dynamic Island, native text search and an adjustable text size.
 - Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions.
