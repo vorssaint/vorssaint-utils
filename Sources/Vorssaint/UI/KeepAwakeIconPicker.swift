@@ -5,6 +5,7 @@ import SwiftUI
 
 struct KeepAwakeIconPicker: View {
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarIconSymbol) private var menuBarSymbol = ""
     @Binding var iconValue: String
     @Binding var tintValue: String
     var compact = false
@@ -20,7 +21,7 @@ struct KeepAwakeIconPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 7 : 10) {
             choiceHeader(l10n.s.keepAwakeActiveIconLabel,
-                         value: selectedIcon.title(l10n.s))
+                         value: title(selectedIcon))
 
             HStack(spacing: compact ? 5 : 7) {
                 ForEach(KeepAwakeActiveIcon.allCases) { icon in
@@ -93,8 +94,17 @@ struct KeepAwakeIconPicker: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(icon.title(l10n.s))
-        .accessibilityLabel(icon.title(l10n.s))
+        .help(title(icon))
+        .accessibilityLabel(title(icon))
+    }
+
+    /// The Vorssaint choice draws whatever the menu bar shows, which can be a
+    /// symbol chosen in the menu bar settings.
+    private func title(_ icon: KeepAwakeActiveIcon) -> String {
+        guard icon == .vorssaint,
+              BlackHoleGlyph.customMark(named: Defaults.sanitizedMenuBarIconSymbol(menuBarSymbol)) != nil
+        else { return icon.title(l10n.s) }
+        return FeatureStrings.generalSettings(l10n.language).menuBarIconTitle
     }
 
     private func tintButton(_ tint: KeepAwakeIconTint) -> some View {

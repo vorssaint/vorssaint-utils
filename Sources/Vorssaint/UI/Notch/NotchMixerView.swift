@@ -21,6 +21,7 @@ struct NotchMixerView: View {
     @State private var draggingAppID: String?
     @State private var dropTarget: MixerAppDropTarget?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchSettingsPreview) private var preview
     private static let masterWidth: CGFloat = 72
     private static let columnWidth: CGFloat = 96
     private var faderHeight: CGFloat { max(104, size.height - 40) }
@@ -43,10 +44,7 @@ struct NotchMixerView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 NotchIconButton(symbol: showingOptions ? "xmark" : "slider.horizontal.3",
                                 title: showingOptions ? l10n.s.menuClose : l10n.s.keepAwakeOptions,
-                                selected: showingOptions) {
-                    editingVolumeID = nil
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { showingOptions.toggle() }
-                }
+                                selected: showingOptions, action: toggleOptions)
             }
             .frame(height: 32)
             if showingOptions {
@@ -64,6 +62,23 @@ struct NotchMixerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { mixer.refreshApps() }
+        // Escape closes the options before the island.
+        .onChange(of: showingOptions) { _, showing in
+            guard !preview else { return }
+            NotchService.shared.setPageLayer(.mixer, close: showing ? closeOptions : nil)
+        }
+        .onDisappear { if !preview { NotchService.shared.setPageLayer(.mixer, close: nil) } }
+    }
+
+    private func toggleOptions() {
+        editingVolumeID = nil
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { showingOptions.toggle() }
+    }
+
+    /// What Escape does: it only ever closes the options.
+    private func closeOptions() {
+        editingVolumeID = nil
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { showingOptions = false }
     }
 
     @ViewBuilder private var desk: some View {

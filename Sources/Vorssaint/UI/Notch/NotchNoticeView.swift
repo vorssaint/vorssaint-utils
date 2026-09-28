@@ -41,10 +41,10 @@ struct NotchNoticeView: View {
 
     @ViewBuilder private var leading: some View {
         if let content = notice.notification {
-            HStack(spacing: 8) {
-                NotchNotificationAppIcon(app: content.app, size: min(22, geometry.stripHeight - 4))
+            HStack(spacing: NotchNotificationBannerLayout.spacing) {
+                NotchNotificationAppIcon(app: content.app, size: min(NotchNotificationBannerLayout.iconSize, geometry.stripHeight - 4))
                 Text(content.compactTitle)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(Font(NotchNotificationBannerLayout.titleFont as CTFont))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -80,7 +80,7 @@ struct NotchNoticeView: View {
     @ViewBuilder private var trailing: some View {
         if let content = notice.notification {
             Text(content.compactDetail)
-                .font(.system(size: 11))
+                .font(Font(NotchNotificationBannerLayout.messageFont as CTFont))
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(geometry.stripHeight >= 30 ? 2 : 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
