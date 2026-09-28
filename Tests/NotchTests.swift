@@ -1837,14 +1837,19 @@ enum NotchTests {
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "calendar can still be explicitly disabled")
         defaults.set(true, forKey: DefaultsKey.notchCalendarEnabled)
         suite.expect(NotchCalendarSupport.isEnabled(in: defaults), "calendar can be enabled independently")
-        suite.expect(!NotchCalendarSupport.showsCountdown(in: defaults),
+        suite.expect(!NotchCalendarSupport.showsCountdown(in: defaults) && !NotchCalendarSupport.showsTimeLeft(in: defaults),
                      "calendar titles stay out of the closed island until explicitly enabled")
         defaults.set(true, forKey: DefaultsKey.notchCalendarCountdown)
-        suite.expect(NotchCalendarSupport.showsCountdown(in: defaults),
+        suite.expect(NotchCalendarSupport.showsCountdown(in: defaults) && !NotchCalendarSupport.showsTimeLeft(in: defaults),
                      "the compact countdown follows its own opt-in")
+        defaults.set(false, forKey: DefaultsKey.notchCalendarCountdown)
+        defaults.set(true, forKey: DefaultsKey.notchCalendarTimeLeft)
+        suite.expect(!NotchCalendarSupport.showsCountdown(in: defaults) && NotchCalendarSupport.showsTimeLeft(in: defaults),
+                     "time left in the event under way follows an opt-in of its own")
+        defaults.set(true, forKey: DefaultsKey.notchCalendarCountdown)
         defaults.set("calendar", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "hiding the calendar releases its resources")
-        suite.expect(!NotchCalendarSupport.showsCountdown(in: defaults),
+        suite.expect(!NotchCalendarSupport.showsCountdown(in: defaults) && !NotchCalendarSupport.showsTimeLeft(in: defaults),
                      "a hidden calendar cannot leave event titles in the island")
         defaults.set("", forKey: DefaultsKey.notchHiddenModules)
         defaults.set(false, forKey: AppFeature.notchCalendar.availabilityKey)
@@ -1854,6 +1859,7 @@ enum NotchTests {
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "the master switch also stops calendar reads")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchCalendarEnabled,
                                                                  DefaultsKey.notchCalendarCountdown,
+                                                                 DefaultsKey.notchCalendarTimeLeft,
                                                                  AppFeature.notchCalendar.availabilityKey]),
                "calendar preferences travel in backup")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarExcluded),
@@ -1901,16 +1907,61 @@ enum NotchTests {
         suite.expect(NotchCalendarSupport.nextRefresh(entries, now: now) == now.addingTimeInterval(300),
                "the next refresh chooses the nearest future event boundary")
         let hour = NotchCalendarSupport.countdownLeadTime
-        suite.expect(NotchCalendarSupport.countdownEvent(entries, now: now) == later
-                     && NotchCalendarSupport.countdownEvent([allDay, current], now: now) == nil,
+        func countdownFor(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = true,
+                          ends: Bool = false) -> NotchCalendarCountdown? {
+            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends)
+        }
+        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false) -> Date? {
+            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends)
+        }
+        suite.expect(countdownFor(entries) == NotchCalendarCountdown(event: later, ongoing: false)
+                     && countdownFor([allDay, current]) == nil,
                      "the countdown chooses the next timed start, ignoring all-day and ongoing events")
-        suite.expect(NotchCalendarSupport.countdownEvent([event("edge", hour, hour + 60)], now: now)?.id == "edge"
-                     && NotchCalendarSupport.countdownEvent([event("outside", hour + 1, hour + 61)], now: now) == nil,
+        suite.expect(countdownFor([event("edge", hour, hour + 60)])?.event.id == "edge"
+                     && countdownFor([event("outside", hour + 1, hour + 61)]) == nil,
                      "the countdown appears only in the hour before a start")
-        suite.expect(NotchCalendarSupport.countdownTransition([event("future", hour + 600, hour + 900)], now: now)
-                     == now.addingTimeInterval(600)
-                     && NotchCalendarSupport.countdownTransition([later], now: now) == later.start,
+        suite.expect(transition([event("future", hour + 600, hour + 900)]) == now.addingTimeInterval(600)
+                     && transition([later]) == later.start,
                      "a refresh is scheduled when the hour window opens and when an event starts")
+        // A meeting that ends in 30 minutes, 15 minutes before the next one starts.
+        let meeting = event("meeting", -1800, 1800)
+        let afterGap = event("after gap", 2700, 4500)
+        suite.expect(countdownFor([meeting, afterGap]) == NotchCalendarCountdown(event: afterGap, ongoing: false)
+                     && countdownFor([meeting, afterGap], ends: true) == NotchCalendarCountdown(event: meeting, ongoing: true)
+                     && countdownFor([meeting, afterGap], starts: false, ends: true)?.target == meeting.end,
+                     "with time left on, a gap before the next event keeps the meeting under way counting to its end")
+        suite.expect(countdownFor([meeting, afterGap], at: 1800, ends: true)
+                     == NotchCalendarCountdown(event: afterGap, ongoing: false)
+                     && countdownFor([meeting, afterGap], at: 1800, starts: false, ends: true) == nil,
+                     "once the meeting ends the next start takes over, unless only time left is on")
+        let overlapping = event("overlapping", 600, 3000)
+        suite.expect(countdownFor([meeting, overlapping], ends: true) == NotchCalendarCountdown(event: overlapping, ongoing: false)
+                     && countdownFor([meeting, overlapping], at: 600, ends: true)
+                        == NotchCalendarCountdown(event: meeting, ongoing: true),
+                     "whichever moment comes first leads, including a start before the current event ends")
+        suite.expect(countdownFor([meeting, event("back to back", 1800, 5400)], ends: true)
+                     == NotchCalendarCountdown(event: meeting, ongoing: true),
+                     "a start at the moment of an end leaves the event under way in the island")
+        let long = event("long", -3600, hour + 600)
+        suite.expect(countdownFor([long], ends: true) == nil
+                     && countdownFor([long], at: 600, ends: true) == NotchCalendarCountdown(event: long, ongoing: true)
+                     && countdownFor([allDay], ends: true) == nil,
+                     "time left appears only in the hour before a timed end")
+        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now)
+                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end),
+                     "an end is never shown before its event begins or once it has passed")
+        suite.expect(transition([long], ends: true) == now.addingTimeInterval(600)
+                     && transition([afterGap], starts: false, ends: true) == afterGap.start,
+                     "the hour before an end opens no earlier than the event's start")
+        suite.expect(transition([meeting], starts: false, ends: true) == meeting.end
+                     && transition([meeting], starts: false) == nil,
+                     "a refresh is scheduled when the current event ends, and none when nothing is followed")
+        let posix = Locale(identifier: "en_US_POSIX")
+        let endText = NotchCalendarSupport.timeText(NotchCalendarCountdown(event: meeting, ongoing: true), locale: posix)
+        suite.expect(NotchCalendarSupport.timeText(NotchCalendarCountdown(event: afterGap, ongoing: false), locale: posix)
+                        .hasPrefix("·")
+                     && endText == "→\u{2009}" + meeting.end.formatted(.dateTime.hour().minute().locale(posix)),
+                     "the time beside the clock is when the next event starts or when the current one ends")
         suite.expect(NotchCalendarSupport.countdownText(until: now.addingTimeInterval(hour), now: now) == "60:00"
                      && NotchCalendarSupport.countdownText(until: now.addingTimeInterval(61), now: now) == "1:01"
                      && NotchCalendarSupport.countdownText(until: now, now: now) == "0:00",
