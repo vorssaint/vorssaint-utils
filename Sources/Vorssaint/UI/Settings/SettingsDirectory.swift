@@ -348,7 +348,8 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.notch(language).description,
                                                  FeatureStrings.notchEditor(language).hideMenuBarIcon,
                                                  "notch", "camera", "music", "clipboard",
-                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens"]
+                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens",
+                                                 FeatureStrings.notchAgents(language).resetsCard]
                                           // The fit card only appears with a camera housing to fit.
                                           + (NotchSupport.hasNotchedDisplay ? [FeatureStrings.notch(language).cameraFit] : [])),
                 SettingsDirectoryItem(page: .commandBar,

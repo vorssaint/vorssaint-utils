@@ -167,6 +167,18 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
+    /// Limits an agent read from the account on request, newer than its
+    /// logs until it writes again: after a banked reset, right away.
+    func noteLimits(_ reading: AgentLimits) {
+        guard running else { return }
+        queue.async { [self] in
+            guard readerSession >= 0, enabled.contains(reading.provider) else { return }
+            store.updateLimits(reading)
+            checkLimits()
+            schedulePublish()
+        }
+    }
+
     /// Opening the page shows the latest limits the Claude app saved.
     func pageDidAppear() {
         guard running else { return }
@@ -436,6 +448,15 @@ final class AgentUsageService: ObservableObject {
                 warned[window.id] = (provider, window)
                 report(.limitWarning(provider: provider, window: window))
             }
+        }
+        // A banked reset renews a warned window before its time, which is
+        // news now rather than at the renewal it replaced.
+        for (id, entry) in warned {
+            guard let window = store.limits[entry.provider]?.windows.first(where: { $0.id == id }),
+                  let was = entry.window.resetsAt, let resets = window.resetsAt,
+                  resets.timeIntervalSince(was) > 60, window.usedPercent < threshold else { continue }
+            warned[id] = nil
+            report(.limitReset(provider: entry.provider, window: window))
         }
         previousLimits = store.limits
     }

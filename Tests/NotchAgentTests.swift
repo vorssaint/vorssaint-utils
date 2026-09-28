@@ -25,6 +25,7 @@ enum NotchAgentTests {
         reading(suite)
         AgentUsageReadTests.run(suite)
         claudeApp(suite)
+        AgentCodexResetTests.run(suite)
         preferences(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
@@ -944,7 +945,7 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "an agent can be left out")
@@ -977,6 +978,10 @@ enum NotchAgentTests {
         let trend = NotchAgentTile(card: .trend, provider: nil)
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex]) == [limits, codex, trend],
                      "each agent gets its own limits card")
+        let resets = NotchAgentTile(card: .resets, provider: .codex)
+        suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex]) == [resets, spend]
+                        && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude]) == [spend],
+                     "the resets card belongs to Codex and leaves with it")
         suite.expect(NotchAgentSupport.rows([limits, codex, spend, trend], width: 424) == [[limits, codex], [spend], [trend]]
                         && NotchAgentSupport.rows([limits, trend, codex], width: 424) == [[limits], [trend], [codex]],
                      "cards pair in reading order, and charts and lone cards take the row")

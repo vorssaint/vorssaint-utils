@@ -272,15 +272,21 @@ enum AgentLogParser {
         return id.isEmpty || id == "codex"
     }
 
+    /// The names a log gives a window's figures; Codex's server spells the
+    /// same ones in camel case.
+    typealias WindowKeys = (used: String, minutes: String, resets: String)
+    static let logWindowKeys: WindowKeys = ("used_percent", "window_minutes", "resets_at")
+
     /// Windows are told apart by their length, never by their slot: an
     /// account can report only its weekly window, and in either slot.
-    static func codexWindows(_ limits: [String: Any], observed: Date) -> [AgentLimitWindow]? {
+    static func codexWindows(_ limits: [String: Any], observed: Date,
+                             keys: WindowKeys = logWindowKeys) -> [AgentLimitWindow]? {
         var windows: [AgentLimitWindow] = []
         for slot in ["primary", "secondary"] {
             guard let window = limits[slot] as? [String: Any],
-                  let used = (window["used_percent"] as? NSNumber)?.doubleValue, used.isFinite else { continue }
-            let minutes = (window["window_minutes"] as? NSNumber)?.intValue
-            var resets = seconds(window["resets_at"])
+                  let used = (window[keys.used] as? NSNumber)?.doubleValue, used.isFinite else { continue }
+            let minutes = (window[keys.minutes] as? NSNumber)?.intValue
+            var resets = seconds(window[keys.resets])
             if resets == nil, let delay = (window["resets_in_seconds"] as? NSNumber)?.doubleValue, delay.isFinite {
                 resets = observed.addingTimeInterval(max(0, delay))
             }

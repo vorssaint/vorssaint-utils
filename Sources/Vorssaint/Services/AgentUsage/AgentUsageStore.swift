@@ -52,9 +52,7 @@ final class AgentUsageStore {
             case .usage(let key, let record, let billable):
                 add(record, billable: billable, key: key, turn: tracksTurns ? file : parent, subagent: !tracksTurns)
             case .limits(let reading):
-                if (limits[reading.provider]?.observedAt ?? .distantPast) <= reading.observedAt {
-                    limits[reading.provider] = reading
-                }
+                updateLimits(reading)
             case .plan(let plan, let date):
                 // An archived session read again from its start holds an
                 // older plan than the one in use.
@@ -163,6 +161,14 @@ final class AgentUsageStore {
 
     func setLimits(_ reading: AgentLimits) {
         limits[reading.provider] = reading
+    }
+
+    /// Keeps the newer of two readings of an account, whichever way each
+    /// one arrived.
+    func updateLimits(_ reading: AgentLimits) {
+        if (limits[reading.provider]?.observedAt ?? .distantPast) <= reading.observedAt {
+            limits[reading.provider] = reading
+        }
     }
 
     func clearLimits(_ provider: AgentProvider) {
