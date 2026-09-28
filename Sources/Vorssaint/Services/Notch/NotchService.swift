@@ -133,6 +133,14 @@ final class NotchService: ObservableObject {
     private var openedByHover = false
     /// A click inside the open island, which may be what brings another app forward.
     private var clickedSinceOpening = false
+    /// Whether the open detail was reached from inside the island, so Escape
+    /// steps back to its page as the Back button does. A detail the island
+    /// opened on, from the menu bar for instance, has nothing behind it and
+    /// closes like the menu panel.
+    private var detailHasPage = false
+    /// What a page shows over its own content, such as the mixer's options or
+    /// the month grid, and how to close it; Escape closes it before the page.
+    private var pageLayers: [NotchModule: () -> Void] = [:]
     private var trackingMenu = false
     private var fileInteractionActive = false
     private var keepsWorkingSurface: Bool {
@@ -629,6 +637,7 @@ final class NotchService: ObservableObject {
         screenRefreshWork?.cancel(); screenRefreshWork = nil
         captureControlsWork?.cancel(); captureControlsWork = nil
         musicDetailVisible = false
+        pageLayers.removeAll()
         panel?.handleScroll = nil
         gesture = NotchGestureSupport()
         sectionScroll = NotchSectionScroll()
@@ -735,6 +744,10 @@ final class NotchService: ObservableObject {
         panel.acceptsKeyFocus = true
         hoverState.open()
         hoverWork?.cancel()
+        // Entering a detail decides what lies behind it; switching details or
+        // passing through the gallery keeps that answer.
+        if !expanded { detailHasPage = false }
+        else if appPanel || metric != nil, !showingAppPanel, selectedMetric == nil { detailHasPage = true }
         mutatePresentation(transitionContent: changesPresentation ? (expanded ? .replace : .reveal) : .none) {
             showingAppPanel = appPanel
             showingSections = sections
@@ -1135,6 +1148,26 @@ final class NotchService: ObservableObject {
         mutatePresentation(transitionContent: changesPresentation ? .replace : .none) { selectedMetric = nil; showingAppPanel = false }
         syncVisibleConsumers()
         if changesPresentation { provideHapticFeedback() }
+    }
+
+    /// Escape steps back one level: a detail returns to its page as the Back
+    /// button does, a page closes the layer it shows, and the island closes
+    /// once nothing lies behind.
+    private func stepBack() {
+        guard captureControls == nil, !heldDrag else { return }
+        if showingAppPanel || selectedMetric != nil {
+            if detailHasPage { goBack() } else { collapse() }
+        } else if let close = pageLayers[selected] {
+            close()
+        } else {
+            collapse()
+        }
+    }
+
+    /// A page reports the layer it shows over its content with how to close
+    /// it, and nil once the layer or the page is gone.
+    func setPageLayer(_ module: NotchModule, close: (() -> Void)?) {
+        pageLayers[module] = close
     }
 
     func provideHapticFeedback() {
@@ -2185,11 +2218,11 @@ final class NotchService: ObservableObject {
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53 {
                 // A level being typed in the mixer cancels on Escape by
                 // itself, and the scratchpad's find bar closes on it; the
-                // island collapses on the next one.
+                // next one steps back.
                 if let editor = self.panel?.firstResponder as? NSTextView, editor.isFieldEditor,
                    (editor.delegate as AnyObject?) is MixerPercentNativeTextField { return event }
                 if PlainTextEditor.findBarHasKeyboard(in: self.panel) { return event }
-                self.collapse()
+                self.stepBack()
                 return nil
             }
             let click = clicks.contains(NSEvent.EventTypeMask(rawValue: 1 << event.type.rawValue))
