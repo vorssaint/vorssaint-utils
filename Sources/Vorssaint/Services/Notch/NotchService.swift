@@ -175,6 +175,15 @@ final class NotchService: ObservableObject {
     private var screenRefreshWork: DispatchWorkItem?
     private var preferenceSyncWork: DispatchWorkItem?
     private let menuSpaceQueue = DispatchQueue(label: "com.vorssaint.notch-menu-space", qos: .utility)
+    /// The display the island is on. The pointer choice keeps it there until
+    /// the island rests, so a preference sync never moves an open island.
+    private var displayID: CGDirectDisplayID?
+    private var followsPointer = false
+    private var pointerMonitors: [Any] = []
+    private var pointerFollowWork: DispatchWorkItem?
+    /// How long the pointer stays on another display before the island
+    /// follows, so passing over a display edge does not move it.
+    private static let pointerFollowDelay: TimeInterval = 0.2
 
     private init() {}
 
@@ -557,7 +566,9 @@ final class NotchService: ObservableObject {
         NotchNotificationService.shared.syncWithPreferences()
         NotchAudioLevelService.shared.syncWithPreferences()
         AgentUsageService.shared.syncWithPreferences()
+        followsPointer = displayPreference == .pointer
         updateScreen()
+        syncPointerFollowing()
         syncGestures()
         NotchTimerService.shared.syncWithPreferences()
         NotchAccessoryService.shared.syncWithPreferences()
@@ -676,9 +687,12 @@ final class NotchService: ObservableObject {
         removeScreenEdgeClickMonitors()
         removeCaptureControlsClickThrough()
         removeHiddenHoverMonitors()
+        removePointerMonitors()
         releaseMonitor()
         windowHost?.close()
         windowHost = nil
+        // Shown again, an island that follows the pointer starts on its display.
+        displayID = nil
         syncPanelKey()
         hiddenInFullscreen = false
     }
@@ -1622,6 +1636,9 @@ final class NotchService: ObservableObject {
             presentedMusic = nil
         }
         syncHiddenHoverMonitoring()
+        // Closing, or a notice ending, can leave the island at rest away from
+        // a pointer that has not moved since; it follows it then.
+        defer { schedulePointerFollow() }
         if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
             finishMusicDeparture()
             presentedMusic = nil
@@ -1719,6 +1736,70 @@ final class NotchService: ObservableObject {
     private func removeHiddenHoverMonitors() {
         hiddenHoverMonitors.forEach(NSEvent.removeMonitor)
         hiddenHoverMonitors.removeAll()
+    }
+
+    /// Movement is watched only while the island can follow the pointer to
+    /// another display, and each event only checks whether it left the
+    /// island's display; nothing polls at rest.
+    private func syncPointerFollowing() {
+        guard running, !suspended, followsPointer, windowHost != nil, NSScreen.screens.count > 1 else {
+            removePointerMonitors()
+            return
+        }
+        guard pointerMonitors.isEmpty else { return }
+        // A drag moves the pointer without mouse-moved events.
+        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in
+            self?.schedulePointerFollow()
+        }) { pointerMonitors.append(token) }
+        if let token = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] event in
+            self?.schedulePointerFollow()
+            return event
+        }) { pointerMonitors.append(token) }
+    }
+
+    private func removePointerMonitors() {
+        pointerMonitors.forEach(NSEvent.removeMonitor)
+        pointerMonitors.removeAll()
+        pointerFollowWork?.cancel(); pointerFollowWork = nil
+    }
+
+    /// Only a closed island moves. A file dragged toward it brings the drop
+    /// area along, so the file can land on either display; an open page, a
+    /// notice or a drag out of the island stays where it is.
+    private var canFollowPointer: Bool {
+        !expanded && !peeking && notice == nil && captureControls == nil && !heldDrag
+            && !choosingFileDropDestination && !keepsWorkingSurface
+    }
+
+    private func schedulePointerFollow() {
+        guard followsPointer, windowHost != nil else { return }
+        guard !NSMouseInRect(NSEvent.mouseLocation, geometry.screen, false) else {
+            pointerFollowWork?.cancel(); pointerFollowWork = nil
+            return
+        }
+        guard pointerFollowWork == nil, canFollowPointer else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pointerFollowWork = nil
+            // A closing island finishes on the display it closed on.
+            self.windowHost?.whenSettled { [weak self] in self?.followPointer() }
+        }
+        pointerFollowWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pointerFollowDelay, execute: work)
+    }
+
+    private func followPointer() {
+        // Mission Control spans the displays; the island moves once it is back.
+        guard running, !suspended, followsPointer, canFollowPointer,
+              windowHost?.isConcealedForMissionControl == false,
+              let screen = NSScreen.withMouse, screen.notchDisplayID != displayID else { return }
+        displayID = screen.notchDisplayID
+        updateScreen()
+        // The menu space measured so far belongs to the display it left.
+        invalidateMenuSpace()
+        syncVisibleConsumers()
+        refreshPresentation(animated: false)
     }
 
     private var screenEdgeClickArea: CGRect? {
@@ -1892,13 +1973,25 @@ final class NotchService: ObservableObject {
     /// built-in screen while it keeps running.
     private static let hasLid = BrightnessService.lidClosed() != nil
 
+    private var displayPreference: NotchDisplay {
+        NotchDisplay(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchDisplay) ?? "") ?? .automatic
+    }
+
     private func screenIndex(in screens: [NSScreen]) -> Int? {
-        NotchSupport.screenIndex(
-            preference: NotchDisplay(rawValue: UserDefaults.standard.string(
-                forKey: DefaultsKey.notchDisplay) ?? "") ?? .automatic,
+        let preference = displayPreference
+        var pointer: Int?
+        if preference == .pointer {
+            // The island stays on its display until it can follow the pointer.
+            let mouse = NSEvent.mouseLocation
+            pointer = screens.firstIndex { $0.notchDisplayID == displayID }
+                ?? screens.firstIndex { NSMouseInRect(mouse, $0.frame, false) }
+        }
+        return NotchSupport.screenIndex(
+            preference: preference,
             builtIn: screens.map { CGDisplayIsBuiltin($0.notchDisplayID) != 0 },
             notched: screens.map { $0.safeAreaInsets.top > 0 },
             main: screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0,
+            pointer: pointer,
             hasLid: Self.hasLid)
     }
 
@@ -1925,6 +2018,7 @@ final class NotchService: ObservableObject {
         menuBarMeasurements.retainDisplays(screens.map(\.notchDisplayID))
         guard let index = screenIndex(in: screens) else { withdrawFromMissingScreen(); return }
         let screen = screens[index]
+        displayID = screen.notchDisplayID
         let cameraWidth: CGFloat
         if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
             cameraWidth = max(0, right.minX - left.maxX)

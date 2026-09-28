@@ -98,7 +98,8 @@ struct NotchClipboardPastePress: Equatable {
 }
 
 enum NotchDisplay: String, CaseIterable {
-    case automatic, builtIn, main
+    /// `pointer` moves the closed island to the display the pointer is on.
+    case automatic, builtIn, main, pointer
 }
 
 enum NotchSize: String, CaseIterable {
@@ -1023,9 +1024,10 @@ enum NotchSupport {
 
     /// A laptop with its lid closed has no built-in screen to show on, so the
     /// built-in choice hides the island there. A Mac without a built-in panel
-    /// never has one, so that choice keeps the main display.
+    /// never has one, so that choice keeps the main display. The pointer
+    /// choice takes the display it last followed the pointer to, if any.
     static func screenIndex(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int,
-                            hasLid: Bool = true) -> Int? {
+                            pointer: Int? = nil, hasLid: Bool = true) -> Int? {
         guard !builtIn.isEmpty, builtIn.count == notched.count else { return nil }
         let fallback = builtIn.indices.contains(main) ? main : 0
         switch preference {
@@ -1034,6 +1036,7 @@ enum NotchSupport {
         case .automatic:
             return builtIn.indices.first { builtIn[$0] && notched[$0] }
                 ?? notched.firstIndex(of: true) ?? fallback
+        case .pointer: return pointer.flatMap { builtIn.indices.contains($0) ? $0 : nil } ?? fallback
         }
     }
 }
