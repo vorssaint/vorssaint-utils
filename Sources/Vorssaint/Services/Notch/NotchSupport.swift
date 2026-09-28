@@ -836,6 +836,12 @@ enum NotchEvent: String, CaseIterable {
 }
 
 enum NotchSupport {
+    /// Whether a connected display has a camera housing, wherever the island
+    /// is: it can be off, withdrawn with the lid closed or on another display.
+    static var hasNotchedDisplay: Bool {
+        NSScreen.screens.contains { $0.safeAreaInsets.top > 0 }
+    }
+
     static let toolColumns = 5
     static let defaultHoverDelay = 0.25
     static let hoverDelayRange = 0.10...1.0

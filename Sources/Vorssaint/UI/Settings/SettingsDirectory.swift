@@ -350,8 +350,7 @@ enum SettingsDirectory {
                                                  "notch", "camera", "music", "clipboard",
                                                  FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens"]
                                           // The fit card only appears with a camera housing to fit.
-                                          + (NSScreen.screens.contains(where: { $0.safeAreaInsets.top > 0 })
-                                             ? [FeatureStrings.notch(language).cameraFit] : [])),
+                                          + (NotchSupport.hasNotchedDisplay ? [FeatureStrings.notch(language).cameraFit] : [])),
                 SettingsDirectoryItem(page: .commandBar,
                                       title: FeatureStrings.commandBar(language).pageTitle,
                                       icon: "command",
