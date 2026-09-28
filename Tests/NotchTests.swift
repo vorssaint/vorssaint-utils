@@ -1974,6 +1974,10 @@ enum NotchTests {
                      "the Controls tile names the next timed start at any distance, past ongoing and all-day events")
         suite.expect(NotchCalendarSupport.tileEvent([later], now: later.start) == nil,
                      "an appointment leaves the tile once it starts")
+        let sixDays = event("in six days", 6 * 86_400, 6 * 86_400 + 600)
+        suite.expect(NotchCalendarSupport.tileEvent([sixDays], now: now) == sixDays
+                     && NotchCalendarSupport.tileEvent([event("next week", 8 * 86_400, 8 * 86_400 + 600)], now: now) == nil,
+                     "the tile stops at the week read, where its weekday cannot be mistaken for this week's")
         suite.expect(NotchCalendarSupport.countdownTransition([event("future", hour + 600, hour + 900)], now: now)
                      == now.addingTimeInterval(600)
                      && NotchCalendarSupport.countdownTransition([later], now: now) == later.start,

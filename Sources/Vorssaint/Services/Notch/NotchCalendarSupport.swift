@@ -158,9 +158,13 @@ enum NotchCalendarSupport {
 
     /// The Controls tile names the next start at any distance within the
     /// week read, not only in the countdown's hour. An appointment already
-    /// in progress is known; the one after it is what comes next.
-    static func tileEvent(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
-        ordered(events).first { !$0.allDay && $0.start > now }
+    /// in progress is known; the one after it is what comes next. The month
+    /// grid can load weeks further ahead, where a weekday alone would read as
+    /// this week's, so the tile stops at the week.
+    static func tileEvent(_ events: [NotchCalendarEvent], now: Date,
+                          calendar: Calendar = .current) -> NotchCalendarEvent? {
+        let week = readInterval(month: nil, now: now, calendar: calendar)
+        return ordered(events).first { !$0.allDay && $0.start > now && $0.start < week.end }
     }
 
     /// A start later today reads as its time; a later day adds its weekday.

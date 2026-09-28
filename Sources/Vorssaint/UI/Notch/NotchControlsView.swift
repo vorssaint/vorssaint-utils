@@ -463,6 +463,9 @@ struct NotchActionTile: View {
     let symbol: String
     let title: String
     var reading: String?
+    /// A shorter title for the line under a reading when `title` does not
+    /// fit whole; help and VoiceOver keep `title`.
+    var compactTitle: String?
     var active = false
     var accent: NotchTileAccent = .selection
     let action: () -> Void
@@ -498,8 +501,10 @@ struct NotchActionTile: View {
             VStack(spacing: 1) {
                 Text(reading).font(.system(size: 11, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(.white)
-                Text(title).font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                ViewThatFits(in: .horizontal) {
+                    readingTitle(title)
+                    if let compactTitle { readingTitle(compactTitle) }
+                }
             }
             .lineLimit(1)
             .minimumScaleFactor(0.85)
@@ -510,6 +515,11 @@ struct NotchActionTile: View {
                 .minimumScaleFactor(0.85)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func readingTitle(_ text: String) -> some View {
+        Text(text).font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white.opacity(0.7))
     }
 }
 
@@ -537,6 +547,9 @@ private struct NotchTimerTile: View {
             title: active ? FeatureStrings.notchActivities(l10n.language).phase(session.phase)
                 : NotchControlItem.timer.title(l10n),
             reading: active ? NotchTimerSupport.clockText(for: session, at: timer.now) : nil,
+            // A long phase name, such as a Russian short break, would be cut
+            // off on a narrow tile; the module's own title stands in.
+            compactTitle: active ? NotchControlItem.timer.title(l10n) : nil,
             active: active, accent: .timer) { service.select(.timer) }
     }
 
