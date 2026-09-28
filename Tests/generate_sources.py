@@ -126,6 +126,11 @@ def main():
           + "}\nextension SwitcherActivationTests.Bridge {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
                         "    static func frontWindow(") + "}\n")
+    write("NowPlayingOpen.swift", "import AppKit\n"
+          + "extension NowPlayingOpenContract.Application {\n"
+          + declaration("Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
+                        "    static func open(", scope="enum RadialNowPlayingApplication {")
+          + "}\n")
     write("WindowServerCapture.swift", "import CoreGraphics\nimport Foundation\n"
           + "extension WindowServerCaptureContract.Provider {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",

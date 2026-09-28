@@ -276,9 +276,18 @@ enum RadialNowPlayingApplication {
         return icon
     }
 
+    /// The island and the radial card are non-activating panels, so Vorssaint
+    /// rarely holds activation when one is clicked. Since macOS 14 a bare
+    /// request from an inactive app is refused, and the player stayed behind.
     static func open(_ snapshot: RadialNowPlayingSnapshot) {
         if let application = runningApplication(for: snapshot) {
-            application.activate(options: [.activateAllWindows])
+            // A helper takes no activation; the handoff would leave Vorssaint in front.
+            guard application.activationPolicy == .regular else { return }
+            if application.isHidden { application.unhide() }
+            ActivationHandoff.yield(to: application)
+            if !application.activate(from: NSRunningApplication.current, options: [.activateAllWindows]) {
+                application.activate(options: [.activateAllWindows])
+            }
             return
         }
         guard let identifier = snapshot.appBundleIdentifier,

@@ -23,6 +23,7 @@ Scratchpad gains easier formatting and search, Keep Awake starts with one click 
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
+- Clicking the Now Playing cover in Dynamic Island, or the radial menu's Now Playing card, brings the playing app to the front instead of doing nothing.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
@@ -30,7 +31,7 @@ Scratchpad gains easier formatting and search, Keep Awake starts with one click 
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @gorillasuti, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 
