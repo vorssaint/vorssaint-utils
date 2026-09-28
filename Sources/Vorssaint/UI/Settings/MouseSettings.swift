@@ -445,7 +445,7 @@ struct MouseSettings: View {
                     if middleClick.systemDragGestureConflict {
                         Text(l10n.s.middleClickDragConflict)
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

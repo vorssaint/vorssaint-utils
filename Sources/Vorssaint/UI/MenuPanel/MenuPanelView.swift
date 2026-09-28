@@ -1650,8 +1650,7 @@ struct QuickControlsSection: View {
                            isEditing: editing,
                            showsDragHandle: true,
                            visibility: $showMiddleClick,
-                           needsAttention: middleClickEnabled
-                               && (!permissions.accessibility || middleClick.systemDragGestureConflict),
+                           needsAttention: middleClickEnabled && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(middleClickEnabled))
                 .onChange(of: middleClickEnabled) { _, enabled in

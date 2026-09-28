@@ -179,7 +179,7 @@ extension Strings {
         middleClickSection: "中鍵點按",
         middleClickEnable: "三指按下作為中鍵點按",
         middleClickEnableCaption: "用三隻手指按下觸控板，效果等同於滑鼠滾輪點按：在新分頁開啟連結、關閉分頁，以及中鍵能做的一切。",
-        middleClickDragConflict: "macOS 的三指拖移已開啟，與此手勢相同。請在系統設定的輔助使用、指標控制、觸控板選項中將其關閉，中鍵點按即可使用。",
+        middleClickDragConflict: "macOS 的三指拖移已開啟並佔用三指，因此請用四指按下來進行中鍵點按。如要使用三指，請在系統設定的輔助使用、指標控制、觸控板選項中將其關閉。",
         middleClickTapPicker: "輕點也可點按",
         middleClickTapOff: "關閉",
         middleClickTapThreeFingers: "3 隻手指",

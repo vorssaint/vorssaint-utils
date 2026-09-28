@@ -179,7 +179,7 @@ extension Strings {
         middleClickSection: "Clic du milieu",
         middleClickEnable: "Le clic à trois doigts devient un clic du milieu",
         middleClickEnableCaption: "Appuyer sur le trackpad avec trois doigts agit comme un clic sur la molette de la souris\u{00A0}: ouvrir les liens dans un nouvel onglet, fermer des onglets et tout ce que fait le bouton du milieu.",
-        middleClickDragConflict: "Le glissement à trois doigts de macOS est activé et utilise ce même geste. Désactivez-le dans Réglages Système, sous Accessibilité, Contrôle du pointeur, Options du trackpad, pour que le clic du milieu fonctionne.",
+        middleClickDragConflict: "Le glissement à trois doigts de macOS est activé et utilise trois doigts, cliquez donc avec quatre doigts pour le clic du milieu. Pour en utiliser trois, désactivez-le dans Réglages Système, sous Accessibilité, Contrôle du pointeur, Options du trackpad.",
         middleClickTapPicker: "Un tapotement léger clique aussi",
         middleClickTapOff: "Désactivé",
         middleClickTapThreeFingers: "3 doigts",
