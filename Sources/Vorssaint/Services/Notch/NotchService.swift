@@ -1236,9 +1236,10 @@ final class NotchService: ObservableObject {
         pinned = false
         captureControlsCancel = cancel
         captureControls = options
-        captureControlsCollapsed = false
+        // The controls wait compact around the camera, clear of what is being
+        // captured, and open while the pointer rests on them.
+        captureControlsCollapsed = true
         captureSelectionInProgress = false
-        hoverState.open()
         options.onSelectionProgressChange = { [weak self, weak options] active in
             guard let self, let options, self.captureControls === options else { return }
             self.setCaptureSelectionInProgress(active)
@@ -1260,6 +1261,9 @@ final class NotchService: ObservableObject {
         panel?.acceptsKeyFocus = true
         panel?.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) + 1)
         refreshPresentation()
+        // A pointer already resting there has not hovered them; it leaves and
+        // comes back before they open.
+        hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
         panel?.orderFrontRegardless()
         panel?.makeKey()
         installCaptureControlsClickThrough()
@@ -1297,7 +1301,10 @@ final class NotchService: ObservableObject {
         }
     }
 
-    func scheduleCaptureControlsCollapse() {
+    /// Open controls close soon after the pointer leaves them. Opened with the
+    /// pointer elsewhere, from the keyboard, they wait long enough for a
+    /// control to take focus, which then keeps them open.
+    func scheduleCaptureControlsCollapse(after delay: TimeInterval = 3) {
         captureControlsWork?.cancel(); captureControlsWork = nil
         guard let options = captureControls, !captureControlsCollapsed, !captureSelectionInProgress,
               !options.hasFocusedControl, !inside else { return }
@@ -1311,7 +1318,7 @@ final class NotchService: ObservableObject {
             self.collapseCaptureControls()
         }
         captureControlsWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func updateCaptureControlsHover(wasInside: Bool) {
@@ -1319,7 +1326,10 @@ final class NotchService: ObservableObject {
         if !captureControlsCollapsed {
             if inside {
                 captureControlsWork?.cancel(); captureControlsWork = nil
-            } else if wasInside || captureControlsWork == nil {
+            } else if wasInside {
+                // Leaving closes them, as it closes an island opened by hover.
+                scheduleCaptureControlsCollapse(after: NotchQuickAccessLayout.hoverExitDelay)
+            } else if captureControlsWork == nil {
                 scheduleCaptureControlsCollapse()
             }
             return
