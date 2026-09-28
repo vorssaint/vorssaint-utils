@@ -23,6 +23,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Dynamic Island can keep opening on the page chosen in When reopening while music, a timer or another activity is showing.
 - Dynamic Island can follow the pointer between displays, so files dropped on it on one display can be dragged out on another.
 - Dynamic Island can be fitted to the notch's width and height on Macs where an edge of the notch shows around it.
+- Dynamic Island's Recent captures page can clear the whole history from its header, as the menu bar panel already could.
 
 ### Changed
 - Keep Awake starts with one click from duration chips or an end time; the switch and shortcut restart the last choice, and the panel explains when battery protection prevents a session.
