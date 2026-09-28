@@ -45,6 +45,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
 - The menu bar panel opens centered under its icon again, without a gray band along its top and right edges on macOS 14 and 15, and tall tabs no longer open it beside the icon.
 - Scrolling the Features page in Settings no longer stutters or freezes the app.
+- The Features page shows that App Switcher and Super key also listen to the mouse, and that the music app blocker listens to the keyboard, as does Brightness when its key options are on.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
