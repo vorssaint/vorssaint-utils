@@ -135,6 +135,11 @@ enum PreferencesFeatureTests {
                "a typed menu bar symbol name loses its surrounding spaces, and blank keeps the glyph")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.menuBarIconSymbol),
                "the chosen menu bar symbol follows settings backups")
+        let symbolExists: (String) -> Bool = { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
+        suite.expect(Defaults.menuBarIconSymbolToSave(typed: " bolt.fill ", opening: "", exists: symbolExists) == "bolt.fill"
+                     && Defaults.menuBarIconSymbolToSave(typed: "bolt.fil", opening: "star.fill", exists: symbolExists) == "star.fill"
+                     && Defaults.menuBarIconSymbolToSave(typed: "  ", opening: "star.fill", exists: symbolExists) == "",
+               "a typed menu bar symbol applies when this Mac has it, blank brings back the glyph, anything else keeps the opening icon")
         suite.expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: []),
                "no online display does not count as an external display")
         suite.expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true]),

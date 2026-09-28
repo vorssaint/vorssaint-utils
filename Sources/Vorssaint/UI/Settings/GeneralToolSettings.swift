@@ -83,17 +83,20 @@ private struct MenuBarIconSymbolRow: View {
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                         .frame(width: 140)
-                    if !draft.isEmpty {
-                        Button {
-                            draft = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .help(text.menuBarIconReset)
-                        .accessibilityLabel(text.menuBarIconReset)
+                    // Kept in place while hidden, so the caption beside the
+                    // field does not reflow as the name is typed or cleared.
+                    Button {
+                        draft = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
                     }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(text.menuBarIconReset)
+                    .accessibilityLabel(text.menuBarIconReset)
+                    .opacity(draft.isEmpty ? 0 : 1)
+                    .disabled(draft.isEmpty)
+                    .accessibilityHidden(draft.isEmpty)
                 }
             }
             if !name.isEmpty, BlackHoleGlyph.customMark(named: name) == nil {
@@ -105,8 +108,9 @@ private struct MenuBarIconSymbolRow: View {
             }
         }
         .onChange(of: draft) { _, newValue in
-            let name = Defaults.sanitizedMenuBarIconSymbol(newValue)
-            let kept = (name.isEmpty || BlackHoleGlyph.customMark(named: name) != nil) ? name : openingName
+            let kept = Defaults.menuBarIconSymbolToSave(typed: newValue, opening: openingName) {
+                BlackHoleGlyph.customMark(named: $0) != nil
+            }
             if kept != savedName { savedName = kept }
         }
     }
