@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Scratchpad gains easier formatting and search, Keep Awake starts with one click from duration chips, and mouse wheels can scroll a fixed distance per notch. The update also improves app updates, Dynamic Island, App Switcher and reliability across input, clipboard, package management and desktop layouts.
+Scratchpad gains easier formatting and search, Keep Awake starts with one click from duration chips, and mouse wheels can scroll a fixed distance per notch. The update also improves app updates, Dynamic Island, App Switcher and reliability across input, clipboard, Settings, package management and desktop layouts.
 
 ### Added
 - App Updates can ignore one release or exclude an app from update results and alerts.
@@ -28,9 +28,10 @@ Scratchpad gains easier formatting and search, Keep Awake starts with one click 
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
+- Scrolling the Features page in Settings no longer stutters or freezes the app.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
+Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @IanHollow, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged and @Yahddyyp.
 
 ## [3.4.0] - 2026-09-27
 
