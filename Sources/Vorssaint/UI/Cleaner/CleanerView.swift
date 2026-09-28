@@ -339,7 +339,7 @@ struct CleanerView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(11)
-        .frame(maxWidth: 380)
+        .frame(maxWidth: 380, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
