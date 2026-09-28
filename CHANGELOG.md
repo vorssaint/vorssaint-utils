@@ -38,6 +38,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Setting the volume from Command Bar no longer adds a floating confirmation under the volume notice in Dynamic Island.
 - Text fields in Dynamic Island, the menu bar panel and Quick Launcher yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the island, the panel or the open utility.
 - Dock Preview, App Switcher and Command Bar list every window of an app that was hidden and shown again, not only its front window.
+- Dock Preview's Panel background slider, which has no effect on Liquid Glass, is turned off while Liquid Glass is on and points to System Settings > Appearance instead.
 - Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
 - Holding or dragging an icon in the Dock no longer opens the Shelf, in Dynamic Island or in the menu bar drop zone.
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
