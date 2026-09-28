@@ -21,7 +21,7 @@ import Carbon.HIToolbox
 /// loop instead. Main thread only, like everything that touches the menu.
 enum MouseNavigationKeys {
     /// The key a command ended up on, and the modifiers a menu reports for it.
-    struct Shortcut {
+    struct Shortcut: Equatable {
         var character: String
         var menuModifiers: UInt32
     }
@@ -76,6 +76,17 @@ enum MouseNavigationKeys {
             }
             mainMenu.removeItem(host)
         }
+    }
+
+    /// What to look for, most likely first: the key the Go item carries, then
+    /// the declared bracket. AppKit may re-localize an inactive app's menu only
+    /// once it is active, so after a switch to a keyboard that types brackets
+    /// the Go item can still carry the key of the one before; the bracket is
+    /// what the app in front shows then.
+    static func candidates(for direction: MouseNavigationDirection) -> [Shortcut] {
+        let declared = Shortcut(character: MouseNavigationSupport.commandCharacter(for: direction), menuModifiers: 0)
+        let current = shortcut(for: direction)
+        return current == declared ? [current] : [current, declared]
     }
 
     /// The key macOS left on an item declaring one of the commands, or nil

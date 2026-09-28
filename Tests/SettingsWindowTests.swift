@@ -122,6 +122,9 @@ enum SettingsWindowTests {
         expect(movedBack.character == "ö" && movedForward.character == "ä"
                 && movedBack.menuModifiers == 0 && movedForward.menuModifiers == 0,
                "side buttons look for the keys macOS moved the Go commands to")
+        expect(MouseNavigationKeys.candidates(for: .back).map(\.character) == ["ö", "["]
+                && MouseNavigationKeys.candidates(for: .forward).map(\.character) == ["ä", "]"],
+               "a moved key that the app in front no longer shows still leaves the declared bracket to find")
         let menuItemCount = mainMenu.numberOfItems
         MouseNavigationKeys.refresh()
         expect(mainMenu.numberOfItems == menuItemCount,
@@ -130,6 +133,8 @@ enum SettingsWindowTests {
         expect(MouseNavigationKeys.shortcut(for: .back).character == "["
                 && MouseNavigationKeys.shortcut(for: .forward).character == "]",
                "without the Go menu, side buttons fall back to the declared brackets")
+        expect(MouseNavigationKeys.candidates(for: .back).map(\.character) == ["["],
+               "the declared bracket is looked for once when nothing moved it")
 
         for language in AppLanguage.allCases {
             let strings = SettingsNavigationStrings.localized(language)
