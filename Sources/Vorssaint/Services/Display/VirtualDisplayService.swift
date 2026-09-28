@@ -71,33 +71,43 @@ public struct VirtualDisplayProfile: Identifiable, Hashable, Sendable {
         guard width > 0, height > 0 else { return standard16x9 }
         let ratio = Double(width) / Double(height)
 
+        var profile: VirtualDisplayProfile
         if abs(ratio - 16.0 / 9.0) < 0.05 {
-            return standard16x9
-        }
-        if abs(ratio - 16.0 / 10.0) < 0.05 {
-            return mac16x10
+            profile = standard16x9
+        } else if abs(ratio - 16.0 / 10.0) < 0.05 {
+            profile = mac16x10
+        } else {
+            // Ultrawide (21:9, 32:9) or legacy (4:3, 3:2, etc.) dynamic ladder
+            let baseW = width * 2
+            let baseH = height * 2
+            let factors = [1.0, 0.9, 0.8, 0.75, 0.625, 0.5]
+            var modes: [VirtualDisplayModeEntry] = []
+            var seen = Set<String>()
+            for factor in factors {
+                let mw = Int(max(1, (Double(baseW) * factor).rounded()))
+                let mh = Int(max(1, (Double(baseH) * factor).rounded()))
+                if seen.insert("\(mw)x\(mh)").inserted {
+                    modes.append(VirtualDisplayModeEntry(width: mw, height: mh, refreshRate: 60))
+                }
+            }
+            profile = VirtualDisplayProfile(
+                name: "HiDPI · \(width) × \(height)",
+                aspectRatioLabel: "\(width):\(height)",
+                modes: modes.isEmpty ? [VirtualDisplayModeEntry(width: baseW, height: baseH, refreshRate: 60)] : modes,
+                defaultWidth: baseW,
+                defaultHeight: baseH
+            )
         }
 
-        // Ultrawide (21:9, 32:9) or legacy (4:3, 3:2, etc.) dynamic ladder
-        let baseW = width * 2
-        let baseH = height * 2
-        let factors = [1.0, 0.9, 0.8, 0.75, 0.625, 0.5]
-        var modes: [VirtualDisplayModeEntry] = []
-        var seen = Set<String>()
-        for factor in factors {
-            let mw = Int(max(1, (Double(baseW) * factor).rounded()))
-            let mh = Int(max(1, (Double(baseH) * factor).rounded()))
-            if seen.insert("\(mw)x\(mh)").inserted {
-                modes.append(VirtualDisplayModeEntry(width: mw, height: mh, refreshRate: 60))
-            }
-        }
-        return VirtualDisplayProfile(
-            name: "HiDPI · \(width) × \(height)",
-            aspectRatioLabel: "\(width):\(height)",
-            modes: modes.isEmpty ? [VirtualDisplayModeEntry(width: baseW, height: baseH, refreshRate: 60)] : modes,
-            defaultWidth: baseW,
-            defaultHeight: baseH
+        // Ensure requested target HiDPI pixel size (width * 2, height * 2) is prioritized at index 0
+        let hiDPIW = max(width, width * 2)
+        let hiDPIH = max(height, height * 2)
+        profile.modes.removeAll { $0.width == hiDPIW && $0.height == hiDPIH }
+        profile.modes.insert(
+            VirtualDisplayModeEntry(width: hiDPIW, height: hiDPIH, refreshRate: 60),
+            at: 0
         )
+        return profile
     }
 
     /// CGVirtualDisplay HiDPI mode sizes are logical points. The descriptor's
@@ -127,6 +137,8 @@ public enum VirtualDisplayError: LocalizedError, Equatable {
     case displayNotFound(CGDirectDisplayID)
     case configurationFailed(CGError)
     case virtualDisplayCreationFailed
+    case modeNotFound(width: Int, height: Int)
+    case modeVerificationFailed(expectedWidth: Int, expectedHeight: Int, actualWidth: Int, actualHeight: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -140,6 +152,10 @@ public enum VirtualDisplayError: LocalizedError, Equatable {
             return "Display configuration transaction failed with error: \(error.rawValue)."
         case .virtualDisplayCreationFailed:
             return "Virtual display creation failed or did not yield a valid display ID."
+        case .modeNotFound(let width, let height):
+            return "No matching display mode found for \(width)×\(height)."
+        case .modeVerificationFailed(let expW, let expH, let actW, let actH):
+            return "Virtual display active mode \(actW)×\(actH) did not match requested logical size \(expW)×\(expH)."
         }
     }
 }
@@ -279,6 +295,27 @@ public final class VirtualDisplayService: @unchecked Sendable {
         return disassociated
     }
 
+    /// Selects the best-matching CGDisplayMode for the requested logical size and HiDPI backing.
+    public static func matchingDisplayMode(
+        in modes: [CGDisplayMode],
+        logicalWidth: Int,
+        logicalHeight: Int
+    ) -> CGDisplayMode? {
+        let hiDPIW = max(logicalWidth, logicalWidth * 2)
+        let hiDPIH = max(logicalHeight, logicalHeight * 2)
+        let exactBacking = modes.filter {
+            $0.width == logicalWidth && $0.height == logicalHeight &&
+            $0.pixelWidth == hiDPIW && $0.pixelHeight == hiDPIH
+        }
+        if !exactBacking.isEmpty {
+            return exactBacking.max { $0.refreshRate < $1.refreshRate }
+        }
+        let sameLogical = modes.filter {
+            $0.width == logicalWidth && $0.height == logicalHeight
+        }
+        return sameLogical.max { $0.refreshRate < $1.refreshRate }
+    }
+
     /// Tears down virtual sources whose physical targets have left the online
     /// display list or are no longer mirroring their assigned virtual source
     /// (e.g. user selected Extended Display in System Settings).
@@ -356,17 +393,7 @@ public final class VirtualDisplayService: @unchecked Sendable {
         }
         lock.unlock()
 
-        var profile = VirtualDisplayProfile.profile(matchingWidth: width, height: height)
-        // Ensure requested target HiDPI pixel size (width * 2, height * 2) is present in modes if within bounds
-        let hiDPIW = max(width, width * 2)
-        let hiDPIH = max(height, height * 2)
-        if !profile.modes.contains(where: { $0.width == hiDPIW && $0.height == hiDPIH }) {
-            profile.modes.insert(
-                VirtualDisplayModeEntry(width: hiDPIW, height: hiDPIH, refreshRate: 60),
-                at: 0
-            )
-        }
-
+        let profile = VirtualDisplayProfile.profile(matchingWidth: width, height: height)
         let instance = VirtualDisplayInstance(
             profile: profile,
             customName: "Vorssaint HiDPI · \(width)×\(height)"
@@ -378,11 +405,29 @@ public final class VirtualDisplayService: @unchecked Sendable {
             throw VirtualDisplayError.virtualDisplayCreationFailed
         }
 
+        let options = [kCGDisplayShowDuplicateLowResolutionModes as String: true] as CFDictionary
+        let allModes = (CGDisplayCopyAllDisplayModes(virtualID, options) as? [CGDisplayMode]) ?? []
+        guard let targetMode = Self.matchingDisplayMode(
+            in: allModes,
+            logicalWidth: width,
+            logicalHeight: height
+        ) else {
+            instance.stop()
+            throw VirtualDisplayError.modeNotFound(width: width, height: height)
+        }
+
         var config: CGDisplayConfigRef?
         let beginErr = CGBeginDisplayConfiguration(&config)
         guard beginErr == .success, let cfg = config else {
             instance.stop()
             throw VirtualDisplayError.configurationFailed(beginErr)
+        }
+
+        let modeErr = CGConfigureDisplayWithDisplayMode(cfg, virtualID, targetMode, nil)
+        if modeErr != .success {
+            CGCancelDisplayConfiguration(cfg)
+            instance.stop()
+            throw VirtualDisplayError.configurationFailed(modeErr)
         }
 
         let mirrorErr = CGConfigureDisplayMirrorOfDisplay(cfg, targetDisplayID, virtualID)
@@ -397,6 +442,25 @@ public final class VirtualDisplayService: @unchecked Sendable {
             CGCancelDisplayConfiguration(cfg)
             instance.stop()
             throw VirtualDisplayError.configurationFailed(completeErr)
+        }
+
+        guard let activeMode = CGDisplayCopyDisplayMode(virtualID),
+              activeMode.width == width,
+              activeMode.height == height else {
+            let actualW = CGDisplayCopyDisplayMode(virtualID)?.width ?? 0
+            let actualH = CGDisplayCopyDisplayMode(virtualID)?.height ?? 0
+            var unmirrorCfg: CGDisplayConfigRef?
+            if CGBeginDisplayConfiguration(&unmirrorCfg) == .success, let ucfg = unmirrorCfg {
+                _ = CGConfigureDisplayMirrorOfDisplay(ucfg, targetDisplayID, kCGNullDirectDisplay)
+                _ = CGCompleteDisplayConfiguration(ucfg, .forSession)
+            }
+            instance.stop()
+            throw VirtualDisplayError.modeVerificationFailed(
+                expectedWidth: width,
+                expectedHeight: height,
+                actualWidth: actualW,
+                actualHeight: actualH
+            )
         }
 
         lock.lock()

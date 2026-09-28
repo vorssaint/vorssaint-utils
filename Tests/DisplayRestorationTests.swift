@@ -817,6 +817,27 @@ enum DisplayRestorationTests {
                      && ultrawideLogical.width == 3440 && ultrawideLogical.height == 1440,
                      "nonstandard virtual HiDPI keeps a 2× backing surface and requested logical size")
 
+        let fhdProfile = VirtualDisplayProfile.profile(matchingWidth: 1920, height: 1080)
+        let fhdBacking = fhdProfile.modes[0]
+        let fhdLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: fhdBacking)
+        suite.expect(fhdBacking.width == 3840 && fhdBacking.height == 2160
+                     && fhdLogical.width == 1920 && fhdLogical.height == 1080,
+                     "standard 16:9 profile prioritizes requested 1920×1080 HiDPI mode at index 0")
+
+        let macProfile = VirtualDisplayProfile.profile(matchingWidth: 1920, height: 1200)
+        let macBacking = macProfile.modes[0]
+        let macLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: macBacking)
+        suite.expect(macBacking.width == 3840 && macBacking.height == 2400
+                     && macLogical.width == 1920 && macLogical.height == 1200,
+                     "16:10 profile prioritizes requested 1920×1200 HiDPI mode at index 0")
+
+        let uhdProfile = VirtualDisplayProfile.profile(matchingWidth: 3840, height: 2160)
+        let uhdBacking = uhdProfile.modes[0]
+        let uhdLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: uhdBacking)
+        suite.expect(uhdBacking.width == 7680 && uhdBacking.height == 4320
+                     && uhdLogical.width == 3840 && uhdLogical.height == 2160,
+                     "4K 16:9 profile prioritizes requested 3840×2160 HiDPI backing at index 0")
+
         let dynamicMode = DisplayResolutionMode(
             width: 3024, height: 1964,
             pixelWidth: 3024, pixelHeight: 1964,
@@ -879,6 +900,17 @@ enum DisplayRestorationTests {
         } else {
             suite.expect(false, "virtual mirror teardown source contract is present")
         }
+        suite.expect(virtualSource.contains("CGConfigureDisplayWithDisplayMode(cfg, virtualID")
+                     && virtualSource.contains("CGDisplayCopyDisplayMode(virtualID)")
+                     && virtualSource.contains("activeMode.width == width")
+                     && virtualSource.contains("activeMode.height == height"),
+                     "virtual display creation explicitly configures and verifies the active logical dimensions")
+
+        let recoverySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/DisplayRecoveryManager.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(recoverySource.contains("activeMode?.width == targetW && activeMode?.height == targetH"),
+                     "recovery explicitly verifies active dimensions before reporting virtual mirror restored")
 
         let commandBarSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",

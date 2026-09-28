@@ -240,13 +240,24 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
         }
 
         if let size = snapshot.previousVirtualMirrorLogicalSize {
+            let targetW = max(1, Int(size.width.rounded()))
+            let targetH = max(1, Int(size.height.rounded()))
             do {
-                try VirtualDisplayService.shared.enableVirtualMirror(
+                let virtualID = try VirtualDisplayService.shared.enableVirtualMirror(
                     for: snapshot.targetDisplayID,
-                    width: max(1, Int(size.width.rounded())),
-                    height: max(1, Int(size.height.rounded()))
+                    width: targetW,
+                    height: targetH
                 )
-                Self.log.info("Restored previous virtual HiDPI mirror for display \(snapshot.targetDisplayID, privacy: .public).")
+                let activeMode = CGDisplayCopyDisplayMode(virtualID)
+                guard activeMode?.width == targetW && activeMode?.height == targetH else {
+                    throw VirtualDisplayError.modeVerificationFailed(
+                        expectedWidth: targetW,
+                        expectedHeight: targetH,
+                        actualWidth: activeMode?.width ?? 0,
+                        actualHeight: activeMode?.height ?? 0
+                    )
+                }
+                Self.log.info("Restored previous virtual HiDPI mirror for display \(snapshot.targetDisplayID, privacy: .public) at \(targetW)×\(targetH).")
             } catch {
                 Self.log.error("Failed to recreate previous virtual HiDPI mirror: \(error.localizedDescription, privacy: .public)")
             }
