@@ -219,8 +219,11 @@ final class NotchService: ObservableObject {
         fullscreenCompact && !geometry.isNotched
     }
 
+    /// A Mac without a battery has no charge to show, so a saved battery
+    /// choice rests empty there; playing music still shows as before.
     var idleContent: NotchIdleContent {
-        NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
+        let content = NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
+        return content == .battery && !PowerSampler.hasInternalBattery ? .none : content
     }
 
     var hasTimerActivity: Bool {
