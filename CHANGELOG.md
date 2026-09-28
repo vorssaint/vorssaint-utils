@@ -36,7 +36,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Clicking the Now Playing cover in Dynamic Island, or the radial menu's Now Playing card, brings the playing app to the front instead of doing nothing, and shows its window again when it was closed.
 - Dynamic Island accessory alerts no longer show a connection notice when a phone, tablet or computer connects to the Mac over Bluetooth.
 - Setting the volume from Command Bar no longer adds a floating confirmation under the volume notice in Dynamic Island.
-- Text fields in Dynamic Island, the menu bar panel and Quick Launcher yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the island, the panel or the open utility.
+- Text fields in Dynamic Island, the menu bar panel and Quick Launcher yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the island, the panel or the open utility, or discarding a Volume Mixer percentage being typed.
 - Dock Preview, App Switcher and Command Bar list every window of an app that was hidden and shown again, not only its front window.
 - Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
 - Holding or dragging an icon in the Dock no longer opens the Shelf, in Dynamic Island or in the menu bar drop zone.
