@@ -82,25 +82,35 @@ enum ShelfFeatureTests {
                "a drag holding a pinned shelf item only offers a copy outside the app")
 
         suite.expect(!ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 5, beganInDock: false,
+            gestureChangeCount: 5, restingChangeCount: 5, changeCount: 5, beganInDock: false,
             hasDroppableContent: { true }),
                "moving a window past retained pasteboard content is not a content drag")
         suite.expect(!ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 6, beganInDock: false,
+            gestureChangeCount: 5, restingChangeCount: 5, changeCount: 6, beganInDock: false,
             hasDroppableContent: { false }),
                "a pasteboard bump without droppable content is not a content drag")
         suite.expect(ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 6, beganInDock: false,
+            gestureChangeCount: 5, restingChangeCount: 5, changeCount: 6, beganInDock: false,
             hasDroppableContent: { true }),
                "content published during the gesture is a content drag")
         suite.expect(ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 5, beganInDock: true,
+            gestureChangeCount: 6, restingChangeCount: 5, changeCount: 6, beganInDock: true,
             hasDroppableContent: { true }),
-               "dock stacks may publish the drag contents before the mouse-down")
+               "a Dock stack drag published before the mouse-down was seen is a content drag")
         suite.expect(!ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 5, beganInDock: false,
-            hasDroppableContent: { fatalError("droppable check must stay lazy") }),
-               "an unchanged pasteboard outside the Dock skips the content inspection")
+            gestureChangeCount: 5, restingChangeCount: 5, changeCount: 5, beganInDock: true,
+            hasDroppableContent: { true }),
+               "holding or dragging a Dock icon over retained content is not a content drag (#2212)")
+        suite.expect(!ShelfInteractionSupport.isContentDrag(
+            gestureChangeCount: 6, restingChangeCount: 5, changeCount: 6, beganInDock: false,
+            hasDroppableContent: { true }),
+               "outside the Dock, content published before the gesture began is not a content drag")
+        for beganInDock in [false, true] {
+            suite.expect(!ShelfInteractionSupport.isContentDrag(
+                gestureChangeCount: 5, restingChangeCount: 5, changeCount: 5, beganInDock: beganInDock,
+                hasDroppableContent: { fatalError("droppable check must stay lazy") }),
+                   "an unchanged pasteboard skips the content inspection (Dock: \(beganInDock))")
+        }
 
         // MARK: Shelf pasteboard / file promises (#1554)
         // Promises must activate the shelf before a concrete file exists.

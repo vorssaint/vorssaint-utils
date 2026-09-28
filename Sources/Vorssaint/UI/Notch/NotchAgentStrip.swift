@@ -33,7 +33,7 @@ struct NotchAgentStrip: View {
         let textInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
-            Button { service.open(.agents) } label: {
+            Button { service.openActivity(.agents) } label: {
                 HStack(spacing: 1) {
                     if geometry.compactActivityWingWidth >= 28 {
                         ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
@@ -45,7 +45,7 @@ struct NotchAgentStrip: View {
                 .contentShape(Rectangle())
             }
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            Button { service.open(.agents) } label: {
+            Button { service.openActivity(.agents) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 42 {
                         NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
@@ -79,7 +79,7 @@ struct NotchAgentStrip: View {
         .accessibilityLabel(working.map(\.displayName).joined(separator: ", "))
         .accessibilityValue(reading(at: Date()))
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { service.open(.agents) }
+        .accessibilityAction { service.openActivity(.agents) }
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 
