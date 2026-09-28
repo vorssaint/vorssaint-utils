@@ -554,6 +554,12 @@ enum NotchTests {
     /// notch can show past the island. A fit set by hand moves whatever
     /// follows the cutout and nothing else, and stays on the Mac it was set on.
     private static func cameraFitContracts(_ suite: TestSuite) {
+        let handWritten = NotchCameraFit(width: 2.4, height: 0.3)
+        let negative = NotchCameraFit(width: -2.6, height: -1.3)
+        suite.expect(handWritten.width == 2 && handWritten.height == 0.5
+                     && negative.width == -3 && negative.height == -1.5
+                     && NotchCameraFit(width: 40, height: -9).width == 10 && NotchCameraFit(width: 40, height: -9).height == -6,
+                     "a notch fit written by hand is brought back to whole-point widths and half-point heights within range")
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         let reported = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                      menuBarHeight: 33, compactSideRoom: 100)
