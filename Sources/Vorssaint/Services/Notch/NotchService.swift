@@ -484,10 +484,10 @@ final class NotchService: ObservableObject {
 
     /// The open capture controls, measured with their title's font.
     var captureControlsLayout: NotchCaptureControlsLayout {
-        let title = FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle as NSString
-        let width = title.size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width
-        return NotchCaptureControlsLayout(geometry: geometry, titleWidth: width.rounded(.up),
-                                          capturesAudio: captureControls?.selectedTool.capturesAudio == true)
+        NotchCaptureControlsLayout(
+            geometry: geometry,
+            titleWidth: NotchCaptureControlsLayout.titleWidth(FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle),
+            capturesAudio: captureControls?.selectedTool.capturesAudio == true)
     }
 
     var surfaceSize: CGSize {

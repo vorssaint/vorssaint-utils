@@ -68,7 +68,7 @@ struct NotchCaptureControlsView: View {
     /// The layout measures this title with the same font.
     private var title: some View {
         Text(FeatureStrings.screenshot(l10n.language).screenCaptureTitle)
-            .font(.system(size: 12, weight: .semibold))
+            .font(Font(NotchCaptureControlsLayout.titleFont as CTFont))
             .lineLimit(1)
     }
 

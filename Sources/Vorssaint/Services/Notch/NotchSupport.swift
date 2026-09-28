@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 import CoreGraphics
 
@@ -444,6 +445,12 @@ struct NotchCaptureControlsLayout {
     static let narrowButtonsWidth: CGFloat = 28 * 3 + buttonSpacing * 2
     /// Room the title and the buttons keep from the camera.
     static let cameraClearance: CGFloat = 8
+    /// The title's font: the window is sized from it and the view draws it.
+    static let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+
+    static func titleWidth(_ title: String) -> CGFloat {
+        (title as NSString).size(withAttributes: [.font: titleFont]).width.rounded(.up)
+    }
     /// From the top of the island to the top of the title row.
     let headerTop: CGFloat
     let headerHeight: CGFloat

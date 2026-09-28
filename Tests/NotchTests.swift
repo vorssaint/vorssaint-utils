@@ -166,16 +166,14 @@ enum NotchTests {
     }
 
     private static func captureControlsLayoutContracts(_ suite: TestSuite) {
-        let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
         func titleWidth(_ language: AppLanguage) -> CGFloat {
-            (FeatureStrings.screenshot(language).screenCaptureTitle as NSString)
-                .size(withAttributes: [.font: font]).width.rounded(.up)
+            NotchCaptureControlsLayout.titleWidth(FeatureStrings.screenshot(language).screenCaptureTitle)
         }
         for language in AppLanguage.allCases {
             let host = NSHostingView(rootView: Text(FeatureStrings.screenshot(language).screenCaptureTitle)
-                .font(.system(size: 12, weight: .semibold)).fixedSize())
+                .font(Font(NotchCaptureControlsLayout.titleFont as CTFont)).fixedSize())
             host.layoutSubtreeIfNeeded()
-            suite.expect(host.fittingSize.width <= titleWidth(language) + 0.5,
+            suite.expect(host.fittingSize.width <= titleWidth(language),
                          "the measured capture title covers the \(language.rawValue) title as drawn (\(host.fittingSize.width))")
         }
         let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
