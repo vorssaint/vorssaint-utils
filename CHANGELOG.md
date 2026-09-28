@@ -28,9 +28,8 @@ Scratchpad gains easier formatting and search, Keep Awake starts with one click 
 ### Fixed
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
-- Menu bar panel and Quick Launcher text fields yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the panel or the open utility.
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
-- Dynamic Island text fields yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the gallery, a Tools utility or the island.
+- Text fields in Dynamic Island, the menu bar panel and Quick Launcher yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the island, the panel or the open utility.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
