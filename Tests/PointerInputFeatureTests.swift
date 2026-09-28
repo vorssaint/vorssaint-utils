@@ -3267,6 +3267,18 @@ enum PointerInputFeatureTests {
         suite.expect(QuitProtectionSupport.usesNativeQuitRequest(for: .quit)
                 && !QuitProtectionSupport.usesNativeQuitRequest(for: .close),
                "quit confirmation asks the target app to terminate while close stays a window shortcut")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.valvesoftware.steam"),
+               "quit confirmation sends synthetic keystrokes to Steam instead of native terminate")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.valvesoftware.steam.helper"),
+               "quit confirmation sends synthetic keystrokes to Steam helpers")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: nil, localizedName: "Steam"),
+               "quit confirmation sends synthetic keystrokes when Steam is identified by app name")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.apple.Safari"),
+               "standard apps continue using native terminate requests")
 
         suite.expect(QuitProtectionSupport.scopeAllows(.all, bundleIdentifier: nil, exceptions: []),
                "all-app scope protects even an app without a bundle identifier")

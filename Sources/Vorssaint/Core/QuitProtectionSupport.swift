@@ -78,8 +78,28 @@ enum QuitProtectionSupport {
         return secondTimestamp - firstTimestamp <= allowedNanoseconds
     }
 
-    static func usesNativeQuitRequest(for shortcut: QuitProtectionShortcut) -> Bool {
-        shortcut == .quit
+    static func usesNativeQuitRequest(for shortcut: QuitProtectionShortcut,
+                                      bundleIdentifier: String? = nil,
+                                      localizedName: String? = nil) -> Bool {
+        guard shortcut == .quit else { return false }
+        if requiresSyntheticQuit(bundleIdentifier: bundleIdentifier, localizedName: localizedName) {
+            return false
+        }
+        return true
+    }
+
+    static func requiresSyntheticQuit(bundleIdentifier: String?,
+                                     localizedName: String? = nil) -> Bool {
+        if let bundleIdentifier {
+            let id = bundleIdentifier.lowercased()
+            if id == "com.valvesoftware.steam" || id.hasPrefix("com.valvesoftware.steam.") {
+                return true
+            }
+        }
+        if let localizedName, localizedName.caseInsensitiveCompare("Steam") == .orderedSame {
+            return true
+        }
+        return false
     }
 
     static func scopeAllows(_ scope: QuitProtectionScope,
