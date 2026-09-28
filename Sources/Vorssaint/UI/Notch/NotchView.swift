@@ -501,6 +501,7 @@ struct NotchView: View {
         } else if let metric = service.selectedMetric {
             if metric == .fan {
                 NotchFanControlView()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { service.updateFanDetailHeight($0) }
             } else {
                 MetricDetailView(kind: metric)
             }

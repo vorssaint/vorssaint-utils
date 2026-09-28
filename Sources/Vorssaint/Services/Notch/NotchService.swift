@@ -104,6 +104,8 @@ final class NotchService: ObservableObject {
     /// reach the app in front instead.
     @Published private(set) var panelIsKey = false
     @Published private var captureContentHeight: CGFloat?
+    /// Kept after closing, so the next Fan Control detail opens at its size.
+    @Published private var fanDetailHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
 
@@ -430,6 +432,7 @@ final class NotchService: ObservableObject {
         let launcher = QuickLauncherService.shared
         return pageSize(in: expandedGeometry, module: showingAppPanel ? .tools : selected,
                         detail: selectedMetric != nil, panel: showingAppPanel,
+                        detailHeight: selectedMetric == .fan ? fanDetailHeight : nil,
                         musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
                         fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
@@ -440,21 +443,22 @@ final class NotchService: ObservableObject {
     /// The open island as Settings previews a section: at rest, with no
     /// detail, app panel, capture or media editor in front of the page.
     func previewSize(for module: NotchModule) -> CGSize {
-        pageSize(in: geometry, module: module, detail: false, panel: false, musicExtraHeight: 0, fileMediaHeight: nil,
-                 toolCount: QuickLauncherService.shared.visibleItems.count, capturePreviewHeight: nil)
+        pageSize(in: geometry, module: module, detail: false, panel: false, detailHeight: nil, musicExtraHeight: 0,
+                 fileMediaHeight: nil, toolCount: QuickLauncherService.shared.visibleItems.count, capturePreviewHeight: nil)
     }
 
     /// The tallest island a preview can show: a page that fills the budget.
     var previewLargestSize: CGSize { geometry.expandedSize(module: .calendar) }
 
     private func pageSize(in geometry: NotchGeometry, module: NotchModule, detail: Bool, panel: Bool,
-                          musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
+                          detailHeight: CGFloat?, musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
                           capturePreviewHeight: CGFloat?) -> CGSize {
         let controls = NotchSupport.controls()
         let sliders = controls.filter { $0 == .volume || $0 == .brightness }.count
         let shortcuts = controls.filter { $0 != .volume && $0 != .brightness && $0 != .music }.count
         let musicExtras = NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
-        return geometry.expandedSize(module: module, detail: detail, panel: panel, shortcutCount: shortcuts,
+        return geometry.expandedSize(module: module, detail: detail, panel: panel, detailHeight: detailHeight,
+                                     shortcutCount: shortcuts,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
                                      musicHasControlsRow: AppFeature.mixer.isAvailable || musicExtras,
                                      musicExtraHeight: musicExtraHeight, fileMediaHeight: fileMediaHeight,
@@ -1185,6 +1189,17 @@ final class NotchService: ObservableObject {
         open(.system, metric: metric)
         // A metric opened from its menu bar item closes on Escape, like the popover.
         if toggle { detailHasPage = false }
+    }
+
+    /// Fan Control is a single card, so its detail fits the card instead of
+    /// opening a tall, mostly empty page. A taller card still scrolls in it.
+    func updateFanDetailHeight(_ height: CGFloat) {
+        guard expanded, selectedMetric == .fan, !showingAppPanel, !showingSections,
+              height.isFinite, height > 0 else { return }
+        let measured = ceil(height)
+        guard fanDetailHeight != measured else { return }
+        fanDetailHeight = measured
+        refreshPresentation()
     }
 
     func goBack() {
