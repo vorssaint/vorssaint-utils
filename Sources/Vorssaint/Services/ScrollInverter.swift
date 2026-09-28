@@ -354,7 +354,8 @@ final class ScrollInverter: ObservableObject {
                 postPinchZoomLocked(delta, modifier: action.modifier)
                 return true
             }
-            guard postKeyboardZoom(delta, targetProcessID: event.getIntegerValueField(.eventTargetUnixProcessID)) else {
+            guard postKeyboardZoom(delta,
+                                   targetProcessID: MouseAppExceptions.shared.pointerTargetProcessID(at: event.location)) else {
                 return false
             }
             endPinchZoomLocked()
@@ -362,16 +363,16 @@ final class ScrollInverter: ObservableObject {
         }
     }
 
-    private func postKeyboardZoom(_ delta: Double, targetProcessID: Int64) -> Bool {
-        guard targetProcessID > 0,
+    private func postKeyboardZoom(_ delta: Double, targetProcessID: pid_t?) -> Bool {
+        guard let targetProcessID,
               let keyStroke = MouseNavigationKeys.keyStroke(for: delta > 0 ? "+" : "-") else { return false }
         let source = CGEventSource(stateID: .hidSystemState)
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyStroke.keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: keyStroke.keyCode, keyDown: false) else { return false }
         down.flags = keyStroke.needsShift ? [.maskCommand, .maskShift] : .maskCommand
         up.flags = down.flags
-        down.postToPid(pid_t(targetProcessID))
-        up.postToPid(pid_t(targetProcessID))
+        down.postToPid(targetProcessID)
+        up.postToPid(targetProcessID)
         return true
     }
 

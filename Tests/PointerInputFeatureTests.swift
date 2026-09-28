@@ -3891,10 +3891,16 @@ enum PointerInputFeatureTests {
         suite.expect(smoothSchedulerCode.contains("ScrollInverter.shared.consumeZoom(event, direction: direction)")
                 && smoothSchedulerCode.contains("stopGlide()"),
                "Smooth Scrolling consumes configured zoom before creating a glide")
-        suite.expect(scrollInverterSource.contains("eventTargetUnixProcessID")
-                && scrollInverterSource.contains("postToPid(pid_t(targetProcessID))")
+        let mouseExceptionsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptions.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(scrollInverterSource.contains("pointerTargetProcessID(at: event.location)")
+                && scrollInverterSource.contains("postToPid(targetProcessID)")
                 && scrollInverterSource.contains("MouseNavigationKeys.keyStroke(for:"),
                "keyboard zoom follows the hovered app and active keyboard layout")
+        suite.expect(mouseExceptionsSource.contains("resolvingWithoutExceptions: true")
+                && mouseExceptionsSource.contains("cachedProcessID"),
+               "zoom resolves and caches the hovered process without requiring an exception list")
         suite.expect(scrollInverterSource.contains("pinchZoomLock")
                 && scrollInverterSource.contains("acceptsZoomEvents = false"),
                "pinch zoom ends under the same lock that guards the tap callback")
