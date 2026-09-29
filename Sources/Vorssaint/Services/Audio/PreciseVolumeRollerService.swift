@@ -162,7 +162,8 @@ final class PreciseVolumeRollerService: ObservableObject {
            !gate.accepts(direction, at: ProcessInfo.processInfo.systemUptime) { return true }
         feedbackStep &+= 1
         let step = feedbackStep
-        feedback = key != .mute && NotchVolumeKeyGate.playsFeedback(
+        // Like macOS, the mute key clicks only when it unmutes.
+        feedback = (key != .mute || mixer.systemOutputMuted == true) && NotchVolumeKeyGate.playsFeedback(
             setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift))
             ? (code, step, false, false) : nil
@@ -170,8 +171,8 @@ final class PreciseVolumeRollerService: ObservableObject {
         let fallback = event.copy()
         // CoreAudio can wait for a reconnecting device. Never hold the event
         // tap's reply while reading or writing the audio driver.
-        DispatchQueue.main.async {
-            let completion: (Bool) -> Void = { [weak self] applied in
+        DispatchQueue.main.async { [weak self] in
+            let completion: (Bool) -> Void = { applied in
                 if let self, self.feedback?.step == step {
                     // The forwarded native press plays its own feedback.
                     if applied { self.feedback?.applied = true; self.playFeedbackIfReady() }
