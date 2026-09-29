@@ -899,5 +899,13 @@ extension AppUpdateStrings {
         includeOnlineToggle: "تضمين التطبيقات المثبتة الأخرى",
         includeOnlineCaption: "ينزّل فهرس تطبيقات عامًا دون إرسال أسماء التطبيقات الموجودة على هذا الـ Mac أو معرّفاتها.",
         incompleteCheck: "تعذّر التحقق من بعض التطبيقات",
-        onlineUnavailable: "تعذّر إكمال التحقق عبر الإنترنت. ولا تزال النتائج الأخرى معروضة.")
+        onlineUnavailable: "تعذّر إكمال التحقق عبر الإنترنت. ولا تزال النتائج الأخرى معروضة.",
+        skipVersionFormat: "تخطّي الإصدار %@",
+        excludeApp: "عدم فحص هذا التطبيق",
+        rulesTitle: "قواعد التحديث",
+        skippedVersionFormat: "إصدار متخطّى %@",
+        excludedApp: "لا يُفحص حتى تُزال هذه القاعدة",
+        removeRule: "إزالة القاعدة",
+        rulesHint: "تخطّي إصدار لا يمنع الإصدارات الأحدث. وبعد إزالة استثناء تطبيق، استخدم «الفحص الآن» لتحديثه.",
+        noVisibleUpdates: "لا تحديثات خارج قواعدك")
 }

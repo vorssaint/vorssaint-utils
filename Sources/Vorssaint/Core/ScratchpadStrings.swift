@@ -824,6 +824,7 @@ extension ScratchpadFeatureStrings {
         exportAction: "الحفظ كملف",
         exportFailed: "تعذّر حفظ الملف",
         loadFailed: "تعذّر فتح ملاحظاتك. وقد تُركت دون تغيير.",
+        saveFailed: "تعذّر حفظ ملاحظاتك. انسخها إلى مكان آخر قبل الإنهاء.",
         clearAction: "مسح",
         retentionTitle: "المسح التلقائي",
         retentionNever: "أبدًا",
@@ -845,7 +846,18 @@ extension ScratchpadFeatureStrings {
         deletePadMessageFormat: "حذف “%@” وكل ما فيها؟",
         padLimitFormat: "يمكنك الاحتفاظ بما يصل إلى %d مفكرة",
         previewFormatting: "إظهار التنسيق",
-        editText: "تحرير النص")
+        editText: "تحرير النص",
+        markBold: "عريض",
+        markItalic: "مائل",
+        markStrikethrough: "يتوسطه خط",
+        markHeading: "عنوان",
+        markBullet: "قائمة نقطية",
+        markNumbered: "قائمة مرقّمة",
+        markQuote: "اقتباس",
+        markCode: "شيفرة",
+        markLink: "رابط",
+        formatMarks: "التنسيق",
+        textSize: "حجم النص")
 }
 
 extension ScratchpadFeatureStrings {

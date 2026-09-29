@@ -237,6 +237,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "عند الإيقاف، تُعرض نوافذ كل أسطح المكتب. واختيار نافذة على سطح مكتب آخر ينقلك إليه.",
         dockPreviewBackgroundOpacity: "خلفية اللوحة",
         dockPreviewBackgroundOpacityCaption: "اخفضها لترى المزيد مما خلف اللوحة.",
+        dockPreviewBackgroundOpacityGlassCaption: "الزجاج السائل مفعّل، لذا تُضبط شفافية اللوحة من إعدادات النظام ‹ المظهر.",
         dockPreviewOpenDelay: "تأخير الفتح",
         dockPreviewOpenDelayCaption: "المدة التي يجب أن يستقر فيها المؤشر على الأيقونة قبل فتح لوحتها.",
         dockPreviewQuitAppOnClose: "إنهاء التطبيق بزر ×",
@@ -1047,7 +1048,11 @@ extension Strings {
         smoothScrollCoastLabel: "الانسياب",
         mouseAccelerationName: "تعطيل تسارع الماوس",
         mouseAccelerationCaption: "يزيل تسارع المؤشر للفئران الموصولة. ويعود إعدادك السابق عند إيقاف هذا أو إنهاء Vorssaint.",
+        linearScrollName: "التمرير الخطّي",
+        linearScrollCaption: "تمرّر كل نقرة من عجلة الماوس المسافة نفسها، مهما بلغت سرعة دورانها. ولا تتأثر لوحة التتبع.",
+        linearScrollLinesLabel: "الأسطر لكل خطوة",
         shelfClearOnClose: "المسح عند الإغلاق",
-        shelfClearOnCloseCaption: "يُفرِغ الرف عند نقرك زر إغلاقه فقط. أما الإخفاء والطي التلقائيان فيُبقيان العناصر."
-    )
+        shelfClearOnCloseCaption: "يُفرِغ الرف عند نقرك زر إغلاقه فقط. أما الإخفاء والطي التلقائيان فيُبقيان العناصر.",
+        shelfShortcutFinderSelection: "إضافة تحديد Finder بالاختصار",
+        shelfShortcutFinderSelectionCaption: "مع Finder في المقدمة، يفتح الاختصار الرف والملفات المحددة فيه أصلًا. وبلا تحديد، يفتح كالمعتاد.")
 }

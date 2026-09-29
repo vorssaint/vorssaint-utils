@@ -1509,6 +1509,8 @@ extension NotchStrings {
         automatic: "تلقائي",
         builtIn: "الشاشة المدمجة",
         mainDisplay: "الشاشة الرئيسية",
+        followPointer: "اتّباع المؤشر",
+        allDisplays: "كل الشاشات",
         hover: "الفتح عند استقرار المؤشر على الجزيرة الديناميكية",
         modules: "ما الذي يظهر",
         events: "خيارات أخرى",
@@ -1558,6 +1560,15 @@ extension NotchStrings {
         width: "العرض",
         maximumHeight: "أقصى ارتفاع",
         sizeHint: "تبقى عناصر التحكم مضغوطة. أما القوائم الأطول فتستخدم هذا الارتفاع كحد أقصى.",
+        cameraFit: "ملاءمة النتوء",
+        height: "الارتفاع",
+        cameraFitHint: "إن ظهرت حافة من النتوء حول الجزيرة الديناميكية، فاضبط هذه القيم حتى تختفي.",
+        withoutNotch: "الشاشات بلا نتوء",
+        capsuleShape: "كبسولة",
+        notchShape: "نتوء",
+        capsuleFit: "ملاءمة الكبسولة",
+        fromTop: "المسافة من الأعلى",
+        capsuleFitHint: "يغيّر حجم الكبسولة ويخفضها عن أعلى الشاشة في الشاشات التي بلا نتوء.",
         hapticFeedback: "استجابة لمسية",
         hapticHint: "نقرات لطيفة عند الفتح أو تبديل الأقسام أو ضبط دقائق المؤقت، على لوحة تتبع متوافقة.",
         playbackPosition: "موضع التشغيل",
@@ -1571,6 +1582,9 @@ extension NotchStrings {
         searchSections: "البحث عن قسم",
         sectionKeyboardHint: "استخدم مفاتيح الأسهم ثم اضغط Return",
         quickAccessLeft: "يسار",
-        quickAccessRight: "يمين")
+        quickAccessRight: "يمين",
+        translucentBackground: "خلفية شفافة",
+        translucentBackgroundHint: "عند فتحها، تُضبّب الجزيرة الديناميكية ما خلفها بخامة النظام نفسها.",
+        translucentBackgroundGlassHint: "الزجاج السائل مفعّل، فتستخدمه الجزيرة الديناميكية بدلًا من ذلك.")
 
 }

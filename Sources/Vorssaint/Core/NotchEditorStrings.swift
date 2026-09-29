@@ -1117,6 +1117,8 @@ extension FeatureStrings {
             privacy: "الخصوصية",
             reopening: "عند إعادة الفتح",
             lastPage: "آخر صفحة",
+            openActivity: "فتح النشاط الظاهر",
+            openActivityHint: "حين تعرض الجزيرة المغلقة موسيقى أو مؤقتًا أو نشاطًا آخر، تُفتح على تلك الصفحة بدلًا من غيرها.",
             activationTime: "زمن التفعيل",
             activationTimeHint: "أبقِ المؤشر فوق الجزيرة هذه المدة لفتحها.",
             activationTimeFormat: "%.2f ث",
