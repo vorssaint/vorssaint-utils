@@ -7,19 +7,51 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Everyday controls and package management behave more reliably across desktop layouts, large clipboard histories and networks that require a proxy or mirror. The update also improves input timing and makes save failures and system prompts easier to handle.
+Dynamic Island can follow the pointer between displays, fit the notch, step back with Escape and show a running timer and the next appointment on Controls. Scratchpad gains easier formatting and search, Keep Awake starts with one click from duration chips, and brightness keys can move in finer steps. The update also fixes the off-center menu bar panel on macOS 14 and 15, Dynamic Island music and notices, windows shown again in Dock Preview and App Switcher, mouse side buttons on non-US keyboards and a Settings freeze.
+
+### Added
+- App Updates can ignore one release or exclude an app from update results and alerts.
+- App Switcher can browse apps using a mouse wheel or trackpad, with precise wheel movement and consistent scroll direction.
+- Scratchpad adds a formatting toolbar in both the floating pad and Dynamic Island, native text search and an adjustable text size.
+- Mouse settings add optional linear scrolling with a fixed distance per wheel notch and a separate list of app exceptions.
+- Brightness keys and display brightness shortcuts can move in half or quarter steps, chosen in Displays settings.
+- Menu bar settings can replace the Vorssaint icon with any SF Symbol.
+- Dynamic Island lets you choose which calendars appear, grouped by account; hiding a calendar clears its events immediately.
+- Dynamic Island's Controls page shows a running timer's clock and your next appointment on their shortcuts.
+- Dynamic Island can count down the last hour of the calendar event in progress, alongside or instead of the countdown to the next one.
+- Dynamic Island shows microphone mute and unmute notices in place of the separate popup, with a Microphone switch in its Indicators settings.
+- Dynamic Island can keep opening on the page chosen in When reopening while music, a timer or another activity is showing.
+- Dynamic Island can follow the pointer between displays, so files dropped on it on one display can be dragged out on another.
+- Dynamic Island can be fitted to the notch's width and height on Macs where an edge of the notch shows around it.
+
+### Changed
+- Keep Awake starts with one click from duration chips or an end time; the switch and shortcut restart the last choice, and the panel explains when battery protection prevents a session.
+- Dynamic Island notification banners fit their message instead of always using the same wide strip, and keep one width while several messages arrive in a row.
+- Dynamic Island's screen capture controls place their title and buttons in the top row, beside the camera when they fit, and keep them away from the island's edges, so less of the screen is covered.
+- Escape in Dynamic Island steps back one level, closing the mixer options, month grid, lyrics or queue, or leaving a detail opened inside the island, before it closes the island.
 
 ### Fixed
-- Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
-- Closing the menu bar panel returns focus to the previous app without switching desktops.
-- Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
+- Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
+- Dynamic Island keeps the current song on screen while a player loads the next one, instead of briefly showing an empty music page and changing size. With the New track indicator on, the compact island keeps the previous song until the indicator shows the next one.
+- Clicking the Now Playing cover in Dynamic Island, or the radial menu's Now Playing card, brings the playing app to the front instead of doing nothing, and shows its window again when it was closed.
+- Dynamic Island accessory alerts no longer show a connection notice when a phone, tablet or computer connects to the Mac over Bluetooth.
+- Setting the volume from Command Bar no longer adds a floating confirmation under the volume notice in Dynamic Island.
+- Text fields in Dynamic Island, the menu bar panel and Quick Launcher yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the island, the panel or the open utility.
+- Dock Preview, App Switcher and Command Bar list every window of an app that was hidden and shown again, not only its front window.
 - Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
+- Holding or dragging an icon in the Dock no longer opens the Shelf, in Dynamic Island or in the menu bar drop zone.
+- Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
+- Mouse side buttons go back and forward again in Safari, Finder and other apps on keyboard layouts such as German and French.
+- Closing the menu bar panel returns focus to the previous app without switching desktops.
+- The menu bar panel opens centered under its icon again, without a gray band along its top and right edges on macOS 14 and 15, and tall tabs no longer open it beside the icon.
+- Scrolling the Features page in Settings no longer stutters or freezes the app.
+- Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @abdulshahid1, @ahfornitani, @arsarsars1, @IanHollow, @iva-zhu, @Kernel-Hunter, @PathGao, @shlok1806, @trac3r00, @tyteachestech and @Yahddyyp.
+Thanks to @0miicr0n, @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @bweh, @cedigang, @daniel-dosiper, @Goonwb, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain.
 
 ## [3.4.0] - 2026-09-27
 

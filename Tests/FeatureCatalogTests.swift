@@ -386,12 +386,12 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 73, "feature catalog has 73 features")
+        suite.expect(AppFeature.allCases.count == 74, "feature catalog has 74 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
-            "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
@@ -646,6 +646,21 @@ enum FeatureCatalogTests {
                "both feature pickers refuse an unsupported install from the same rule")
         suite.expect(featureHubSource.contains("installableCount"),
                "the hub counts against what this Mac can install, so install-all can finish")
+        // Issue #2270: nested in the page's plain stack, the lazy stack resized
+        // it as group cards came into view and could keep redoing its layout
+        // until Settings froze. A source check on the page's `content` with
+        // comment lines dropped: it keeps that structure from coming back, not
+        // the scrolling itself, which only a scroll run shows.
+        let hubContentCode = featureHubSource
+            .components(separatedBy: "private var content: some View {").dropFirst().first?
+            .components(separatedBy: "\n    }\n").first ?? ""
+        let compactHubContent = hubContentCode.split(separator: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined()
+            .filter { !$0.isWhitespace }
+        suite.expect(compactHubContent.components(separatedBy: "LazyVStack(").count == 2
+                && compactHubContent.contains("ScrollView{LazyVStack("),
+               "the hub's one lazy stack is its scroll view's own content, never nested in another stack")
         suite.expect(AppFeature.diskImageInstaller.group == .clipboardFiles
                 && AppFeature.diskImageInstaller.enabledKeys.isEmpty
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]
@@ -1235,6 +1250,17 @@ enum FeatureCatalogTests {
         suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
+                               strings: [DefaultsKey.brightnessKeyStep: "quarter"]).contains(.brightness)
+                && !activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
+                              strings: [DefaultsKey.brightnessKeyStep: "standard"]).contains(.brightness)
+                && !activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
+                              strings: [DefaultsKey.brightnessKeyStep: "eighth"]).contains(.brightness),
+               "brightness uses accessibility for a finer key step and not for the standard one")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.brightnessKeyStep] as? String
+                == BrightnessSupport.KeyStep.standard.rawValue
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.brightnessKeyStep),
+               "the brightness key step starts at the system's step and travels with a settings backup")
         suite.expect(activeSet(.accessibility).contains(.screenRecorder),
                "the recorder uses accessibility for anonymous typing timing while active")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.preciseVolumeRollerEnabled]).contains(.mixer),
@@ -2501,10 +2527,83 @@ enum FeatureCatalogTests {
                "with the overlay on, the system target is stepped here so only one OSD draws")
         // An external keyboard's plain brightness keys must reach the island
         // or the overlay too, not only the pointer routing (beta feedback).
-        suite.expect(BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: true)
-                && BrightnessSupport.answersPlainBrightnessKeys(followsPointer: true, overlayReplacesNative: false)
-                && !BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: false),
+        suite.expect(BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: true,
+                                                                  finerSteps: false)
+                && BrightnessSupport.answersPlainBrightnessKeys(followsPointer: true, overlayReplacesNative: false,
+                                                                finerSteps: false)
+                && !BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: false,
+                                                                 finerSteps: false),
                "plain brightness keys are answered here whenever the app replaces the system's handling")
+        suite.expect(BrightnessSupport.answersPlainBrightnessKeys(followsPointer: false, overlayReplacesNative: false,
+                                                                  finerSteps: true),
+               "a finer key step answers other keyboards' plain brightness keys too")
+
+        // Finer key steps (in-app feature request): one press never moves
+        // further than the chosen step, and the system's own quarter step
+        // stays a quarter.
+        let standardStep = BrightnessSupport.brightnessKeyStep
+        suite.expect(BrightnessSupport.KeyStep.sanitized(nil) == .standard
+                && BrightnessSupport.KeyStep.sanitized("") == .standard
+                && BrightnessSupport.KeyStep.sanitized("eighth") == .standard
+                && BrightnessSupport.KeyStep.sanitized("half") == .half
+                && BrightnessSupport.KeyStep.sanitized("quarter") == .quarter,
+               "a missing or unknown key step reads as the system's standard step")
+        suite.expect(BrightnessSupport.KeyStep.standard.fraction == 1.0 / 16
+                && BrightnessSupport.KeyStep.half.fraction == 1.0 / 32
+                && BrightnessSupport.KeyStep.quarter.fraction == 1.0 / 64,
+               "key steps are a sixteenth, a thirty-second and a sixty-fourth of the range")
+        suite.expect(BrightnessSupport.KeyStep.standard.limited(standardStep) == standardStep
+                && BrightnessSupport.KeyStep.half.limited(standardStep) == 1.0 / 32
+                && BrightnessSupport.KeyStep.half.limited(-standardStep) == -1.0 / 32
+                && BrightnessSupport.KeyStep.quarter.limited(-standardStep) == -1.0 / 64,
+               "a press moves the chosen step in its own direction")
+        suite.expect(BrightnessSupport.KeyStep.half.limited(standardStep / 4) == 1.0 / 64
+                && BrightnessSupport.KeyStep.standard.limited(-standardStep / 4) == -1.0 / 64,
+               "a quarter step asked for with Option-Shift is never made coarser")
+        suite.expect(BrightnessSupport.KeyStep.half.limited(3 * standardStep) == 1.0 / 32,
+               "a single press can never jump by more than the chosen step")
+        suite.expect(BrightnessSupport.systemQuarterSteps(for: .standard, command: false, control: false,
+                                                          option: false) == nil
+                && BrightnessSupport.systemQuarterSteps(for: .half, command: false, control: false,
+                                                        option: false) == 2
+                && BrightnessSupport.systemQuarterSteps(for: .quarter, command: false, control: false,
+                                                        option: false) == 1,
+               "a press left to the system becomes as many of its quarter steps as the chosen step")
+        suite.expect(BrightnessSupport.systemQuarterSteps(for: .half, command: true, control: false,
+                                                          option: false) == nil
+                && BrightnessSupport.systemQuarterSteps(for: .half, command: false, control: true,
+                                                        option: false) == nil
+                && BrightnessSupport.systemQuarterSteps(for: .quarter, command: false, control: false,
+                                                        option: true) == nil,
+               "Command, Control and Option presses keep their system meaning, Option-Shift included")
+        let upHalves = BrightnessSupport.systemQuarterStepHalves(increase: true)
+        let downHalves = BrightnessSupport.systemQuarterStepHalves(increase: false)
+        suite.expect(upHalves.map(\.data1) == [(2 << 16) | 0x0A00, (2 << 16) | 0x0B00]
+                && downHalves.map(\.data1) == [(3 << 16) | 0x0A00, (3 << 16) | 0x0B00],
+               "a sent-on quarter step is a whole press of the matching brightness key")
+        suite.expect(upHalves.allSatisfy { $0.flags & 0xA0000 == 0xA0000 && $0.flags & 0x140000 == 0 }
+                && upHalves.map { $0.flags & 0xFF00 } == [0x0A00, 0x0B00],
+               "a sent-on quarter step carries Option and Shift and nothing that means another shortcut")
+        suite.expect(upHalves.compactMap({ BrightnessSupport.brightnessKeyEvent(subtype: 8, data1: $0.data1) })
+                .map(\.isKeyDown) == [true, false]
+                && downHalves.compactMap({ BrightnessSupport.brightnessKeyEvent(subtype: 8, data1: $0.data1) })
+                .allSatisfy { $0.delta < 0 },
+               "a sent-on quarter step decodes as the same key, pressed and released")
+        for increase in [true, false] {
+            let events = BrightnessSupport.systemQuarterStepEvents(increase: increase, count: 2)
+            let decoded = events.compactMap { NSEvent(cgEvent: $0) }
+            suite.expect(events.count == 4 && decoded.count == 4
+                    && decoded.allSatisfy {
+                        $0.type == .systemDefined && $0.subtype.rawValue == 8 && ($0.data1 >> 16) == (increase ? 2 : 3)
+                            && $0.modifierFlags.contains([.option, .shift])
+                            && $0.modifierFlags.intersection([.command, .control]).isEmpty
+                    }
+                    && decoded.map { ($0.data1 >> 8) & 0xFF } == [0x0A, 0x0B, 0x0A, 0x0B]
+                    && events.allSatisfy {
+                        $0.getIntegerValueField(.eventSourceUserData) == BrightnessSupport.systemQuarterStepMarker
+                    },
+                   "each finer step posts the system's Option-Shift press and release, marked as this app's")
+        }
         suite.expect(BrightnessSupport.plainKeyTarget(followsPointer: false, pointerDisplay: 2, systemTarget: 1) == 1
                 && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: 2, systemTarget: 1) == 2
                 && BrightnessSupport.plainKeyTarget(followsPointer: true, pointerDisplay: nil, systemTarget: 1) == nil

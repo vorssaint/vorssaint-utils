@@ -149,15 +149,20 @@ enum ShelfInteractionSupport {
     /// or resizing a window. The drag pasteboard retains the previous drag's
     /// items indefinitely, so retained content alone proves nothing: only a
     /// change-count bump during the current gesture makes it current. Dock
-    /// stacks are the one source that can publish the contents before the
-    /// mouse-down, hence the Dock escape. Either way the pasteboard must hold
-    /// something the Shelf can keep; the check stays lazy because most dragged
-    /// events resolve on the cheap change count alone.
-    static func isContentDrag(baselineChangeCount: Int,
+    /// stacks can publish the contents before the mouse-down is seen, so a
+    /// gesture in the Dock counts from the end of the previous gesture
+    /// instead. It still needs a bump, so holding or dragging a Dock icon over
+    /// content an earlier drag left behind is not a content drag (#2212).
+    /// Either way the pasteboard must hold something the Shelf can keep; the
+    /// check stays lazy because most dragged events resolve on the cheap
+    /// change count alone.
+    static func isContentDrag(gestureChangeCount: Int,
+                              restingChangeCount: Int,
                               changeCount: Int,
                               beganInDock: Bool,
                               hasDroppableContent: () -> Bool) -> Bool {
-        guard changeCount != baselineChangeCount || beganInDock else { return false }
+        let baseline = beganInDock ? restingChangeCount : gestureChangeCount
+        guard changeCount != baseline else { return false }
         return hasDroppableContent()
     }
 

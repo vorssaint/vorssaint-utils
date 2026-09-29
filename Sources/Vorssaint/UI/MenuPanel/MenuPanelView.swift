@@ -96,10 +96,14 @@ struct MenuPanelView: View {
     /// Cap the panel to the usable screen height so it never overflows the menu
     /// bar; taller content scrolls inside. Measured against the display the
     /// menu bar icon is on, which is not always the one holding the key window.
+    /// The popover's window is the panel plus 13 pt for the arrow and 13 pt
+    /// below it, and a window taller than the usable height makes AppKit open
+    /// the popover beside the icon instead of under it. The cap leaves those
+    /// 26 pt and 2 more.
     private var maxHeight: CGFloat {
         let anchored = PanelInteractionState.shared.anchorScreen
             .flatMap { anchor in anchor.isStillAttached ? anchor : nil }
-        return max(360, ((anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760) - 24)
+        return max(360, ((anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760) - 28)
     }
 
     var body: some View {
@@ -1097,7 +1101,7 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
+    case mouseScroll, linearScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
          mouseClickDebounce, notch
 
@@ -1108,6 +1112,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     var feature: AppFeature {
         switch self {
         case .mouseScroll: return .scrollInverter
+        case .linearScroll: return .linearScroll
         case .focusFollowsMouse: return .focusFollowsMouse
         case .mouseAcceleration: return .mouseAcceleration
         case .mouseNavigation: return .mouseNavigation
@@ -1141,7 +1146,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
         switch item {
         case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .notch:
             return .windows
-        case .mouseScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
+        case .mouseScroll, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
              .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
             return .inputDevices
         case .cutPaste, .shelf:
@@ -1190,12 +1195,14 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.superKeyEnabled) private var superKeyEnabled = false
     @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
+    @AppStorage(DefaultsKey.linearScrollEnabled) private var linearScrollEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
     @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
         SuperKeySupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
         SuperKeySource.capsLock.rawValue
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
+    @AppStorage(DefaultsKey.panelControlLinearScroll) private var showLinearScroll = true
     @AppStorage(DefaultsKey.panelControlFocusFollowsMouse) private var showFocusFollowsMouse = true
     @AppStorage(DefaultsKey.panelControlMouseNavigation) private var showMouseNavigation = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
@@ -1315,6 +1322,7 @@ struct QuickControlsSection: View {
     private func isEnabled(_ item: ControlPanelItem) -> Bool {
         switch item {
         case .mouseScroll: return scrollDirectionEnabled
+        case .linearScroll: return linearScrollEnabled
         case .focusFollowsMouse: return focusFollowsMouseEnabled
         case .mouseAcceleration: return mouseAccelerationDisabled
         case .mouseNavigation: return mouseNavigationEnabled
@@ -1393,6 +1401,7 @@ struct QuickControlsSection: View {
     private func isVisible(_ item: ControlPanelItem) -> Bool {
         switch item {
         case .mouseScroll: return showScroll
+        case .linearScroll: return showLinearScroll
         case .focusFollowsMouse: return showFocusFollowsMouse
         case .mouseAcceleration: return showMouseAcceleration
         case .mouseNavigation: return showMouseNavigation
@@ -1432,6 +1441,22 @@ struct QuickControlsSection: View {
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(scrollDirectionEnabled))
                 .onChange(of: scrollDirectionEnabled) { _, enabled in
+                    ScrollInverter.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .linearScroll:
+            PanelToggleRow(title: l10n.s.linearScrollName,
+                           caption: caption(l10n.s.linearScrollCaption,
+                                            needsAccessibility: linearScrollEnabled),
+                           systemImage: "arrow.up.and.down.text.horizontal",
+                           isOn: $linearScrollEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showLinearScroll,
+                           needsAttention: linearScrollEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(linearScrollEnabled))
+                .onChange(of: linearScrollEnabled) { _, enabled in
                     ScrollInverter.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
@@ -1843,6 +1868,7 @@ struct QuickControlsSection: View {
         showMouseButtonShortcuts = true
         showSuperKey = true
         showMouseAcceleration = true
+        showLinearScroll = true
         showMouseClickDebounce = true
         windowsExpanded = false
         inputExpanded = false
@@ -2499,8 +2525,22 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
     @State private var optionsExpanded = false
     @State private var automationExpanded = false
-    @State private var untilTime = Date().addingTimeInterval(3600)
-    @State private var useEndTime = false
+    /// The last started end time, which the popover opens on.
+    @AppStorage(DefaultsKey.keepAwakeUntilTime) private var savedUntilTime = 0.0
+    /// An edit not started yet; only starting saves it, so the switch keeps
+    /// restarting the session that actually ran.
+    @State private var untilDraft: Date?
+
+    /// Only the hour and minute matter; `resolvedUntilDate` picks the next one.
+    private var untilTime: Binding<Date> {
+        Binding(
+            get: {
+                untilDraft ?? (savedUntilTime > 0 ? Date(timeIntervalSinceReferenceDate: savedUntilTime)
+                    : Date().addingTimeInterval(3600))
+            },
+            set: { untilDraft = $0 }
+        )
+    }
     var collapsible = true
 
     var body: some View {
@@ -2509,47 +2549,69 @@ struct KeepAwakeCard: View {
         PanelSection(.keepAwake, title: l10n.s.keepAwakeTitle, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    statusLine
-                    Spacer()
+                    if awake.isActive, awake.endDate != nil {
+                        // Beside the extend chips a narrow panel has no room for the
+                        // status; the highlighted chip already shows the countdown
+                        // or the end time.
+                        ViewThatFits(in: .horizontal) {
+                            statusLine.fixedSize()
+                            Color.clear.frame(width: 0, height: 0)
+                        }
+                        Spacer(minLength: 4)
+                        HStack(spacing: 4) {
+                            ForEach([15, 30, 60], id: \.self) { minutes in
+                                Button("+" + DurationPicker.shortTitle(for: minutes, l10n.s, l10n.language)) {
+                                    awake.extend(minutes: minutes)
+                                }
+                                .buttonStyle(KeepAwakeChipStyle())
+                                .fixedSize()
+                            }
+                        }
+                    } else {
+                        // Without the extend chips a long status, such as the
+                        // conditions of an automatic session, wraps instead.
+                        statusLine
+                        Spacer(minLength: 4)
+                    }
                     Toggle(l10n.s.keepAwakeTitle, isOn: activeBinding)
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
 
-                if awake.isActive, awake.endDate != nil {
-                    HStack(spacing: 6) {
-                        extendButton(15)
-                        extendButton(30)
-                        extendButton(60)
-                        Spacer()
+                // One click starts (or switches) a session; clicking the
+                // highlighted chip stops it. The switch reuses the last pick.
+                // The menu bar panel is narrower than the island, so the row
+                // folds into two rows of four when a single row would truncate.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 4) {
+                        ForEach(DurationPicker.choices, id: \.self, content: durationChip)
+                        untilChip
+                    }
+                    VStack(spacing: 4) {
+                        HStack(spacing: 4) {
+                            ForEach(DurationPicker.choices.prefix(4), id: \.self, content: durationChip)
+                        }
+                        HStack(spacing: 4) {
+                            ForEach(DurationPicker.choices.dropFirst(4), id: \.self, content: durationChip)
+                            untilChip
+                        }
                     }
                 }
 
-                if !awake.isActive {
-                    Picker(l10n.s.durationLabel, selection: $useEndTime) {
-                        Text(l10n.s.durationLabel).tag(false)
-                        Text(l10n.s.keepAwakeUntilLabel).tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-
-                    if useEndTime {
-                        KeepAwakeEndTimePicker(selection: $untilTime)
+                // Shown in both states so starting or stopping never changes
+                // the card's height (the panel would jump). Battery protection
+                // ends a session the moment it starts, so say why a chip
+                // seems to do nothing.
+                TimelineView(.periodic(from: .now, by: 30)) { _ in
+                    if let percent = awake.batteryProtectionPercent() {
+                        Label(batteryNote(percent), systemImage: "battery.25percent")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
                     } else {
-                        HStack {
-                            Image(systemName: "timer")
-                                .foregroundStyle(.secondary)
-                            DurationPicker(selection: $defaultDuration)
-                            Spacer(minLength: 0)
-                        }
+                        Text(chipHint)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
                     }
-
-                    Button(action: startSession) {
-                        Text(l10n.s.keepAwakeUntilStart)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
                 }
 
                 optionsDisclosure
@@ -2772,6 +2834,99 @@ struct KeepAwakeCard: View {
         .foregroundStyle(.secondary)
     }
 
+    private func durationChip(_ minutes: Int) -> some View {
+        let selected = manualSession && awake.sessionMinutes == minutes
+        return Button {
+            if selected {
+                awake.toggle()
+            } else {
+                awake.activate(minutes: minutes)
+            }
+        } label: {
+            // Every timed chip reserves "0:00:00", so ViewThatFits measures the
+            // countdown and neither a start nor an extend can overflow the row.
+            ZStack {
+                Text(DurationPicker.shortTitle(for: minutes, l10n.s, l10n.language))
+                if minutes > 0 {
+                    Text("0:00:00").hidden()
+                }
+            }
+                .opacity(selected && awake.endDate != nil ? 0 : 1)
+                .overlay {
+                    if selected, let end = awake.endDate {
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
+                            Text(Self.countdownText(until: end))
+                                .fixedSize()
+                        }
+                    }
+                }
+        }
+        .buttonStyle(KeepAwakeChipStyle(isSelected: selected))
+        .accessibilityLabel(DurationPicker.title(for: minutes, l10n.s))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var untilChip: some View {
+        KeepAwakeEndTimePicker(selection: untilTime,
+                               activeEnd: manualSession && awake.sessionMinutes == nil ? awake.endDate : nil,
+                               onStop: { awake.toggle() }) {
+            awake.activate(until: KeepAwakeAutomationSupport.resolvedUntilDate(picked: untilTime.wrappedValue, now: Date()))
+            untilDraft = nil
+        }
+    }
+
+    private var manualSession: Bool {
+        awake.isActive && awake.sessionTrigger == .manual
+    }
+
+    /// "58:12" or "1:05:12" for the highlighted chip.
+    static func countdownText(until end: Date) -> String {
+        let total = max(0, Int(end.timeIntervalSinceNow))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        return hours > 0 ? String(format: "%d:%02d:%02d", hours, minutes, seconds)
+            : String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func batteryNote(_ percent: Int) -> String {
+        switch l10n.language {
+        case .enUS: return "Battery at \(percent)%. Plug in or lower the battery limit to start"
+        case .ptBR: return "Bateria em \(percent)%. Conecte o carregador ou reduza o limite de bateria para iniciar"
+        case .tr: return "Pil %\(percent). Başlatmak için şarja takın veya pil sınırını düşürün"
+        case .ru: return "Заряд \(percent)%. Подключите питание или снизьте порог заряда, чтобы начать"
+        case .es: return "Batería al \(percent) %. Conecta el cargador o baja el límite de batería para empezar"
+        case .sk: return "Batéria na \(percent) %. Pripojte napájanie alebo znížte limit batérie a spustite"
+        case .de: return "Batterie bei \(percent) %. Zum Starten Netzteil anschließen oder Batteriegrenze senken"
+        case .fr: return "Batterie à \(percent)\u{00A0}%. Brancher le chargeur ou baisser la limite de batterie pour démarrer"
+        case .it: return "Batteria al \(percent)%. Collega l’alimentatore o abbassa il limite della batteria per iniziare"
+        case .ja: return "バッテリー残量 \(percent)%。電源に接続するかバッテリーの下限を下げると開始できます"
+        case .ko: return "배터리 \(percent)%. 전원을 연결하거나 배터리 한도를 낮추면 시작할 수 있습니다"
+        case .uk: return "Заряд \(percent)%. Підключіть живлення або знизьте поріг заряду, щоб почати"
+        case .zhHans: return "电量 \(percent)%。接通电源或调低电量下限即可开始"
+        case .zhTW, .zhHK: return "電量 \(percent)%。接上電源或調低電量下限即可開始"
+        }
+    }
+
+    private var chipHint: String {
+        switch l10n.language {
+        case .enUS: return "Click a chip to start. Click it again to stop"
+        case .ptBR: return "Clique em um chip para iniciar. Clique de novo para parar"
+        case .tr: return "Başlatmak için bir çipe tıklayın. Durdurmak için tekrar tıklayın"
+        case .ru: return "Нажмите на чип, чтобы начать. Нажмите снова, чтобы остановить"
+        case .es: return "Haz clic en un chip para empezar. Vuelve a hacer clic para detener"
+        case .sk: return "Kliknutím na čip spustíte. Ďalším kliknutím zastavíte"
+        case .de: return "Chip anklicken zum Starten. Erneut anklicken zum Beenden"
+        case .fr: return "Cliquer sur une puce pour démarrer. Cliquer à nouveau pour arrêter"
+        case .it: return "Fai clic su un chip per iniziare. Fai di nuovo clic per fermare"
+        case .ja: return "チップをクリックで開始、もう一度クリックで停止"
+        case .ko: return "칩을 클릭하면 시작하고, 다시 클릭하면 멈춥니다"
+        case .uk: return "Натисніть на чип, щоб почати. Натисніть ще раз, щоб зупинити"
+        case .zhHans: return "点按一个标签即可开始，再次点按即可停止"
+        case .zhTW, .zhHK: return "點按一個標籤即可開始，再次點按即可停止"
+        }
+    }
+
     private var automationStrings: KeepAwakeAutomationStrings {
         FeatureStrings.keepAwakeAutomation(l10n.language)
     }
@@ -2801,20 +2956,12 @@ struct KeepAwakeCard: View {
             get: { awake.isActive },
             set: { on in
                 if on {
-                    startSession()
+                    awake.startLastPick()
                 } else if awake.isActive {
                     awake.toggle()
                 }
             }
         )
-    }
-
-    private func startSession() {
-        if useEndTime {
-            awake.activate(until: KeepAwakeAutomationSupport.resolvedUntilDate(picked: untilTime, now: Date()))
-        } else {
-            awake.activate(minutes: defaultDuration)
-        }
     }
 
     private func grantAccessibility() {
@@ -2848,15 +2995,6 @@ struct KeepAwakeCard: View {
         }
     }
 
-    private func extendButton(_ minutes: Int) -> some View {
-        Button("+\(minutes) min") {
-            awake.extend(minutes: minutes)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .font(.system(size: 10))
-    }
-
     /// "1 h 05 min" style countdown, shared with the Energy page's status line.
     static func remainingText(until end: Date) -> String {
         let total = max(0, Int(end.timeIntervalSinceNow))
@@ -2869,11 +3007,8 @@ struct KeepAwakeCard: View {
     }
 }
 
-/// Session duration picker shared by the panel and Settings.
-struct DurationPicker: View {
-    @ObservedObject private var l10n = L10n.shared
-    @Binding var selection: Int
-
+/// Session durations shared by the panel chips and Settings.
+enum DurationPicker {
     /// The offered durations in minutes; 0 keeps the session open until it
     /// is switched off.
     static let choices = [15, 30, 60, 120, 240, 480, 0]
@@ -2890,16 +3025,36 @@ struct DurationPicker: View {
         }
     }
 
-    var body: some View {
-        Picker("", selection: $selection) {
-            ForEach(Self.choices, id: \.self) { minutes in
-                Text(Self.title(for: minutes, l10n.s)).tag(minutes)
-            }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .controlSize(.small)
-        .fixedSize()
+    /// Chip-sized label ("15m", "1h" in English), localized by Foundation.
+    static func shortTitle(for minutes: Int, _ s: Strings, _ language: AppLanguage) -> String {
+        guard minutes > 0 else { return "∞" }
+        let formatter = DateComponentsFormatter()
+        var calendar = Calendar.current
+        calendar.locale = Locale(identifier: language.rawValue)
+        formatter.calendar = calendar
+        formatter.unitsStyle = .abbreviated
+        formatter.allowedUnits = [.hour, .minute]
+        return formatter.string(from: TimeInterval(minutes * 60)) ?? title(for: minutes, s)
+    }
+}
+
+/// Capsule chip used for the Keep awake presets and extensions.
+struct KeepAwakeChipStyle: ButtonStyle {
+    var isSelected = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 11, weight: .medium))
+            .monospacedDigit()
+            .lineLimit(1)
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 22)
+            .frame(maxWidth: .infinity)
+            .background(Capsule().fill(isSelected
+                ? Color.accentColor.opacity(configuration.isPressed ? 0.8 : 1)
+                : Color.primary.opacity(configuration.isPressed ? 0.16 : 0.07)))
+            .contentShape(Capsule())
     }
 }
 

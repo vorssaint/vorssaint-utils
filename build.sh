@@ -423,6 +423,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Finder/FinderPasteImageSupport.swift
         Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift
+        Sources/Vorssaint/Services/MouseNavigation/MouseNavigationKeys.swift
         Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutSupport.swift
         Sources/Vorssaint/Services/MouseButtons/MouseSpacesGestureSupport.swift
         Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceSupport.swift

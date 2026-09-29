@@ -9,24 +9,39 @@ import EventKit
 private actor NotchCalendarReader {
     private lazy var store = EKEventStore()
 
-    func read(interval: DateInterval) -> [NotchCalendarEvent] {
+    func read(interval: DateInterval, excluded: Set<String>) -> [NotchCalendarEvent] {
         guard !Task.isCancelled, EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
-        let predicate = store.predicateForEvents(withStart: interval.start, end: interval.end, calendars: nil)
+        let calendars = NotchCalendarSupport.calendarsToRead(store.calendars(for: .event), excluded: excluded,
+                                                             identifier: \.calendarIdentifier)
+        if calendars?.isEmpty == true { return [] }
+        let predicate = store.predicateForEvents(withStart: interval.start, end: interval.end, calendars: calendars)
         return store.events(matching: predicate).compactMap { event in
             guard event.status != .canceled,
                   event.attendees?.contains(where: { $0.isCurrentUser && $0.participantStatus == .declined }) != true,
                   let identifier = event.eventIdentifier,
                   let start = event.startDate, let end = event.endDate else { return nil }
-            let color = event.calendar.cgColor.flatMap { NSColor(cgColor: $0)?.usingColorSpace(.sRGB) }
-            let tint = color.map { NotchCalendarColor(red: $0.redComponent, green: $0.greenComponent,
-                                                     blue: $0.blueComponent) } ?? .fallback
             return NotchCalendarEvent(id: identifier + ":" + String(start.timeIntervalSinceReferenceDate),
                                       title: event.title ?? "", calendar: event.calendar.title,
                                       start: start, end: end, allDay: event.isAllDay,
-                                      location: event.location ?? "", color: tint,
+                                      location: event.location ?? "", color: Self.tint(event.calendar),
                                       calendarItemIdentifier: event.calendarItemIdentifier,
                                       recurring: event.hasRecurrenceRules || event.isDetached)
         }
+    }
+
+    func calendars() -> [NotchCalendarChoice] {
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
+        return store.calendars(for: .event).map {
+            NotchCalendarChoice(id: $0.calendarIdentifier, title: $0.title,
+                                sourceID: $0.source?.sourceIdentifier ?? "", source: $0.source?.title ?? "",
+                                color: Self.tint($0))
+        }
+    }
+
+    private static func tint(_ calendar: EKCalendar) -> NotchCalendarColor {
+        let color = calendar.cgColor.flatMap { NSColor(cgColor: $0)?.usingColorSpace(.sRGB) }
+        return color.map { NotchCalendarColor(red: $0.redComponent, green: $0.greenComponent,
+                                              blue: $0.blueComponent) } ?? .fallback
     }
 }
 
@@ -34,7 +49,7 @@ private actor NotchCalendarReader {
 final class NotchCalendarService: NSObject, ObservableObject {
     static let shared = NotchCalendarService()
     @Published private(set) var events: [NotchCalendarEvent] = []
-    @Published private(set) var countdownEvent: NotchCalendarEvent?
+    @Published private(set) var countdown: NotchCalendarCountdown?
     @Published private(set) var loading = false
     private var reader: NotchCalendarReader?
     private var task: Task<Void, Never>?
@@ -44,8 +59,16 @@ final class NotchCalendarService: NSObject, ObservableObject {
     private var generation = UUID()
     private var visibleMonth: Date?
     private var countdownEnabled = false
+    private var timeLeftEnabled = false
+    private var excludedCalendars = Set<String>()
 
     private override init() { super.init() }
+
+    /// Every event calendar on this Mac, for the Settings list. Works while
+    /// the island's reader is stopped, since the list is edited from Settings.
+    func calendarChoices() async -> [NotchCalendarChoice] {
+        await (reader ?? NotchCalendarReader()).calendars()
+    }
 
     func showMonth(_ month: Date?) {
         visibleMonth = month
@@ -56,15 +79,26 @@ final class NotchCalendarService: NSObject, ObservableObject {
     func syncWithPreferences() {
         guard NotchCalendarSupport.isEnabled() else { stop(); return }
         let countdownEnabled = NotchCalendarSupport.showsCountdown()
+        let timeLeftEnabled = NotchCalendarSupport.showsTimeLeft()
+        let excludedCalendars = NotchCalendarSupport.excludedCalendars()
         guard reader == nil else {
-            if self.countdownEnabled != countdownEnabled {
+            if self.countdownEnabled != countdownEnabled || self.timeLeftEnabled != timeLeftEnabled
+                || self.excludedCalendars != excludedCalendars {
+                if !excludedCalendars.isSubset(of: self.excludedCalendars) {
+                    events = []
+                    countdown = nil
+                }
                 self.countdownEnabled = countdownEnabled
-                if !countdownEnabled { countdownEvent = nil }
+                self.timeLeftEnabled = timeLeftEnabled
+                self.excludedCalendars = excludedCalendars
+                if let countdown, !(countdown.ongoing ? timeLeftEnabled : countdownEnabled) { self.countdown = nil }
                 refresh()
             }
             return
         }
         self.countdownEnabled = countdownEnabled
+        self.timeLeftEnabled = timeLeftEnabled
+        self.excludedCalendars = excludedCalendars
         reader = NotchCalendarReader()
         for name in [Notification.Name.EKEventStoreChanged, NSApplication.didBecomeActiveNotification,
                      .NSSystemClockDidChange, .NSSystemTimeZoneDidChange, .NSCalendarDayChanged] {
@@ -83,7 +117,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         generation = UUID()
         guard NotchCalendarSupport.isEnabled(), let reader else { stop(); return }
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
-            events = []; countdownEvent = nil; loading = false
+            events = []; countdown = nil; loading = false
             return
         }
         let requested = generation
@@ -91,27 +125,29 @@ final class NotchCalendarService: NSObject, ObservableObject {
         let interval = NotchCalendarSupport.readInterval(month: visibleMonth, now: now)
         let currentInterval = NotchCalendarSupport.readInterval(month: nil, now: now)
         let needsCurrentRead = NotchCalendarSupport.needsCurrentRead(
-            visible: interval, current: currentInterval, countdownEnabled: countdownEnabled)
+            visible: interval, current: currentInterval, countdownEnabled: countdownEnabled || timeLeftEnabled)
+        let excluded = excludedCalendars
         loading = events.isEmpty
         task = Task { @MainActor [weak self] in
-            let result = await reader.read(interval: interval)
-            let currentResult = needsCurrentRead ? await reader.read(interval: currentInterval) : result
+            let result = await reader.read(interval: interval, excluded: excluded)
+            let currentResult = needsCurrentRead
+                ? await reader.read(interval: currentInterval, excluded: excluded) : result
             guard !Task.isCancelled, let self, self.generation == requested,
                   NotchCalendarSupport.isEnabled() else { return }
             let now = Date()
             guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
-                self.events = []; self.countdownEvent = nil; self.loading = false; self.task = nil
+                self.events = []; self.countdown = nil; self.loading = false; self.task = nil
                 return
             }
             self.events = NotchCalendarSupport.ordered(result)
             let currentEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : self.events
-            self.countdownEvent = self.countdownEnabled
-                ? NotchCalendarSupport.countdownEvent(currentEvents, now: now) : nil
+            self.countdown = NotchCalendarSupport.countdown(currentEvents, now: now, starts: self.countdownEnabled,
+                                                            ends: self.timeLeftEnabled)
             self.loading = false
             self.task = nil
             let agendaRefresh = NotchCalendarSupport.nextRefresh(self.events, now: now)
-            let countdownRefresh = self.countdownEnabled
-                ? NotchCalendarSupport.countdownTransition(currentEvents, now: now) : nil
+            let countdownRefresh = NotchCalendarSupport.countdownTransition(
+                currentEvents, now: now, starts: self.countdownEnabled, ends: self.timeLeftEnabled)
             let nextRefresh = min(agendaRefresh, countdownRefresh ?? agendaRefresh)
             let timer = Timer(fireAt: nextRefresh,
                               interval: 0, target: self, selector: #selector(self.timedRefresh),
@@ -134,6 +170,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
         reader = nil
         visibleMonth = nil
         countdownEnabled = false
-        events = []; countdownEvent = nil; loading = false
+        timeLeftEnabled = false
+        excludedCalendars = []
+        events = []; countdown = nil; loading = false
     }
 }

@@ -104,6 +104,38 @@ enum SettingsWindowTests {
         expect(!window.validateMenuItem(back) && window.router.page == .mouse,
                "an unfocused Settings window cannot navigate through a command")
 
+        // The side buttons learn where this keyboard carries Back and Forward
+        // from the Go items. macOS strips the key from a hidden copy declared
+        // beside them, which left German and French keyboards on the brackets.
+        MouseNavigationKeys.reset()
+        defer { MouseNavigationKeys.reset() }
+        expect(SettingsWindow.navigationItem(for: .back, in: mainMenu) === back
+                && SettingsWindow.navigationItem(for: .forward, in: mainMenu) === forward,
+               "mouse navigation finds the Go item for each side button")
+        for (item, key) in [(back, "ö"), (forward, "ä")] {
+            // Where a German keyboard moves the commands.
+            item.allowsAutomaticKeyEquivalentLocalization = false
+            item.keyEquivalent = key
+        }
+        let movedBack = MouseNavigationKeys.shortcut(for: .back)
+        let movedForward = MouseNavigationKeys.shortcut(for: .forward)
+        expect(movedBack.character == "ö" && movedForward.character == "ä"
+                && movedBack.menuModifiers == 0 && movedForward.menuModifiers == 0,
+               "side buttons look for the keys macOS moved the Go commands to")
+        expect(MouseNavigationKeys.candidates(for: .back).map(\.character) == ["ö", "["]
+                && MouseNavigationKeys.candidates(for: .forward).map(\.character) == ["ä", "]"],
+               "a moved key that the app in front no longer shows still leaves the declared bracket to find")
+        let menuItemCount = mainMenu.numberOfItems
+        MouseNavigationKeys.refresh()
+        expect(mainMenu.numberOfItems == menuItemCount,
+               "no hidden copy of the Go commands is added beside them")
+        app.mainMenu = NSMenu()
+        expect(MouseNavigationKeys.shortcut(for: .back).character == "["
+                && MouseNavigationKeys.shortcut(for: .forward).character == "]",
+               "without the Go menu, side buttons fall back to the declared brackets")
+        expect(MouseNavigationKeys.candidates(for: .back).map(\.character) == ["["],
+               "the declared bracket is looked for once when nothing moved it")
+
         for language in AppLanguage.allCases {
             let strings = SettingsNavigationStrings.localized(language)
             expect(!strings.go.isEmpty && !strings.back.isEmpty && !strings.forward.isEmpty,

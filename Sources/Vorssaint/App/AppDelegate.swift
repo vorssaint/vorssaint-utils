@@ -161,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .receive(on: DispatchQueue.main)
             .sink { _ in
                 FeatureRuntime.shared.sync([
-                    .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .switcher,
+                    .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
@@ -428,8 +428,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // system material where the surface stops, the seam users see. The visible
         // content stays inset either way, before through the content view's frame
         // and now through the safe area the popover publishes, so only the surface
-        // reaches the arrow.
-        popover.hasFullSizeContent = true
+        // reaches the arrow. Before macOS 26 AppKit does not lay full-size content
+        // out, so the panel keeps the inset content there.
+        popover.hasFullSizeContent = PanelSurface.popoverHostsFullSizeContent
         popover.delegate = self
         let host = NSHostingController(rootView: MenuPanelView())
         host.sizingOptions = .preferredContentSize
@@ -1055,6 +1056,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
         if popover.isShown, event.keyCode == UInt16(kVK_Escape) {
+            // While an input method is composing, Esc belongs to it and
+            // drops the candidate; the panel closes on the next one.
+            if (event.window?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
             closePopover(reason: .escape)
             return nil
         }

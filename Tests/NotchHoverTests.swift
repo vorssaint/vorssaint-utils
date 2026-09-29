@@ -57,7 +57,14 @@ enum NotchHoverTests {
         }
     }
     enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
+    enum NotchMusicService {
+        static let shared = Reader()
+        final class Reader { var playback: NotchPlayback? }
+    }
+    /// The strip's track by title; the real snapshot also holds its cover and geometry.
+    struct NotchCompactMusicSnapshot: Equatable { let title: String }
     class State {
+        func schedulePointerFollow() {}
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         var showsSystemFeedback = true, routesNotices = true
@@ -69,6 +76,9 @@ enum NotchHoverTests {
         var noticeWork: DispatchWorkItem?
         var departingNotice: NotchNotice?
         var departureWork: DispatchWorkItem?
+        var trackWork: DispatchWorkItem?
+        var presentedMusic: NotchCompactMusicSnapshot?
+        var heldMusic: NotchCompactMusicSnapshot?
         var compactActivity: NotchCompactActivity?
         var compactActivities: [NotchCompactActivity] = []
         var activityPickerMenuOpen = false
@@ -78,6 +88,8 @@ enum NotchHoverTests {
         var captureHover: ((Bool) -> Void)?
         func updateCaptureControlsHover(wasInside: Bool) {}
         func updateCaptureControlsClickThrough() {}
+        var childWindowFrames: [CGRect] = []
+        func pointerOverChildWindow(_ point: CGPoint) -> Bool { childWindowFrames.contains { $0.contains(point) } }
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: -1920, y: 900, width: 1920, height: 1080),
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)
@@ -471,7 +483,59 @@ enum NotchHoverTests {
         AssistiveKeyboard.active = true
         DispatchQueue.main.advance(1)
         expect(keyboard.closures == 0, "moving to the Accessibility Keyboard preserves the working panel")
+
+        let popover = fixture()
+        popover.open(nil, takeFocus: false)
+        popover.childWindowFrames = [CGRect(x: popover.geometry.screen.minX, y: popover.geometry.screen.minY,
+                                            width: 240, height: 200)]
+        leave(popover)
+        DispatchQueue.main.advance(1)
+        expect(popover.closures == 0 && popover.inside,
+               "moving into a popover hanging from the island keeps a hover-opened panel")
         notificationContracts(fixture: fixture, leave: leave, expect: expect)
+        trackNoticeContracts(fixture: fixture, expect: expect)
+    }
+
+    /// A new song's notice waits for playback to settle, and the compact
+    /// strip keeps the song it showed until the notice covers it.
+    private static func trackNoticeContracts(fixture: (Bool) -> Service, expect: (Bool, String) -> Void) {
+        func song(_ title: String, playing: Bool = true) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: "Artist", album: nil, artworkData: nil,
+                                                          appBundleIdentifier: "org.example.player", appPID: 42),
+                          isPlaying: playing, elapsed: 0, duration: 200, rate: 1, sampledAt: Date(), canSeek: false)
+        }
+        defer { NotchMusicService.shared.playback = nil }
+        let skipped = fixture(false)
+        skipped.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+        NotchMusicService.shared.playback = song("New")
+        skipped.scheduleTrackNotice()
+        expect(skipped.heldMusic?.title == "Old" && skipped.notice == nil,
+               "a new song leaves the strip on the song it showed while the notice waits")
+        DispatchQueue.main.advance(0.3)
+        skipped.presentedMusic = NotchCompactMusicSnapshot(title: "New")
+        NotchMusicService.shared.playback = song("Newer")
+        skipped.scheduleTrackNotice()
+        DispatchQueue.main.advance(0.49)
+        expect(skipped.heldMusic?.title == "Old" && skipped.notice == nil,
+               "skipping again restarts the wait and keeps the song still on screen")
+        DispatchQueue.main.advance(0.02)
+        expect(skipped.notice?.event == .track && skipped.notice?.title == "Newer" && skipped.heldMusic == nil,
+               "the notice shows where playback settled and releases the strip behind it")
+        for block: (Service) -> Void in [{ $0.expanded = true },
+                                         { _ in NotchMusicService.shared.playback = song("New", playing: false) }] {
+            let blocked = fixture(false)
+            blocked.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+            NotchMusicService.shared.playback = song("New")
+            blocked.scheduleTrackNotice()
+            block(blocked)
+            DispatchQueue.main.advance(0.5)
+            expect(blocked.notice == nil && blocked.heldMusic == nil,
+                   "a notice that cannot show releases the strip to the current song")
+        }
+        let hidden = fixture(false)
+        NotchMusicService.shared.playback = song("New")
+        hidden.scheduleTrackNotice()
+        expect(hidden.heldMusic == nil, "nothing is held when the strip was not on screen")
     }
 
     /// A mirrored banner arrives with its own dismissal pending, as `show`
@@ -711,5 +775,28 @@ enum NotchHoverTests {
         leave(interrupted)
         DispatchQueue.main.advance(0.2)
         expect(interrupted.closures == 0 && interrupted.notice == nil, "leaving afterwards has nothing left to close")
+
+        // A burst keeps the banner's width, so the island does not resize
+        // with each message and a banner held near its end stays in reach.
+        let wide = banner(String(repeating: "A long message in a busy chat ", count: 8))
+        let burst = fixture(false)
+        leave(burst)
+        expect(burst.show(wide) && burst.show(banner("ok")), "precondition: a burst replaces the banner")
+        expect(burst.surfaceSize == burst.geometry.noticeSize(wingWidth: wide.preferredWingWidth),
+               "a message replacing a banner still on screen keeps its width")
+        DispatchQueue.main.advance(3.1)
+        let alone = banner("ok")
+        expect(burst.notice == nil && burst.show(alone) && alone.preferredWingWidth < wide.preferredWingWidth
+               && burst.surfaceSize == burst.geometry.noticeSize(wingWidth: alone.preferredWingWidth),
+               "the next message on its own takes only the width it needs")
+        let held = fixture(false)
+        leave(held)
+        expect(held.show(wide), "precondition: a wide banner is shown")
+        let frame = held.geometry.frame(for: held.surfaceSize)
+        NSEvent.mouseLocation = CGPoint(x: frame.maxX - 4, y: frame.midY)
+        held.hover(true)
+        expect(held.show(banner("ok")) && held.windowHost?.containsHover(NSEvent.mouseLocation) == true
+               && held.noticeWork == nil,
+               "a message arriving over a banner held near its end stays under the pointer")
     }
 }

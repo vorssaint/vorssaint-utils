@@ -106,6 +106,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Text snippets.** Expand short triggers into text with clipboard, date and time variables, or insert snippets from a searchable menu.
 - **Smooth scrolling.** Give your mouse wheel a fluid glide with adjustable speed and response.
 - **Pointer acceleration.** Disable mouse acceleration and restore your previous setting when turned off.
+- **Linear scrolling.** Make every mouse wheel notch scroll the same number of lines, however fast the wheel spins.
 - **Focus follows mouse.** Bring the window under the pointer forward after an adjustable pause.
 - **Scroll direction.** Invert vertical and horizontal mouse scrolling independently of the trackpad.
 - **Scroll sideways while holding a key.** Turn vertical wheel movement into horizontal scrolling while holding a chosen key.
@@ -161,7 +162,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Energy and display
 
 - **Keep awake.** Keep your Mac working on a timer, with the lid closed, or while selected apps, power or external displays are present.
-- **Displays.** Control individual displays and brightness, with hardware control where supported, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
+- **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
 - **Extra brightness.** Use a MacBook Pro XDR display's HDR headroom to go beyond its normal maximum brightness.
 - **Bluetooth on sleep.** Disconnect Bluetooth during sleep and restore it on wake only if Vorssaint turned it off.
 
