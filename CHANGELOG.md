@@ -29,6 +29,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Dynamic Island notification banners fit their message instead of always using the same wide strip, and keep one width while several messages arrive in a row.
 - Dynamic Island's screen capture controls place their title and buttons in the top row, beside the camera when they fit, and keep them away from the island's edges, so less of the screen is covered.
 - Escape in Dynamic Island steps back one level, closing the mixer options, month grid, lyrics or queue, or leaving a detail opened inside the island, before it closes the island.
+- Dynamic Island's Hide the system banner option, formerly Dismiss the system banner, takes the original off screen as soon as the island shows the message instead of closing it about a second later, so its sound plays to the end and it still goes to Notification Center.
 
 ### Fixed
 - Dynamic Island no longer closes when you click or point at a popover that extends past its edge, such as the Keep Awake end time picker.
@@ -51,7 +52,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @0miicr0n, @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @bweh, @cedigang, @daniel-dosiper, @Goonwb, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain.
+Thanks to @0mgABear, @0miicr0n, @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @bweh, @cedigang, @daniel-dosiper, @Goonwb, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain, ItsMoses and Shiro.
 
 ## [3.4.0] - 2026-09-27
 

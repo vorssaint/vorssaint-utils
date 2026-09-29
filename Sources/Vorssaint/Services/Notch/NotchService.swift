@@ -2617,7 +2617,7 @@ final class NotchService: ObservableObject {
                 let shown = self.show(NotchNotice(event: .systemNotification, title: item.content.title,
                                                  detail: item.content.body, symbol: "bell.fill", notification: item.content, notificationID: item.id))
                 if shown, !self.expanded, self.captureControls == nil, !self.dragPlaceholder {
-                    NotchNotificationService.shared.closeNative(item.id)
+                    NotchNotificationService.shared.hideNative(item.id)
                 }
             }.store(in: &subscriptions)
         }

@@ -321,7 +321,7 @@ struct NotchSettings: View {
                 .disabled(!NotchAudioLevelSupport.isSupported || !AppFeature.notchLiveEqualizer.isAvailable)
         case .notifications:
             let notifications = FeatureStrings.notchNotifications(l10n.language)
-            switchRow("bell.slash", notifications.dismissSystemBanner, caption: notifications.dismissSystemBannerHint,
+            switchRow("bell.slash", notifications.hideSystemBanner, caption: notifications.hideSystemBannerHint,
                       isOn: $dismissNativeNotifications)
             if notificationsEnabled, !permissions.accessibility { PermissionRow(kind: .accessibility) }
         case .downloads:
