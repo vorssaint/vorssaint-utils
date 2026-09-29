@@ -632,6 +632,7 @@ enum NotchAgentTests {
         quiet.closeIdleTurns(now: start.addingTimeInterval(claudeWait + 1), after: NotchAgentSupport.idleTurn)
         suite.expect(quiet.waiting.isEmpty && claudeWait < AgentUsageStore.resumeWindow(for: .codex),
                      "a Claude turn that a killed session left open stops waiting sooner")
+        sessionProcesses(suite, start: start)
 
         // A Claude subagent's responses count toward the turn it works for.
         let sessionLog = "/x/p/s1.jsonl"
@@ -717,6 +718,47 @@ enum NotchAgentTests {
         suite.expect(crowded.compactAgentGeometry(wing: 57).compactActivityWingWidth == 0
                         && !crowded.compactAgentGeometry(wing: 57).compactActivityUsesFooter,
                      "without room beside the camera the strip keeps to the cutout, never below it")
+    }
+
+    /// A Claude session quit or killed mid-turn ends the turn by its process
+    /// record, not after the quiet wait.
+    private static func sessionProcesses(_ suite: TestSuite, start: Date) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-agent-sessions-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        func write(_ name: String, _ text: String) {
+            FileManager.default.createFile(atPath: folder.appending(path: name).path, contents: Data(text.utf8))
+        }
+        write("100.json", #"{"pid":100,"sessionId":"quit","cwd":"/p"}"#)
+        write("200.json", #"{"pid":200,"sessionId":"killed"}"#)
+        write("300.json", #"{"pid":300,"sessionId":"killed"}"#)
+        write("300.abc.key", "{}")
+        write(".heartbeat", "1")
+        let running: Set<Int32> = [100, 300]
+        var registry = AgentSessionRegistry.read([folder, folder.appending(path: "missing")]) { running.contains($0) }
+        suite.expect(registry == AgentSessionRegistry(running: ["quit", "killed"], ended: [], complete: true),
+                     "a session with a running process reads as running, even beside a killed one's record")
+        write("400.json", #"{"pid":"#)
+        registry = AgentSessionRegistry.read([folder]) { $0 == 100 }
+        suite.expect(registry.running == ["quit"] && registry.ended == ["killed"] && !registry.complete,
+                     "a killed process's record reads as ended, and a record being written leaves the list incomplete")
+
+        let store = AgentUsageStore()
+        for name in ["quit", "killed", "other", "partial"] {
+            store.apply([.turnBegan(start)], file: "/p/\(name).jsonl", provider: .claude, tracksTurns: true, modified: start)
+        }
+        store.apply([.turnBegan(start)], file: "/p/quit-codex.jsonl", provider: .codex, tracksTurns: true, modified: start)
+        store.closeEndedTurns(AgentSessionRegistry(running: ["quit", "partial"], ended: [], complete: true))
+        suite.expect(store.live.count == 5, "turns with a running process, or with no record at all, keep working")
+        store.closeEndedTurns(AgentSessionRegistry(running: [], ended: [], complete: false))
+        suite.expect(store.live.count == 5, "a record missing from an incomplete read proves nothing")
+        let closed = store.closeEndedTurns(AgentSessionRegistry(running: ["partial"], ended: ["killed"], complete: true))
+        suite.expect(closed && Set(store.live.map(\.id)) == ["/p/other.jsonl", "/p/partial.jsonl", "/p/quit-codex.jsonl"]
+                        && store.waiting.isEmpty,
+                     "a session whose process quit or was killed stops working at once, without waiting aside")
+        store.closeEndedTurns(AgentSessionRegistry(running: [], ended: [], complete: true))
+        suite.expect(store.live.count == 2 && !store.live.contains { $0.id == "/p/partial.jsonl" },
+                     "a record that disappears ends the turn it was running")
     }
 
     private static func reading(_ suite: TestSuite) {
