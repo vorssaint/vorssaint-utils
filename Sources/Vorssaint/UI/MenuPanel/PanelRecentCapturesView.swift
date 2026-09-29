@@ -32,8 +32,10 @@ struct RecentCapturesView: View {
         FeatureStrings.recentCaptures(l10n.language)
     }
 
-    private var visibleEntries: [RecentCaptureEntry] {
-        history.entries.filter { entry in
+    private var visibleEntries: [RecentCaptureEntry] { Self.visible(history.entries) }
+
+    static func visible(_ entries: [RecentCaptureEntry]) -> [RecentCaptureEntry] {
+        entries.filter { entry in
             entry.kind == .screenshot
                 ? AppFeature.screenshot.isAvailable
                 : AppFeature.screenRecorder.isAvailable
@@ -62,7 +64,7 @@ struct RecentCapturesView: View {
                 .font(.system(size: 12, weight: .semibold))
             Spacer()
             Button {
-                if inNotch { confirmClearAboveIsland() } else { confirmingClear = true }
+                if inNotch { Self.confirmClearAboveIsland() } else { confirmingClear = true }
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 11, weight: .semibold))
@@ -87,11 +89,13 @@ struct RecentCapturesView: View {
     }
 
     /// The dialog would hang from the island as a sheet; there it asks on its own.
-    private func confirmClearAboveIsland() {
+    static func confirmClearAboveIsland() {
         DispatchQueue.main.async {
+            let l10n = L10n.shared
+            let text = FeatureStrings.recentCaptures(l10n.language)
             guard NSAlert.confirmAboveIsland(text.clear, message: "", action: text.clear, destructive: true,
                                              cancel: l10n.s.uninstallerCancel) else { return }
-            history.clear()
+            RecentCaptureService.shared.clear()
         }
     }
 
