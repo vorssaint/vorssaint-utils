@@ -9,6 +9,8 @@ import SwiftUI
 /// the tile is. The wings are as wide as the wider side needs.
 struct NotchKeepAwakeStrip: View {
     @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var l10n = L10n.shared
 
@@ -24,7 +26,7 @@ struct NotchKeepAwakeStrip: View {
     }
 
     private func strip(end: Date?, now: Date) -> some View {
-        let geometry = service.compactActivityGeometry
+        let geometry = displayGeometry ?? service.compactActivityGeometry
         let height = geometry.compactActivityContentHeight
         let wing = geometry.compactActivityWingWidth
         let iconSize = NotchTimerSupport.stripIconSize(height: height)
@@ -64,7 +66,7 @@ struct NotchKeepAwakeStrip: View {
         .padding(.top, geometry.compactActivityTopPadding)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(l10n.s.keepAwakeTitle)
-        .accessibilityValue(status(end: end))
+        .accessibilityValue(Self.status(end: end, language: l10n.language))
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
         .accessibilityIdentifier("notch.keepAwake")
     }
@@ -81,11 +83,13 @@ struct NotchKeepAwakeStrip: View {
     }
 
     /// What the menu bar panel says about the session, read aloud.
-    private func status(end: Date?) -> String {
-        if let end { return "\(l10n.s.keepAwakeEndsIn) \(KeepAwakeCard.remainingText(until: end))" }
+    static func status(end: Date?, language: AppLanguage) -> String {
+        let strings = Strings.localized(language)
+        if let end { return "\(strings.keepAwakeEndsIn) \(KeepAwakeCard.remainingText(until: end))" }
+        let awake = KeepAwakeManager.shared
         if awake.sessionTrigger == .automation {
-            return FeatureStrings.keepAwakeAutomation(l10n.language).activeStatus(for: awake.activeAutomationConditions)
+            return FeatureStrings.keepAwakeAutomation(language).activeStatus(for: awake.activeAutomationConditions)
         }
-        return l10n.s.keepAwakeUntilDisabled
+        return strings.keepAwakeUntilDisabled
     }
 }

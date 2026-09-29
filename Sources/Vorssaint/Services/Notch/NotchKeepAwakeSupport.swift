@@ -62,7 +62,7 @@ enum NotchKeepAwakeSupport {
     /// geometry on every layout, so each one is measured once per size.
     private static var measuredSymbols: [String: CGFloat] = [:]
 
-    private static func symbolWidth(_ name: String, size: CGFloat) -> CGFloat {
+    static func symbolWidth(_ name: String, size: CGFloat) -> CGFloat {
         let key = "\(name) \(size)"
         if let width = measuredSymbols[key] { return width }
         let width = NSImage(systemSymbolName: name, accessibilityDescription: nil)?

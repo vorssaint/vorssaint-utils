@@ -74,6 +74,23 @@ struct NotchMeter: View {
     }
 }
 
+/// A clock's digits roll into the next reading, downward while it counts
+/// down and upward while it counts up; Reduce Motion changes them in place.
+struct NotchRollingDigits: ViewModifier {
+    let value: String
+    let countsDown: Bool
+    /// Off in the closed island, where only the part above the seconds rolls.
+    var everySecond = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(.numericText(countsDown: countsDown))
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3),
+                       value: NotchTimerSupport.rollingValue(value, everySecond: everySecond))
+    }
+}
+
 struct NotchIconButton: View {
     let symbol: String
     let title: String
@@ -267,11 +284,17 @@ private struct NotchSettingsPreviewKey: EnvironmentKey {
 final class NotchBackdropPresentation: ObservableObject {
     @Published var contour = Path()
     @Published var usesGlass = false
+    /// The camera strip's height in points, which the translucent background
+    /// keeps black at every island height.
+    @Published var stripHeight: CGFloat = 0
     @Published private(set) var fade = NotchGlassFade.open
+    /// The menu bar a floating capsule leaves below itself, part of the
+    /// surface height a fade is planned in.
+    var floatingGap: CGFloat = 0
 
     /// Measured from the top edge, as the fade is planned: a floating
-    /// capsule's contour starts below it.
-    var openness: Double { Double(fade.openness(atHeight: contourBottom)) }
+    /// capsule's contour starts below it and ends above the surface's bottom.
+    var openness: Double { Double(fade.openness(atHeight: contourBottom + floatingGap)) }
     fileprivate var contourBottom: CGFloat { contour.boundingRect.isNull ? 0 : contour.boundingRect.maxY }
 
     /// How much of the resting black still lies beneath the glass. It lets go
@@ -305,9 +328,10 @@ struct NotchBackdropShape: Shape {
 struct NotchWindowBackground: View {
     @ObservedObject var presentation: NotchBackdropPresentation
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchTranslucentBackground) private var translucent = false
 
     var body: some View {
-        NotchSurfaceBackground(presentation: presentation, glass: glass)
+        NotchSurfaceBackground(presentation: presentation, glass: glass, translucent: translucent)
     }
 }
 
@@ -315,6 +339,7 @@ struct NotchWindowBackground: View {
 struct NotchSurfaceBackground: View {
     @ObservedObject var presentation: NotchBackdropPresentation
     let glass: Bool
+    var translucent = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -326,6 +351,9 @@ struct NotchSurfaceBackground: View {
     }
 
     private var showsGlass: Bool { offersGlass && presentation.usesGlass }
+    private var showsTranslucent: Bool {
+        translucent && !offersGlass && presentation.usesGlass && !reduceTransparency
+    }
 
     var body: some View {
         ZStack {
@@ -333,7 +361,7 @@ struct NotchSurfaceBackground: View {
             // the glass has opened, and the glass exists only while that
             // black lets it show, so the window's resizes at either end of a
             // transition happen in plain black.
-            Color.black.opacity(showsGlass ? presentation.restingBlack : 1)
+            Color.black.opacity(showsGlass || showsTranslucent ? presentation.restingBlack : 1)
 #if compiler(>=6.2)
             if #available(macOS 26, *), showsGlass, presentation.restingBlack < 1 {
                 let shape = NotchBackdropShape(contour: presentation.contour)
@@ -350,6 +378,9 @@ struct NotchSurfaceBackground: View {
                     }
             }
 #endif
+            if showsTranslucent, presentation.restingBlack < 1 {
+                translucentOrBlack
+            }
         }
         .environment(\.colorScheme, .dark)
         .allowsHitTesting(false)
@@ -365,6 +396,88 @@ struct NotchSurfaceBackground: View {
             return Gradient.Stop(
                 color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
                 location: t)
+        }
+    }
+}
+
+extension NotchSurfaceBackground {
+    /// The system's behind-window blur while the island is open, black over
+    /// the camera strip so every open state meets the housing as the resting
+    /// island does. Reduce Transparency keeps it black.
+    @ViewBuilder var translucentOrBlack: some View {
+        if translucent, presentation.usesGlass, !reduceTransparency {
+            let shape = NotchBackdropShape(contour: presentation.contour)
+            let height = presentation.contourBottom
+            let stops = NotchTranslucentTint.stops(height: height, stripHeight: presentation.stripHeight,
+                                                   openness: presentation.openness,
+                                                   increasedContrast: contrast == .increased)
+                .map { Gradient.Stop(color: .black.opacity($0.opacity), location: $0.location) }
+            // The blur covers only the island's box. Its mask image is drawn
+            // again on every frame of a resize, and at the stage's size it
+            // would be as large as the largest display.
+            let box = presentation.contour.boundingRect.integral
+            ZStack(alignment: .topLeading) {
+                if !box.isNull, box.width > 0, box.height > 0 {
+                    NotchTranslucentMaterial(contour: presentation.contour.offsetBy(dx: -box.minX, dy: -box.minY).cgPath)
+                        .frame(width: box.width, height: box.height)
+                        .padding(EdgeInsets(top: box.minY, leading: box.minX, bottom: 0, trailing: 0))
+                }
+                LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
+                    .frame(height: height)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .mask(shape)
+            }
+        } else {
+            Color.black
+        }
+    }
+}
+
+/// `NSVisualEffectView` blurs behind the window only inside its mask image,
+/// so the mask follows the island's contour as it animates.
+private struct NotchTranslucentMaterial: NSViewRepresentable {
+    let contour: CGPath
+
+    func makeNSView(context: Context) -> NotchTranslucentView {
+        let view = NotchTranslucentView()
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.appearance = NSAppearance(named: .darkAqua)
+        return view
+    }
+
+    func updateNSView(_ view: NotchTranslucentView, context: Context) {
+        view.contour = contour
+    }
+}
+
+private final class NotchTranslucentView: NSVisualEffectView {
+    var contour: CGPath? {
+        didSet { if contour != oldValue { updateMask() } }
+    }
+
+    override var isFlipped: Bool { true }
+
+    /// The view follows the island's box, so each new size gets its mask at
+    /// once. Without one the whole view would blur.
+    override func setFrameSize(_ newSize: NSSize) {
+        let resized = newSize != frame.size
+        super.setFrameSize(newSize)
+        if resized { updateMask() }
+    }
+
+    private func updateMask() {
+        guard let contour, bounds.width > 0, bounds.height > 0 else {
+            maskImage = nil
+            return
+        }
+        maskImage = NSImage(size: bounds.size, flipped: true) { _ in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.addPath(contour)
+            context.setFillColor(.black)
+            context.fillPath()
+            return true
         }
     }
 }

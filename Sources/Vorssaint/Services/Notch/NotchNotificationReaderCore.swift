@@ -13,8 +13,10 @@ protocol NotchNotificationAccess {
     func string(_ element: Element, _ attribute: String) throws -> String?
     func children(_ element: Element) throws -> [Element]
     func actions(_ element: Element) throws -> [String]
+    func frame(_ element: Element) throws -> CGRect?
     func press(_ element: Element) -> Bool
     func perform(_ action: String, on element: Element) -> Bool
+    func move(_ element: Element, to origin: CGPoint) -> Bool
     func same(_ lhs: Element, _ rhs: Element) -> Bool
 }
 
@@ -26,6 +28,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
 
     private struct Target {
         let root: Access.Element
+        let window: Access.Element
         let transient: Bool
         let nativeIdentity: String?
         let item: NotchSystemNotification
@@ -38,7 +41,13 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     private let sourceApplicationName: ([String]) -> String?
     private let allowsNativeClose: () -> Bool
     private let nativeCloseTitle: String
+    private let displays: () -> [CGRect]
     private var targets: [Target] = []
+    /// Windows moved off screen, with the place the center had given them.
+    private var hiddenWindows: [(window: Access.Element, origin: CGPoint)] = []
+    /// Windows that also hold an alert the reader could not take apart. The
+    /// island never showed it, so such a window stays in sight.
+    private var untakenWindows: [Access.Element] = []
     private var liveIDs = Set<UUID>()
     private var ambiguousIdentities = Set<String>()
     private var deadline: TimeInterval = 0
@@ -50,7 +59,8 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
          clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          receivedDate: @escaping () -> Date = Date.init,
          sourceApplicationName: @escaping ([String]) -> String? = { _ in nil },
-         allowsNativeClose: @escaping () -> Bool = { false }, nativeCloseTitle: String = "") {
+         allowsNativeClose: @escaping () -> Bool = { false }, nativeCloseTitle: String = "",
+         displays: @escaping () -> [CGRect] = { [] }) {
         self.access = access
         self.allowed = allowed
         self.clock = clock
@@ -58,24 +68,39 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         self.sourceApplicationName = sourceApplicationName
         self.allowsNativeClose = allowsNativeClose
         self.nativeCloseTitle = nativeCloseTitle
+        self.displays = displays
     }
+
+    var hidesWindows: Bool { !hiddenWindows.isEmpty }
 
     /// A focused center is not a passive banner surface. Its existing
     /// notifications must not be imported as newly received messages.
     func read() -> Snapshot? {
         beginRead()
-        guard fetch({ try access.hasFocusedWindow() }) == false,
-              let windows = fetch({ try access.windows() }), windows.count <= 32 else { return nil }
-        var roots: [(root: Access.Element, transient: Bool)] = []
-        for window in windows { findBanners(window, depth: 0, into: &roots) }
+        guard let focused = fetch({ try access.hasFocusedWindow() }) else { return nil }
+        // Someone opened the center. Nothing it lays out may stay off screen.
+        guard !focused else { showNative(); return nil }
+        guard let windows = fetch({ try access.windows() }), windows.count <= 32 else { return nil }
+        var roots: [(root: Access.Element, window: Access.Element, transient: Bool)] = []
+        for window in windows {
+            var found: [(root: Access.Element, transient: Bool)] = []
+            findBanners(window, depth: 0, into: &found)
+            roots += found.map { ($0.root, window, $0.transient) }
+        }
         guard usable else { return nil }
         var items: [NotchSystemNotification] = []
         var nextTargets = targets
         var currentIDs = Set<UUID>()
         var identityCounts: [String: Int] = [:]
+        var untaken: [Access.Element] = []
         for candidate in roots {
             let root = candidate.root
-            guard let content = content(root) else { continue }
+            guard let content = content(root) else {
+                if !candidate.transient, !untaken.contains(where: { access.same($0, candidate.window) }) {
+                    untaken.append(candidate.window)
+                }
+                continue
+            }
             let identity = NotchNotificationSupport.nativeIdentity(string(root, "AXIdentifier"))
             if let identity { identityCounts[identity, default: 0] += 1 }
             let old = nextTargets.first {
@@ -88,7 +113,8 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
             let item = NotchSystemNotification(id: id, content: content, received: old?.item.received ?? receivedDate(),
                 canOpen: rootActions.contains("AXPress"))
             nextTargets.removeAll { $0.item.id == id }
-            nextTargets.append(Target(root: root, transient: candidate.transient, nativeIdentity: identity, item: item))
+            nextTargets.append(Target(root: root, window: candidate.window, transient: candidate.transient,
+                                      nativeIdentity: identity, item: item))
             items.append(item)
         }
         guard usable else { return nil }
@@ -101,6 +127,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         }
         targets = Array(nextTargets.suffix(100))
         liveIDs = currentIDs
+        untakenWindows = untaken
         return Snapshot(items: items)
     }
 
@@ -122,6 +149,101 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
               let action = NotchNotificationSupport.closeAction(in: actions(target.root), title: nativeCloseTitle),
               usable, allowsNativeClose() else { return false }
         return access.perform(action, on: target.root)
+    }
+
+    /// Moves the windows holding banners the island shows off screen. Unlike
+    /// closing, the originals keep playing their sound and still reach the
+    /// center when they expire. A window that also holds a persistent alert
+    /// or a banner the island passed over stays in place, or comes back.
+    /// Returns the shown banners that could not be hidden.
+    func hideNative(_ shown: Set<UUID>) -> Set<UUID> {
+        guard allowsNativeClose() else { showNative(); return [] }
+        beginRead()
+        // The open center keeps its banners in the same window as its list.
+        guard let focused = fetch({ try access.hasFocusedWindow() }) else { return [] }
+        guard !focused else { showNative(); return [] }
+        var groups: [(window: Access.Element, targets: [Target])] = []
+        for target in targets where liveIDs.contains(target.item.id) {
+            if let index = groups.firstIndex(where: { access.same($0.window, target.window) }) {
+                groups[index].targets.append(target)
+            } else {
+                groups.append((target.window, [target]))
+            }
+        }
+        var failed = Set<UUID>()
+        for group in groups {
+            guard !untakenWindows.contains(where: { access.same($0, group.window) }),
+                  group.targets.allSatisfy({ $0.transient && shown.contains($0.item.id) }) else {
+                show(group.window); continue
+            }
+            // Every message in the window must still be the one the island took.
+            guard group.targets.allSatisfy({ validatedTarget($0.item.id) != nil }), usable else { continue }
+            if hide(group.window) == false { failed.formUnion(group.targets.map(\.item.id)) }
+        }
+        // Also once its banners are gone and only such an alert is left.
+        for window in untakenWindows { show(window) }
+        // An emptied window is left to the center, which places it again
+        // before showing anything else. Forget the ones it placed or removed.
+        hiddenWindows.removeAll { record in
+            !groups.contains { access.same($0.window, record.window) }
+                && [.onScreen, .gone].contains(placement(of: record.window))
+        }
+        return failed
+    }
+
+    /// Puts back every window this reader moved. Stopping or turning the
+    /// option off runs this after the reader is no longer allowed to read.
+    func showNative() {
+        for window in hiddenWindows.map(\.window) { show(window) }
+    }
+
+    /// False when the window cannot be moved. A pass that ran out of time
+    /// tries again on the next one instead of closing the banner.
+    private func hide(_ window: Access.Element) -> Bool? {
+        let screens = displays().reduce(CGRect.null) { $0.union($1) }
+        guard !screens.isNull, let read = fetch({ try access.frame(window) }), usable else { return nil }
+        guard let frame = read else { return false }
+        // Already out of sight.
+        guard frame.intersects(screens) else { return true }
+        let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
+        guard access.move(window, to: away) else { return false }
+        // A window that ignores the move, or lands on a display anyway, goes
+        // back to where it was, and its banners are closed instead.
+        guard let moved = fetch({ try access.frame(window) }) ?? nil, !moved.intersects(screens) else {
+            _ = access.move(window, to: frame.origin)
+            return false
+        }
+        hiddenWindows.removeAll { access.same($0.window, window) }
+        hiddenWindows.append((window, frame.origin))
+        return true
+    }
+
+    /// Only windows this reader moved come back, and only while the center
+    /// has not placed them again itself. A window it cannot read right now
+    /// stays on the list for the next attempt.
+    private func show(_ window: Access.Element) {
+        guard let index = hiddenWindows.firstIndex(where: { access.same($0.window, window) }) else { return }
+        switch placement(of: window) {
+        case .unknown: return
+        case .offScreen: guard access.move(window, to: hiddenWindows[index].origin) else { return }
+        case .onScreen, .gone: break
+        }
+        hiddenWindows.remove(at: index)
+    }
+
+    private enum Placement { case onScreen, offScreen, gone, unknown }
+
+    /// Reads outside the traversal budget, so putting windows back never
+    /// depends on the reader still being allowed to run.
+    private func placement(of window: Access.Element) -> Placement {
+        let screens = displays().reduce(CGRect.null) { $0.union($1) }
+        guard !screens.isNull else { return .unknown }
+        do {
+            guard let frame = try access.frame(window) else { return .gone }
+            return frame.intersects(screens) ? .onScreen : .offScreen
+        } catch {
+            return .unknown
+        }
     }
 
     private var usable: Bool {

@@ -282,7 +282,7 @@ struct NotchClipboardView: View {
         case .text:
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 if let color = entry.color {
-                    ClipboardColorSwatch(color: color, size: 12)
+                    ColorSwatch(color: color, size: 12)
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                 }
                 Text(entry.preview)

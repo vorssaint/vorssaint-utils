@@ -3,12 +3,12 @@
 
 import SwiftUI
 
-/// The small square a clipboard row shows before a copied color value. The
-/// hairline border keeps white, black and translucent colors visible on any
-/// background; the value beside it already says the color, so it is hidden
-/// from VoiceOver.
-struct ClipboardColorSwatch: View {
-    let color: ClipboardHistoryColor
+/// The small square a row shows before a color value, in Clipboard History and
+/// in the Command Bar's color answers. The hairline border keeps white, black
+/// and translucent colors visible on any background; the value beside it
+/// already says the color, so it is hidden from VoiceOver.
+struct ColorSwatch: View {
+    let color: ColorValue
     var size: CGFloat = 14
 
     var body: some View {

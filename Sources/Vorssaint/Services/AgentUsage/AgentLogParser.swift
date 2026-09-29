@@ -44,6 +44,30 @@ enum AgentLogParser {
         }
     }
 
+    /// The first `"type":"…"` value at or after `start`, and where it ends.
+    /// A Codex rollout line writes its own type before its payload, and an
+    /// event's payload opens with the event's type, so the search stops
+    /// within the first hundred bytes instead of crossing tool output or
+    /// compacted history that can run to tens of megabytes per line.
+    static func firstType(_ line: Data, from start: Int = 0) -> (name: String, end: Int)? {
+        let key: StaticString = #""type":""#
+        return line.withUnsafeBytes { bytes in
+            guard let base = bytes.baseAddress, start < bytes.count,
+                  let found = memmem(base + start, bytes.count - start, key.utf8Start, key.utf8CodeUnitCount)
+            else { return nil }
+            let value = base.distance(to: found) + key.utf8CodeUnitCount
+            // Type names are short identifiers.
+            let limit = min(bytes.count, value + 64)
+            guard value < limit, let quote = memchr(base + value, 0x22, limit - value) else { return nil }
+            let end = base.distance(to: UnsafeRawPointer(quote))
+            return (String(decoding: UnsafeRawBufferPointer(rebasing: bytes[value..<end]), as: UTF8.self), end + 1)
+        }
+    }
+
+    private static let codexEvents: Set<String> = [
+        "token_count", "task_started", "task_complete", "turn_aborted", "thread_settings_applied",
+    ]
+
     private static func object(_ line: Data) -> [String: Any]? {
         (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
     }
@@ -146,15 +170,12 @@ enum AgentLogParser {
     // MARK: Codex
 
     static func parseCodex(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        let record = contains(line, #""type":"token_usage_record""#)
-        let event = !record && contains(line, #""type":"event_msg""#)
-        let context = !record && !event
-            && (contains(line, #""type":"turn_context""#) || contains(line, #""type":"session_meta""#))
-        guard record || event || context else { return [] }
-        if event, !contains(line, #""type":"token_count""#), !contains(line, #""type":"task_started""#),
-           !contains(line, #""type":"task_complete""#), !contains(line, #""type":"turn_aborted""#),
-           !contains(line, #""type":"thread_settings_applied""#) {
-            return []
+        guard let kind = firstType(line) else { return [] }
+        switch kind.name {
+        case "token_usage_record", "turn_context", "session_meta": break
+        case "event_msg":
+            guard let event = firstType(line, from: kind.end), codexEvents.contains(event.name) else { return [] }
+        default: return []
         }
         guard let json = object(line), let payload = json["payload"] as? [String: Any] else { return [] }
         let date = timestamp(json["timestamp"]) ?? now
@@ -272,15 +293,21 @@ enum AgentLogParser {
         return id.isEmpty || id == "codex"
     }
 
+    /// The names a log gives a window's figures; Codex's server spells the
+    /// same ones in camel case.
+    typealias WindowKeys = (used: String, minutes: String, resets: String)
+    static let logWindowKeys: WindowKeys = ("used_percent", "window_minutes", "resets_at")
+
     /// Windows are told apart by their length, never by their slot: an
     /// account can report only its weekly window, and in either slot.
-    static func codexWindows(_ limits: [String: Any], observed: Date) -> [AgentLimitWindow]? {
+    static func codexWindows(_ limits: [String: Any], observed: Date,
+                             keys: WindowKeys = logWindowKeys) -> [AgentLimitWindow]? {
         var windows: [AgentLimitWindow] = []
         for slot in ["primary", "secondary"] {
             guard let window = limits[slot] as? [String: Any],
-                  let used = (window["used_percent"] as? NSNumber)?.doubleValue, used.isFinite else { continue }
-            let minutes = (window["window_minutes"] as? NSNumber)?.intValue
-            var resets = seconds(window["resets_at"])
+                  let used = (window[keys.used] as? NSNumber)?.doubleValue, used.isFinite else { continue }
+            let minutes = (window[keys.minutes] as? NSNumber)?.intValue
+            var resets = seconds(window[keys.resets])
             if resets == nil, let delay = (window["resets_in_seconds"] as? NSNumber)?.doubleValue, delay.isFinite {
                 resets = observed.addingTimeInterval(max(0, delay))
             }

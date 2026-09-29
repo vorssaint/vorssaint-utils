@@ -68,8 +68,8 @@ enum WindowEnumerator {
         return queue
     }()
     /// Ceiling on the whole batch. The Switcher waits on its serial session
-    /// queue, which must stay bounded for later shortcuts. The six synchronous
-    /// `listWindows(for:)` Dock and preview callers still run on main, so this
+    /// queue, which must stay bounded for later shortcuts. The five synchronous
+    /// `listWindows(for:)` Dock and switcher callers still run on main, so this
     /// bound also prevents their walks from stalling main and the event taps
     /// (issues #971 and #189).
     private static let accessibilityBatchBudget: TimeInterval = 5.0
@@ -193,6 +193,17 @@ enum WindowEnumerator {
     static func listWindows(for pid: pid_t, maximumCount: Int = 12,
                             currentSpaceOnly: Bool = false,
                             marksHiddenSpaces: Bool = false) -> [SwitcherItem] {
+        listWindows(for: pid, maximumCount: maximumCount,
+                    currentSpaceOnly: currentSpaceOnly,
+                    marksHiddenSpaces: marksHiddenSpaces,
+                    snapshot: snapshot())
+    }
+
+    /// The snapshot must be taken on main before a caller moves this walk off-main.
+    static func listWindows(for pid: pid_t, maximumCount: Int = 12,
+                            currentSpaceOnly: Bool = false,
+                            marksHiddenSpaces: Bool = false,
+                            snapshot: Snapshot) -> [SwitcherItem] {
         // An entry for the app itself belongs to the switcher alone. A
         // Dock preview is opened by pointing at one app's icon,
         // so a card naming that app says nothing the pointer did not, and
@@ -208,7 +219,7 @@ enum WindowEnumerator {
                     preservingGroupedWindows: false,
                     currentSpaceOnly: currentSpaceOnly,
                     marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
-                    snapshot: snapshot()).items
+                    snapshot: snapshot).items
     }
 
     private static func listWindows(filterPID: pid_t?,
@@ -680,8 +691,8 @@ enum WindowEnumerator {
         let app = AXUIElementCreateApplication(pid)
         // An app that is not servicing its run loop would hold every AX call
         // for the default timeout. The Switcher's serial session queue
-        // must stay available for later shortcuts. The six synchronous
-        // listWindows(for:) Dock and preview callers run on main, where a long
+        // must stay available for later shortcuts. The five synchronous
+        // listWindows(for:) Dock and switcher callers run on main, where a long
         // wait also stalls the event taps (issue #189).
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
         var axWindows: [AXUIElement] = []
