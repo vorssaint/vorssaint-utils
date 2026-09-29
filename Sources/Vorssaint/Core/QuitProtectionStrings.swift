@@ -624,7 +624,7 @@ extension QuitProtectionStrings {
         noExceptions: "لم يتم تحديد أي تطبيق",
         addApp: "إضافة تطبيق…",
         feedback: "إظهار تأكيد مرئي",
-        accessibilityCaption: "تستخدم الحماية إمكانية الوصول لمراقبة ⌘Q و⌘W عامةً فقط.",
+        accessibilityCaption: "تستخدم الحماية تسهيلات الاستخدام لمراقبة ⌘Q و⌘W عامةً فقط.",
         holdQuitHUDFormat: "استمر بالضغط على %@ للإنهاء",
         holdCloseHUDFormat: "استمر بالضغط على %@ للإغلاق",
         doubleQuitHUDFormat: "اضغط %@ مجددًا للإنهاء",

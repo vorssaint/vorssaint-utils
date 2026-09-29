@@ -985,7 +985,7 @@ extension MediaImageConverterStrings {
     )
 
     static let ar = MediaImageConverterStrings(
-        filesSelectedFormat: "%d ملف محدد",
+        filesSelectedFormat: "الملفات المحددة: %d",
         profile: "الملف الشخصي",
         noProfile: "بدون ملف شخصي",
         profileName: "اسم الملف الشخصي",
@@ -1032,14 +1032,14 @@ extension MediaImageConverterStrings {
         backgroundWhite: "بيضاء",
         backgroundBlack: "سوداء",
         preserveDate: "الاحتفاظ بتاريخ التعديل الأصلي",
-        saveInSubfolder: "الحفظ في مجلد فرعي باسم “المحوَّلة”",
+        saveInSubfolder: "الحفظ في مجلد فرعي باسم “Converted”",
         moreOptions: "خيارات أخرى",
         tooLarge: "هذه الأبعاد أكبر من أن تُعالَج بأمان. اختر حجمًا أصغر.",
         copySummary: "نسخ الملخص",
         savedBytesFormat: "تم توفير %@",
         grewBytesFormat: "أكبر بمقدار %@",
-        batchSavedFormat: "تم حفظ %d صورة",
-        batchPartialFormat: "%d محفوظة، %d فشلت",
-        batchSummaryHeaderFormat: "%d محفوظة، %d فشلت",
+        batchSavedFormat: "الصور المحفوظة: %d",
+        batchPartialFormat: "المحفوظة: %d، والفاشلة: %d",
+        batchSummaryHeaderFormat: "المحفوظة: %d، والفاشلة: %d",
         batchSummaryItemFormat: "%@ -> %@")
 }

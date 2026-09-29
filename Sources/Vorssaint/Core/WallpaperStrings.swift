@@ -450,7 +450,7 @@ extension WallpaperFeatureStrings {
         filterAll: "الكل",
         filterOwn: "صورك",
         filterApple: "Apple",
-        applyAllDisplays: "الإظهار في كل المساحات",
+        applyAllDisplays: "الإظهار في كل المسافات",
         addImage: "إضافة صورة",
         addFolder: "إضافة مجلد",
         removeAdded: "إزالة",
