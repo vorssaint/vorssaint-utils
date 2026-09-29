@@ -45,7 +45,7 @@ enum OverlayPanelTests {
             "Sources/Vorssaint/Services/WindowLayout/WindowLayoutService.swift",
             "Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerService.swift",
             "Sources/Vorssaint/Services/Finder/FinderCutPaste.swift",
-            "Sources/Vorssaint/Services/Display/BrightnessOSD.swift",
+            "Sources/Vorssaint/UI/TransientOSD.swift",
             "Sources/Vorssaint/Services/CleaningMode/CleaningModeManager.swift",
             "Sources/Vorssaint/Services/Recorder/RecorderIndicator.swift",
         ]

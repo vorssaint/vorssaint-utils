@@ -146,6 +146,8 @@ enum DefaultsKey {
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
     static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
+    static let soundOutputOSDEnabled = "soundOutputOSDEnabled"
+    static let soundOutputConfirmationSoundEnabled = "soundOutputConfirmationSoundEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
     static let soundOutputSwitcherDeviceUIDs = "soundOutputSwitcherDeviceUIDs"
     // Audio device priority: ordered output and microphone lists the feature
@@ -1213,6 +1215,8 @@ enum Defaults {
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
+        DefaultsKey.soundOutputOSDEnabled: false,
+        DefaultsKey.soundOutputConfirmationSoundEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
         // The feature itself ships uninstalled. On first install both halves
         // work immediately; an explicit off choice is persisted and wins over

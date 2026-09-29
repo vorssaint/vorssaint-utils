@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Switching sound output can confirm the new device on screen and with a sound.
+
+### Added
+- Switching sound output can show the device name, in Dynamic Island when it is on or in a centered popup otherwise. The output shortcut can also play your macOS alert sound on the new device. Both options sit under the output switcher and are off by default.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary
