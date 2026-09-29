@@ -500,7 +500,7 @@ extension FeatureStrings {
             keepAwakeActivityHint: "Поточний сеанс з’являється біля камери із залишком часу або знаком ∞, якщо він не має завершення.")
         case .ar: return NotchActivityStrings(
             timer: "المؤقت",
-            timerDescription: "مؤقتات وجلسات عمل مركّز في الجزيرة الديناميكية.",
+            timerDescription: "مؤقتات وساعة إيقاف وجلسات عمل مركّز في الجزيرة الديناميكية.",
             pomodoro: "بومودورو",
             stopwatch: "ساعة الإيقاف",
             focus: "تركيز",

@@ -548,7 +548,7 @@ extension FeedbackStrings {
         messageLabel: "ما الذي تودّ مشاركته؟",
         bugPlaceholder: "أخبرني بما حدث وما الذي كنت تتوقعه.",
         featurePlaceholder: "صِف الفكرة وكيف يمكن أن تفيد.",
-        charactersFormat: "%d من 2000 حرف",
+        charactersFormat: "الأحرف: %d من 2000",
         includeDiagnostics: "تضمين التفاصيل التقنية",
         includeDiagnosticsCaption: "يضيف التفاصيل التقنية الموضحة أدناه فقط. ولا يتضمن السجلات.",
         whatSentTitle: "ما الذي سيُرسل",

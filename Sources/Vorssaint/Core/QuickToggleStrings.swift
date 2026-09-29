@@ -480,7 +480,7 @@ extension QuickToggleFeatureStrings {
     static let ar = QuickToggleFeatureStrings(
         pageTitle: "التبديلات السريعة",
         hubDescription: "إجراءات بنقرة واحدة مثل الوضع الداكن والمهملات",
-        panelCaption: "إجراءات نظام بنقرة واحدة في لوحة شريط القائمة وفي اللوحة السريعة.",
+        panelCaption: "إجراءات نظام بنقرة واحدة في لوحة شريط القوائم وفي اللوحة السريعة.",
         darkModeToDark: "التبديل إلى الوضع الداكن",
         darkModeToLight: "التبديل إلى الوضع الفاتح",
         darkModeCaption: "يغيّر مظهر النظام بأكمله.",

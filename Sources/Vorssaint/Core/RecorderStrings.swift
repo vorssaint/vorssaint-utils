@@ -2291,7 +2291,7 @@ extension RecorderFeatureStrings {
         exportingLabel: "جارٍ الحفظ…",
         cancelButton: "إلغاء",
         exportFailed: "تعذّر حفظ التسجيل",
-        gifTooLongFormat: "يمكن أن يبلغ طول ملف GIF %d ثانية كحد أقصى",
+        gifTooLongFormat: "أقصى طول لملف GIF بالثواني: %d",
         gifSizeLabel: "حجم GIF",
         gifSizeSmall: "صغير",
         gifSizeMedium: "متوسط",

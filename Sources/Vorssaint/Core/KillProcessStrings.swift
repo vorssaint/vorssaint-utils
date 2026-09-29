@@ -572,7 +572,7 @@ extension KillProcessFeatureStrings {
         commandBarCaption: "يضيف العمليات الجارية إلى شريط الأوامر، لتتمكن من العثور عليها وإنهائها دون فتح الإعدادات.",
         refreshTooltip: "تحديث",
         pidLabelFormat: "المعرّف %d",
-        processCountFormat: "%d عملية",
+        processCountFormat: "العمليات: %d",
         killButton: "إنهاء",
         forceKillButton: "إنهاء إجباري",
         killAllFormat: "إنهاء كل “%@”",

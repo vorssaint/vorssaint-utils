@@ -289,7 +289,7 @@ extension FeatureStrings {
             downloadsHint: "اختر المجلد الذي يحفظ فيه متصفحك التنزيلات. ولا يُراقَب سواه.",
             chooseFolder: "اختيار مجلد…",
             folderUnavailable: "هذا المجلد غير متاح. اختره مجددًا لاستعادة الوصول.",
-            waiting: "لا توجد تنزيلات جارية",
+            waiting: "لا ملفات في هذا المجلد",
             inProgress: "جارٍ التنزيل",
             totalUnknown: "الحجم الإجمالي غير متاح",
             completed: "اكتمل التنزيل",

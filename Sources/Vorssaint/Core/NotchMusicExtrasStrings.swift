@@ -752,7 +752,7 @@ extension FeatureStrings {
             actionFailed: "لم ينتقل المشغّل إلى هذه الأغنية.",
             playbackFailed: "تعذّر تغيير التشغيل.",
             allowPlayback: "السماح بالتحكم في التشغيل",
-            automationPermission: "أتمتة التشغيل",
+            automationPermission: "التحكم التلقائي في التشغيل",
             automationExplanation: "تتطلب بعض تطبيقات الموسيقى إذنًا للتحكم في تشغيلها. صرّح للمشغّل المحدد من الجزيرة الديناميكية؛ ويُمنح الوصول لكل تطبيق على حدة.",
             queue: "التالي",
             queueDescription: "اطّلع على الأغاني القادمة فعلًا كما يشاركها مشغّلك.",

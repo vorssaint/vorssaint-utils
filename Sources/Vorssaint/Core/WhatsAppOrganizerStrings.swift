@@ -567,7 +567,7 @@ extension WhatsAppOrganizerStrings {
         byType: "حسب نوع الملف",
         byMonth: "حسب السنة والشهر",
         delay: "الانتظار قبل النقل",
-        minutesFormat: "%d دقيقة",
+        minutesFormat: "%d د",
         duplicateAction: "عند تنزيل الملف نفسه مجددًا",
         trashDuplicate: "نقل النسخة الجديدة إلى المهملات",
         keepBoth: "الاحتفاظ بالنسختين",
@@ -577,11 +577,11 @@ extension WhatsAppOrganizerStrings {
         undo: "التراجع عن آخر تنظيم",
         waiting: "مراقبة مجلد التنزيلات",
         working: "جارٍ تنظيم ملفات WhatsApp…",
-        resultFormat: "%1$d منقول · %2$d مكرر · %3$d فشل",
-        lastRunFormat: "آخر تنظيم %@: %d منقول · %d مكرر · %d فشل",
+        resultFormat: "المنقولة: %1$d · المكررة: %2$d · الفاشلة: %3$d",
+        lastRunFormat: "آخر تنظيم %@: المنقولة %d · المكررة %d · الفاشلة %d",
         neverRun: "لم يُجرَ أي تنظيم بعد.",
         notificationTitle: "تنظيم WhatsApp",
-        notificationFormat: "تم تنظيم %1$d ملف. وتمت معالجة %2$d تنزيل مكرر. وفشل %3$d.",
+        notificationFormat: "الملفات المنظّمة: %1$d. والتنزيلات المكررة المعالجة: %2$d. والفاشلة: %3$d.",
         privacyNote: "لتحديد النسخ المكررة تمامًا، تُقرأ بايتات الملف محليًا فقط أثناء حساب بصمة تشفيرية. ولا يُخزَّن المحتوى أو المحادثات ولا تُرفع أبدًا."
     )
 }
