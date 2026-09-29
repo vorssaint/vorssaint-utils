@@ -277,7 +277,7 @@ extension FeatureStrings {
             accessoryDescription: "Показывает подключённые аксессуары и предупреждает один раз при снижении заряда до 20%.",
             connected: "Подключено",
             lowBattery: "Низкий заряд",
-            keepAwakeActivity: "Показывать «Не давать уснуть» в закрытом острове",
+            keepAwakeActivity: "Показывать «Не давать Mac уснуть» в закрытом острове",
             keepAwakeActivityHint: "Текущий сеанс появляется рядом с камерой с оставшимся временем или знаком ∞, если у него нет окончания.")
         case .tr: return NotchActivityStrings(
             timer: "Zamanlayıcı",
@@ -480,7 +480,7 @@ extension FeatureStrings {
             accessoryDescription: "Показує підключені аксесуари та один раз попереджає, коли їхній заряд падає до 20%.",
             connected: "Підключено",
             lowBattery: "Низький заряд",
-            keepAwakeActivity: "Показувати «Не давати заснути» в закритому острівці",
+            keepAwakeActivity: "Показувати «Не давати Mac заснути» в закритому острівці",
             keepAwakeActivityHint: "Поточний сеанс з’являється біля камери із залишком часу або знаком ∞, якщо він не має завершення.")
         }
     }
