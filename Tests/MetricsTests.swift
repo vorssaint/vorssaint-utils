@@ -39,6 +39,7 @@ struct MetricsTests {
                 MixerOutputAdjustmentContract.run(suite)
                 SoundOutputSwitchContract.run(suite)
                 MixerInputVolumeContract.run(suite)
+                MixerPercentKeyTests.run(suite)
                 MixerFeatureTests.run(suite)
             }),
             ("audio-priority", { AudioPriorityTests.run(suite) }),
@@ -74,7 +75,10 @@ struct MetricsTests {
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
-            ("features", { FeatureCatalogTests.run(suite) }),
+            ("features", {
+                FeatureCatalogTests.run(suite)
+                MenuPanelSectionGateContract.run(suite)
+            }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
                 PortManagerRefreshTests.run(suite)

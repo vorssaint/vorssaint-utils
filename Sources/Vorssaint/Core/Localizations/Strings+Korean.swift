@@ -247,6 +247,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "끄면 모든 데스크탑의 윈도우를 표시합니다. 다른 데스크탑의 윈도우를 선택하면 해당 데스크탑으로 이동합니다.",
         dockPreviewBackgroundOpacity: "패널 배경",
         dockPreviewBackgroundOpacityCaption: "낮추면 패널 뒤에 있는 것이 더 많이 보입니다.",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass가 켜져 있어 패널의 투명도는 시스템 설정 > 화면 모드에서 조절됩니다.",
         dockPreviewOpenDelay: "열림 지연",
         dockPreviewOpenDelayCaption: "포인터가 아이콘 위에 머문 뒤 패널이 열리기까지의 시간입니다.",
         dockPreviewQuitAppOnClose: "× 버튼으로 앱 종료",
