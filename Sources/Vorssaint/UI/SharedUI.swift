@@ -68,6 +68,9 @@ struct FullDiskAccessNote: View {
             .controlSize(.small)
             .font(compact ? .system(size: 10.5) : nil)
         }
+        // Take the width the host offers, so the card lines up with the cards
+        // around it instead of shrinking to its longest line.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(compact ? 9 : 11)
         .background(
             RoundedRectangle(cornerRadius: compact ? 8 : 9, style: .continuous)

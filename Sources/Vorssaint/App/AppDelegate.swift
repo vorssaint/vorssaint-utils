@@ -428,8 +428,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // system material where the surface stops, the seam users see. The visible
         // content stays inset either way, before through the content view's frame
         // and now through the safe area the popover publishes, so only the surface
-        // reaches the arrow.
-        popover.hasFullSizeContent = true
+        // reaches the arrow. Before macOS 26 AppKit does not lay full-size content
+        // out, so the panel keeps the inset content there.
+        popover.hasFullSizeContent = PanelSurface.popoverHostsFullSizeContent
         popover.delegate = self
         let host = NSHostingController(rootView: MenuPanelView())
         host.sizingOptions = .preferredContentSize
