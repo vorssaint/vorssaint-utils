@@ -26,6 +26,7 @@ enum MenuPanelKeyTests {
     final class NSTextField: NSResponder {}
     final class NSWindow {
         var firstResponder: NSResponder?
+        var parent: NSWindow?
         func fieldEditor(_ createFlag: Bool, for object: Any?) -> NSTextView? { nil }
     }
     final class View { var window: NSWindow? }
@@ -51,11 +52,30 @@ enum MenuPanelKeyTests {
     }
 
     static func run(_ suite: TestSuite) {
-        let host = Host()
         let window = NSWindow()
         let field = NSTextView()
         window.firstResponder = field
-        host.popover.contentViewController?.view.window = window
+        func shownPanel() -> Host {
+            let host = Host()
+            host.popover.contentViewController?.view.window = window
+            return host
+        }
+        func panelKeepsEscape(from eventWindow: NSWindow?) -> Bool {
+            let host = shownPanel()
+            return host.handlePopoverKeyDown(NSEvent(keyCode: UInt16(kVK_Escape), window: eventWindow)) != nil
+                && host.popover.isShown && host.closeReasons.isEmpty
+        }
+        let settings = NSWindow()
+        settings.firstResponder = NSTextView()
+        suite.expect(panelKeepsEscape(from: settings),
+                     "Esc in Settings beside the open panel stays there, for its search field or sheet")
+        suite.expect(panelKeepsEscape(from: nil), "Esc with no key window leaves the panel open")
+        let picker = NSWindow()
+        picker.parent = window
+        suite.expect(panelKeepsEscape(from: picker),
+                     "Esc in a popover opened from the panel, such as the Keep Awake end time, closes that popover first")
+
+        let host = shownPanel()
         let escape = NSEvent(keyCode: UInt16(kVK_Escape), window: window)
         field.composing = true
         suite.expect(host.handlePopoverKeyDown(escape) != nil && host.popover.isShown && host.closeReasons.isEmpty,
