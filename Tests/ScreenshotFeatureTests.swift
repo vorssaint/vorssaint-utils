@@ -995,6 +995,21 @@ enum ScreenshotFeatureTests {
         suite.expect(captureSelectionSource.contains("private var pointerIsInside = false")
                 && !captureSelectionSource.contains("|| bounds.contains(hoverPoint)"),
                "the capture loupe draws on only the display that owns the current pointer")
+        // Teardown shares the invalidation a new capture uses, so a pending
+        // shortcut upload revokes its link and a copy retry is dropped once
+        // the feature is off.
+        let screenshotServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+            encoding: .utf8)) ?? ""
+        let teardownBody = screenshotServiceSource
+            .components(separatedBy: "    private func teardownSurfaces() {").dropFirst().first?
+            .components(separatedBy: "\n    }\n").first ?? ""
+        let routeBody = screenshotServiceSource
+            .components(separatedBy: "    private func route(_ capture:").dropFirst().first?
+            .components(separatedBy: "\n    }\n").first ?? ""
+        suite.expect(teardownBody.contains("invalidateLatestCaptureUploads()")
+                && routeBody.contains("invalidateLatestCaptureUploads()"),
+               "turning screenshots off invalidates pending shortcut uploads like a new capture does")
         let captureServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenCaptureService.swift",
             encoding: .utf8)) ?? ""

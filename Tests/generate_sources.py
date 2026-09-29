@@ -753,7 +753,8 @@ def main():
           + "".join(declaration(screenshot_service, prefix).replace("private func", "func", 1)
                     .replace("uploadShortcutEnabled()", "uploadShortcutEnabled(in: defaults)")
                     for prefix in ["    private func uploadLastCapture()", "    private func copyUploadedLink(",
-                                   "    func openEditor(with", "    func editorDidClose("])
+                                   "    func openEditor(with", "    func editorDidClose(",
+                                   "    private func invalidateLatestCaptureUploads()"])
           + "}\n}\n")
     write("ScreenshotPreviewHover.swift", "import Foundation\n"
           + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"

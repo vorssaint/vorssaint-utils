@@ -192,12 +192,14 @@ enum ScreenshotShareCompletionTests {
                      && failedCopy.showingLink && failedCopy.dismissWork != nil,
                      "clipboard failure retains the existing link and copy controls in the preview")
 
-        for scenario in ["open", "closed", "released", "replaced", "standalone", "standalone replaced", "history opened", "owner released"] {
+        for scenario in ["open", "closed", "released", "replaced", "standalone", "standalone replaced",
+                         "history opened", "owner released", "feature off"] {
             service.revoked = []
             service.copies = []
             service.clipboard = "new capture"
             var uploader: Uploader? = Uploader()
-            var preview: ScreenshotQuickPreviewController? = ["standalone", "standalone replaced", "history opened"].contains(scenario)
+            var preview: ScreenshotQuickPreviewController? = ["standalone", "standalone replaced", "history opened",
+                                                                  "feature off"].contains(scenario)
                 ? nil : uploader!.showPreview()
             uploader!.uploadLastCapture()
             uploader!.uploadLastCapture()
@@ -214,6 +216,7 @@ enum ScreenshotShareCompletionTests {
                 _ = uploader!.showPreview()
             }
             if scenario == "history opened" { _ = uploader!.showPreview(capture: 2) }
+            if scenario == "feature off" { uploader!.invalidateLatestCaptureUploads() }
             if scenario == "owner released" { preview = nil; uploader = nil }
             completion?(record)
             for _ in 0..<20 { await Task.yield() }
@@ -251,6 +254,16 @@ enum ScreenshotShareCompletionTests {
         for _ in 0..<20 { await Task.yield() }
         suite.expect(retry.uploads == 1 && service.copies == [record.url, record.url]
                      && retryPreview.closed, "shortcut retries a failed copy without another upload")
+        service.copies = []
+        service.copySucceeds = false
+        let teardownRetry = Uploader()
+        teardownRetry.uploadLastCapture()
+        teardownRetry.completion?(record)
+        teardownRetry.invalidateLatestCaptureUploads()
+        service.copySucceeds = true
+        teardownRetry.uploadLastCapture()
+        suite.expect(teardownRetry.uploads == 2 && service.copies == [record.url],
+                     "feature teardown drops a pending copy retry instead of copying the old link")
         service.copies = []
         service.copySucceeds = false
         let standaloneRetry = Uploader()

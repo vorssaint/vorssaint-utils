@@ -181,6 +181,7 @@ final class ScreenshotService: ObservableObject {
         QuickToolHUD.dismissScrollingCapture()
         session?.cancel()
         session = nil
+        invalidateLatestCaptureUploads()
         preview?.close()
         preview = nil
         for editor in editors {
@@ -415,8 +416,7 @@ final class ScreenshotService: ObservableObject {
     /// the captures that open straight in the editor, where no preview button
     /// exists to reach for.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
-        latestCaptureID = UUID()
-        linkCopyRetry.clear()
+        invalidateLatestCaptureUploads()
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
         if ScreenshotSharingSupport.retainsLatestCapture() {
@@ -542,6 +542,14 @@ final class ScreenshotService: ObservableObject {
             }
             self.copyUploadedLink(record, captureID: captureID)
         }
+    }
+
+    /// A newer capture or turning the feature off ends the claim a pending
+    /// shortcut upload has on the latest capture: its link is revoked when
+    /// it arrives instead of being copied, and a failed copy is not retried.
+    private func invalidateLatestCaptureUploads() {
+        latestCaptureID = UUID()
+        linkCopyRetry.clear()
     }
 
     @MainActor
