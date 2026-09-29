@@ -45,6 +45,7 @@ enum NotchLockScreenTests {
         dark.displaysSleeping = true
         suite.expect(!closing.hearsLockChange && !dark.hearsLockChange && !switched.hearsLockChange,
                      "closing the lid, a dark display or a switched user plays no padlock")
+        suite.expect(!saver.hearsLockChange, "a lock that follows an idle screen saver plays no padlock")
     }
 
     static func preferenceContracts(_ suite: TestSuite) {

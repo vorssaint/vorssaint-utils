@@ -104,7 +104,8 @@ final class NotchLockScreenService {
             timeLeft: NotchCalendarSupport.showsTimeLeft())
         if model.gates != gates { model.gates = gates }
         var scene: [NotchLockScreenPanel] = []
-        if let frame = frames.player {
+        // Without the Music section there is no player to show or to click.
+        if gates.music, let frame = frames.player {
             // The one part that takes clicks: the player's buttons and timeline.
             scene.append(Self.makePanel(frame: frame, interactive: true,
                                         content: NotchLockScreenPlayer(model: model, size: frame.size)))
@@ -221,9 +222,11 @@ final class NotchLockScreenService {
         panel.appearance = NSAppearance(named: .darkAqua)
         panel.level = NotchPanel.normalLevel
         panel.collectionBehavior = NotchPanel.overlayCollectionBehavior
-        // Only the player takes clicks; everything else lets them through to
-        // the lock screen beneath.
-        panel.ignoresMouseEvents = !interactive
+        // Only the player's pane takes clicks, where it draws. Left unset, a
+        // window lets clicks through its clear pixels, so the room around the
+        // pane and a player with no song pass them to the lock screen beneath.
+        // Set to false, the whole frame would take them even with nothing shown.
+        if !interactive { panel.ignoresMouseEvents = true }
         let host = NotchLockScreenHostingView(rootView: AnyView(content))
         host.sizingOptions = []
         panel.contentView = host
