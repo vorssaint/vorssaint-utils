@@ -201,7 +201,7 @@ enum AgentCodexResetTests {
                      "a use names its reset and its attempt, and reads the account again")
         let refused = AgentCodexServer.redeem(server, environment: environment("plan"), credit: nil, key: "use-2")
         suite.expect(refused.outcome == .failure(.refused) && refused.summary != nil,
-                     "a use turned down is a refusal, never a lost reply, and the account is still read")
+                     "a use answered with an error reads as one, and the account is still read")
 
         let started = Date()
         let silent = AgentCodexConversation(server, environment: environment("silent"), timeout: 0.5)

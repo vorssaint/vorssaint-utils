@@ -48,7 +48,9 @@ final class AgentCodexResetService: ObservableObject {
     private init() {}
 
     func refreshIfStale(now: Date = Date()) {
-        guard now.timeIntervalSince(attempted) >= (failure == nil ? Self.freshness : Self.retryAfter) else { return }
+        // Only the person can sign Codex in or update it, so those wait as long as a reading.
+        let settled = failure == nil || failure == .needsSignIn || failure == .outdated
+        guard now.timeIntervalSince(attempted) >= (settled ? Self.freshness : Self.retryAfter) else { return }
         refresh()
     }
 
@@ -109,12 +111,10 @@ final class AgentCodexResetService: ObservableObject {
         case .success(let outcome):
             pending = nil
             finished = Finished(outcome: outcome, date: Date())
-        case .failure(.unreachable):
-            // The use may have happened on the way; it keeps its key.
-            finished = Finished(outcome: nil, date: Date())
-        case .failure(.refused):
-            // Turned down, so nothing was spent: the next try starts afresh.
-            pending = nil
+        case .failure(.unreachable), .failure(.refused):
+            // No outcome came back. Codex also answers with an error when its
+            // own request to the account timed out or its reply was lost, so
+            // the use may have happened on the way: it keeps its key.
             finished = Finished(outcome: nil, date: Date())
         case .failure(let failure):
             pending = nil

@@ -39,7 +39,8 @@ enum AgentCodexServer {
         /// No answer that says what happened: it stopped, ran out of time or
         /// answered in words this version does not know.
         case unreachable
-        /// It answered and turned the question down, so nothing happened.
+        /// It answered with an error of its own. For a use, that includes its
+        /// request to the account timing out, which may still have spent one.
         case refused
     }
 
