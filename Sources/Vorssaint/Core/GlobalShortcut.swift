@@ -851,12 +851,18 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
                          excluding role: GlobalShortcutRole?,
                          isOn: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) },
                          isAvailable: (AppFeature) -> Bool = { $0.isAvailable },
-                         includeInactive: Bool = false) -> GlobalShortcutRole? {
+                         includeInactive: Bool = false,
+                         radialMenuShortcuts: () -> [GlobalShortcut] = { RadialMenuSupport.profileShortcuts() })
+        -> GlobalShortcutRole? {
         let candidates = includeInactive
             ? availableRoles(isAvailable: isAvailable)
             : activeRoles(isOn: isOn, isAvailable: isAvailable)
         return candidates.first { candidate in
-            candidate != role && candidate.savedShortcut == shortcut
+            guard candidate != role else { return false }
+            // The radial menu's role key only seeds the first wheel. Every
+            // wheel registers its own combination, so those are the ones taken.
+            if candidate == .radialMenu { return radialMenuShortcuts().contains(shortcut) }
+            return candidate.savedShortcut == shortcut
         }
     }
 

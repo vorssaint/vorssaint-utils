@@ -177,6 +177,10 @@ enum LocalizationFeatureContractTests {
             suite.expect(!strings.dockPreviewBackgroundOpacityCaption.isEmpty
                    && !strings.dockPreviewBackgroundOpacityCaption.contains("—"),
                    "\(prefix) Dock Preview background caption is present without em dash")
+            suite.expect(!strings.dockPreviewBackgroundOpacityGlassCaption.isEmpty
+                   && !strings.dockPreviewBackgroundOpacityGlassCaption.contains("—")
+                   && strings.dockPreviewBackgroundOpacityGlassCaption != strings.dockPreviewBackgroundOpacityCaption,
+                   "\(prefix) Dock Preview background explains why Liquid Glass turns it off")
             suite.expect(!strings.dockPreviewCurrentSpaceOnlyCaption.isEmpty
                    && !strings.dockPreviewCurrentSpaceOnlyCaption.contains("—")
                    && strings.dockPreviewCurrentSpaceOnlyCaption != strings.switcherCurrentSpaceOnlyCaption,

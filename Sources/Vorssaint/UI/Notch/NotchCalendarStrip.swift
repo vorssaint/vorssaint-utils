@@ -8,10 +8,12 @@ import SwiftUI
 /// two useful wings.
 struct NotchCalendarStrip: View {
     @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var l10n = L10n.shared
 
-    private var geometry: NotchGeometry { service.compactActivityGeometry }
+    private var geometry: NotchGeometry { displayGeometry ?? service.compactActivityGeometry }
     private var text: NotchCalendarStrings { FeatureStrings.notchCalendar(l10n.language) }
     private var usesFullRow: Bool { geometry.compactActivityUsesFooter || geometry.compactActivityWingWidth == 0 }
 

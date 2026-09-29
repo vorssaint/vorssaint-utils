@@ -60,16 +60,25 @@ enum HomebrewEnvironment {
         base.merging([resolvingVariable: "1"]) { _, resolving in resolving }
     }
 
-    /// A `.zshrc` that takes the shell over, a multiplexer autostart that
-    /// fails without a terminal and exits or an `exec` into another shell,
-    /// ends the interactive run before the marker. The plain login run still
-    /// finds the `~/.zprofile` exports then, so it is tried whenever the
-    /// interactive one gives no dump. Both run in a session of their own, so
-    /// an app started from a terminal gets the same result as one started from
-    /// Finder instead of a shell stopped for trying to take that terminal over.
+    /// The login shell's exports that brew keeps.
     static func exportsFromLoginShell(shellPath: String,
                                       timeout: TimeInterval = loginShellTimeout,
                                       baseEnvironment: [String: String] = ProcessInfo.processInfo.environment)
+        -> [String: String] {
+        passthrough(loginShellExports(shellPath: shellPath, timeout: timeout, baseEnvironment: baseEnvironment))
+    }
+
+    /// Every export a Terminal window's shell has. A `.zshrc` that takes the
+    /// shell over, a multiplexer autostart that fails without a terminal and
+    /// exits or an `exec` into another shell, ends the interactive run before
+    /// the marker. The plain login run still finds the `~/.zprofile` exports
+    /// then, so it is tried whenever the interactive one gives no dump. Both
+    /// run in a session of their own, so an app started from a terminal gets
+    /// the same result as one started from Finder instead of a shell stopped
+    /// for trying to take that terminal over.
+    static func loginShellExports(shellPath: String,
+                                  timeout: TimeInterval = loginShellTimeout,
+                                  baseEnvironment: [String: String] = ProcessInfo.processInfo.environment)
         -> [String: String] {
         guard !shellPath.isEmpty else { return [:] }
         let environment = loginShellEnvironment(base: baseEnvironment)
@@ -80,7 +89,7 @@ enum HomebrewEnvironment {
                                                               environment: environment)
             guard result.status == 0, !result.timedOut,
                   result.output.range(of: Data(dumpMarker.utf8)) != nil else { continue }
-            return passthrough(parse(nullSeparated: result.output))
+            return parse(nullSeparated: result.output)
         }
         return [:]
     }

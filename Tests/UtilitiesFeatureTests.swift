@@ -946,6 +946,69 @@ enum UtilitiesFeatureTests {
         profileTestDefaults.set(false, forKey: DefaultsKey.radialMenuEnabled)
         suite.expect(!RadialMenuSupport.claimsMouseButton(MouseButtonShortcutSupport.backButtonNumber, defaults: profileTestDefaults),
                "disabled radial menu never claims mouse buttons")
+
+        // A wheel answers to the combination saved in its own profile, and the
+        // role key it migrated from only seeds the first one. Both sides of a
+        // collision check have to read the profiles.
+        profileTestDefaults.removeObject(forKey: DefaultsKey.radialMenuProfiles)
+        suite.expect(RadialMenuSupport.profileShortcuts(defaults: profileTestDefaults) == [.radialMenuDefault],
+               "before a profile is saved the wheel answers to the shortcut it migrates from")
+        let wheelShortcut = GlobalShortcut(keyCode: Int64(kVK_ANSI_W), modifiers: [.control, .option])
+        let workWheel = RadialMenuProfile(name: "Work", shortcut: wheelShortcut.storageValue)
+        let spareWheel = RadialMenuProfile(name: "Spare")
+        profileTestDefaults.set(RadialMenuSupport.encodeProfiles([workWheel, spareWheel]),
+                                forKey: DefaultsKey.radialMenuProfiles)
+        let wheelShortcuts = { RadialMenuSupport.profileShortcuts(defaults: profileTestDefaults) }
+        suite.expect(wheelShortcuts() == [wheelShortcut],
+               "saved wheels answer to their own shortcuts and a wheel without one claims nothing")
+        func roleConflict(_ shortcut: GlobalShortcut, radialMenuOn: Bool = true) -> GlobalShortcutRole? {
+            GlobalShortcutRole.conflict(for: shortcut, excluding: .keepAwake,
+                                        isOn: { radialMenuOn || $0 != DefaultsKey.radialMenuEnabled },
+                                        isAvailable: { _ in true },
+                                        radialMenuShortcuts: wheelShortcuts)
+        }
+        suite.expect(roleConflict(wheelShortcut) == .radialMenu,
+               "another shortcut row refuses a combination a wheel opens on")
+        suite.expect(roleConflict(.radialMenuDefault) == nil,
+               "the migration seed stops reserving a combination no wheel uses")
+        suite.expect(roleConflict(wheelShortcut, radialMenuOn: false) == nil,
+               "a switched-off radial menu reserves none of its wheels")
+        suite.expect(RadialMenuSupport.profile(using: wheelShortcut, in: [workWheel, spareWheel],
+                                               excluding: spareWheel.id) == workWheel
+                && RadialMenuSupport.profile(using: wheelShortcut, in: [workWheel, spareWheel],
+                                             excluding: workWheel.id) == nil,
+               "a wheel's shortcut is refused on the other wheels and kept on its own")
+
+        // The Keyboard Shortcuts page lists these same combinations for the
+        // radial menu. Its old recorder wrote the role key, which only counts
+        // until a wheel is saved.
+        let seedShortcut = GlobalShortcut(keyCode: Int64(kVK_ANSI_R), modifiers: [.control, .command])
+        profileTestDefaults.set(seedShortcut.storageValue, forKey: DefaultsKey.radialMenuShortcut)
+        suite.expect(wheelShortcuts() == [wheelShortcut],
+               "a role key changed after the wheels were saved leaves their shortcuts as they are")
+        profileTestDefaults.removeObject(forKey: DefaultsKey.radialMenuProfiles)
+        suite.expect(wheelShortcuts() == [seedShortcut],
+               "until a wheel is saved the role key is the shortcut the page lists")
+        let shortcutsPageCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/ShortcutsSettings.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let featureRowsCode = shortcutsPageCode
+            .components(separatedBy: "private func featureRows(").dropFirst().first?
+            .components(separatedBy: "\n    }\n").first ?? ""
+        let radialRowCode = shortcutsPageCode
+            .components(separatedBy: "private struct RadialMenuShortcutsRow").dropFirst().first?
+            .components(separatedBy: "\n}\n").first ?? ""
+        let radialRowComesFirst = featureRowsCode.range(of: "if feature == .radialMenu {").flatMap { radial in
+            featureRowsCode.range(of: "roleRow(").map { radial.lowerBound < $0.lowerBound }
+        } ?? false
+        suite.expect(radialRowComesFirst
+                && radialRowCode.contains("RadialMenuSupport.profileShortcuts()")
+                && radialRowCode.contains(".manageButton")
+                && !radialRowCode.contains("ShortcutRecorderButton"),
+               "the Keyboard Shortcuts page shows the wheels' shortcuts and links to their page instead of recording the role key")
         profileTestDefaults.removePersistentDomain(forName: "com.vorssaint.tests.radialProfiles")
 
         let testImage = NSImage(size: NSSize(width: 16, height: 16))

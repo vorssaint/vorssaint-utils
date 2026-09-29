@@ -10,6 +10,7 @@ struct CommandBarEntry: Identifiable {
         case appIcon(path: String)
         case clipboardImage(name: String)
         case filePath(String)
+        case color(ColorValue)
     }
 
     /// Why Return will not do the main thing yet. The row says so in one
@@ -103,6 +104,11 @@ struct CommandBarEntry: Identifiable {
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
                         takesArgument: takesArgument, revealPath: revealPath,
                         uninstallAppURL: uninstallAppURL, run: run)
+    }
+
+    var isColor: Bool {
+        if case .color = icon { return true }
+        return false
     }
 
     /// Glyph rows get a tinted plate behind the icon; real app, file and
@@ -1613,6 +1619,27 @@ enum CommandBarCatalog {
                 isAnswer: true,
                 countsUsage: false,
                 run: { _ in copyAnswer(converted.formatted) })
+        }
+        if let converted = CommandBarColors.convert(query) {
+            return CommandBarEntry(
+                id: "color.result",
+                title: converted.formatted,
+                subtitle: bar.copyHint,
+                icon: .color(converted.color),
+                isAnswer: true,
+                countsUsage: false,
+                run: { _ in copyAnswer(converted.formatted) })
+        }
+        if let color = ColorValue(text: query) {
+            let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            return CommandBarEntry(
+                id: "color.preview",
+                title: value,
+                subtitle: bar.copyHint,
+                icon: .color(color),
+                isAnswer: true,
+                countsUsage: false,
+                run: { _ in copyAnswer(value) })
         }
         // Dates last: a sum and a conversion are stricter, and "3" alone must
         // never become a date.

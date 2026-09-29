@@ -10,6 +10,7 @@ struct NotchLayoutEditor: View {
     @Binding var height: Double
     var editContents: () -> Void
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var notch = NotchService.shared
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var addingSide: NotchQuickAccessSide?
@@ -44,12 +45,13 @@ struct NotchLayoutEditor: View {
                     // silhouette, type and spacing keep the proportions on screen.
                     islandPreview
                         .background {
-                            let shape = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: actualHeight))
+                            let shape = NotchShape.island(height: actualHeight, geometry: previewGeometry)
                             shape.fill(.black)
                                 .overlay {
+                                    // A capsule's outline goes all the way round.
                                     if outlineEnabled {
                                         shape.stroke(.white.opacity(0.65), lineWidth: 2).clipShape(shape)
-                                            .mask(Rectangle().padding(.top, 1))
+                                            .mask(Rectangle().padding(.top, previewGeometry.floats ? 0 : 1))
                                     }
                                 }
                         }
@@ -133,9 +135,14 @@ struct NotchLayoutEditor: View {
     private var actualWidth: CGFloat {
         NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
     }
+    /// The island around a camera, or as a capsule while it floats in its
+    /// display's menu bar.
     private var previewGeometry: NotchGeometry {
-        NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: 32,
-                      cameraWidth: 210, layout: layout, customWidth: width, customHeight: height)
+        let floats = notch.geometry.floats
+        return NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: floats ? 0 : 32,
+                             cameraWidth: floats ? 0 : 210, layout: layout,
+                             menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
+                             customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
     }
     private var actualHeight: CGFloat {
         if layout == .custom { return previewGeometry.customHeight }
@@ -249,7 +256,7 @@ struct NotchLayoutEditor: View {
         let controls = NotchLayout.controls(hasCards: items.contains(.music) || !levels.isEmpty,
                                             shortcutCount: shortcuts.count, width: contentWidth, height: contentHeight)
         return Button(action: editContents) {
-            Color.clear.contentShape(NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: actualHeight)))
+            Color.clear.contentShape(NotchShape.island(height: actualHeight, geometry: previewGeometry))
         }
         .buttonStyle(.plain)
         .help(editor.content)
