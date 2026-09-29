@@ -62,7 +62,19 @@ FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
 NOW_PLAYING_ADAPTER="libVorssaintNowPlaying.dylib"
-TARGET="arm64-apple-macosx14.0"
+HOST_ARCH="$(uname -m)"
+case "$HOST_ARCH" in
+    x86_64|arm64) ;;
+    *) echo "Unsupported host architecture: $HOST_ARCH" >&2; exit 1 ;;
+esac
+
+TARGET="${HOST_ARCH}-apple-macosx14.0"
+UNIVERSAL_ARCHS=("x86_64" "arm64")
+universal_target() {
+    local arch="$1"
+    echo "${arch}-apple-macosx14.0"
+}
+
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
 
@@ -504,46 +516,79 @@ if (( TEST )); then
     exit $test_status
 fi
 
-echo "▸ Compiling ($BUILD_CONFIGURATION) against $(basename "$SDK")…"
+echo "▸ Compiling ($BUILD_CONFIGURATION) universal2 against $(basename "$SDK")…"
 APP_SOURCES=(Sources/Vorssaint/**/*.swift)
-if (( DEV )); then
-    APP_OBJECT_DIR="build/objects/$EXECUTABLE"
-    mkdir -p build "$APP_OBJECT_DIR"
-    APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
-    write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
-    swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -j "$(sysctl -n hw.logicalcpu)" \
-        -output-file-map "$APP_OUTPUT_FILE_MAP" \
-        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
-        "${BUILD_VARIANT_FLAGS[@]}" \
-        "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
-else
-    rm -rf build
-    mkdir -p build
-    swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$TARGET" -sdk "$SDK" \
-        "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
-        "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
-fi
+rm -rf build
+mkdir -p build/arch
 
-echo "▸ Compiling protected fan helper…"
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
-    Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
-    Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
-    Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
-    Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
-    Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
-    Sources/FanControlHelper/main.swift \
-    -o "build/$FAN_HELPER_ID"
-"build/$FAN_HELPER_ID" --selftest
+for ARCH in "${UNIVERSAL_ARCHS[@]}"; do
+    ARCH_TARGET="$(universal_target "$ARCH")"
+    ARCH_BUILD="build/arch/$ARCH"
+    mkdir -p "$ARCH_BUILD"
 
-echo "▸ Compiling Now Playing adapter…"
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
-    -module-name VorssaintNowPlaying \
-    Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
-    Sources/NowPlayingAdapter/NowPlayingQueue.swift \
-    Sources/NowPlayingAdapter/NowPlayingSelection.swift \
-    Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift \
-    Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
-    -o "build/$NOW_PLAYING_ADAPTER"
+    echo "  ▸ Compiling app ($ARCH)…"
+    if (( DEV )); then
+        APP_OBJECT_DIR="$ARCH_BUILD/objects/$EXECUTABLE"
+        mkdir -p "$APP_OBJECT_DIR"
+        APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
+        write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
+        swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -j "$(sysctl -n hw.logicalcpu)" \
+            -output-file-map "$APP_OUTPUT_FILE_MAP" \
+            -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
+            "${BUILD_VARIANT_FLAGS[@]}" \
+            "${APP_SOURCES[@]}" -o "$ARCH_BUILD/$EXECUTABLE"
+    else
+        swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$ARCH_TARGET" -sdk "$SDK" \
+            "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+            "${APP_SOURCES[@]}" -o "$ARCH_BUILD/$EXECUTABLE"
+    fi
+
+    echo "  ▸ Compiling protected fan helper ($ARCH)…"
+    swiftc -O -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
+        Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
+        Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
+        Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
+        Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
+        Sources/FanControlHelper/main.swift \
+        -o "$ARCH_BUILD/$FAN_HELPER_ID"
+
+    if [[ "$(uname -m)" == "$ARCH" ]]; then
+        "$ARCH_BUILD/$FAN_HELPER_ID" --selftest
+    else
+        echo "    skipping $ARCH helper selftest on $(uname -m)"
+    fi
+
+    echo "  ▸ Compiling Now Playing adapter ($ARCH)…"
+    swiftc -O -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
+        -module-name VorssaintNowPlaying \
+        Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
+        Sources/NowPlayingAdapter/NowPlayingQueue.swift \
+        Sources/NowPlayingAdapter/NowPlayingSelection.swift \
+        Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift \
+        Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
+        -o "$ARCH_BUILD/$NOW_PLAYING_ADAPTER"
+done
+
+echo "▸ Creating universal2 binaries…"
+lipo -create \
+    "build/arch/x86_64/$EXECUTABLE" \
+    "build/arch/arm64/$EXECUTABLE" \
+    -output "build/$EXECUTABLE"
+
+lipo -create \
+    "build/arch/x86_64/$FAN_HELPER_ID" \
+    "build/arch/arm64/$FAN_HELPER_ID" \
+    -output "build/$FAN_HELPER_ID"
+
+lipo -create \
+    "build/arch/x86_64/$NOW_PLAYING_ADAPTER" \
+    "build/arch/arm64/$NOW_PLAYING_ADAPTER" \
+    -output "build/$NOW_PLAYING_ADAPTER"
+
+echo "  ✓ $EXECUTABLE: $(lipo -info "build/$EXECUTABLE" | sed 's/^/ /')"
+echo "  ✓ $FAN_HELPER_ID: $(lipo -info "build/$FAN_HELPER_ID" | sed 's/^/ /')"
+echo "  ✓ $NOW_PLAYING_ADAPTER: $(lipo -info "build/$NOW_PLAYING_ADAPTER" | sed 's/^/ /')"
 
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
