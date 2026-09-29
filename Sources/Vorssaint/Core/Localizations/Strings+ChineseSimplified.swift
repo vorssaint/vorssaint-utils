@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "关闭时显示所有桌面的窗口。选择其他桌面上的窗口时，会切换到该桌面。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "调低后可以看到更多面板后面的内容。",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass 已开启，面板的透明度由“系统设置”>“外观”决定。",
         dockPreviewOpenDelay: "打开延迟",
         dockPreviewOpenDelayCaption: "指针停在图标上多久之后才打开面板。",
         dockPreviewQuitAppOnClose: "使用 × 按钮退出 App",
