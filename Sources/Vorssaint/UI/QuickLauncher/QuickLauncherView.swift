@@ -202,7 +202,7 @@ struct QuickLauncherView: View {
                                             rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: notchSize.height)
             NotchRail(items: launcher.visibleItems, rows: rows, itemWidth: NotchLayout.toolWidth, width: notchSize.width,
                       spacing: NotchLayout.toolSpacing, rowSpacing: NotchLayout.toolSpacing,
-                      scrollTarget: launcher.selectedIndex.flatMap { index in
+                      scrollTarget: launcher.keyboardIndex.flatMap { index in
                           launcher.visibleItems.indices.contains(index) ? launcher.visibleItems[index].id : nil
                       }) { item in
                 cell(item).frame(height: NotchLayout.toolHeight)

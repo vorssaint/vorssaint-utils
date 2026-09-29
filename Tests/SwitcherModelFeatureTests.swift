@@ -2814,6 +2814,7 @@ enum SwitcherModelFeatureTests {
             DefaultsKey.windowLayoutShortcutLeftTwoThirds,
             DefaultsKey.windowLayoutShortcutRightTwoThirds,
             DefaultsKey.windowLayoutShortcutNextDisplay,
+            DefaultsKey.windowDirectionalShortcut,
         ]
         let assignedLayoutShortcutValues = assignedLayoutShortcutKeys.compactMap {
             registeredDefaults[$0] as? String

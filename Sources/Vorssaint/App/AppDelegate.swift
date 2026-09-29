@@ -1056,9 +1056,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
         if popover.isShown, event.keyCode == UInt16(kVK_Escape) {
+            // The monitor sees the whole app; Esc in another window, such as
+            // Settings or a popover or dialog opened from the panel, stays there.
+            guard let window = popover.contentViewController?.view.window,
+                  event.window === window else { return event }
             // While an input method is composing, Esc belongs to it and
             // drops the candidate; the panel closes on the next one.
-            if (event.window?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
+            if (window.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
             closePopover(reason: .escape)
             return nil
         }

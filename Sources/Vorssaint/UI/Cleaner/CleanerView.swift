@@ -339,7 +339,7 @@ struct CleanerView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(11)
-        .frame(maxWidth: 380)
+        .frame(maxWidth: 380, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
@@ -590,50 +590,23 @@ struct CleanerView: View {
     @ViewBuilder
     private var scheduleDetails: some View {
         if scheduleFrequency != .off {
-                HStack(spacing: 6) {
-                    if scheduleFrequency == .weekly {
-                        Picker("", selection: $scheduleWeekday) {
-                            ForEach(1...7, id: \.self) { day in
-                                Text(Calendar.current.standaloneWeekdaySymbols[day - 1].capitalized)
-                                    .tag(day)
-                            }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
+                // The menu panel is too narrow for the weekday beside the time
+                // in most languages, and a row wider than the panel shifts all
+                // of its content past the left edge, so the weekday then takes
+                // its own row.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        weekdayPicker
+                        timePickers
+                        Spacer()
                     }
-                    if Self.uses12HourClock {
-                        Picker("", selection: scheduleHour12Binding) {
-                            ForEach(1...12, id: \.self) { hour in
-                                Text(String(hour)).tag(hour)
-                            }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
-                    } else {
-                        Picker("", selection: $scheduleHour) {
-                            ForEach(0..<24, id: \.self) { hour in
-                                Text(String(hour)).tag(hour)
-                            }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
-                    }
-                    Picker("", selection: $scheduleMinute) {
-                        ForEach(minuteChoices, id: \.self) { minute in
-                            Text(String(format: ":%02d", minute)).tag(minute)
+                    VStack(alignment: .leading, spacing: 6) {
+                        weekdayPicker
+                        HStack(spacing: 6) {
+                            timePickers
+                            Spacer()
                         }
                     }
-                    .labelsHidden()
-                    .fixedSize()
-                    if Self.uses12HourClock {
-                        Picker("", selection: schedulePMBinding) {
-                            Text(Self.dayPeriodSymbols.am).tag(false)
-                            Text(Self.dayPeriodSymbols.pm).tag(true)
-                        }
-                        .labelsHidden()
-                        .fixedSize()
-                    }
-                    Spacer()
                 }
                 Toggle(l10n.s.cleanerScheduleNotifyToggle, isOn: $scheduleNotify)
                     .toggleStyle(.checkbox)
@@ -661,6 +634,57 @@ struct CleanerView: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
+        }
+    }
+
+    @ViewBuilder
+    private var weekdayPicker: some View {
+        if scheduleFrequency == .weekly {
+            Picker("", selection: $scheduleWeekday) {
+                ForEach(1...7, id: \.self) { day in
+                    Text(Calendar.current.standaloneWeekdaySymbols[day - 1].capitalized)
+                        .tag(day)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+        }
+    }
+
+    /// The hour, the minutes and, on a twelve hour clock, AM or PM.
+    @ViewBuilder
+    private var timePickers: some View {
+        if Self.uses12HourClock {
+            Picker("", selection: scheduleHour12Binding) {
+                ForEach(1...12, id: \.self) { hour in
+                    Text(String(hour)).tag(hour)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+        } else {
+            Picker("", selection: $scheduleHour) {
+                ForEach(0..<24, id: \.self) { hour in
+                    Text(String(hour)).tag(hour)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+        }
+        Picker("", selection: $scheduleMinute) {
+            ForEach(minuteChoices, id: \.self) { minute in
+                Text(String(format: ":%02d", minute)).tag(minute)
+            }
+        }
+        .labelsHidden()
+        .fixedSize()
+        if Self.uses12HourClock {
+            Picker("", selection: schedulePMBinding) {
+                Text(Self.dayPeriodSymbols.am).tag(false)
+                Text(Self.dayPeriodSymbols.pm).tag(true)
+            }
+            .labelsHidden()
+            .fixedSize()
         }
     }
 
