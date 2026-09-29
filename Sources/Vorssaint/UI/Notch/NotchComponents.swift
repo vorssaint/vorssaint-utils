@@ -79,12 +79,15 @@ struct NotchMeter: View {
 struct NotchRollingDigits: ViewModifier {
     let value: String
     let countsDown: Bool
+    /// Off in the closed island, where only the part above the seconds rolls.
+    var everySecond = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
             .contentTransition(.numericText(countsDown: countsDown))
-            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: value)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3),
+                       value: NotchTimerSupport.rollingValue(value, everySecond: everySecond))
     }
 }
 

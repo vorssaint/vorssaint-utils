@@ -83,7 +83,7 @@ struct NotchTimerStrip: View {
                         .font(.system(size: textSize, weight: .medium)).monospacedDigit()
                         .foregroundStyle(.orange)
                         .lineLimit(1).minimumScaleFactor(0.65)
-                        .modifier(NotchRollingDigits(value: text, countsDown: !timer.session.countsUp))
+                        .modifier(NotchRollingDigits(value: text, countsDown: !timer.session.countsUp, everySecond: false))
                         // A reading that gains or loses a character, like
                         // 10m becoming 9m, resizes the wings; the service
                         // measures the same reading.

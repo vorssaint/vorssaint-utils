@@ -294,7 +294,7 @@ struct NotchCapsuleTimerStrip: View {
             .font(Font(CapsuleLayout.readingFont as CTFont))
             .foregroundStyle(.orange)
             .lineLimit(1).fixedSize()
-            .modifier(NotchRollingDigits(value: text, countsDown: !timer.session.countsUp))
+            .modifier(NotchRollingDigits(value: text, countsDown: !timer.session.countsUp, everySecond: false))
             // A reading that gains or loses a character, like 10m becoming
             // 9m, resizes the capsule; the service measures the same reading.
             .onChange(of: NotchAgentSupport.readingShape(text)) { _, _ in
@@ -519,7 +519,7 @@ struct NotchCapsuleCalendarStrip: View {
             .font(Font(CapsuleLayout.readingFont as CTFont))
             .lineLimit(1).fixedSize()
             .foregroundStyle(ongoing ? Color.mint : Color.white)
-            .modifier(NotchRollingDigits(value: remaining, countsDown: true))
+            .modifier(NotchRollingDigits(value: remaining, countsDown: true, everySecond: false))
     }
 }
 

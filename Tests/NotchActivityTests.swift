@@ -132,6 +132,11 @@ enum NotchActivityTests {
             suite.expect(NotchTimerSupport.clockText(seconds) == expected,
                    "timer clocks show hours at the hour boundary while preserving seconds: \(seconds)")
         }
+        suite.expect(NotchTimerSupport.rollingValue("12:04", everySecond: false) == "12"
+               && NotchTimerSupport.rollingValue("1:02:03", everySecond: false) == "1:02"
+               && NotchTimerSupport.rollingValue("14m", everySecond: false) == "14m"
+               && NotchTimerSupport.rollingValue("12:04", everySecond: true) == "12:04",
+               "closed island clocks roll only above the seconds, open ones roll every second")
         let locale = Locale(identifier: "en_US")
         suite.expect(NotchTimerSupport.compactText(870, locale: locale) == "14m"
                && NotchTimerSupport.compactText(60, locale: locale) == "1m",

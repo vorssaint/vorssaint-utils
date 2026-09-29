@@ -164,7 +164,7 @@ struct NotchCalendarStrip: View {
             .font(.system(size: 13, weight: .medium)).monospacedDigit()
             .lineLimit(1).minimumScaleFactor(0.8)
             .foregroundStyle(ongoing ? Color.mint : Color.white)
-            .modifier(NotchRollingDigits(value: remaining, countsDown: true))
+            .modifier(NotchRollingDigits(value: remaining, countsDown: true, everySecond: false))
     }
 }
 
