@@ -1466,8 +1466,10 @@ struct NotchGeometry: Equatable {
     }
 
     /// `toolCount` is nil while the launcher edits its grid or hosts a
-    /// utility: those need the page, not a rail.
-    func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false, shortcutCount: Int = 4,
+    /// utility: those need the page, not a rail. `detailHeight` is a
+    /// detail's measured content, which it fits instead of the whole page.
+    func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false,
+                      detailHeight: CGFloat? = nil, shortcutCount: Int = 4,
                       sliderCount: Int = 2, controlsHaveMusic: Bool = false, musicHasContent: Bool = true,
                       musicHasControlsRow: Bool = true, musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
@@ -1478,7 +1480,9 @@ struct NotchGeometry: Equatable {
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
         let contentHeight: CGFloat
-        if detail || panel {
+        if detail, !panel, let detailHeight {
+            contentHeight = min(pageBudget, max(0, detailHeight) + 4)
+        } else if detail || panel {
             contentHeight = pageBudget
         } else if showsFileMedia {
             // Measured surfaces keep their own height; the custom limit and

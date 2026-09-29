@@ -382,7 +382,9 @@ struct NotchSettings: View {
             SettingsCard(title: editor.resting) {
                 HStack(spacing: 10) {
                     idleChoice(.none, title: text.idleNone, symbol: "minus")
-                    idleChoice(.battery, title: text.battery, symbol: "battery.75percent")
+                    if PowerSampler.hasInternalBattery {
+                        idleChoice(.battery, title: text.battery, symbol: "battery.75percent")
+                    }
                     idleChoice(.music, title: text.music, symbol: "music.note")
                     // Offered once the section is on; the island would show nothing before.
                     if offersAgentsResting {
@@ -396,14 +398,18 @@ struct NotchSettings: View {
                 let brightnessAvailable = AppFeature.brightness.isAvailable && brightnessControlEnabled
                 let keyboardLightAvailable = AppFeature.brightness.isAvailable && BrightnessService.keyboardLightIsSupported
                 let microphoneAvailable = AppFeature.micMute.isAvailable
+                // A Mac without a battery has no battery notices, so that card
+                // is left out rather than shown waiting for Power.
+                let hasBattery = PowerSampler.hasInternalBattery
                 let batteryAvailable = AppFeature.monitorPower.isAvailable
                 let accessoriesAvailable = AppFeature.notchAccessories.isAvailable && AppFeature.monitorPower.isAvailable
                 let clipboardAvailable = AppFeature.clipboardHistory.isAvailable && clipboardHistoryEnabled
                     && NotchSupport.modules().contains(.clipboard)
                 let capturesAvailable = AppFeature.screenshot.isAvailable && NotchSupport.modules().contains(.captures)
                 let musicAvailable = NotchSupport.modules().contains(.music)
-                let reserves = ![volumeAvailable, brightnessAvailable, keyboardLightAvailable, microphoneAvailable, batteryAvailable,
-                                 accessoriesAvailable, clipboardAvailable, capturesAvailable, musicAvailable].allSatisfy { $0 }
+                let reserves = ![volumeAvailable, brightnessAvailable, keyboardLightAvailable, microphoneAvailable,
+                                 batteryAvailable || !hasBattery, accessoriesAvailable, clipboardAvailable, capturesAvailable,
+                                 musicAvailable].allSatisfy { $0 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
                     toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: volumeAvailable,
                                reason: enableFeatureReason(.mixer), reservesReason: reserves,
@@ -426,9 +432,11 @@ struct NotchSettings: View {
                     toggleCard(l10n.s.mixerInputTitle, symbol: "mic", value: $microphone, available: microphoneAvailable,
                                reason: enableFeatureReason(.micMute), reservesReason: reserves,
                                unavailableAction: { showFeature(.micMute) })
-                    toggleCard(text.battery, symbol: "battery.75percent", value: $battery, available: batteryAvailable,
-                               reason: enableFeatureReason(.monitorPower), reservesReason: reserves,
-                               unavailableAction: { showFeature(.monitorPower) })
+                    if hasBattery {
+                        toggleCard(text.battery, symbol: "battery.75percent", value: $battery, available: batteryAvailable,
+                                   reason: enableFeatureReason(.monitorPower), reservesReason: reserves,
+                                   unavailableAction: { showFeature(.monitorPower) })
+                    }
                     toggleCard(FeatureStrings.notchActivities(l10n.language).accessories, symbol: "headphones", value: $accessoriesEnabled,
                               available: accessoriesAvailable,
                               reason: enableFeatureReason(AppFeature.monitorPower.isAvailable ? .notchAccessories : .monitorPower),
@@ -639,9 +647,11 @@ struct NotchSettings: View {
     private var offersAgentsResting: Bool { agentsEnabled && NotchAgentSupport.isEnabled() }
 
     /// What the closed island rests with. A saved AI reading waits, unchanged,
-    /// while its section is off, and the island rests empty meanwhile.
+    /// while its section is off, and the island rests empty meanwhile. So does
+    /// a saved battery reading on a Mac without a battery.
     private var restingChoice: NotchIdleContent {
         let choice: NotchIdleContent = NotchIdleContent(rawValue: idle) ?? .none
+        if choice == .battery, !PowerSampler.hasInternalBattery { return .none }
         return choice == .agents && !offersAgentsResting ? .none : choice
     }
 

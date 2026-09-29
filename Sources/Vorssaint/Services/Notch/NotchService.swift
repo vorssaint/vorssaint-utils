@@ -104,6 +104,8 @@ final class NotchService: ObservableObject {
     /// reach the app in front instead.
     @Published private(set) var panelIsKey = false
     @Published private var captureContentHeight: CGFloat?
+    /// Kept after closing, so the next Fan Control detail opens at its size.
+    @Published private var fanDetailHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
 
@@ -219,8 +221,11 @@ final class NotchService: ObservableObject {
         fullscreenCompact && !geometry.isNotched
     }
 
+    /// A Mac without a battery has no charge to show, so a saved battery
+    /// choice rests empty there; playing music still shows as before.
     var idleContent: NotchIdleContent {
-        NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
+        let content = NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
+        return content == .battery && !PowerSampler.hasInternalBattery ? .none : content
     }
 
     var hasTimerActivity: Bool {
@@ -430,6 +435,7 @@ final class NotchService: ObservableObject {
         let launcher = QuickLauncherService.shared
         return pageSize(in: expandedGeometry, module: showingAppPanel ? .tools : selected,
                         detail: selectedMetric != nil, panel: showingAppPanel,
+                        detailHeight: selectedMetric == .fan ? fanDetailHeight : nil,
                         musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
                         fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
@@ -440,21 +446,22 @@ final class NotchService: ObservableObject {
     /// The open island as Settings previews a section: at rest, with no
     /// detail, app panel, capture or media editor in front of the page.
     func previewSize(for module: NotchModule) -> CGSize {
-        pageSize(in: geometry, module: module, detail: false, panel: false, musicExtraHeight: 0, fileMediaHeight: nil,
-                 toolCount: QuickLauncherService.shared.visibleItems.count, capturePreviewHeight: nil)
+        pageSize(in: geometry, module: module, detail: false, panel: false, detailHeight: nil, musicExtraHeight: 0,
+                 fileMediaHeight: nil, toolCount: QuickLauncherService.shared.visibleItems.count, capturePreviewHeight: nil)
     }
 
     /// The tallest island a preview can show: a page that fills the budget.
     var previewLargestSize: CGSize { geometry.expandedSize(module: .calendar) }
 
     private func pageSize(in geometry: NotchGeometry, module: NotchModule, detail: Bool, panel: Bool,
-                          musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
+                          detailHeight: CGFloat?, musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
                           capturePreviewHeight: CGFloat?) -> CGSize {
         let controls = NotchSupport.controls()
         let sliders = controls.filter { $0 == .volume || $0 == .brightness }.count
         let shortcuts = controls.filter { $0 != .volume && $0 != .brightness && $0 != .music }.count
         let musicExtras = NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
-        return geometry.expandedSize(module: module, detail: detail, panel: panel, shortcutCount: shortcuts,
+        return geometry.expandedSize(module: module, detail: detail, panel: panel, detailHeight: detailHeight,
+                                     shortcutCount: shortcuts,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
                                      musicHasControlsRow: AppFeature.mixer.isAvailable || musicExtras,
                                      musicExtraHeight: musicExtraHeight, fileMediaHeight: fileMediaHeight,
@@ -1187,6 +1194,17 @@ final class NotchService: ObservableObject {
         if toggle { detailHasPage = false }
     }
 
+    /// Fan Control is a single card, so its detail fits the card instead of
+    /// opening a tall, mostly empty page. A taller card still scrolls in it.
+    func updateFanDetailHeight(_ height: CGFloat) {
+        guard expanded, selectedMetric == .fan, !showingAppPanel, !showingSections,
+              height.isFinite, height > 0 else { return }
+        let measured = ceil(height)
+        guard fanDetailHeight != measured else { return }
+        fanDetailHeight = measured
+        refreshPresentation()
+    }
+
     func goBack() {
         let changesPresentation = selectedMetric != nil || showingAppPanel
         mutatePresentation(transitionContent: changesPresentation ? .replace : .none) { selectedMetric = nil; showingAppPanel = false }
@@ -1236,9 +1254,10 @@ final class NotchService: ObservableObject {
         pinned = false
         captureControlsCancel = cancel
         captureControls = options
-        captureControlsCollapsed = false
+        // The controls wait compact around the camera, clear of what is being
+        // captured, and open while the pointer rests on them.
+        captureControlsCollapsed = true
         captureSelectionInProgress = false
-        hoverState.open()
         options.onSelectionProgressChange = { [weak self, weak options] active in
             guard let self, let options, self.captureControls === options else { return }
             self.setCaptureSelectionInProgress(active)
@@ -1260,6 +1279,9 @@ final class NotchService: ObservableObject {
         panel?.acceptsKeyFocus = true
         panel?.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) + 1)
         refreshPresentation()
+        // A pointer already resting there has not hovered them; it leaves and
+        // comes back before they open.
+        hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
         panel?.orderFrontRegardless()
         panel?.makeKey()
         installCaptureControlsClickThrough()
@@ -1297,7 +1319,10 @@ final class NotchService: ObservableObject {
         }
     }
 
-    func scheduleCaptureControlsCollapse() {
+    /// Open controls close soon after the pointer leaves them. Opened with the
+    /// pointer elsewhere, from the keyboard, they wait long enough for a
+    /// control to take focus, which then keeps them open.
+    func scheduleCaptureControlsCollapse(after delay: TimeInterval = 3) {
         captureControlsWork?.cancel(); captureControlsWork = nil
         guard let options = captureControls, !captureControlsCollapsed, !captureSelectionInProgress,
               !options.hasFocusedControl, !inside else { return }
@@ -1311,7 +1336,7 @@ final class NotchService: ObservableObject {
             self.collapseCaptureControls()
         }
         captureControlsWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func updateCaptureControlsHover(wasInside: Bool) {
@@ -1319,7 +1344,10 @@ final class NotchService: ObservableObject {
         if !captureControlsCollapsed {
             if inside {
                 captureControlsWork?.cancel(); captureControlsWork = nil
-            } else if wasInside || captureControlsWork == nil {
+            } else if wasInside {
+                // Leaving closes them, as it closes an island opened by hover.
+                scheduleCaptureControlsCollapse(after: NotchQuickAccessLayout.hoverExitDelay)
+            } else if captureControlsWork == nil {
                 scheduleCaptureControlsCollapse()
             }
             return

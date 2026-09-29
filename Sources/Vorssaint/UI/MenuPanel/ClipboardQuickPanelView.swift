@@ -386,7 +386,7 @@ private struct QuickEntryRow: View, Equatable {
         case .text:
             HStack(alignment: .center, spacing: 8) {
                 if let color = entry.color {
-                    ClipboardColorSwatch(color: color, size: 14)
+                    ColorSwatch(color: color, size: 14)
                 }
                 Text(entry.preview)
                     .font(.system(size: 12))

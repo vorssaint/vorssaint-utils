@@ -49,7 +49,7 @@ final class AppSwitcher: ObservableObject {
             cancelLetterConfirmation()
             updateIconRowLayoutForCurrentSelection()
             revealSelectedIconInVisibleRow()
-            if sessionActive, usesIconRowLayout {
+            if sessionActive, simpleModeEnabled, !usesWindowRow {
                 resizePanel(animated: !UserDefaults.standard.bool(forKey: DefaultsKey.switcherInstantSelection))
             }
         }
@@ -132,6 +132,9 @@ final class AppSwitcher: ObservableObject {
     private var userNavigated = false
     /// Mouse position when the panel appeared; hover is inert until it moves.
     private var hoverAnchor: NSPoint?
+    /// The placement screen's visible frame from the last layout pass, so
+    /// browsing never asks the window server for the pointer's screen again.
+    private var sessionPlacementVisibleFrame: CGRect?
     /// The card currently under the pointer. Kept separate from selection so
     /// a middle click on panel chrome can never close an unrelated window.
     private var hoveredWindowIndex: Int?
@@ -1066,7 +1069,8 @@ final class AppSwitcher: ObservableObject {
         if pending.commitWhenReady {
             commitSession()
         } else if capturesPreviews {
-            WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.switcherScale) { [weak self] windowID, image in
+            WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.switcherScale,
+                                                          excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps) { [weak self] windowID, image in
                 guard let self,
                       self.sessionActive,
                       self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
@@ -1612,6 +1616,7 @@ final class AppSwitcher: ObservableObject {
         iconRowFirstVisibleIndex = 0
         userNavigated = false
         sessionStartWindowID = nil
+        sessionPlacementVisibleFrame = nil
         sessionSourceContext = nil
         sessionShortcut = nil
         sessionScope = .allApps
@@ -1701,6 +1706,7 @@ final class AppSwitcher: ObservableObject {
         guard let panel else { return }
         let frame = centeredFrame(for: currentPanelSize)
         panel.hasShadow = !usesIconRowLayout
+        guard panel.frame != frame else { return }
         panel.setFrame(frame, display: true, animate: panel.isVisible && animated)
         panel.invalidateShadow()
     }
@@ -1795,11 +1801,15 @@ final class AppSwitcher: ObservableObject {
     }
 
     private var placementVisibleFrame: CGRect {
-        placementScreen?.visibleFrame ?? NSScreen.pointerVisibleFrame
+        if sessionActive, let cached = sessionPlacementVisibleFrame {
+            return cached
+        }
+        return placementScreen?.visibleFrame ?? NSScreen.pointerVisibleFrame
     }
 
     private func recomputeLayouts(for items: [SwitcherItem]) {
         guard let screen = placementScreen ?? NSScreen.screens.first else { return }
+        sessionPlacementVisibleFrame = screen.visibleFrame
         grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
         let appGroups = SwitcherSupport.appGroups(items: items)
         iconRowLayout = SwitcherIconRowLayout.compute(
@@ -1817,7 +1827,7 @@ final class AppSwitcher: ObservableObject {
     private func updateIconRowLayoutForCurrentSelection() {
         guard !windows.isEmpty else { return }
         let appGroups = SwitcherSupport.appGroups(items: windows)
-        iconRowLayout = SwitcherIconRowLayout.compute(
+        let newLayout = SwitcherIconRowLayout.compute(
             appCount: usesWindowRow ? windows.count : appGroups.count,
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
             maximumWindowCount: usesWindowRow ? 1 : appGroups.map(\.windowCount).max() ?? 1,
@@ -1827,6 +1837,9 @@ final class AppSwitcher: ObservableObject {
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
                                      : SwitcherIconRowLayout.appTileWidth
         )
+        if iconRowLayout != newLayout {
+            iconRowLayout = newLayout
+        }
         revealSelectedIconInVisibleRow()
     }
 
@@ -1853,12 +1866,15 @@ final class AppSwitcher: ObservableObject {
         guard usesIconRowLayout,
               let iconIndex = iconRowIndex(forSelectionIndex: selectedIndex)
         else { return }
-        iconRowFirstVisibleIndex = SwitcherSupport.iconRowFirstVisibleIndex(
+        let newFirst = SwitcherSupport.iconRowFirstVisibleIndex(
             revealing: iconIndex,
             itemCount: iconRowItemCount,
             visibleCount: iconRowLayout.visibleIconCount,
             currentFirstVisibleIndex: iconRowFirstVisibleIndex
         )
+        if iconRowFirstVisibleIndex != newFirst {
+            iconRowFirstVisibleIndex = newFirst
+        }
     }
 
     private func beginIconRowEdgeHoverIfNeeded(at selectionIndex: Int) {
