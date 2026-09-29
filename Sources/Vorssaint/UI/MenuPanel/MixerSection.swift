@@ -1194,6 +1194,7 @@ private struct AutofocusingVolumeTextField: NSViewRepresentable {
     func makeNSView(context: Context) -> MixerPercentNativeTextField {
         let field = MixerPercentNativeTextField()
         field.delegate = context.coordinator
+        context.coordinator.field = field
         field.isBordered = false
         field.drawsBackground = false
         field.focusRingType = .none
@@ -1232,6 +1233,7 @@ private struct AutofocusingVolumeTextField: NSViewRepresentable {
         private var isActive: Bool
         var onSubmit: () -> Bool
         var onCancel: () -> Void
+        weak var field: MixerPercentNativeTextField?
         private var didFocus = false
         private var isFinishing = false
         private var escapeMonitor: Any?
@@ -1305,7 +1307,13 @@ private struct AutofocusingVolumeTextField: NSViewRepresentable {
         private func startMonitoringEscape() {
             guard escapeMonitor == nil else { return }
             escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                guard let self, self.isActive, event.keyCode == 53 else { return event }
+                // The monitor sees the whole app; Escape in another window,
+                // such as Settings, stays there.
+                guard let self, self.isActive, event.keyCode == 53,
+                      let window = self.field?.window, event.window === window else { return event }
+                // While an input method is composing, Esc belongs to it and
+                // drops the candidate; the next one cancels the level.
+                if (window.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
                 self.finish(self.onCancel)
                 return nil
             }

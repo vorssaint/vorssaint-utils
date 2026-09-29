@@ -96,10 +96,14 @@ struct MenuPanelView: View {
     /// Cap the panel to the usable screen height so it never overflows the menu
     /// bar; taller content scrolls inside. Measured against the display the
     /// menu bar icon is on, which is not always the one holding the key window.
+    /// The popover's window is the panel plus 13 pt for the arrow and 13 pt
+    /// below it, and a window taller than the usable height makes AppKit open
+    /// the popover beside the icon instead of under it. The cap leaves those
+    /// 26 pt and 2 more.
     private var maxHeight: CGFloat {
         let anchored = PanelInteractionState.shared.anchorScreen
             .flatMap { anchor in anchor.isStillAttached ? anchor : nil }
-        return max(360, ((anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760) - 24)
+        return max(360, ((anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760) - 28)
     }
 
     var body: some View {

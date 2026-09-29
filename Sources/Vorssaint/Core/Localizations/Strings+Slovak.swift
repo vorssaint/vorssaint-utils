@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Keď je vypnuté, zobrazí okná zo všetkých plôch. Výberom okna na inej ploche prejdete na ňu.",
         dockPreviewBackgroundOpacity: "Pozadie panela",
         dockPreviewBackgroundOpacityCaption: "Znížte ho, aby bolo viac vidieť to, čo je za panelom.",
+        dockPreviewBackgroundOpacityGlassCaption: "Efekt Liquid Glass je zapnutý, preto sa priehľadnosť panela nastavuje v časti Systémové nastavenia > Vzhľad.",
         dockPreviewOpenDelay: "Oneskorenie otvorenia",
         dockPreviewOpenDelayCaption: "Ako dlho musí kurzor ostať na ikone, kým sa jej panel otvorí.",
         dockPreviewQuitAppOnClose: "Tlačidlom × ukončiť aplikáciu",
