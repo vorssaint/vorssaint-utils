@@ -119,7 +119,7 @@ struct ClipboardQuickPanelView: View {
                         }
                     }
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.bottom, Self.listVerticalInset)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .background(ScrollBounceDisabler())
@@ -146,12 +146,15 @@ struct ClipboardQuickPanelView: View {
     /// wrapped, the whole section becomes one lazy unit and builds every row.
     private static let eagerRowLimit = 300
 
+    private static let listVerticalInset: CGFloat = 6
+
     /// Above the first section's header, which scrolling to the first row
-    /// would leave cut off.
+    /// would leave cut off. It is the list's top inset itself, so scrolling
+    /// it to the top lands exactly where a first open starts.
     private static let topAnchorID = "clipboard-list-top"
 
     private var topAnchor: some View {
-        Color.clear.frame(height: 0).id(Self.topAnchorID)
+        Color.clear.frame(height: Self.listVerticalInset).id(Self.topAnchorID)
     }
 
     @ViewBuilder
