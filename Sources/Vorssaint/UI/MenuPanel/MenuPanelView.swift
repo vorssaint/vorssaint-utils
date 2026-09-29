@@ -96,10 +96,14 @@ struct MenuPanelView: View {
     /// Cap the panel to the usable screen height so it never overflows the menu
     /// bar; taller content scrolls inside. Measured against the display the
     /// menu bar icon is on, which is not always the one holding the key window.
+    /// The popover's window is the panel plus 13 pt for the arrow and 13 pt
+    /// below it, and a window taller than the usable height makes AppKit open
+    /// the popover beside the icon instead of under it. The cap leaves those
+    /// 26 pt and 2 more.
     private var maxHeight: CGFloat {
         let anchored = PanelInteractionState.shared.anchorScreen
             .flatMap { anchor in anchor.isStillAttached ? anchor : nil }
-        return max(360, ((anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760) - 24)
+        return max(360, ((anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760) - 28)
     }
 
     var body: some View {
@@ -380,6 +384,10 @@ struct MenuPanelView: View {
                         .fill(isActive ? navigationActiveFill : Color.clear)
                 )
                 .help(id.title(l10n.s))
+                // Icon-only tabs: VoiceOver reads the section name, not the
+                // symbol's, and hears which one is showing.
+                .accessibilityLabel(id.title(l10n.s))
+                .accessibilityAddTraits(isActive ? .isSelected : [])
             }
         }
         .padding(4)
@@ -663,14 +671,13 @@ struct UtilitiesSection: View {
                     showPortManagerPanel = false
                 }
             } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(items(editing: editing)) { item in
-                        PanelReorderableItem(item: item,
-                                             isEnabled: editing,
-                                             order: itemOrderBinding,
-                                             dragging: $draggingItem) {
-                            itemView(item, editing: editing)
-                        }
+                PanelRowGroup(items: items(editing: editing), showsDragHandles: editing) { item in
+                    PanelReorderableItem(item: item,
+                                         isEnabled: editing,
+                                         previewsAsCard: true,
+                                         order: itemOrderBinding,
+                                         dragging: $draggingItem) {
+                        itemView(item, editing: editing)
                     }
                 }
             }
@@ -814,6 +821,7 @@ struct UtilitiesSection: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showClipboard,
+                                captionStaysVisible: !clipboardEnabled,
                                 shortcutHint: shortcutHint(.clipboard),
                                 action: {
                                     showClipboardPanel = true
@@ -914,6 +922,7 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showScreenRecorder,
                                 needsAttention: !permissions.screenRecording,
+                                captionStaysVisible: recorder.isRecording,
                                 permissionButtonTitle: l10n.s.permissionRequest,
                                 permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
                                 shortcutHint: shortcutHint(.screenRecorder),
@@ -1247,9 +1256,10 @@ struct QuickControlsSection: View {
             VStack(alignment: .leading, spacing: 7) {
                 categoryHeader(category, items: categoryItems, editing: editing)
                 if editing || isExpanded(category) {
-                    ForEach(categoryItems) { item in
+                    PanelRowGroup(items: categoryItems, showsDragHandles: editing) { item in
                         PanelReorderableItem(item: item,
                                              isEnabled: editing,
+                                             previewsAsCard: true,
                                              order: itemOrderBinding,
                                              dragging: $draggingItem) {
                             itemView(item, editing: editing)
@@ -1489,7 +1499,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .switcher:
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 0) {
                 PanelToggleRow(title: l10n.s.switcherSection,
                                caption: switcherCaption,
                                systemImage: "rectangle.on.rectangle",
@@ -1515,7 +1525,7 @@ struct QuickControlsSection: View {
                 }
             }
         case .keyDebounce:
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 0) {
                 PanelToggleRow(title: l10n.s.keyDebounceName,
                                caption: keyDebounceCaption,
                                systemImage: "keyboard",
@@ -1909,7 +1919,7 @@ struct QuickControlsSection: View {
             }
         }
         .controlSize(.small)
-        .padding(.leading, 28)
+        .panelSubRowInsets()
     }
 
     private var keyDebounceWindowBinding: Binding<Int> {
@@ -1944,31 +1954,26 @@ struct QuickControlsSection: View {
     }
 
     private var switcherIconRowOption: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
-                let title = String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString)
-                Text(title)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                Toggle(title, isOn: $switcherIconRowMode)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .disabled(switcherSimpleMode)
-                    .onChange(of: switcherIconRowMode) { _, _ in
-                        AppSwitcher.shared.syncWithPreferences()
-                    }
-            }
-            Text(l10n.s.switcherIconRowModeCaption)
-                .font(.system(size: 9.5))
-                .foregroundStyle(.tertiary)
+        HStack(spacing: 8) {
+            let title = String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString)
+            Text(title)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Toggle(title, isOn: $switcherIconRowMode)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(switcherSimpleMode)
+                .accessibilityHint(l10n.s.switcherIconRowModeCaption)
+                .onChange(of: switcherIconRowMode) { _, _ in
+                    AppSwitcher.shared.syncWithPreferences()
+                }
         }
-        .padding(.leading, 31)
-        .padding(.trailing, 4)
-        .padding(.bottom, 2)
+        .help(l10n.s.switcherIconRowModeCaption)
+        .panelSubRowInsets()
     }
 
     private var switcherPermissionAction: (() -> Void)? {
@@ -2015,6 +2020,11 @@ struct UtilityActionButton: View {
     var showsDragHandle = false
     var visibility: Binding<Bool>? = nil
     var needsAttention = false
+    /// The caption reports something happening now or warns about a side
+    /// effect (a recording's time, a failed action, the Finder restarting),
+    /// so it stays on the row the way a permission note does. Any other
+    /// caption only describes the tool.
+    var captionStaysVisible = false
     var permissionButtonTitle: String? = nil
     var permissionAction: (() -> Void)? = nil
     /// The feature's enabled global shortcut, shown as a quiet key hint so
@@ -2024,12 +2034,13 @@ struct UtilityActionButton: View {
     var accessorySystemImage: String? = nil
     var accessoryAction: (() -> Void)? = nil
     let action: () -> Void
+    @State private var hovering = false
 
     var body: some View {
         Group {
             if isEditing {
                 rowContent(showChevron: false)
-                    .panelCard()
+                    .panelRowInsets()
             } else if permissionAction != nil || accessoryAction != nil {
                 VStack(alignment: .leading, spacing: 7) {
                     if permissionAction != nil {
@@ -2045,15 +2056,27 @@ struct UtilityActionButton: View {
                     }
                     .padding(.leading, 31)
                 }
-                .panelCard()
+                .panelRowInsets()
             } else {
                 Button(action: action) {
                     rowContent(showChevron: true)
-                        .panelCard()
+                        .panelRowInsets()
+                        .background(PanelRowHighlight(isVisible: hovering))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering = $0 }
             }
         }
+        .panelRowDescription(showsCaption ? nil : caption)
+    }
+
+    /// The panel is where tools are used, and the Features page and Settings
+    /// explain them. A plain description waits in the tooltip and the
+    /// VoiceOver help, so the list stays one line per tool. It comes back in
+    /// edit mode, where deciding what to keep is the whole point.
+    private var showsCaption: Bool {
+        needsAttention || captionStaysVisible || isEditing
     }
 
     private var mainButton: some View {
@@ -2077,14 +2100,14 @@ struct UtilityActionButton: View {
     }
 
     private func rowContent(showChevron: Bool) -> some View {
-        HStack(spacing: 9) {
+        HStack(spacing: PanelRowMetrics.iconSpacing) {
             if isEditing && showsDragHandle {
                 PanelDragHandle()
             }
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(iconColor)
-                .frame(width: 22)
+                .frame(width: PanelRowMetrics.iconWidth)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
                     Text(title)
@@ -2096,10 +2119,12 @@ struct UtilityActionButton: View {
                         PanelBetaBadge(text: badge)
                     }
                 }
-                Text(caption)
-                    .font(.system(size: 10))
-                    .foregroundStyle(captionColor)
-                    .fixedSize(horizontal: false, vertical: true)
+                if showsCaption {
+                    Text(caption)
+                        .font(.system(size: 10))
+                        .foregroundStyle(captionColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 0)
             if isEditing, let visibility {
@@ -2170,25 +2195,33 @@ struct PanelToggleRow: View {
     var needsAttention = false
     var permissionButtonTitle: String? = nil
     var permissionAction: (() -> Void)? = nil
-    /// Optional inline action under the caption (e.g. "Open the shelf (3)"),
+    /// Optional inline action under the title (e.g. "Open the shelf (3)"),
     /// shown only outside edit mode.
     var accessoryTitle: String? = nil
     var accessoryAction: (() -> Void)? = nil
 
     var body: some View {
         rowContent
-            .panelCard()
+            .panelRowInsets()
+            .panelRowDescription(showsCaption ? nil : caption)
+    }
+
+    /// Only a problem to fix is spelled out on the row, and every description
+    /// in edit mode. Otherwise what the switch does is the tooltip, like on
+    /// every other panel row.
+    private var showsCaption: Bool {
+        needsAttention || isEditing
     }
 
     private var rowContent: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: PanelRowMetrics.iconSpacing) {
             if isEditing && showsDragHandle {
                 PanelDragHandle()
             }
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(iconColor)
-                .frame(width: 22)
+                .frame(width: PanelRowMetrics.iconWidth)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     Text(title)
@@ -2200,10 +2233,12 @@ struct PanelToggleRow: View {
                         PanelBetaBadge(text: badge)
                     }
                 }
-                Text(caption)
-                    .font(.system(size: 10))
-                    .foregroundStyle(captionColor)
-                    .fixedSize(horizontal: false, vertical: true)
+                if showsCaption {
+                    Text(caption)
+                        .font(.system(size: 10))
+                        .foregroundStyle(captionColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if isActive, let activeText {
                     Label(activeText, systemImage: "checkmark.circle.fill")
                         .font(.system(size: 9.5, weight: .medium))
@@ -2248,6 +2283,7 @@ struct PanelToggleRow: View {
                 .labelsHidden()
                 .controlSize(.small)
                 .toggleStyle(.switch)
+                .accessibilityHint(showsCaption ? "" : caption)
         }
     }
 
@@ -2264,6 +2300,116 @@ struct PanelToggleRow: View {
 
     private var isHiddenInEditor: Bool {
         isEditing && visibility?.wrappedValue == false
+    }
+}
+
+// MARK: - Grouped rows
+
+/// Spacing shared by the rows inside a `PanelRowGroup`. The insets match
+/// the padding of the other panel cards, so a row's text lines up with
+/// them, and separators start under the titles rather than the icons.
+enum PanelRowMetrics {
+    static let iconWidth: CGFloat = 22
+    static let iconSpacing: CGFloat = 9
+    static let dragHandleWidth: CGFloat = 16
+
+    static func horizontalInset(island: Bool) -> CGFloat { island ? 12 : 10 }
+
+    static func verticalInset(island: Bool) -> CGFloat { island ? 10 : 8 }
+
+    static func separatorInset(island: Bool) -> CGFloat {
+        horizontalInset(island: island) + iconWidth + iconSpacing
+    }
+}
+
+/// One card for a list of panel rows, split by hairlines the way the mixer
+/// lists its apps: a long list reads as one block instead of a stack of
+/// separate boxes, and every row stays its own target.
+struct PanelRowGroup<Item: Hashable, Row: View>: View {
+    let items: [Item]
+    /// Edit mode puts a drag handle before every icon, so the separators
+    /// move over with the titles.
+    var showsDragHandles = false
+    @ViewBuilder let row: (Item) -> Row
+    @Environment(\.notchPresentation) private var notchPresentation
+
+    var body: some View {
+        if !items.isEmpty {
+            rows
+        }
+    }
+
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element) { index, item in
+                if index > 0 {
+                    Divider()
+                        .padding(.leading, PanelRowMetrics.separatorInset(island: notchPresentation)
+                                    + (showsDragHandles ? PanelRowMetrics.dragHandleWidth + PanelRowMetrics.iconSpacing : 0))
+                        .padding(.trailing, PanelRowMetrics.horizontalInset(island: notchPresentation))
+                        .accessibilityHidden(true)
+                }
+                row(item)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .panelCard(interactive: false, padded: false)
+    }
+}
+
+/// The hover fill of a tappable row, inset from the group's edges so it
+/// never crosses the rounded corners of the card around it.
+struct PanelRowHighlight: View {
+    let isVisible: Bool
+    @Environment(\.notchPresentation) private var notchPresentation
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: notchPresentation ? 14 : 7, style: .continuous)
+            .fill((notchPresentation ? Color.white : Color.primary)
+                .opacity(isVisible ? (notchPresentation ? 0.08 : 0.06) : 0))
+            .padding(notchPresentation ? 4 : 3)
+    }
+}
+
+private struct PanelRowInsets: ViewModifier {
+    @Environment(\.notchPresentation) private var notchPresentation
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, PanelRowMetrics.horizontalInset(island: notchPresentation))
+            .padding(.vertical, PanelRowMetrics.verticalInset(island: notchPresentation))
+    }
+}
+
+private struct PanelSubRowInsets: ViewModifier {
+    @Environment(\.notchPresentation) private var notchPresentation
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.leading, PanelRowMetrics.separatorInset(island: notchPresentation))
+            .padding(.trailing, PanelRowMetrics.horizontalInset(island: notchPresentation))
+            .padding(.bottom, PanelRowMetrics.verticalInset(island: notchPresentation))
+    }
+}
+
+extension View {
+    /// The padding a row gets inside a `PanelRowGroup`.
+    func panelRowInsets() -> some View {
+        modifier(PanelRowInsets())
+    }
+
+    /// An option that belongs to the row above it, such as the switcher's
+    /// large icons, lined up under that row's title.
+    func panelSubRowInsets() -> some View {
+        modifier(PanelSubRowInsets())
+    }
+
+    /// A row's description as its tooltip, and through it the VoiceOver
+    /// help, whenever the row does not print it. An empty help keeps the
+    /// row one view while its caption comes and goes, so a switch that turns
+    /// on into a permission note is not rebuilt mid-animation.
+    func panelRowDescription(_ description: String?) -> some View {
+        help(description ?? "")
     }
 }
 

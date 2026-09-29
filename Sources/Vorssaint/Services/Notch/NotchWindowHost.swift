@@ -86,6 +86,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             guard let self else { return nil }
             return self.currentGeometry.screen.midX - self.panel.frame.minX - self.canvas.convert(CGPoint.zero, to: nil).x
         }
+        canvas.setFloatingGap(geometry.floatingGap)
         canvas.layoutSubtreeIfNeeded()
         appliedFrame = panel.frame
         overlaySpace?.add(panel)
@@ -142,6 +143,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     func present(size: CGSize, geometry: NotchGeometry, animated: Bool, transitionContent: NotchContentTransition = .none,
                  quickAccess: NotchQuickAccessConfiguration? = nil, revealFromHidden: Bool = false,
                  hideWhenSettled: Bool = false, usesGlass: Bool = false) {
+        // Choosing the capsule or the notch redraws the island at once, even
+        // at a size it already has.
+        canvas.setFloatingGap(geometry.floatingGap)
         hidesWhenSettled = hideWhenSettled
         if hideWhenSettled {
             if mouseEventsBeforeHide == nil {
@@ -179,6 +183,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let changesFrame = revealing || (hideWhenSettled && !canAnimate) || size != targetSize
             || frame != previousFrame || (!isAnimating && panel.frame != appliedFrame)
         targetUsesGlass = usesGlass
+        if canvas.backdropPresentation.stripHeight != geometry.stripHeight {
+            canvas.backdropPresentation.stripHeight = geometry.stripHeight
+        }
         if canAnimate && changesFrame && (usesGlass || canvas.usesGlass) {
             // Glass closing into a black strip shuts as its page leaves, so the
             // empty shell never shows the windows beneath it; opening out of one
@@ -210,7 +217,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         // reveal at the screen edge, even when reopening at that same size.
         let previousWidth = revealing ? geometry.collapsed.width : canvas.bounds.width
         let previousPath = revealing
-            ? NotchShape(attached: true, radius: 0)
+            ? NotchShape(attached: true, radius: 0, floatingGap: geometry.floatingGap)
                 .path(in: CGRect(x: 0, y: 0, width: previousWidth, height: 0)).cgPath
             : canvas.visiblePath
         let sameScreen = geometry.screen == currentGeometry.screen
@@ -224,7 +231,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             return
         }
 
-        let start = canvas.surfaceSize(of: previousPath)
+        let start = revealing ? canvas.surfaceSize(of: previousPath) : canvas.visibleSize ?? canvas.surfaceSize(of: previousPath)
         // Room for the swing past a larger target, and for everything already reserved.
         var envelope = NotchMotion.envelope(from: start, to: size)
         if !revealing {
@@ -608,6 +615,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     var backdropProbeIndependent: Bool { canvas.backdropProbeIndependent }
     var backdropProbeFollowsSilhouette: Bool { canvas.backdropProbeFollowsSilhouette }
     var silhouetteProbePath: CGPath? { canvas.visiblePath }
+    var silhouetteProbeFloatingGap: CGFloat? { canvas.floatingGap }
+    var outlineProbeAllRound: Bool { canvas.outlineProbeAllRound }
     /// The size the running resize started from.
     var motionProbeStart: CGSize? { canvas.motionProbeStart }
     var backdropProbeContour: Path { canvas.backdropPresentation.contour }
@@ -955,6 +964,11 @@ private final class NotchCanvas: NSView {
     var hoverChanged: ((Bool) -> Void)?
     private let silhouette = CAShapeLayer()
     private let edge = CAShapeLayer()
+    private let edgeMask = CALayer()
+    /// Nil hangs the island from the top edge; a capsule floats this far inside it.
+    private(set) var floatingGap: CGFloat?
+    /// The size the silhouette's model path was drawn for.
+    private var silhouetteSize = CGSize.zero
     private var outlineEnabled = false
     private var outlineColor = NSColor.white
     private let contentVisibility = CALayer()
@@ -995,7 +1009,6 @@ private final class NotchCanvas: NSView {
         edge.zPosition = 2
         // The island hangs from the top of the screen, so its outline leaves
         // that side open instead of drawing a line along the screen's edge.
-        let edgeMask = CALayer()
         edgeMask.backgroundColor = NSColor.black.cgColor
         edgeMask.frame = CGRect(x: -10_000, y: Self.outlineTopGap, width: 20_000, height: 20_000)
         edge.mask = edgeMask
@@ -1047,6 +1060,22 @@ private final class NotchCanvas: NSView {
         updateContrast()
     }
 
+    /// Switching between the capsule and the hanging outline redraws the
+    /// resting island at once. A capsule's outline goes all the way round:
+    /// it floats clear of the screen's edge.
+    func setFloatingGap(_ gap: CGFloat?) {
+        guard floatingGap != gap else { return }
+        floatingGap = gap
+        stopMotion()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        edgeMask.frame.origin.y = gap == nil ? Self.outlineTopGap : -10_000
+        CATransaction.commit()
+        backdropPresentation.floatingGap = gap ?? 0
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+    }
+
     /// The inner half of the widest outline stroke, left undrawn at the top.
     static let outlineTopGap: CGFloat = 1
 
@@ -1055,6 +1084,11 @@ private final class NotchCanvas: NSView {
     var outlineProbeTopOpen: Bool {
         guard let mask = edge.mask else { return false }
         return mask.frame.minY >= edge.lineWidth / 2 && mask.frame.minY <= Self.outlineTopGap
+    }
+    /// Nothing of the outline is masked, as around a floating capsule.
+    var outlineProbeAllRound: Bool {
+        guard let mask = edge.mask else { return true }
+        return mask.frame.minY < -edge.lineWidth
     }
 
     func setFileDropActions(_ actions: NotchFileDropActions?) {
@@ -1161,16 +1195,31 @@ private final class NotchCanvas: NSView {
         return path.copy(using: &offset) ?? path
     }
 
-    /// The island's size as drawn, from the top edge.
+    /// The island's size as drawn, from the top edge: a floating capsule
+    /// still counts the menu bar around it, as its window and hover do.
     func surfaceSize(of path: CGPath) -> CGSize {
         let box = path.boundingBoxOfPath
+        guard !box.isNull else { return .zero }
+        if let floatingGap { return NotchLayout.capsuleSurface(ofBody: box, gap: floatingGap) }
         return CGSize(width: box.width, height: max(0, box.maxY))
     }
 
-    var visibleSize: CGSize? { visiblePath.map(surfaceSize) }
+    /// At rest, exactly the size the silhouette was drawn for.
+    var visibleSize: CGSize? {
+        guard let path = visiblePath else { return nil }
+        guard silhouette.animation(forKey: Self.motionKey) != nil else { return silhouetteSize }
+        return surfaceSize(of: path)
+    }
 
     func containsVisiblePoint(_ point: CGPoint) -> Bool {
-        visiblePath?.contains(point) ?? false
+        guard let path = visiblePath else { return false }
+        if path.contains(point) { return true }
+        // The menu bar above a capsule is still the island's, as the top edge
+        // of a hanging one is: a click at the screen's edge opens it.
+        guard floatingGap != nil else { return false }
+        let box = path.boundingBoxOfPath
+        guard !box.isNull, box.width > 0, point.x >= box.minX, point.x <= box.maxX else { return false }
+        return point.y >= 0 && point.y <= box.minY
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -1202,7 +1251,8 @@ private final class NotchCanvas: NSView {
     /// in the mask layer's own coordinates.
     func silhouettePath(for size: CGSize) -> CGPath {
         var translation = CGAffineTransform(translationX: islandX(size) - silhouette.frame.minX, y: 0)
-        let path = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height))
+        let path = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height),
+                              floatingGap: floatingGap)
             .path(in: CGRect(origin: .zero, size: size)).cgPath
         return path.copy(using: &translation) ?? path
     }
@@ -1216,6 +1266,7 @@ private final class NotchCanvas: NSView {
         motionStart = nil
         motionTimeline = motion.map { (animation.beginTime > 0 ? animation.beginTime : CACurrentMediaTime(), $0.from, $0.to) }
         silhouette.path = silhouettePath(for: contentSize)
+        silhouetteSize = contentSize
         edge.path = silhouette.path
         silhouette.add(animation, forKey: Self.motionKey)
         if let from { setBackdropContour(inCanvas(from)) }
@@ -1508,7 +1559,8 @@ private final class NotchCanvas: NSView {
             silhouette.frame = maskFrame
             edge.frame = maskFrame
         }
-        silhouette.path = silhouettePath(for: motionStart ?? contentSize)
+        silhouetteSize = motionStart ?? contentSize
+        silhouette.path = silhouettePath(for: silhouetteSize)
         edge.path = silhouette.path
         updateContrast()
         // Keep foreground layout fixed inside the reserved reveal area. Only

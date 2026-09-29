@@ -144,7 +144,7 @@ struct PanelClipboardView: View {
             // below it. The history window shows the full, selectable text.
             HStack(alignment: .center, spacing: 7) {
                 if let color = entry.color {
-                    ClipboardColorSwatch(color: color, size: 12)
+                    ColorSwatch(color: color, size: 12)
                 }
                 Text(entry.preview)
                     .font(.system(size: 10.5))

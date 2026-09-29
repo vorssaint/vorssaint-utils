@@ -29,6 +29,11 @@ final class NotchNotificationService: ObservableObject {
     private var reading = false
     private var rescan = false
     private var running = false
+    /// Banners the island shows, whose originals stay out of sight.
+    private var shownIDs = Set<UUID>()
+    private var closingIDs = Set<UUID>()
+    private var placing = false
+    private var hidesNative = false
     private let notifications = [kAXWindowCreatedNotification, kAXLayoutChangedNotification,
                                  kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification]
 
@@ -37,6 +42,7 @@ final class NotchNotificationService: ObservableObject {
     func syncWithPreferences() {
         guard NotchNotificationSupport.isEnabled(), Permissions.shared.accessibility else { stop(); return }
         running = true
+        placeNative()
         if workspaceObservers.isEmpty {
             for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
                 workspaceObservers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) {
@@ -56,9 +62,16 @@ final class NotchNotificationService: ObservableObject {
         detach()
         guard let nextPID else { return }
         var created: AXObserver?
-        let callback: AXObserverCallback = { _, _, _, context in
+        let callback: AXObserverCallback = { _, _, name, context in
             guard let context else { return }
-            Unmanaged<NotchNotificationService>.fromOpaque(context).takeUnretainedValue().scheduleScan()
+            let service = Unmanaged<NotchNotificationService>.fromOpaque(context).takeUnretainedValue()
+            // A new window usually brings a banner, laid out a few hundredths
+            // of a second later. Reading it then lets a hidden original leave
+            // before it slides in. The regular pass still follows.
+            if name as String == kAXWindowCreatedNotification {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak service] in service?.scan() }
+            }
+            service.scheduleScan()
         }
         guard AXObserverCreate(nextPID, callback, &created) == .success, let created else { return }
         let app = AXUIElementCreateApplication(nextPID)
@@ -81,7 +94,12 @@ final class NotchNotificationService: ObservableObject {
         guard monitoring else { return }
         if reading { rescan = true; return }
         guard pendingScan == nil else { return }
-        let work = DispatchWorkItem { [weak self] in self?.pendingScan = nil; self?.scan() }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingScan = nil
+            // An early read may still be running. This pass must follow it.
+            if self.reading { self.rescan = true } else { self.scan() }
+        }
         pendingScan = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
     }
@@ -97,6 +115,7 @@ final class NotchNotificationService: ObservableObject {
                 guard let self, self.generation == requested else { return }
                 self.reading = false
                 if let snapshot { self.accept(snapshot.items) }
+                self.placeNative()
                 if self.rescan { self.rescan = false; self.scheduleScan() }
             }
         }
@@ -118,6 +137,9 @@ final class NotchNotificationService: ObservableObject {
         for item in live {
             if let identifier = sources[item.content.app] ?? nil { sourceApplications[item.id] = identifier }
         }
+        let liveIDs = Set(live.map(\.id))
+        shownIDs.formIntersection(liveIDs)
+        closingIDs.formIntersection(liveIDs)
         let arrivals = inbox.update(live)
         trimIcons()
         for item in arrivals { received.send(item) }
@@ -135,7 +157,48 @@ final class NotchNotificationService: ObservableObject {
         trimIcons()
     }
 
-    func closeNative(_ id: UUID) {
+    /// The island shows this banner, so its original can leave the screen.
+    func hideNative(_ id: UUID) {
+        guard monitoring, NotchNotificationSupport.dismissesNative(),
+              items.contains(where: { $0.id == id }) else { return }
+        guard NotchNotificationSupport.movesNativeWindow else {
+            if closingIDs.insert(id).inserted { closeNative(id) }
+            return
+        }
+        shownIDs.insert(id)
+        placeNative()
+    }
+
+    /// Runs once the current pass is over, when the island has already taken
+    /// or passed over every banner that just arrived.
+    private func placeNative() {
+        guard monitoring, !placing, hidesNative || !shownIDs.isEmpty else { return }
+        placing = true
+        let requested = generation
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.generation == requested else { return }
+            self.placing = false
+            guard let reader = self.reader else { return }
+            let shown = NotchNotificationSupport.dismissesNative() ? self.shownIDs : []
+            // Counted as hidden while the move is on its way, so stopping waits for it.
+            self.hidesNative = self.hidesNative || !shown.isEmpty
+            self.queue.async { [weak self] in
+                let failed = reader.hideNative(shown)
+                let hidden = reader.hidesWindows
+                DispatchQueue.main.async {
+                    guard let self, self.generation == requested else { return }
+                    self.hidesNative = hidden
+                    // Closed instead, so later passes do not move its window again.
+                    self.shownIDs.subtract(failed)
+                    for id in failed where self.closingIDs.insert(id).inserted { self.closeNative(id) }
+                }
+            }
+        }
+    }
+
+    /// Where a window cannot be moved, the original is closed instead after
+    /// a short grace for its sound.
+    private func closeNative(_ id: UUID) {
         guard monitoring, NotchNotificationSupport.dismissesNative(),
               items.contains(where: { $0.id == id }) else { return }
         let requested = generation
@@ -182,7 +245,11 @@ final class NotchNotificationService: ObservableObject {
     }
 
     private func detach() {
+        // Nothing may stay out of sight once mirroring stops, quitting included.
+        // Cancelling first ends a read in flight at its next step, and the wait
+        // still covers a move on its way, even one a later pass just queued.
         cancellation.cancel()
+        if let reader, hidesNative || !shownIDs.isEmpty { queue.sync { reader.showNative() } }
         generation = UUID()
         pendingScan?.cancel(); pendingScan = nil
         if let observer {
@@ -193,6 +260,7 @@ final class NotchNotificationService: ObservableObject {
         }
         observer = nil; application = nil; pid = nil; reader = nil
         monitoring = false; reading = false; rescan = false; openingID = nil
+        shownIDs.removeAll(); closingIDs.removeAll(); placing = false; hidesNative = false
         appIcons.removeAll()
         sourceApplications.removeAll()
         unavailableID = nil

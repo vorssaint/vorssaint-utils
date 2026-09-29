@@ -559,22 +559,97 @@ enum FeatureCatalogTests {
             "setAvailable(AppFeature.allCases, available, enablingFirstInstalls: false)"),
                "install all makes features available without switching on their behavior")
 
+        // Most updating installs never saved an availability, so this list is
+        // what they have: a feature leaving it would vanish for all of them.
+        let installedOnUpdate: Set<String> = [
+            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
+            "scrollInverter", "smoothScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts",
+            "middleClick", "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey",
+            "quitWindowProtection",
+            "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
+            "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
+            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
+            "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview", "radialMenu",
+            "scratchpad", "commandBar", "screenRecorder",
+            "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories",
+            "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
+            "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
+            "connectedDevices",
+        ]
         suite.expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
-                && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.portManager.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.wallpaper.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.audioPriority.availabilityKey] as? Bool) == false
-                && AppFeature.allCases.filter {
-                    $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager && $0 != .wallpaper
-                        && $0 != .audioPriority
-                }.allSatisfy {
+                && Set(AppFeature.allCases.filter {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
+                }.map(\.rawValue)) == installedOnUpdate
+                && AppFeature.allCases.allSatisfy {
+                    AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool == $0.installedByDefault
                 },
-               "new opt-in features ship uninstalled while existing features remain available")
+               "every feature an update already had stays installed and every other one ships uninstalled")
+        suite.expect((AppFeature.availabilityDefaults[AppFeature.linearScroll.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false,
+               "features added after the list was frozen wait on the Features page instead of installing themselves")
+        let linearScrollSuiteName = "com.vorssaint.tests.linear-scroll-availability.\(UUID().uuidString)"
+        if let linearDefaults = UserDefaults(suiteName: linearScrollSuiteName) {
+            Defaults.migrateLinearScrollAvailability(in: linearDefaults)
+            suite.expect(linearDefaults.object(forKey: AppFeature.linearScroll.availabilityKey) == nil,
+                   "linear scrolling stays opt-in where nobody switched it on")
+            linearDefaults.set(true, forKey: DefaultsKey.linearScrollEnabled)
+            Defaults.migrateLinearScrollAvailability(in: linearDefaults)
+            suite.expect(linearDefaults.object(forKey: AppFeature.linearScroll.availabilityKey) as? Bool == true,
+                   "a setup that switched linear scrolling on keeps it installed")
+            linearDefaults.set(false, forKey: AppFeature.linearScroll.availabilityKey)
+            Defaults.migrateLinearScrollAvailability(in: linearDefaults)
+            suite.expect(linearDefaults.object(forKey: AppFeature.linearScroll.availabilityKey) as? Bool == false,
+                   "an uninstall chosen later is never undone by the migration")
+            linearDefaults.removePersistentDomain(forName: linearScrollSuiteName)
+        } else {
+            suite.expect(false, "linear scrolling availability suite can be created")
+        }
+
+        // The Features page offers installed switches that were never turned
+        // on. Only switches nothing else leans on qualify, and only while
+        // they are off and were never saved.
+        let offeredWhenUnused = AppFeature.offeredWhenNeverSwitchedOn
+        suite.expect(!offeredWhenUnused.contains(.notch) && !offeredWhenUnused.contains(.shelf)
+                && !offeredWhenUnused.contains(.textSnippets) && !offeredWhenUnused.contains(.switcher)
+                && !offeredWhenUnused.contains(.radialMenu)
+                && offeredWhenUnused.allSatisfy { !$0.enabledKeys.isEmpty && $0.group != .dynamicIsland },
+               "features other features lean on are never offered for uninstalling as unused")
+        let everythingInstalled: (AppFeature) -> Bool = { _ in true }
+        suite.expect(AppFeature.neverSwitchedOn(isAvailable: everythingInstalled, boolFor: { _ in false },
+                                                isSaved: { _ in false }) == offeredWhenUnused,
+               "an install where nothing was ever switched on offers the whole list")
+        suite.expect(!AppFeature.neverSwitchedOn(isAvailable: everythingInstalled, boolFor: { _ in false },
+                                                 isSaved: { $0 == DefaultsKey.superKeyEnabled }).contains(.superKey),
+               "a switch turned on and back off keeps its feature off the offer")
+        suite.expect(!AppFeature.neverSwitchedOn(isAvailable: everythingInstalled,
+                                                 boolFor: { $0 == DefaultsKey.dockClickHide },
+                                                 isSaved: { _ in false }).contains(.dockClick),
+               "any one switch that is on keeps a feature with several switches")
+        suite.expect(!AppFeature.neverSwitchedOn(isAvailable: { $0 != .windowMaximizer }, boolFor: { _ in false },
+                                                 isSaved: { _ in false }).contains(.windowMaximizer),
+               "an uninstalled feature is never offered")
+        // The scroll axes migration saves the horizontal switch on every Mac
+        // at launch, before any registered default exists.
+        let migratedAxesSuiteName = "com.vorssaint.tests.never-switched-on.\(UUID().uuidString)"
+        if let migratedAxesDefaults = UserDefaults(suiteName: migratedAxesSuiteName) {
+            Defaults.migrateScrollInverterAxes(in: migratedAxesDefaults)
+            let migrated = migratedAxesDefaults.persistentDomain(forName: migratedAxesSuiteName) ?? [:]
+            suite.expect(migrated[DefaultsKey.scrollInverterHorizontalEnabled] != nil
+                    && AppFeature.neverSwitchedOn(isAvailable: everythingInstalled, boolFor: { _ in false },
+                                                  isSaved: { migrated[$0] != nil }).contains(.scrollInverter),
+                   "the scroll direction a launch migration saved still counts as never switched on")
+            migratedAxesDefaults.removePersistentDomain(forName: migratedAxesSuiteName)
+        } else {
+            suite.expect(false, "never switched on migration suite can be created")
+        }
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.featureHubKeptFeatures),
+               "features someone chose to keep travel in backups, so a restored Mac never offers them again")
+        let hubUndoSource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift",
+                                         encoding: .utf8)) ?? ""
+        suite.expect(hubUndoSource.contains("setAvailable(batch, true, enablingFirstInstalls: false)"),
+               "undoing the offer reinstalls without switching on what was never on")
         suite.expect(FeatureGroup.allCases.map { AppFeature.features(in: $0).count }.reduce(0, +)
                 == AppFeature.allCases.count,
                "every feature belongs to exactly one group")
@@ -1688,13 +1763,31 @@ enum FeatureCatalogTests {
                 && AppFeature.textSnippets.energyProfile == .inputs
                 && AppFeature.dockPreview.energyProfile == .mouse
                 && AppFeature.mouseClickDebounce.energyProfile == .mouse
-                && AppFeature.switcher.energyProfile == .keyboard
+                && AppFeature.switcher.energyProfile == .inputs
                 && AppFeature.finderRename.energyProfile == .keyboard
+                && AppFeature.musicBlock.energyProfile == .keyboard
                 && AppFeature.colorPicker.energyProfile == .idle
                 && AppFeature.keepAwake.energyProfile == .idle
-                && AppFeature.brightness.energyProfile == .idle
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
+        let brightnessEnergyKeys = [DefaultsKey.brightnessKeysEnabled, DefaultsKey.brightnessOSDEnabled,
+                                    DefaultsKey.brightnessKeyStep]
+        let previousBrightnessEnergy = brightnessEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
+        func brightnessEnergy(followsPointer: Bool = false, overlay: Bool = false,
+                              step: BrightnessSupport.KeyStep = .standard) -> FeatureEnergyProfile {
+            UserDefaults.standard.set(followsPointer, forKey: DefaultsKey.brightnessKeysEnabled)
+            UserDefaults.standard.set(overlay, forKey: DefaultsKey.brightnessOSDEnabled)
+            UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.brightnessKeyStep)
+            return AppFeature.brightness.energyProfile
+        }
+        suite.expect(brightnessEnergy() == .idle
+                && brightnessEnergy(followsPointer: true) == .keyboard
+                && brightnessEnergy(overlay: true) == .keyboard
+                && brightnessEnergy(step: .half) == .keyboard,
+               "brightness listens to the keyboard only while an option answers its keys")
+        for (key, value) in zip(brightnessEnergyKeys, previousBrightnessEnergy) {
+            UserDefaults.standard.set(value, forKey: key)
+        }
         let previousWindowGestureEnergy = UserDefaults.standard.object(
             forKey: DefaultsKey.windowGestureEnabled
         )

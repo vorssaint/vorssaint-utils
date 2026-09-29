@@ -304,6 +304,7 @@ struct RadialMenuSettings: View {
             isEnabled: enabled,
             text: text,
             l10n: l10n,
+            conflictTitle: { shortcutConflictTitle($0, excluding: profile.id) },
             onChange: {
                 persist()
             }
@@ -476,6 +477,26 @@ struct RadialMenuSettings: View {
         RadialMenuService.shared.syncWithPreferences()
     }
 
+    /// Who already answers to a combination, named the way the other shortcut
+    /// rows name it. The other wheels come from this page's own list, and
+    /// everything else from the same checks those rows run.
+    private func shortcutConflictTitle(_ shortcut: GlobalShortcut, excluding profileID: UUID) -> String? {
+        if let other = RadialMenuSupport.profile(using: shortcut, in: profiles, excluding: profileID) {
+            return other.displayName(text)
+        }
+        if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: .radialMenu) {
+            return role.title(l10n.s)
+        }
+        if let title = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
+            return title
+        }
+        guard AppFeature.commandBar.isAvailable,
+              let row = CommandBarRowShortcuts.key(for: shortcut, in: CommandBarService.shared.rowShortcuts)
+        else { return nil }
+        return CommandBarService.shared.entryTitle(forStableKey: row)
+            ?? FeatureStrings.commandBar(l10n.language).rowShortcutsTitle
+    }
+
     private func requestAccessibilityIfNeeded(_ on: Bool) {
         guard on, RadialMenuSupport.needsAccessibility(profiles), !permissions.accessibility else { return }
         permissions.requestAccessibility()
@@ -568,6 +589,8 @@ private struct ProfileShortcutRow: View {
     let isEnabled: Bool
     let text: RadialMenuFeatureStrings
     let l10n: L10n
+    /// Names whoever already answers to a combination, or nil when it is free.
+    let conflictTitle: (GlobalShortcut) -> String?
     let onChange: () -> Void
 
     @State private var message: String?
@@ -597,6 +620,10 @@ private struct ProfileShortcutRow: View {
                         message = l10n.s.shortcutInvalid
                     },
                     captureAction: { newShortcut in
+                        if let owner = conflictTitle(newShortcut) {
+                            message = String(format: l10n.s.shortcutConflictFormat, owner)
+                            return
+                        }
                         shortcutValue = newShortcut.storageValue
                         message = nil
                         onChange()

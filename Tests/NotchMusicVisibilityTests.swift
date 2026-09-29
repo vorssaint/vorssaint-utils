@@ -16,6 +16,7 @@ enum NotchMusicVisibilityTests {
         func start() { running = true }
         func stop() { running = false }
     }
+    enum PowerSampler { static var hasInternalBattery = true }
     struct MonitorNeeds {
         var disk = false
         var fanSpeed = false
@@ -80,10 +81,11 @@ enum NotchMusicVisibilityTests {
         var downloadName: String?
         var hasAgentActivity = false
         var timerStripWing: CGFloat = 44
-        func timerStripWing(for companion: NotchCompactActivity?) -> CGFloat { timerStripWing }
+        func timerStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
+        func agentStripWing(in geometry: NotchGeometry) -> CGFloat { agentStripWing }
         var calendarStripWing: CGFloat = 120
-        func calendarStripWing(for companion: NotchCompactActivity?) -> CGFloat { calendarStripWing }
+        func calendarStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { calendarStripWing }
         var notchNeedsMonitor = false
         var heldDrag = false
         var pinned = false
@@ -99,6 +101,8 @@ enum NotchMusicVisibilityTests {
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
         var expandedSize: CGSize { geometry.expanded }
+        var capsuleSurfaceSize: CGSize? { nil }
+        var showsCopies = false
         var captureControlsLayout: NotchCaptureControlsLayout {
             NotchCaptureControlsLayout(geometry: geometry, titleWidth: 90, capturesAudio: false)
         }
@@ -143,6 +147,12 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(!reader.running && service.surfaceSize == closed,
                          "fullscreen keeps a black cutout and stops the automatic playback reader")
+            service.showsCopies = true
+            service.syncVisibleConsumers()
+            suite.expect(reader.running, "copies on other displays keep the song while the island rests in fullscreen")
+            service.showsCopies = false
+            service.syncVisibleConsumers()
+            suite.expect(!reader.running, "without copies fullscreen stops the reader again")
             service.expanded = true
             service.selected = .music
             service.syncVisibleConsumers()
@@ -242,6 +252,15 @@ enum NotchMusicVisibilityTests {
             suite.expect(!reader.running && service.idleContent == .battery && service.compactActivity == nil
                    && service.surfaceSize == service.geometry.restingSize(showsContent: true),
                    "hiding music preserves the chosen battery indicator during active playback")
+            PowerSampler.hasInternalBattery = false
+            service.syncVisibleConsumers()
+            suite.expect(service.idleContent == .none && service.compactActivity == nil && service.surfaceSize == closed,
+                   "a Mac without a battery rests empty instead of showing a battery without its charge")
+            defaults.set(true, forKey: DefaultsKey.notchShowPlayingMusic)
+            service.syncVisibleConsumers()
+            suite.expect(reader.running && service.compactActivity == .music,
+                   "a saved battery choice keeps showing playing music on a Mac without a battery")
+            PowerSampler.hasInternalBattery = true
         }
 
         defaults.set(NotchIdleContent.none.rawValue, forKey: DefaultsKey.notchIdleContent)

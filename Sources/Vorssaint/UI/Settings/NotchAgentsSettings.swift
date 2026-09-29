@@ -62,6 +62,11 @@ struct NotchAgentsSettingsControls: View {
                 }
             }
             Text(text.cardsHint).font(.caption).foregroundStyle(.secondary)
+            // The one card that makes Codex ask the account, said where it is chosen.
+            if codex, cardBinding(.resets).wrappedValue {
+                Text(text.resetsHelp).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol, title: text.limitsAs, selection: $limitDisplay) {
                 Text(text.remaining).tag(NotchAgentLimitDisplay.remaining.rawValue)
                 Text(text.used).tag(NotchAgentLimitDisplay.used.rawValue)

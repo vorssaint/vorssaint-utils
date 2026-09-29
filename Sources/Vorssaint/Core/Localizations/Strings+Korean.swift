@@ -247,6 +247,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "끄면 모든 데스크탑의 윈도우를 표시합니다. 다른 데스크탑의 윈도우를 선택하면 해당 데스크탑으로 이동합니다.",
         dockPreviewBackgroundOpacity: "패널 배경",
         dockPreviewBackgroundOpacityCaption: "낮추면 패널 뒤에 있는 것이 더 많이 보입니다.",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass가 켜져 있어 패널의 투명도는 시스템 설정 > 화면 모드에서 조절됩니다.",
         dockPreviewOpenDelay: "열림 지연",
         dockPreviewOpenDelayCaption: "포인터가 아이콘 위에 머문 뒤 패널이 열리기까지의 시간입니다.",
         dockPreviewQuitAppOnClose: "× 버튼으로 앱 종료",
@@ -1082,6 +1083,8 @@ extension Strings {
         linearScrollCaption: "마우스 휠을 얼마나 빨리 돌리든 한 칸마다 항상 같은 거리만큼 스크롤합니다. 트랙패드는 변경되지 않습니다.",
         linearScrollLinesLabel: "한 칸당 줄 수",
         shelfClearOnClose: "닫을 때 항목 지우기",
-        shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다."
+        shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다.",
+        shelfShortcutFinderSelection: "단축키로 Finder 선택 항목 추가",
+        shelfShortcutFinderSelectionCaption: "Finder가 앞에 있을 때 단축키를 누르면 선택한 파일이 담긴 선반이 열립니다. 아무것도 선택하지 않았다면 평소처럼 열립니다."
     )
 }

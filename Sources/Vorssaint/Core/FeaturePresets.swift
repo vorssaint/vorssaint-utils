@@ -93,9 +93,11 @@ extension AppFeature {
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
              .dockPreview, .dockClick, .shelf:
             return .mouse
-        case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey, .quitWindowProtection:
+        case .keyboardDebounce, .finderCutPaste, .finderRename, .quitWindowProtection, .musicBlock:
             return .keyboard
-        case .textSnippets, .autoQuit:
+        // The switcher's tap also takes clicks and scrolls, and the Super key
+        // stamps its modifiers on mouse presses from a second tap.
+        case .switcher, .superKey, .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
             let edgeSnapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
@@ -124,8 +126,18 @@ extension AppFeature {
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle
+        case .brightness:
+            // Following the pointer, the overlay and a finer step answer the
+            // brightness keys from a tap. Like Accessibility, the island's own
+            // notices are counted under the island.
+            let defaults = UserDefaults.standard
+            return defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
+                || defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
+                || BrightnessSupport.KeyStep.sanitized(
+                    defaults.string(forKey: DefaultsKey.brightnessKeyStep)) != .standard
+                ? .keyboard : .idle
         case .mouseAcceleration, .pastePlain, .soundOutputSwitcher, .audioPriority, .micMute,
-             .musicBlock, .bluetoothSleep, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
+             .bluetoothSleep, .keepAwake, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .wallpaper, .fanControl,
              .diskImageInstaller, .killProcess, .portManager:
