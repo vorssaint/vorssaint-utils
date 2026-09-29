@@ -45,6 +45,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -53,6 +54,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -216,6 +218,38 @@ extension FastReaderFeatureStrings {
         emptySelection: "No había palabras que leer en esa selección",
         truncatedFormat: "Solo se tomaron los primeros %d caracteres",
         accessibilityNeeded: "El atajo necesita Accesibilidad para ver lo que has seleccionado. El menú Servicios funciona sin ella."
+    )
+
+    static let sk = FastReaderFeatureStrings(
+        pageTitle: "Rýchle čítanie",
+        hubDescription: "Číta označený text záblesk po záblesku",
+        panelCaption: "Čítajte označený text bez pohybu očí",
+        serviceMenuItem: "Čítať pomocou Rýchleho čítania",
+        openButton: "Prečítať označený text",
+        speedTitle: "Rýchlosť",
+        speedCaption: "Slová za minútu. Začnite pomalšie, ako sa zdá prirodzené, a postupne pridávajte.",
+        chunkTitle: "Slov naraz",
+        chunkCaption: "Viac slov v jednom záblesku číta rýchlejšie, ale vyžaduje viac pozornosti.",
+        focusPointTitle: "Zvýrazniť oporné písmeno",
+        focusPointCaption: "Zafarbí jedno písmeno každého slova a zarovná ho, aby oči zostali na mieste.",
+        punctuationPauseTitle: "Pozastaviť pri interpunkcii",
+        punctuationPauseCaption: "Pri čiarke sa zdrží o niečo dlhšie a na konci vety ešte dlhšie.",
+        longWordScalingTitle: "Spomaliť pri dlhých slovách",
+        longWordScalingCaption: "Dlhému slovu dá viac času než krátkemu.",
+        surfaceTitle: "Zobraziť",
+        surfaceFloating: "V plávajúcom okne",
+        surfaceNotch: "Okolo kamery",
+        shortcutTitle: "Klávesová skratka",
+        playAction: "Prehrať",
+        pauseAction: "Pozastaviť",
+        restartAction: "Začať odznova",
+        closeHint: "Esc zatvorí",
+        finishedCaption: "Hotovo",
+        progressFormat: "%1$d z %2$d",
+        noSelection: "Označte nejaký text a skúste to znova",
+        emptySelection: "V označenom texte neboli žiadne slová na čítanie",
+        truncatedFormat: "Použilo sa iba prvých %d znakov",
+        accessibilityNeeded: "Skratka potrebuje Prístupnosť, aby videla, čo ste označili. Ponuka Služby funguje aj bez nej."
     )
 
     static let de = FastReaderFeatureStrings(
@@ -472,5 +506,37 @@ extension FastReaderFeatureStrings {
         emptySelection: "所選內容中冇可讀嘅字詞",
         truncatedFormat: "只取用咗頭 %d 個字元",
         accessibilityNeeded: "快速鍵需要輔助功能權限先可以睇到你選取嘅內容。服務選單唔需要呢個權限都可以用。"
+    )
+
+    static let uk = FastReaderFeatureStrings(
+        pageTitle: "Швидке читання",
+        hubDescription: "Показує виділений текст спалахами, блок за блоком",
+        panelCaption: "Читайте виділений текст, не рухаючи очима",
+        serviceMenuItem: "Читати в режимі швидкого читання",
+        openButton: "Прочитати виділене",
+        speedTitle: "Швидкість",
+        speedCaption: "Слів за хвилину. Почніть повільніше, ніж здається природним, і поступово збільшуйте.",
+        chunkTitle: "Слів за раз",
+        chunkCaption: "Більше слів у спалаху прискорює читання, але вимагає більше уваги.",
+        focusPointTitle: "Виділяти опорну літеру",
+        focusPointCaption: "Підсвічує одну літеру кожного слова й вирівнює її, щоб погляд залишався на місці.",
+        punctuationPauseTitle: "Пауза на розділових знаках",
+        punctuationPauseCaption: "Затримується трохи довше на комі й помітно довше в кінці речення.",
+        longWordScalingTitle: "Сповільнюватися на довгих словах",
+        longWordScalingCaption: "Дає довгому слову більше часу, ніж короткому.",
+        surfaceTitle: "Показувати",
+        surfaceFloating: "У плаваючому вікні",
+        surfaceNotch: "Навколо камери",
+        shortcutTitle: "Клавіатурне скорочення",
+        playAction: "Відтворити",
+        pauseAction: "Пауза",
+        restartAction: "Почати спочатку",
+        closeHint: "Esc закриває",
+        finishedCaption: "Готово",
+        progressFormat: "%1$d з %2$d",
+        noSelection: "Виділіть текст і спробуйте ще раз",
+        emptySelection: "У цьому виділенні немає слів для читання",
+        truncatedFormat: "Взято лише перші %d символів",
+        accessibilityNeeded: "Клавіатурному скороченню потрібен дозвіл «Доступність», щоб бачити виділений текст. Меню «Служби» працює і без нього."
     )
 }

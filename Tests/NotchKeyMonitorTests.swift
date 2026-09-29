@@ -82,6 +82,7 @@ enum NotchKeyMonitorTests {
         func handleSectionKey(_ event: NSEvent) -> Bool { false }
         func handleScratchpadKey(_ event: NSEvent) -> Bool { false }
         func handleClipboardPasteKey(_ event: NSEvent) -> Bool { false }
+        func handleFastReaderKey(_ event: NSEvent) -> Bool { false }
         func ownsWindow(_ window: Panel?) -> Bool { window === panel }
     }
 

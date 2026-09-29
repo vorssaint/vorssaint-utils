@@ -1119,9 +1119,7 @@ enum NotchTests {
                "shortcut ordering tolerates duplicate and obsolete identifiers")
         suite.expect(!controls.contains(.volume) && !controls.contains(.screenshot), "individual controls can be hidden")
         defaults.set("", forKey: DefaultsKey.notchHiddenControls)
-        // Neither is in the explicit order above, so both fall to the end in
-        // declaration order; the reader was added after the pad.
-        suite.expect(NotchSupport.controls(in: defaults).suffix(2) == [.scratchpad, .fastReader]
+        suite.expect(NotchSupport.controls(in: defaults).last == .scratchpad
                && NotchQuickAction(id: NotchQuickAction.control(.scratchpad).id) == .control(.scratchpad)
                && NotchQuickAction.optionalActions.contains(.control(.scratchpad)),
                "the scratchpad shortcut can be shown among the controls and placed as a floating button")
@@ -1253,7 +1251,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routesClipboardWindow(in: defaults), "hidden clipboard keeps the ordinary history available")
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .fastReader],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")

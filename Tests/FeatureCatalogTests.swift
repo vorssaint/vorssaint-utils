@@ -754,6 +754,8 @@ enum FeatureCatalogTests {
                 && AppFeature.fastReader.permissions == [.accessibility]
                 && !AppFeature.fastReader.symbolName.isEmpty,
                "Fast Reader lives in Tools, gates its shortcut on Accessibility, and ships a symbol")
+        suite.expect(!AppFeature.fastReader.installedByDefault,
+               "Fast Reader is opt-in, so an update does not grow the panel or Settings on its own")
         suite.expect(AppFeature.bluetoothSleep.settingsDestination
                 == FeatureSettingsDestination(.energy, sectionAnchor: .bluetoothSleep)
                 && AppFeature.bluetoothSleep.settingsDestination.hasValidSectionAnchor
