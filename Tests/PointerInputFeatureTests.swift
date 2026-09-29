@@ -2116,7 +2116,7 @@ enum PointerInputFeatureTests {
         suite.expect(AppFeature.superKey.enabledKeys == [DefaultsKey.superKeyEnabled]
                 && AppFeature.superKey.permissions == [.accessibility]
                 && AppFeature.superKey.group == .mouseKeyboard
-                && AppFeature.superKey.energyProfile == .keyboard,
+                && AppFeature.superKey.energyProfile == .inputs,
                "the hub knows the super key's switch and native input switching needs no Automation")
         suite.expect(FeatureVisibilitySupport.features(for: .superKey) == [.superKey]
                 && !FeatureVisibilitySupport.isPageVisible(.superKey, isAvailable: { _ in false }),

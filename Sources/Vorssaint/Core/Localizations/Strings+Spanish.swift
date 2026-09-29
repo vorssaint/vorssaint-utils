@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Si se desactiva, muestra ventanas de todos los escritorios. Al elegir una ventana de otro escritorio, cambias a él.",
         dockPreviewBackgroundOpacity: "Fondo del panel",
         dockPreviewBackgroundOpacityCaption: "Bájalo para ver más de lo que hay detrás del panel.",
+        dockPreviewBackgroundOpacityGlassCaption: "Con Liquid Glass activado, la transparencia del panel se ajusta en Ajustes del Sistema > Aspecto.",
         dockPreviewOpenDelay: "Retardo de apertura",
         dockPreviewOpenDelayCaption: "Cuánto tiempo debe reposar el puntero sobre un icono antes de que se abra el panel.",
         dockPreviewQuitAppOnClose: "Salir de la app con el botón ×",

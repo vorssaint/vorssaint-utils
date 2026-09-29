@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Kapalıyken tüm masaüstlerindeki pencereleri gösterir. Başka bir masaüstündeki pencereyi seçtiğinizde o masaüstüne geçersiniz.",
         dockPreviewBackgroundOpacity: "Panel arka planı",
         dockPreviewBackgroundOpacityCaption: "Panelin arkasındakileri daha çok görmek için azalt.",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass açık olduğundan panelin saydamlığı Sistem Ayarları > Görünüş bölümünden ayarlanır.",
         dockPreviewOpenDelay: "Açılma gecikmesi",
         dockPreviewOpenDelayCaption: "Panelin açılması için imlecin bir simgenin üzerinde ne kadar bekleyeceği.",
         dockPreviewQuitAppOnClose: "× düğmesiyle uygulamadan çık",
