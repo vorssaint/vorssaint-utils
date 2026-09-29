@@ -237,6 +237,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Коли вимкнено, показує вікна з усіх робочих столів. Вибір вікна на іншому робочому столі перенесе вас туди.",
         dockPreviewBackgroundOpacity: "Фон панелі",
         dockPreviewBackgroundOpacityCaption: "Зменште, щоб бачити більше того, що знаходиться за панеллю.",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass увімкнено, тому прозорість панелі задається в розділі «Системні параметри > Вигляд».",
         dockPreviewOpenDelay: "Затримка відкриття",
         dockPreviewOpenDelayCaption: "Скільки вказівник має залишатися на значку, перш ніж відкриється панель.",
         dockPreviewQuitAppOnClose: "Завершувати програму кнопкою ×",

@@ -330,7 +330,9 @@ enum AgentLogReader {
         var lines: [Range<Int>] = []
         buffer.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
-            var position = 0
+            // What was carried over holds no line break; a long line is
+            // not searched again with every chunk it spans.
+            var position = cursor.pending.count
             while position < count, let found = memchr(base + position, 0x0A, count - position) {
                 let end = base.distance(to: UnsafeRawPointer(found))
                 lines.append(start..<end)
