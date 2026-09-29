@@ -521,15 +521,48 @@ enum WindowLayoutFeatureTests {
         let shrunkTiny = WindowLayoutGeometry.rect(for: .makeSmaller, current: tiny, visibleFrame: visibleFrame)
         suite.expect(shrunkTiny.width == 150 && shrunkTiny.height == WindowLayoutGeometry.resizeMinimumLength,
                "make smaller stops at the minimum length and never enlarges a smaller window")
-        suite.expect(WindowLayoutGeometry.accepts(actualRect: CGRect(x: 392, y: 294, width: 616, height: 412),
-                                            targetRect: CGRect(x: 390, y: 290, width: 620, height: 420),
-                                            action: .makeLarger,
-                                            anchorTolerance: 36)
-                && !WindowLayoutGeometry.accepts(actualRect: CGRect(x: 100, y: 100, width: 620, height: 420),
-                                                 targetRect: CGRect(x: 390, y: 290, width: 620, height: 420),
+        // The delayed readback path: an app that commits the size late is read
+        // back at the old frame first, then at the new size where the window
+        // was positioned for the old one, and only lands once re-anchored.
+        let stepOriginal = steppedWindow
+        let stepTarget = CGRect(x: 390, y: 290, width: 620, height: 420)
+        suite.expect(!WindowLayoutGeometry.stepResizeAccepts(actualRect: stepOriginal,
+                                                            targetRect: stepTarget,
+                                                            originalRect: stepOriginal)
+                && !WindowLayoutGeometry.accepts(actualRect: stepOriginal,
+                                                 targetRect: stepTarget,
                                                  action: .makeLarger,
                                                  anchorTolerance: 36),
-               "a step resize accepts a grid-rounded size but not a window that moved away")
+               "a step resize read back at the old frame is still pending, not landed")
+        let lateCommit = CGRect(origin: stepOriginal.origin, size: stepTarget.size)
+        suite.expect(!WindowLayoutGeometry.stepResizeAccepts(actualRect: lateCommit,
+                                                            targetRect: stepTarget,
+                                                            originalRect: stepOriginal),
+               "a size committed after the window was placed for the old size is not accepted off center")
+        let reanchored = WindowLayoutGeometry.anchoredRect(for: .makeLarger,
+                                                           targetRect: stepTarget,
+                                                           actualSize: lateCommit.size,
+                                                           visibleFrame: visibleFrame)
+        suite.expect(reanchored == stepTarget
+                && WindowLayoutGeometry.stepResizeAccepts(actualRect: reanchored,
+                                                         targetRect: stepTarget,
+                                                         originalRect: stepOriginal),
+               "re-anchoring the late size puts the window back on its center, where it lands")
+        let gridRounded = WindowLayoutGeometry.anchoredRect(for: .makeLarger,
+                                                            targetRect: stepTarget,
+                                                            actualSize: CGSize(width: 616, height: 400),
+                                                            visibleFrame: visibleFrame)
+        suite.expect(WindowLayoutGeometry.stepResizeAccepts(actualRect: gridRounded,
+                                                           targetRect: stepTarget,
+                                                           originalRect: stepOriginal),
+               "a character grid that rounds the width and keeps the height still lands")
+        suite.expect(WindowLayoutGeometry.stepResizeRefused(actualRect: stepOriginal,
+                                                           originalRect: stepOriginal,
+                                                           tolerance: 8)
+                && !WindowLayoutGeometry.stepResizeRefused(actualRect: reanchored,
+                                                           originalRect: stepOriginal,
+                                                           tolerance: 8),
+               "a window that never changed size refused the step, one that resized did not")
         suite.expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame,
                                          screenGap: 32)
                == WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame),

@@ -58,6 +58,12 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         Self.shortcutActions.contains(self)
     }
 
+    /// Make Larger and Make Smaller move from the window's own frame, so they
+    /// are judged against that frame rather than against a screen section.
+    var isStepResize: Bool {
+        self == .makeLarger || self == .makeSmaller
+    }
+
     var targetCapability: WindowLayoutTargetCapability {
         switch self {
         case .center, .restore:
@@ -951,13 +957,10 @@ enum WindowLayoutGeometry {
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
         case .makeLarger, .makeSmaller:
-            // An app that sizes in fixed increments (a terminal's character
-            // grid) lands near the step rather than on it, and one already at
-            // its minimum size keeps it. Neither is a failure worth undoing.
-            return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
-                && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
-                && abs(actualRect.width - targetRect.width) <= anchorTolerance
-                && abs(actualRect.height - targetRect.height) <= anchorTolerance
+            // A whole step is smaller than the anchor tolerance, so the
+            // unchanged frame would pass here. Step resizes are judged by
+            // stepResizeAccepts, which knows the frame before the step.
+            return false
         case .previousDisplay, .nextDisplay:
             return overlap > 0.72
         case .restore:
@@ -965,6 +968,42 @@ enum WindowLayoutGeometry {
         case .fullScreen:
             return false
         }
+    }
+
+    /// How far a step resize may land from its center: less than the one step
+    /// a late resize drifts it by, so that drift is re-anchored, not accepted.
+    static let stepResizeCenterTolerance: CGFloat = 4
+
+    /// Whether a step resize has landed. At least one side must have moved
+    /// from the frame before the step toward the target; an unchanged frame
+    /// means the app has not committed the size yet (or refuses it). A side
+    /// may stop short of or pass the target, as a character grid rounds it,
+    /// and the center must hold, so a size committed after the window was
+    /// positioned for the old one is re-anchored rather than accepted.
+    static func stepResizeAccepts(actualRect: CGRect,
+                                  targetRect: CGRect,
+                                  originalRect: CGRect) -> Bool {
+        func responded(_ actual: CGFloat, _ target: CGFloat, _ original: CGFloat) -> Bool {
+            let wanted = target - original
+            guard abs(wanted) >= 1 else { return false }
+            return (actual - original) * wanted > 0
+        }
+        let widthResponded = responded(actualRect.width, targetRect.width, originalRect.width)
+        let heightResponded = responded(actualRect.height, targetRect.height, originalRect.height)
+        return (widthResponded || heightResponded)
+            && abs(actualRect.midX - targetRect.midX) <= stepResizeCenterTolerance
+            && abs(actualRect.midY - targetRect.midY) <= stepResizeCenterTolerance
+    }
+
+    /// Whether a step resize that never landed was refused rather than lost:
+    /// the window still has the size it had before the step, as an app at its
+    /// minimum size or a grid coarser than the step leaves it. That is a
+    /// no-op to drop quietly, not a failure to report.
+    static func stepResizeRefused(actualRect: CGRect,
+                                  originalRect: CGRect,
+                                  tolerance: CGFloat) -> Bool {
+        abs(actualRect.width - originalRect.width) <= tolerance
+            && abs(actualRect.height - originalRect.height) <= tolerance
     }
 
     static func rectForDisplay(current: CGRect,
