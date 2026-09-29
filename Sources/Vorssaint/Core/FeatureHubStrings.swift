@@ -26,6 +26,7 @@ struct FeatureHubStrings {
     let groupEnergyDisplay: String
     let groupTools: String
     let groupMonitor: String
+    let experimentalBadge: String
     // Permissions portal
     let permissionsIntro: String
     let usedByFormat: String           // "Used by %@"
@@ -125,6 +126,11 @@ struct FeatureHubStrings {
     let notchUninstallMessageFormat: String   // "…: %@. …", the installed extensions' names
     let notchUninstallWithExtensions: String
     let notchUninstallKeepExtensions: String
+    // Installed features never turned on, offered for uninstalling together
+    let neverUsedTitle: String
+    let neverUsedMessageFormat: String   // "…: %@. …" with the feature names
+    let neverUsedUninstall: String
+    let neverUsedKeep: String
 }
 
 extension FeatureStrings {
@@ -168,6 +174,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "에너지 및 디스플레이",
         groupTools: "도구",
         groupMonitor: "시스템 모니터",
+        experimentalBadge: "실험적",
         permissionsIntro: "각 권한의 용도와 사용하는 기능을 확인하세요. 다른 접근 권한은 해당 기능을 사용할 때만 요청합니다.",
         usedByFormat: "사용 중: %@",
         usedByNone: "현재 켜진 기능 중 이 권한을 사용하는 기능이 없습니다.",
@@ -262,7 +269,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Dynamic Island 제거",
         notchUninstallMessageFormat: "다음 확장 기능은 Dynamic Island 안에서만 작동합니다: %@. 함께 제거할까요? 아무것도 삭제되지 않으며 한 번의 클릭으로 모두 되돌릴 수 있습니다.",
         notchUninstallWithExtensions: "확장 기능도 제거",
-        notchUninstallKeepExtensions: "확장 기능 유지"
+        notchUninstallKeepExtensions: "확장 기능 유지",
+        neverUsedTitle: "한 번도 켜지 않은 기능",
+        neverUsedMessageFormat: "다음 기능은 설치되어 있지만 한 번도 켜진 적이 없습니다: %@. 제거하면 패널과 설정이 짧아집니다. 아무것도 삭제되지 않으며 클릭 한 번으로 다시 돌아옵니다.",
+        neverUsedUninstall: "이 기능 제거",
+        neverUsedKeep: "유지"
     )
 }
 
@@ -285,6 +296,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energy and display",
         groupTools: "Tools",
         groupMonitor: "System monitor",
+        experimentalBadge: "Experimental",
         permissionsIntro: "What each permission does and which features use it. Other access is requested only when you use it.",
         usedByFormat: "Used by %@",
         usedByNone: "Nothing that is on uses this permission right now.",
@@ -379,7 +391,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Uninstall Dynamic Island",
         notchUninstallMessageFormat: "These extensions only work inside the Dynamic Island: %@. Uninstall them too? Nothing is deleted, and everything comes back with one click.",
         notchUninstallWithExtensions: "Uninstall extensions too",
-        notchUninstallKeepExtensions: "Keep extensions"
+        notchUninstallKeepExtensions: "Keep extensions",
+        neverUsedTitle: "Never turned on",
+        neverUsedMessageFormat: "These features are installed but have never been on: %@. Uninstalling them makes the panel and Settings shorter. Nothing is deleted, and each one comes back with one click.",
+        neverUsedUninstall: "Uninstall these",
+        neverUsedKeep: "Keep them"
     )
 
     static let ptBR = FeatureHubStrings(
@@ -400,6 +416,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energia e tela",
         groupTools: "Ferramentas",
         groupMonitor: "Monitor do sistema",
+        experimentalBadge: "Experimental",
         permissionsIntro: "O que cada permissão faz e quais recursos usam cada uma. Outros acessos só são pedidos quando você os usa.",
         usedByFormat: "Usada por %@",
         usedByNone: "Nada que está ligado usa esta permissão agora.",
@@ -494,7 +511,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Desinstalar Dynamic Island",
         notchUninstallMessageFormat: "Estas extensões só funcionam dentro da Dynamic Island: %@. Desinstalar também? Nada é apagado e tudo volta com um clique.",
         notchUninstallWithExtensions: "Desinstalar extensões também",
-        notchUninstallKeepExtensions: "Manter extensões"
+        notchUninstallKeepExtensions: "Manter extensões",
+        neverUsedTitle: "Nunca ativados",
+        neverUsedMessageFormat: "Estes recursos estão instalados, mas nunca foram ativados: %@. Desinstalar deixa o painel e os Ajustes mais curtos. Nada é apagado, e cada um volta com um clique.",
+        neverUsedUninstall: "Desinstalar estes",
+        neverUsedKeep: "Manter"
     )
 
     static let tr = FeatureHubStrings(
@@ -515,6 +536,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Enerji ve ekran",
         groupTools: "Araçlar",
         groupMonitor: "Sistem monitörü",
+        experimentalBadge: "Deneysel",
         permissionsIntro: "Her iznin ne yaptığı ve hangi özelliklerin onu kullandığı. Diğer erişimler yalnızca kullandığınızda istenir.",
         usedByFormat: "Kullanan: %@",
         usedByNone: "Şu anda açık olan hiçbir şey bu izni kullanmıyor.",
@@ -609,7 +631,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Dynamic Island’ı kaldır",
         notchUninstallMessageFormat: "Bu uzantılar yalnızca Dynamic Island içinde çalışır: %@. Onlar da kaldırılsın mı? Hiçbir şey silinmez, hepsi tek tıkla geri gelir.",
         notchUninstallWithExtensions: "Uzantıları da kaldır",
-        notchUninstallKeepExtensions: "Uzantılar kalsın"
+        notchUninstallKeepExtensions: "Uzantılar kalsın",
+        neverUsedTitle: "Hiç açılmadı",
+        neverUsedMessageFormat: "Bu özellikler yüklü ama hiç açılmadı: %@. Kaldırırsanız panel ve Ayarlar kısalır. Hiçbir şey silinmez ve her biri tek tıkla geri gelir.",
+        neverUsedUninstall: "Bunları kaldır",
+        neverUsedKeep: "Kalsın"
     )
 
     static let ru = FeatureHubStrings(
@@ -630,6 +656,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Энергия и экран",
         groupTools: "Инструменты",
         groupMonitor: "Системный монитор",
+        experimentalBadge: "Экспериментально",
         permissionsIntro: "Что делает каждое разрешение и какие функции им пользуются. Остальной доступ запрашивается только при использовании.",
         usedByFormat: "Используется: %@",
         usedByNone: "Сейчас ни одна включённая функция не использует это разрешение.",
@@ -724,7 +751,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Удалить Dynamic Island",
         notchUninstallMessageFormat: "Эти расширения работают только внутри Dynamic Island: %@. Удалить и их? Ничего не стирается, всё возвращается одним кликом.",
         notchUninstallWithExtensions: "Удалить и расширения",
-        notchUninstallKeepExtensions: "Оставить расширения"
+        notchUninstallKeepExtensions: "Оставить расширения",
+        neverUsedTitle: "Ни разу не включались",
+        neverUsedMessageFormat: "Эти функции установлены, но ни разу не включались: %@. Если их удалить, панель и настройки станут короче. Ничего не стирается, и любую можно вернуть одним щелчком.",
+        neverUsedUninstall: "Удалить их",
+        neverUsedKeep: "Оставить"
     )
 
     static let es = FeatureHubStrings(
@@ -745,6 +776,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energía y pantalla",
         groupTools: "Herramientas",
         groupMonitor: "Monitor del sistema",
+        experimentalBadge: "Experimental",
         permissionsIntro: "Qué hace cada permiso y qué funciones lo usan. Los demás accesos se piden solo al utilizarlos.",
         usedByFormat: "Usado por %@",
         usedByNone: "Nada de lo que está activo usa este permiso ahora.",
@@ -839,7 +871,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Desinstalar Dynamic Island",
         notchUninstallMessageFormat: "Estas extensiones solo funcionan dentro del Dynamic Island: %@. ¿Desinstalarlas también? No se borra nada y todo vuelve con un clic.",
         notchUninstallWithExtensions: "Desinstalar también las extensiones",
-        notchUninstallKeepExtensions: "Conservar las extensiones"
+        notchUninstallKeepExtensions: "Conservar las extensiones",
+        neverUsedTitle: "Nunca activadas",
+        neverUsedMessageFormat: "Estas funciones están instaladas, pero nunca se activaron: %@. Desinstalarlas acorta el panel y los Ajustes. No se borra nada y cada una vuelve con un clic.",
+        neverUsedUninstall: "Desinstalar estas",
+        neverUsedKeep: "Conservarlas"
     )
 
     static let sk = FeatureHubStrings(
@@ -860,6 +896,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energia a displej",
         groupTools: "Nástroje",
         groupMonitor: "Systémový monitor",
+        experimentalBadge: "Experimentálne",
         permissionsIntro: "Čo jednotlivé povolenia robia a ktoré funkcie ich používajú. Ostatný prístup sa vyžiada, až keď ho použijete.",
         usedByFormat: "Používa: %@",
         usedByNone: "Toto povolenie momentálne nepoužíva žiadna zapnutá funkcia.",
@@ -954,7 +991,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Odinštalovať Dynamic Island",
         notchUninstallMessageFormat: "Tieto rozšírenia fungujú len v rámci Dynamic Island: %@. Odinštalovať aj ich? Nič sa nevymaže, všetko sa dá vrátiť jedným kliknutím.",
         notchUninstallWithExtensions: "Odinštalovať aj rozšírenia",
-        notchUninstallKeepExtensions: "Ponechať rozšírenia"
+        notchUninstallKeepExtensions: "Ponechať rozšírenia",
+        neverUsedTitle: "Nikdy nezapnuté",
+        neverUsedMessageFormat: "Tieto funkcie sú nainštalované, ale ešte nikdy neboli zapnuté: %@. Ich odinštalovaním sa panel a nastavenia skrátia. Nič sa nevymaže a každá sa vráti jedným kliknutím.",
+        neverUsedUninstall: "Odinštalovať tieto",
+        neverUsedKeep: "Ponechať"
     )
 
     static let de = FeatureHubStrings(
@@ -975,6 +1016,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energie und Display",
         groupTools: "Werkzeuge",
         groupMonitor: "Systemmonitor",
+        experimentalBadge: "Experimentell",
         permissionsIntro: "Was jede Berechtigung tut und welche Funktionen sie nutzen. Weitere Zugriffe werden erst bei der Nutzung angefragt.",
         usedByFormat: "Genutzt von %@",
         usedByNone: "Nichts Eingeschaltetes nutzt diese Berechtigung gerade.",
@@ -1069,7 +1111,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Dynamic Island deinstallieren",
         notchUninstallMessageFormat: "Diese Erweiterungen funktionieren nur im Dynamic Island: %@. Auch deinstallieren? Nichts wird gelöscht, alles kommt mit einem Klick zurück.",
         notchUninstallWithExtensions: "Erweiterungen auch deinstallieren",
-        notchUninstallKeepExtensions: "Erweiterungen behalten"
+        notchUninstallKeepExtensions: "Erweiterungen behalten",
+        neverUsedTitle: "Nie eingeschaltet",
+        neverUsedMessageFormat: "Diese Funktionen sind installiert, waren aber nie eingeschaltet: %@. Deinstallierst du sie, werden Panel und Einstellungen kürzer. Nichts wird gelöscht, und jede kommt mit einem Klick zurück.",
+        neverUsedUninstall: "Diese deinstallieren",
+        neverUsedKeep: "Behalten"
     )
 
     static let fr = FeatureHubStrings(
@@ -1090,6 +1136,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Énergie et écran",
         groupTools: "Outils",
         groupMonitor: "Moniteur système",
+        experimentalBadge: "Expérimental",
         permissionsIntro: "Ce que fait chaque autorisation et quelles fonctions l’utilisent. Les autres accès ne sont demandés qu’à l’utilisation.",
         usedByFormat: "Utilisée par %@",
         usedByNone: "Rien d’activé n’utilise cette autorisation pour l’instant.",
@@ -1184,7 +1231,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Désinstaller Dynamic Island",
         notchUninstallMessageFormat: "Ces extensions ne fonctionnent que dans Dynamic Island\u{00A0}: %@. Les désinstaller aussi\u{00A0}? Rien n’est effacé et tout revient en un clic.",
         notchUninstallWithExtensions: "Désinstaller aussi les extensions",
-        notchUninstallKeepExtensions: "Conserver les extensions"
+        notchUninstallKeepExtensions: "Conserver les extensions",
+        neverUsedTitle: "Jamais activées",
+        neverUsedMessageFormat: "Ces fonctions sont installées mais n’ont jamais été activées\u{00A0}: %@. Les désinstaller raccourcit le panneau et les Réglages. Rien n’est effacé, et chacune revient en un clic.",
+        neverUsedUninstall: "Les désinstaller",
+        neverUsedKeep: "Les garder"
     )
 
     static let it = FeatureHubStrings(
@@ -1205,6 +1256,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energia e schermo",
         groupTools: "Strumenti",
         groupMonitor: "Monitor di sistema",
+        experimentalBadge: "Sperimentale",
         permissionsIntro: "Cosa fa ogni permesso e quali funzioni lo usano. Gli altri accessi vengono chiesti solo quando servono.",
         usedByFormat: "Usato da %@",
         usedByNone: "Niente di attivo usa questo permesso al momento.",
@@ -1299,7 +1351,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Disinstalla Dynamic Island",
         notchUninstallMessageFormat: "Queste estensioni funzionano solo nel Dynamic Island: %@. Disinstallare anche loro? Nulla viene cancellato e tutto torna con un clic.",
         notchUninstallWithExtensions: "Disinstalla anche le estensioni",
-        notchUninstallKeepExtensions: "Mantieni le estensioni"
+        notchUninstallKeepExtensions: "Mantieni le estensioni",
+        neverUsedTitle: "Mai attivate",
+        neverUsedMessageFormat: "Queste funzioni sono installate ma non sono mai state attivate: %@. Disinstallarle accorcia il pannello e le Impostazioni. Non si cancella nulla e ognuna torna con un clic.",
+        neverUsedUninstall: "Disinstalla queste",
+        neverUsedKeep: "Mantienile"
     )
 
     static let ja = FeatureHubStrings(
@@ -1320,6 +1376,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "エネルギーとディスプレイ",
         groupTools: "ツール",
         groupMonitor: "システムモニタ",
+        experimentalBadge: "実験的",
         permissionsIntro: "各権限の役割と、それを使う機能です。その他のアクセスは機能を使うときだけ求めます。",
         usedByFormat: "使用中: %@",
         usedByNone: "現在オンの機能でこの権限を使うものはありません。",
@@ -1414,7 +1471,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Dynamic Islandをアンインストール",
         notchUninstallMessageFormat: "次の拡張機能はDynamic Islandの中でのみ動作します：%@。これらもアンインストールしますか？何も削除されず、すべてワンクリックで戻ります。",
         notchUninstallWithExtensions: "拡張機能もアンインストール",
-        notchUninstallKeepExtensions: "拡張機能を残す"
+        notchUninstallKeepExtensions: "拡張機能を残す",
+        neverUsedTitle: "一度もオンにしていない機能",
+        neverUsedMessageFormat: "次の機能はインストール済みですが、一度もオンになっていません: %@。アンインストールするとパネルと設定が短くなります。何も消えず、どれもワンクリックで戻せます。",
+        neverUsedUninstall: "これらをアンインストール",
+        neverUsedKeep: "残す"
     )
 
     static let zhHans = FeatureHubStrings(
@@ -1435,6 +1496,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗与显示",
         groupTools: "工具",
         groupMonitor: "系统监视器",
+        experimentalBadge: "实验性",
         permissionsIntro: "每项权限的作用以及哪些功能会使用它。其他访问权限只会在使用相关功能时请求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前没有已开启的功能在使用此权限。",
@@ -1529,7 +1591,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "卸载 Dynamic Island",
         notchUninstallMessageFormat: "以下扩展只能在 Dynamic Island 中使用：%@。要一并卸载吗？不会删除任何内容，一键即可全部恢复。",
         notchUninstallWithExtensions: "一并卸载扩展",
-        notchUninstallKeepExtensions: "保留扩展"
+        notchUninstallKeepExtensions: "保留扩展",
+        neverUsedTitle: "从未开启",
+        neverUsedMessageFormat: "这些功能已安装，但从未开启：%@。卸载后，面板和设置会更简短。不会删除任何数据，每项都能一键恢复。",
+        neverUsedUninstall: "卸载这些",
+        neverUsedKeep: "保留"
     )
 
     static let zhTW = FeatureHubStrings(
@@ -1550,6 +1616,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗與顯示",
         groupTools: "工具",
         groupMonitor: "系統監視器",
+        experimentalBadge: "實驗性",
         permissionsIntro: "每項權限的作用，以及哪些功能會使用它。其他存取權限只會在使用相關功能時要求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前沒有已開啟的功能在使用此權限。",
@@ -1644,7 +1711,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "解除安裝 Dynamic Island",
         notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
         notchUninstallWithExtensions: "一併解除安裝延伸功能",
-        notchUninstallKeepExtensions: "保留延伸功能"
+        notchUninstallKeepExtensions: "保留延伸功能",
+        neverUsedTitle: "從未開啟",
+        neverUsedMessageFormat: "這些功能已安裝，但從未開啟：%@。解除安裝後，面板和設定會更簡短。不會刪除任何資料，每項都能一鍵恢復。",
+        neverUsedUninstall: "解除安裝這些",
+        neverUsedKeep: "保留"
     )
 
     static let zhHK = FeatureHubStrings(
@@ -1665,6 +1736,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗與顯示",
         groupTools: "工具",
         groupMonitor: "系統監察器",
+        experimentalBadge: "實驗性",
         permissionsIntro: "每項權限嘅作用，以及哪些功能會使用佢。其他存取權限只會喺使用相關功能時要求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前沒有已開啟的功能使用此權限。",
@@ -1759,7 +1831,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "解除安裝 Dynamic Island",
         notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
         notchUninstallWithExtensions: "一併解除安裝延伸功能",
-        notchUninstallKeepExtensions: "保留延伸功能"
+        notchUninstallKeepExtensions: "保留延伸功能",
+        neverUsedTitle: "從未開啟",
+        neverUsedMessageFormat: "這些功能已安裝，但從未開啟：%@。解除安裝後，面板和設定會更簡短。不會刪除任何資料，每項都可以一鍵恢復。",
+        neverUsedUninstall: "解除安裝這些",
+        neverUsedKeep: "保留"
     )
 }
 
@@ -1783,6 +1859,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Живлення та дисплей",
         groupTools: "Інструменти",
         groupMonitor: "Системний монітор",
+        experimentalBadge: "Експериментальне",
         permissionsIntro: "Що робить кожен дозвіл та які функції його використовують. Інший доступ запитується лише при використанні.",
         usedByFormat: "Використовується: %@",
         usedByNone: "Зараз ніщо з увімкненого не використовує цей дозвіл.",
@@ -1877,6 +1954,10 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Видалити Dynamic Island",
         notchUninstallMessageFormat: "Наступні розширення працюють лише з Dynamic Island: %@. Видалити їх разом? Нічого не стирається, усе повертається одним клацанням.",
         notchUninstallWithExtensions: "Видалити розширення разом",
-        notchUninstallKeepExtensions: "Залишити розширення"
+        notchUninstallKeepExtensions: "Залишити розширення",
+        neverUsedTitle: "Жодного разу не вмикалися",
+        neverUsedMessageFormat: "Ці функції встановлені, але жодного разу не вмикалися: %@. Якщо їх видалити, панель і налаштування стануть коротшими. Нічого не стирається, і будь-яку можна повернути одним клацанням.",
+        neverUsedUninstall: "Видалити їх",
+        neverUsedKeep: "Залишити"
     )
 }

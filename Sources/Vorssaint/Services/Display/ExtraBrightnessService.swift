@@ -277,20 +277,43 @@ final class ExtraBrightnessService: ObservableObject {
         NSRect(x: screen.frame.maxX - 1, y: screen.frame.minY, width: 1, height: 1)
     }
 
+    /// Neither window list option works for finding the blocked sheet
+    /// directly: `.optionOnScreenOnly` never lists it, because failing to
+    /// reach the screen while this overlay is up is the bug itself, and
+    /// `.optionAll` carries dozens of stale windows AMSUIPaymentViewService
+    /// leaves registered from earlier purchase attempts long after they are
+    /// dismissed (confirmed live: over 60 on a machine used for nothing but
+    /// this repro), so owner name alone over-matches indefinitely.
+    ///
+    /// SecurityAgent owns the Touch ID / password panel for admin prompts
+    /// and is a real running application for as long as its panel is up, so
+    /// it can be checked directly. The Mac App Store's purchase sheet has no
+    /// equally clean signal, so this falls back to the one thing already
+    /// confirmed to fix that case: the Store itself being frontmost.
+    private static func systemAuthorizationUIIsActive() -> Bool {
+        if !NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.SecurityAgent").isEmpty {
+            return true
+        }
+        return NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.AppStore"
+    }
+
     /// The pair belongs to every Space and sits out Exposé. Bound to a single
     /// Space it travelled with that Space: swiping to another desktop slid the
     /// overlay off screen for the whole animation, taking the boost with it
     /// until the transition ended and a rebuild brought it back (measured).
     /// Resident everywhere there is no handoff at all, and the presents that
-    /// hold the panel's headroom never pause.
+    /// hold the panel's headroom never pause. `.canJoinAllApplications` keeps
+    /// the boost from dropping as video enters or leaves full screen; removing
+    /// it was tried against the purchase-sheet bug below and did not help, so
+    /// it stays.
     private static let overlayCollectionBehavior: NSWindow.CollectionBehavior = [
         .ignoresCycle, .fullScreenAuxiliary, .canJoinAllApplications,
         .canJoinAllSpaces, .stationary,
     ]
 
     /// Desktop and window-overview transitions composite above ordinary
-    /// screen-saver windows. Keep the multiplier and its headroom trigger at
-    /// the display-shield level so both remain in the final picture.
+    /// screen-saver windows, so the multiplier and its headroom trigger stay
+    /// at the display-shield level to remain in the final picture.
     private static let overlayWindowLevel = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
 
     // MARK: - Overlay
@@ -421,6 +444,24 @@ final class ExtraBrightnessService: ObservableObject {
     private func renderIfNeeded(immediate: Bool = false) {
         guard !screensAsleep else { return }
         guard let screen = overlayScreen, overlayLayer != nil else { return }
+        // SecurityAgent's Touch ID / password panel and the Mac App Store's
+        // PassKit purchase-authorization sheet (used even for free "Get"
+        // installs) both stayed permanently hidden behind this overlay while
+        // it was up, regardless of window level or collection behavior.
+        // `systemAuthorizationUIIsActive()` covers exactly two signals:
+        // SecurityAgent running, or the App Store being frontmost. Nothing
+        // needs the boost while either is true, so stepping out of the way
+        // costs nothing. It does NOT cover a purchase sheet opened from a
+        // third-party app's own in-app purchase flow — that would not make
+        // the App Store frontmost, and neither signal here is confirmed to
+        // catch it; that path is still untested and may still be affected.
+        guard !Self.systemAuthorizationUIIsActive() else {
+            overlayWindow?.orderOut(nil)
+            triggerWindow?.orderOut(nil)
+            return
+        }
+        if let overlayWindow, !overlayWindow.isVisible { overlayWindow.orderFrontRegardless() }
+        if let triggerWindow, !triggerWindow.isVisible { triggerWindow.orderFrontRegardless() }
         presentTrigger()
         let level = Double(UserDefaults.standard.integer(forKey: DefaultsKey.extraBrightnessLevel)) / 100.0
         let headroom = Double(screen.maximumExtendedDynamicRangeColorComponentValue)

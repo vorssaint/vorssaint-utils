@@ -90,6 +90,7 @@ struct NotchMusicView: View {
         .onDisappear {
             guard !preview else { return }
             NotchService.shared.setMusicDetailsVisible(false)
+            NotchService.shared.setPageLayer(.music, close: nil)
             NotchLyricsService.shared.hide()
             service.setQueueVisible(false)
         }
@@ -98,6 +99,8 @@ struct NotchMusicView: View {
     private func syncExtras() {
         guard !preview else { return }
         NotchService.shared.setMusicDetailsVisible(openExtra != nil)
+        // Escape closes lyrics or the queue before the island.
+        NotchService.shared.setPageLayer(.music, close: openExtra == nil ? nil : { extra = nil })
         NotchLyricsService.shared.update(playback: service.playback, visible: extra == .lyrics)
         service.setQueueVisible(extra == .queue)
     }
@@ -159,6 +162,7 @@ struct NotchMusicView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(height: height)
+        .modifier(NotchMusicSwipeFeedback())
     }
 
     private func details(_ playback: NotchPlayback, titleLines: Int, artist: Bool, timeline: Bool, roomy: Bool) -> some View {
@@ -314,7 +318,7 @@ private struct NotchMusicTransport: View {
     }
 }
 
-private struct NotchMusicTimeline: View {
+struct NotchMusicTimeline: View {
     let playback: NotchPlayback
     @ObservedObject var service: NotchMusicService
     var tint: Color = .white

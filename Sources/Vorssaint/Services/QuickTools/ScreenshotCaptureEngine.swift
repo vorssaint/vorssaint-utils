@@ -185,7 +185,9 @@ enum ScreenshotCaptureEngine {
             }
         }
         var clippedFallback: CGImage?
-        if let image = WindowPreviewProvider.captureViaWindowServer(windowID) {
+        let capturedImage = await WindowPreviewProvider.captureViaWindowServer(windowID)
+        guard !Task.isCancelled else { return nil }
+        if let image = capturedImage {
             let bounds = windowBounds(windowID)
             if bounds.map({ SwitcherSupport.captureCoversWindow(imageWidth: image.width,
                                                                 imageHeight: image.height,

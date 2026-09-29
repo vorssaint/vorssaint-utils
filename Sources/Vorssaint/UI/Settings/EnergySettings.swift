@@ -18,6 +18,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.brightnessKeyStep)
+    private var brightnessKeyStep = BrightnessSupport.KeyStep.standard.rawValue
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.bluetoothSleepEnabled) private var bluetoothSleepEnabled = false
@@ -178,7 +180,7 @@ struct EnergySettings: View {
             get: { awake.isActive },
             set: { on in
                 if on {
-                    awake.activate(minutes: defaultDuration)
+                    awake.startLastPick()
                 } else if awake.isActive {
                     awake.toggle()
                 }
@@ -190,6 +192,8 @@ struct EnergySettings: View {
         let selected = defaultDuration == minutes
         return Button {
             defaultDuration = minutes
+            // A chosen default is the newest pick, so the switch starts it.
+            UserDefaults.standard.set(false, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
         } label: {
             Text(DurationPicker.title(for: minutes, l10n.s))
                 .font(.system(size: 11, weight: .medium))
@@ -329,6 +333,15 @@ struct EnergySettings: View {
                                     BrightnessService.shared.syncWithPreferences()
                                 }
                         }
+                        SettingsRow(symbol: "sun.min", title: strings.keyStep, caption: strings.keyStepCaption) {
+                            Picker(strings.keyStep, selection: brightnessKeyStepBinding) {
+                                Text(strings.keyStepStandard).tag(BrightnessSupport.KeyStep.standard)
+                                Text(strings.keyStepHalf).tag(BrightnessSupport.KeyStep.half)
+                                Text(strings.keyStepQuarter).tag(BrightnessSupport.KeyStep.quarter)
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
                         DisplayBrightnessShortcutControls(showsSettingsRow: true)
                         if brightness.brightnessOSDSupported {
                             SettingsRow(symbol: "sun.max", title: strings.osdToggle, caption: strings.osdCaption) {
@@ -340,7 +353,9 @@ struct EnergySettings: View {
                                     }
                             }
                         }
-                        if (brightnessKeysEnabled || brightnessOSDEnabled), !permissions.accessibility {
+                        if brightnessKeysEnabled || brightnessOSDEnabled
+                            || BrightnessSupport.KeyStep.sanitized(brightnessKeyStep) != .standard,
+                           !permissions.accessibility {
                             PermissionRow(kind: .accessibility)
                         }
                         Text(strings.externalCaption)
@@ -354,6 +369,18 @@ struct EnergySettings: View {
                         .font(.subheadline.weight(.medium))
                 }
             }
+        }
+    }
+
+    /// A finer step answers the keys in place of the system, which takes the
+    /// same permission as the other key options.
+    private var brightnessKeyStepBinding: Binding<BrightnessSupport.KeyStep> {
+        Binding {
+            BrightnessSupport.KeyStep.sanitized(brightnessKeyStep)
+        } set: { step in
+            brightnessKeyStep = step.rawValue
+            if step != .standard { Permissions.shared.requestAccessibility() }
+            BrightnessService.shared.syncWithPreferences()
         }
     }
 

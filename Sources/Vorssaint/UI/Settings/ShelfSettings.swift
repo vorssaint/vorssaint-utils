@@ -8,6 +8,7 @@ struct ShelfSettings: View {
     @ObservedObject private var shelf = ShelfService.shared
     @AppStorage(DefaultsKey.shelfEnabled) private var enabled = false
     @AppStorage(DefaultsKey.shelfShortcutEnabled) private var shortcutEnabled = true
+    @AppStorage(DefaultsKey.shelfShortcutAddsFinderSelection) private var shortcutAddsFinderSelection = false
     @AppStorage(DefaultsKey.shelfShakeToOpen) private var shake = true
     @AppStorage(DefaultsKey.shelfDropZoneEnabled) private var dropZone = true
     @AppStorage(DefaultsKey.shelfDockPlacement) private var dockPlacement = ShelfDockPlacement.menuBar.rawValue
@@ -30,9 +31,13 @@ struct ShelfSettings: View {
                 Text(l10n.s.shelfEnableCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Label(l10n.s.shelfNoPermission, systemImage: "checkmark.shield")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // Adding the Finder selection asks to control Finder, so the
+                // promise only holds while that option is off.
+                if !(shortcutEnabled && shortcutAddsFinderSelection) {
+                    Label(l10n.s.shelfNoPermission, systemImage: "checkmark.shield")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section(l10n.s.shelfHowTitle) {
@@ -65,6 +70,19 @@ struct ShelfSettings: View {
                         Text(l10n.s.shortcutUnavailable)
                             .font(.caption)
                             .foregroundStyle(.orange)
+                    }
+                    if shortcutEnabled {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Toggle(l10n.s.shelfShortcutFinderSelection, isOn: $shortcutAddsFinderSelection)
+                            Text(l10n.s.shelfShortcutFinderSelectionCaption)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if shortcutAddsFinderSelection {
+                                Text(l10n.s.cutPasteAutomationNote)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                     VStack(alignment: .leading, spacing: 3) {
                         Toggle(l10n.s.shelfShakeToggle, isOn: $shake)

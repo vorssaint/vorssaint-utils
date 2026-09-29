@@ -8,35 +8,34 @@ import SwiftUI
 /// as the reading, and both sit at the ends, where the island shows.
 struct NotchAgentStrip: View {
     @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
 
-    private var geometry: NotchGeometry { service.compactActivityGeometry }
-    /// Height the strip can give away once both edges keep their gap.
-    private var budget: CGFloat { geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2 }
-    private var iconSize: CGFloat { min(working.count > 1 ? 11 : 14, max(8, budget - 4)) }
-    private var textSize: CGFloat { NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight) }
-    private var iconInset: CGFloat {
-        guard !geometry.compactActivityUsesFooter else { return 0 }
-        return geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2)
-    }
-    private var textInset: CGFloat {
-        guard !geometry.compactActivityUsesFooter else { return 0 }
-        // Digits carry no descenders, so their ink is about the cap height.
-        return geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0)
-    }
-
     private var live: [AgentLiveSession] { usage.snapshot.live }
     private var working: [AgentProvider] {
         AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
     }
-    private var tint: Color { working.first?.tint ?? .white }
 
     var body: some View {
+        // Resolve layout once per presentation update. The timeline captures
+        // these values, so ticking the clock never remeasures the island or
+        // walks the preferences for every font, inset and frame.
+        let geometry = displayGeometry ?? service.compactActivityGeometry
+        let working = working
+        let tint = working.first?.tint ?? .white
+        let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
+        let iconSize = min(working.count > 1 ? 11.0 : 14.0, max(8, budget - 4))
+        let textSize = NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight)
+        let iconInset = !geometry.compactActivityUsesFooter
+            ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
+        let textInset = !geometry.compactActivityUsesFooter
+            ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
-            Button { service.open(.agents) } label: {
+            Button { service.openActivity(.agents) } label: {
                 HStack(spacing: 1) {
                     if geometry.compactActivityWingWidth >= 28 {
                         ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
@@ -48,7 +47,7 @@ struct NotchAgentStrip: View {
                 .contentShape(Rectangle())
             }
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            Button { service.open(.agents) } label: {
+            Button { service.openActivity(.agents) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 42 {
                         NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
@@ -82,7 +81,7 @@ struct NotchAgentStrip: View {
         .accessibilityLabel(working.map(\.displayName).joined(separator: ", "))
         .accessibilityValue(reading(at: Date()))
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { service.open(.agents) }
+        .accessibilityAction { service.openActivity(.agents) }
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 

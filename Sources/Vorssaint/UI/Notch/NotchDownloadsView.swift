@@ -128,10 +128,12 @@ struct NotchDownloadsView: View {
 
 struct NotchDownloadStrip: View {
     @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
 
-    private var geometry: NotchGeometry { service.compactActivityGeometry }
+    private var geometry: NotchGeometry { displayGeometry ?? service.compactActivityGeometry }
     /// The arrow keeps the shared gap from the top and bottom edges too.
     private var iconSize: CGFloat {
         min(17, geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
@@ -142,7 +144,7 @@ struct NotchDownloadStrip: View {
 
     var body: some View {
         let item = downloads.items.first { $0.active && !$0.completed }
-        Button { service.open(.downloads) } label: {
+        Button { service.openActivity(.downloads) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 6) {
                     if geometry.compactActivityWingWidth >= 40 {

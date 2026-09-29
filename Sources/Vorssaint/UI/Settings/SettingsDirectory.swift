@@ -149,7 +149,7 @@ enum SettingsDirectory {
             destination: FeatureSettingsDestination(
                 .general, sectionAnchor: .panelConfiguration),
             title: s.menuBarSection, icon: "menubar.rectangle",
-            keywords: [s.showMenuBarIcon]))
+            keywords: [s.showMenuBarIcon, FeatureStrings.generalSettings(language).menuBarIconTitle, "SF Symbols"]))
         if BrightnessService.keyboardLightIsSupported {
             items.append(SettingsSearchSupport.keyboardBrightnessShortcutItem(language: language))
         }
@@ -194,7 +194,10 @@ enum SettingsDirectory {
                                                       FeatureStrings.keepAwakeDisplaySleep(language)
                                                         .allowDisplaySleep]),
                                         (.brightness, [FeatureStrings.brightness(language).pageTitle,
-                                                       FeatureStrings.brightness(language).osdToggle]),
+                                                       FeatureStrings.brightness(language).osdToggle,
+                                                       FeatureStrings.brightness(language).keyStep,
+                                                       FeatureStrings.brightness(language).keyStepHalf,
+                                                       FeatureStrings.brightness(language).keyStepQuarter]),
                                         (.extraBrightness, [s.extraBrightnessName]),
                                         (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
                                                            FeatureStrings.bluetoothSleep(language).enable]),
@@ -217,6 +220,7 @@ enum SettingsDirectory {
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay]),
                                         (.smoothScroll, [s.smoothScrollName]),
+                                        (.linearScroll, [s.linearScrollName, s.linearScrollLinesLabel]),
                                         (.mouseAcceleration, [s.mouseAccelerationName]),
                                         (.mouseNavigation, [s.mouseNavigationEnable]),
                                         (.mouseButtonShortcuts,
@@ -304,7 +308,8 @@ enum SettingsDirectory {
                                        ]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
                                       keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle,
-                                                 s.shelfClearOnClose, FeatureStrings.notch(language).title,
+                                                 s.shelfClearOnClose, s.shelfShortcutFinderSelection,
+                                                 FeatureStrings.notch(language).title,
                                                  FeatureStrings.notchEditor(language).separate]),
                 SettingsDirectoryItem(page: .media, title: s.mediaName, icon: "photo.on.rectangle.angled",
                                       keywords: ["PDF", "GIF", "PNG", "JPEG", "convert", "resize", "watermark",
@@ -343,8 +348,17 @@ enum SettingsDirectory {
                                       icon: "macbook",
                                       keywords: [FeatureStrings.notch(language).description,
                                                  FeatureStrings.notchEditor(language).hideMenuBarIcon,
+                                                 FeatureStrings.notchActivities(language).keepAwakeActivity,
                                                  "notch", "camera", "music", "clipboard",
-                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens"]),
+                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "AI", "tokens",
+                                                 FeatureStrings.notchAgents(language).resetsCard,
+                                                 FeatureStrings.notchLockScreen(language).title,
+                                                 FeatureStrings.notchLockScreen(language).sounds]
+                                          // The fit card only appears with a camera housing to fit.
+                                          + (NotchSupport.hasNotchedDisplay ? [FeatureStrings.notch(language).cameraFit] : [])
+                                          + (NotchSupport.hasDisplayWithoutNotch
+                                             ? [FeatureStrings.notch(language).withoutNotch,
+                                                FeatureStrings.notch(language).capsuleFit] : [])),
                 SettingsDirectoryItem(page: .commandBar,
                                       title: FeatureStrings.commandBar(language).pageTitle,
                                       icon: "command",

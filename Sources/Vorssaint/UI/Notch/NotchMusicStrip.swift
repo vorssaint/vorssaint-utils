@@ -15,13 +15,17 @@ struct NotchCompactMusicSnapshot {
 struct NotchMusicStrip: View {
     @ObservedObject var service: NotchService
     var snapshot: NotchCompactMusicSnapshot? = nil
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
 
-    private var geometry: NotchGeometry { snapshot?.geometry ?? service.compactActivityGeometry }
-    private var playback: NotchPlayback? { snapshot?.playback ?? music.playback }
-    private var artwork: NSImage? { snapshot == nil ? music.artwork : snapshot?.artwork }
-    private var tint: NotchArtworkTint? { snapshot == nil ? music.artworkTint : snapshot?.tint }
+    private var geometry: NotchGeometry { snapshot?.geometry ?? displayGeometry ?? service.compactActivityGeometry }
+    /// A new song stays off the strip until its notice has shown it.
+    private var shown: NotchCompactMusicSnapshot? { snapshot ?? service.heldMusic }
+    private var playback: NotchPlayback? { shown?.playback ?? music.playback }
+    private var artwork: NSImage? { shown == nil ? music.artwork : shown?.artwork }
+    private var tint: NotchArtworkTint? { shown == nil ? music.artworkTint : shown?.tint }
     /// A physical camera's wings are fitted to the cover and the bars; a
     /// simulated one keeps a little air beside its drawn cutout.
     private var innerInset: CGFloat { geometry.isNotched ? 0 : 8 }
@@ -52,7 +56,7 @@ struct NotchMusicStrip: View {
     private var showsArtist: Bool { geometry.compactActivityContentHeight >= 28 }
 
     var body: some View {
-        Button { service.open(.music) } label: {
+        Button { service.openActivity(.music) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 8) {
                     if geometry.compactActivityWingWidth > 0 {
@@ -83,6 +87,7 @@ struct NotchMusicStrip: View {
                 .frame(width: geometry.compactActivityWingWidth, alignment: .trailing)
             }
             .frame(height: geometry.compactActivityContentHeight)
+            .modifier(NotchMusicSwipeFeedback(enabled: snapshot == nil))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -108,6 +113,31 @@ struct NotchMusicStrip: View {
         .padding(.horizontal, geometry.compactMusicLabelInset)
         .frame(maxWidth: .infinity)
         .accessibilityHidden(true)
+    }
+}
+
+/// A brief directional nudge acknowledges the command without predicting the
+/// next track or waiting for the player's artwork. No repeating work survives it.
+struct NotchMusicSwipeFeedback: ViewModifier {
+    var enabled = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var trigger = 0
+    @State private var direction: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        let displacement = reduceMotion ? 0 : direction
+        return content
+            .keyframeAnimator(initialValue: CGFloat.zero, trigger: trigger) { view, travel in
+                view.offset(x: displacement * travel)
+            } keyframes: { _ in
+                CubicKeyframe(8, duration: 0.09)
+                SpringKeyframe(0, duration: 0.25, spring: .smooth)
+            }
+            .onReceive(NotchMusicService.shared.gestureSkips) { forward in
+                guard enabled, !reduceMotion else { return }
+                direction = forward ? -1 : 1
+                trigger &+= 1
+            }
     }
 }
 

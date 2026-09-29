@@ -54,6 +54,7 @@ enum NotchPlaybackRoutingContract {
     static var reply: [String: Any] = [:]
     static var sources: [NotchPlaybackSource] = []
     static var selection: NotchPlaybackSource.Selection?
+    static var includeOtherPlayers = false
     static var releaseAt: TimeInterval?
     /// Stands in for the system uptime read by the extracted selection.
     static var uptime: TimeInterval = 0
@@ -65,7 +66,9 @@ enum NotchPlaybackRoutingContract {
     static var sourceMetadata: [Int32: [String: Any]] = [:]
     static var silentPIDs: Set<Int32> = []
     static var lateReads: [() -> Void] = []
-    static func isMusicApp(_ app: NSRunningApplication) -> Bool { app.processIdentifier == 10 }
+    static func isMusicApp(_ app: NSRunningApplication, parentBundleIdentifier: String? = nil) -> Bool {
+        app.processIdentifier == 10
+    }
     static func vorssaintNowPlayingGet() { refreshes += 1 }
     typealias NotchNativePlayback = NotchPlaybackRoutingContract
     enum NotchNativeQueue {
@@ -411,6 +414,7 @@ enum NotchPlaybackRoutingTests {
         Adapter.discovering = true
         Adapter.selected = nil
         Adapter.selection = nil
+        Adapter.includeOtherPlayers = false
         Adapter.available = true
         Adapter.applications = [10, 20, 30].map {
             Adapter.NSRunningApplication(bundleIdentifier: "test.player.\($0)", processIdentifier: $0)
@@ -427,6 +431,7 @@ enum NotchPlaybackRoutingTests {
             Adapter.discovering = false
             Adapter.sources = []
             Adapter.selection = nil
+            Adapter.includeOtherPlayers = false
             Adapter.selected = nil
             Adapter.releaseAt = nil
             Adapter.uptime = 0
@@ -435,8 +440,12 @@ enum NotchPlaybackRoutingTests {
         let browser = NotchPlaybackSource.Selection(pid: 20, bundleIdentifier: "test.player.20")
         Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
         Adapter.systemPID = 20
+        suite.expect(Adapter.select()?.pid == 10,
+                     "automatic playback keeps paused music instead of showing the active video by default")
+        Adapter.includeOtherPlayers = true
         suite.expect(Adapter.select()?.requiresCurrentPlayer == true && Adapter.select()?.allowsDirectCommands == true,
-                     "the active video exposes native controls without Automation")
+                     "opted-in video playback exposes native controls without Automation")
+        Adapter.includeOtherPlayers = false
         Adapter.systemPID = 10
         Adapter.choose(browser)
         suite.expect(Adapter.select()?.requiresCurrentPlayer == false && Adapter.select()?.allowsDirectCommands == false,
@@ -539,7 +548,10 @@ enum NotchPlaybackRoutingTests {
         Adapter.systemPID = 115
         Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
         Adapter.sourceMetadata[115]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
+        suite.expect(Adapter.select()?.pid == 10,
+                     "a video discovered at the end of a crowded list stays out of music-only playback")
+        Adapter.includeOtherPlayers = true
         suite.expect(Adapter.select()?.pid == 115,
-                     "the system's current player enumerated last keeps its place in the bound")
+                     "opted-in playback still finds the system's current player at the end of the bound")
     }
 }

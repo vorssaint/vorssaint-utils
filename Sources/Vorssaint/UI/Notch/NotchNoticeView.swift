@@ -13,7 +13,6 @@ struct NotchNoticeView: View {
     private var inset: CGFloat { min(16, wingWidth / 6) }
     private var tint: Color {
         switch notice.event {
-        case .brightness, .keyboardLight: return .yellow
         // A warning reads as one in any agent's color; other AI notices wear it.
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         default: return .white
@@ -42,10 +41,10 @@ struct NotchNoticeView: View {
 
     @ViewBuilder private var leading: some View {
         if let content = notice.notification {
-            HStack(spacing: 8) {
-                NotchNotificationAppIcon(app: content.app, size: min(22, geometry.stripHeight - 4))
+            HStack(spacing: NotchNotificationBannerLayout.spacing) {
+                NotchNotificationAppIcon(app: content.app, size: min(NotchNotificationBannerLayout.iconSize, geometry.stripHeight - 4))
                 Text(content.compactTitle)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(Font(NotchNotificationBannerLayout.titleFont as CTFont))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -81,7 +80,7 @@ struct NotchNoticeView: View {
     @ViewBuilder private var trailing: some View {
         if let content = notice.notification {
             Text(content.compactDetail)
-                .font(.system(size: 11))
+                .font(Font(NotchNotificationBannerLayout.messageFont as CTFont))
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(geometry.stripHeight >= 30 ? 2 : 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,8 +115,7 @@ struct NotchExpandedLevelView: View {
         HStack(spacing: 8) {
             Image(systemName: notice.symbol)
                 .frame(width: 18)
-            NotchMeter(value: notice.level ?? 0, height: 5,
-                       tint: notice.event == .volume ? .white : .yellow)
+            NotchMeter(value: notice.level ?? 0, height: 5, tint: .white)
                 .frame(maxWidth: 96)
             Text(notice.detail)
                 .monospacedDigit()

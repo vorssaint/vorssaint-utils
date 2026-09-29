@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Wenn ausgeschaltet, werden Fenster aller Schreibtische angezeigt. Die Auswahl eines Fensters auf einem anderen Schreibtisch wechselt dorthin.",
         dockPreviewBackgroundOpacity: "Hintergrund des Panels",
         dockPreviewBackgroundOpacityCaption: "Verringere ihn, um mehr von dem zu sehen, was hinter dem Panel liegt.",
+        dockPreviewBackgroundOpacityGlassCaption: "Bei aktiviertem Liquid Glass wird die Transparenz des Panels in Systemeinstellungen > Erscheinungsbild festgelegt.",
         dockPreviewOpenDelay: "Öffnungsverzögerung",
         dockPreviewOpenDelayCaption: "Wie lange der Zeiger auf einem Symbol ruhen muss, bevor sich das Panel öffnet.",
         dockPreviewQuitAppOnClose: "App mit der ×-Taste beenden",
@@ -1077,7 +1078,12 @@ extension Strings {
         smoothScrollCoastLabel: "Auslauf",
         mouseAccelerationName: "Mausbeschleunigung deaktivieren",
         mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt.",
+        linearScrollName: "Lineares Scrollen",
+        linearScrollCaption: "Jeder Rastschritt des Mausrads scrollt dieselbe Strecke, egal wie schnell es gedreht wird. Das Trackpad bleibt unverändert.",
+        linearScrollLinesLabel: "Zeilen pro Rastschritt",
         shelfClearOnClose: "Beim Schließen leeren",
-        shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte."
+        shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte.",
+        shelfShortcutFinderSelection: "Finder-Auswahl per Kurzbefehl hinzufügen",
+        shelfShortcutFinderSelectionCaption: "Ist der Finder im Vordergrund, öffnet der Kurzbefehl die Ablage bereits mit den ausgewählten Dateien. Ohne Auswahl öffnet sie sich wie gewohnt."
     )
 }

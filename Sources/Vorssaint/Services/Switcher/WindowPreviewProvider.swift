@@ -63,8 +63,9 @@ final class WindowPreviewProvider {
     /// window's capture, so each backing window is captured once.
     func refreshPreviews(for items: [SwitcherItem],
                          maxPixelSize: CGFloat = defaultMaxPixelSize,
+                         excludedAppsKey: String,
                          onUpdate: @escaping (CGWindowID, CGImage) -> Void) {
-        guard Permissions.shared.screenRecording, !Self.captureIsPaused else {
+        guard Permissions.shared.screenRecording, !Self.captureIsPaused(excludedAppsKey: excludedAppsKey) else {
             cancel()
             return
         }
@@ -102,9 +103,11 @@ final class WindowPreviewProvider {
             var pending: [PreviewTarget] = []
             for target in targets {
                 guard !Task.isCancelled else { return }
-                let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                let captureIsPaused = await MainActor.run { Self.captureIsPaused(excludedAppsKey: excludedAppsKey) }
                 guard !captureIsPaused else { return }
-                guard let image = Self.captureViaWindowServer(target.id) else {
+                let capturedImage = await Self.captureViaWindowServer(target.id)
+                guard !Task.isCancelled else { return }
+                guard let image = capturedImage else {
                     pending.append(target)
                     continue
                 }
@@ -148,7 +151,7 @@ final class WindowPreviewProvider {
             }
             guard !pending.isEmpty else { return }
 
-            let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+            let captureIsPaused = await MainActor.run { Self.captureIsPaused(excludedAppsKey: excludedAppsKey) }
             guard !captureIsPaused else { return }
 
             guard let content = try? await SCShareableContent.excludingDesktopWindows(false,
@@ -158,7 +161,7 @@ final class WindowPreviewProvider {
 
             for target in pending {
                 guard !Task.isCancelled else { return }
-                let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                let captureIsPaused = await MainActor.run { Self.captureIsPaused(excludedAppsKey: excludedAppsKey) }
                 guard !captureIsPaused else { return }
                 guard let scWindow = scWindows[target.id]
                     ?? Self.bestWindowMatch(for: target, in: content.windows) else { continue }
@@ -237,20 +240,29 @@ final class WindowPreviewProvider {
     /// other-Space windows come back as their real, untransformed content.
     private static let windowServerCaptureOptions: UInt32 = (1 << 8) | (1 << 11)
 
+    /// Shared by every preview provider and the screenshot tool. Cancelling a
+    /// caller must not let another capture overlap its unfinished system call.
+    private static let windowServerCaptures = WindowServerCaptureQueue()
+
     /// Internal so the screenshot tool can reuse the existing window capture.
-    static func captureViaWindowServer(_ windowID: CGWindowID) -> CGImage? {
+    /// Background warming passes `waitingForOtherCaptures: false`: it is
+    /// optional work and skips a window rather than queue behind a slow capture.
+    static func captureViaWindowServer(_ windowID: CGWindowID,
+                                       waitingForOtherCaptures: Bool = true) async -> CGImage? {
         guard windowServerConnection != 0, let capture = windowServerCapture else { return nil }
-        var id = UInt32(windowID)
-        guard let array = capture(windowServerConnection, &id, 1, windowServerCaptureOptions)?
-            .takeRetainedValue(),
-            CFArrayGetCount(array) > 0,
-            let value = CFArrayGetValueAtIndex(array, 0)
-        else { return nil }
-        let candidate = unsafeBitCast(value, to: CFTypeRef.self)
-        guard CFGetTypeID(candidate) == CGImage.typeID else { return nil }
-        let image = unsafeBitCast(candidate, to: CGImage.self)
-        guard image.width > 1, image.height > 1 else { return nil }
-        return image
+        return await windowServerCaptures.capture(waitingForOtherCaptures: waitingForOtherCaptures) {
+            var id = UInt32(windowID)
+            guard let array = capture(windowServerConnection, &id, 1, windowServerCaptureOptions)?
+                .takeRetainedValue(),
+                CFArrayGetCount(array) > 0,
+                let value = CFArrayGetValueAtIndex(array, 0)
+            else { return nil }
+            let candidate = unsafeBitCast(value, to: CFTypeRef.self)
+            guard CFGetTypeID(candidate) == CGImage.typeID else { return nil }
+            let image = unsafeBitCast(candidate, to: CGImage.self)
+            guard image.width > 1, image.height > 1 else { return nil }
+            return image
+        }
     }
 
     private static let rectifyContext = CIContext()
@@ -418,28 +430,43 @@ final class WindowPreviewProvider {
         warmTask = nil
     }
 
+    /// The activated app's windows are listed here, off the main thread. A
+    /// slow app can hold that Accessibility walk for seconds, which must not
+    /// tie up a thread Swift's tasks share.
+    private static let warmEnumerationQueue = DispatchQueue(label: "com.vorssaint.preview.warm-enumeration",
+                                                            qos: .utility)
+
     /// Waits for the stage/space transition to settle, then captures the
     /// activated app's windows. Never prunes: warming only adds fresh entries.
     private func scheduleWarm(pid: pid_t) {
-        guard Permissions.shared.screenRecording, !Self.captureIsPaused else { return }
+        // Only the switcher warms, so its own paused apps apply.
+        let excludedAppsKey = DefaultsKey.switcherPreviewExcludedApps
+        guard Permissions.shared.screenRecording, !Self.captureIsPaused(excludedAppsKey: excludedAppsKey) else { return }
         pendingWarmPid = pid
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
             guard let self,
                   self.pendingWarmPid == pid,
                   self.activationToken != nil,
-                  !Self.captureIsPaused
+                  !Self.captureIsPaused(excludedAppsKey: excludedAppsKey)
             else { return }
             self.pendingWarmPid = nil
-            let items = WindowEnumerator.listWindows(for: pid)
-            guard !items.isEmpty else { return }
             warmTask?.cancel()
+            let snapshot = WindowEnumerator.snapshot()
             warmTask = Task(priority: .utility) { [weak self] in
                 guard let self else { return }
+                let items = await withCheckedContinuation { continuation in
+                    Self.warmEnumerationQueue.async {
+                        continuation.resume(returning: WindowEnumerator.listWindows(for: pid, snapshot: snapshot))
+                    }
+                }
+                guard !items.isEmpty, !Task.isCancelled else { return }
                 for item in items {
                     guard !Task.isCancelled, let id = item.previewWindowID else { continue }
-                    let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                    let captureIsPaused = await MainActor.run { Self.captureIsPaused(excludedAppsKey: excludedAppsKey) }
                     guard !captureIsPaused else { return }
-                    guard let image = Self.captureViaWindowServer(id) else { continue }
+                    let capturedImage = await Self.captureViaWindowServer(id, waitingForOtherCaptures: false)
+                    guard !Task.isCancelled else { return }
+                    guard let image = capturedImage else { continue }
                     if let grid = SwitcherSupport.alphaGrid(of: image),
                        SwitcherSupport.captureLooksTransformed(alphaGrid: grid) {
                         let needsPreview = await MainActor.run { !Task.isCancelled && self.cache[id] == nil }
@@ -463,16 +490,19 @@ final class WindowPreviewProvider {
                         continue
                     }
                     let scaled = Self.bitmapCopy(image, maxPixelSize: Self.defaultMaxPixelSize)
-                    await MainActor.run { self.store(scaled, for: id) }
+                    await MainActor.run {
+                        guard !Task.isCancelled else { return }
+                        self.store(scaled, for: id)
+                    }
                 }
                 await MainActor.run { self.pruneCache(keeping: []) }
             }
         }
     }
 
-    private static var captureIsPaused: Bool {
+    private static func captureIsPaused(excludedAppsKey: String) -> Bool {
         let excluded = Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: DefaultsKey.windowPreviewExcludedApps) ?? [])
+            UserDefaults.standard.stringArray(forKey: excludedAppsKey) ?? [])
         return SwitcherSupport.shouldPausePreviewCapture(
             frontmostBundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
             excludedBundleIdentifiers: excluded)

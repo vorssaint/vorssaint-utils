@@ -28,12 +28,16 @@ enum NotchVolumeFeedbackTests {
         var muteBaseline: Bool?
         var ownVolumeAdjustmentUntil: TimeInterval = 0
         var expanded = false
+        var showsSystemFeedback = true
         var notice: NotchNotice?
         var presented: [NotchNotice] = []
-        func show(_ incoming: NotchNotice) {
-            guard NotchSupport.shouldReplace(notice?.event, with: incoming.event) else { return }
+        @discardableResult
+        func show(_ incoming: NotchNotice) -> Bool {
+            guard showsSystemFeedback,
+                  NotchSupport.shouldReplace(notice?.event, with: incoming.event) else { return false }
             notice = incoming
             presented.append(incoming)
+            return true
         }
     }
 
@@ -137,5 +141,30 @@ enum NotchVolumeFeedbackTests {
             drain()
             suite.expect(service.presented.isEmpty, "stopping observation cancels volume feedback")
         }
+
+        // The command bar writes a level and then reports it, because the
+        // observer can have nothing new to show for that write.
+        let mixer = AppVolumeMixer()
+        AppVolumeMixer.shared = mixer
+        let service = Service()
+        service.bindVolumeEvents()
+        drain()
+        mixer.systemOutputVolume = 0.3
+        drain()
+        suite.expect(service.presented.isEmpty, "rewriting the current level gives the observer nothing to show")
+        suite.expect(service.showVolume(0.3) && service.notice?.level == 0.3,
+               "a level set outside the island shows even when it matches the current one")
+        service.presented.removeAll()
+        mixer.publish(device: "headphones", volume: 0.6, muted: false)
+        drain()
+        suite.expect(service.presented.isEmpty && service.showVolume(0.6) && service.notice?.level == 0.6,
+               "a level set outside the island shows when it is a new output's silent first reading")
+        service.expanded = true
+        suite.expect(service.showVolume(0.2) && service.notice?.level == 0.2,
+               "a level set outside the open island supplies its header feedback")
+        service.showsSystemFeedback = false
+        suite.expect(!service.showVolume(0.9) && service.notice?.level == 0.2,
+               "an island that cannot show volume leaves the confirmation to the caller")
+        service.subscriptions.removeAll()
     }
 }

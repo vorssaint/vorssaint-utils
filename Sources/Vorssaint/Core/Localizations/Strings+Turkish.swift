@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Kapalıyken tüm masaüstlerindeki pencereleri gösterir. Başka bir masaüstündeki pencereyi seçtiğinizde o masaüstüne geçersiniz.",
         dockPreviewBackgroundOpacity: "Panel arka planı",
         dockPreviewBackgroundOpacityCaption: "Panelin arkasındakileri daha çok görmek için azalt.",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass açık olduğundan panelin saydamlığı Sistem Ayarları > Görünüş bölümünden ayarlanır.",
         dockPreviewOpenDelay: "Açılma gecikmesi",
         dockPreviewOpenDelayCaption: "Panelin açılması için imlecin bir simgenin üzerinde ne kadar bekleyeceği.",
         dockPreviewQuitAppOnClose: "× düğmesiyle uygulamadan çık",
@@ -1077,7 +1078,12 @@ extension Strings {
         smoothScrollCoastLabel: "Atalet",
         mouseAccelerationName: "Fare hızlandırmasını kapat",
         mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir.",
+        linearScrollName: "Doğrusal kaydırma",
+        linearScrollCaption: "Fare tekerleğinin her adımı, ne kadar hızlı çevrilirse çevrilsin aynı mesafeyi kaydırır. İzleme dörtgeni değişmez.",
+        linearScrollLinesLabel: "Adım başına satır",
         shelfClearOnClose: "Kapatınca temizle",
-        shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur."
+        shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur.",
+        shelfShortcutFinderSelection: "Kısayolla Finder seçimini ekle",
+        shelfShortcutFinderSelectionCaption: "Finder öndeyken kısayol, rafı seçili dosyalar içinde olacak şekilde açar. Hiçbir şey seçili değilse her zamanki gibi açılır."
     )
 }

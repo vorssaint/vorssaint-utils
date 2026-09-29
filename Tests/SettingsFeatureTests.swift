@@ -111,6 +111,20 @@ enum SettingsFeatureTests {
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: mainDisplayBackup)?[DefaultsKey.notchDisplay] as? String
                     == NotchDisplay.main.rawValue,
                "a backup keeps the main display choice")
+        let pointerDisplayBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [DefaultsKey.notchDisplay: NotchDisplay.pointer.rawValue],
+        ]
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: pointerDisplayBackup)?[DefaultsKey.notchDisplay] as? String
+                    == NotchDisplay.pointer.rawValue,
+               "a backup keeps the choice to follow the pointer, which belongs to no single Mac")
+        let allDisplaysBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [DefaultsKey.notchDisplay: NotchDisplay.all.rawValue],
+        ]
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: allDisplaysBackup)?[DefaultsKey.notchDisplay] as? String
+                    == NotchDisplay.all.rawValue,
+               "a backup keeps the choice of every display")
         suite.expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
                "the cleaning mode keep screen visible choice travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.appearance),
@@ -230,6 +244,10 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.mouseAccelerationDisabled)
                 && backupKeys.contains(DefaultsKey.panelControlMouseAcceleration),
                "mouse acceleration preferences travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.linearScrollEnabled)
+                && backupKeys.contains(DefaultsKey.linearScrollLines)
+                && backupKeys.contains(DefaultsKey.panelControlLinearScroll),
+               "linear scrolling preferences travel with the settings backup")
         suite.expect(MouseExceptionScope.allCases.allSatisfy { backupKeys.contains($0.defaultsKey) },
                "the apps each mouse feature leaves alone travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
@@ -262,6 +280,9 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.windowMaximizeExcludedApps)
                 && (Defaults.registeredDefaults[DefaultsKey.windowMaximizeExcludedApps] as? [String]) == [],
                "the green button exception list starts empty and travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.switcherPreviewExcludedApps)
+                && (Defaults.registeredDefaults[DefaultsKey.switcherPreviewExcludedApps] as? [String]) == [],
+               "the switcher's own paused apps start empty and travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.panelShowToggles)
                 && backupKeys.contains(DefaultsKey.panelToggleOrder)
                 && backupKeys.contains(DefaultsKey.panelToggleDarkMode)

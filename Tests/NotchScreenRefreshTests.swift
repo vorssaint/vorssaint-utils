@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
 
 /// The notification and permission lifecycle bodies come from production;
@@ -58,10 +59,42 @@ enum NotchScreenRefreshContract {
         var resignations = 0
         func resignKey() { resignations += 1 }
     }
-    enum NSEvent { static var mouseLocation = CGPoint.zero }
+    enum NSEvent {
+        static var mouseLocation = CGPoint.zero
+        struct EventTypeMask: OptionSet {
+            let rawValue: UInt64
+            static let mouseMoved = EventTypeMask(rawValue: 1 << 5)
+            static let leftMouseDragged = EventTypeMask(rawValue: 1 << 6)
+        }
+        final class Event {}
+        static var globalHandlers: [(Event) -> Void] = []
+        static var localHandlers: [(Event) -> Event?] = []
+        static var removed = 0
+        static func addGlobalMonitorForEvents(matching mask: EventTypeMask, handler: @escaping (Event) -> Void) -> Any? {
+            globalHandlers.append(handler)
+            return globalHandlers.count
+        }
+        static func addLocalMonitorForEvents(matching mask: EventTypeMask, handler: @escaping (Event) -> Event?) -> Any? {
+            localHandlers.append(handler)
+            return -localHandlers.count
+        }
+        static func removeMonitor(_ monitor: Any) { removed += 1 }
+        static func reset() { globalHandlers = []; localHandlers = []; removed = 0 }
+    }
+    /// Displays side by side; the one the pointer is on is found by frame.
+    final class NSScreen {
+        static var screens: [NSScreen] = []
+        static var withMouse: NSScreen? { screens.first { $0.frame.contains(NSEvent.mouseLocation) } }
+        let notchDisplayID: CGDirectDisplayID
+        let frame: CGRect
+        init(_ id: CGDirectDisplayID, _ frame: CGRect) { notchDisplayID = id; self.frame = frame }
+    }
     final class Host {
         var rect = CGRect.zero
+        var isConcealedForMissionControl = false
+        var settledCalls = 0
         func containsHover(_ point: CGPoint) -> Bool { rect.contains(point) }
+        func whenSettled(_ body: @escaping () -> Void) { settledCalls += 1; body() }
     }
     class State {
         var hiddenInFullscreen = false
@@ -101,6 +134,28 @@ enum NotchScreenRefreshContract {
         }
         func refreshPresentation(animated: Bool) { presentations += 1 }
         func collapse() { collapses += 1 }
+        var displayHasMenuBar = true
+        static let pointerFollowDelay: TimeInterval = 0.2
+        var followsPointer = false
+        var pointerMonitors: [Any] = []
+        var pointerFollowWork: DispatchWorkItem?
+        var displayID: CGDirectDisplayID?
+        var peeking = false
+        var notice: Bool?
+        var heldDrag = false
+        var heldMusic: Bool?
+        var choosingFileDropDestination = false
+        var screenUpdates = 0
+        var consumerSyncs = 0
+        func NSMouseInRect(_ point: CGPoint, _ rect: CGRect, _ flipped: Bool) -> Bool { rect.contains(point) }
+        /// The island takes the display its identifier names, as updateScreen does.
+        func updateScreen() {
+            screenUpdates += 1
+            if let screen = NSScreen.screens.first(where: { $0.notchDisplayID == displayID }) {
+                geometry = NotchGeometry(screen: screen.frame, safeAreaTop: 0, cameraWidth: 0)
+            }
+        }
+        func syncVisibleConsumers() { consumerSyncs += 1 }
     }
 
     static func run(_ suite: TestSuite) {
@@ -359,6 +414,14 @@ enum NotchScreenRefreshContract {
         suite.expect(physical.geometry.compactSideRoom == 64 && physical.presentations == 0,
                "the physical camera retains its existing presentation during app changes")
 
+        let noMenuBar = Service()
+        noMenuBar.geometry.compactSideRoom = nil
+        noMenuBar.displayHasMenuBar = false
+        noMenuBar.syncMenuSpaceMonitoring()
+        suite.expect(noMenuBar.menuSpaceTimer == nil && noMenuBar.reads == 0 && noMenuBar.geometry.compactSideRoom != nil,
+               "a display without a menu bar keeps the island at rest with nothing to measure or cover")
+        pointerFollowContracts(suite)
+
         let source = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchService.swift",
                                   encoding: .utf8)) ?? ""
         let code = source.components(separatedBy: "\n")
@@ -373,5 +436,98 @@ enum NotchScreenRefreshContract {
         suite.expect(reader.contains("menuBarOwningApplication") && !reader.contains("frontmostApplication"),
                "the menu read measures the application whose menus are on the bar: an accessory app with focus "
                + "leaves the previous app's menus displayed, and its own menu geometry is never laid out")
+    }
+
+    /// Following the pointer runs the shipped monitors, wait and move against
+    /// two displays side by side; only the displays and the clock are doubles.
+    private static func pointerFollowContracts(_ suite: TestSuite) {
+        DispatchQueue.main = Scheduler()
+        NSEvent.reset()
+        defer { NSEvent.reset(); NSScreen.screens = []; NSEvent.mouseLocation = .zero }
+        let builtIn = NSScreen(1, CGRect(x: 0, y: 0, width: 1470, height: 956))
+        let external = NSScreen(2, CGRect(x: 1470, y: 0, width: 1920, height: 1080))
+        func island() -> Service {
+            let service = Service()
+            service.geometry = NotchGeometry(screen: builtIn.frame, safeAreaTop: 32, cameraWidth: 179)
+            service.displayID = 1
+            return service
+        }
+        NSScreen.screens = [builtIn]
+        let single = island()
+        single.followsPointer = true
+        single.syncPointerFollowing()
+        suite.expect(single.pointerMonitors.isEmpty, "one display gives the pointer nothing to follow, so nothing is watched")
+        NSScreen.screens = [builtIn, external]
+        let off = island()
+        off.syncPointerFollowing()
+        suite.expect(off.pointerMonitors.isEmpty, "the other display choices watch no pointer movement")
+
+        let service = island()
+        service.followsPointer = true
+        service.syncPointerFollowing()
+        service.syncPointerFollowing()
+        suite.expect(service.pointerMonitors.count == 2 && NSEvent.globalHandlers.count == 1 && NSEvent.localHandlers.count == 1,
+                     "following the pointer watches movement once, in other apps and in its own windows")
+        NSEvent.mouseLocation = CGPoint(x: 700, y: 500)
+        NSEvent.globalHandlers.first?(NSEvent.Event())
+        suite.expect(DispatchQueue.main.pending == 0, "moving on the island's own display schedules nothing")
+        NSEvent.mouseLocation = CGPoint(x: 2000, y: 500)
+        for _ in 0..<5 { NSEvent.globalHandlers.first?(NSEvent.Event()) }
+        suite.expect(DispatchQueue.main.pending == 1, "a burst of moves on another display waits once")
+        DispatchQueue.main.advance(0.1)
+        NSEvent.mouseLocation = CGPoint(x: 700, y: 500)
+        _ = NSEvent.localHandlers.first?(NSEvent.Event())
+        DispatchQueue.main.advance(0.2)
+        suite.expect(service.displayID == 1 && service.screenUpdates == 0,
+                     "a pointer back on the island's display before the wait ends leaves the island where it is")
+        NSEvent.mouseLocation = CGPoint(x: 2000, y: 500)
+        NSEvent.globalHandlers.first?(NSEvent.Event())
+        DispatchQueue.main.advance(0.19)
+        suite.expect(service.displayID == 1, "the island waits a moment before it follows")
+        DispatchQueue.main.advance(0.02)
+        suite.expect(service.displayID == 2 && service.screenUpdates == 1 && service.geometry.screen == external.frame
+                     && service.presentations == 1 && service.consumerSyncs == 1,
+                     "a pointer resting on another display brings the closed island there")
+        NSEvent.globalHandlers.first?(NSEvent.Event())
+        suite.expect(DispatchQueue.main.pending == 0, "on its new display the island schedules nothing more")
+
+        let blockers: [(String, (Service) -> Void)] = [
+            ("open", { $0.expanded = true }), ("peeking", { $0.peeking = true }), ("showing a notice", { $0.notice = true }),
+            ("showing capture controls", { $0.captureControls = true }), ("holding a drag", { $0.heldDrag = true }),
+            ("choosing where a file drops", { $0.choosingFileDropDestination = true }),
+            ("keeping a working surface", { $0.keepsWorkingSurface = true }),
+            ("holding a song for its notice", { $0.heldMusic = true }),
+        ]
+        for (name, block) in blockers {
+            let held = island()
+            held.followsPointer = true
+            block(held)
+            NSEvent.mouseLocation = CGPoint(x: 2000, y: 500)
+            held.schedulePointerFollow()
+            DispatchQueue.main.advance(1)
+            suite.expect(held.displayID == 1 && held.screenUpdates == 0, "an island \(name) stays on its display")
+        }
+        let concealed = island()
+        concealed.followsPointer = true
+        concealed.windowHost?.isConcealedForMissionControl = true
+        concealed.schedulePointerFollow()
+        DispatchQueue.main.advance(1)
+        suite.expect(concealed.displayID == 1, "the island waits for Mission Control to end before it moves")
+        concealed.windowHost?.isConcealedForMissionControl = false
+        concealed.schedulePointerFollow()
+        DispatchQueue.main.advance(1)
+        suite.expect(concealed.displayID == 2, "once Mission Control ends, the island follows the pointer")
+
+        let stopping = island()
+        stopping.followsPointer = true
+        stopping.syncPointerFollowing()
+        stopping.schedulePointerFollow()
+        let removedBefore = NSEvent.removed
+        stopping.suspended = true
+        stopping.syncPointerFollowing()
+        DispatchQueue.main.advance(1)
+        suite.expect(stopping.pointerMonitors.isEmpty && NSEvent.removed == removedBefore + 2
+                     && stopping.pointerFollowWork == nil && stopping.displayID == 1,
+                     "suspending the island removes its pointer monitors and drops a pending move")
     }
 }
