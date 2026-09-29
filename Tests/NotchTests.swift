@@ -2305,6 +2305,18 @@ enum NotchTests {
                      && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 80)
                         .compactCalendarGeometry(wing: 100).compactActivityWingWidth == 80,
                      "the countdown wings fit the wider of the title and the clock, within the menus' room")
+        func menus(_ room: CGFloat) -> NotchGeometry {
+            NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: room)
+        }
+        let pair = physical.compactCalendarGeometry(wing: 66, paired: true)
+        suite.expect(pair.compactActivityWingWidth == 66 && !pair.compactActivityUsesFooter
+                     && physical.compactCalendarGeometry(wing: 30, paired: true).compactActivityWingWidth == 44,
+                     "paired, the event's clock and the other activity's mark set the wings, without a title's minimum")
+        suite.expect(menus(68).compactCalendarGeometry(wing: 66, paired: true).compactActivityWingWidth == 66
+                     && menus(68).compactCalendarGeometry(wing: 66).compactActivityUsesFooter
+                     && menus(60).compactCalendarGeometry(wing: 66, paired: true).compactActivityUsesFooter
+                     && menus(75).compactCalendarGeometry(wing: 80, paired: true).compactActivityWingWidth == 75,
+                     "a pair stays beside the camera where the menus leave it room and moves below a crowded notch otherwise")
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         let midnight = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8))!

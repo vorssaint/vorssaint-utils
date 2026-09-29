@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+An event countdown paired with another activity in Dynamic Island no longer leaves extra black beside the camera.
+
+### Dynamic Island
+- An event countdown paired with music or AI agents is only as wide as its clock and the other activity's mark need, like a timer's pair, without the extra black beside the camera. When Show over the menus is off, it also stays beside the camera on a crowded menu bar whenever it fits.
+
+### Contributors
+Feedback: Pinea.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary
