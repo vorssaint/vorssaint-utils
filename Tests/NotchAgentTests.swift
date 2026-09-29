@@ -435,6 +435,20 @@ enum NotchAgentTests {
                                                state: &aborted, now: now)
                         == [.turnEnded(AgentTimestamp.parse("2026-09-22T15:00:00.000Z"), completed: false, duration: 10.961)],
                      "an aborted turn ends without counting as finished")
+        let event = line(#"{"timestamp":"2026-09-22T15:00:00.000Z","ordinal":3,"type":"event_msg","payload":{"type":"token_count","info":null}}"#)
+        let kind = AgentLogParser.firstType(event)
+        suite.expect(kind?.name == "event_msg" && AgentLogParser.firstType(event, from: kind?.end ?? 0)?.name == "token_count",
+                     "a Codex line's own type is found first, then its event's")
+        // Compacted history and tool output quote whole records, keys and all.
+        let quoted = #"{"type":"event_msg","payload":{"type":"task_complete","duration_ms":1}}"#
+        let history = String(repeating: quoted, count: 20_000)
+        var quiet = AgentLogState(turnOpen: true)
+        suite.expect(AgentLogParser.parseCodex(line(#"{"timestamp":"2026-09-22T15:00:00.000Z","type":"compacted","payload":{"replacement_history":[\#(history)]}}"#),
+                                               state: &quiet, now: now).isEmpty
+                        && AgentLogParser.parseCodex(line(#"{"timestamp":"2026-09-22T15:00:00.000Z","type":"event_msg","payload":{"type":"item_completed","item":\#(quoted)}}"#),
+                                                     state: &quiet, now: now).isEmpty
+                        && quiet == AgentLogState(turnOpen: true),
+                     "records quoted inside another line's payload are not read as the line's own")
     }
 
     private static func timestamps(_ suite: TestSuite) {
