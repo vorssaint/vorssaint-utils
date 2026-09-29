@@ -104,6 +104,14 @@ final class AgentUsageStore {
         return turns.removeValue(forKey: file) != nil
     }
 
+    /// Every file holding a turn or a waiting turn for `provider`, for
+    /// dropping one agent's live state while its history stays.
+    func liveFiles(for provider: AgentProvider) -> [String] {
+        Set(turns.keys).union(waiting.keys).filter {
+            turns[$0]?.provider == provider || waiting[$0]?.provider == provider
+        }
+    }
+
     /// `file` names the log whose turn the response counts toward. A
     /// subagent's responses leave that turn's model and project alone.
     private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, turn file: String?,
@@ -113,24 +121,30 @@ final class AgentUsageStore {
         if let position = index[key] {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
-            guard merged != old.tokens else { return }
-            summary.recordChanged(at: position, previous: old)
             var combined = billables[position]
             combined.tokens = merged
             combined.longCacheWrite = max(combined.longCacheWrite, billable.longCacheWrite)
             combined.webSearches = max(combined.webSearches, billable.webSearches)
             combined.fast = combined.fast || billable.fast
             combined.domestic = combined.domestic || billable.domestic
+            // The latest reported charge wins; a reread without one keeps the
+            // last. A reply the list does not name is still worth what its
+            // source recorded, and a final charge that arrives after the
+            // tokens counts even when nothing else grew.
+            if let reported = billable.reportedCost { combined.reportedCost = reported }
             let priced = AgentPricing.cost(combined, model: old.model)
+            let newCost = priced.cost ?? combined.reportedCost
+            guard merged != old.tokens || newCost != old.cost else { return }
+            summary.recordChanged(at: position, previous: old)
             delta = AgentTokens(input: merged.input - old.tokens.input,
                                 cacheWrite: merged.cacheWrite - old.tokens.cacheWrite,
                                 cacheRead: merged.cacheRead - old.tokens.cacheRead,
                                 output: merged.output - old.tokens.output,
                                 reasoning: merged.reasoning - old.tokens.reasoning)
-            extra = (priced.cost ?? 0) - (old.cost ?? 0)
+            extra = (newCost ?? 0) - (old.cost ?? 0)
             billables[position] = combined
             records[position].tokens = merged
-            records[position].cost = priced.cost
+            records[position].cost = newCost
             records[position].savings = priced.savings
         } else {
             summary.recordChanged(at: records.count, previous: nil)
@@ -151,14 +165,14 @@ final class AgentUsageStore {
         turns[file] = turn
     }
 
-    /// Prices every response again, after a newer list arrives. OpenCode
-    /// rows keep what OpenCode recorded: the list prices a few of its models,
-    /// but the database holds the actual cost for all seventy-five providers.
+    /// Prices every response again, after a newer list arrives. A response
+    /// the list prices follows the list, so a new model the list learns
+    /// becomes priced; anything else keeps what its source recorded.
     func reprice() {
         summary.invalidate()
-        for position in records.indices where records[position].provider != .opencode {
+        for position in records.indices {
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
-            records[position].cost = priced.cost
+            records[position].cost = priced.cost ?? billables[position].reportedCost
             records[position].savings = priced.savings
         }
     }

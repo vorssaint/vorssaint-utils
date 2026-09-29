@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import SQLite3
 
 enum NotchAgentTests {
     static func run(_ suite: TestSuite) {
@@ -444,15 +445,19 @@ enum NotchAgentTests {
                                         input: Int = 100, output: Int = 20, cacheRead: Int = 0,
                                         cacheWrite: Int = 0, reasoning: Int = 0, cost: Double = 0.01,
                                         created: Int64 = 1_790_000_000_000, completed: Int64? = 1_790_000_005_000,
-                                        cwd: String = "/Users/me/code/app") -> [String: Any] {
+                                        cwd: String = "/Users/me/code/app", finish: String? = nil,
+                                        error: [String: Any]? = nil) -> [String: Any] {
         var time: [String: Any] = ["created": NSNumber(value: created)]
         if let completed { time["completed"] = NSNumber(value: completed) }
-        return ["role": role, "modelID": model, "providerID": "nvidia",
-                "path": ["cwd": cwd, "root": cwd],
-                "cost": NSNumber(value: cost),
-                "tokens": ["input": input, "output": output, "reasoning": reasoning,
-                           "cache": ["read": cacheRead, "write": cacheWrite], "total": input + output + cacheRead],
-                "time": time]
+        var message: [String: Any] = ["role": role, "modelID": model, "providerID": "nvidia",
+                                      "path": ["cwd": cwd, "root": cwd],
+                                      "cost": NSNumber(value: cost),
+                                      "tokens": ["input": input, "output": output, "reasoning": reasoning,
+                                                 "cache": ["read": cacheRead, "write": cacheWrite]],
+                                      "time": time]
+        if let finish { message["finish"] = finish }
+        if let error { message["error"] = error }
+        return message
     }
 
     private static func opencodeParsing(_ suite: TestSuite) {
@@ -483,6 +488,45 @@ enum NotchAgentTests {
                      "input, cache and output map onto the shared token shape")
         let priced = AgentPricing.cost(AgentBillable(tokens: record.tokens), model: "gpt-6-sol").cost
         suite.expect(record.cost == priced, "a listed family shows the list price like the other agents")
+        // Reasoning is billed with output, the way both logs keep it: a mixed
+        // reply counts it in the total and the price, and a reasoning-only
+        // reply with no recorded charge is still recorded.
+        let thinking = AgentOpenCodeParser.entries(
+            messageID: "m-think", sessionID: "s",
+            data: opencodeMessage(role: "assistant", model: "gpt-6-sol", input: 10, output: 4,
+                                  reasoning: 6, cost: 0.5), directory: nil, now: now)
+        let thinkingRecord = thinking.compactMap { if case .usage(_, let record, _) = $0 { return record }; return nil }.first
+        suite.expect(thinkingRecord?.tokens
+                        == AgentTokens(input: 10, cacheWrite: 0, cacheRead: 0, output: 10, reasoning: 6),
+                     "reasoning joins output in the total while staying visible on its own")
+        let reasoningOnly = AgentOpenCodeParser.entries(
+            messageID: "m-reason", sessionID: "s",
+            data: opencodeMessage(role: "assistant", model: "muse-spark-1.3-contributor-free",
+                                  input: 0, output: 0, reasoning: 9, cost: 0),
+            directory: nil, now: now)
+        let reasoningRecord = reasoningOnly.compactMap { if case .usage(_, let record, _) = $0 { return record }; return nil }.first
+        suite.expect(reasoningRecord?.tokens.output == 9 && reasoningRecord?.cost == 0,
+                     "a reasoning-only reply with no charge is kept, not omitted")
+        // Terminal status follows the row: a final response ends the turn as
+        // finished, an error ends it quietly, and a tool step stays active.
+        let final = AgentOpenCodeParser.entries(
+            messageID: "m-stop", sessionID: "s",
+            data: opencodeMessage(role: "assistant", finish: "stop"), directory: nil, now: now)
+        suite.expect(final.last == .turnEnded(Date(timeIntervalSince1970: 1_790_000_005), completed: true, duration: nil),
+                     "a final response ends the turn as finished")
+        let failed = AgentOpenCodeParser.entries(
+            messageID: "m-err", sessionID: "s",
+            data: opencodeMessage(role: "assistant", input: 0, output: 0, cost: 0,
+                                  error: ["name": "MessageAbortedError", "data": ["message": "Aborted"]]),
+            directory: nil, now: now)
+        suite.expect(failed.last == .turnEnded(Date(timeIntervalSince1970: 1_790_000_005), completed: false, duration: nil)
+                        && !failed.contains { if case .usage = $0 { return true }; return false },
+                     "an error ends the turn quietly without recording empty usage")
+        let stepping = AgentOpenCodeParser.entries(
+            messageID: "m-step", sessionID: "s",
+            data: opencodeMessage(role: "assistant", finish: "tool-calls"), directory: nil, now: now)
+        suite.expect(stepping.last == .turnActive(Date(timeIntervalSince1970: 1_790_000_005)),
+                     "an intermediate tool step keeps the turn working")
         // Anything the list does not name shows what OpenCode recorded, even zero.
         let free = AgentOpenCodeParser.entries(messageID: "m2", sessionID: "s",
                                                data: opencodeMessage(role: "assistant",
@@ -528,22 +572,234 @@ enum NotchAgentTests {
         suite.expect(finished.isEmpty && store.live.first?.model == "gpt-6-sol"
                         && store.live.first?.project == "web",
                      "a reply joins the turn with its model and project")
+        // A final response ends the turn on its own, with what it spent.
+        let stopAt = Date(timeIntervalSince1970: 1_790_000_008)
+        let stopped = store.apply(final, file: file, provider: .opencode, tracksTurns: true,
+                                  modified: stopAt, now: stopAt)
+        guard case .finished(let stoppedProvider, _, let stoppedCost, let stoppedTokens, _)? = stopped.first else {
+            suite.expect(false, "a final response finishes the turn it belongs to")
+            return
+        }
+        suite.expect(stoppedProvider == .opencode && stoppedCost > 0 && stoppedTokens > 0 && store.live.isEmpty,
+                     "a finished OpenCode turn reports its spend and stops working")
         let nextUser = AgentOpenCodeParser.entries(messageID: "u2", sessionID: "s", data: [
             "role": "user", "time": ["created": NSNumber(value: 1_790_000_100_000.0)]], directory: nil, now: now)
         let done = store.apply(nextUser, file: file, provider: .opencode, tracksTurns: true,
                                modified: Date(timeIntervalSince1970: 1_790_000_100),
                                now: Date(timeIntervalSince1970: 1_790_000_100))
-        guard case .finished(let provider, let duration, _, _, let project)? = done.first else {
-            suite.expect(false, "the next prompt finishes the turn it follows")
+        suite.expect(done.isEmpty && store.live.count == 1,
+                     "a prompt after a finished turn starts the next one without replaying news")
+        // A newer price list reprices list-derived values while recorded
+        // charges stay, and a model the list learns becomes priced.
+        let listedBefore = store.records.first { $0.model == "gpt-6-sol" }?.cost
+        let freeBefore = store.records.first { $0.model == "muse-spark-1.3-contributor-free" }?.cost
+        store.reprice()
+        suite.expect(store.records.first { $0.model == "gpt-6-sol" }?.cost == listedBefore
+                        && store.records.first { $0.model == "muse-spark-1.3-contributor-free" }?.cost == freeBefore,
+                     "repricing keeps list prices and recorded charges alike")
+        // Growing tokens on an unlisted model keep the latest reported charge,
+        // and a charge that arrives after the tokens counts on its own.
+        let charges = AgentUsageStore()
+        let chargeFile = "opencode:charges"
+        func chargeUsage(tokens: AgentTokens, cost: Double?) -> [AgentLogEntry] {
+            let billable = AgentBillable(tokens: tokens, reportedCost: cost)
+            let priced = AgentPricing.cost(billable, model: "muse-spark-1.3-contributor-free")
+            return [.usage(key: "opencode:growing",
+                           record: AgentUsageRecord(provider: .opencode, date: now, model: "muse-spark-1.3-contributor-free",
+                                                    project: "app", session: "s", tokens: tokens,
+                                                    cost: priced.cost ?? cost, savings: priced.savings),
+                           billable: billable)]
+        }
+        charges.apply(chargeUsage(tokens: AgentTokens(input: 100, output: 10), cost: 0.02),
+                      file: chargeFile, provider: .opencode, tracksTurns: false, modified: now)
+        charges.apply(chargeUsage(tokens: AgentTokens(input: 100, output: 30), cost: 0.05),
+                      file: chargeFile, provider: .opencode, tracksTurns: false, modified: now)
+        suite.expect(charges.records.first?.tokens.output == 30 && charges.records.first?.cost == 0.05,
+                     "growing tokens on an unlisted model keep the latest reported charge, not nil")
+        charges.apply(chargeUsage(tokens: AgentTokens(input: 100, output: 30), cost: 0.07),
+                      file: chargeFile, provider: .opencode, tracksTurns: false, modified: now)
+        suite.expect(charges.records.first?.cost == 0.07,
+                     "a final charge counts even when the tokens do not grow")
+        // A subagent session counts toward its root turn and never alerts
+        // on its own.
+        let team = AgentUsageStore()
+        team.reportsTransitions = true
+        let rootFile = "opencode:root"
+        team.apply(user, file: rootFile, provider: .opencode, tracksTurns: true, modified: began, now: began)
+        team.apply(entries, file: rootFile, provider: .opencode, tracksTurns: true, modified: replyAt, now: replyAt)
+        let rootCost = team.live.first?.cost ?? -1
+        let childEntries = AgentOpenCodeParser.entries(
+            messageID: "m-child", sessionID: "child",
+            data: opencodeMessage(role: "assistant", model: "gpt-6-sol", input: 40, output: 8,
+                                  cost: 0.5, cwd: "/Users/me/code/tools"),
+            directory: nil, now: now)
+        let childEvents = team.apply(childEntries, file: "opencode:child", provider: .opencode,
+                                     tracksTurns: false, parent: rootFile, modified: replyAt, now: replyAt)
+        let served = team.live.first
+        let childCost = AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 40, output: 8)),
+                                          model: "gpt-6-sol").cost ?? -1
+        suite.expect(childEvents.isEmpty && team.live.count == 1
+                        && abs((served?.cost ?? -2) - (rootCost + childCost)) < 0.000001,
+                     "a subagent's spend joins the turn it serves")
+        suite.expect(served?.model == "gpt-6-sol" && served?.project == "web",
+                     "the turn keeps the model and project the session chose")
+        suite.expect(AgentOpenCodeReader.root(of: "child", parents: ["child": "root", "root": ""]) == "root"
+                        && AgentOpenCodeReader.root(of: "lone", parents: [:]) == "lone"
+                        && AgentOpenCodeReader.root(of: "a", parents: ["a": "a"]) == "a",
+                     "sessions resolve to their root ancestor, safely")
+        opencodeReader(suite, now: now)
+    }
+
+    /// A throwaway OpenCode database with just the tables the reader queries.
+    private static func opencodeDatabase(home: URL, sessions: [(id: String, parent: String?, directory: String)],
+                                         messages: [(id: String, session: String, created: Int64,
+                                                     updated: Int64, data: [String: Any])]) -> Bool {
+        let dir = home.appending(path: ".local/share/opencode", directoryHint: .isDirectory)
+        do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) } catch { return false }
+        let url = dir.appending(path: "opencode.db", directoryHint: .notDirectory)
+        var db: OpaquePointer?
+        guard sqlite3_open(url.path, &db) == SQLITE_OK, let db else { return false }
+        defer { sqlite3_close(db) }
+        func exec(_ sql: String) -> Bool { sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK }
+        guard exec("CREATE TABLE session(id TEXT PRIMARY KEY, parent_id TEXT, directory TEXT)") else { return false }
+        guard exec("CREATE TABLE message(id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)") else {
+            return false
+        }
+        for session in sessions {
+            let parent = session.parent.map { "'\($0)'" } ?? "NULL"
+            guard exec("INSERT INTO session(id, parent_id, directory) VALUES('\(session.id)', \(parent), '\(session.directory)')") else {
+                return false
+            }
+        }
+        for message in messages {
+            guard let json = try? JSONSerialization.data(withJSONObject: message.data),
+                  let text = String(data: json, encoding: .utf8) else { return false }
+            let safe = text.replacingOccurrences(of: "'", with: "''")
+            guard exec("INSERT INTO message(id, session_id, time_created, time_updated, data) VALUES" +
+                       "('\(message.id)', '\(message.session)', \(message.created), \(message.updated), '\(safe)')") else {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Overlap rereads, replacement, removal, hierarchy and cancellation,
+    /// through the real reader and store.
+    private static func opencodeReader(_ suite: TestSuite, now: Date) {
+        let home = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let at = AgentOpenCodeDatabase.databaseURL(home: home)
+        func userData(at ms: Int64) -> [String: Any] {
+            ["role": "user", "time": ["created": NSNumber(value: Double(ms))]]
+        }
+        func assistantData(finish: String, created: Int64, updated: Int64) -> [String: Any] {
+            var message = opencodeMessage(role: "assistant", model: "gpt-6-sol", input: 50, output: 10,
+                                          cost: 0.2, created: created, completed: updated)
+            message["finish"] = finish
+            return message
+        }
+        let base: Int64 = 1_790_000_000_000
+        guard opencodeDatabase(
+            home: home, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app")],
+            messages: [(id: "u1", session: "s", created: base, updated: base, data: userData(at: base)),
+                       (id: "m1", session: "s", created: base + 5_000, updated: base + 8_000,
+                        data: assistantData(finish: "stop", created: base + 5_000, updated: base + 8_000))]) else {
+            suite.expect(false, "the OpenCode fixture creates its database")
             return
         }
-        suite.expect(provider == .opencode && duration == 100 && project == "web" && store.live.count == 1,
-                     "a finished OpenCode turn reports its length and project, and the next one is working")
-        // A newer price list never rewrites what OpenCode recorded.
-        let before = store.records.first { $0.provider == .opencode }?.cost
-        store.reprice()
-        suite.expect(store.records.first { $0.provider == .opencode }?.cost == before,
-                     "repricing keeps OpenCode's recorded cost")
+        var cursor = AgentOpenCodeCursor()
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        func drain() -> [AgentUsageEvent] {
+            var events: [AgentUsageEvent] = []
+            _ = AgentOpenCodeReader.read(home: home, cursor: &cursor, now: now, shouldContinue: { true }) { batch in
+                let file = "opencode:\(batch.sessionID)"
+                let tracks = batch.sessionID == batch.rootSessionID
+                events += store.apply(batch.entries, file: file, provider: .opencode, tracksTurns: tracks,
+                                      parent: tracks ? nil : "opencode:\(batch.rootSessionID)",
+                                      modified: now, now: now)
+                return true
+            }
+            return events
+        }
+        // A finished turn reports once; the overlap reread merges usage
+        // without reopening the turn or replaying the notice.
+        suite.expect(drain().count == 1 && store.records.count == 1, "a finished turn reports once")
+        let cost = store.records.first?.cost
+        suite.expect(drain().isEmpty && store.records.count == 1 && store.records.first?.cost == cost
+                        && store.live.isEmpty,
+                     "an overlap reread replays neither the notice nor the turn")
+        // A replaced file starts over: rows older than the old watermark are
+        // read, and live turns from the old file are forgotten quietly.
+        store.apply(AgentOpenCodeParser.entries(messageID: "u-live", sessionID: "s",
+                                                data: userData(at: base + 9_000), directory: nil, now: now),
+                    file: "opencode:s", provider: .opencode, tracksTurns: true, modified: now, now: now)
+        try? FileManager.default.removeItem(at: at)
+        let older: Int64 = 1_785_000_000_000
+        guard opencodeDatabase(
+            home: home, sessions: [(id: "s2", parent: nil, directory: "/Users/me/code/old")],
+            messages: [(id: "u2", session: "s2", created: older, updated: older, data: userData(at: older))]) else {
+            suite.expect(false, "the OpenCode fixture replaces its database")
+            return
+        }
+        var replacedSessions: [String] = []
+        let replaced = AgentOpenCodeReader.read(home: home, cursor: &cursor, now: now, shouldContinue: { true }) { batch in
+            replacedSessions.append(batch.sessionID)
+            return true
+        }
+        suite.expect(replaced.reset && replacedSessions == ["s2"],
+                     "a replaced database resets the watermark instead of staying stale")
+        var forgotten = false
+        for file in store.liveFiles(for: .opencode) { forgotten = store.forget(file: file) || forgotten }
+        suite.expect(forgotten && store.live.isEmpty && store.records.count == 1,
+                     "replacement drops the old file's live turns while its history stays")
+        // A stopped scan collects nothing while the database stands.
+        var deniedCount = 0
+        _ = AgentOpenCodeReader.read(home: home, cursor: &cursor, now: now, shouldContinue: { false }) { _ in
+            deniedCount += 1
+            return true
+        }
+        suite.expect(deniedCount == 0, "cancellation ends the scan")
+        // A removed file resets the cursor and reads nothing.
+        try? FileManager.default.removeItem(at: at)
+        var removedCount = 0
+        let removed = AgentOpenCodeReader.read(home: home, cursor: &cursor, now: now, shouldContinue: { true }) { _ in
+            removedCount += 1
+            return true
+        }
+        suite.expect(removed.reset && removedCount == 0, "a removed database resets and reads nothing")
+        // A subagent session joins its root turn through the reader.
+        guard opencodeDatabase(
+            home: home,
+            sessions: [(id: "r", parent: nil, directory: "/Users/me/code/app"),
+                       (id: "c", parent: "r", directory: "/Users/me/code/app")],
+            messages: [(id: "ru", session: "r", created: base, updated: base, data: userData(at: base)),
+                       (id: "rm", session: "r", created: base + 1_000, updated: base + 2_000,
+                        data: assistantData(finish: "tool-calls", created: base + 1_000, updated: base + 2_000)),
+                       (id: "cu", session: "c", created: base + 3_000, updated: base + 3_000,
+                        data: userData(at: base + 3_000)),
+                       (id: "cm", session: "c", created: base + 4_000, updated: base + 5_000,
+                        data: assistantData(finish: "stop", created: base + 4_000, updated: base + 5_000))]) else {
+            suite.expect(false, "the OpenCode fixture creates its hierarchy")
+            return
+        }
+        var teamCursor = AgentOpenCodeCursor()
+        let team = AgentUsageStore()
+        team.reportsTransitions = true
+        var teamEvents: [AgentUsageEvent] = []
+        _ = AgentOpenCodeReader.read(home: home, cursor: &teamCursor, now: now, shouldContinue: { true }) { batch in
+            let file = "opencode:\(batch.sessionID)"
+            let tracks = batch.sessionID == batch.rootSessionID
+            if batch.sessionID == "c" {
+                suite.expect(!tracks && batch.rootSessionID == "r", "a child session resolves to its root")
+            }
+            teamEvents += team.apply(batch.entries, file: file, provider: .opencode, tracksTurns: tracks,
+                                     parent: tracks ? nil : "opencode:\(batch.rootSessionID)",
+                                     modified: now, now: now)
+            return true
+        }
+        suite.expect(team.live.count == 1 && team.live.first?.project == "app" && teamEvents.isEmpty,
+                     "a child's work joins the root turn with no notice of its own")
     }
 
     private static func timestamps(_ suite: TestSuite) {

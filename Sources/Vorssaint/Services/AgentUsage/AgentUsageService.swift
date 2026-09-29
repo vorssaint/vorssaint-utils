@@ -270,25 +270,36 @@ final class AgentUsageService: ObservableObject {
         return changed
     }
 
-    /// Reads what OpenCode wrote since the last look. True when that changed
-    /// what is stored. Runs on `queue`.
+    /// Reads what OpenCode wrote since the last look, a bounded page at a
+    /// time. True when that changed what is stored. Runs on `queue`.
     @discardableResult
     private func readOpenCode() -> Bool {
         guard let cancellation = readerCancellation, !cancellation.isCancelled,
               enabled.contains(.opencode) else { return false }
         let now = Date()
         var changed = false
-        // The database read is bounded by the horizon and the overlap; each
-        // session's rows apply in log order while they are alive.
-        let batches = AgentOpenCodeReader.readNew(home: home, cursor: &opencodeCursor, now: now)
-        for (sessionID, entries) in batches {
-            guard !cancellation.isCancelled else { break }
-            guard !entries.isEmpty else { continue }
-            changed = true
-            let file = "opencode:\(sessionID)"
-            let finished = store.apply(entries, file: file, provider: .opencode,
-                                       tracksTurns: true, modified: now, now: now)
+        // Each page applies in log order while its rows are alive, so
+        // stopping the section ends the scan at the next page boundary.
+        let read = AgentOpenCodeReader.read(home: home, cursor: &opencodeCursor, now: now,
+                                            shouldContinue: { !cancellation.isCancelled }) { batch in
+            guard !cancellation.isCancelled else { return false }
+            let file = "opencode:\(batch.sessionID)"
+            let root = batch.rootSessionID
+            let tracks = batch.sessionID == root
+            let finished = store.apply(batch.entries, file: file, provider: .opencode,
+                                       tracksTurns: tracks,
+                                       parent: tracks ? nil : "opencode:\(root)",
+                                       modified: now, now: now)
             finished.forEach(report)
+            changed = true
+            return true
+        }
+        if read.reset {
+            // The file was replaced or removed: live turns from the old file
+            // end quietly while their history stays.
+            for file in store.liveFiles(for: .opencode) {
+                if store.forget(file: file) { changed = true }
+            }
         }
         return changed
     }

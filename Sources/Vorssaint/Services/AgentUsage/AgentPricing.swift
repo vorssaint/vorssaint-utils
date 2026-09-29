@@ -37,6 +37,11 @@ struct AgentBillable: Equatable {
     /// Inference pinned to the United States.
     var domestic = false
     var webSearches = 0
+    /// The charge the source itself recorded, when it records one. OpenCode
+    /// writes the actual cost of every reply; it prices what the list does
+    /// not name, and loses to the list where the list prices the model, so a
+    /// later price update can still reprice list-derived values.
+    var reportedCost: Double?
 }
 
 /// Every price the island knows, kept out of the code: a copy ships with the
