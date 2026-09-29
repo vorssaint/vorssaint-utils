@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Dynamic Island
+- In the open capsule, the header's buttons now sit as far from the top edge as the page does from the bottom, so the title no longer crowds the top.
+
+### Contributors
+Feedback: the/master.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary
