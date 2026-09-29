@@ -213,7 +213,8 @@ private struct MenuBarIconNameField: View {
         .onAppear {
             openingName = BlackHoleGlyph.chosenSymbolName
             draft = openingName
-            focused = true
+            // The popover's window is not key yet while it appears.
+            DispatchQueue.main.async { focused = true }
         }
         .onChange(of: draft) { _, newValue in
             let kept = Defaults.menuBarIconSymbolToSave(typed: newValue, opening: openingName) {
