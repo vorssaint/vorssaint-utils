@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Dynamic Island
+- On a Mac with a notch, turning on Show outline makes the closed island reach slightly past the notch, so its outline no longer hides behind the camera. Find it in Settings → Dynamic Island → Layout.
+
+### Contributors
+Feedback: Pinea.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary

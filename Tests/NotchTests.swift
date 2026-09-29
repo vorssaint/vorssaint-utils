@@ -626,6 +626,37 @@ enum NotchTests {
                "restoring a backup keeps the fit already set here")
     }
 
+    /// The outline is drawn inside the island's edge, so an island that only
+    /// covers a physical camera hides its line behind the housing.
+    private static func outlineRoomContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let room = NotchLayout.outlineWidth
+        let bare = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
+                                 menuBarHeight: 33, compactSideRoom: 100)
+        let outlined = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
+                                     menuBarHeight: 33, compactSideRoom: 100, outline: true)
+        suite.expect(bare.outlineRoom == 0 && outlined.outlineRoom == room
+               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 32 + room),
+               "an outlined island reaches past the camera by the line's width, so the line shows around the notch")
+        suite.expect([outlined.restingSize(showsContent: true), outlined.notice,
+                      outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 32 + room },
+               "every strip beside the camera keeps its line clear of the housing")
+        suite.expect(!outlined.hasSameMenuBar(as: bare), "turning the outline on measures the menus again for the wider island")
+        suite.expect(outlined.bareCutout == bare.restingSize(showsContent: false)
+               && bare.bareCutout == bare.restingSize(showsContent: false),
+               "full screen and the Lock Screen draw no outline, so their cutout keeps to the camera")
+        let fitted = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
+                                   cameraFit: NotchCameraFit(width: -3, height: -1), outline: true)
+        suite.expect(fitted.cameraWidth == 176 + room * 2 && fitted.cameraHeight == 31 + room,
+               "the outline's room adds to a notch fit")
+        for silhouette in [NotchSilhouette.notch, .capsule] {
+            let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24, silhouette: silhouette)
+            let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24,
+                                          silhouette: silhouette, outline: true)
+            suite.expect(simulated == plain, "a cutout without a camera already shows its outline on the menu bar")
+        }
+    }
+
     private static func musicLabelContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
         for height: CGFloat in [16, 22, 24, 28, 30, 33, 37, 64] {
@@ -808,6 +839,7 @@ enum NotchTests {
         menuBarHeightContracts(suite)
         physicalStripContracts(suite)
         cameraFitContracts(suite)
+        outlineRoomContracts(suite)
         musicLabelContracts(suite)
         NotchPanelTests.run { suite.expect($0, $1) }
         NotchHoverTests.run(suite)

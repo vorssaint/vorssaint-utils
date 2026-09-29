@@ -264,6 +264,8 @@ enum NotchLayout {
     /// rounder one; the open island reaches the full radius and shoulder.
     static func surfaceRadius(height: CGFloat) -> CGFloat { min(28, height * 0.34) }
     static func shoulder(height: CGFloat) -> CGFloat { min(shoulder, height * 0.19) }
+    /// The optional outline's stroke. Only its inner half, inside the island, shows.
+    static let outlineWidth: CGFloat = 2
 
     // MARK: Capsule
     // Without a camera the island can float in the menu bar as a capsule.
@@ -1621,6 +1623,10 @@ struct NotchGeometry: Equatable {
     let floatingGap: CGFloat?
     /// How far a fitted capsule sits below the top of the display, open or closed.
     let floatingDrop: CGFloat
+    /// How far past a physical camera an outlined island reaches on each side
+    /// and below. The line is drawn inside the island's edge, so an island
+    /// that only covers the camera would hide it behind the housing.
+    let outlineRoom: CGFloat
     private let capsuleWidthFit: CGFloat
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
@@ -1633,7 +1639,8 @@ struct NotchGeometry: Equatable {
     init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, layout: NotchSize = .compact,
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
          customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
-         cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero) {
+         cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero,
+         outline: Bool = false) {
         self.screen = screen
         self.layout = layout
         self.customWidth = NotchSize.clamped(customWidth, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
@@ -1655,10 +1662,13 @@ struct NotchGeometry: Equatable {
         let profileHeight = gap.map { stripHeight - ($0 - NotchLayout.capsuleMargin) * 2 } ?? barHeight
         // A capsule's camera is only the room it keeps, on whole points.
         let simulated = 180 * profileHeight / 32
-        self.cameraWidth = min(isNotched ? max(0, cameraWidth + fit.width)
+        // A simulated cutout sits on the menu bar, where its outline already shows.
+        let room = isNotched && outline ? NotchLayout.outlineWidth : 0
+        outlineRoom = room
+        self.cameraWidth = min(isNotched ? max(0, cameraWidth + fit.width + room * 2)
                                : gap == nil ? simulated : (simulated + capsuleFit.width).rounded(),
                                screen.width * 0.7)
-        cameraHeight = isNotched ? min(max(0, safeAreaTop + fit.height), 64) : stripHeight
+        cameraHeight = isNotched ? min(max(0, safeAreaTop + fit.height + room), 64) : stripHeight
         self.menuBarHeight = max(cameraHeight, barHeight)
         self.compactSideRoom = compactSideRoom
     }
@@ -1724,6 +1734,12 @@ struct NotchGeometry: Equatable {
         let shoulders = NotchLayout.shoulder(height: stripHeight) * 2
         let capsule = max(NotchLayout.capsuleRestingAspect * stripBodyHeight + capsuleWidthFit, stripBodyHeight * 2)
         return CGSize(width: min(cameraWidth, (capsule + shoulders).rounded()), height: cameraHeight)
+    }
+    /// Full screen and the Lock Screen draw no outline, so their black cutout
+    /// keeps to the camera instead of showing the outline's room below it.
+    var bareCutout: CGSize {
+        let resting = restingSize(showsContent: false)
+        return CGSize(width: max(0, resting.width - outlineRoom * 2), height: max(0, resting.height - outlineRoom))
     }
     /// Music remains one row high, with the physical camera between its wings.
     /// Insufficient menu space hides the wings instead of growing below the camera.

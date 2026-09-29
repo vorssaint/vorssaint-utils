@@ -83,8 +83,8 @@ final class NotchLockScreenService {
         // The island's own reading of its camera, with the fit the person set.
         let geometry = NotchService.shared.geometry
         if geometry.isNotched, NSScreen.screens.contains(where: { $0.frame == geometry.screen && $0.safeAreaInsets.top > 0 }) {
-            frames.island = NotchLockScreenLayout.islandFrame(in: geometry.screen, cameraWidth: geometry.cameraWidth,
-                                                              cameraHeight: geometry.cameraHeight)
+            frames.island = NotchLockScreenLayout.islandFrame(in: geometry.screen, cameraWidth: geometry.bareCutout.width,
+                                                              cameraHeight: geometry.bareCutout.height)
         }
         return frames
     }
@@ -115,7 +115,7 @@ final class NotchLockScreenService {
         }
         let island = frames.island.map { frame in
             Self.makePanel(frame: frame, content: NotchLockScreenIsland(
-                model: model, size: frame.size, cameraWidth: NotchService.shared.geometry.cameraWidth))
+                model: model, size: frame.size, cameraWidth: NotchService.shared.geometry.bareCutout.width))
         }
         let panels = scene + [island].compactMap { $0 }
         guard !panels.isEmpty else { space.close(); return }
