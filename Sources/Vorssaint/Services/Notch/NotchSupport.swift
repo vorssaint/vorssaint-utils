@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Combine
 import Foundation
 import CoreGraphics
 
@@ -100,7 +101,19 @@ struct NotchClipboardPastePress: Equatable {
 
 enum NotchDisplay: String, CaseIterable {
     /// `pointer` moves the closed island to the display the pointer is on.
-    case automatic, builtIn, main, pointer
+    /// `all` does too, and every other display shows the closed island.
+    case automatic, builtIn, main, pointer, all
+}
+
+/// How the island meets the top of a display without a camera housing: a
+/// capsule floating in the menu bar, as on the phone, or a cutout hanging
+/// from the top edge. A physical camera always keeps the cutout it covers.
+enum NotchSilhouette: String, CaseIterable {
+    case capsule, notch
+
+    static func current(in defaults: UserDefaults = .standard) -> NotchSilhouette {
+        NotchSilhouette(rawValue: defaults.string(forKey: DefaultsKey.notchSilhouette) ?? "") ?? .capsule
+    }
 }
 
 enum NotchSize: String, CaseIterable {
@@ -138,6 +151,34 @@ struct NotchCameraFit: Equatable {
     static func current(in defaults: UserDefaults = .standard) -> NotchCameraFit {
         NotchCameraFit(width: defaults.double(forKey: DefaultsKey.notchCameraFitWidth),
                        height: defaults.double(forKey: DefaultsKey.notchCameraFitHeight))
+    }
+}
+
+/// A capsule sized and placed by hand. By itself it takes the height of the
+/// menu bar around it; a fit makes it wider or narrower at rest, taller or
+/// shorter from its top edge, and lowers it from the top of the display.
+struct NotchCapsuleFit: Equatable {
+    static let widthRange = -40.0...80.0
+    static let heightRange = -4.0...12.0
+    static let dropRange = 0.0...20.0
+    static let zero = NotchCapsuleFit(width: 0, height: 0, drop: 0)
+
+    let width: CGFloat
+    let height: CGFloat
+    let drop: CGFloat
+
+    /// Whole points keep the capsule's edges on pixels, and even widths keep
+    /// it centred; a value written by hand is brought back to those steps.
+    init(width: Double, height: Double, drop: Double) {
+        self.width = (NotchSize.clamped(width, to: Self.widthRange, fallback: 0) / 2).rounded() * 2
+        self.height = NotchSize.clamped(height, to: Self.heightRange, fallback: 0).rounded()
+        self.drop = NotchSize.clamped(drop, to: Self.dropRange, fallback: 0).rounded()
+    }
+
+    static func current(in defaults: UserDefaults = .standard) -> NotchCapsuleFit {
+        NotchCapsuleFit(width: defaults.double(forKey: DefaultsKey.notchCapsuleFitWidth),
+                        height: defaults.double(forKey: DefaultsKey.notchCapsuleFitHeight),
+                        drop: defaults.double(forKey: DefaultsKey.notchCapsuleFitDrop))
     }
 }
 
@@ -223,6 +264,74 @@ enum NotchLayout {
     /// rounder one; the open island reaches the full radius and shoulder.
     static func surfaceRadius(height: CGFloat) -> CGFloat { min(28, height * 0.34) }
     static func shoulder(height: CGFloat) -> CGFloat { min(shoulder, height * 0.19) }
+
+    // MARK: Capsule
+    // Without a camera the island can float in the menu bar as a capsule.
+    // Open, it keeps the hanging island's sizes, so its window, hover, pages
+    // and floating controls stay where they are. Closed, its strips run from
+    // end to end, as NotchCapsuleLayout measures them.
+
+    /// The menu bar a capsule leaves above and below itself on a standard bar.
+    static let capsuleMargin: CGFloat = 2
+
+    /// A shorter bar leaves less, so the capsule is 20 points tall on a
+    /// standard bar and on a display whose bar is hidden.
+    static func capsuleGap(barHeight: CGFloat) -> CGFloat {
+        guard barHeight.isFinite else { return 0 }
+        return min(capsuleMargin, max(0, ((barHeight - 20) / 2).rounded(.down)))
+    }
+
+    /// A closed capsule is round at its ends; an open one keeps the island's corners.
+    static func capsuleRadius(height: CGFloat) -> CGFloat { min(max(0, height) / 2, 28) }
+
+    /// The bare capsule at rest is shorter than the gap between an
+    /// activity's wings, closer to the phone's proportions.
+    static let capsuleRestingAspect: CGFloat = 5
+
+    /// The capsule of a surface `rect` in size: `gap` inside its top and
+    /// bottom, and as wide as the hanging island's body between its
+    /// shoulders, which content and floating controls are laid out around.
+    static func capsuleBody(in rect: CGRect, gap: CGFloat) -> CGRect {
+        let width = max(0, rect.width), height = max(0, rect.height)
+        let side = min(shoulder(height: height), width / 2)
+        let inset = min(max(0, gap), height / 2)
+        return CGRect(x: rect.minX + side, y: rect.minY + inset,
+                      width: width - side * 2, height: height - inset * 2)
+    }
+
+    /// The surface a capsule was drawn for, from the bounds it was drawn in,
+    /// so a resize starts from the size on screen.
+    static func capsuleSurface(ofBody body: CGRect, gap: CGFloat) -> CGSize {
+        let height = body.height > 0 ? body.maxY + max(0, gap) : body.minY * 2
+        return CGSize(width: body.width + shoulder(height: height) * 2, height: max(0, height))
+    }
+
+    /// The capsule outline. Every size, down to a line, has the same elements,
+    /// so any two frames of a resize blend, and circular corners make a
+    /// strip's ends true half circles that its content can be measured from.
+    static func capsulePath(in rect: CGRect, gap: CGFloat) -> CGPath {
+        let body = capsuleBody(in: rect, gap: gap)
+        let corner = min(capsuleRadius(height: body.height), body.width / 2)
+        let handle = corner * (1 - 0.55228475)
+        let (left, right, top, bottom) = (body.minX, body.maxX, body.minY, body.maxY)
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: left + corner, y: top))
+        path.addLine(to: CGPoint(x: right - corner, y: top))
+        path.addCurve(to: CGPoint(x: right, y: top + corner), control1: CGPoint(x: right - handle, y: top),
+                      control2: CGPoint(x: right, y: top + handle))
+        path.addLine(to: CGPoint(x: right, y: bottom - corner))
+        path.addCurve(to: CGPoint(x: right - corner, y: bottom), control1: CGPoint(x: right, y: bottom - handle),
+                      control2: CGPoint(x: right - handle, y: bottom))
+        path.addLine(to: CGPoint(x: left + corner, y: bottom))
+        path.addCurve(to: CGPoint(x: left, y: bottom - corner), control1: CGPoint(x: left + handle, y: bottom),
+                      control2: CGPoint(x: left, y: bottom - handle))
+        path.addLine(to: CGPoint(x: left, y: top + corner))
+        path.addCurve(to: CGPoint(x: left + corner, y: top), control1: CGPoint(x: left, y: top + handle),
+                      control2: CGPoint(x: left + handle, y: top))
+        path.closeSubpath()
+        return path
+    }
+
     /// Content clearance under a camera of the usual height.
     static let nominalContentTop: CGFloat = 42
 
@@ -379,12 +488,13 @@ enum NotchHoverEmphasis {
         let occupiedWing = max(0, (resting.width - geometry.cameraWidth) / 2)
         let freeSide = max(0, (geometry.compactSideRoom ?? 0) - occupiedWing)
         let growth = min(10, freeSide)
-        return CGSize(width: resting.width + growth * 2, height: resting.height + 5)
+        // A capsule stretches along the bar and stays inside it.
+        return CGSize(width: resting.width + growth * 2, height: resting.height + (geometry.floats ? 0 : 5))
     }
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, downloads, agents, calendar, music
+    case timer, downloads, agents, calendar, music, keepAwake
 
     var id: String { rawValue }
 
@@ -395,9 +505,11 @@ enum NotchCompactActivity: String, Identifiable {
         case .agents: return FeatureStrings.notchAgents(language).title
         case .calendar: return FeatureStrings.notchCalendar(language).title
         case .music: return FeatureStrings.notch(language).music
+        case .keepAwake: return Strings.localized(language).keepAwakeTitle
         }
     }
 
+    /// Keep Awake has no page of its own: its tile is on Controls.
     var module: NotchModule {
         switch self {
         case .timer: return .timer
@@ -405,32 +517,342 @@ enum NotchCompactActivity: String, Identifiable {
         case .agents: return .agents
         case .calendar: return .calendar
         case .music: return .music
+        case .keepAwake: return .controls
         }
+    }
+
+    var symbol: String {
+        self == .keepAwake ? NotchControlItem.keepAwake.symbol : module.symbol
     }
 }
 
-/// A choice lasts only while that activity remains available. Returning work
-/// must not silently revive a choice from an earlier session.
+/// Two activities sharing the closed island: the primary keeps its reading
+/// right of the camera and the companion's mark takes the left.
+struct NotchActivityCombination: Hashable, Identifiable {
+    let primary: NotchCompactActivity
+    let companion: NotchCompactActivity
+
+    var id: String { primary.rawValue + "+" + companion.rawValue }
+
+    func title(_ language: AppLanguage) -> String {
+        primary.title(language) + " + " + companion.title(language)
+    }
+}
+
+/// The closed island on a display it is not on, when it shows on every
+/// display: that display's geometry, and what the island shows closed at
+/// the size it takes there. The service updates it as the island changes.
+final class NotchMirrorModel: ObservableObject {
+    @Published private(set) var geometry: NotchGeometry
+    /// A strip beside a camera has its own geometry around it, as the island's does.
+    @Published private(set) var strip: NotchGeometry
+    @Published private(set) var size: CGSize
+    @Published private(set) var activity: NotchCompactActivity?
+    var shown = false
+    /// The outline last drawn around it, and whether a timer's color tinted it.
+    var outline: Bool?
+    var timerOutline = false
+
+    init(geometry: NotchGeometry, size: CGSize) {
+        self.geometry = geometry
+        strip = geometry
+        self.size = size
+    }
+
+    /// Whether anything it draws changed, so a copy is only resized when it did.
+    func update(geometry: NotchGeometry, strip: NotchGeometry, size: CGSize, activity: NotchCompactActivity?) -> Bool {
+        guard self.geometry != geometry || self.strip != strip || self.size != size || self.activity != activity else {
+            return false
+        }
+        self.geometry = geometry
+        self.strip = strip
+        self.size = size
+        self.activity = activity
+        return true
+    }
+}
+
+/// A choice outlives the gaps in what was chosen, such as a song changing
+/// or an agent between turns: the island shows the next activity meanwhile
+/// and returns to the chosen one. It ends when nothing is left to show, so
+/// work returning later starts from the automatic order again.
 struct NotchActivitySelection {
     private(set) var preferred: NotchCompactActivity?
     private(set) var companion: NotchCompactActivity?
 
+    /// `companions` are the pairs `activity` supports now.
     mutating func select(_ activity: NotchCompactActivity, companion: NotchCompactActivity? = nil,
                          available: [NotchCompactActivity], companions: [NotchCompactActivity] = []) {
         guard available.contains(activity) else { return }
-        if let companion, activity != .timer || !companions.contains(companion) { return }
+        if let companion, !companions.contains(companion) { return }
         preferred = activity
         self.companion = companion
     }
 
-    mutating func reconcile(available: [NotchCompactActivity], companions: [NotchCompactActivity] = []) {
-        if let preferred, !available.contains(preferred) { self.preferred = nil }
-        if preferred != .timer || companion.map({ !companions.contains($0) }) == true { companion = nil }
+    mutating func reconcile(available: [NotchCompactActivity]) {
+        guard available.isEmpty else { return }
+        preferred = nil
+        companion = nil
+    }
+
+    /// The chosen pair's companion while it is there to pair with.
+    /// `companions` are the pairs the preferred activity supports now.
+    func companion(available companions: [NotchCompactActivity]) -> NotchCompactActivity? {
+        guard preferred != nil, let companion, companions.contains(companion) else { return nil }
+        return companion
     }
 
     func current(available: [NotchCompactActivity]) -> NotchCompactActivity? {
         if let preferred, available.contains(preferred) { return preferred }
         return available.first
+    }
+}
+
+/// A floating capsule has no camera inside it, so its closed content runs in
+/// one row from end to end, and the capsule is as wide as that row needs:
+/// never shorter than the bare capsule, never wider than its kind allows or
+/// than the menu bar leaves free. The views draw with these same measures.
+enum NotchCapsuleLayout {
+    /// From the capsule's round end to its first and last content.
+    static let endPadding: CGFloat = 8
+    /// Between a mark and its text.
+    static let spacing: CGFloat = 6
+    /// Between a title and its detail, or between two groups.
+    static let groupSpacing: CGFloat = 10
+    /// A symbol's slot, as wide as the widest symbol draws at its size.
+    static let symbolSize: CGFloat = 12
+    static let symbolWidth: CGFloat = 16
+    static let meterWidth: CGFloat = 56
+    static let meterHeight: CGFloat = 4
+    /// The equalizer's bars, as the music strip draws them.
+    static var barsWidth: CGFloat { NotchLayout.compactMusicBarsWidth }
+    /// SwiftUI can draw a line a little wider than AppKit measures it.
+    static let air: CGFloat = 2
+    /// Between the pieces of one mark, such as an arrow and its percentage.
+    static let markSpacing: CGFloat = 4
+    static let calendarDotSide: CGFloat = 6
+    static let downloadMeterWidth: CGFloat = 36
+    /// A progress indicator waiting for a download's size.
+    static let spinnerWidth: CGFloat = 16
+    static let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+    static let detailFont = NSFont.systemFont(ofSize: 12, weight: .medium)
+    /// A level's reading, with digits of one width, so it never jitters.
+    static let levelFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+    static let readingFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
+    static let smallFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+
+    /// The widest each kind of strip grows, in points of capsule.
+    enum Maximum {
+        static let notification: CGFloat = 380
+        static let notice: CGFloat = 340
+        static let music: CGFloat = 260
+        static let calendar: CGFloat = 300
+        static let download: CGFloat = 280
+        static let activity: CGFloat = 220
+    }
+
+    static func width(_ text: String, font: NSFont) -> CGFloat {
+        text.isEmpty ? 0 : (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up) + air
+    }
+
+    private static var symbolDrops: [String: CGFloat] = [:]
+
+    /// How far a symbol's ink sits below the middle of its frame. SF Symbols
+    /// hang low in their frames, a circle almost half a point, so centred by
+    /// frame a timer looked a pixel low beside its centred digits. Measured
+    /// once per symbol, from its own drawing.
+    static func symbolDrop(_ name: String, size: CGFloat = symbolSize, weight: NSFont.Weight = .medium) -> CGFloat {
+        let key = "\(name) \(size) \(weight.rawValue)"
+        if let drop = symbolDrops[key] { return drop }
+        let drop = measuredSymbolDrop(name, size: size, weight: weight)
+        symbolDrops[key] = drop
+        return drop
+    }
+
+    private static func measuredSymbolDrop(_ name: String, size: CGFloat, weight: NSFont.Weight) -> CGFloat {
+        let scale: CGFloat = 4
+        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: size, weight: weight)),
+              image.size.width > 0, image.size.height > 0,
+              let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int((image.size.width * scale).rounded(.up)),
+                                         pixelsHigh: Int((image.size.height * scale).rounded(.up)),
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 32) else { return 0 }
+        // In points before the context exists, so the drawing fills the pixels.
+        rep.size = image.size
+        guard let context = NSGraphicsContext(bitmapImageRep: rep) else { return 0 }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: CGRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let data = rep.bitmapData else { return 0 }
+        // Rows run from the top; a pixel counts once it is about a third inked.
+        var top: Int?, bottom = 0
+        for y in 0..<rep.pixelsHigh {
+            let row = data + y * rep.bytesPerRow
+            if (0..<rep.pixelsWide).contains(where: { row[$0 * 4 + 3] > 80 }) { top = top ?? y; bottom = y + 1 }
+        }
+        guard let top else { return 0 }
+        return CGFloat(top + bottom) / 2 / scale - image.size.height / 2
+    }
+
+    /// A cover sits in the capsule's round end, concentric with it.
+    static func artworkSide(_ geometry: NotchGeometry) -> CGFloat { max(0, geometry.stripBodyHeight - 6) }
+    static func artworkInset(_ geometry: NotchGeometry) -> CGFloat { (geometry.stripBodyHeight - artworkSide(geometry)) / 2 }
+
+    /// The capsule's side within its surface, as `capsuleBody` places it.
+    static func side(_ geometry: NotchGeometry) -> CGFloat { NotchLayout.shoulder(height: geometry.stripHeight) }
+
+    /// The widest surface the bar leaves: the display less its margins, and
+    /// the menus' free space on both sides of the capsule's middle.
+    static func availableWidth(_ geometry: NotchGeometry) -> CGFloat {
+        let room = geometry.compactSideRoom ?? 0
+        return max(0, min(geometry.screen.width - 24, geometry.cameraWidth + 2 * (room.isFinite ? max(0, room) : 0)))
+    }
+
+    /// The surface around a row `content` wide between `leading` and
+    /// `trailing` insets from the capsule's ends, on whole points like the
+    /// window around it.
+    static func surface(content: CGFloat, leading: CGFloat = endPadding, trailing: CGFloat = endPadding,
+                        maximum: CGFloat, geometry: NotchGeometry) -> CGSize {
+        let side = side(geometry)
+        let resting = geometry.restingSize(showsContent: false).width
+        let limit = max(resting, min(maximum + side * 2, availableWidth(geometry)).rounded(.down))
+        let wanted = (max(0, content.isFinite ? content : 0) + leading + trailing + side * 2).rounded(.up)
+        return CGSize(width: min(limit, max(resting, wanted)), height: geometry.stripHeight)
+    }
+
+    static func barsHeight(_ geometry: NotchGeometry) -> CGFloat { min(16, max(6, geometry.stripBodyHeight - 8)) }
+
+    /// Two working agents share a smaller mark, each in a frame wider than it.
+    static func agentMarkSize(working: Int) -> CGFloat { working > 1 ? 10 : 12 }
+    static func agentMarksWidth(working: Int) -> CGFloat {
+        let count = max(1, working)
+        return CGFloat(count) * (agentMarkSize(working: count) * 1.45 + 1) + CGFloat(count - 1)
+    }
+
+    /// A level's reading keeps the room of its widest value, so its meter
+    /// stays put while the value changes.
+    static func levelReadingWidth(_ detail: String) -> CGFloat {
+        max(width(detail, font: levelFont), width("100%", font: levelFont))
+    }
+
+    static func downloadPercentWidth(_ language: AppLanguage) -> CGFloat {
+        width((1.0).formatted(NotchDownloadSupport.percentFormat(language)), font: smallFont)
+    }
+
+    static func calendarTitle(_ countdown: NotchCalendarCountdown, language: AppLanguage) -> String {
+        let title = countdown.event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty ? FeatureStrings.notchCalendar(language).untitled : title
+    }
+
+    /// The row a notice reads in: its mark, its title and its detail, or a
+    /// level's mark, meter and reading.
+    static func noticeContent(title: String, detail: String, level: Bool) -> CGFloat {
+        if level { return symbolWidth + spacing + meterWidth + spacing + levelReadingWidth(detail) }
+        let detailWidth = width(detail, font: detailFont)
+        return symbolWidth + spacing + width(title, font: titleFont) + (detailWidth > 0 ? groupSpacing + detailWidth : 0)
+    }
+
+    /// A mirrored banner: the app's icon, the sender and the message.
+    static func notificationContent(title: String, message: String, geometry: NotchGeometry) -> CGFloat {
+        let messageWidth = width(message, font: detailFont)
+        return notificationIconSide(geometry) + spacing + width(title, font: titleFont)
+            + (messageWidth > 0 ? groupSpacing + messageWidth : 0)
+    }
+
+    static func notificationIconSide(_ geometry: NotchGeometry) -> CGFloat { min(16, max(0, geometry.stripBodyHeight - 4)) }
+
+    /// Playing music: the cover in the round end, the title and the bars.
+    /// Without a title, only the cover and the bars, at the capsule's ends.
+    static func musicSurface(title: String?, geometry: NotchGeometry) -> CGSize {
+        let named = title.map { endPadding + width($0, font: titleFont) + endPadding } ?? endPadding
+        let content = artworkSide(geometry) + named + barsWidth
+        return surface(content: content, leading: artworkInset(geometry), maximum: Maximum.music, geometry: geometry)
+    }
+
+    /// A timer's mark, or the mark of what shares the capsule with a timer
+    /// or an event: a download's arrow and percentage, the working agents,
+    /// the cover or the event's dot and countdown.
+    static func timerMarkWidth(companion: NotchCompactActivity?, workingAgents: Int, downloadPercent: Bool,
+                               geometry: NotchGeometry, language: AppLanguage) -> CGFloat {
+        switch companion {
+        case .downloads:
+            return symbolWidth + (downloadPercent ? markSpacing + downloadPercentWidth(language) : 0)
+        case .agents: return agentMarksWidth(working: workingAgents)
+        case .music: return artworkSide(geometry)
+        case .calendar: return calendarClockWidth
+        default: return symbolWidth
+        }
+    }
+
+    /// An event's dot and its countdown at its widest, as a pair shows it.
+    static var calendarClockWidth: CGFloat { calendarDotSide + markSpacing + width("00:00", font: readingFont) }
+
+    /// Between a mark and the reading beside it; an event's countdown is a
+    /// group of its own, so a pair with one keeps two clocks apart.
+    static func markGap(_ companion: NotchCompactActivity?) -> CGFloat { companion == .calendar ? groupSpacing : spacing }
+
+    /// A timer's reading beside its mark, measured by its shape, so the
+    /// capsule only moves when a character comes or goes.
+    static func timerSurface(reading: String, companion: NotchCompactActivity?, workingAgents: Int,
+                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+        let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
+                                  geometry: geometry, language: language)
+        let content = mark + markGap(companion) + width(NotchAgentSupport.readingShape(reading), font: readingFont)
+        return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
+                       maximum: Maximum.activity, geometry: geometry)
+    }
+
+    /// An event beside what shares the capsule with it: that activity's
+    /// mark, then the event's dot and countdown. Its title moves to the
+    /// tooltip and VoiceOver.
+    static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
+                                    geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+        let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
+                                  geometry: geometry, language: language)
+        return surface(content: mark + markGap(.calendar) + calendarClockWidth,
+                       leading: companion == .music ? artworkInset(geometry) : endPadding,
+                       maximum: Maximum.activity, geometry: geometry)
+    }
+
+    /// A Keep Awake session: the cup, wider than other marks, then the time
+    /// it has left measured by its shape, or infinity for a session without
+    /// an end.
+    static func keepAwakeSurface(reading: String?, geometry: NotchGeometry) -> CGSize {
+        let cup = NotchKeepAwakeSupport.symbolWidth(NotchKeepAwakeSupport.symbol, size: symbolSize)
+        let right = reading.map { width(NotchAgentSupport.readingShape($0), font: readingFont) }
+            ?? NotchKeepAwakeSupport.symbolWidth(NotchKeepAwakeSupport.openSymbol, size: readingFont.pointSize) + air
+        return surface(content: cup + spacing + right, maximum: Maximum.activity, geometry: geometry)
+    }
+
+    /// Working agents' marks and the reading the person chose.
+    static func agentSurface(reading: String, working: Int, geometry: NotchGeometry) -> CGSize {
+        let content = agentMarksWidth(working: working) + spacing
+            + width(NotchAgentSupport.readingShape(reading), font: readingFont)
+        return surface(content: content, maximum: Maximum.activity, geometry: geometry)
+    }
+
+    /// A download's arrow and name, then its meter and percentage, or a
+    /// spinner until its size is known.
+    static func downloadSurface(name: String, hasProgress: Bool, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+        let progress = hasProgress ? groupSpacing + downloadMeterWidth + spacing + downloadPercentWidth(language)
+            : spacing + spinnerWidth
+        let content = symbolWidth + spacing + width(name, font: detailFont) + progress
+        return surface(content: content, maximum: Maximum.download, geometry: geometry)
+    }
+
+    /// An event's color and title, then its countdown at its widest and the
+    /// time it starts or ends.
+    static func calendarSurface(title: String, time: String, geometry: NotchGeometry) -> CGSize {
+        let content = calendarDotSide + spacing + width(title, font: titleFont) + groupSpacing
+            + width("00:00", font: readingFont) + markSpacing + width(time, font: smallFont)
+        return surface(content: content, maximum: Maximum.calendar, geometry: geometry)
+    }
+
+    /// Screen capture controls folded while an area is chosen: the tool and a chevron.
+    static func captureSurface(geometry: NotchGeometry) -> CGSize {
+        surface(content: symbolWidth * 2 + spacing, maximum: Maximum.activity, geometry: geometry)
     }
 }
 
@@ -490,9 +912,10 @@ struct NotchCaptureControlsLayout {
     init(geometry: NotchGeometry, titleWidth: CGFloat, capturesAudio: Bool) {
         let side = (geometry.contentWidth - geometry.headerCameraGap) / 2
         let fits = max(titleWidth, Self.narrowButtonsWidth) + Self.cameraClearance <= side
-        // Without a camera one row spans the top, as the open header does.
-        if geometry.headerTopInset == 0, geometry.headerCameraGap == 0 || fits {
-            headerTop = 0
+        // Without a camera one row spans the top, as the open header does,
+        // below a capsule's rounded top corners.
+        if geometry.headerTopInset == 0 || geometry.floats, geometry.headerCameraGap == 0 || fits {
+            headerTop = geometry.headerTopInset
             headerHeight = geometry.headerRowHeight
             cameraGap = geometry.headerCameraGap
         } else {
@@ -843,6 +1266,12 @@ enum NotchSupport {
         NSScreen.screens.contains { $0.safeAreaInsets.top > 0 }
     }
 
+    /// Whether a connected display, such as an external monitor, has no
+    /// camera housing, so the island can float there as a capsule.
+    static var hasDisplayWithoutNotch: Bool {
+        NSScreen.screens.contains { !($0.safeAreaInsets.top > 0) }
+    }
+
     static let toolColumns = 5
     static let defaultHoverDelay = 0.25
     static let hoverDelayRange = 0.10...1.0
@@ -890,27 +1319,40 @@ enum NotchSupport {
 
     /// Automatic order until the user chooses one of the live activities.
     static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false,
-                                calendar: Bool = false, music: Bool) -> NotchCompactActivity? {
+                                calendar: Bool = false, music: Bool, keepAwake: Bool = false) -> NotchCompactActivity? {
         compactActivities(timer: timer, downloads: downloads, agents: agents,
-                          calendar: calendar, music: music).first
+                          calendar: calendar, music: music, keepAwake: keepAwake).first
     }
 
+    /// Keep Awake comes last: a session can run all day, even more than
+    /// music plays, and it only says that the Mac stays awake.
     static func compactActivities(timer: Bool, downloads: Bool, agents: Bool,
-                                  calendar: Bool, music: Bool) -> [NotchCompactActivity] {
+                                  calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
         let candidates: [(Bool, NotchCompactActivity)] = [
             (timer, .timer), (downloads, .downloads), (agents, .agents),
-            (calendar, .calendar), (music, .music)
+            (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }
     }
 
-    /// Supported, explicit pairs. A paused or finished timer needs its own
-    /// mark beside music or agents; downloads already carry their status.
-    static func compactCompanions(timer: Bool, running: Bool, downloads: Bool, agents: Bool,
-                                  music: Bool) -> [NotchCompactActivity] {
-        guard timer else { return [] }
-        return [(downloads, NotchCompactActivity.downloads), (running && agents, .agents),
-                (running && music, .music)].compactMap { $0.0 ? $0.1 : nil }
+    /// Supported, explicit pairs for the activity that keeps its reading
+    /// right of the camera. A paused or finished timer needs its own mark
+    /// beside agents, an event or music; downloads already carry their
+    /// status. An event's clock always runs, so a download, agents or music
+    /// can take the side its title had.
+    static func compactCompanions(of primary: NotchCompactActivity, timer: Bool, running: Bool, downloads: Bool,
+                                  agents: Bool, calendar: Bool, music: Bool) -> [NotchCompactActivity] {
+        let pairs: [(Bool, NotchCompactActivity)]
+        switch primary {
+        case .timer where timer:
+            pairs = [(downloads, .downloads), (running && agents, .agents), (running && calendar, .calendar),
+                     (running && music, .music)]
+        case .calendar where calendar:
+            pairs = [(downloads, .downloads), (agents, .agents), (music, .music)]
+        default:
+            pairs = []
+        }
+        return pairs.compactMap { $0.0 ? $0.1 : nil }
     }
 
     static func gestureIsOverHeader(expanded: Bool, peeking: Bool, fromTop: CGFloat, safeTop: CGFloat,
@@ -1106,7 +1548,8 @@ enum NotchSupport {
     /// A laptop with its lid closed has no built-in screen to show on, so the
     /// built-in choice hides the island there. A Mac without a built-in panel
     /// never has one, so that choice keeps the main display. The pointer
-    /// choice takes the display it last followed the pointer to, if any.
+    /// choice takes the display it last followed the pointer to, if any, and
+    /// so does the choice of every display for the island that responds.
     static func screenIndex(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int,
                             pointer: Int? = nil, hasLid: Bool = true) -> Int? {
         guard !builtIn.isEmpty, builtIn.count == notched.count else { return nil }
@@ -1117,7 +1560,7 @@ enum NotchSupport {
         case .automatic:
             return builtIn.indices.first { builtIn[$0] && notched[$0] }
                 ?? notched.firstIndex(of: true) ?? fallback
-        case .pointer: return pointer.flatMap { builtIn.indices.contains($0) ? $0 : nil } ?? fallback
+        case .pointer, .all: return pointer.flatMap { builtIn.indices.contains($0) ? $0 : nil } ?? fallback
         }
     }
 }
@@ -1173,6 +1616,12 @@ struct NotchGeometry: Equatable {
     let customWidth: CGFloat
     let customHeight: CGFloat
     let menuBarHeight: CGFloat
+    /// Nil hangs the island from the top edge. A capsule floats this far
+    /// inside the menu bar, above and below its strips.
+    let floatingGap: CGFloat?
+    /// How far a fitted capsule sits below the top of the display, open or closed.
+    let floatingDrop: CGFloat
+    private let capsuleWidthFit: CGFloat
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
     var requiresFullWidthHeader = false
@@ -1184,7 +1633,7 @@ struct NotchGeometry: Equatable {
     init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, layout: NotchSize = .compact,
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
          customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
-         cameraFit: NotchCameraFit = .zero) {
+         cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero) {
         self.screen = screen
         self.layout = layout
         self.customWidth = NotchSize.clamped(customWidth, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
@@ -1193,22 +1642,46 @@ struct NotchGeometry: Equatable {
         isNotched = safeAreaTop.isFinite && safeAreaTop > 0 && cameraWidth.isFinite && cameraWidth > 0
         // Only a physical camera has an outline to match; a simulated one follows the bar.
         let fit = isNotched ? cameraFit : .zero
-        self.cameraWidth = min(isNotched ? max(0, cameraWidth + fit.width) : 180 * barHeight / 32, screen.width * 0.7)
-        cameraHeight = isNotched ? min(max(0, safeAreaTop + fit.height), 64) : barHeight
+        // A capsule replaces only a simulated cutout. It is as wide as the
+        // cutout of the bar it sits in with its usual margins, so a bar hidden
+        // on one display and shown on another draws the same capsule on both.
+        let gap: CGFloat? = !isNotched && silhouette == .capsule ? NotchLayout.capsuleGap(barHeight: barHeight) : nil
+        floatingGap = gap
+        // A fitted capsule grows from its top edge, keeping its margins.
+        let capsuleFit = gap == nil ? NotchCapsuleFit.zero : capsuleFit
+        floatingDrop = capsuleFit.drop
+        capsuleWidthFit = capsuleFit.width
+        let stripHeight = gap.map { max(barHeight + capsuleFit.height, $0 * 2 + 12) } ?? barHeight
+        let profileHeight = gap.map { stripHeight - ($0 - NotchLayout.capsuleMargin) * 2 } ?? barHeight
+        // A capsule's camera is only the room it keeps, on whole points.
+        let simulated = 180 * profileHeight / 32
+        self.cameraWidth = min(isNotched ? max(0, cameraWidth + fit.width)
+                               : gap == nil ? simulated : (simulated + capsuleFit.width).rounded(),
+                               screen.width * 0.7)
+        cameraHeight = isNotched ? min(max(0, safeAreaTop + fit.height), 64) : stripHeight
         self.menuBarHeight = max(cameraHeight, barHeight)
         self.compactSideRoom = compactSideRoom
     }
+
+    /// The island floats in the menu bar instead of hanging from the top edge.
+    var floats: Bool { floatingGap != nil }
 
     func hasSameMenuBar(as other: NotchGeometry) -> Bool {
         screen == other.screen && cameraWidth == other.cameraWidth
             && menuBarHeight == other.menuBarHeight && isNotched == other.isNotched
     }
 
-    var safeContentTop: CGFloat { cameraHeight + 10 }
+    /// Below a camera, or below the space it would take. A capsule has
+    /// neither, so what it shows keeps even margins inside it.
+    var safeContentTop: CGFloat { floats ? NotchLayout.bottomInset : cameraHeight + 10 }
     /// A title and the compact actions each fit in a 100-point wing, including
     /// the compact preset. Narrower layouts keep a full row below the camera.
     var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 200 ? cameraWidth : 0 }
-    var headerTopInset: CGFloat { !isNotched || headerCameraGap > 0 ? 0 : safeContentTop }
+    /// A capsule's header keeps clear of its rounded top corners.
+    var headerTopInset: CGFloat {
+        if let floatingGap { return floatingGap + 2 }
+        return !isNotched || headerCameraGap > 0 ? 0 : safeContentTop
+    }
     var headerRowHeight: CGFloat { headerCameraGap > 0 ? max(cameraHeight, NotchLayout.headerHeight) : NotchLayout.headerHeight }
     var headerChromeHeight: CGFloat { headerRowHeight + NotchLayout.spacing + NotchLayout.bottomInset }
     /// Floating circles sit below the menu bar even when the title fits beside the camera.
@@ -1220,12 +1693,16 @@ struct NotchGeometry: Equatable {
     /// physical camera sets and a simulated one shares with the bar: a bar
     /// even a point taller would leave a dark line under the notch.
     var stripHeight: CGFloat { cameraHeight }
+    /// What a strip shows inside: all of it, or the capsule within its margins.
+    var stripBodyHeight: CGFloat { max(0, stripHeight - (floatingGap ?? 0) * 2) }
     func activationArea(in size: CGSize, hasHeader: Bool, compactActivity: Bool, expandedHeader: Bool = false) -> CGRect {
-        if expandedHeader, headerTopInset == 0 {
+        // Only a camera beside the open header toggles the island.
+        if expandedHeader, headerTopInset == 0 || floats {
             return CGRect(x: (size.width - headerCameraGap) / 2, y: 0,
                           width: headerCameraGap, height: min(cameraHeight, size.height))
         }
-        let width = compactActivity ? cameraWidth : size.width
+        // A capsule has no camera to toggle from: all of it opens the island.
+        let width = compactActivity && !floats ? cameraWidth : size.width
         let height = hasHeader ? min(safeContentTop, size.height)
             : compactActivity && compactActivityUsesFooter ? compactActivityTopPadding : size.height
         return CGRect(x: (size.width - width) / 2, y: 0, width: width, height: height)
@@ -1239,7 +1716,14 @@ struct NotchGeometry: Equatable {
         CGSize(width: min(screen.width - 24, cameraWidth + restingWingWidth * 2), height: stripHeight)
     }
     func restingSize(showsContent: Bool) -> CGSize {
-        showsContent ? collapsed : CGSize(width: cameraWidth, height: cameraHeight)
+        if showsContent { return collapsed }
+        // Bare, a capsule is shorter than the gap between an activity's
+        // wings, closer to the phone's proportions, and on whole points,
+        // as the window around it is.
+        guard floats else { return CGSize(width: cameraWidth, height: cameraHeight) }
+        let shoulders = NotchLayout.shoulder(height: stripHeight) * 2
+        let capsule = max(NotchLayout.capsuleRestingAspect * stripBodyHeight + capsuleWidthFit, stripBodyHeight * 2)
+        return CGSize(width: min(cameraWidth, (capsule + shoulders).rounded()), height: cameraHeight)
     }
     /// Music remains one row high, with the physical camera between its wings.
     /// Insufficient menu space hides the wings instead of growing below the camera.
@@ -1466,8 +1950,10 @@ struct NotchGeometry: Equatable {
     }
 
     /// `toolCount` is nil while the launcher edits its grid or hosts a
-    /// utility: those need the page, not a rail.
-    func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false, shortcutCount: Int = 4,
+    /// utility: those need the page, not a rail. `detailHeight` is a
+    /// detail's measured content, which it fits instead of the whole page.
+    func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false,
+                      detailHeight: CGFloat? = nil, shortcutCount: Int = 4,
                       sliderCount: Int = 2, controlsHaveMusic: Bool = false, musicHasContent: Bool = true,
                       musicHasControlsRow: Bool = true, musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
@@ -1478,7 +1964,9 @@ struct NotchGeometry: Equatable {
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
         let contentHeight: CGFloat
-        if detail || panel {
+        if detail, !panel, let detailHeight {
+            contentHeight = min(pageBudget, max(0, detailHeight) + 4)
+        } else if detail || panel {
             contentHeight = pageBudget
         } else if showsFileMedia {
             // Measured surfaces keep their own height; the custom limit and
@@ -1551,7 +2039,7 @@ struct NotchGeometry: Equatable {
     var appPanelSize: CGSize { contentSize(for: expandedSize(module: .tools, panel: true)) }
     func frame(for size: CGSize) -> CGRect {
         CGRect(x: screen.midX - size.width / 2,
-               y: screen.maxY - size.height,
+               y: screen.maxY - floatingDrop - size.height,
                width: size.width, height: size.height)
     }
 
@@ -1568,8 +2056,16 @@ struct NotchSessionState {
     var sleeping = false
     var displaysSleeping = false
     var onConsole = true
+    /// Only the lock screen gives way to a screen saver, which it would
+    /// otherwise float over; the island keeps its own rules.
+    var screenSaverRunning = false
     var canRunTimer: Bool { !locked && !sleeping && onConsole }
     var canPresent: Bool { canRunTimer && !displaysSleeping }
+    /// The lock screen itself is on screen, awake and in front of this user.
+    var showsLockScreen: Bool { locked && !sleeping && onConsole && !displaysSleeping && !screenSaverRunning }
+    /// Someone is at the Mac to hear it lock or unlock, rather than closing
+    /// the lid or leaving it to a screen saver or to fall asleep.
+    var hearsLockChange: Bool { !sleeping && onConsole && !displaysSleeping && !screenSaverRunning }
 }
 
 /// Reserve enough backing space for both ends. The visible silhouette moves
@@ -1771,5 +2267,32 @@ enum NotchMenuBarLayout {
             if rect.minX >= camera.maxX { right = min(right, rect.minX - 8) }
         }
         return max(0, min(camera.minX - left, right - camera.maxX))
+    }
+}
+
+/// The black tint over the open island's translucent background, measured in
+/// points from the top: fully black over the camera strip at every island
+/// height (the hover preview is only the strip plus 62 points), then easing
+/// toward the translucent body.
+enum NotchTranslucentTint {
+    static let rampLength: CGFloat = 36
+
+    static func opacity(atDepth depth: CGFloat, stripHeight: CGFloat,
+                        openness: Double, increasedContrast: Bool) -> Double {
+        guard depth > stripHeight else { return 1 }
+        let ramp = Double(min(1, (depth - stripHeight) / rampLength))
+        let eased = ramp * ramp * (3 - 2 * ramp)
+        return 1 - min(1, max(0, openness)) * (increasedContrast ? 0.3 : 0.62) * eased
+    }
+
+    /// Gradient stops over an island `height` points tall, top to bottom.
+    static func stops(height: CGFloat, stripHeight: CGFloat, openness: Double,
+                      increasedContrast: Bool) -> [(location: Double, opacity: Double)] {
+        guard height > 0 else { return [(0, 1), (1, 1)] }
+        let depths = [0, stripHeight] + (1...8).map { stripHeight + rampLength * CGFloat($0) / 8 } + [height]
+        return depths.filter { $0 >= 0 && $0 <= height }.map {
+            (Double($0 / height), opacity(atDepth: $0, stripHeight: stripHeight,
+                                          openness: openness, increasedContrast: increasedContrast))
+        }
     }
 }

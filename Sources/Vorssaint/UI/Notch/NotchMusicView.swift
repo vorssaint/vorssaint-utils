@@ -318,7 +318,7 @@ private struct NotchMusicTransport: View {
     }
 }
 
-private struct NotchMusicTimeline: View {
+struct NotchMusicTimeline: View {
     let playback: NotchPlayback
     @ObservedObject var service: NotchMusicService
     var tint: Color = .white

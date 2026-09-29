@@ -46,8 +46,12 @@ enum NotchPresentationProbe {
             failures.append("backdrop contour differs from the animated silhouette")
         }
         let visible = host.visibleFrame.size
-        if abs(background.width - visible.width) > 2 || abs(background.height - visible.height) > 2
-            || abs(background.minY) > 0.5 {
+        // A floating capsule's contour lies inside the surface it was drawn for.
+        let drawn = host.silhouetteProbeFloatingGap.map {
+            NotchLayout.capsuleBody(in: CGRect(origin: .zero, size: visible), gap: $0)
+        } ?? CGRect(origin: .zero, size: visible)
+        if abs(background.width - drawn.width) > 2 || abs(background.height - drawn.height) > 2
+            || abs(background.minY - drawn.minY) > 0.5 {
             failures.append("backdrop detached from the animated silhouette: \(background), visible \(visible)")
         }
         if !host.backdropProbeIndependent {
@@ -58,9 +62,9 @@ enum NotchPresentationProbe {
     private static func checkHiddenReveal(screen: NSScreen) -> [String] {
         var failures: [String] = []
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        for safeArea: CGFloat in [0, 32] {
+        for (safeArea, silhouette): (CGFloat, NotchSilhouette) in [(0, .notch), (32, .notch), (0, .capsule)] {
             let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: safeArea,
-                                         cameraWidth: safeArea > 0 ? 210 : 0)
+                                         cameraWidth: safeArea > 0 ? 210 : 0, silhouette: silhouette)
             let host = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.collapsed, background: surface,
                                       quickAccess: quickAccess)
             host.panel.alphaValue = 0
@@ -401,8 +405,16 @@ enum NotchPresentationProbe {
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         guard let screen = NSScreen.main else { print("NOTCH PROBE FAILED: no display"); exit(1) }
-        let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
-                                     cameraWidth: screen.safeAreaInsets.top > 0 ? 210 : 0)
+        // `--capsule` runs every check on this display as one without a
+        // camera, where the island floats in the menu bar; `--capsule-fit`
+        // with a capsule fitted wider, taller and lower.
+        let fitted = CommandLine.arguments.contains("--capsule-fit")
+        let capsule = fitted || CommandLine.arguments.contains("--capsule")
+        let geometry = capsule
+            ? NotchGeometry(screen: screen.frame, safeAreaTop: 0, cameraWidth: 0, silhouette: .capsule,
+                            capsuleFit: fitted ? NotchCapsuleFit(width: 20, height: 6, drop: 8) : .zero)
+            : NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
+                            cameraWidth: screen.safeAreaInsets.top > 0 ? 210 : 0)
         let host = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.collapsed, background: surface)
         host.panel.alphaValue = 0
         host.panel.ignoresMouseEvents = true
@@ -412,8 +424,9 @@ enum NotchPresentationProbe {
         if host.outlineProbeOpacity != 1 || host.outlineProbeWidth != 2 {
             failures.append("the optional outline is not visible around the compact island")
         }
-        if !host.outlineProbeTopOpen {
-            failures.append("the outline draws a line along the top of the screen")
+        if capsule ? !host.outlineProbeAllRound : !host.outlineProbeTopOpen {
+            failures.append(capsule ? "the capsule's outline left a side undrawn"
+                            : "the outline draws a line along the top of the screen")
         }
         host.setOutline(enabled: false, color: .white)
         if host.outlineProbeOpacity != 0 || host.outlineProbeWidth != 0.5 {
@@ -431,7 +444,15 @@ enum NotchPresentationProbe {
             failures.append("top-edge activation must outrank status items while leaving native menus above the island")
         }
         if let path = host.silhouetteProbePath {
-            if !path.contains(CGPoint(x: 12, y: 1))
+            if capsule {
+                // Painted between its margins only, and still the island's above them.
+                let box = path.boundingBoxOfPath
+                if !path.contains(CGPoint(x: box.midX, y: box.midY)) || path.contains(CGPoint(x: box.midX, y: 0.5))
+                    || box.minY < 0.5 || !host.contains(host.panel.convertPoint(toScreen: CGPoint(x: host.panel.frame.width / 2,
+                                                                                                  y: host.panel.frame.height - 0.5))) {
+                    failures.append("the capsule is not drawn inside the menu bar, or its top margin lost the island's clicks")
+                }
+            } else if !path.contains(CGPoint(x: 12, y: 1))
                 || path.contains(CGPoint(x: 12, y: geometry.collapsed.height - 1)) {
                 failures.append("physical silhouette is inverted")
             }
@@ -461,8 +482,9 @@ enum NotchPresentationProbe {
         // The openness of the last glass frame on the way to a black strip.
         var tracksClosingGlass = false
         var closingGlassOpenness: Double?
-        let stationaryPointer = CGPoint(x: screen.frame.midX - geometry.cameraWidth / 4,
-                                        y: screen.frame.maxY)
+        // A fitted capsule hangs its distance below the top.
+        let top = screen.frame.maxY - geometry.floatingDrop
+        let stationaryPointer = CGPoint(x: screen.frame.midX - geometry.cameraWidth / 4, y: top)
         func sample() {
             samples += 1
             if tracksClosingGlass, host.backdropProbeUsesGlass {
@@ -473,7 +495,7 @@ enum NotchPresentationProbe {
             if let first = contentStage, first != stage { stageChanged = true }
             contentStage = stage
             if stage.width < host.panel.frame.width || stage.height < host.panel.frame.height { stageChanged = true }
-            maxAnchorError = max(maxAnchorError, abs(host.panel.frame.maxY - (screen.frame.maxY)))
+            maxAnchorError = max(maxAnchorError, abs(host.panel.frame.maxY - top))
             maxContentError = max(maxContentError, abs(host.contentTopOnScreen - host.panel.frame.maxY))
             if abs(host.visibleFrame.maxY - host.panel.frame.maxY) > 0.5 {
                 failures.append("visible silhouette detached from window top")
@@ -990,9 +1012,9 @@ enum NotchPresentationProbe {
         var samples = 0
         var transitions = 0
         for barHeight: CGFloat in [16, 22, 24, 32, 40, 64] {
-            for physical in [false, true] {
+            for (physical, silhouette): (Bool, NotchSilhouette) in [(false, .notch), (true, .notch), (false, .capsule)] {
                 var geometry = NotchGeometry(screen: screen.frame, safeAreaTop: physical ? 32 : 0, cameraWidth: physical ? 180 : 0,
-                                             menuBarHeight: barHeight, compactSideRoom: 64)
+                                             menuBarHeight: barHeight, compactSideRoom: 64, silhouette: silhouette)
                 geometry.quickAccessBottomInset = NotchQuickAccessLayout.gutter
                 let host = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.collapsed, background: surface,
                                           quickAccess: { _, _ in AnyView(Color.clear) })
@@ -1057,6 +1079,17 @@ enum NotchPresentationProbe {
                             failures.insert("a closed or compact simulated notch escaped the actual menu bar")
                         }
                         previouslyCompact = compact
+                        if geometry.floats {
+                            // Round or rounded ends between even margins, and
+                            // the menu bar above the capsule still the island's.
+                            let side = NotchLayout.shoulder(height: visible.height)
+                            if !host.contains(CGPoint(x: visible.midX, y: visible.maxY - 0.25))
+                                || !host.contains(CGPoint(x: visible.minX + side + 1, y: visible.midY))
+                                || host.contains(CGPoint(x: visible.minX + side - 1, y: visible.midY)) {
+                                failures.insert("a capsule lost its ends or the menu bar above it")
+                            }
+                            continue
+                        }
                         let shoulder = min(NotchLayout.shoulder, visible.height * 0.28)
                         if !host.contains(CGPoint(x: visible.minX + shoulder, y: visible.maxY - 0.25))
                             || host.contains(CGPoint(x: visible.minX + shoulder, y: visible.minY + 0.25)) {
