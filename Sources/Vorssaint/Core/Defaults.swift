@@ -579,7 +579,8 @@ enum DefaultsKey {
     /// The ASCII layout borrowed while the bar is open, restored on close. Off by default
     static let commandBarASCIILayoutEnabled = "commandBarASCIILayoutEnabled"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
-    static let commandBarQueryHabits = "commandBarQueryHabits" // keyed query digests → app row ids
+    static let commandBarQueryHabits = "commandBarQueryHabits" // keyed query digests → selected row ids
+    static let commandBarQueryHabitKey = "commandBarQueryHabitKey" // local key for stable digests
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
     static let commandBarAliases = "commandBarAliases"       // {row id: the name the person gave it}
     static let commandBarPins = "commandBarPins"             // row keys kept at the top, in order
