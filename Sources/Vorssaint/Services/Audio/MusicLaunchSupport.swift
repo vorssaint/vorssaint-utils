@@ -189,4 +189,38 @@ enum MediaKeyPlayerSupport {
             ($0.launched ?? .distantPast, -$0.pid) < ($1.launched ?? .distantPast, -$1.pid)
         }?.pid
     }
+
+    /// Sends and consent prompts are queued off the tap, so they can still be
+    /// waiting when the router stops. Each carries the ticket it was queued
+    /// with and runs only while that ticket is current: closing the gate, as
+    /// turning the option off or revoking input permissions does, voids every
+    /// ticket already handed out, and reopening it does not revive them.
+    final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var generation = 0
+        private var isOpen = false
+
+        func open() { lock.withLock { isOpen = true } }
+
+        func close() {
+            lock.withLock {
+                isOpen = false
+                generation &+= 1
+            }
+        }
+
+        /// Nil while closed, so nothing new is queued after a stop.
+        func ticket() -> Int? { lock.withLock { isOpen ? generation : nil } }
+
+        func admits(_ ticket: Int) -> Bool { lock.withLock { isOpen && generation == ticket } }
+
+        /// Queues `work` on `queue`; it is dropped if the gate closed first.
+        func async(on queue: DispatchQueue, _ work: @escaping () -> Void) {
+            guard let ticket = ticket() else { return }
+            queue.async { [self] in
+                guard admits(ticket) else { return }
+                work()
+            }
+        }
+    }
 }

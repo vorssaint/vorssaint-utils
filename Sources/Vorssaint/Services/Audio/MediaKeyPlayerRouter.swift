@@ -37,6 +37,8 @@ final class MediaKeyPlayerRouter {
     /// Sends and the consent prompt never wait on each other.
     private let sendQueue = DispatchQueue(label: "com.vorssaint.media-keys.send", qos: .userInitiated)
     private let consentQueue = DispatchQueue(label: "com.vorssaint.media-keys.consent", qos: .userInitiated)
+    /// Both queues go through it, so `stop()` drops what they still hold.
+    private let queuedWork = MediaKeyPlayerSupport.Gate()
 
     private init() {
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
@@ -63,6 +65,7 @@ final class MediaKeyPlayerRouter {
         if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         source = nil
+        queuedWork.close()
         consumedKeyCodes.removeAll()
         consentRequestedPIDs.removeAll()
         refreshGeneration &+= 1
@@ -75,6 +78,7 @@ final class MediaKeyPlayerRouter {
     }
 
     private func start() {
+        queuedWork.open()
         if workspaceObservers.isEmpty {
             let center = NSWorkspace.shared.notificationCenter
             for name in [NSWorkspace.didLaunchApplicationNotification,
@@ -148,7 +152,7 @@ final class MediaKeyPlayerRouter {
             case .player(let pid):
                 guard let appleEvent = events[pid]?[key.command] else { return Unmanaged.passUnretained(event) }
                 consumedKeyCodes.insert(key.code)
-                sendQueue.async { [weak self] in
+                queuedWork.async(on: sendQueue) { [weak self] in
                     let delivered = Self.send(appleEvent, to: pid)
                     DispatchQueue.main.async {
                         // A refusal, a revoked consent above all, shows in
@@ -202,7 +206,7 @@ final class MediaKeyPlayerRouter {
     /// snapshot.
     private func requestConsent(_ pid: Int32) {
         guard consentRequestedPIDs.insert(pid).inserted else { return }
-        consentQueue.async { [weak self] in
+        queuedWork.async(on: consentQueue) { [weak self] in
             let target = NSAppleEventDescriptor(processIdentifier: pid)
             _ = AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, true)
             DispatchQueue.main.async { self?.refreshPlayers() }

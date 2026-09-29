@@ -354,6 +354,50 @@ enum FeatureCatalogTests {
         suite.expect(route([player(40, "com.example.player", launched: 100, access: .consent)]) == .askConsent(40)
                 && route([player(40, "com.example.player", launched: 100, access: .denied)]) == .system,
                "a player awaiting consent asks once and a refused or revoked consent hands the key back")
+        do {
+            let gate = MediaKeyPlayerSupport.Gate()
+            let sendQueue = DispatchQueue(label: "test.media-keys.send")
+            let consentQueue = DispatchQueue(label: "test.media-keys.consent")
+            var sent = 0
+            var prompted = 0
+            gate.async(on: sendQueue) { sent += 1 }
+            sendQueue.sync {}
+            suite.expect(sent == 0, "a closed gate queues nothing before the router starts")
+
+            gate.open()
+            gate.async(on: sendQueue) { sent += 1 }
+            sendQueue.sync {}
+            suite.expect(sent == 1, "a running router sends the queued command")
+
+            sendQueue.suspend()
+            consentQueue.suspend()
+            gate.async(on: sendQueue) { sent += 1 }
+            gate.async(on: consentQueue) { prompted += 1 }
+            gate.close()
+            sendQueue.resume()
+            consentQueue.resume()
+            sendQueue.sync {}
+            consentQueue.sync {}
+            suite.expect(sent == 1 && prompted == 0,
+                         "stopping drops a send and a consent prompt that were still queued")
+
+            sendQueue.suspend()
+            gate.async(on: sendQueue) { sent += 1 }
+            gate.close()
+            gate.open()
+            sendQueue.resume()
+            sendQueue.sync {}
+            gate.async(on: sendQueue) { sent += 1 }
+            sendQueue.sync {}
+            suite.expect(sent == 2 && gate.ticket() != nil,
+                         "restarting does not revive work queued before the stop but lets new keys through")
+
+            gate.close()
+            gate.async(on: consentQueue) { prompted += 1 }
+            consentQueue.sync {}
+            suite.expect(prompted == 0 && gate.ticket() == nil,
+                         "nothing new is queued once the router has stopped")
+        }
 
         // MARK: Music launch blocker
 
