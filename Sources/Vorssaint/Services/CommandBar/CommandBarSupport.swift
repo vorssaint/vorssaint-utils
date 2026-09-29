@@ -256,6 +256,16 @@ enum CommandBarSearch {
         return false
     }
 
+    /// Where a color typed on its own goes in the list. It leads, unless a row
+    /// already there spells what was typed: "#1234" is also an issue number
+    /// and "#cafe" a channel someone copied, and Return must still reach
+    /// those. The swatch then sits right under the first row.
+    static func colorPreviewIndex(rowTitles: [String], query: String) -> Int {
+        let typed = normalized(query)
+        guard !typed.isEmpty else { return 0 }
+        return rowTitles.contains { normalized($0).contains(typed) } ? 1 : 0
+    }
+
     static func matches(title: String, keywords: String = "", query: String) -> Bool {
         score(title: title, keywords: keywords, query: query) != nil
     }

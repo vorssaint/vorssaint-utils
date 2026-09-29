@@ -25,6 +25,7 @@ enum NotchAgentTests {
         reading(suite)
         AgentUsageReadTests.run(suite)
         claudeApp(suite)
+        AgentCodexResetTests.run(suite)
         preferences(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
@@ -435,6 +436,20 @@ enum NotchAgentTests {
                                                state: &aborted, now: now)
                         == [.turnEnded(AgentTimestamp.parse("2026-09-22T15:00:00.000Z"), completed: false, duration: 10.961)],
                      "an aborted turn ends without counting as finished")
+        let event = line(#"{"timestamp":"2026-09-22T15:00:00.000Z","ordinal":3,"type":"event_msg","payload":{"type":"token_count","info":null}}"#)
+        let kind = AgentLogParser.firstType(event)
+        suite.expect(kind?.name == "event_msg" && AgentLogParser.firstType(event, from: kind?.end ?? 0)?.name == "token_count",
+                     "a Codex line's own type is found first, then its event's")
+        // Compacted history and tool output quote whole records, keys and all.
+        let quoted = #"{"type":"event_msg","payload":{"type":"task_complete","duration_ms":1}}"#
+        let history = String(repeating: quoted, count: 20_000)
+        var quiet = AgentLogState(turnOpen: true)
+        suite.expect(AgentLogParser.parseCodex(line(#"{"timestamp":"2026-09-22T15:00:00.000Z","type":"compacted","payload":{"replacement_history":[\#(history)]}}"#),
+                                               state: &quiet, now: now).isEmpty
+                        && AgentLogParser.parseCodex(line(#"{"timestamp":"2026-09-22T15:00:00.000Z","type":"event_msg","payload":{"type":"item_completed","item":\#(quoted)}}"#),
+                                                     state: &quiet, now: now).isEmpty
+                        && quiet == AgentLogState(turnOpen: true),
+                     "records quoted inside another line's payload are not read as the line's own")
     }
 
     private static func timestamps(_ suite: TestSuite) {
@@ -632,6 +647,7 @@ enum NotchAgentTests {
         quiet.closeIdleTurns(now: start.addingTimeInterval(claudeWait + 1), after: NotchAgentSupport.idleTurn)
         suite.expect(quiet.waiting.isEmpty && claudeWait < AgentUsageStore.resumeWindow(for: .codex),
                      "a Claude turn that a killed session left open stops waiting sooner")
+        sessionProcesses(suite, start: start)
 
         // A Claude subagent's responses count toward the turn it works for.
         let sessionLog = "/x/p/s1.jsonl"
@@ -717,6 +733,68 @@ enum NotchAgentTests {
         suite.expect(crowded.compactAgentGeometry(wing: 57).compactActivityWingWidth == 0
                         && !crowded.compactAgentGeometry(wing: 57).compactActivityUsesFooter,
                      "without room beside the camera the strip keeps to the cutout, never below it")
+    }
+
+    /// A Claude session quit or killed mid-turn ends the turn by its process
+    /// record, not after the quiet wait.
+    private static func sessionProcesses(_ suite: TestSuite, start: Date) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-agent-sessions-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        func write(_ name: String, _ text: String) {
+            FileManager.default.createFile(atPath: folder.appending(path: name).path, contents: Data(text.utf8))
+        }
+        write("100.json", #"{"pid":100,"sessionId":"quit","cwd":"/p"}"#)
+        write("200.json", #"{"pid":200,"sessionId":"killed"}"#)
+        write("300.json", #"{"pid":300,"sessionId":"killed"}"#)
+        write("300.abc.key", "{}")
+        write("500.json", #"{"pid":500,"sessionId":"contained","pidDomain":"linux:4f2ac19e:4026531836"}"#)
+        write(".heartbeat", "1")
+        let running: Set<Int32> = [100, 300]
+        var registry = AgentSessionRegistry.read([folder, folder.appending(path: "missing")]) { running.contains($0) }
+        suite.expect(registry == AgentSessionRegistry(running: ["quit", "killed"], ended: [], complete: true, listed: true),
+                     "a session with a running process reads as running, even beside a killed one's record, and a container's record proves nothing")
+        write("400.json", #"{"pid":"#)
+        registry = AgentSessionRegistry.read([folder]) { $0 == 100 }
+        suite.expect(registry.running == ["quit"] && registry.ended == ["killed"] && !registry.complete,
+                     "a killed process's record reads as ended, and a record being written leaves the list incomplete")
+
+        let store = AgentUsageStore()
+        for name in ["quit", "killed", "other", "partial"] {
+            store.apply([.turnBegan(start)], file: "/p/\(name).jsonl", provider: .claude, tracksTurns: true, modified: start)
+        }
+        store.apply([.turnBegan(start)], file: "/p/quit-codex.jsonl", provider: .codex, tracksTurns: true, modified: start)
+        store.closeEndedTurns(AgentSessionRegistry(running: ["quit", "partial"], ended: [], complete: true))
+        suite.expect(store.live.count == 5, "turns with a running process, or with no record at all, keep working")
+        store.closeEndedTurns(AgentSessionRegistry(running: [], ended: [], complete: false))
+        suite.expect(store.live.count == 5, "a record missing from an incomplete read proves nothing")
+        let closed = store.closeEndedTurns(AgentSessionRegistry(running: ["partial"], ended: ["killed"], complete: true))
+        suite.expect(closed && Set(store.live.map(\.id)) == ["/p/other.jsonl", "/p/partial.jsonl", "/p/quit-codex.jsonl"]
+                        && store.waiting.isEmpty,
+                     "a session whose process quit or was killed stops working at once, without waiting aside")
+        store.closeEndedTurns(AgentSessionRegistry(running: [], ended: [], complete: true))
+        suite.expect(store.live.count == 2 && !store.live.contains { $0.id == "/p/partial.jsonl" },
+                     "a record that disappears ends the turn it was running")
+        suite.expect(AgentSessionRegistry.read([folder.appending(path: "missing")]) { _ in true }
+                        == AgentSessionRegistry(running: [], ended: [], complete: true, listed: false),
+                     "without a sessions folder the records say nothing")
+
+        // Relaunched after a session quit mid-turn: its log still reads as
+        // working, and nothing was ever seen running.
+        let relaunched = AgentUsageStore()
+        for name in ["gone", "alive"] {
+            relaunched.apply([.turnBegan(start)], file: "/p/\(name).jsonl", provider: .claude, tracksTurns: true, modified: start)
+        }
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true), atLaunch: true)
+        suite.expect(relaunched.live.count == 2, "at launch, a Claude Code that keeps no records leaves turns to the quiet wait")
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: false, listed: true), atLaunch: true)
+        suite.expect(relaunched.live.count == 2, "at launch, an incomplete read ends nothing")
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true))
+        suite.expect(relaunched.live.count == 2, "after launch, a record never seen running ends nothing")
+        let ended = relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true),
+                                               atLaunch: true)
+        suite.expect(ended && relaunched.live.map(\.id) == ["/p/alive.jsonl"],
+                     "at launch, a turn left open by a session that quit ends at once")
     }
 
     private static func reading(_ suite: TestSuite) {
@@ -944,7 +1022,7 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "an agent can be left out")
@@ -977,6 +1055,10 @@ enum NotchAgentTests {
         let trend = NotchAgentTile(card: .trend, provider: nil)
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex]) == [limits, codex, trend],
                      "each agent gets its own limits card")
+        let resets = NotchAgentTile(card: .resets, provider: .codex)
+        suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex]) == [resets, spend]
+                        && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude]) == [spend],
+                     "the resets card belongs to Codex and leaves with it")
         suite.expect(NotchAgentSupport.rows([limits, codex, spend, trend], width: 424) == [[limits, codex], [spend], [trend]]
                         && NotchAgentSupport.rows([limits, trend, codex], width: 424) == [[limits], [trend], [codex]],
                      "cards pair in reading order, and charts and lone cards take the row")

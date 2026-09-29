@@ -159,6 +159,7 @@ enum QuickLauncherContract {
                      "every tile has an icon")
         presentationContracts(suite)
         compositionContracts(suite)
+        railContracts(suite)
     }
 
     private static func presentationContracts(_ suite: TestSuite) {
@@ -226,5 +227,21 @@ enum QuickLauncherContract {
             suite.expect(launcher.handlePanelKey(escape) == nil && step.closed(launcher),
                          "Esc closes \(step.name) once composition ends")
         }
+    }
+
+    /// Hover and the arrows both select, but only the arrows move the
+    /// island's rail: scrolling to a hovered tile slid the next one under the
+    /// pointer, and the rail kept going.
+    private static func railContracts(_ suite: TestSuite) {
+        let launcher = Launcher()
+        launcher.prepareForPresentation()
+        suite.expect(launcher.keyboardIndex == 0, "a new presentation starts the rail at its first tile")
+        launcher.select(launcher.visibleItems[3])
+        suite.expect(launcher.selectedIndex == 3 && launcher.keyboardIndex == nil,
+                     "hovering a tile selects it without scrolling the rail")
+        let right = NSEvent(keyCode: UInt16(kVK_RightArrow))
+        suite.expect(launcher.handlePanelKey(right, flow: .columns(rows: 2)) == nil
+                     && launcher.selectedIndex == 5 && launcher.keyboardIndex == 5,
+                     "an arrow moves on from the hovered tile and scrolls the rail to the new one")
     }
 }

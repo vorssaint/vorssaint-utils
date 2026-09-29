@@ -363,6 +363,13 @@ struct NotchView: View {
         .onDisappear { headerHovered = false }
     }
 
+    /// The island's history page shows only the cards, so its clear action
+    /// sits in the header, where the panel's own header keeps it.
+    private var showsCapturesClear: Bool {
+        service.selected == .captures && service.captureContent == nil && !showsDetail
+            && !service.showingSections && !service.modules.isEmpty
+    }
+
     private var cameraHeaderActions: some View {
         ViewThatFits(in: .horizontal) {
             cameraHeaderActions(compactUpdate: false).fixedSize(horizontal: true, vertical: false)
@@ -377,6 +384,7 @@ struct NotchView: View {
                 if service.selected == .tools, !showsDetail, !service.showingSections, launcher.activeUtility == nil {
                     Button(text.customizeTools) { launcher.isEditing.toggle() }
                 }
+                if showsCapturesClear { NotchClearCapturesButton(inMenu: true) }
                 Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
                 Button(l10n.s.menuSettings, action: service.openSettings)
                 Button(text.collapse, action: service.collapse)
@@ -407,6 +415,7 @@ struct NotchView: View {
                     withAnimation(.easeOut(duration: 0.15)) { launcher.isEditing.toggle() }
                 }
             }
+            if showsCapturesClear { NotchClearCapturesButton() }
             // Keeping the island open is one click, like the floating buttons;
             // a header button steps aside when the same action floats beside it.
             if !quickActions.contains(.pin) {
@@ -480,6 +489,7 @@ struct NotchView: View {
         } else if let metric = service.selectedMetric {
             if metric == .fan {
                 NotchFanControlView()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { service.updateFanDetailHeight($0) }
             } else {
                 MetricDetailView(kind: metric)
             }
@@ -509,6 +519,25 @@ struct NotchView: View {
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents: NotchAgentsView(size: pageSize)
             }
+        }
+    }
+}
+
+/// Observes the history on its own, so a new capture does not redraw the island.
+private struct NotchClearCapturesButton: View {
+    var inMenu = false
+    @ObservedObject private var history = RecentCaptureService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let title = FeatureStrings.recentCaptures(l10n.language).clear
+        let empty = RecentCapturesView.visible(history.entries).isEmpty
+        if inMenu {
+            Button(title, role: .destructive, action: RecentCapturesView.confirmClearAboveIsland)
+                .disabled(empty)
+        } else {
+            NotchIconButton(symbol: "trash", title: title, action: RecentCapturesView.confirmClearAboveIsland)
+                .disabled(empty)
         }
     }
 }

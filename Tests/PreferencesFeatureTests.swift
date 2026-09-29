@@ -140,6 +140,14 @@ enum PreferencesFeatureTests {
                      && Defaults.menuBarIconSymbolToSave(typed: "bolt.fil", opening: "star.fill", exists: symbolExists) == "star.fill"
                      && Defaults.menuBarIconSymbolToSave(typed: "  ", opening: "star.fill", exists: symbolExists) == "",
                "a typed menu bar symbol applies when this Mac has it, blank brings back the glyph, anything else keeps the opening icon")
+        let gallery = Defaults.menuBarIconGallery
+        suite.expect(gallery.count >= 30 && Set(gallery).count == gallery.count
+                     && gallery.allSatisfy { !$0.isEmpty && Defaults.sanitizedMenuBarIconSymbol($0) == $0 },
+               "the menu bar icon gallery offers many distinct symbol names")
+        suite.expect(gallery.allSatisfy(symbolExists),
+               "every symbol in the menu bar icon gallery exists on this Mac")
+        suite.expect(KeepAwakeActiveIcon.allCases.compactMap(\.systemSymbolName).allSatisfy { !gallery.contains($0) },
+               "the menu bar icon gallery leaves out Keep Awake's symbols, so an active session still stands out")
         suite.expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: []),
                "no online display does not count as an external display")
         suite.expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true]),

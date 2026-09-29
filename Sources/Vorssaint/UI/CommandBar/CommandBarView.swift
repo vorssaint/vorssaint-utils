@@ -601,10 +601,12 @@ struct CommandBarView: View {
     @ViewBuilder
     private func titleView(_ entry: CommandBarEntry) -> some View {
         if entry.isAnswer {
+            let font = Font.system(size: 17, weight: .semibold, design: .rounded)
             Text(entry.title)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                // Tabular digits keep a sum steady while typing; in a color
+                // value they leave gaps between letters and digits.
+                .font(entry.isColor ? font : font.monospacedDigit())
                 .foregroundStyle(.primary)
-                .monospacedDigit()
                 .lineLimit(1)
                 .truncationMode(.middle)
         } else {
@@ -712,6 +714,8 @@ struct CommandBarView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 28, height: 28)
+        case .color(let color):
+            ColorSwatch(color: color, size: 22)
         }
     }
 

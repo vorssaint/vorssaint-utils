@@ -20,6 +20,8 @@ final class AgentUsageStore {
     /// Turns gone quiet, by log file: not shown as working, but work that
     /// resumes after an approval or a long command goes on with them.
     private(set) var waiting: [String: AgentLiveSession] = [:]
+    /// Claude turns whose process was seen running, by log file.
+    private var registered: Set<String> = []
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -52,9 +54,7 @@ final class AgentUsageStore {
             case .usage(let key, let record, let billable):
                 add(record, billable: billable, key: key, turn: tracksTurns ? file : parent, subagent: !tracksTurns)
             case .limits(let reading):
-                if (limits[reading.provider]?.observedAt ?? .distantPast) <= reading.observedAt {
-                    limits[reading.provider] = reading
-                }
+                updateLimits(reading)
             case .plan(let plan, let date):
                 // An archived session read again from its start holds an
                 // older plan than the one in use.
@@ -165,6 +165,14 @@ final class AgentUsageStore {
         limits[reading.provider] = reading
     }
 
+    /// Keeps the newer of two readings of an account, whichever way each
+    /// one arrived.
+    func updateLimits(_ reading: AgentLimits) {
+        if (limits[reading.provider]?.observedAt ?? .distantPast) <= reading.observedAt {
+            limits[reading.provider] = reading
+        }
+    }
+
     func clearLimits(_ provider: AgentProvider) {
         limits[provider] = nil
     }
@@ -180,6 +188,32 @@ final class AgentUsageStore {
         }
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
     }
+
+    /// A Claude session quit or killed in the middle of a turn, as when its
+    /// terminal closes, writes nothing that ends the turn. Its process
+    /// record says so sooner than the quiet wait: the record names a process
+    /// that no longer runs, or a record seen running is gone. A session that
+    /// keeps no record waits as before. At launch, a turn the logs left open
+    /// without a record is over too, once the records could be read. True
+    /// when a turn was showing.
+    @discardableResult
+    func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false) -> Bool {
+        registered.formIntersection(turns.keys)
+        var closed = false
+        for (file, turn) in turns where turn.provider == .claude {
+            let session = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
+            if processes.running.contains(session) {
+                registered.insert(file)
+            } else if processes.ended.contains(session)
+                        || (processes.complete && (registered.contains(file) || (atLaunch && processes.listed))) {
+                registered.remove(file)
+                closed = forget(file: file) || closed
+            }
+        }
+        return closed
+    }
+
+    var showsClaudeTurn: Bool { turns.values.contains { $0.provider == .claude } }
 
     /// Keeps memory bounded to the history the island can show.
     func dropRecords(before date: Date) {
@@ -224,6 +258,49 @@ struct AgentLogRoot: Equatable {
     var exists: Bool {
         var directory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && directory.boolValue
+    }
+}
+
+/// The Claude sessions with a process, from the `sessions/<pid>.json` record
+/// Claude Code keeps beside its logs while it runs. A process that exits
+/// removes its record; one that is killed leaves it behind.
+struct AgentSessionRegistry: Equatable {
+    /// Session ids, which name their log files, with a running process.
+    var running: Set<String> = []
+    /// Session ids whose recorded process no longer runs.
+    var ended: Set<String> = []
+    /// False when a record could not be read, as while it is being written,
+    /// so a missing session proves nothing.
+    var complete = true
+    /// A sessions folder could be listed, so this Claude Code keeps records.
+    var listed = false
+
+    /// `folders` are the `sessions` folders beside each Claude log root.
+    static func read(_ folders: [URL], isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> AgentSessionRegistry {
+        var registry = AgentSessionRegistry()
+        for folder in folders {
+            guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { continue }
+            registry.listed = true
+            for name in names where name.hasSuffix(".json") && Int32(name.dropLast(5)) != nil {
+                guard let data = try? Data(contentsOf: folder.appending(path: name)), data.count < 1 << 16,
+                      let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                      let pid = json["pid"] as? Int, let session = json["sessionId"] as? String, !session.isEmpty else {
+                    registry.complete = false
+                    continue
+                }
+                // A session run in a container or virtual machine that shares
+                // this folder names a process this Mac cannot see.
+                if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
+                if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
+            }
+        }
+        // A session resumed by a new process after an old one was killed.
+        registry.ended.subtract(registry.running)
+        return registry
+    }
+
+    static func isRunning(_ pid: Int32) -> Bool {
+        pid > 0 && (kill(pid, 0) == 0 || errno == EPERM)
     }
 }
 
@@ -330,7 +407,9 @@ enum AgentLogReader {
         var lines: [Range<Int>] = []
         buffer.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
-            var position = 0
+            // What was carried over holds no line break; a long line is
+            // not searched again with every chunk it spans.
+            var position = cursor.pending.count
             while position < count, let found = memchr(base + position, 0x0A, count - position) {
                 let end = base.distance(to: UnsafeRawPointer(found))
                 lines.append(start..<end)

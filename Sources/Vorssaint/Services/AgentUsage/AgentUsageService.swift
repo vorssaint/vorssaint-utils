@@ -167,6 +167,18 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
+    /// Limits an agent read from the account on request, newer than its
+    /// logs until it writes again: after a banked reset, right away.
+    func noteLimits(_ reading: AgentLimits) {
+        guard running else { return }
+        queue.async { [self] in
+            guard readerSession >= 0, enabled.contains(reading.provider) else { return }
+            store.updateLimits(reading)
+            checkLimits()
+            schedulePublish()
+        }
+    }
+
     /// Opening the page shows the latest limits the Claude app saved.
     func pageDidAppear() {
         guard running else { return }
@@ -207,6 +219,7 @@ final class AgentUsageService: ObservableObject {
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
+            closeEndedTurns(roots, atLaunch: true)
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
             readClaudeApp(now: now)
@@ -230,7 +243,10 @@ final class AgentUsageService: ObservableObject {
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + Self.poll, repeating: Self.poll, leeway: .milliseconds(500))
         timer.setEventHandler { [weak self] in
-            guard let self, self.pollOpenLogs(within: Self.pollWindow) else { return }
+            guard let self else { return }
+            let read = self.pollOpenLogs(within: Self.pollWindow)
+            // After the logs, so a turn its last lines ended ends as usual.
+            guard self.closeEndedTurns(self.watchedRoots) || read else { return }
             self.checkLimits()
             self.schedulePublish()
         }
@@ -257,6 +273,15 @@ final class AgentUsageService: ObservableObject {
             if read(path, provider: cursor.provider) { changed = true }
         }
         return changed
+    }
+
+    /// Ends the Claude turns whose process is gone. True when one was showing.
+    @discardableResult
+    private func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool {
+        guard store.showsClaudeTurn else { return false }
+        let folders = roots.filter { $0.provider == .claude }
+            .map { $0.url.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory) }
+        return store.closeEndedTurns(AgentSessionRegistry.read(folders), atLaunch: atLaunch)
     }
 
     /// True when the log had entries to apply, or was gone and took a
@@ -436,6 +461,15 @@ final class AgentUsageService: ObservableObject {
                 warned[window.id] = (provider, window)
                 report(.limitWarning(provider: provider, window: window))
             }
+        }
+        // A banked reset renews a warned window before its time, which is
+        // news now rather than at the renewal it replaced.
+        for (id, entry) in warned {
+            guard let window = store.limits[entry.provider]?.windows.first(where: { $0.id == id }),
+                  let was = entry.window.resetsAt, let resets = window.resetsAt,
+                  resets.timeIntervalSince(was) > 60, window.usedPercent < threshold else { continue }
+            warned[id] = nil
+            report(.limitReset(provider: entry.provider, window: window))
         }
         previousLimits = store.limits
     }

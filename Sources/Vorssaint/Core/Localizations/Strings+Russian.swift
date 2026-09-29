@@ -247,6 +247,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Когда выключено, показываются окна со всех рабочих столов. Выбор окна на другом рабочем столе переключает вас на него.",
         dockPreviewBackgroundOpacity: "Фон панели",
         dockPreviewBackgroundOpacityCaption: "Уменьшите, чтобы видеть больше того, что находится за панелью.",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass включён, поэтому прозрачность панели задаётся в разделе «Системные настройки > Оформление».",
         dockPreviewOpenDelay: "Задержка открытия",
         dockPreviewOpenDelayCaption: "Сколько указатель должен оставаться на значке, прежде чем откроется панель.",
         dockPreviewQuitAppOnClose: "Завершать приложение кнопкой ×",
@@ -1082,6 +1083,8 @@ extension Strings {
         linearScrollCaption: "Каждый щелчок колёсика мыши прокручивает одно и то же расстояние независимо от скорости вращения. Трекпад не меняется.",
         linearScrollLinesLabel: "Строк на щелчок",
         shelfClearOnClose: "Очищать при закрытии",
-        shelfClearOnCloseCaption: "Очищает полку только при нажатии кнопки закрытия. Автоматическое скрытие и сворачивание сохраняют элементы."
+        shelfClearOnCloseCaption: "Очищает полку только при нажатии кнопки закрытия. Автоматическое скрытие и сворачивание сохраняют элементы.",
+        shelfShortcutFinderSelection: "Добавлять выбранное в Finder по горячей клавише",
+        shelfShortcutFinderSelectionCaption: "Когда Finder на переднем плане, горячая клавиша открывает полку уже с выбранными файлами. Если ничего не выбрано, полка открывается как обычно."
     )
 }

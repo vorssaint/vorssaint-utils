@@ -18,6 +18,58 @@ enum ShelfFeatureTests {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
                          file: file, line: line)
         }
+        // MARK: Shelf shortcut Finder selection
+
+        do {
+            let file = URL(fileURLWithPath: "/tmp/a.txt")
+            let other = URL(fileURLWithPath: "/tmp/b.txt")
+
+            var requests = ShelfShortcutSelectionRequests()
+            let ticket = requests.begin()
+            suite.expect(requests.resolve(ticket, urls: [file], stillAllowed: true) == .add([file]),
+                   "a reply for the current shortcut press adds its Finder selection")
+            suite.expect(requests.resolve(ticket, urls: [file], stillAllowed: true) == .discard,
+                   "a reply is settled only once")
+
+            requests = ShelfShortcutSelectionRequests()
+            let empty = requests.begin()
+            suite.expect(requests.resolve(empty, urls: [], stillAllowed: true) == .toggle,
+                   "an empty Finder selection keeps the ordinary shortcut toggle")
+
+            requests = ShelfShortcutSelectionRequests()
+            let first = requests.begin()
+            let second = requests.begin()
+            suite.expect(requests.resolve(first, urls: [file], stillAllowed: true) == .discard,
+                   "a delayed reply from an earlier press is dropped once the shortcut was pressed again")
+            suite.expect(requests.resolve(second, urls: [other], stillAllowed: true) == .add([other]),
+                   "the latest press still receives its reply after an older one arrived late")
+
+            requests = ShelfShortcutSelectionRequests()
+            let beforeReset = requests.begin()
+            requests.invalidate()
+            suite.expect(!requests.hasPending
+                    && requests.resolve(beforeReset, urls: [file], stillAllowed: true) == .discard,
+                   "clearing or turning off the Shelf drops a reply that arrives afterwards")
+            suite.expect(requests.resolve(beforeReset, urls: [], stillAllowed: true) == .discard,
+                   "a dropped request cannot toggle the Shelf later either")
+
+            requests = ShelfShortcutSelectionRequests()
+            let disabled = requests.begin()
+            suite.expect(requests.resolve(disabled, urls: [file], stillAllowed: false) == .discard,
+                   "a reply is rechecked against the feature state when it arrives")
+            suite.expect(!requests.hasPending, "a rejected reply does not stay pending")
+
+            requests = ShelfShortcutSelectionRequests()
+            let again = requests.begin()
+            suite.expect(requests.resolve(again, urls: [file], stillAllowed: true,
+                                          shelvedPaths: [file.standardizedFileURL.path]) == .toggle,
+                   "pressing the shortcut again on files already shelved toggles the shelf instead of adding them twice")
+            let mixed = requests.begin()
+            suite.expect(requests.resolve(mixed, urls: [file, other], stillAllowed: true,
+                                          shelvedPaths: [file.standardizedFileURL.path]) == .add([other]),
+                   "only the selected files the shelf does not hold yet are added")
+        }
+
         // MARK: Shelf persistence
 
         suite.expect(ShelfSelectionSupport.rangeSelectionIDs(
