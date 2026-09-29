@@ -36,14 +36,18 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Clicking the Now Playing cover in Dynamic Island, or the radial menu's Now Playing card, brings the playing app to the front instead of doing nothing, and shows its window again when it was closed.
 - Dynamic Island accessory alerts no longer show a connection notice when a phone, tablet or computer connects to the Mac over Bluetooth.
 - Setting the volume from Command Bar no longer adds a floating confirmation under the volume notice in Dynamic Island.
-- Text fields in Dynamic Island, the menu bar panel and Quick Launcher yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the island, the panel or the open utility.
+- Text fields in Dynamic Island, the menu bar panel and Quick Launcher yield Esc to input method composition, so it cancels the text being composed in Chinese, Japanese and Korean instead of closing the island, the panel or the open utility, or discarding a Volume Mixer percentage being typed.
 - Dock Preview, App Switcher and Command Bar list every window of an app that was hidden and shown again, not only its front window.
+- Dock Preview's Panel background slider, which has no effect on Liquid Glass, is turned off while Liquid Glass is on and points to System Settings > Appearance instead.
 - Window Layout edge snapping remains available when displays share Spaces and macOS tiling controls are unavailable.
 - Holding or dragging an icon in the Dock no longer opens the Shelf, in Dynamic Island or in the menu bar drop zone.
 - Keyboard and mouse debounce now honor the configured interval on Apple silicon; scrolling features also use consistent event timing.
 - Mouse side buttons go back and forward again in Safari, Finder and other apps on keyboard layouts such as German and French.
 - Closing the menu bar panel returns focus to the previous app without switching desktops.
+- Esc in Settings no longer closes the menu bar panel open beside it, so it clears a search or closes a sheet there; a confirmation or popover opened from the panel now closes before the panel does.
+- Expanding a weekly Automatic cleanup in the Cleaner no longer cuts off the edges of the menu bar panel or Quick Launcher; the weekday moves to its own row when it does not fit beside the time.
 - The menu bar panel opens centered under its icon again, without a gray band along its top and right edges on macOS 14 and 15, and tall tabs no longer open it beside the icon.
+- The menu bar panel shows the Controls tab when Focus follows mouse is the only installed control, so its switch is no longer out of reach.
 - Scrolling the Features page in Settings no longer stutters or freezes the app.
 - The Features page shows that App Switcher and Super key also listen to the mouse, and that the music app blocker listens to the keyboard, as does Brightness when its key options are on.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
@@ -52,7 +56,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
 
 ### Contributors
-Thanks to @0miicr0n, @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @bweh, @cedigang, @daniel-dosiper, @Goonwb, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain.
+Thanks to @0miicr0n, @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @bweh, @cedigang, @daniel-dosiper, @Goonwb, @gorillasuti, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @sarat03, @scream1ng, @shlok1806, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain and Pinea.
 
 ## [3.4.0] - 2026-09-27
 
