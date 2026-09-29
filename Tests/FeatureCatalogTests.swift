@@ -315,6 +315,14 @@ enum FeatureCatalogTests {
         suite.expect(mediaKey(16)?.phase == .down && mediaKey(16, repeatFlag: true)?.phase == .repeatDown
                 && mediaKey(16, state: 11)?.phase == .up,
                "media keys tell a press, its repeats and its release apart")
+        suite.expect(MediaKeyPlayerSupport.playbackCommand(for: .previous, available: [.back, .previous]) == .back
+                     && MediaKeyPlayerSupport.playbackCommand(for: .previous, available: [.previous]) == .previous
+                     && MediaKeyPlayerSupport.playbackCommand(for: .next, available: [.next]) == .next,
+                     "previous prefers the dictionary's restart-current-track command when available")
+        suite.expect(MediaKeyPlayerSupport.scrubCommand(for: .next, available: [.fastForward, .resume]) == .fastForward
+                     && MediaKeyPlayerSupport.scrubCommand(for: .previous, available: [.rewind, .resume]) == .rewind
+                     && MediaKeyPlayerSupport.scrubCommand(for: .next, available: [.fastForward]) == nil,
+                     "a held track key scans only when the player can resume after release")
         suite.expect(mediaKey(0) == nil && mediaKey(1) == nil && mediaKey(7) == nil
                 && MediaKeyPlayerSupport.key(subtype: 99, data1: Int(UInt32(16) << 16 | 10 << 8)) == nil,
                "volume, mute and unrelated system events never go to the player")
@@ -338,6 +346,9 @@ enum FeatureCatalogTests {
                 && route([firstPlayer, secondPlayer]) == .player(50)
                 && route([]) == .system,
                "with nothing sounding the player last brought forward wins, then the one launched last")
+        suite.expect(route([player(40, "com.example.player", launched: 100, commands: [.back])],
+                           command: .previous) == .player(40),
+                     "a player with back track but no previous track can still handle the previous key")
         suite.expect(route([firstPlayer, secondPlayer],
                            sounding: [.init(pid: 900, bundleIdentifier: "com.example.player.helper")],
                            lastActive: 50) == .player(40),

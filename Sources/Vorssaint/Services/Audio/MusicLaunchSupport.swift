@@ -69,7 +69,7 @@ enum MusicLaunchSupport {
 /// last saw playing, which is often a browser tab.
 enum MediaKeyPlayerSupport {
     enum Command: Equatable, Hashable, CaseIterable {
-        case toggle, next, previous
+        case toggle, next, previous, back, fastForward, rewind, resume
 
         /// The scripting dictionary command that carries it out. A player
         /// without `playpause` keeps the toggle with the system: its `play`
@@ -79,6 +79,10 @@ enum MediaKeyPlayerSupport {
             case .toggle: return "playpause"
             case .next: return "next track"
             case .previous: return "previous track"
+            case .back: return "back track"
+            case .fastForward: return "fast forward"
+            case .rewind: return "rewind"
+            case .resume: return "resume"
             }
         }
     }
@@ -89,6 +93,26 @@ enum MediaKeyPlayerSupport {
         let command: Command
         let code: UInt16
         let phase: KeyPhase
+    }
+
+    /// A dedicated back command restarts the current song before moving to
+    /// the previous one. Players without it keep their previous-track action.
+    static func playbackCommand(for command: Command, available: Set<Command>) -> Command? {
+        if command == .previous, available.contains(.back) { return .back }
+        return available.contains(command) ? command : nil
+    }
+
+    /// A scan needs its matching resume command so release can end it. Other
+    /// players keep their routed track press without starting a stuck scan.
+    static func scrubCommand(for command: Command, available: Set<Command>) -> Command? {
+        guard available.contains(.resume) else { return nil }
+        let scan: Command
+        switch command {
+        case .next: scan = .fastForward
+        case .previous: scan = .rewind
+        default: return nil
+        }
+        return available.contains(scan) ? scan : nil
     }
 
     /// Apple keyboards send fast-forward and rewind for the track keys, so
@@ -159,7 +183,7 @@ enum MediaKeyPlayerSupport {
     /// one launched last.
     static func route(_ command: Command, players: [Player], sounding: [SoundingProcess],
                       lastActivePID: Int32?, ownPID: Int32) -> Route {
-        let usable = players.filter { $0.commands.contains(command) }
+        let usable = players.filter { playbackCommand(for: command, available: $0.commands) != nil }
         guard !usable.isEmpty else { return .system }
         let playing = usable.filter { sounds($0, in: sounding) }
         let otherSounds = sounding.contains { process in

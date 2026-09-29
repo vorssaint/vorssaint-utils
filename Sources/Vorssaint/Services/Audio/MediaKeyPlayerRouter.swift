@@ -22,9 +22,18 @@ final class MediaKeyPlayerRouter {
     private var players: [MediaKeyPlayerSupport.Player] = []
     /// Dictionary events per player, looked up when a key is routed.
     private var events: [Int32: [MediaKeyPlayerSupport.Command: NotchMusicAutomationCapabilities.Event]] = [:]
-    /// Keys whose press went to the player, so their repeats and release
-    /// never reach the system on their own.
-    private var consumedKeyCodes = Set<UInt16>()
+    /// Main-thread state for presses routed to a player. A repeat can start a
+    /// dictionary scan, and its release must then end that same player's scan.
+    private struct RoutedKey {
+        let pid: Int32
+        let press: NotchMusicAutomationCapabilities.Event
+        let scan: NotchMusicAutomationCapabilities.Event?
+        let resume: NotchMusicAutomationCapabilities.Event?
+        var scrubQueued = false
+    }
+    private var routedKeys: [UInt16: RoutedKey] = [:]
+    /// Only touched on sendQueue, after a scan was actually delivered.
+    private var activeScrubs: [UInt16: (pid: Int32, resume: NotchMusicAutomationCapabilities.Event)] = [:]
     private var consentRequestedPIDs = Set<Int32>()
     private var refreshGeneration = 0
     private let audioActivity = MediaKeyAudioActivity()
@@ -66,7 +75,7 @@ final class MediaKeyPlayerRouter {
         tap = nil
         source = nil
         queuedWork.close()
-        consumedKeyCodes.removeAll()
+        clearRoutedKeys()
         consentRequestedPIDs.removeAll()
         refreshGeneration &+= 1
         players = []
@@ -120,7 +129,7 @@ final class MediaKeyPlayerRouter {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            consumedKeyCodes.removeAll()
+            clearRoutedKeys()
             if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             } else {
@@ -135,9 +144,29 @@ final class MediaKeyPlayerRouter {
 
         switch key.phase {
         case .up:
-            return consumedKeyCodes.remove(key.code) != nil ? nil : Unmanaged.passUnretained(event)
+            guard let routed = routedKeys.removeValue(forKey: key.code) else {
+                return Unmanaged.passUnretained(event)
+            }
+            if routed.scrubQueued {
+                sendQueue.async { [weak self] in self?.finishScrub(key.code) }
+            } else if routed.scan != nil {
+                // A short press skips only on release. A hold started a scan
+                // on the original track instead of skipping it first.
+                sendPlayback(routed.press, to: routed.pid)
+            }
+            return nil
         case .repeatDown:
-            return consumedKeyCodes.contains(key.code) ? nil : Unmanaged.passUnretained(event)
+            guard var routed = routedKeys[key.code] else { return Unmanaged.passUnretained(event) }
+            if !routed.scrubQueued, let scan = routed.scan, let resume = routed.resume {
+                routed.scrubQueued = true
+                routedKeys[key.code] = routed
+                let pid = routed.pid
+                queuedWork.async(on: sendQueue) { [weak self] in
+                    guard Self.send(scan, to: pid) else { return }
+                    self?.activeScrubs[key.code] = (pid, resume)
+                }
+            }
+            return nil
         case .down:
             let route = MediaKeyPlayerSupport.route(key.command, players: players,
                                                     sounding: audioActivity.sounding,
@@ -150,20 +179,46 @@ final class MediaKeyPlayerRouter {
                 requestConsent(pid)
                 return Unmanaged.passUnretained(event)
             case .player(let pid):
-                guard let appleEvent = events[pid]?[key.command] else { return Unmanaged.passUnretained(event) }
-                consumedKeyCodes.insert(key.code)
-                queuedWork.async(on: sendQueue) { [weak self] in
-                    let delivered = Self.send(appleEvent, to: pid)
-                    DispatchQueue.main.async {
-                        // A refusal, a revoked consent above all, shows in
-                        // the next snapshot and hands later keys back.
-                        if !delivered { self?.refreshPlayers() }
-                    }
-                }
+                guard let available = events[pid],
+                      let command = MediaKeyPlayerSupport.playbackCommand(for: key.command,
+                                                                           available: Set(available.keys)),
+                      let appleEvent = available[command] else { return Unmanaged.passUnretained(event) }
+                let scan = MediaKeyPlayerSupport.scrubCommand(for: key.command, available: Set(available.keys))
+                    .flatMap { available[$0] }
+                routedKeys[key.code] = RoutedKey(pid: pid, press: appleEvent,
+                                                 scan: scan, resume: available[.resume])
+                if scan == nil { sendPlayback(appleEvent, to: pid) }
                 // Consent can be revoked at any time; recheck it off the tap.
                 refreshPlayers()
                 return nil
             }
+        }
+    }
+
+    private func sendPlayback(_ command: NotchMusicAutomationCapabilities.Event, to pid: Int32) {
+        queuedWork.async(on: sendQueue) { [weak self] in
+            let delivered = Self.send(command, to: pid)
+            DispatchQueue.main.async {
+                // A refusal, especially revoked consent, hands later keys
+                // back to the system after the next snapshot.
+                if !delivered { self?.refreshPlayers() }
+            }
+        }
+    }
+
+    /// A scan is sticky in Music's scripting dictionary. Its resume is a
+    /// cleanup of work already delivered, not a new playback request. It runs
+    /// on the send queue after any pending scan, even if the router stopped.
+    private func finishScrub(_ code: UInt16) {
+        guard let active = activeScrubs.removeValue(forKey: code) else { return }
+        _ = Self.send(active.resume, to: active.pid)
+    }
+
+    private func clearRoutedKeys() {
+        routedKeys.removeAll()
+        sendQueue.async { [weak self] in
+            guard let self else { return }
+            for code in Array(self.activeScrubs.keys) { self.finishScrub(code) }
         }
     }
 
@@ -187,7 +242,8 @@ final class MediaKeyPlayerRouter {
                 for command in MediaKeyPlayerSupport.Command.allCases {
                     available[command] = capabilities.commands[command.dictionaryName]
                 }
-                guard !available.isEmpty else { continue }
+                guard [.toggle, .next, .previous, .back].contains(where: { available[$0] != nil })
+                else { continue }
                 events[pid] = available
                 players.append(MediaKeyPlayerSupport.Player(pid: pid, bundleIdentifier: bundle, launched: launched,
                                                             commands: Set(available.keys),
@@ -260,7 +316,14 @@ final class MediaKeyAudioActivity {
     private var current: [MediaKeyPlayerSupport.SoundingProcess] = []
     /// Only touched on `queue`.
     private var running = false
-    private var processObjects = Set<AudioObjectID>()
+    private var processObjects: [AudioObjectID: Set<AudioObjectPropertySelector>] = [:]
+
+    /// Some HAL versions change IsRunningOutput without notifying its
+    /// listener. IsRunning reports output IO starting or stopping, so either
+    /// notification refreshes the authoritative IsRunningOutput reading.
+    private static let runningSelectors: [AudioObjectPropertySelector] = [
+        kAudioProcessPropertyIsRunningOutput, kAudioProcessPropertyIsRunning,
+    ]
 
     var sounding: [MediaKeyPlayerSupport.SoundingProcess] { lock.withLock { current } }
 
@@ -289,9 +352,11 @@ final class MediaKeyAudioActivity {
             running = false
             var address = Self.address(kAudioHardwarePropertyProcessObjectList)
             AudioObjectRemovePropertyListener(AudioObjectID(kAudioObjectSystemObject), &address, Self.callback, client)
-            for object in processObjects {
-                var running = Self.address(kAudioProcessPropertyIsRunningOutput)
-                AudioObjectRemovePropertyListener(object, &running, Self.callback, client)
+            for (object, selectors) in processObjects {
+                for selector in selectors {
+                    var address = Self.address(selector)
+                    AudioObjectRemovePropertyListener(object, &address, Self.callback, client)
+                }
             }
             processObjects.removeAll()
             lock.withLock { current = [] }
@@ -305,16 +370,20 @@ final class MediaKeyAudioActivity {
     private func refresh() {
         guard #available(macOS 14.4, *) else { return }
         let objects = Self.processObjectList()
-        for object in objects where !processObjects.contains(object) {
-            var address = Self.address(kAudioProcessPropertyIsRunningOutput)
-            if AudioObjectAddPropertyListener(object, &address, Self.callback, client) == noErr {
-                processObjects.insert(object)
+        for object in objects {
+            for selector in Self.runningSelectors where processObjects[object]?.contains(selector) != true {
+                var address = Self.address(selector)
+                if AudioObjectAddPropertyListener(object, &address, Self.callback, client) == noErr {
+                    processObjects[object, default: []].insert(selector)
+                }
             }
         }
-        for object in processObjects.subtracting(objects) {
-            var address = Self.address(kAudioProcessPropertyIsRunningOutput)
-            AudioObjectRemovePropertyListener(object, &address, Self.callback, client)
-            processObjects.remove(object)
+        for object in processObjects.keys.filter({ !objects.contains($0) }) {
+            guard let selectors = processObjects.removeValue(forKey: object) else { continue }
+            for selector in selectors {
+                var address = Self.address(selector)
+                AudioObjectRemovePropertyListener(object, &address, Self.callback, client)
+            }
         }
         let sounding = objects.compactMap { object -> MediaKeyPlayerSupport.SoundingProcess? in
             var isRunning: UInt32 = 0
