@@ -176,7 +176,7 @@ private struct NotchAgentLimitsCard: View {
     }
 
     /// A usage-based forecast would read as a promise, so a row says only
-    /// what is spent and when the window renews.
+    /// what is left or used, as chosen, and when the window renews.
     private func row(_ window: AgentLimitWindow) -> some View {
         let pace = AgentLimitSupport.pace(for: window, now: now)
         let tint = agentLimitTint(provider, usedFraction: window.usedFraction)
@@ -200,11 +200,18 @@ private struct NotchAgentLimitsCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 Spacer(minLength: 2)
-                Text(AgentFormat.percent(fraction))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(tint == provider.tint ? Color.white : tint)
-                    .contentTransition(.numericText())
+                // The worded share when it fits, else the bare percent, which
+                // never shrinks. The label keeps its width, so the words and
+                // the countdown give way first.
+                ViewThatFits(in: .horizontal) {
+                    Text(NotchAgentSupport.limitShare(window, display: display, text: text)).fixedSize()
+                    Text(AgentFormat.percent(fraction)).fixedSize()
+                }
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(tint == provider.tint ? Color.white : tint)
+                .contentTransition(.numericText())
+                .accessibilityLabel(NotchAgentSupport.limitShare(window, display: display, text: text))
             }
             NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
                             tint: tint, height: 4)

@@ -711,6 +711,11 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
                         && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        suite.expect(NotchAgentSupport.limitShare(window, display: .remaining, text: .enUS)
+                        == "\(AgentFormat.percent(0.21)) left"
+                        && NotchAgentSupport.limitShare(window, display: .used, text: .enUS)
+                            == "\(AgentFormat.percent(0.79)) used",
+                     "a limit on the card says whether its share is left or used")
         let expiredAt = now.addingTimeInterval(86_401)
         suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: expiredAt)
                         == AgentFormat.percent(1),
