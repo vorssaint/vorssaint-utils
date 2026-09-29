@@ -1477,9 +1477,11 @@ enum NotchTests {
         for size in [CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
                      CGSize(width: 504, height: 264)] {
             let preview = NotchLayout.cameraPreviewSize(in: size)
-            suite.expect(preview.width <= size.width && preview.height + 28 + NotchLayout.rowSpacing <= size.height
-                   && abs(preview.width / preview.height - 4.0 / 3.0) < 0.001,
-                   "camera preview preserves its aspect ratio and leaves the stop button inside the page")
+            let ratio = preview.width / preview.height
+            suite.expect(preview.width <= size.width && preview.height <= size.height
+                   && (preview.width == size.width || preview.height == size.height)
+                   && ratio > 4.0 / 3.0 - 0.001 && ratio < 16.0 / 9.0 + 0.001,
+                   "camera preview fills the page's width or height and crops no further than 16:9 or 4:3")
         }
         suite.expect(compact.contentSize(for: compact.sectionPickerSize(count: 0)).height == NotchLayout.emptyHeight
                && compact.contentSize(for: compact.sectionPickerSize(count: 1)).height == NotchLayout.sectionTileHeight,

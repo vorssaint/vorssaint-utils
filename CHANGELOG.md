@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+The camera mirror in Dynamic Island now uses its whole page.
+
+### Dynamic Island
+- The camera mirror fills the island's page instead of showing a small preview in the middle, and Stop camera sits over the image beside the camera picker.
+
+### Contributors
+Feedback: Pinea.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary

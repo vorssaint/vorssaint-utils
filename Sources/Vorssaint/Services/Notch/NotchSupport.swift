@@ -245,10 +245,11 @@ enum NotchLayout {
         return min(30, max(16, (room / 6).rounded(.down)))
     }
 
-    /// Fit a 4:3 preview above the stop button, including narrow, tall islands.
+    /// The preview fills the page. A wide strip crops the camera to 16:9 and a
+    /// narrow, tall island to 4:3, so a face stays in frame on either.
     static func cameraPreviewSize(in size: CGSize) -> CGSize {
-        let height = max(0, min(size.height - 28 - rowSpacing, size.width * 3 / 4))
-        return CGSize(width: height * 4 / 3, height: height)
+        let width = max(0, size.width), height = max(0, size.height)
+        return CGSize(width: min(width, height * 16 / 9), height: min(height, width * 3 / 4))
     }
     /// Breathing room every compact strip keeps from its silhouette.
     static let compactEdgeGap: CGFloat = 5

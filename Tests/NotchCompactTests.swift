@@ -22,6 +22,7 @@ enum NotchCompactTests {
     struct CameraPreviewView: View {
         let size: CGSize
         let showsCameraMenu: Bool
+        var onStop: (() -> Void)? = nil
         var body: some View { Color.black.frame(width: size.width, height: size.height) }
     }
     final class NotchService: ObservableObject {
