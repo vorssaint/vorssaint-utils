@@ -747,11 +747,12 @@ enum NotchAgentTests {
         write("200.json", #"{"pid":200,"sessionId":"killed"}"#)
         write("300.json", #"{"pid":300,"sessionId":"killed"}"#)
         write("300.abc.key", "{}")
+        write("500.json", #"{"pid":500,"sessionId":"contained","pidDomain":"linux:4f2ac19e:4026531836"}"#)
         write(".heartbeat", "1")
         let running: Set<Int32> = [100, 300]
         var registry = AgentSessionRegistry.read([folder, folder.appending(path: "missing")]) { running.contains($0) }
-        suite.expect(registry == AgentSessionRegistry(running: ["quit", "killed"], ended: [], complete: true),
-                     "a session with a running process reads as running, even beside a killed one's record")
+        suite.expect(registry == AgentSessionRegistry(running: ["quit", "killed"], ended: [], complete: true, listed: true),
+                     "a session with a running process reads as running, even beside a killed one's record, and a container's record proves nothing")
         write("400.json", #"{"pid":"#)
         registry = AgentSessionRegistry.read([folder]) { $0 == 100 }
         suite.expect(registry.running == ["quit"] && registry.ended == ["killed"] && !registry.complete,
@@ -773,6 +774,26 @@ enum NotchAgentTests {
         store.closeEndedTurns(AgentSessionRegistry(running: [], ended: [], complete: true))
         suite.expect(store.live.count == 2 && !store.live.contains { $0.id == "/p/partial.jsonl" },
                      "a record that disappears ends the turn it was running")
+        suite.expect(AgentSessionRegistry.read([folder.appending(path: "missing")]) { _ in true }
+                        == AgentSessionRegistry(running: [], ended: [], complete: true, listed: false),
+                     "without a sessions folder the records say nothing")
+
+        // Relaunched after a session quit mid-turn: its log still reads as
+        // working, and nothing was ever seen running.
+        let relaunched = AgentUsageStore()
+        for name in ["gone", "alive"] {
+            relaunched.apply([.turnBegan(start)], file: "/p/\(name).jsonl", provider: .claude, tracksTurns: true, modified: start)
+        }
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true), atLaunch: true)
+        suite.expect(relaunched.live.count == 2, "at launch, a Claude Code that keeps no records leaves turns to the quiet wait")
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: false, listed: true), atLaunch: true)
+        suite.expect(relaunched.live.count == 2, "at launch, an incomplete read ends nothing")
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true))
+        suite.expect(relaunched.live.count == 2, "after launch, a record never seen running ends nothing")
+        let ended = relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true),
+                                               atLaunch: true)
+        suite.expect(ended && relaunched.live.map(\.id) == ["/p/alive.jsonl"],
+                     "at launch, a turn left open by a session that quit ends at once")
     }
 
     private static func reading(_ suite: TestSuite) {

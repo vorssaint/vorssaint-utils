@@ -187,16 +187,19 @@ final class AgentUsageStore {
     /// terminal closes, writes nothing that ends the turn. Its process
     /// record says so sooner than the quiet wait: the record names a process
     /// that no longer runs, or a record seen running is gone. A session that
-    /// keeps no record waits as before. True when a turn was showing.
+    /// keeps no record waits as before. At launch, a turn the logs left open
+    /// without a record is over too, once the records could be read. True
+    /// when a turn was showing.
     @discardableResult
-    func closeEndedTurns(_ processes: AgentSessionRegistry) -> Bool {
+    func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false) -> Bool {
         registered.formIntersection(turns.keys)
         var closed = false
         for (file, turn) in turns where turn.provider == .claude {
             let session = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
             if processes.running.contains(session) {
                 registered.insert(file)
-            } else if processes.ended.contains(session) || (processes.complete && registered.contains(file)) {
+            } else if processes.ended.contains(session)
+                        || (processes.complete && (registered.contains(file) || (atLaunch && processes.listed))) {
                 registered.remove(file)
                 closed = forget(file: file) || closed
             }
@@ -263,12 +266,15 @@ struct AgentSessionRegistry: Equatable {
     /// False when a record could not be read, as while it is being written,
     /// so a missing session proves nothing.
     var complete = true
+    /// A sessions folder could be listed, so this Claude Code keeps records.
+    var listed = false
 
     /// `folders` are the `sessions` folders beside each Claude log root.
     static func read(_ folders: [URL], isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> AgentSessionRegistry {
         var registry = AgentSessionRegistry()
         for folder in folders {
             guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { continue }
+            registry.listed = true
             for name in names where name.hasSuffix(".json") && Int32(name.dropLast(5)) != nil {
                 guard let data = try? Data(contentsOf: folder.appending(path: name)), data.count < 1 << 16,
                       let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -276,6 +282,9 @@ struct AgentSessionRegistry: Equatable {
                     registry.complete = false
                     continue
                 }
+                // A session run in a container or virtual machine that shares
+                // this folder names a process this Mac cannot see.
+                if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
                 if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
             }
         }
