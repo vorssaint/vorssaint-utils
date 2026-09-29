@@ -2045,6 +2045,9 @@ final class NotchService: ObservableObject {
     /// A new song's title shows in the capsule for a few seconds, then the
     /// capsule keeps only the cover and the bars.
     private func nameCapsuleSong() {
+        // The song held for the next one's notice is the one that ended; the
+        // next song is named once the notice lets it go.
+        guard heldMusic == nil else { return }
         musicTitleWork?.cancel()
         capsuleMusicTitleShown = true
         refreshCapsuleMusic()
@@ -2161,6 +2164,9 @@ final class NotchService: ObservableObject {
         mirrors.values.forEach { $0.host.close() }
         mirrors.removeAll()
     }
+
+    /// Whether another display shows a copy of the closed island now.
+    private var showsCopies: Bool { mirrors.values.contains { $0.model.shown } }
 
     /// Only the copies ask which displays are in full screen, and only when
     /// the island hides there; the island asks for its own display.
@@ -2829,7 +2835,7 @@ final class NotchService: ObservableObject {
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
             // A capsule names each new song for a moment: the song playing,
-            // or the one held until the next song's notice.
+            // or the next one once the notice releases the song it held.
             music.$playback.map { $0?.track.title }.removeDuplicates().map { _ in () }
                 .merge(with: $heldMusic.map { $0?.playback.track.title }.removeDuplicates().map { _ in () })
                 .receive(on: DispatchQueue.main)
@@ -3066,7 +3072,9 @@ final class NotchService: ObservableObject {
         guard running, !suspended else { releaseMonitor(); return }
         if fullscreenCompact {
             CameraPreviewService.shared.hideEmbedded()
-            NotchMusicService.shared.stop()
+            // A copy on another display still shows the song playing.
+            let copiesShowMusic = showsCopies && NotchSupport.watchesMusicActivity()
+            if copiesShowMusic { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
             releaseMonitor()
             return
         }

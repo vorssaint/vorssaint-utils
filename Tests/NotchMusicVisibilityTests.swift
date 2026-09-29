@@ -99,6 +99,7 @@ enum NotchMusicVisibilityTests {
                                      safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
         var expandedSize: CGSize { geometry.expanded }
         var capsuleSurfaceSize: CGSize? { nil }
+        var showsCopies = false
         var captureControlsLayout: NotchCaptureControlsLayout {
             NotchCaptureControlsLayout(geometry: geometry, titleWidth: 90, capturesAudio: false)
         }
@@ -143,6 +144,12 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(!reader.running && service.surfaceSize == closed,
                          "fullscreen keeps a black cutout and stops the automatic playback reader")
+            service.showsCopies = true
+            service.syncVisibleConsumers()
+            suite.expect(reader.running, "copies on other displays keep the song while the island rests in fullscreen")
+            service.showsCopies = false
+            service.syncVisibleConsumers()
+            suite.expect(!reader.running, "without copies fullscreen stops the reader again")
             service.expanded = true
             service.selected = .music
             service.syncVisibleConsumers()
