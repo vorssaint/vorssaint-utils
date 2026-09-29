@@ -50,9 +50,8 @@ enum StatusItemGestureAdapterTests {
         var timer: Timer?
         var generation = 0
         var observedLeftDown: TimeInterval?
-        var observedLeftUp: TimeInterval?
+        var handledLeftRelease: TimeInterval?
         var middleTap: Bool?
-        var requestedAccessibilityForMiddle = false
         var accessibilityObserver: AnyCancellable?
         var frame: CGRect? = CGRect(x: 105, y: 288, width: 30, height: 24)
         var installations = 0
@@ -74,6 +73,30 @@ enum StatusItemGestureAdapterTests {
         }
     }
 
+    class SettingsFixture {
+        var middleAction = StatusItemQuickAction.none.rawValue
+        var permissions = Permissions.shared
+    }
+
+    class UsageFixture {
+        struct Feature {
+            func hubTitle(_ strings: Strings, hub: FeatureHubStrings) -> String { "Existing feature" }
+        }
+        var middleAction = StatusItemQuickAction.none.rawValue
+        var permission = AppPermission.accessibility
+        var activeFeatures: [Feature] = []
+        let l10n = L10n.shared
+        let hub = FeatureStrings.hub(.enUS)
+    }
+
+    class PollingFixture {
+        let defaults = UserDefaults(suiteName: "vorss.tests.status-action-polling")!
+        var permissionSurfaceDemands: Set<UUID> = []
+        var accessibility = false
+        var screenRecording = false
+        deinit { defaults.removePersistentDomain(forName: "vorss.tests.status-action-polling") }
+    }
+
     static func run(_ suite: TestSuite) {
         defer {
             NSEvent.pressedMouseButtons = 0
@@ -83,7 +106,73 @@ enum StatusItemGestureAdapterTests {
         }
         testMissingDown(suite)
         testMiddleRelease(suite)
+        testReleaseOrdering(suite)
+        testMiddleOnly(suite)
         testPermissionChanges(suite)
+        testPermissionUI(suite)
+    }
+
+    private static func testPermissionUI(_ suite: TestSuite) {
+        Permissions.shared.accessibility = false
+        Permissions.shared.requests = 0
+        let settings = SettingsHost()
+        settings.setMiddleAction(StatusItemQuickAction.keepAwake.rawValue)
+        suite.expect(Permissions.shared.requests == 1, "the first explicit middle-click choice asks for permission")
+        let handler = Host()
+        handler.watchAccessibility()
+        handler.syncMiddleTap()
+        handler.sync(settings: .init(middle: .keepAwake, hold: .soundMute))
+        suite.expect(Permissions.shared.requests == 1 && handler.middleTap == nil,
+                     "handler startup and a hold-only change never ask again")
+        settings.setMiddleAction(settings.middleAction)
+        settings.setMiddleAction(StatusItemQuickAction.none.rawValue)
+        suite.expect(Permissions.shared.requests == 1, "unchanged and off choices do not ask")
+        settings.setMiddleAction(StatusItemQuickAction.micMute.rawValue)
+        suite.expect(Permissions.shared.requests == 2, "another explicit middle-click choice may ask again")
+        Permissions.shared.accessibility = true
+        settings.setMiddleAction(StatusItemQuickAction.soundMute.rawValue)
+        suite.expect(Permissions.shared.requests == 2 && handler.middleTap != nil,
+                     "an existing grant needs no request and restores the tap quietly")
+
+        Permissions.shared.accessibility = false
+        Permissions.shared.requests = 0
+        for _ in 0..<2 {
+            let launched = Host()
+            launched.watchAccessibility()
+            launched.syncMiddleTap()
+            launched.sync(settings: launched.settings)
+            suite.expect(Permissions.shared.requests == 0 && launched.middleTap == nil,
+                         "relaunching with a saved action and no grant stays silent")
+        }
+
+        let usage = UsageHost()
+        let polling = PollingHost()
+        for action in StatusItemQuickAction.allCases {
+            usage.middleAction = action.rawValue
+            polling.defaults.set(action.rawValue, forKey: DefaultsKey.statusItemMiddleClickAction)
+            let needed = action != .none
+            suite.expect(!usage.activeUsageNames.isEmpty == needed
+                         && (polling.desiredPollInterval != nil) == needed,
+                         "permission usage and polling agree for \(action.rawValue)")
+            if needed {
+                suite.expect(usage.usedByLine.contains("Menu bar icon quick actions — Middle-click"),
+                             "the permission row names middle-click even with no active features")
+            }
+        }
+        usage.activeFeatures = [.init()]
+        suite.expect(usage.activeUsageNames.count == 2, "middle-click preserves existing permission users")
+        usage.permission = .screenRecording
+        suite.expect(usage.activeUsageNames == ["Existing feature"], "middle-click only counts for Accessibility")
+        usage.permission = .accessibility
+        usage.activeFeatures = []
+        for value in [StatusItemQuickAction.none.rawValue, "futureAction"] {
+            usage.middleAction = value
+            polling.defaults.set(value, forKey: DefaultsKey.statusItemMiddleClickAction)
+            polling.defaults.set(StatusItemQuickAction.screenshot.rawValue, forKey: DefaultsKey.statusItemLongPressAction)
+            suite.expect(usage.activeUsageNames.isEmpty && usage.usedByLine == usage.hub.usedByNone
+                         && polling.desiredPollInterval == nil,
+                         "off or unknown middle actions, even with hold enabled, need no Accessibility")
+        }
     }
 
     private static func testMissingDown(_ suite: TestSuite) {
@@ -135,6 +224,53 @@ enum StatusItemGestureAdapterTests {
                      "the button fallback does not reset a press the monitor already started")
     }
 
+    private static func testReleaseOrdering(_ suite: TestSuite) {
+        let point = CGPoint(x: 120, y: 300)
+        for duration in [0.1, 1.0] {
+            for watcherFirst in [false, true] {
+                for monitorSeesUp in [false, true] {
+                    let host = Host()
+                    NSEvent.mouseLocation = point
+                    NSEvent.pressedMouseButtons = 1
+                    host.observe(NSEvent(type: .leftMouseDown, timestamp: 100))
+                    NSEvent.pressedMouseButtons = 0
+                    let release = NSEvent(timestamp: 100 + duration)
+                    ProcessInfo.processInfo.systemUptime = release.timestamp + 0.02
+                    if watcherFirst { host.timer?.fire() }
+                    if monitorSeesUp { host.observe(release) }
+                    _ = host.buttonClick(release)
+                    host.timer?.fire()
+                    let expected: StatusItemGesture.Result = duration < 0.5 ? .single(point) : .quick(.screenshot)
+                    suite.expect(host.results == [expected] && host.timer == nil,
+                                 "release ordering delivers one outcome (hold=\(duration), watcher=\(watcherFirst), monitor=\(monitorSeesUp))")
+                    // Equal and older actions are duplicates, even if no monitor saw the up.
+                    _ = host.buttonClick(release)
+                    suite.expect(host.results == [expected], "a repeated button action cannot reopen the panel")
+                    // No monitor down for the next real click: it must still work.
+                    _ = host.buttonClick(NSEvent(timestamp: 102))
+                    suite.expect(host.results == [expected, .single(point)],
+                                 "a newer button action is not swallowed by release deduplication")
+                }
+            }
+        }
+    }
+
+    private static func testMiddleOnly(_ suite: TestSuite) {
+        let host = Host()
+        host.settings = .init(middle: .keepAwake)
+        NSEvent.pressedMouseButtons = 1
+        host.observe(NSEvent(type: .leftMouseDown, timestamp: 200))
+        suite.expect(host.timer == nil && !host.gesture.isActive,
+                     "middle-only settings never start a left-click watcher")
+        NSEvent.pressedMouseButtons = 0
+        host.observe(NSEvent(timestamp: 200.1))
+        suite.expect(!host.buttonClick(NSEvent(timestamp: 200.1)) && host.results.isEmpty,
+                     "middle-only settings leave the left click to the controller's normal path")
+        host.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
+        host.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+        suite.expect(host.results == [.quick(.keepAwake)], "bypassing left clicks preserves middle-click actions")
+    }
+
     private static func middleEvent(_ type: CGEventType, x positionX: CGFloat, button: Int64 = 2) -> CGEvent {
         let event = CGEvent(mouseEventSource: nil, mouseType: type,
                             mouseCursorPosition: CGPoint(x: positionX, y: 500), mouseButton: .center)!
@@ -174,8 +310,8 @@ enum StatusItemGestureAdapterTests {
         let assigned = host.settings
         host.settings = .init(hold: .screenshot)
         host.sync(settings: assigned)
-        suite.expect(host.middleTap == nil && Permissions.shared.requests == 1,
-                     "assigning middle-click without permission asks once and installs no tap")
+        suite.expect(host.middleTap == nil && Permissions.shared.requests == 0,
+                     "syncing saved middle-click settings never requests permission")
         Permissions.shared.accessibility = true
         suite.expect(host.middleTap != nil && host.installations == 1,
                      "granting permission installs the tap without reassigning the action")
@@ -186,7 +322,7 @@ enum StatusItemGestureAdapterTests {
         Permissions.shared.accessibility = false
         suite.expect(host.middleTap == nil && host.removals == 1 && !host.gesture.isActive,
                      "revocation removes the tap and clears an in-flight middle press")
-        suite.expect(Permissions.shared.requests == 1, "revocation does not repeat the permission prompt")
+        suite.expect(Permissions.shared.requests == 0, "revocation never opens the permission prompt")
         Permissions.shared.accessibility = true
         suite.expect(host.installations == 2, "regranting permission restores the tap")
         host.sync(settings: .init(hold: .screenshot))

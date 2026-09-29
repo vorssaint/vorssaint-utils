@@ -64,6 +64,10 @@ struct StatusItemGesture {
         var isEnabled: Bool {
             middle != .none || hold != .none
         }
+
+        /// Shared by the tap, permission polling and both settings surfaces.
+        /// The assignment still needs a grant if its target is uninstalled.
+        var needsAccessibility: Bool { middle != .none }
     }
 
     /// The margin a held press may drift within before it counts as a drag

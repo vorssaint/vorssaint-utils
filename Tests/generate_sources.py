@@ -75,6 +75,20 @@ def main():
                         "    private func screenPoint(", "    private func point(",
                         "    private func observe(", "    private func emit(",
                         "    private func schedule(", "    private func observeRelease("])
+          + "}\n"
+          + "final class SettingsHost: SettingsFixture {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/GeneralSettings.swift",
+                        "    private func setMiddleAction(").replace("    private ", "    ", 1)
+          + "}\nfinal class UsageHost: UsageFixture {\n"
+          + "".join(declaration("Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift", prefix)
+                    .replace("    private ", "    ", 1) for prefix in [
+                        "    private var activeUsageNames:", "    private var usedByLine:"])
+          + "}\nfinal class PollingHost: PollingFixture {\n"
+          + declaration("Sources/Vorssaint/Core/Permissions.swift", "    private var desiredPollInterval:")
+            .replace("    private ", "    ", 1)
+            .replace(".saved()", ".saved(defaults: defaults)")
+            .replace("using: .accessibility)", "using: .accessibility, defaults: defaults)")
+            .replace("using: .screenRecording)", "using: .screenRecording, defaults: defaults)")
           + "}\n}\n")
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")

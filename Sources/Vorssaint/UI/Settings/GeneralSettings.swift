@@ -9,6 +9,7 @@ struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var appearance = AppAppearanceController.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
+    @ObservedObject private var permissions = Permissions.shared
     // Seeded from the stored choice so the switch does not flash off while
     // the status read is still on its way.
     @State private var loginRegistration: LaunchAtLoginSupport.Registration =
@@ -124,10 +125,26 @@ struct GeneralSettings: View {
         let strings = StatusItemQuickActionStrings.localized(l10n.language)
         return SettingsCard(title: strings.title) {
             statusItemActionRow(strings.middleClick, caption: strings.middleHint,
-                                selection: $middleAction)
+                                selection: Binding(get: { middleAction }, set: setMiddleAction))
+            if StatusItemGesture.Settings(middle: StatusItemQuickAction(rawValue: middleAction) ?? .none)
+                .needsAccessibility, !permissions.accessibility {
+                PermissionRow(kind: .accessibility)
+                    .padding(.leading, settingsRowTextInset)
+            }
             Divider()
             statusItemActionRow(strings.longPress, caption: strings.holdHint,
                                 selection: $holdAction)
+        }
+    }
+
+    /// A picker write is a user choice; observing defaults would also prompt
+    /// during launch, restore or an unrelated settings refresh.
+    private func setMiddleAction(_ value: String) {
+        guard value != middleAction else { return }
+        middleAction = value
+        if StatusItemGesture.Settings(middle: StatusItemQuickAction(rawValue: value) ?? .none)
+            .needsAccessibility, !permissions.accessibility {
+            permissions.requestAccessibility()
         }
     }
 

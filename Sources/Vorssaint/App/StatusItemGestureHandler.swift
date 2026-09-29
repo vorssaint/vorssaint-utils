@@ -19,9 +19,8 @@ final class StatusItemGestureHandler {
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                    category: "statusgesture")
 
-    /// How often the held button's release is looked for. The status button
-    /// never reports it, and a person cannot tell 40 ms from instant, so this
-    /// is short enough to feel immediate and long enough to cost nothing.
+    /// Some macOS versions report the press rather than the release. Watch
+    /// the physical button every 40 ms while a hold is in flight.
     private static let releaseWatchInterval: TimeInterval = 0.04
     weak var owner: StatusItemController?
     private var gesture = StatusItemGesture()
@@ -30,14 +29,15 @@ final class StatusItemGestureHandler {
     private var timer: Timer?
     private var generation = 0
     private var observedLeftDown: TimeInterval?
-    private var observedLeftUp: TimeInterval?
+    /// Latest release handled by any path. Kept across cancellation so a
+    /// delayed AppKit action cannot replay a click after its callback runs.
+    private var handledLeftRelease: TimeInterval?
     private var resignObserver: Any?
     /// The status button is an `NSStatusItem`, and macOS never delivers a
     /// middle-click on one to the owning app — no local monitor can see it.
     /// A passive session tap is therefore the only way to serve this gesture.
     private var middleTap: CFMachPort?
     private var middleRunLoopSource: CFRunLoopSource?
-    private var requestedAccessibilityForMiddle = false
     private var accessibilityObserver: AnyCancellable?
 
     init(owner: StatusItemController, settings: StatusItemGesture.Settings) {
@@ -67,28 +67,22 @@ final class StatusItemGestureHandler {
             .dropFirst()
             .removeDuplicates()
             .sink { [weak self] granted in
-                self?.syncMiddleTap(accessibilityGranted: granted, requestPermission: false)
+                self?.syncMiddleTap(accessibilityGranted: granted)
             }
     }
 
     /// Installed only while a middle-click action is assigned, so a Mac that
     /// never uses this gesture pays neither the permission nor the tap.
-    private func syncMiddleTap(accessibilityGranted: Bool = AXIsProcessTrusted(),
-                               requestPermission: Bool = true) {
-        guard settings.middle != .none else {
+    private func syncMiddleTap(accessibilityGranted: Bool = AXIsProcessTrusted()) {
+        guard settings.needsAccessibility else {
             tearDownMiddleTap()
             return
         }
         guard accessibilityGranted else {
             cancel()
             tearDownMiddleTap()
-            // The one thing the user cannot guess: this gesture is the only
-            // one that needs Accessibility. Ask once, in context.
-            if requestPermission && !requestedAccessibilityForMiddle {
-                requestedAccessibilityForMiddle = true
-                Permissions.shared.requestAccessibility()
-                log("middle tap needs Accessibility; asked once")
-            }
+            // Launch, settings sync and grant changes are passive. Only the
+            // middle-click picker (or an explicit permission button) asks.
             return
         }
         guard middleTap == nil else { return }
@@ -179,7 +173,7 @@ final class StatusItemGestureHandler {
             cancel()
             settings = new
         }
-        syncMiddleTap(requestPermission: changed)
+        syncMiddleTap()
     }
 
     func cancel() {
@@ -188,7 +182,6 @@ final class StatusItemGestureHandler {
         timer = nil
         generation &+= 1
         observedLeftDown = nil
-        observedLeftUp = nil
     }
 
     /// Returns false when the click is not on the button, or when the button's
@@ -200,7 +193,8 @@ final class StatusItemGestureHandler {
     /// produces exactly one outcome instead of a lost click.
     @discardableResult
     func buttonClick(_ event: NSEvent) -> Bool {
-        guard observedLeftUp != event.timestamp else { return true }
+        guard settings.hold != .none else { return false }
+        if let handledLeftRelease, event.timestamp <= handledLeftRelease { return true }
         guard let point = point(event, inset: dragMargin) else {
             return false
         }
@@ -214,6 +208,7 @@ final class StatusItemGestureHandler {
             schedule()
             return true
         }
+        handledLeftRelease = event.timestamp
         emit(gesture.leftUp(at: point, time: event.timestamp, settings: settings,
                             tolerance: dragMargin))
         schedule()
@@ -263,6 +258,7 @@ final class StatusItemGestureHandler {
     // MARK: - Local monitor
 
     private func observe(_ event: NSEvent) {
+        guard settings.hold != .none else { return }
         switch event.type {
         case .keyDown:
             if event.keyCode == 53 { cancel() } // Esc
@@ -284,15 +280,11 @@ final class StatusItemGestureHandler {
                 cancel()
                 return
             }
-            guard gesture.isActive else {
-                // The monitor never saw this press start — a status button runs
-                // its own tracking loop, and a down can be consumed there. Do
-                // NOT claim this up: leaving it unclaimed lets the button
-                // action synthesize the press, so the click still lands.
-                observedLeftUp = nil
-                return
-            }
-            observedLeftUp = event.timestamp
+            // A watcher may have already finished this press. Preserve its
+            // release marker; an unobserved newer click can still fall back
+            // through the button action.
+            guard gesture.watchesForRelease else { return }
+            handledLeftRelease = event.timestamp
             emit(gesture.leftUp(at: point, time: event.timestamp, settings: settings,
                                 tolerance: dragMargin))
             schedule()
@@ -312,14 +304,8 @@ final class StatusItemGestureHandler {
         }
     }
 
-    /// The status button reports its press, never its release, so a left press
-    /// is followed by a repeating watcher on the physical button instead of a
-    /// single deadline. Everything else still uses one one-shot deadline.
-    /// Watches the physical button while a press is in flight.
-    ///
-    /// There is no deadline to schedule: the status button reports its press
-    /// and never its release, so the long press and the release are both
-    /// observed here. Nothing runs when no press is in flight.
+    /// Watch the physical button while a hold is in flight, including on
+    /// macOS versions whose status button action does not report the release.
     private func schedule() {
         timer?.invalidate()
         timer = nil
@@ -334,16 +320,17 @@ final class StatusItemGestureHandler {
         RunLoop.main.add(watch, forMode: .common)
     }
 
-    /// One turn of the press watcher. The long press is committed here once the
-    /// threshold passes, and the release is delivered here the moment the
-    /// physical button comes up — no event ever reports it.
+    /// Record a handled release before calling out: AppKit may send its
+    /// release action later, with a timestamp no newer than this sample.
     private func observeRelease() {
+        guard gesture.watchesForRelease else { return }
         let stillHeld = NSEvent.pressedMouseButtons & 0x1 != 0
         if stillHeld {
             emit(gesture.expired(at: ProcessInfo.processInfo.systemUptime, settings: settings))
             return
         }
         let now = ProcessInfo.processInfo.systemUptime
+        handledLeftRelease = now
         emit(gesture.leftUp(at: NSEvent.mouseLocation, time: now, settings: settings,
                             tolerance: dragMargin))
         schedule()
