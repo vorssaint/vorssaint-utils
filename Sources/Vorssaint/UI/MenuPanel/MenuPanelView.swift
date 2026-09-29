@@ -2405,14 +2405,11 @@ extension View {
     }
 
     /// A row's description as its tooltip, and through it the VoiceOver
-    /// help, whenever the row does not print it.
-    @ViewBuilder
+    /// help, whenever the row does not print it. An empty help keeps the
+    /// row one view while its caption comes and goes, so a switch that turns
+    /// on into a permission note is not rebuilt mid-animation.
     func panelRowDescription(_ description: String?) -> some View {
-        if let description, !description.isEmpty {
-            help(description)
-        } else {
-            self
-        }
+        help(description ?? "")
     }
 }
 

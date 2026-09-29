@@ -630,6 +630,20 @@ enum FeatureCatalogTests {
         suite.expect(!AppFeature.neverSwitchedOn(isAvailable: { $0 != .windowMaximizer }, boolFor: { _ in false },
                                                  isSaved: { _ in false }).contains(.windowMaximizer),
                "an uninstalled feature is never offered")
+        // The scroll axes migration saves the horizontal switch on every Mac
+        // at launch, before any registered default exists.
+        let migratedAxesSuiteName = "com.vorssaint.tests.never-switched-on.\(UUID().uuidString)"
+        if let migratedAxesDefaults = UserDefaults(suiteName: migratedAxesSuiteName) {
+            Defaults.migrateScrollInverterAxes(in: migratedAxesDefaults)
+            let migrated = migratedAxesDefaults.persistentDomain(forName: migratedAxesSuiteName) ?? [:]
+            suite.expect(migrated[DefaultsKey.scrollInverterHorizontalEnabled] != nil
+                    && AppFeature.neverSwitchedOn(isAvailable: everythingInstalled, boolFor: { _ in false },
+                                                  isSaved: { migrated[$0] != nil }).contains(.scrollInverter),
+                   "the scroll direction a launch migration saved still counts as never switched on")
+            migratedAxesDefaults.removePersistentDomain(forName: migratedAxesSuiteName)
+        } else {
+            suite.expect(false, "never switched on migration suite can be created")
+        }
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.featureHubKeptFeatures),
                "features someone chose to keep travel in backups, so a restored Mac never offers them again")
         let hubUndoSource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift",

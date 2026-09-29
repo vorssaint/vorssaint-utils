@@ -23,10 +23,11 @@ final class FeatureRuntime: ObservableObject {
     /// keys off, including the install-then-uninstall-again case.
     private var loadedThisSession = Set(AppFeature.allCases.filter(\.isAvailable))
 
-    /// What was installed when the app came up. A feature installed later in
-    /// the session has not had its chance yet, so it is never offered for
+    /// What was installed when the app came up and has not been installed
+    /// again since. A feature installed later in the session, a reinstall
+    /// included, has not had its chance yet, so it is never offered for
     /// uninstalling as unused until the next launch.
-    private let availableAtLaunch = Set(AppFeature.allCases.filter(\.isAvailable))
+    private var offerableThisSession = Set(AppFeature.allCases.filter(\.isAvailable))
 
     private init() {}
 
@@ -117,7 +118,10 @@ final class FeatureRuntime: ObservableObject {
                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
             }
             UserDefaults.standard.set(available, forKey: feature.availabilityKey)
-            if available { loadedThisSession.insert(feature) }
+            if available {
+                loadedThisSession.insert(feature)
+                offerableThisSession.remove(feature)
+            }
             Self.bindings[feature]?()
             changed = true
         }
@@ -150,7 +154,10 @@ final class FeatureRuntime: ObservableObject {
                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
             }
             UserDefaults.standard.set(joins, forKey: feature.availabilityKey)
-            if joins { loadedThisSession.insert(feature) }
+            if joins {
+                loadedThisSession.insert(feature)
+                offerableThisSession.remove(feature)
+            }
             Self.bindings[feature]?()
         }
         // Features that stayed installed still need a sync: their enable
@@ -175,7 +182,7 @@ final class FeatureRuntime: ObservableObject {
         return AppFeature.neverSwitchedOn(isAvailable: \.isAvailable,
                                           boolFor: UserDefaults.standard.bool(forKey:),
                                           isSaved: { saved[$0] != nil })
-            .filter { availableAtLaunch.contains($0) && !kept.contains($0) }
+            .filter { offerableThisSession.contains($0) && !kept.contains($0) }
     }
 
     /// Stops offering these features as unused. A later one that turns out

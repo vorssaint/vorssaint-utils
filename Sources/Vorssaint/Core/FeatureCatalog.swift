@@ -427,9 +427,14 @@ extension AppFeature {
             isAvailable(feature)
                 && !feature.enabledKeys.isEmpty
                 && !feature.enabledKeys.contains(where: boolFor)
-                && !feature.enabledKeys.contains(where: isSaved)
+                && !feature.enabledKeys.contains { isSaved($0) && !savedOnEveryMac.contains($0) }
         }
     }
+
+    /// Switches a launch migration saves on every Mac, the horizontal scroll
+    /// direction copying the vertical one, so a saved value there says
+    /// nothing about use. Only one that is on counts.
+    private static let savedOnEveryMac: Set<String> = [DefaultsKey.scrollInverterHorizontalEnabled]
 
     /// Whether a Mac that never chose this feature has it installed. Most
     /// people updating never saved an availability, so this list IS their
