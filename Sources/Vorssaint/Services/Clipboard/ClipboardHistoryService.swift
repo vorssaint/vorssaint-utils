@@ -60,8 +60,6 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickSelectionIndex = 0
     @Published private(set) var quickSelectionIsVisible = false
     @Published private(set) var quickWindowPresentationID = UUID()
-    /// Changes when an opening should take the window's list back to the top.
-    @Published private(set) var quickScrollToTopRequest = UUID()
     @Published private(set) var quickPreviewPresented = UserDefaults.standard.bool(
         forKey: DefaultsKey.clipboardHistoryQuickPreview
     )
@@ -81,8 +79,6 @@ final class ClipboardHistoryService: ObservableObject {
     private var panel: NSPanel?
     private var panelResizeObserver: NSObjectProtocol?
     private var panelSizeLimit: ClipboardPanelSizeLimit?
-    /// A continuous clock, so time the Mac spends asleep counts as closed.
-    private var panelHiddenAt: ContinuousClock.Instant?
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
@@ -1175,15 +1171,6 @@ final class ClipboardHistoryService: ObservableObject {
         if preferNotch, NotchSupport.routesClipboardWindow(), NotchService.shared.showClipboard() { return }
         let panel = ensurePanel()
         rememberPasteTarget()
-        let hiddenFor: Duration? = panel.isVisible ? .zero : panelHiddenAt.map { ContinuousClock.now - $0 }
-        panelHiddenAt = nil
-        let defaults = UserDefaults.standard
-        if ClipboardHistoryScrollReset.returnsToTop(
-            enabled: defaults.bool(forKey: DefaultsKey.clipboardHistoryScrollToTop),
-            delaySeconds: defaults.integer(forKey: DefaultsKey.clipboardHistoryScrollToTopDelay),
-            hiddenFor: hiddenFor) {
-            quickScrollToTopRequest = UUID()
-        }
         quickWindowPresentationID = UUID()
         quickQuery = ""
         clearQuickBatchSelection()
@@ -1197,8 +1184,6 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func hideHistoryWindow() {
-        // Only a visible window starts the wait; hiding it again must not.
-        if panel?.isVisible == true { panelHiddenAt = .now }
         removeKeyMonitor()
         removeDismissMonitors()
         panel?.orderOut(nil)

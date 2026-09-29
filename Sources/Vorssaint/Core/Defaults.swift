@@ -535,8 +535,6 @@ enum DefaultsKey {
     static let clipboardHistoryWindowHeight = "clipboardHistoryWindowHeight"
     static let clipboardHistoryMenuBarPreview = "clipboardHistoryMenuBarPreview" // show latest copy next to the menu bar icon
     static let clipboardHistoryMenuBarPreviewLength = "clipboardHistoryMenuBarPreviewLength" // characters shown before truncating
-    static let clipboardHistoryScrollToTop = "clipboardHistoryScrollToTop" // reopen the history window at the top of the list
-    static let clipboardHistoryScrollToTopDelay = "clipboardHistoryScrollToTopDelaySeconds" // seconds closed before it does
 
     // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
     // Deliberately outside the clipboardHistory family, since it clears the
@@ -1091,8 +1089,6 @@ enum Defaults {
     static let defaultClipboardAutoClearDelay = 20
     static let allowedClipboardMenuBarPreviewLengthRange = 5...50
     static let defaultClipboardMenuBarPreviewLength = 20
-    static let allowedClipboardScrollToTopDelayRange = 0...3_600
-    static let defaultClipboardScrollToTopDelay = 0
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
@@ -1616,8 +1612,6 @@ enum Defaults {
         DefaultsKey.clipboardHistoryWindowHeight: 0.0,
         DefaultsKey.clipboardHistoryMenuBarPreview: false,
         DefaultsKey.clipboardHistoryMenuBarPreviewLength: Defaults.defaultClipboardMenuBarPreviewLength,
-        DefaultsKey.clipboardHistoryScrollToTop: false,
-        DefaultsKey.clipboardHistoryScrollToTopDelay: Defaults.defaultClipboardScrollToTopDelay,
         DefaultsKey.clipboardAutoClearOnDelay: false,
         DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
         DefaultsKey.clipboardAutoClearOnSleep: false,
@@ -2241,12 +2235,6 @@ enum Defaults {
     static func sanitizedClipboardMenuBarPreviewLength(_ characters: Int) -> Int {
         min(max(characters, allowedClipboardMenuBarPreviewLengthRange.lowerBound),
             allowedClipboardMenuBarPreviewLengthRange.upperBound)
-    }
-
-    /// Same clamping reasoning as sanitizedClipboardAutoClearDelay above.
-    static func sanitizedClipboardScrollToTopDelay(_ seconds: Int) -> Int {
-        min(max(seconds, allowedClipboardScrollToTopDelayRange.lowerBound),
-            allowedClipboardScrollToTopDelayRange.upperBound)
     }
 
     static func sanitizedMenuBarPreset(_ preset: String) -> String {

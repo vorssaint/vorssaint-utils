@@ -132,7 +132,10 @@ struct ClipboardQuickPanelView: View {
                 .onChange(of: history.quickQuery) { _, _ in
                     scrollSelectedEntry(with: proxy)
                 }
-                .onChange(of: history.quickScrollToTopRequest) { _, _ in
+                // The window is only hidden between uses, so without this it
+                // reopens wherever it was scrolled, while the selection and
+                // ⌘1 to ⌘9 already start from the top rows.
+                .onChange(of: history.quickWindowPresentationID) { _, _ in
                     proxy.scrollTo(Self.topAnchorID, anchor: .top)
                 }
             }

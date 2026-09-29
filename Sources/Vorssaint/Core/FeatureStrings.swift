@@ -208,10 +208,7 @@ extension ClipboardFeatureStrings {
         menuBarPreview: "메뉴 막대에 최근 복사 항목 표시",
         menuBarPreviewCaption: "아이콘 옆에 최근 복사한 내용의 축약된 미리보기를 표시합니다. 클릭하면 기록이 열립니다.",
         menuBarPreviewLength: "미리보기 길이",
-        menuBarPreviewLengthSuffix: "자",
-        scrollToTop: "기록을 맨 위에서 열기",
-        scrollToTopDelay: "위치 유지 시간",
-        scrollToTopCaption: "이 시간 안에 기록 창을 다시 열면 목록이 마지막 위치에 그대로 있습니다. 0으로 설정하면 항상 맨 위에서 시작합니다."
+        menuBarPreviewLengthSuffix: "자"
     )
 }
 
@@ -528,9 +525,6 @@ struct ClipboardFeatureStrings {
     let menuBarPreviewCaption: String
     let menuBarPreviewLength: String
     let menuBarPreviewLengthSuffix: String
-    let scrollToTop: String
-    let scrollToTopDelay: String
-    let scrollToTopCaption: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -590,10 +584,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Show latest copy in the menu bar",
         menuBarPreviewCaption: "Shows a shortened preview of your last copy next to the icon. Click it to open the history.",
         menuBarPreviewLength: "Preview length",
-        menuBarPreviewLengthSuffix: "characters",
-        scrollToTop: "Open the history at the top",
-        scrollToTopDelay: "Keep your place for",
-        scrollToTopCaption: "Reopening the history window within this time keeps the list where you left it. Set 0 to start at the top every time."
+        menuBarPreviewLengthSuffix: "characters"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -654,10 +645,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Mostrar a última cópia na barra de menus",
         menuBarPreviewCaption: "Mostra uma prévia resumida da sua última cópia ao lado do ícone. Clique nela para abrir o histórico.",
         menuBarPreviewLength: "Tamanho da prévia",
-        menuBarPreviewLengthSuffix: "caracteres",
-        scrollToTop: "Abrir o histórico no topo",
-        scrollToTopDelay: "Manter a posição por",
-        scrollToTopCaption: "Ao reabrir a janela do histórico antes disso, a lista fica onde você parou. Use 0 para começar sempre do topo."
+        menuBarPreviewLengthSuffix: "caracteres"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -718,10 +706,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Menü çubuğunda son kopyalananı göster",
         menuBarPreviewCaption: "Simgenin yanında son kopyalananın kısaltılmış bir önizlemesini gösterir. Geçmişi açmak için üzerine tıkla.",
         menuBarPreviewLength: "Önizleme uzunluğu",
-        menuBarPreviewLengthSuffix: "karakter",
-        scrollToTop: "Geçmişi en üstten aç",
-        scrollToTopDelay: "Konumu koruma süresi",
-        scrollToTopCaption: "Geçmiş penceresini bu süreden önce yeniden açarsan liste bıraktığın yerde kalır. Her seferinde en üstten başlamak için 0 gir."
+        menuBarPreviewLengthSuffix: "karakter"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -782,10 +767,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Показывать последнюю скопированную запись в строке меню",
         menuBarPreviewCaption: "Показывает сокращённый предпросмотр последней скопированной записи рядом со значком. Нажмите на него, чтобы открыть историю.",
         menuBarPreviewLength: "Длина предпросмотра",
-        menuBarPreviewLengthSuffix: "символов",
-        scrollToTop: "Открывать историю с начала",
-        scrollToTopDelay: "Сохранять позицию",
-        scrollToTopCaption: "Если открыть окно истории раньше, список останется там, где вы его оставили. Укажите 0, чтобы всегда начинать сверху."
+        menuBarPreviewLengthSuffix: "символов"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -846,10 +828,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Mostrar la última copia en la barra de menús",
         menuBarPreviewCaption: "Muestra una vista previa abreviada de tu última copia junto al icono. Haz clic para abrir el historial.",
         menuBarPreviewLength: "Longitud de la vista previa",
-        menuBarPreviewLengthSuffix: "caracteres",
-        scrollToTop: "Abrir el historial desde arriba",
-        scrollToTopDelay: "Mantener la posición durante",
-        scrollToTopCaption: "Si vuelves a abrir la ventana del historial antes, la lista sigue donde la dejaste. Usa 0 para empezar siempre desde arriba."
+        menuBarPreviewLengthSuffix: "caracteres"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -910,10 +889,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Zobraziť poslednú kópiu v lište",
         menuBarPreviewCaption: "Zobrazí skrátený náhľad poslednej kópie vedľa ikony. Kliknutím naň otvoríte históriu.",
         menuBarPreviewLength: "Dĺžka náhľadu",
-        menuBarPreviewLengthSuffix: "znakov",
-        scrollToTop: "Otvárať históriu od začiatku",
-        scrollToTopDelay: "Zachovať pozíciu počas",
-        scrollToTopCaption: "Ak okno histórie otvoríte skôr, zoznam zostane tam, kde ste skončili. Zadajte 0, aby sa vždy začínalo zhora."
+        menuBarPreviewLengthSuffix: "znakov"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -974,10 +950,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Letzte Kopie in der Menüleiste anzeigen",
         menuBarPreviewCaption: "Zeigt eine gekürzte Vorschau deiner letzten Kopie neben dem Symbol. Klicke darauf, um den Verlauf zu öffnen.",
         menuBarPreviewLength: "Vorschaulänge",
-        menuBarPreviewLengthSuffix: "Zeichen",
-        scrollToTop: "Verlauf oben öffnen",
-        scrollToTopDelay: "Position behalten für",
-        scrollToTopCaption: "Öffnest du das Verlaufsfenster früher wieder, bleibt die Liste, wo du aufgehört hast. Mit 0 beginnt sie jedes Mal oben."
+        menuBarPreviewLengthSuffix: "Zeichen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -1038,10 +1011,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Afficher la dernière copie dans la barre des menus",
         menuBarPreviewCaption: "Affiche un aperçu raccourci de votre dernière copie à côté de l’icône. Cliquez dessus pour ouvrir l’historique.",
         menuBarPreviewLength: "Longueur de l’aperçu",
-        menuBarPreviewLengthSuffix: "caractères",
-        scrollToTop: "Ouvrir l’historique en haut",
-        scrollToTopDelay: "Conserver la position pendant",
-        scrollToTopCaption: "Si vous rouvrez la fenêtre de l’historique plus tôt, la liste reste où vous l’avez laissée. Indiquez 0 pour toujours repartir du haut."
+        menuBarPreviewLengthSuffix: "caractères"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -1102,10 +1072,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "Mostra l’ultima copia nella barra dei menu",
         menuBarPreviewCaption: "Mostra un’anteprima abbreviata dell’ultima copia accanto all’icona. Fai clic per aprire la cronologia.",
         menuBarPreviewLength: "Lunghezza dell’anteprima",
-        menuBarPreviewLengthSuffix: "caratteri",
-        scrollToTop: "Apri la cronologia dall’inizio",
-        scrollToTopDelay: "Mantieni la posizione per",
-        scrollToTopCaption: "Se riapri prima la finestra della cronologia, l’elenco resta dove l’avevi lasciato. Imposta 0 per ripartire sempre dall’alto."
+        menuBarPreviewLengthSuffix: "caratteri"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -1166,10 +1133,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "メニューバーに直前のコピーを表示",
         menuBarPreviewCaption: "アイコンの横に直前のコピーの短縮プレビューを表示します。クリックすると履歴が開きます。",
         menuBarPreviewLength: "プレビューの長さ",
-        menuBarPreviewLengthSuffix: "文字",
-        scrollToTop: "履歴を先頭から開く",
-        scrollToTopDelay: "位置を保持する時間",
-        scrollToTopCaption: "この時間内に履歴ウインドウを開き直すと、前回の位置のまま表示します。0 にすると毎回先頭から表示します。"
+        menuBarPreviewLengthSuffix: "文字"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1230,10 +1194,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "在菜单栏显示最近拷贝的内容",
         menuBarPreviewCaption: "在图标旁显示最近拷贝内容的简短预览，点击即可打开历史记录。",
         menuBarPreviewLength: "预览长度",
-        menuBarPreviewLengthSuffix: "个字符",
-        scrollToTop: "从顶部打开历史记录",
-        scrollToTopDelay: "保留位置时长",
-        scrollToTopCaption: "在此时间内重新打开历史记录窗口，列表会停留在上次的位置。设为 0 则每次都从顶部开始。"
+        menuBarPreviewLengthSuffix: "个字符"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1294,10 +1255,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "在選單列顯示最近複製的內容",
         menuBarPreviewCaption: "在圖示旁顯示最近複製內容的簡短預覽，點選即可開啟紀錄。",
         menuBarPreviewLength: "預覽長度",
-        menuBarPreviewLengthSuffix: "個字元",
-        scrollToTop: "從頂端開啟紀錄",
-        scrollToTopDelay: "保留位置時間",
-        scrollToTopCaption: "在此時間內重新開啟紀錄視窗，列表會停在上次的位置。設為 0 則每次都從頂端開始。"
+        menuBarPreviewLengthSuffix: "個字元"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1358,10 +1316,7 @@ struct ClipboardFeatureStrings {
         menuBarPreview: "在選單列顯示最近複製的內容",
         menuBarPreviewCaption: "在圖示旁顯示最近複製內容的簡短預覽，按一下即可開啟記錄。",
         menuBarPreviewLength: "預覽長度",
-        menuBarPreviewLengthSuffix: "個字元",
-        scrollToTop: "從頂部開啟記錄",
-        scrollToTopDelay: "保留位置時間",
-        scrollToTopCaption: "在此時間內重新開啟記錄視窗，列表會停留在上次的位置。設為 0 則每次都從頂部開始。"
+        menuBarPreviewLengthSuffix: "個字元"
     )
 }
 
@@ -3171,10 +3126,7 @@ extension ClipboardFeatureStrings {
         menuBarPreview: "Показувати останню копію на смузі меню",
         menuBarPreviewCaption: "Показує скорочений перегляд останнього скопійованого вмісту поруч зі значком. Натисніть, щоб відкрити історію.",
         menuBarPreviewLength: "Довжина перегляду",
-        menuBarPreviewLengthSuffix: "симв.",
-        scrollToTop: "Відкривати історію з початку",
-        scrollToTopDelay: "Зберігати позицію",
-        scrollToTopCaption: "Якщо відкрити вікно історії раніше, список залишиться там, де ви зупинилися. Укажіть 0, щоб щоразу починати згори."
+        menuBarPreviewLengthSuffix: "симв."
     )
 }
 
