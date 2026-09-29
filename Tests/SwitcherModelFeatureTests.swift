@@ -2221,23 +2221,39 @@ enum SwitcherModelFeatureTests {
         let popoverSetUpCode = stripCommentLines((statusAnchorAppDelegateSource
             .components(separatedBy: "private func setUpPopover() {").last ?? "")
             .components(separatedBy: "\n    }").first ?? "")
-        suite.expect(popoverSetUpCode.contains("popover.hasFullSizeContent = true"),
-               "the panel is hosted across the whole popover, arrow band included")
+        suite.expect(popoverSetUpCode.contains("popover.hasFullSizeContent = PanelSurface.popoverHostsFullSizeContent"),
+               "the panel is hosted across the whole popover, arrow band included, where AppKit supports it")
         let panelThemeSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Theme.swift",
             encoding: .utf8)) ?? ""
+        // macOS 15 publishes the full-size safe area but leaves the view at its
+        // content size in the frame's corner, so the popover grows and shows a
+        // band of system material along its top and right edges.
+        let fullSizeGateCode = stripCommentLines((panelThemeSource
+            .components(separatedBy: "static var popoverHostsFullSizeContent: Bool {").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        suite.expect(fullSizeGateCode.contains("if #available(macOS 26.0, *) { return true }")
+                   && fullSizeGateCode.contains("return false"),
+               "full-size popover content is limited to macOS 26, where AppKit fills the balloon with it")
         let panelGlassCode = stripCommentLines((panelThemeSource
             .components(separatedBy: "private struct PanelGlassSurface: View {").last ?? "")
             .components(separatedBy: "\n}").first ?? "")
-        suite.expect(panelGlassCode.contains("surface.ignoresSafeArea()"),
-               "the panel surface paints past the safe area, up into the arrow")
-        suite.expect(!panelGlassCode.isEmpty
-                   && !panelGlassCode.contains("RoundedRectangle")
-                   && !panelGlassCode.contains("cornerRadius"),
-               "the panel surface leaves the rounding to the popover balloon that clips it")
-        suite.expect(panelGlassCode.contains(".glassEffect(.regular, in: Rectangle())")
-                   && panelGlassCode.contains("Rectangle()\n            .fill(.regularMaterial)"),
+        suite.expect(panelGlassCode.contains("} else if PanelSurface.popoverHostsFullSizeContent {\n            surface.ignoresSafeArea()\n        } else {\n            insetSurface"),
+               "the panel surface paints past the safe area, up into the arrow, only in a full-size popover")
+        let fullSizeSurfaceCode = panelGlassCode
+            .components(separatedBy: "private var insetSurface: some View {").first ?? ""
+        let insetSurfaceCode = panelGlassCode
+            .components(separatedBy: "private var insetSurface: some View {").dropFirst().first ?? ""
+        suite.expect(!fullSizeSurfaceCode.isEmpty
+                   && !fullSizeSurfaceCode.contains("RoundedRectangle")
+                   && !fullSizeSurfaceCode.contains("cornerRadius"),
+               "the full-size surface leaves the rounding to the popover balloon that clips it")
+        suite.expect(fullSizeSurfaceCode.contains(".glassEffect(.regular, in: Rectangle())")
+                   && fullSizeSurfaceCode.contains("Rectangle()\n            .fill(.regularMaterial)"),
                "both the standard and the Liquid Glass surface fill the whole balloon, no shape of their own")
+        suite.expect(insetSurfaceCode.contains("RoundedRectangle(cornerRadius: 18, style: .continuous)")
+                   && insetSurfaceCode.contains(".strokeBorder(PanelSurface.border(for: colorScheme)"),
+               "an inset panel is a rounded, rimmed card inside the balloon")
         let panelViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
             encoding: .utf8)) ?? ""
@@ -2248,6 +2264,15 @@ enum SwitcherModelFeatureTests {
         suite.expect(panelBodyCode("private var navigablePanel: some View {").contains(".panelGlassSurface()")
                    && panelBodyCode("private var metricPanel: some View {").contains(".panelGlassSurface()"),
                "both the navigable panel and the metric panel wear that surface")
+
+        // The popover window is the panel plus 13 pt for the arrow and 13 pt
+        // below it. A window taller than the usable height opens beside the
+        // icon (issue #2225), so the height cap has to leave at least 26 pt.
+        let panelCapMargin = panelBodyCode("private var maxHeight: CGFloat {")
+            .components(separatedBy: "?? 760) - ").dropFirst().first
+            .flatMap { Int($0.prefix(while: \.isNumber)) } ?? 0
+        suite.expect(panelCapMargin >= 26,
+               "a panel at its height cap still fits under its icon, arrow and bottom margin included")
 
         // The panel keeps its top edge and its center while its content resizes.
         let panelArea = CGRect(x: 0, y: 0, width: 1470, height: 932)
@@ -2862,6 +2887,7 @@ enum SwitcherModelFeatureTests {
             DefaultsKey.windowLayoutShortcutLeftTwoThirds,
             DefaultsKey.windowLayoutShortcutRightTwoThirds,
             DefaultsKey.windowLayoutShortcutNextDisplay,
+            DefaultsKey.windowDirectionalShortcut,
         ]
         let assignedLayoutShortcutValues = assignedLayoutShortcutKeys.compactMap {
             registeredDefaults[$0] as? String

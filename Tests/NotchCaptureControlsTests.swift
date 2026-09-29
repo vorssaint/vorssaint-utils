@@ -15,43 +15,72 @@ extension NotchPresentationRefreshContract {
             NSEvent.mouseLocation = .zero
             NSEvent.monitorRemovals = 0
         }
-        func begin() -> Service {
+        func pointer(_ service: Service, inside: Bool) -> CGPoint {
+            inside ? CGPoint(x: service.geometry.screen.midX, y: service.geometry.screen.maxY - 1) : .zero
+        }
+        /// Presents the controls as a capture does: compact, with a pointer
+        /// already resting on them held back until it leaves.
+        func begin(pointerInside: Bool = false) -> Service {
             let service = Service()
+            NSEvent.mouseLocation = pointer(service, inside: pointerInside)
             service.windowHost?.missionControlDidRestore = { [weak service] in service?.missionControlDidRestore() }
             service.expanded = false
             service.captureControls = CaptureOptions()
+            service.captureControlsCollapsed = true
             service.captureControlsMonitors = [1]
             service.refreshPresentation(animated: false)
+            service.hoverState.close(pointerInside: service.windowHost?.containsHover(NSEvent.mouseLocation) == true)
             service.updateCaptureControlsClickThrough()
-            service.scheduleCaptureControlsCollapse()
             return service
         }
         func move(_ service: Service, inside: Bool) {
-            NSEvent.mouseLocation = inside
-                ? CGPoint(x: service.geometry.screen.midX, y: service.geometry.screen.maxY - 1)
-                : .zero
+            NSEvent.mouseLocation = pointer(service, inside: inside)
             service.updateCaptureControlsClickThrough()
         }
 
         let idle = begin()
-        for _ in 0..<5 {
+        for _ in 0..<8 {
             DispatchQueue.main.advance(0.5)
             move(idle, inside: false)
         }
-        suite.expect(!idle.captureControlsCollapsed, "capture controls remain available during the initial three seconds")
-        DispatchQueue.main.advance(0.5)
         suite.expect(idle.captureControlsCollapsed && idle.captureControls != nil,
-               "pointer movement outside controls does not postpone collapse or cancel capture")
+               "capture controls start compact and stay so while the pointer selects elsewhere")
         suite.expect(idle.panel?.isVisible == true && idle.windowHost?.activationRect.isEmpty == false,
-               "collapsed capture retains a clickable reopening target")
-        idle.windowHost?.activate?()
-        suite.expect(!idle.captureControlsCollapsed, "the compact activation target reopens capture controls")
+               "compact capture controls keep a clickable target that opens them")
+        move(idle, inside: true)
+        DispatchQueue.main.advance(0.2)
+        suite.expect(idle.captureControlsCollapsed, "a brief pass over the compact target does not open controls")
+        DispatchQueue.main.advance(0.1)
+        suite.expect(!idle.captureControlsCollapsed, "a deliberate hover opens the controls")
 
         move(idle, inside: true)
         suite.expect(idle.panel?.acceptsMouseMovedEvents == true && idle.panel?.ignoresMouseEvents == false,
                "expanded controls retain movement delivery so their transparent edges cannot swallow the next selection")
         DispatchQueue.main.advance(6)
         suite.expect(!idle.captureControlsCollapsed, "controls stay open while the pointer uses them")
+        move(idle, inside: false)
+        DispatchQueue.main.advance(0.1)
+        move(idle, inside: true)
+        DispatchQueue.main.advance(1)
+        suite.expect(!idle.captureControlsCollapsed, "a pointer that slips off and returns at once keeps the controls open")
+        move(idle, inside: false)
+        DispatchQueue.main.advance(0.1)
+        move(idle, inside: false)
+        DispatchQueue.main.advance(0.1)
+        suite.expect(idle.captureControlsCollapsed && idle.captureControls != nil,
+               "leaving the controls closes them soon, however the pointer moves, without cancelling the capture")
+
+        idle.windowHost?.activate?()
+        suite.expect(!idle.captureControlsCollapsed, "the compact activation target opens capture controls")
+        DispatchQueue.main.advance(2.5)
+        suite.expect(!idle.captureControlsCollapsed,
+               "controls opened with the pointer elsewhere wait for a control to take keyboard focus")
+        DispatchQueue.main.advance(1)
+        suite.expect(idle.captureControlsCollapsed, "controls opened with the pointer elsewhere close when none does")
+
+        move(idle, inside: true)
+        DispatchQueue.main.advance(0.3)
+        suite.expect(!idle.captureControlsCollapsed, "hovering again after the controls closed opens them")
         let expandedFrame = idle.windowHost!.frame
         idle.collapseCaptureControls()
         move(idle, inside: true)
@@ -69,16 +98,14 @@ extension NotchPresentationRefreshContract {
         suite.expect(idle.panel?.acceptsMouseMovedEvents == false && idle.panel?.ignoresMouseEvents == true,
                "leaving the compact target returns pointer delivery to the selection surface")
         move(idle, inside: true)
-        DispatchQueue.main.advance(0.2)
-        suite.expect(idle.captureControlsCollapsed, "a brief pass over the compact target does not reopen controls")
-        DispatchQueue.main.advance(0.05)
+        DispatchQueue.main.advance(0.3)
         suite.expect(!idle.captureControlsCollapsed, "a deliberate hover reopens the same capture")
 
-        move(idle, inside: false)
         idle.captureControls?.hasFocusedControl = true
         idle.scheduleCaptureControlsCollapse()
+        move(idle, inside: false)
         DispatchQueue.main.advance(6)
-        suite.expect(!idle.captureControlsCollapsed, "keyboard editing prevents automatic collapse")
+        suite.expect(!idle.captureControlsCollapsed, "keyboard editing keeps the controls open after the pointer leaves")
         idle.captureControls?.hasFocusedControl = false
         idle.scheduleCaptureControlsCollapse()
         DispatchQueue.main.advance(3)
@@ -108,17 +135,27 @@ extension NotchPresentationRefreshContract {
         suite.expect(DispatchQueue.main.pending == 0 && NSEvent.monitorRemovals == 1,
                "capture teardown leaves no scheduled work or capture monitors")
 
-        NSEvent.mouseLocation = .zero
         let replaced = begin()
+        replaced.expandCaptureControls()
         let oldOptions = replaced.captureControls
         let oldDeadline = replaced.captureControlsWork
         replaced.endCaptureControls()
         replaced.captureControls = CaptureOptions()
         replaced.refreshPresentation()
         withExtendedLifetime(oldOptions) { oldDeadline?.perform() }
-        suite.expect(!replaced.captureControlsCollapsed,
+        suite.expect(oldDeadline != nil && !replaced.captureControlsCollapsed,
                "even a delivered stale callback cannot collapse a replacement session")
         replaced.endCaptureControls()
+
+        let resting = begin(pointerInside: true)
+        DispatchQueue.main.advance(1)
+        suite.expect(resting.captureControlsCollapsed,
+                     "a pointer already on the island when capture starts does not open the controls")
+        move(resting, inside: false)
+        move(resting, inside: true)
+        DispatchQueue.main.advance(0.3)
+        suite.expect(!resting.captureControlsCollapsed, "once that pointer leaves, hovering opens the controls")
+        resting.endCaptureControls()
 
         let missionControl = begin()
         let host = missionControl.windowHost!

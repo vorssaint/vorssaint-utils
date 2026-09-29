@@ -27,4 +27,10 @@ struct NotchVolumeKeyGate {
         if key == .mute { return isRepeat ? .consume : .toggleMute }
         return .step(key == .volumeUp ? 1 : -1)
     }
+
+    /// Matches macOS: Shift inverts "Play feedback when volume is changed",
+    /// except with Option, where Option-Shift only selects fine steps.
+    static func playsFeedback(setting: Bool, option: Bool, shift: Bool) -> Bool {
+        shift && !option ? !setting : setting
+    }
 }

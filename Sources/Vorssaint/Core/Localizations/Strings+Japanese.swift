@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "オフにすると、すべてのデスクトップのウインドウを表示します。別のデスクトップのウインドウを選ぶと、そのデスクトップに移動します。",
         dockPreviewBackgroundOpacity: "パネルの背景",
         dockPreviewBackgroundOpacityCaption: "下げると、パネルの後ろにあるものがより見えるようになります。",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glassがオンのため、パネルの透明度は「システム設定」>「外観」で設定されます。",
         dockPreviewOpenDelay: "表示までの待ち時間",
         dockPreviewOpenDelayCaption: "ポインタをアイコンに置いてからパネルが開くまでの時間です。",
         dockPreviewQuitAppOnClose: "× ボタンでアプリを終了",

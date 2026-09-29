@@ -16,6 +16,7 @@ enum NotchMusicVisibilityTests {
         func start() { running = true }
         func stop() { running = false }
     }
+    enum PowerSampler { static var hasInternalBattery = true }
     struct MonitorNeeds {
         var disk = false
         var fanSpeed = false
@@ -238,6 +239,15 @@ enum NotchMusicVisibilityTests {
             suite.expect(!reader.running && service.idleContent == .battery && service.compactActivity == nil
                    && service.surfaceSize == service.geometry.restingSize(showsContent: true),
                    "hiding music preserves the chosen battery indicator during active playback")
+            PowerSampler.hasInternalBattery = false
+            service.syncVisibleConsumers()
+            suite.expect(service.idleContent == .none && service.compactActivity == nil && service.surfaceSize == closed,
+                   "a Mac without a battery rests empty instead of showing a battery without its charge")
+            defaults.set(true, forKey: DefaultsKey.notchShowPlayingMusic)
+            service.syncVisibleConsumers()
+            suite.expect(reader.running && service.compactActivity == .music,
+                   "a saved battery choice keeps showing playing music on a Mac without a battery")
+            PowerSampler.hasInternalBattery = true
         }
 
         defaults.set(NotchIdleContent.none.rawValue, forKey: DefaultsKey.notchIdleContent)

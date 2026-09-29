@@ -1688,13 +1688,31 @@ enum FeatureCatalogTests {
                 && AppFeature.textSnippets.energyProfile == .inputs
                 && AppFeature.dockPreview.energyProfile == .mouse
                 && AppFeature.mouseClickDebounce.energyProfile == .mouse
-                && AppFeature.switcher.energyProfile == .keyboard
+                && AppFeature.switcher.energyProfile == .inputs
                 && AppFeature.finderRename.energyProfile == .keyboard
+                && AppFeature.musicBlock.energyProfile == .keyboard
                 && AppFeature.colorPicker.energyProfile == .idle
                 && AppFeature.keepAwake.energyProfile == .idle
-                && AppFeature.brightness.energyProfile == .idle
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
+        let brightnessEnergyKeys = [DefaultsKey.brightnessKeysEnabled, DefaultsKey.brightnessOSDEnabled,
+                                    DefaultsKey.brightnessKeyStep]
+        let previousBrightnessEnergy = brightnessEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
+        func brightnessEnergy(followsPointer: Bool = false, overlay: Bool = false,
+                              step: BrightnessSupport.KeyStep = .standard) -> FeatureEnergyProfile {
+            UserDefaults.standard.set(followsPointer, forKey: DefaultsKey.brightnessKeysEnabled)
+            UserDefaults.standard.set(overlay, forKey: DefaultsKey.brightnessOSDEnabled)
+            UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.brightnessKeyStep)
+            return AppFeature.brightness.energyProfile
+        }
+        suite.expect(brightnessEnergy() == .idle
+                && brightnessEnergy(followsPointer: true) == .keyboard
+                && brightnessEnergy(overlay: true) == .keyboard
+                && brightnessEnergy(step: .half) == .keyboard,
+               "brightness listens to the keyboard only while an option answers its keys")
+        for (key, value) in zip(brightnessEnergyKeys, previousBrightnessEnergy) {
+            UserDefaults.standard.set(value, forKey: key)
+        }
         let previousWindowGestureEnergy = UserDefaults.standard.object(
             forKey: DefaultsKey.windowGestureEnabled
         )

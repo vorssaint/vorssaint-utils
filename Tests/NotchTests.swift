@@ -1434,6 +1434,13 @@ enum NotchTests {
                    && geometry.contentSize(for: geometry.expandedSize(module: .system, detail: true)).height == geometry.pageBudget
                    && geometry.pageBudget >= geometry.contentBudget,
                    "the app panel and a metric detail get a readable page even inside a short preset: \(layout)")
+            let detail = { (height: CGFloat, panel: Bool) in
+                geometry.contentSize(for: geometry.expandedSize(module: .system, detail: true, panel: panel,
+                                                                detailHeight: height)).height
+            }
+            suite.expect(detail(140, false) == 144 && detail(900, false) == geometry.pageBudget
+                   && detail(140, true) == geometry.pageBudget,
+                   "a measured detail such as Fan Control fits its card within the page instead of a tall empty page: \(layout)")
         }
         suite.expect(compact.contentBudget == NotchLayout.compactContentHeight && spacious.contentBudget == NotchLayout.spaciousContentHeight
                && compact.expanded.height < compact.expanded.width && spacious.expanded.height < spacious.expanded.width,
