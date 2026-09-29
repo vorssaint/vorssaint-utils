@@ -75,6 +75,15 @@ enum ScrollHorizontalModifierTests {
                 && ScrollWheelSupport.zoomDelta(9, axis: .horizontal,
                                                  invertVertical: false, invertHorizontal: true) == -9,
                      "zoom follows the selected axis's inverted scroll direction")
+        var limiter = ScrollZoomStepLimiter()
+        suite.expect(limiter.allows(1, at: 1_000_000_000)
+                && !limiter.allows(1, at: 1_050_000_000)
+                && limiter.allows(-1, at: 1_060_000_000)
+                && limiter.allows(-1, at: 1_160_000_000),
+                     "one wheel burst sends one keyboard zoom step while a reversal responds immediately")
+        limiter.reset()
+        suite.expect(limiter.allows(1, at: 1_170_000_000),
+                     "a changed zoom modifier starts a fresh step")
         keyboardZoomTarget(suite)
         pinchPreferenceTransition(suite)
         let migrationSuite = "vorss.tests.scroll.zoom"
@@ -222,6 +231,8 @@ enum ScrollHorizontalModifierTests {
                      "horizontal scrolling has its own permission lifecycle")
         suite.expect(AppFeature.availabilityDefaults[AppFeature.scrollHorizontal.availabilityKey] as? Bool == false,
                      "the new feature ships uninstalled")
+        suite.expect(AppFeature.availabilityDefaults[AppFeature.scrollZoom.availabilityKey] as? Bool == false,
+                     "scroll zoom also ships uninstalled")
         suite.expect(AppFeature.scrollHorizontal.settingsDestination
             == AppFeature.scrollInverter.settingsDestination,
                      "both direction features open the same scroll settings section")
@@ -537,24 +548,22 @@ enum ScrollHorizontalModifierTests {
         let settings = window(1, pid: 10, layer: 3)
         let browser = window(2, pid: 20)
         let editor = window(3, pid: 30)
-        func target(_ windows: [[String: Any]], receiver: pid_t,
-                    focused: [pid_t: CGWindowID]) -> pid_t? {
+        func target(_ windows: [[String: Any]], focused: [pid_t: CGWindowID]) -> WindowServerWindowCandidate? {
             WindowServerSupport.keyboardZoomTarget(in: windows, at: point,
-                                                   receivingProcessID: receiver,
                                                    ownProcessID: 10) { focused[$0] }
         }
-        suite.expect(target([settings, browser], receiver: 10, focused: [20: 2]) == nil,
+        suite.expect(target([settings, browser], focused: [20: 2]) == nil,
                      "Settings keeps the wheel instead of zooming the browser behind it")
-        suite.expect(target([editor, browser], receiver: 30, focused: [30: 3]) == 30
-                && target([editor, browser], receiver: 20, focused: [20: 2]) == 20,
-                     "the wheel receiver chooses the hovered app even through click-through overlays")
+        suite.expect(target([editor, browser], focused: [30: 3])?.pid == 30
+                && target([browser, editor], focused: [20: 2])?.pid == 20,
+                     "the top hovered window chooses the zoom target without the HID receiver field")
         let secondDocument = window(4, pid: 30)
-        suite.expect(target([editor, secondDocument], receiver: 30, focused: [30: 4]) == nil
-                && target([editor, secondDocument], receiver: 30, focused: [30: 3]) == 30,
+        suite.expect(target([editor, secondDocument], focused: [30: 4]) == nil
+                && target([editor, secondDocument], focused: [30: 3])?.pid == 30,
                      "a shortcut reaches only the hovered document when it is also focused")
-        suite.expect(target([editor, browser], receiver: 30, focused: [:]) == nil
-                && target([editor, browser], receiver: 0, focused: [30: 3]) == nil,
-                     "unknown focus or wheel receiver leaves scrolling untouched")
+        suite.expect(target([editor, browser], focused: [:]) == nil
+                && target([window(5, pid: 40, layer: 3), browser], focused: [20: 2]) == nil,
+                     "unknown focus or a floating window leaves scrolling untouched")
     }
 
     private static func pinchPreferenceTransition(_ suite: TestSuite) {

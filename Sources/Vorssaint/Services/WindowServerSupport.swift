@@ -152,20 +152,18 @@ enum WindowServerSupport {
 
     static func keyboardZoomTarget(in windows: [[String: Any]],
                                    at point: CGPoint,
-                                   receivingProcessID: pid_t,
                                    ownProcessID: pid_t,
-                                   focusedWindowID: (pid_t) -> CGWindowID?) -> pid_t? {
-        guard receivingProcessID > 0, receivingProcessID != ownProcessID,
-              let focusedWindowID = focusedWindowID(receivingProcessID) else { return nil }
+                                   focusedWindowID: (pid_t) -> CGWindowID?) -> WindowServerWindowCandidate? {
         for window in windows {
-            guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == receivingProcessID,
-                  let bounds = bounds(from: window), bounds.contains(point),
-                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0 else { continue }
-            guard (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
-                  (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value == focusedWindowID else {
-                return nil
-            }
-            return receivingProcessID
+            guard let bounds = bounds(from: window), bounds.contains(point),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue,
+                  MouseAppExceptionSupport.appWindowLayers.contains(layer),
+                  let processID = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value else { continue }
+            guard processID != ownProcessID, layer == 0,
+                  let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                  focusedWindowID(processID) == windowID else { return nil }
+            return WindowServerWindowCandidate(pid: processID, windowID: windowID, frame: bounds)
         }
         return nil
     }

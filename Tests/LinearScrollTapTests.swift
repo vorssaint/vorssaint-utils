@@ -50,6 +50,9 @@ enum LinearScrollTapTests {
         var lastGesturePhaseTimestamp: UInt64?
         var linearCarryVertical: Double = 0
         var linearCarryHorizontal: Double = 0
+        func endPinchZoomLocked() {}
+        func prepareZoomTargetLocked(for event: CGEvent) {}
+        func consumeZoom(_ event: CGEvent, direction: ScrollDirectionPreferences) -> Bool { false }
     }
 
     static func run(_ suite: TestSuite) {
@@ -149,6 +152,17 @@ enum LinearScrollTapTests {
         let directionExcepted = deliver(wheel(line: 4, fixed: 4, point: 40))
         suite.expect(directionExcepted.map(verticalLine) == 3,
                      "an app excepted from the direction change is still capped by linear scrolling")
+
+        configure(invert: true)
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.verticalZoomEnabled)
+        defaults.set(ScrollZoomModifier.shift.rawValue, forKey: DefaultsKey.verticalZoomModifier)
+        let unresolvedZoom = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskShift))
+        suite.expect(unresolvedZoom.map(verticalLine) == 4
+                        && unresolvedZoom.map(verticalFixed) == 4
+                        && unresolvedZoom?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 40,
+                     "an unresolved keyboard zoom target keeps the wheel raw instead of inverting or capping it")
+        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
 
         configure(sidewaysKey: .option)
         let sideways = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))

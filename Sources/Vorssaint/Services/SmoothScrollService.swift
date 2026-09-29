@@ -266,10 +266,10 @@ final class SmoothScrollService: ObservableObject {
             at: event.location,
             sourceProcessID: sourceProcessID
         )
-        if !scrollTargetExcluded,
-           ScrollInverter.shared.consumeZoom(event, direction: direction) {
+        if !scrollTargetExcluded, direction.zoom.action(for: event) != nil {
             stopGlide()
-            return nil
+            return ScrollInverter.shared.consumeZoom(event, direction: direction)
+                ? nil : Unmanaged.passUnretained(event)
         }
 
         guard let processID = pid_t(exactly: event.getIntegerValueField(.eventTargetUnixProcessID)),

@@ -295,17 +295,18 @@ struct MouseSettings: View {
 
     private func scrollZoomControl(_ title: String, enabled: Binding<Bool>,
                                     modifier: Binding<ScrollZoomModifier>, setting: ScrollZoomSetting) -> some View {
-        HStack(spacing: 16) {
+        let modifierStrings = FeatureStrings.quitProtection(l10n.language)
+        return HStack(spacing: 16) {
             Text(title)
                 .frame(width: 180, alignment: .leading)
             Picker("", selection: modifier) {
                 Text(l10n.s.shortcutNone).tag(ScrollZoomModifier.none)
-                Text("⇧ Shift").tag(ScrollZoomModifier.shift)
-                Text("⌥ Option").tag(ScrollZoomModifier.option)
-                Text("⌃ Control").tag(ScrollZoomModifier.control)
-                Text("⌘ Command").tag(ScrollZoomModifier.command)
+                Text("⇧ \(modifierStrings.shiftKey)").tag(ScrollZoomModifier.shift)
+                Text("⌥ \(modifierStrings.optionKey)").tag(ScrollZoomModifier.option)
+                Text("⌃ \(modifierStrings.controlKey)").tag(ScrollZoomModifier.control)
+                Text("⌘ \(l10n.s.scrollHorizontalCommandKey)").tag(ScrollZoomModifier.command)
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
             .frame(maxWidth: .infinity)
             .disabled(!enabled.wrappedValue)
             .accessibilityLabel(title)

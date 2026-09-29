@@ -133,6 +133,21 @@ struct ScrollZoomGestureState {
     }
 }
 
+struct ScrollZoomStepLimiter {
+    private var lastStep: (timestamp: UInt64, positive: Bool)?
+
+    mutating func allows(_ delta: Double, at timestamp: UInt64) -> Bool {
+        let positive = delta > 0
+        if let lastStep, lastStep.positive == positive,
+           timestamp >= lastStep.timestamp,
+           timestamp - lastStep.timestamp < 100_000_000 { return false }
+        lastStep = (timestamp, positive)
+        return true
+    }
+
+    mutating func reset() { lastStep = nil }
+}
+
 /// Both independently installed direction features share one tap. Resolve their
 /// effective settings once so raw and smoothed wheels honor removal identically.
 struct ScrollDirectionPreferences {

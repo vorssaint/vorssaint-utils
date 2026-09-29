@@ -487,7 +487,7 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices:
             return true
-        case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
+        case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .diskImageInstaller, .audioPriority,
              .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
             return false
         }
