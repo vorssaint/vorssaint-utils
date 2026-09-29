@@ -159,7 +159,10 @@ final class NotchLockScreenService {
     private func startSources(_ gates: NotchLockScreenModel.Gates) {
         if gates.music { NotchMusicService.shared.start() }
         if gates.downloads { NotchDownloadService.shared.syncWithPreferences() }
-        if gates.countdown || gates.timeLeft { NotchCalendarService.shared.syncWithPreferences() }
+        // An event chosen from its menu counts down with the countdown for every event off.
+        if gates.countdown || gates.timeLeft || !NotchCalendarSupport.chosenCountdowns().isEmpty {
+            NotchCalendarService.shared.syncWithPreferences()
+        }
         if gates.agents { AgentUsageService.shared.syncWithPreferences() }
     }
 

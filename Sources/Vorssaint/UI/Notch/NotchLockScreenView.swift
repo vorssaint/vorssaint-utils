@@ -293,7 +293,9 @@ struct NotchLockScreenActivities: View {
         let gates = model.gates
         return NotchLockScreenSupport.activities(
             timer: gates.timer && timer.session.hasSession,
-            calendar: calendar.countdown.map { ($0.ongoing ? gates.timeLeft : gates.countdown) && $0.isShown(at: date) } == true,
+            calendar: calendar.countdown.map {
+                ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date)
+            } == true,
             agents: gates.agents && !usage.snapshot.live.isEmpty,
             downloads: gates.downloads && downloads.items.contains { $0.active && !$0.completed })
     }
@@ -335,7 +337,7 @@ struct NotchLockScreenActivities: View {
                 let text = FeatureStrings.notchCalendar(l10n.language)
                 HStack(spacing: 7) {
                     Image(systemName: "calendar").foregroundStyle(countdown.event.color.color)
-                    Text(countdown.event.title.isEmpty ? text.untitled : countdown.event.title)
+                    Text(NotchCalendarStrip.displayTitle(countdown.event, untitled: text.untitled))
                         .frame(maxWidth: 240, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(NotchCalendarSupport.countdownText(until: countdown.target, now: date))
