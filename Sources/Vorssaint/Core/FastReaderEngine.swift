@@ -69,6 +69,10 @@ struct ReaderOptions {
 enum FastReaderEngine {
     static let wordsPerMinuteRange: ClosedRange<Int> = 200...1200
     static let chunkSizeRange: ClosedRange<Int> = 1...3
+    /// How far one nudge moves the speed. Shared so the floating window's
+    /// buttons, its arrow keys and the island's arrow keys all move by the
+    /// same amount.
+    static let wordsPerMinuteStep = 25
 
     /// Trailing marks that close a sentence, in the order the rest of the
     /// engine treats as canonical. `…` is the single Unicode ellipsis

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import IOKit.ps
 import SwiftUI
@@ -1278,6 +1279,27 @@ final class NotchService: ObservableObject {
         guard let index = NotchClipboardPastePress.index(keyCode: event.keyCode, commandOnly: commandOnly)
         else { return false }
         clipboardPastePress = NotchClipboardPastePress(serial: (clipboardPastePress?.serial ?? 0) &+ 1, index: index)
+        return true
+    }
+
+    /// The reader's keys on its island page. The floating window installs a
+    /// monitor on its own panel, which never sees an event delivered to the
+    /// island, so the same keys have to be answered again here rather than
+    /// being inherited.
+    private func handleFastReaderKey(_ event: NSEvent) -> Bool {
+        guard selected == .fastReader, !showingAppPanel, !showingSections, selectedMetric == nil,
+              event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+        else { return false }
+        let session = FastReaderSession.shared
+        guard !session.chunks.isEmpty else { return false }
+        switch Int(event.keyCode) {
+        case kVK_Space: session.toggle()
+        case kVK_LeftArrow: session.stepBackward()
+        case kVK_RightArrow: session.stepForward()
+        case kVK_UpArrow: FastReaderService.shared.nudgeSpeed(by: FastReaderEngine.wordsPerMinuteStep)
+        case kVK_DownArrow: FastReaderService.shared.nudgeSpeed(by: -FastReaderEngine.wordsPerMinuteStep)
+        default: return false
+        }
         return true
     }
 
@@ -2772,6 +2794,7 @@ final class NotchService: ObservableObject {
                 if self.handleSectionKey(event) { return nil }
                 if self.handleScratchpadKey(event) { return nil }
                 if self.handleClipboardPasteKey(event) { return nil }
+                if self.handleFastReaderKey(event) { return nil }
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {
                 let launcher = QuickLauncherService.shared

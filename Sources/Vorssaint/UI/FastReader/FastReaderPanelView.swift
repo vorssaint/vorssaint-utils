@@ -24,12 +24,6 @@ struct FastReaderPanelView: View {
     /// `DefaultsKey.scratchpadBackgroundOpacity` on its own.
     @AppStorage(DefaultsKey.fastReaderFocusPoint) private var focusPointEnabled = true
 
-    /// The speed the next reading starts at. A speed found while reading is
-    /// the only setting anyone changes mid-session, and having to find it
-    /// again on the next selection would make the buttons feel pointless,
-    /// so the panel writes it back rather than keeping it to itself.
-    @AppStorage(DefaultsKey.fastReaderWordsPerMinute) private var storedWordsPerMinute = 200
-
     /// Half of the reading row's fixed width, either side of the focus
     /// character. Constant, never derived from a chunk's text, which is
     /// what keeps the focus axis from drifting between chunks.
@@ -45,9 +39,6 @@ struct FastReaderPanelView: View {
     private static let contextWidth: CGFloat = 120
     private static let readingFontSize: CGFloat = 34
     private static let contextFontSize: CGFloat = 20
-    /// How much a single nudge moves the speed, whichever way it is asked
-    /// for. The arrow keys and the buttons share it so the two cannot drift.
-    private static let speedStep = 25
 
     /// The whole row, including the faded neighbours. Every part is a
     /// constant, so the focus slot's centre lands on the same x on every
@@ -97,8 +88,8 @@ struct FastReaderPanelView: View {
                 onSpace: { session.toggle() },
                 onStepBackward: { session.stepBackward() },
                 onStepForward: { session.stepForward() },
-                onSpeedUp: { nudgeSpeed(by: Self.speedStep) },
-                onSpeedDown: { nudgeSpeed(by: -Self.speedStep) }
+                onSpeedUp: { nudgeSpeed(by: FastReaderEngine.wordsPerMinuteStep) },
+                onSpeedDown: { nudgeSpeed(by: -FastReaderEngine.wordsPerMinuteStep) }
             )
         )
         .accessibilityElement(children: .contain)
@@ -296,13 +287,13 @@ struct FastReaderPanelView: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.tertiary)
             HStack(spacing: 8) {
-                speedButton(systemName: "minus", by: -Self.speedStep)
+                speedButton(systemName: "minus", by: -FastReaderEngine.wordsPerMinuteStep)
                 Text("\(session.wordsPerMinute)")
                     .font(.system(size: 14, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(.primary)
                     .frame(minWidth: 38)
-                speedButton(systemName: "plus", by: Self.speedStep)
+                speedButton(systemName: "plus", by: FastReaderEngine.wordsPerMinuteStep)
             }
         }
     }
@@ -324,9 +315,7 @@ struct FastReaderPanelView: View {
     }
 
     private func nudgeSpeed(by delta: Int) {
-        let value = Self.clampSpeed(session.wordsPerMinute + delta)
-        session.setWordsPerMinute(value)
-        storedWordsPerMinute = value
+        FastReaderService.shared.nudgeSpeed(by: delta)
     }
 
     private static func clampSpeed(_ value: Int) -> Int {

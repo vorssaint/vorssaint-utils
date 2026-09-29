@@ -82,6 +82,19 @@ final class FastReaderService {
         present(rawText: text)
     }
 
+    /// Moves the speed and remembers it, wherever the nudge came from. Both
+    /// surfaces and both input paths go through here, so the floating window's
+    /// buttons, its arrow keys and the island's arrow keys cannot end up
+    /// clamping differently or disagreeing about whether the change sticks.
+    func nudgeSpeed(by delta: Int) {
+        let session = FastReaderSession.shared
+        let range = FastReaderEngine.wordsPerMinuteRange
+        let value = min(max(session.wordsPerMinute + delta, range.lowerBound), range.upperBound)
+        guard value != session.wordsPerMinute else { return }
+        session.setWordsPerMinute(value)
+        UserDefaults.standard.set(value, forKey: DefaultsKey.fastReaderWordsPerMinute)
+    }
+
     func close() {
         guard let panel else { return }
         FastReaderSession.shared.pause()
