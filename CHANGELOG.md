@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- App Switcher keeps showing apps that are too busy to describe their windows to Accessibility in time.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary
