@@ -59,6 +59,7 @@ enum SwitcherScrollContract {
         let window: Item
         let preview: Int?
         let isSelected: Bool
+        let instantSelection: Bool
         let onCommit: () -> Void
         let onClose: () -> Void
         var body: some View { Color.clear.frame(width: SwitcherIconRowLayout.previewCardWidth, height: SwitcherIconRowLayout.previewCardHeight) }
@@ -78,16 +79,18 @@ enum SwitcherScrollContract {
         _ = NSApplication.shared
         let previousPolicy = NSApp.activationPolicy()
         NSApp.setActivationPolicy(.prohibited)
-        let previousSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
-        UserDefaults.standard.set("normal", forKey: DefaultsKey.previewSize)
+        let previousSize = UserDefaults.standard.object(forKey: DefaultsKey.switcherPreviewSize)
+        UserDefaults.standard.set("normal", forKey: DefaultsKey.switcherPreviewSize)
         defer {
-            if let previousSize { UserDefaults.standard.set(previousSize, forKey: DefaultsKey.previewSize) }
-            else { UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize) }
+            if let previousSize { UserDefaults.standard.set(previousSize, forKey: DefaultsKey.switcherPreviewSize) }
+            else { UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherPreviewSize) }
             NSApp.setActivationPolicy(previousPolicy)
         }
-        func run(_ name: String, _ body: (Model, (String) -> Void, () -> Void) -> Void) {
+        func run(_ name: String, instantSelection: Bool = false,
+                 _ body: (Model, (String) -> Void, () -> Void) -> Void) {
             let model = Model()
-            let hosting = NSHostingView(rootView: Strip(switcher: model))
+            let hosting = NSHostingView(rootView: Strip(switcher: model,
+                                                      instantSelection: instantSelection))
             let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 1600, height: 300),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
@@ -167,6 +170,14 @@ enum SwitcherScrollContract {
         }
         for simple in [false, true] {
             let mode = simple ? "titles" : "previews"
+            run("\(mode) instant navigation", instantSelection: true) { model, check, _ in
+                model.screenWidth = 640
+                model.seed([8, 7], selected: 7, simple: simple); check("initial overflow")
+                model.select(index: 0); check("first")
+                model.select(index: 7); check("last")
+                model.select(index: 8); check("next app")
+                model.select(index: 14); check("next app last")
+            }
             run("\(mode) search") { model, check, _ in
                 model.seed([3,1,1,1,1,1,1], selected: 2, simple: simple); check("initial")
                 model.search("a"); check("narrowed without changing selection")
@@ -204,7 +215,7 @@ enum SwitcherScrollContract {
                 model.seed([8], selected: 7, simple: simple); check("new session wins")
             }
             for size in Defaults.allowedPreviewSizes {
-                UserDefaults.standard.set(size, forKey: DefaultsKey.previewSize)
+                UserDefaults.standard.set(size, forKey: DefaultsKey.switcherPreviewSize)
                 if !simple {
                     run("focused app \(size)") { model, check, _ in
                         model.sessionScope = .frontmostApp
@@ -225,7 +236,7 @@ enum SwitcherScrollContract {
                     model.recompute(); check("smaller display")
                 }
             }
-            UserDefaults.standard.set("normal", forKey: DefaultsKey.previewSize)
+            UserDefaults.standard.set("normal", forKey: DefaultsKey.switcherPreviewSize)
         }
     }
 }

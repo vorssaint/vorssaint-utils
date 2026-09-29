@@ -7,7 +7,7 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity
+    case limits, spend, live, trend, models, projects, activity, resets
 
     var id: String { rawValue }
 
@@ -20,6 +20,7 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         case .models: return "cpu"
         case .projects: return "folder"
         case .activity: return "square.grid.3x3.fill"
+        case .resets: return "arrow.counterclockwise.circle"
         }
     }
 
@@ -31,6 +32,10 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
 enum NotchAgentReadout: String, CaseIterable, Identifiable {
     case elapsed, tokens, cost, limit
     var id: String { rawValue }
+
+    /// Tokens and cost change only with a new snapshot. Limits still need
+    /// the clock: an allowance can renew, or show elapsed time while unknown.
+    var advancesWithClock: Bool { self == .elapsed || self == .limit }
 }
 
 enum NotchAgentLimitDisplay: String, CaseIterable, Identifiable {
@@ -143,10 +148,10 @@ enum NotchAgentSupport {
     static func stripReading(_ snapshot: AgentUsageSnapshot, readout: NotchAgentReadout,
                              display: NotchAgentLimitDisplay, now: Date) -> String {
         let live = snapshot.live
-        let elapsed = AgentFormat.clock(now.timeIntervalSince(live.map(\.started).min() ?? now))
+        func elapsed() -> String { AgentFormat.clock(now.timeIntervalSince(live.map(\.started).min() ?? now)) }
         switch readout {
         case .elapsed:
-            return elapsed
+            return elapsed()
         case .tokens:
             // What the agent wrote, the count its own window shows; the
             // context it reads again on every call is in the cost.
@@ -155,7 +160,7 @@ enum NotchAgentSupport {
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = AgentLimitSupport.binding(snapshot.limits[provider], now: now) else { return elapsed }
+                  let window = AgentLimitSupport.binding(snapshot.limits[provider], now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
     }
@@ -176,8 +181,12 @@ enum NotchAgentSupport {
 
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider]) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
-            card == .limits ? providers.map { NotchAgentTile(card: .limits, provider: $0) }
-                : [NotchAgentTile(card: card, provider: nil)]
+            switch card {
+            case .limits: return providers.map { NotchAgentTile(card: .limits, provider: $0) }
+            // Banked resets belong to a Codex account.
+            case .resets: return providers.contains(.codex) ? [NotchAgentTile(card: .resets, provider: .codex)] : []
+            default: return [NotchAgentTile(card: card, provider: nil)]
+            }
         }
     }
 

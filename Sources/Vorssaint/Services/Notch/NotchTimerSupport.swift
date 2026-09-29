@@ -251,6 +251,15 @@ enum NotchTimerSupport {
         session.countsUp ? stopwatchText(session.reading(at: now)) : clockText(session.reading(at: now))
     }
 
+    /// What a clock's digits roll on. The closed island can show a clock for
+    /// hours, and rolling every second kept it animating a third of the time,
+    /// at about ten times the energy of a clock that changes in place. There
+    /// the seconds change in place and the rest rolls: "12:04" rolls as "12".
+    static func rollingValue(_ value: String, everySecond: Bool) -> String {
+        guard !everySecond, let colon = value.lastIndex(of: ":") else { return value }
+        return String(value[..<colon])
+    }
+
     static func compactText(for session: NotchTimerSession, at now: TimeInterval, locale: Locale) -> String {
         let reading = session.reading(at: now)
         if session.countsUp { return compactStopwatchText(reading) }
@@ -283,5 +292,20 @@ enum NotchTimerSupport {
         return Duration.seconds(seconds).formatted(.units(
             allowed: units, width: .narrow,
             fractionalPart: .hide(rounded: .down)).locale(locale))
+    }
+
+    // MARK: Strip
+
+    /// A wing is never narrower than the music strip's; the longest readings
+    /// keep the width the strip always had.
+    static let stripWingRange: ClosedRange<CGFloat> = 44...64
+    /// Air between the camera and what sits beside it.
+    static let stripCameraGap: CGFloat = 6
+
+    static func stripTextSize(height: CGFloat) -> CGFloat { min(16, height - 6) }
+    /// The mark takes the strip's height less an even gap above and below.
+    static func stripIconSize(height: CGFloat) -> CGFloat { min(20, height - NotchLayout.compactEdgeGap * 2) }
+    static func stripAgentMarkSize(height: CGFloat, working: Int) -> CGFloat {
+        min(working > 1 ? 11 : 14, max(8, height - NotchLayout.compactEdgeGap * 2 - 4))
     }
 }

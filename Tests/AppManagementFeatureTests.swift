@@ -778,7 +778,7 @@ enum AppManagementFeatureTests {
             contentsOfFile: "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift",
             encoding: .utf8)) ?? ""
         let removeSelectedBody = sourceBody(of: appUninstallerSource, from: "func removeSelected()",
-                                            to: "func removeSelectedWithHomebrew()")
+                                            to: "func removeSelectedWithHomebrew(")
         suite.expect(removeSelectedBody.contains("let knownApplications = mayClaimSharedData"),
                "a removal builds the known-application roster only when it may claim shared data")
         let finishHomebrewBody = sourceBody(of: appUninstallerSource,
@@ -887,10 +887,15 @@ enum AppManagementFeatureTests {
                && !CleanerPolicy.isExcludedCacheEntry("ms-playwright"),
                "ordinary and downloadable sensitive caches remain available for review")
         suite.expect(CleanerSupport.Category.deviceBackups.rawValue == 6
-               && CleanerSupport.Category.allCases.count == 7,
-               "device backups joined the cleaner with a stable category id")
+               && CleanerSupport.Category.screenshots.rawValue == 7
+               && CleanerSupport.Category.allCases.count == 8,
+               "device backups and screenshots joined the cleaner with stable category ids")
         suite.expect(!CleanerPolicy.precheckDeviceBackups,
                "device backups never start checked, they are the user's safety net")
+        suite.expect(!CleanerPolicy.precheckScreenshots
+               && registeredDefaults[DefaultsKey.cleanerScreenshotAgeDays] as? Int == 30
+               && CleanerPolicy.sanitizedScreenshotAgeDays(-3) == 0,
+               "forgotten screenshots start unchecked after a 30 day default")
         // CleanerScheduler and CleanerView are outside this test binary, so
         // pin escalation at the call sites: the unattended pass must never
         // reach Finder's administrator prompt, and no default lets a later
@@ -909,6 +914,9 @@ enum AppManagementFeatureTests {
                && cleanerViewCode.components(separatedBy: "cleanSelected(").count == 2
                && cleanerViewCode.contains("cleanSelected(escalate:true)"),
                "cleanSelected has no default escalation and the manual clean still asks")
+        suite.expect(schedulerCode.contains("cleaner.scan(attended:false)")
+               && cleanerViewCode.contains("cleaner.scan(attended:true)"),
+               "only a scan someone started reads the screenshot folders")
         suite.expect(CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/iOS DeviceSupport")
                && CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/watchOS DeviceSupport"),
                "stale DeviceSupport symbol caches count as developer junk")
@@ -1048,11 +1056,11 @@ enum AppManagementFeatureTests {
         suite.expect(Defaults.sanitizedMenuBarMemoryStyle("bad") == "percent", "invalid memory style falls back to percent")
         suite.expect(Defaults.sanitizedMenuBarMetricOrder("cpu,gpu,memory,network,battery,power")
                == ["cpu", "gpu", "memory", "network", "battery", "power",
-                   "cpuTemperature", "gpuTemperature", "batteryTime", "batteryTemperature", "peripheralBattery", "diskUsage", "diskActivity", "fanSpeed"],
+                   "cpuTemperature", "gpuTemperature", "batteryTime", "batteryTemperature", "peripheralBattery", "diskUsage", "diskActivity", "connectedDevices", "fanSpeed"],
                "menu bar metric order appends temperature sensors without rewriting existing saved order")
         suite.expect(Defaults.sanitizedMenuBarMetricOrder("temperature,cpu,cpu,bad")
                == ["cpuTemperature", "gpuTemperature", "batteryTemperature",
-                   "cpu", "gpu", "memory", "battery", "batteryTime", "peripheralBattery", "network", "diskUsage", "diskActivity", "power", "fanSpeed"],
+                   "cpu", "gpu", "memory", "battery", "batteryTime", "peripheralBattery", "network", "diskUsage", "diskActivity", "connectedDevices", "power", "fanSpeed"],
                "menu bar metric order migrates the old generic temperature value")
         suite.expect(Defaults.sanitizedBundleIdentifierList([" com.example.One ", "", "com.example.One", "com.example.Two"])
                == ["com.example.One", "com.example.Two"],
@@ -1104,6 +1112,23 @@ enum AppManagementFeatureTests {
         suite.expect(!AutoQuitSupport.hasDependentApplication(hostBundleIdentifier: "com.example.unrelated",
                                                         applicationBundleURLs: [dependentApp]),
                "AutoQuit does not protect an unrelated host")
+        func agentBundle(_ name: String, _ info: [String: Any]) -> URL {
+            let url = outerApp.deletingLastPathComponent().appendingPathComponent("\(name).app")
+            try? FileManager.default.createDirectory(at: url.appendingPathComponent("Contents"),
+                                                     withIntermediateDirectories: true)
+            NSDictionary(dictionary: info).write(to: url.appendingPathComponent("Contents/Info.plist"), atomically: true)
+            return url
+        }
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBar", ["LSUIElement": true])),
+               "AutoQuit leaves a menu bar app running when its settings window closes")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBarString", ["LSUIElement": "1"])),
+               "AutoQuit reads a string LSUIElement the way Launch Services does")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Daemon", ["LSBackgroundOnly": true])),
+               "AutoQuit leaves a background-only app running")
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Regular", ["LSUIElement": false])),
+               "AutoQuit still quits a regular app when its last window closes")
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: nil),
+               "AutoQuit treats a process without a bundle as a regular app")
         try? FileManager.default.removeItem(at: outerApp.deletingLastPathComponent())
         suite.expect(!AutoQuitSupport.shouldScheduleWindowCheck(for: .appDeactivated,
                                                           hasRecentCloseRequest: false),
@@ -1330,5 +1355,95 @@ enum AppManagementFeatureTests {
                == ["uninstaller", "homebrew", "media", "cleanURL", "cleaning"],
                "panel item order keeps saved valid items first and appends defaults")
 
+        runNonModalAlertChecks(suite)
+    }
+
+    /// The disk image installer's alerts used to run modal inside a main-queue
+    /// block (the hop after the mount check and the one after the install).
+    /// A modal loop started there holds back later main-queue work, such as a
+    /// Window Layout shortcut, until the alert closes, and its modal panel
+    /// mode stops default-mode timers (issue #1665). The alert is never
+    /// ordered on screen here.
+    private static func runNonModalAlertChecks(_ suite: TestSuite) {
+        func makeAlert() -> NSAlert {
+            let alert = NSAlert()
+            alert.messageText = "Install?"
+            alert.addButton(withTitle: "Install")
+            alert.addButton(withTitle: "Cancel")
+            return alert
+        }
+
+        let alert = makeAlert()
+        var shownWindows: [NSWindow] = []
+        var responses: [NSApplication.ModalResponse] = []
+        var queuedWorkRan = false
+        DispatchQueue.main.async { queuedWorkRan = true }
+        let presentation = NonModalAlert.present(alert, show: { shownWindows.append($0) }) {
+            responses.append($0)
+        }
+        // One pass of the run loop returns after the first source it handles,
+        // which on a busy runner need not be the main queue, so keep turning it.
+        let queuedWorkDeadline = Date(timeIntervalSinceNow: 2)
+        while !queuedWorkRan && Date() < queuedWorkDeadline {
+            _ = RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
+        }
+        suite.expect(queuedWorkRan && responses.isEmpty && presentation.isOpen,
+               "main-queue work runs while an installer alert is still waiting for an answer")
+        suite.expect(shownWindows.count == 1 && shownWindows.first === alert.window
+               && alert.window.level == .modalPanel,
+               "the alert shows its own window at the level a modal alert would use")
+        suite.expect(!alert.window.hidesOnDeactivate,
+               "the alert stays on screen when another app becomes active")
+        suite.expect(alert.buttons.map(\.keyEquivalent) == ["\r", "\u{1b}"],
+               "Return and Escape still answer the alert")
+
+        alert.buttons[0].performClick(nil)
+        alert.buttons[1].performClick(nil)
+        suite.expect(responses == [.alertFirstButtonReturn] && !presentation.isOpen,
+               "the first button answers once and later clicks are ignored")
+
+        let cancelled = makeAlert()
+        var cancelResponses: [NSApplication.ModalResponse] = []
+        NonModalAlert.present(cancelled, show: { _ in }) { cancelResponses.append($0) }
+        cancelled.buttons[1].performClick(nil)
+        suite.expect(cancelResponses == [.alertSecondButtonReturn],
+               "the second button answers with the second button's response")
+
+        let result = NSAlert()
+        result.messageText = "Installed"
+        var resultResponses: [NSApplication.ModalResponse] = []
+        let resultPresentation = NonModalAlert.present(result, show: { _ in }) { resultResponses.append($0) }
+        result.buttons.first?.performClick(nil)
+        suite.expect(result.buttons.count == 1 && result.buttons.first?.keyEquivalent == "\r"
+               && resultResponses == [.alertFirstButtonReturn] && !resultPresentation.isOpen,
+               "an alert without buttons answers through its OK button, like the installer's result alert")
+
+        weak var weakTarget: NSObject?
+        var dismissed: NonModalAlert?
+        var dismissResponses: [NSApplication.ModalResponse] = []
+        let dismissedAlert = makeAlert()
+        autoreleasepool {
+            let target = NSObject()
+            weakTarget = target
+            dismissed = NonModalAlert.present(dismissedAlert, retaining: [target], show: { _ in }) {
+                dismissResponses.append($0)
+            }
+        }
+        suite.expect(weakTarget != nil,
+               "a checkbox target the alert references weakly stays alive while the alert is open")
+        autoreleasepool {
+            dismissed?.dismiss(with: .alertSecondButtonReturn)
+            dismissedAlert.buttons[0].performClick(nil)
+            dismissed = nil
+        }
+        suite.expect(dismissResponses == [.alertSecondButtonReturn] && weakTarget == nil,
+               "dismissing answers once, ignores later clicks and releases what the alert retained")
+
+        let installerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!installerSource.isEmpty && !installerSource.contains(".runModal()")
+               && installerSource.components(separatedBy: "NonModalAlert.present(").count == 3,
+               "the install prompt and the result alert both open without a modal session")
     }
 }

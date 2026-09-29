@@ -601,10 +601,12 @@ struct CommandBarView: View {
     @ViewBuilder
     private func titleView(_ entry: CommandBarEntry) -> some View {
         if entry.isAnswer {
+            let font = Font.system(size: 17, weight: .semibold, design: .rounded)
             Text(entry.title)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                // Tabular digits keep a sum steady while typing; in a color
+                // value they leave gaps between letters and digits.
+                .font(entry.isColor ? font : font.monospacedDigit())
                 .foregroundStyle(.primary)
-                .monospacedDigit()
                 .lineLimit(1)
                 .truncationMode(.middle)
         } else {
@@ -704,22 +706,16 @@ struct CommandBarView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 28, height: 28)
         case .clipboardImage(let name):
-            if let thumbnail = ClipboardImageStore.thumbnail(named: name) {
-                Image(nsImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 28, height: 28)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            } else {
-                Image(systemName: "photo")
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.85))
-            }
+            ClipboardThumbnailImage(source: .stored(name: name), contentMode: .fill)
+                .frame(width: 28, height: 28)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         case .filePath(let path):
             Image(nsImage: CommandBarIconCache.icon(forPath: path))
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 28, height: 28)
+        case .color(let color):
+            ColorSwatch(color: color, size: 22)
         }
     }
 

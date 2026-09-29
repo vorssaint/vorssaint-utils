@@ -48,6 +48,7 @@ struct NotchFilesView: View {
                                contentRevision: shelf.contentRevision,
                                selection: shelf.selection,
                                expandedBatches: shelf.expandedBatches,
+                               pinnedIDs: shelf.pinnedIDs,
                                revealID: shelf.revealTargetID,
                                revealSerial: shelf.addSerial,
                                sideways: true)

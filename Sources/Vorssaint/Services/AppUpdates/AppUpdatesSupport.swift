@@ -41,6 +41,8 @@ enum AppUpdatesSupport {
         let bundlePath: String?
         /// Store page for this app, present only for store rows.
         let storePage: String?
+        /// Stable across sources, app renames and settings restores on another Mac.
+        var bundleID: String? = nil
 
         var canInstallInPlace: Bool { source == .packageManager && token != nil }
         var isSelectable: Bool { source != .onlineCatalog }
@@ -80,14 +82,63 @@ enum AppUpdatesSupport {
         let hasUnsupportedOSConstraint: Bool
     }
 
+    // MARK: - Update rules
+
+    /// One choice per app: skip exactly this release, or stop checking until removed.
+    /// Names are display metadata; neither a path nor a source-specific row ID is portable.
+    struct UpdateRule: Codable, Identifiable, Equatable {
+        let bundleID: String
+        let name: String
+        let version: String?
+
+        var id: String { bundleID }
+
+        func hides(_ item: Item) -> Bool {
+            guard item.bundleID == bundleID else { return false }
+            guard let version else { return true }
+            return versionCore(version) == versionCore(item.latestVersion)
+        }
+    }
+
+    static func decodedRules(_ raw: String?) -> [UpdateRule] {
+        guard let data = raw?.data(using: .utf8),
+              let rules = try? JSONDecoder().decode([UpdateRule].self, from: data) else { return [] }
+        var seen = Set<String>()
+        return rules.filter { rule in
+            !rule.bundleID.isEmpty && !rule.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && rule.bundleID.rangeOfCharacter(from: .whitespacesAndNewlines) == nil
+                && !rule.bundleID.contains("/")
+                && (rule.version.map { !isUncomparable($0) } ?? true)
+                && seen.insert(rule.bundleID).inserted
+        }
+    }
+
+    static func encodedRules(_ rules: [UpdateRule]) -> String? {
+        (try? JSONEncoder().encode(rules)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    static func checkedApps(_ apps: [InstalledApp], rules: [UpdateRule]) -> [InstalledApp] {
+        let excluded = Set(rules.filter { $0.version == nil }.map(\.bundleID))
+        return apps.filter { !excluded.contains($0.bundleID) }
+    }
+
+    static func visibleItems(_ items: [Item], rules: [UpdateRule]) -> [Item] {
+        items.filter { item in !rules.contains { $0.hides(item) } }
+    }
+
     // MARK: - Version comparison
 
     /// Package versions carry a revision after a comma ("3.5.262,260717d");
     /// only the part in front of it lines up with what an app bundle reports.
     static func versionCore(_ version: String) -> String {
         let trimmed = version.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let comma = trimmed.firstIndex(of: ",") else { return trimmed }
-        return String(trimmed[trimmed.startIndex..<comma])
+        var comparable = trimmed
+        if (comparable.first == "v" || comparable.first == "V"),
+           comparable.dropFirst().first?.isNumber == true {
+            comparable.removeFirst()
+        }
+        guard let comma = comparable.firstIndex(of: ",") else { return comparable }
+        return String(comparable[comparable.startIndex..<comma])
     }
 
     /// Versions that carry no version at all. A package pinned to "latest"
@@ -205,7 +256,8 @@ enum AppUpdatesSupport {
                         latestVersion: versionCore(update.currentVersion),
                         token: update.name,
                         bundlePath: bundle.path,
-                        storePage: nil)
+                        storePage: nil,
+                        bundleID: bundle.bundleID)
         }
     }
 
@@ -373,7 +425,8 @@ enum AppUpdatesSupport {
                         latestVersion: entry.version,
                         token: nil,
                         bundlePath: app.path,
-                        storePage: entry.page)
+                        storePage: entry.page,
+                        bundleID: app.bundleID)
         }
     }
 
@@ -480,7 +533,8 @@ enum AppUpdatesSupport {
                         latestVersion: latest,
                         token: nil,
                         bundlePath: app.path,
-                        storePage: nil)
+                        storePage: nil,
+                        bundleID: app.bundleID)
         }
         return (items, checkedPaths)
     }

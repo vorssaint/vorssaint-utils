@@ -14,8 +14,6 @@ struct FeatureHubSettings: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var router = SettingsRouter.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
-        SuperKeySource.capsLock.rawValue
     @State private var tab: Tab = .features
     @State private var confirmingPreset: FeaturePreset?
     /// Tracks the feature-target request currently being revealed, so a
@@ -26,6 +24,17 @@ struct FeatureHubSettings: View {
     /// on it, mirroring the section highlight `SettingsSectionFocusModifier`
     /// gives an ordinary page anchor.
     @State private var highlightedFeature: AppFeature?
+    @State private var expandedGroups = Set(FeatureGroup.allCases)
+    @State private var islandExtensionsExpanded = true
+    @State private var presetsExpanded = true
+    /// Installed switches never once turned on, read when the page appears
+    /// and after every install change rather than on every redraw.
+    @State private var neverUsed: [AppFeature] = []
+    /// The batch just uninstalled from that card, kept for its Undo.
+    @State private var recentlyUninstalled: [AppFeature] = []
+
+    /// Below this, the offer would be more to read than it saves.
+    private static let neverUsedMinimum = 3
 
     private enum Tab { case features, permissions }
 
@@ -34,14 +43,22 @@ struct FeatureHubSettings: View {
     var body: some View {
         ScrollViewReader { proxy in
             content
-                .onAppear { revealPendingFeatureTarget(using: proxy) }
+                .onAppear {
+                    refreshNeverUsed()
+                    revealPendingFeatureTarget(using: proxy)
+                }
                 .onChange(of: router.requestID) { _, _ in revealPendingFeatureTarget(using: proxy) }
+                .onChange(of: features.revision) { _, _ in refreshNeverUsed() }
         }
     }
 
     private var content: some View {
+        // The lazy stack has to be the scroll view's own content (issue
+        // #2270). Nested in a plain stack, it resized that stack each time a
+        // card came into view: scrolling stalled for up to a second, and the
+        // layout could keep redoing itself until Settings froze.
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            LazyVStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(hub.pageTitle).font(.title2.bold())
                     Text(tab == .features ? hub.intro : hub.permissionsIntro)
@@ -62,8 +79,10 @@ struct FeatureHubSettings: View {
                 }
                 if tab == .features {
                     summaryCard
+                    neverUsedCard
+                    dynamicIslandCard
                     presetsCard
-                    ForEach(FeatureGroup.allCases, id: \.self) { group in
+                    ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
                         groupCard(group)
                     }
                     VStack(alignment: .leading, spacing: 4) {
@@ -108,12 +127,21 @@ struct FeatureHubSettings: View {
         router.consumeFeatureTarget(id: request.id)
         revealID = request.id
         if tab == .permissions { tab = .features }
+        if request.feature.group == .dynamicIsland {
+            if request.feature != .notch { islandExtensionsExpanded = true }
+        } else {
+            expandedGroups.insert(request.feature.group)
+        }
         DispatchQueue.main.async {
             guard self.revealID == request.id else { return }
-            reveal(request.feature, using: proxy)
+            proxy.scrollTo(request.feature.group, anchor: .top)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                 guard self.revealID == request.id else { return }
                 reveal(request.feature, using: proxy)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                    guard self.revealID == request.id else { return }
+                    reveal(request.feature, using: proxy)
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                     guard self.revealID == request.id else { return }
                     clearHighlight()
@@ -184,25 +212,103 @@ struct FeatureHubSettings: View {
         }
     }
 
+    /// Installed switches that were never once turned on, offered as one
+    /// batch. People come to this page to manage the app, so the offer waits
+    /// here instead of interrupting anywhere else. Keep ends it for these
+    /// features, and Undo puts back exactly what left.
+    @ViewBuilder
+    private var neverUsedCard: some View {
+        if !recentlyUninstalled.isEmpty {
+            SettingsCard {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.green)
+                        .accessibilityHidden(true)
+                    Text(hub.footerNote)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 12)
+                    Button(l10n.s.menuUndo, action: undoNeverUsedUninstall)
+                }
+            }
+        } else if neverUsed.count >= Self.neverUsedMinimum {
+            SettingsCard(title: hub.neverUsedTitle) {
+                Text(String(format: hub.neverUsedMessageFormat,
+                            neverUsed.map { $0.hubTitle(l10n.s, hub: hub) }.joined(separator: ", ")))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    Button(hub.neverUsedKeep, action: keepNeverUsed)
+                    Button(hub.neverUsedUninstall, action: uninstallNeverUsed)
+                }
+            }
+        }
+    }
+
+    private func refreshNeverUsed() {
+        neverUsed = FeatureRuntime.shared.neverSwitchedOnFeatures()
+    }
+
+    private func uninstallNeverUsed() {
+        // Read again at the click: a switch turned on in the panel since the
+        // page appeared takes its feature out of the batch.
+        let stillUnused = Set(FeatureRuntime.shared.neverSwitchedOnFeatures())
+        let batch = neverUsed.filter(stillUnused.contains)
+        guard !batch.isEmpty else {
+            refreshNeverUsed()
+            return
+        }
+        recentlyUninstalled = batch
+        withAnimation(.easeOut(duration: 0.22)) {
+            FeatureRuntime.shared.setAvailable(batch, false)
+        }
+    }
+
+    /// Changing one's mind is also an answer to the offer, so the features
+    /// that come back are kept and never offered again. None of them was
+    /// ever on, and the reinstall leaves their switches off too.
+    private func undoNeverUsedUninstall() {
+        let batch = recentlyUninstalled
+        recentlyUninstalled = []
+        FeatureRuntime.shared.keep(batch)
+        withAnimation(.easeOut(duration: 0.22)) {
+            FeatureRuntime.shared.setAvailable(batch, true, enablingFirstInstalls: false)
+        }
+    }
+
+    private func keepNeverUsed() {
+        FeatureRuntime.shared.keep(neverUsed)
+        withAnimation(.easeOut(duration: 0.22)) {
+            refreshNeverUsed()
+        }
+    }
+
     /// Three one-click starting points. Nobody arrives wanting 67 decisions;
     /// a preset shapes the app in one move and everything else stays one
     /// click away in the list below.
     private var presetsCard: some View {
-        SettingsCard(title: hub.presetsTitle) {
-            HStack(alignment: .top, spacing: 10) {
-                ForEach(FeaturePreset.allCases) { preset in
-                    PresetCard(preset: preset,
-                               name: presetName(preset),
-                               caption: presetDescription(preset),
-                               applyTitle: hub.presetApplyButton) {
-                        confirmingPreset = preset
+        SettingsCard {
+            DisclosureGroup(hub.presetsTitle, isExpanded: $presetsExpanded) {
+                if presetsExpanded {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(FeaturePreset.allCases) { preset in
+                            PresetCard(preset: preset,
+                                       name: presetName(preset),
+                                       caption: presetDescription(preset),
+                                       applyTitle: hub.presetApplyButton) {
+                                confirmingPreset = preset
+                            }
+                        }
                     }
+                    Text(hub.presetsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Text(hub.presetsCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -222,49 +328,95 @@ struct FeatureHubSettings: View {
         }
     }
 
-    /// One card per group: its icon and name, a small bar of how much of it
-    /// is installed, then a row per feature.
+    /// The island stays near the top, with its additions in a group the user
+    /// can close when they want a shorter catalog.
+    private var dynamicIslandCard: some View {
+        let members = AppFeature.features(in: .dynamicIsland)
+        let installed = members.filter(\.isAvailable).count
+        return SettingsCard {
+            groupHeader(.dynamicIsland, installed: installed, total: members.count)
+            FeatureHubRow(feature: .notch, hub: hub,
+                          isHighlighted: highlightedFeature == .notch)
+                .id(AppFeature.notch)
+            DisclosureGroup(
+                FeatureStrings.notch(l10n.language).modules,
+                isExpanded: $islandExtensionsExpanded
+            ) {
+                if islandExtensionsExpanded {
+                    VStack(spacing: 0) {
+                        ForEach(members.filter { $0 != .notch }, id: \.self) { feature in
+                            FeatureHubRow(feature: feature, hub: hub,
+                                          isHighlighted: highlightedFeature == feature)
+                                .id(feature)
+                            if feature != members.last {
+                                Divider().padding(.leading, 8)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .id(FeatureGroup.dynamicIsland)
+    }
+
+    /// Groups start open; LazyVStack builds distant groups as they enter view.
+    /// Closing a group removes its feature rows until the user reopens it.
     private func groupCard(_ group: FeatureGroup) -> some View {
         let members = AppFeature.features(in: group)
         let installed = members.filter(\.isAvailable).count
         return SettingsCard {
-            HStack(spacing: 10) {
-                Image(systemName: group.symbolName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 26, height: 26)
-                    .background(Color.accentColor.opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                Text(groupTitle(group)).font(.headline)
-                Spacer(minLength: 12)
-                InstalledShareBar(installed: installed, total: members.count)
-                    .controlSize(.small)
-                    .frame(width: 64)
-                    .help(String(format: hub.activeCountFormat, installed, members.count))
-            }
-            VStack(spacing: 0) {
-                ForEach(members, id: \.self) { feature in
-                    FeatureHubRow(
-                        feature: feature,
-                        hub: hub,
-                        symbolName: feature == .superKey
-                            ? SuperKeySource.sanitized(superKeySourceRaw).systemImage
-                            : feature.symbolName,
-                        isHighlighted: highlightedFeature == feature
-                    )
-                    .id(feature)
-                    if feature != members.last {
-                        Divider().padding(.leading, 50)
+            DisclosureGroup(isExpanded: Binding(
+                get: { expandedGroups.contains(group) },
+                set: { expanded in
+                    if expanded { expandedGroups.insert(group) }
+                    else { expandedGroups.remove(group) }
+                }
+            )) {
+                if expandedGroups.contains(group) {
+                    VStack(spacing: 0) {
+                        ForEach(members, id: \.self) { feature in
+                            FeatureHubRow(
+                                feature: feature,
+                                hub: hub,
+                                isHighlighted: highlightedFeature == feature
+                            )
+                            .id(feature)
+                            if feature != members.last {
+                                Divider().padding(.leading, 8)
+                            }
+                        }
+                    }
+                    if group == .monitor,
+                       !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
+                        Text(hub.monitorAllOffNote)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+            } label: {
+                groupHeader(group, installed: installed, total: members.count)
             }
-            if group == .monitor,
-               !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
-                Text(hub.monitorAllOffNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        }
+        .id(group)
+    }
+
+    private func groupHeader(_ group: FeatureGroup, installed: Int, total: Int) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: group.symbolName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 26, height: 26)
+                .background(Color.accentColor.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            Text(groupTitle(group)).font(.headline)
+            Spacer(minLength: 12)
+            Text("\(installed)/\(total)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            InstalledShareBar(installed: installed, total: total)
+                .controlSize(.small)
+                .frame(width: 64)
         }
     }
 
@@ -358,9 +510,9 @@ private struct FeatureHubRow: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var confirmingExtensions = false
     @State private var hovering = false
+    @State private var showingMetadata = false
     let feature: AppFeature
     let hub: FeatureHubStrings
-    let symbolName: String
     var isHighlighted: Bool = false
 
     private var installed: Bool { feature.isAvailable }
@@ -381,6 +533,7 @@ private struct FeatureHubRow: View {
 
     private var accessibilityTitle: String {
         let title = feature.hubTitle(l10n.s, hub: hub)
+        if feature == .notch { return "\(title). \(hub.experimentalBadge)" }
         return feature.isBeta ? "\(title). \(l10n.s.betaFeatureWarning)" : title
     }
 
@@ -423,7 +576,8 @@ private struct FeatureHubRow: View {
         HStack(spacing: 12) {
             if opensSettings {
                 Button {
-                    SettingsRouter.shared.request(feature.settingsDestination)
+                    SettingsRouter.shared.request(feature.settingsDestination,
+                                                  sidebarFeature: feature)
                 } label: {
                     rowContent(showsChevron: true)
                 }
@@ -464,20 +618,19 @@ private struct FeatureHubRow: View {
 
     private func rowContent(showsChevron: Bool) -> some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(installed
-                        ? AnyShapeStyle(Theme.spaceGradient)
-                        : AnyShapeStyle(Color.secondary.opacity(0.18)))
-                .frame(width: 30, height: 30)
-                .overlay(
-                    Image(systemName: symbolName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(installed ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-                )
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(feature.hubTitle(l10n.s, hub: hub))
                         .foregroundStyle(installed ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    if feature == .notch {
+                        Text(hub.experimentalBadge.uppercased())
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .foregroundStyle(.orange)
+                            .background(Capsule().fill(Color.orange.opacity(0.14)))
+                            .accessibilityHidden(true)
+                    }
                     if feature.isBeta {
                         Text(l10n.s.betaBadge)
                             .font(.system(size: 8, weight: .bold))
@@ -505,22 +658,39 @@ private struct FeatureHubRow: View {
         .contentShape(Rectangle())
     }
 
-    /// What the feature may ask for and what it keeps alive, as small icons
-    /// whose names appear on hover.
+    /// Use a readable label instead of a row of tiny, unexplained symbols.
     private var metadata: some View {
-        HStack(spacing: 5) {
-            ForEach(feature.permissions, id: \.self) { permission in
-                Image(systemName: permission.symbolName)
-                    .help(permission.name(hub))
-            }
-            ForEach(energySymbols, id: \.self) { symbol in
-                Image(systemName: symbol)
-                    .help(energyLabel)
-            }
+        let explanation = (feature.permissions.map { $0.name(hub) } + [energyLabel])
+            .joined(separator: "\n")
+        return Button(feature.permissions.isEmpty ? energyLabel : hub.tabPermissions) {
+            showingMetadata.toggle()
         }
-        .font(.system(size: 9, weight: .medium))
-        .foregroundStyle(.tertiary)
-        .accessibilityHidden(true)
+        .buttonStyle(.plain)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .help(explanation)
+        .accessibilityLabel(explanation)
+        .popover(isPresented: $showingMetadata) {
+            // Symbols differ in width, so a centered icon column keeps the texts aligned.
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                ForEach(feature.permissions, id: \.self) { permission in
+                    GridRow {
+                        Image(systemName: permission.symbolName)
+                            .gridColumnAlignment(.center)
+                            .accessibilityHidden(true)
+                        Text(permission.name(hub))
+                    }
+                }
+                GridRow {
+                    HStack(spacing: 2) {
+                        ForEach(energySymbols, id: \.self) { Image(systemName: $0) }
+                    }
+                    .accessibilityHidden(true)
+                    Text(energyLabel)
+                }
+            }
+            .padding(14)
+        }
     }
 
     @ViewBuilder
@@ -827,6 +997,7 @@ extension AppFeature {
         case .scrollHorizontal: return s.scrollHorizontalName
         case .focusFollowsMouse: return s.focusFollowsMouseName
         case .smoothScroll: return s.smoothScrollName
+        case .linearScroll: return s.linearScrollName
         case .mouseAcceleration: return s.mouseAccelerationName
         case .mouseNavigation: return hub.titleMouseNavigation
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).pageTitle
@@ -846,6 +1017,7 @@ extension AppFeature {
             return FeatureStrings.diskImageInstaller(L10n.shared.language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
+        case .audioPriority: return hub.titleAudioPriority
         case .micMute: return s.micMuteName
         case .musicBlock: return hub.titleMusicBlock
         case .keepAwake: return s.keepAwakeTitle
@@ -859,6 +1031,7 @@ extension AppFeature {
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
+        case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).pageTitle
         case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).title
         case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timer
         case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessories
@@ -887,6 +1060,7 @@ extension AppFeature {
         case .monitorNetwork: return s.monitorShowNetwork
         case .monitorDisk: return s.diskSection
         case .monitorPower: return s.powerSection
+        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
         }
     }
@@ -904,6 +1078,7 @@ extension AppFeature {
         case .scrollHorizontal: return L10n.shared.s.scrollHorizontalCaption
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll
+        case .linearScroll: return L10n.shared.s.linearScrollCaption
         case .mouseAcceleration: return L10n.shared.s.mouseAccelerationCaption
         case .mouseNavigation: return hub.descMouseNavigation
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).hubDescription
@@ -923,6 +1098,7 @@ extension AppFeature {
             return FeatureStrings.diskImageInstaller(L10n.shared.language).hubDescription
         case .mixer: return hub.descMixer
         case .soundOutputSwitcher: return hub.descSoundOutputSwitcher
+        case .audioPriority: return hub.descAudioPriority
         case .micMute: return hub.descMicMute
         case .musicBlock: return hub.descMusicBlock
         case .keepAwake: return hub.descKeepAwake
@@ -936,6 +1112,7 @@ extension AppFeature {
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
+        case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).hubDescription
         case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).description
         case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timerDescription
         case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessoryDescription
@@ -970,6 +1147,7 @@ extension AppFeature {
         case .monitorNetwork: return hub.descMonitorNetwork
         case .monitorDisk: return hub.descMonitorDisk
         case .monitorPower: return hub.descMonitorPower
+        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).hubDescription
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).hubDescription
         }
     }

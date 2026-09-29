@@ -10,31 +10,31 @@ import Foundation
 /// Availability is a layer ABOVE each feature's own enable key: an unavailable
 /// feature disappears from Settings, the menu panel and the menu bar, and its
 /// service tears down (and never instantiates on the next launch). Turning a
-/// feature back on restores whatever enabled state it had, because the enable
-/// keys are never touched.
+/// feature back on restores saved enable choices. A first install turns on its
+/// primary control when no enable choice was saved before.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
-    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
+    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
          diskImageInstaller
     // Sound
-    case mixer, soundOutputSwitcher, micMute, musicBlock
+    case mixer, soundOutputSwitcher, audioPriority, micMute, musicBlock
     // Energy and display
     case keepAwake, brightness, extraBrightness, bluetoothSleep
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, killProcess, portManager
+         commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
          notchQueue, notchLiveEqualizer, notchDownloads, notchAgents
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
-    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
+    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
 }
 
 /// Hub sections, in display order.
@@ -80,7 +80,7 @@ extension AppFeature {
                     && !WindowEdgeSnapZone.enabledZones(
                         from: edgeSnapDisabledZones
                     ).isEmpty)
-        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder:
+        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper:
             return false
         default:
             return true
@@ -100,25 +100,25 @@ extension AppFeature {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
              .diskImageInstaller:
             return .clipboardFiles
-        case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
+        case .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock:
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .killProcess, .portManager:
+             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .fanControl:
+             .connectedDevices, .fanControl:
             return .monitor
         }
     }
@@ -135,10 +135,11 @@ extension AppFeature {
         case .scrollHorizontal: return "arrow.triangle.swap"
         case .focusFollowsMouse: return "cursorarrow.and.square.on.square.dashed"
         case .smoothScroll: return "cursorarrow.motionlines"
+        case .linearScroll: return "arrow.up.and.down.text.horizontal"
         case .mouseAcceleration: return "cursorarrow.rays"
         case .mouseNavigation: return "arrow.left.arrow.right"
         case .mouseButtonShortcuts: return "button.programmable"
-        case .middleClick: return "computermouse"
+        case .middleClick: return "hand.tap"
         case .keyboardDebounce: return "keyboard"
         case .textSnippets: return "text.append"
         case .superKey:
@@ -156,6 +157,7 @@ extension AppFeature {
         case .diskImageInstaller: return "externaldrive.badge.plus"
         case .mixer: return "slider.horizontal.3"
         case .soundOutputSwitcher: return "hifispeaker"
+        case .audioPriority: return "list.number"
         case .micMute: return "mic.slash"
         case .musicBlock: return "music.note"
         case .keepAwake: return "moon.zzz.fill"
@@ -175,6 +177,7 @@ extension AppFeature {
         case .screenshot: return "camera.viewfinder"
         case .screenRecorder: return "record.circle"
         case .cameraPreview: return "web.camera"
+        case .wallpaper: return "photo.on.rectangle"
         case .notchGestures: return "hand.draw"
         case .notchTimer: return "timer"
         case .notchAccessories: return "battery.25percent"
@@ -197,6 +200,7 @@ extension AppFeature {
         case .monitorNetwork: return "network"
         case .monitorDisk: return "internaldrive"
         case .monitorPower: return "bolt.fill"
+        case .connectedDevices: return "cable.connector"
         case .fanControl: return "fanblades.fill"
         }
     }
@@ -233,6 +237,7 @@ extension AppFeature {
         case .scrollHorizontal: return [DefaultsKey.scrollHorizontalEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
+        case .linearScroll: return [DefaultsKey.linearScrollEnabled]
         case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
         case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled,
@@ -264,6 +269,8 @@ extension AppFeature {
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
+        case .audioPriority: return [DefaultsKey.audioPriorityOutputEnabled,
+                                     DefaultsKey.audioPriorityInputEnabled]
         case .musicBlock: return [DefaultsKey.musicBlockEnabled]
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
@@ -271,10 +278,38 @@ extension AppFeature {
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
-             .commandBar, .screenRecorder, .killProcess, .portManager,
+             .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .fanControl:
+             .connectedDevices, .fanControl:
             return []
+        }
+    }
+
+    /// Turn on the feature's main behavior at install time. Features with
+    /// several independent controls start with one useful behavior, except
+    /// audio priority, whose output and input controls work together. The
+    /// live equalizer stays off: it asks for system audio recording on the
+    /// first song, so only the user's own switch turns it on.
+    private var initialEnableKeys: [String] {
+        switch self {
+        case .windowLayout: return [DefaultsKey.windowLayoutShortcutsEnabled]
+        case .audioPriority: return enabledKeys
+        case .notchLiveEqualizer: return []
+        default: return enabledKeys.first.map { [$0] } ?? []
+        }
+    }
+
+    /// Registered defaults are visible through `object(forKey:)`, so only the
+    /// persistent domain can tell a fresh install from a saved off choice.
+    func enableOnFirstInstall(in defaults: UserDefaults, savedValues: [String: Any]) {
+        let choices = self == .windowLayout
+            ? [DefaultsKey.windowLayoutShortcutsEnabled, DefaultsKey.windowDirectionalEnabled,
+               DefaultsKey.pointerDisplayEnabled, DefaultsKey.windowEdgeSnapEnabled,
+               DefaultsKey.windowGestureEnabled]
+            : enabledKeys
+        guard !choices.contains(where: { savedValues[$0] != nil }) else { return }
+        for key in initialEnableKeys {
+            defaults.set(true, forKey: key)
         }
     }
 
@@ -299,7 +334,7 @@ extension AppFeature {
         case .notch: return [.accessibility, .automationPlayback]
         case .mouseAcceleration:
             return []
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
              .dockClick, .windowMaximizer, .windowLayout,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
@@ -332,9 +367,10 @@ extension AppFeature {
         case .musicBlock: return [.accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
-             .soundOutputSwitcher,
+             .soundOutputSwitcher, .audioPriority,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .scratchpad, .monitorGPU, .monitorNetwork, .fanControl, .killProcess, .portManager:
+             .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
+             .portManager:
             return []
         }
     }
@@ -364,14 +400,78 @@ extension AppFeature {
         features(in: .dynamicIsland).filter { $0 != .notch }
     }
 
-    /// Registered defaults preserve existing features on update. New opt-in
-    /// features and explicit betas ship uninstalled.
+    var initialInstallGroup: [AppFeature] {
+        self == .notch ? [self] + Self.dynamicIslandExtensions : [self]
+    }
+
+    /// Switches the Features page may offer to uninstall once they turn out
+    /// never used. Each one does nothing until its own switch is on, and no
+    /// other feature leans on it while it is off. Features that lend a part
+    /// of themselves elsewhere stay out even when off: the Dynamic Island,
+    /// the shelf behind the island's file tray, the radial menu, and the
+    /// switcher and text snippets that feed the Command Bar.
+    static let offeredWhenNeverSwitchedOn: [AppFeature] = [
+        .dockPreview, .dockClick, .windowMaximizer, .autoQuit,
+        .scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation,
+        .mouseButtonShortcuts, .middleClick, .keyboardDebounce, .mouseClickDebounce, .superKey,
+        .finderCutPaste,
+    ]
+
+    /// Installed features from that list whose switches are off and were never
+    /// saved on this Mac: installed, but not once turned on. A switch turned
+    /// on and back off is saved, so a feature someone used keeps its place.
+    static func neverSwitchedOn(isAvailable: (AppFeature) -> Bool,
+                                boolFor: (String) -> Bool,
+                                isSaved: (String) -> Bool) -> [AppFeature] {
+        offeredWhenNeverSwitchedOn.filter { feature in
+            isAvailable(feature)
+                && !feature.enabledKeys.isEmpty
+                && !feature.enabledKeys.contains(where: boolFor)
+                && !feature.enabledKeys.contains { isSaved($0) && !savedOnEveryMac.contains($0) }
+        }
+    }
+
+    /// Switches a launch migration saves on every Mac, the horizontal scroll
+    /// direction copying the vertical one, so a saved value there says
+    /// nothing about use. Only one that is on counts.
+    private static let savedOnEveryMac: Set<String> = [DefaultsKey.scrollInverterHorizontalEnabled]
+
+    /// Whether a Mac that never chose this feature has it installed. Most
+    /// people updating never saved an availability, so this list IS their
+    /// install: moving a feature out of it uninstalls it for all of them,
+    /// which is why a test pins it. The switch has no default on purpose, so
+    /// every new feature is placed here by decision. New features belong on
+    /// the opt-in side: an update should never grow the panel and Settings on
+    /// its own, and the Features page and release notes are where they get
+    /// installed. A feature split out of an existing one needs a migration
+    /// that copies its parent's availability instead.
+    var installedByDefault: Bool {
+        switch self {
+        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit,
+             .scrollInverter, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
+             .middleClick, .mouseClickDebounce, .keyboardDebounce, .textSnippets, .superKey,
+             .quitWindowProtection,
+             .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
+             .mixer, .soundOutputSwitcher, .micMute, .musicBlock,
+             .keepAwake, .brightness, .extraBrightness, .bluetoothSleep,
+             .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+             .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
+             .scratchpad, .commandBar, .screenRecorder,
+             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
+             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents,
+             .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
+             .connectedDevices:
+            return true
+        case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
+             .wallpaper, .killProcess, .portManager, .fanControl:
+            return false
+        }
+    }
+
+    /// Registered defaults keep every feature an update already had and leave
+    /// opt-in features and explicit betas uninstalled.
     static var availabilityDefaults: [String: Any] {
-        Dictionary(uniqueKeysWithValues: allCases.map {
-            ($0.availabilityKey,
-             $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                && $0 != .killProcess && $0 != .scrollHorizontal && $0 != .portManager)
-        })
+        Dictionary(uniqueKeysWithValues: allCases.map { ($0.availabilityKey, $0.installedByDefault) })
     }
 
     /// Features that are available, engaged and using `permission` right now.
@@ -408,6 +508,9 @@ extension AppFeature {
                         && boolFor(DefaultsKey.brightnessControlEnabled))
                     || (boolFor(DefaultsKey.notchClipboardWindow) && isAvailable(.clipboardHistory))
             case (.radialMenu, .accessibility):
+                if let profiles = dataFor(DefaultsKey.radialMenuProfiles) {
+                    return RadialMenuSupport.needsAccessibility(RadialMenuSupport.decodeProfiles(profiles))
+                }
                 return RadialMenuSupport.needsAccessibility(
                     RadialMenuSupport.decode(dataFor(DefaultsKey.radialMenuItems)))
                     || RadialMenuMouseTrigger.sanitized(
@@ -419,6 +522,7 @@ extension AppFeature {
             case (.brightness, .accessibility):
                 return boolFor(DefaultsKey.brightnessKeysEnabled)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)
+                    || BrightnessSupport.KeyStep.sanitized(stringFor(DefaultsKey.brightnessKeyStep)) != .standard
             case (.monitorCPU, .notifications):
                 return boolFor(DefaultsKey.monitorAlertCPU) || boolFor(DefaultsKey.monitorAlertCPUTemperature)
             case (.monitorMemory, .notifications):

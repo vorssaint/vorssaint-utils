@@ -12,8 +12,8 @@ enum NotchFileToolsTests {
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
         defer { defaults.removePersistentDomain(forName: domain) }
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchDownloadsEnabled] as? Bool == false,
-               "download observation is opt-in")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchDownloadsEnabled] as? Bool == true,
+               "installed downloads start enabled in the island")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchDownloadsEnabled),
                "the download preference is portable")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchDownloadsFolderBookmark),

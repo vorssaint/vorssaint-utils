@@ -18,6 +18,58 @@ enum ShelfFeatureTests {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
                          file: file, line: line)
         }
+        // MARK: Shelf shortcut Finder selection
+
+        do {
+            let file = URL(fileURLWithPath: "/tmp/a.txt")
+            let other = URL(fileURLWithPath: "/tmp/b.txt")
+
+            var requests = ShelfShortcutSelectionRequests()
+            let ticket = requests.begin()
+            suite.expect(requests.resolve(ticket, urls: [file], stillAllowed: true) == .add([file]),
+                   "a reply for the current shortcut press adds its Finder selection")
+            suite.expect(requests.resolve(ticket, urls: [file], stillAllowed: true) == .discard,
+                   "a reply is settled only once")
+
+            requests = ShelfShortcutSelectionRequests()
+            let empty = requests.begin()
+            suite.expect(requests.resolve(empty, urls: [], stillAllowed: true) == .toggle,
+                   "an empty Finder selection keeps the ordinary shortcut toggle")
+
+            requests = ShelfShortcutSelectionRequests()
+            let first = requests.begin()
+            let second = requests.begin()
+            suite.expect(requests.resolve(first, urls: [file], stillAllowed: true) == .discard,
+                   "a delayed reply from an earlier press is dropped once the shortcut was pressed again")
+            suite.expect(requests.resolve(second, urls: [other], stillAllowed: true) == .add([other]),
+                   "the latest press still receives its reply after an older one arrived late")
+
+            requests = ShelfShortcutSelectionRequests()
+            let beforeReset = requests.begin()
+            requests.invalidate()
+            suite.expect(!requests.hasPending
+                    && requests.resolve(beforeReset, urls: [file], stillAllowed: true) == .discard,
+                   "clearing or turning off the Shelf drops a reply that arrives afterwards")
+            suite.expect(requests.resolve(beforeReset, urls: [], stillAllowed: true) == .discard,
+                   "a dropped request cannot toggle the Shelf later either")
+
+            requests = ShelfShortcutSelectionRequests()
+            let disabled = requests.begin()
+            suite.expect(requests.resolve(disabled, urls: [file], stillAllowed: false) == .discard,
+                   "a reply is rechecked against the feature state when it arrives")
+            suite.expect(!requests.hasPending, "a rejected reply does not stay pending")
+
+            requests = ShelfShortcutSelectionRequests()
+            let again = requests.begin()
+            suite.expect(requests.resolve(again, urls: [file], stillAllowed: true,
+                                          shelvedPaths: [file.standardizedFileURL.path]) == .toggle,
+                   "pressing the shortcut again on files already shelved toggles the shelf instead of adding them twice")
+            let mixed = requests.begin()
+            suite.expect(requests.resolve(mixed, urls: [file, other], stillAllowed: true,
+                                          shelvedPaths: [file.standardizedFileURL.path]) == .add([other]),
+                   "only the selected files the shelf does not hold yet are added")
+        }
+
         // MARK: Shelf persistence
 
         suite.expect(ShelfSelectionSupport.rangeSelectionIDs(
@@ -72,27 +124,45 @@ enum ShelfFeatureTests {
         suite.expect(!ShelfInteractionSupport.shouldRemoveAfterDrag(
             dropAccepted: true, draggedItemCount: 1, removeAfterDrop: false),
                "shelf retains an accepted item when automatic removal is off")
+        let pinnedDragID = UUID(), looseDragID = UUID()
+        suite.expect(ShelfInteractionSupport.removableAfterDrag([pinnedDragID, looseDragID],
+                                                                protectedIDs: [pinnedDragID]) == [looseDragID],
+               "a pinned shelf item stays after a drag-out while the rest of the drag leaves")
+        suite.expect(ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: true, dragIncludesPinned: false)
+                && !ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: true, dragIncludesPinned: true)
+                && !ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: false, dragIncludesPinned: false),
+               "a drag holding a pinned shelf item only offers a copy outside the app")
 
         suite.expect(!ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 5, beganInDock: false,
+            gestureChangeCount: 5, restingChangeCount: 5, changeCount: 5, beganInDock: false,
             hasDroppableContent: { true }),
                "moving a window past retained pasteboard content is not a content drag")
         suite.expect(!ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 6, beganInDock: false,
+            gestureChangeCount: 5, restingChangeCount: 5, changeCount: 6, beganInDock: false,
             hasDroppableContent: { false }),
                "a pasteboard bump without droppable content is not a content drag")
         suite.expect(ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 6, beganInDock: false,
+            gestureChangeCount: 5, restingChangeCount: 5, changeCount: 6, beganInDock: false,
             hasDroppableContent: { true }),
                "content published during the gesture is a content drag")
         suite.expect(ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 5, beganInDock: true,
+            gestureChangeCount: 6, restingChangeCount: 5, changeCount: 6, beganInDock: true,
             hasDroppableContent: { true }),
-               "dock stacks may publish the drag contents before the mouse-down")
+               "a Dock stack drag published before the mouse-down was seen is a content drag")
         suite.expect(!ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: 5, changeCount: 5, beganInDock: false,
-            hasDroppableContent: { fatalError("droppable check must stay lazy") }),
-               "an unchanged pasteboard outside the Dock skips the content inspection")
+            gestureChangeCount: 5, restingChangeCount: 5, changeCount: 5, beganInDock: true,
+            hasDroppableContent: { true }),
+               "holding or dragging a Dock icon over retained content is not a content drag (#2212)")
+        suite.expect(!ShelfInteractionSupport.isContentDrag(
+            gestureChangeCount: 6, restingChangeCount: 5, changeCount: 6, beganInDock: false,
+            hasDroppableContent: { true }),
+               "outside the Dock, content published before the gesture began is not a content drag")
+        for beganInDock in [false, true] {
+            suite.expect(!ShelfInteractionSupport.isContentDrag(
+                gestureChangeCount: 5, restingChangeCount: 5, changeCount: 5, beganInDock: beganInDock,
+                hasDroppableContent: { fatalError("droppable check must stay lazy") }),
+                   "an unchanged pasteboard skips the content inspection (Dock: \(beganInDock))")
+        }
 
         // MARK: Shelf pasteboard / file promises (#1554)
         // Promises must activate the shelf before a concrete file exists.
@@ -110,6 +180,12 @@ enum ShelfFeatureTests {
             suite.expect(ShelfPasteboardSupport.isFilePromiseType(type),
                    "NSFilePromiseReceiver type \(type) is recognized as a file promise")
         }
+        // Pasteboard: text (0), promise with two files (1), link (2), and a
+        // receiver with no promised item behind it.
+        let mixedDropOrder = ShelfPasteboardSupport.mergedItemIndices(
+            companionPositions: [0, 2], receiverIndices: [0, 0, 1], promisePositions: [1])
+        suite.expect(mixedDropOrder == [0, 2, 3, 1, 4],
+               "a mixed drop keeps promised files where they were dropped (got \(mixedDropOrder))")
         suite.expect(!ShelfPasteboardSupport.isFilePromiseType("public.file-url"),
                "ordinary file URLs are not classified as file promises")
         suite.expect(ShelfPasteboardSupport.isDroppablePasteboardType(
@@ -234,6 +310,13 @@ enum ShelfFeatureTests {
                && ShelfTileLayout.sidewaysTileFrame(index: 3, rows: 1, tileSize: revealTile, spacing: 10, inset: 4)
                == CGRect(x: 268, y: 4, width: 78, height: 88),
                "a sideways shelf fills each column top to bottom before starting the next")
+        suite.expect(ShelfTileLayout.sidewaysDocumentSize(itemCount: 3, rows: 1, visibleSize: .zero,
+                                                          tileSize: revealTile, spacing: 10, inset: 4)
+               == CGSize(width: 262, height: 96)
+               && ShelfTileLayout.sidewaysDocumentSize(itemCount: 3, rows: 2, visibleSize: CGSize(width: 424, height: 240),
+                                                       tileSize: revealTile, spacing: 10, inset: 4)
+               == CGSize(width: 424, height: 240),
+               "a sideways strip laid out before it has a size still covers its tiles, and fills the visible area once it has one")
 
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
@@ -341,6 +424,51 @@ enum ShelfFeatureTests {
         suite.expect(ShelfDockDragSupport.triggerFrame(pillFrame: nil, anchorFrame: nil, screenFrame: testScreen) == nil,
                "trigger frame returns nil when neither pill nor anchor is available")
 
+        // MARK: Shelf dock placement
+
+        let placementDomain = "com.vorssaint.tests.shelf-dock-placement"
+        let placementDefaults = UserDefaults(suiteName: placementDomain)!
+        placementDefaults.removePersistentDomain(forName: placementDomain)
+        defer { placementDefaults.removePersistentDomain(forName: placementDomain) }
+        for (key, value) in AppFeature.availabilityDefaults { placementDefaults.set(value, forKey: key) }
+        placementDefaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(ShelfDockPlacement.current(in: placementDefaults) == .menuBar,
+                     "an unset placement keeps the shelf under the menu bar icon")
+        placementDefaults.set("elsewhere", forKey: DefaultsKey.shelfDockPlacement)
+        suite.expect(ShelfDockPlacement.current(in: placementDefaults) == .menuBar,
+                     "an unknown placement falls back to the menu bar icon")
+        placementDefaults.set(ShelfDockPlacement.topCenter.rawValue, forKey: DefaultsKey.shelfDockPlacement)
+        suite.expect(ShelfDockPlacement.current(in: placementDefaults) == .topCenter,
+                     "the top center placement applies while the Dynamic Island is off")
+        placementDefaults.set(true, forKey: DefaultsKey.notchEnabled)
+        suite.expect(NotchSupport.isEnabled(in: placementDefaults)
+                     && ShelfDockPlacement.current(in: placementDefaults) == .menuBar,
+                     "the Dynamic Island keeps the top center, so the shelf stays under the icon")
+
+        let dockVisible = CGRect(x: 0, y: 0, width: 1512, height: 950)
+        let badgeSize = CGSize(width: 180, height: 40)
+        let dockAnchor = CGRect(x: 1200, y: 954, width: 28, height: 28)
+        let underIcon = ShelfDockPlacement.menuBar.frame(size: badgeSize, visible: dockVisible, safeTop: 950, anchor: dockAnchor)
+        suite.expect(underIcon == CGRect(x: 1124, y: 906, width: 180, height: 40),
+                     "menu bar placement centers under the icon, got \(underIcon)")
+        let topCenter = ShelfDockPlacement.topCenter.frame(size: badgeSize, visible: dockVisible, safeTop: 950, anchor: dockAnchor)
+        suite.expect(topCenter == CGRect(x: 666, y: 906, width: 180, height: 40),
+                     "top center placement ignores the icon and centers on the screen, got \(topCenter)")
+        let noIcon = ShelfDockPlacement.menuBar.frame(size: badgeSize, visible: dockVisible, safeTop: 950, anchor: nil)
+        suite.expect(noIcon.minX == 1320, "without an icon the menu bar placement keeps the right corner, got \(noIcon)")
+        let edgeIcon = ShelfDockPlacement.menuBar.frame(size: badgeSize, visible: dockVisible, safeTop: 950,
+                                                        anchor: CGRect(x: 1500, y: 954, width: 28, height: 28))
+        suite.expect(edgeIcon.maxX == 1504, "an icon at the edge is clamped on screen, got \(edgeIcon)")
+        // Full screen or a hidden menu bar: the visible frame reaches the top of
+        // a notched 982-point screen whose safe area starts 32 points down.
+        let fullVisible = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let notchedBadge = ShelfDockPlacement.topCenter.frame(size: badgeSize, visible: fullVisible, safeTop: 950,
+                                                              anchor: dockAnchor)
+        suite.expect(notchedBadge.maxY == 950, "the top center badge stays below the notch, got \(notchedBadge)")
+        let fullPill = ShelfDockPlacement.menuBar.frame(size: badgeSize, visible: fullVisible, safeTop: 950,
+                                                        anchor: dockAnchor)
+        suite.expect(fullPill.maxY == 978, "the pill under the icon keeps its place, got \(fullPill)")
+
         suite.expect(ShelfDockDragSupport.isPointNearDock(point: CGPoint(x: 1200, y: 930),
                                                    isProximate: false,
                                                    panelFrame: testPill,
@@ -436,12 +564,25 @@ enum ShelfFeatureTests {
         // and read with nothing else complaining.
         let shelfFullItem = ShelfPersistedItem(id: UUID(), kind: .file, title: "t", text: "x",
                                                url: "https://example.com/u", path: "/tmp/p",
-                                               bookmark: Data([1]), children: [])
+                                               bookmark: Data([1]), children: [], pinned: true)
         let shelfFullRound = (try? JSONEncoder().encode(shelfFullItem))
             .flatMap { try? JSONDecoder().decode(ShelfPersistedItem.self, from: $0) }
         suite.expect(shelfFullRound == shelfFullItem,
                "every persisted shelf field survives an encode and decode round trip")
 
+        suite.expect(ShelfPersistedItem(id: UUID(), kind: .text, title: "t", text: "t", pinned: false).pinned == nil
+                && (try? JSONDecoder().decode(ShelfPersistedItem.self,
+                                              from: Data(#"{"kind":"text","text":"t"}"#.utf8)))?.pinned == nil,
+               "an unpinned shelf item and a store written before pins both read as unpinned")
+        let pinnedShelfText = ShelfPersistedItem(id: UUID(), kind: .text, title: "Hello",
+                                                 text: "Hello world", pinned: true)
+        suite.expect(ShelfPersistenceSupport.sanitized([pinnedShelfText]) { _ in true } == [pinnedShelfText],
+               "a pinned shelf item keeps its pin through restore")
+        let pinnedShelfBatch = ShelfPersistedItem(id: UUID(), kind: .batch, title: "batch",
+                                                  children: [shelfFile, shelfText], pinned: true)
+        suite.expect(ShelfPersistenceSupport.sanitized([pinnedShelfBatch]) { _ in true } == [pinnedShelfBatch]
+                && ShelfPersistenceSupport.sanitized([pinnedShelfBatch]) { _ in false }.first?.pinned == true,
+               "a pinned shelf pile keeps its pin, and passes it to the item it collapses to")
         suite.expect(ShelfPersistenceSupport.sanitized([shelfFile, shelfText, shelfLink]) { _ in true }
                    == [shelfFile, shelfText, shelfLink],
                "healthy shelf items pass sanitizing untouched")
@@ -576,7 +717,7 @@ enum ShelfFeatureTests {
                                                  notePlural: "%d notes",
                                                  linkSingular: "%d link", linkFew: "%d links",
                                                  linkPlural: "%d links",
-                                                 usesFewForm: false)
+                                                 agreement: .oneAndMany)
         // Russian agrees a noun with the number in front of it three ways, and
         // the rule is the number's last digits, not its size: 1 and 21 take the
         // first, 2 and 22 the middle, 11 and 25 the last. A two-way choice put
@@ -590,7 +731,7 @@ enum ShelfFeatureTests {
                                                 notePlural: "many",
                                                 linkSingular: "one", linkFew: "few",
                                                 linkPlural: "many",
-                                                usesFewForm: true)
+                                                agreement: .byLastDigits)
         for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
                                 (11, .many), (12, .many), (14, .many), (15, .many),
                                 (21, .one), (22, .few), (25, .many), (101, .one), (111, .many)] {
@@ -602,8 +743,31 @@ enum ShelfFeatureTests {
             suite.expect(tooltipStrings.form(for: count) == wanted,
                    "a language without a middle form still only chooses between one and many at \(count)")
         }
-        suite.expect(AppLanguage.allCases.filter(\.usesFewCountForm) == [.ru],
-               "Russian is the one language of the thirteen that asks for the middle form")
+        // Slovak has the same three forms but reads the whole number, not its
+        // last digits: 21 and 22 stay with the last form, where Russian moves
+        // them back to the first and the middle. Borrowing the Russian rule
+        // put "21 súbor" and "22 súbory" on screen.
+        let slovakStrings = ShelfTooltipStrings(itemsFormat: "many", itemsFew: "few",
+                                                imageSingular: "one", imageFew: "few",
+                                                imagePlural: "many",
+                                                fileSingular: "one", fileFew: "few",
+                                                filePlural: "many",
+                                                noteSingular: "one", noteFew: "few",
+                                                notePlural: "many",
+                                                linkSingular: "one", linkFew: "few",
+                                                linkPlural: "many",
+                                                agreement: .byWholeNumber)
+        for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
+                                (11, .many), (14, .many), (21, .many), (22, .many),
+                                (25, .many), (101, .many), (111, .many)] {
+            suite.expect(slovakStrings.form(for: count) == wanted,
+                   "a language that reads the whole number asks for the right form at \(count)")
+        }
+        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .uk]
+               && AppLanguage.ru.countAgreement == .byLastDigits
+               && AppLanguage.uk.countAgreement == .byLastDigits
+               && AppLanguage.sk.countAgreement == .byWholeNumber,
+               "Russian, Slovak and Ukrainian are the three languages of the fifteen that ask for the middle form, each by its own rule")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",
@@ -736,5 +900,19 @@ enum ShelfFeatureTests {
                 && pastRestoreGuard[1].contains("sweepOwnedFiles("),
                "restore sweeps the shelf's payload files only for a store it read whole")
 
+        // Dragging selected text brings the Shelf's pill in. A window a tiling
+        // window manager tracks would list this app on the current space.
+        let overlay = OverlayPanel(contentRect: CGRect(x: 0, y: 0, width: 200, height: 40),
+                                   styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        suite.expect(overlay.accessibilitySubrole() == .unknown,
+               "a floating overlay describes itself as an undescribed window, so window managers skip it")
+        suite.expect(overlay.accessibilityRole() == .window && overlay.isAccessibilityElement(),
+               "a floating overlay stays an accessible window for assistive technology")
+        let tooltipSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Shelf/ShelfTooltipPopover.swift", encoding: .utf8)) ?? ""
+        suite.expect(shelfServiceSource.contains("class KeyableShelfPanel: OverlayPanel")
+                && !shelfServiceSource.contains("NSPanel(contentRect")
+                && tooltipSource.contains("OverlayPanel(contentRect") && !tooltipSource.contains("NSPanel(contentRect"),
+               "every Shelf window, the pill, card, edge peek and item tooltip, is a floating overlay")
     }
 }

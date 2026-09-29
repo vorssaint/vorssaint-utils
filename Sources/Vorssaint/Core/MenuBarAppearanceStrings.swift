@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -32,6 +33,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -100,6 +102,19 @@ extension MenuBarAppearanceStrings {
         highColor: "Color alto",
         mediumFrom: "Medio desde",
         highFrom: "Alto desde"
+    )
+
+    static let sk = MenuBarAppearanceStrings(
+        label: "Zobrazenie vyťaženia",
+        values: "Hodnoty",
+        bars: "Pruhy",
+        caption: "Pruhy platia pre vyťaženie CPU, GPU, pamäte a disku. Ostatné hodnoty zostávajú číselné.",
+        customize: "Farby a limity pruhov",
+        normalColor: "Bežná farba",
+        mediumColor: "Stredná farba",
+        highColor: "Vysoká farba",
+        mediumFrom: "Stredná od",
+        highFrom: "Vysoká od"
     )
 
     static let de = MenuBarAppearanceStrings(
@@ -204,5 +219,17 @@ extension MenuBarAppearanceStrings {
         highColor: "高負載顏色",
         mediumFrom: "中等起點",
         highFrom: "高負載起點"
+    )
+    static let uk = MenuBarAppearanceStrings(
+        label: "Відображення використання",
+        values: "Значення",
+        bars: "Смуги",
+        caption: "Смуги застосовуються до використання CPU, GPU, пам’яті та диска. Інші показники залишаються числовими.",
+        customize: "Кольори та ліміти смуг",
+        normalColor: "Звичайний колір",
+        mediumColor: "Середній колір",
+        highColor: "Високий колір",
+        mediumFrom: "Середній від",
+        highFrom: "Високий від"
     )
 }

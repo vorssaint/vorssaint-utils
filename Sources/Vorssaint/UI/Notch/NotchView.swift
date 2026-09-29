@@ -10,7 +10,7 @@ struct NotchView: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
-    @AppStorage(DefaultsKey.liquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -57,13 +57,17 @@ struct NotchView: View {
     }
 
     private var shape: NotchShape {
-        NotchShape(attached: true,
-                   radius: NotchLayout.surfaceRadius(height: service.surfaceSize.height))
+        NotchShape.island(height: service.surfaceSize.height, geometry: service.geometry)
     }
 
     @ViewBuilder private var surface: some View {
-        if let options = service.captureControls {
-            if service.captureControlsCollapsed {
+        if service.fullscreenCompact {
+            Color.clear.accessibilityHidden(true)
+        } else if let options = service.captureControls {
+            if service.captureControlsCollapsed, floats {
+                NotchCapsuleCaptureStrip(symbol: options.selectedTool.systemImageName, geometry: service.geometry,
+                                         size: service.surfaceSize)
+            } else if service.captureControlsCollapsed {
                 HStack(spacing: 0) {
                     Image(systemName: options.selectedTool.systemImageName).frame(width: 28)
                     Color.clear.frame(width: service.geometry.cameraWidth)
@@ -73,8 +77,7 @@ struct NotchView: View {
                 .frame(maxHeight: .infinity)
                 .accessibilityHidden(true)
             } else {
-                NotchCaptureControlsView(options: options, service: service)
-                    .padding(.horizontal, 18).padding(.top, service.geometry.safeContentTop)
+                NotchCaptureControlsView(options: options, service: service, layout: service.captureControlsLayout)
             }
         } else if service.expanded {
             expanded
@@ -90,7 +93,7 @@ struct NotchView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, service.geometry.safeContentTop)
-        } else if let notice = service.notice {
+        } else if let notice = service.notice ?? (service.peeking ? nil : service.departingNotice) {
             if service.noticeExpanded, let content = notice.notification {
                 NotchNotificationPreviewView(notice: notice, content: content, service: service)
                     .padding(.horizontal, NotchLayout.horizontalInset)
@@ -101,8 +104,17 @@ struct NotchView: View {
                 Button {
                     service.activateNotice(notice)
                 } label: {
-                    NotchNoticeView(notice: notice, geometry: service.geometry)
-                        .contentShape(Rectangle())
+                    Group {
+                        if floats {
+                            // A departing notice keeps its own row while the capsule closes.
+                            NotchCapsuleNoticeView(notice: notice, geometry: service.geometry,
+                                                   size: service.notice == nil ? service.capsuleNoticeSurface(notice)
+                                                       : service.surfaceSize)
+                        } else {
+                            NotchNoticeView(notice: notice, geometry: service.geometry)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .ignore)
@@ -120,71 +132,68 @@ struct NotchView: View {
             }
             .padding(.horizontal, NotchLayout.horizontalInset).padding(.top, service.geometry.safeContentTop)
         } else if let activity = service.compactActivity {
-            switch activity {
-            case .timer: NotchTimerStrip(service: service)
-            case .downloads: NotchDownloadStrip(service: service)
-            case .agents: NotchAgentStrip(service: service)
-            case .music: NotchMusicStrip(service: service)
+            if service.showsCompactActivityPicker {
+                let layout = service.compactActivityPickerLayout
+                VStack(spacing: 0) {
+                    let strip = service.compactStripSize(for: activity, companion: service.compactCompanion)
+                    activityStrip(activity, size: strip)
+                        .frame(width: strip.width, height: layout.headerHeight, alignment: .top)
+                    NotchActivityPicker(activities: service.compactActivities, selected: activity,
+                                        combinations: service.compactActivityCombinations,
+                                        combination: service.compactCompanion.map {
+                                            NotchActivityCombination(primary: activity, companion: $0)
+                                        },
+                                        columns: layout.columns, language: l10n.language,
+                                        select: service.selectCompactActivity, combine: service.selectCompactCombination)
+                        .padding(.horizontal, NotchActivityPickerLayout.horizontalInset)
+                        .padding(.vertical, NotchActivityPickerLayout.verticalInset)
+                }
+            } else {
+                activityStrip(activity, size: service.surfaceSize)
             }
+        } else if let departingMusic = service.departingMusic {
+            Group {
+                if floats { NotchCapsuleMusicStrip(service: service, snapshot: departingMusic) }
+                else { NotchMusicStrip(service: service, snapshot: departingMusic) }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        } else if floats {
+            NotchCapsuleRestingView(service: service, size: service.surfaceSize)
+                .transition(.opacity)
         } else {
             compact
                 .transition(.opacity)
         }
     }
 
-    /// Centre battery content inside the wing's visible area, past its curved shoulder.
-    private var restingBatteryInset: CGFloat {
-        // Leave enough of the 44-point wing for the full 100% label at every height.
-        min(16, NotchLayout.shoulder(height: service.geometry.stripHeight) + NotchLayout.compactEdgeGap)
+    /// The island floats as a capsule, whose strips run end to end.
+    private var floats: Bool { service.geometry.floats }
+
+    /// `size` is the capsule's; a hanging strip keeps the camera's geometry.
+    @ViewBuilder private func activityStrip(_ activity: NotchCompactActivity, size: CGSize) -> some View {
+        if floats {
+            switch activity {
+            case .timer: NotchCapsuleTimerStrip(service: service, size: size)
+            case .downloads: NotchCapsuleDownloadStrip(service: service, size: size)
+            case .agents: NotchCapsuleAgentStrip(service: service, size: size)
+            case .calendar: NotchCapsuleCalendarStrip(service: service, size: size)
+            case .music: NotchCapsuleMusicStrip(service: service, size: size)
+            case .keepAwake: NotchCapsuleKeepAwakeStrip(service: service, size: size)
+            }
+        } else {
+            switch activity {
+            case .timer: NotchTimerStrip(service: service)
+            case .downloads: NotchDownloadStrip(service: service)
+            case .agents: NotchAgentStrip(service: service)
+            case .calendar: NotchCalendarStrip(service: service)
+            case .music: NotchMusicStrip(service: service)
+            case .keepAwake: NotchKeepAwakeStrip(service: service)
+            }
+        }
     }
 
-    private var compact: some View {
-        HStack(spacing: 0) {
-            if service.idleContent != .none, service.geometry.restingWingWidth > 0 {
-                Group {
-                    switch service.idleContent {
-                    case .music:
-                        if let artwork = music.artwork {
-                            Image(nsImage: artwork).resizable().scaledToFill()
-                                .frame(width: min(22, service.geometry.stripHeight - 6), height: min(22, service.geometry.stripHeight - 6))
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
-                        }
-                    case .battery:
-                        Image(systemName: "battery.100percent").font(.system(size: 12))
-                            .padding(.leading, restingBatteryInset)
-                    case .agents:
-                        NotchAgentRestingWing(leading: true)
-                            .padding(.leading, restingBatteryInset)
-                    case .none: EmptyView()
-                    }
-                }.frame(width: service.geometry.restingWingWidth, alignment: .trailing)
-                Color.clear.frame(width: service.geometry.cameraWidth)
-                Group {
-                    switch service.idleContent {
-                    case .music:
-                        if music.playback?.isPlaying == true {
-                            NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
-                                                   tint: music.artworkTint?.color ?? .white)
-                        }
-                    case .battery:
-                        if let percent = service.power.chargePercent {
-                            Text("\(percent)%").font(.system(size: 9, weight: .medium)).monospacedDigit()
-                                .lineLimit(1)
-                                .padding(.trailing, restingBatteryInset)
-                        }
-                    case .agents:
-                        NotchAgentRestingWing(leading: false)
-                            .padding(.trailing, restingBatteryInset)
-                    case .none: EmptyView()
-                    }
-                }.frame(width: service.geometry.restingWingWidth, alignment: .leading)
-            } else { Color.clear }
-        }
-        .foregroundStyle(.white.opacity(0.9))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .accessibilityHidden(true)
-    }
+    private var compact: some View { NotchRestingStrip(service: service) }
 
     private var showsDetail: Bool { service.showingAppPanel || service.selectedMetric != nil }
 
@@ -275,6 +284,11 @@ struct NotchView: View {
         return notice
     }
 
+    /// The fan card opens Fan Control, so its page shares that title.
+    private func detailTitle(_ metric: MetricDetailKind) -> String {
+        metric == .fan ? FeatureStrings.fanControl(l10n.language).title : metric.title(l10n.s)
+    }
+
     private var header: some View {
         HStack(spacing: service.expandedGeometry.headerCameraGap > 0 ? 0 : 6) {
             let quickActions = NotchQuickAccessConfiguration.current().actions
@@ -287,14 +301,17 @@ struct NotchView: View {
                             .lineLimit(1)
                             .layoutPriority(-1)
                     }
-                    NotchSectionSearch(service: service, maximumFieldWidth: service.expandedGeometry.headerCameraGap > 0
-                                       ? max(24, (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 - 100) : 150)
+                    // Beside the camera the field takes the rest of its side,
+                    // stopping a little short of the cutout.
+                    NotchSectionSearch(service: service,
+                                       maximumFieldWidth: service.expandedGeometry.headerCameraGap > 0 ? .infinity : 150)
+                        .padding(.trailing, service.expandedGeometry.headerCameraGap > 0 ? 6 : 0)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if showsDetail || service.modules.isEmpty {
                     if showsDetail {
                         NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.goBack)
                     }
-                    Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric?.title(l10n.s) ?? text.title)
+                    Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric.map(detailTitle) ?? text.title)
                         .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -351,6 +368,13 @@ struct NotchView: View {
         .onDisappear { headerHovered = false }
     }
 
+    /// The island's history page shows only the cards, so its clear action
+    /// sits in the header, where the panel's own header keeps it.
+    private var showsCapturesClear: Bool {
+        service.selected == .captures && service.captureContent == nil && !showsDetail
+            && !service.showingSections && !service.modules.isEmpty
+    }
+
     private var cameraHeaderActions: some View {
         ViewThatFits(in: .horizontal) {
             cameraHeaderActions(compactUpdate: false).fixedSize(horizontal: true, vertical: false)
@@ -365,6 +389,7 @@ struct NotchView: View {
                 if service.selected == .tools, !showsDetail, !service.showingSections, launcher.activeUtility == nil {
                     Button(text.customizeTools) { launcher.isEditing.toggle() }
                 }
+                if showsCapturesClear { NotchClearCapturesButton(inMenu: true) }
                 Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
                 Button(l10n.s.menuSettings, action: service.openSettings)
                 Button(text.collapse, action: service.collapse)
@@ -395,6 +420,7 @@ struct NotchView: View {
                     withAnimation(.easeOut(duration: 0.15)) { launcher.isEditing.toggle() }
                 }
             }
+            if showsCapturesClear { NotchClearCapturesButton() }
             // Keeping the island open is one click, like the floating buttons;
             // a header button steps aside when the same action floats beside it.
             if !quickActions.contains(.pin) {
@@ -435,13 +461,19 @@ struct NotchView: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: revealed)
     }
 
+    private var navigationTitle: String {
+        let destination = service.reopeningDestination
+        return destination.appPanel || destination.sections
+            ? text.sectionsTitle : destination.module.title(l10n.language)
+    }
+
     private var navigation: some View {
         Button(action: service.toggleSections) {
             HStack(spacing: 9) {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white.opacity(0.7))
-                Text(service.reopeningModule.title(l10n.language))
+                Text(navigationTitle)
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
             }
@@ -451,7 +483,7 @@ struct NotchView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
         .accessibilityLabel(text.switchSection)
-        .accessibilityValue(service.reopeningModule.title(l10n.language))
+        .accessibilityValue(navigationTitle)
         .accessibilityIdentifier("notch.navigation")
         .help(text.switchSection + "  ⌘K")
     }
@@ -460,7 +492,12 @@ struct NotchView: View {
         if service.showingAppPanel {
             MenuPanelView(notchSize: pageSize)
         } else if let metric = service.selectedMetric {
-            MetricDetailView(kind: metric)
+            if metric == .fan {
+                NotchFanControlView()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { service.updateFanDetailHeight($0) }
+            } else {
+                MetricDetailView(kind: metric)
+            }
         } else if service.modules.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: text.empty)
         } else {
@@ -491,6 +528,34 @@ struct NotchView: View {
     }
 }
 
+/// Observes the history on its own, so a new capture does not redraw the island.
+private struct NotchClearCapturesButton: View {
+    var inMenu = false
+    @ObservedObject private var history = RecentCaptureService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let title = FeatureStrings.recentCaptures(l10n.language).clear
+        let empty = RecentCapturesView.visible(history.entries).isEmpty
+        if inMenu {
+            Button(title, role: .destructive, action: RecentCapturesView.confirmClearAboveIsland)
+                .disabled(empty)
+        } else {
+            NotchIconButton(symbol: "trash", title: title, action: RecentCapturesView.confirmClearAboveIsland)
+                .disabled(empty)
+        }
+    }
+}
+
+/// Read-only RPM telemetry stays available when the protected fan helper fails.
+private struct NotchFanControlView: View {
+    @ObservedObject private var monitor = SystemMonitor.shared
+
+    var body: some View {
+        FanControlSection(collapsible: false, fallbackFanSpeeds: monitor.snapshot.fanSpeeds)
+    }
+}
+
 private extension UpdateService.State {
     /// A download or install stays in view; an offer waits behind the dot.
     var isInProgress: Bool {
@@ -501,16 +566,90 @@ private extension UpdateService.State {
     }
 }
 
+/// The closed island at rest beside a camera: the wings with the charge,
+/// the song or the AI allowance the person chose, when the menus leave room.
+struct NotchRestingStrip: View {
+    @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var music = NotchMusicService.shared
+
+    private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
+
+    /// Centre battery content inside the wing's visible area, past its curved shoulder.
+    private var restingBatteryInset: CGFloat {
+        // Leave enough of the 44-point wing for the full 100% label at every height.
+        min(16, NotchLayout.shoulder(height: geometry.stripHeight) + NotchLayout.compactEdgeGap)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if service.idleContent != .none, geometry.restingWingWidth > 0 {
+                Group {
+                    switch service.idleContent {
+                    case .music:
+                        if let artwork = music.artwork {
+                            Image(nsImage: artwork).resizable().scaledToFill()
+                                .frame(width: min(22, geometry.stripHeight - 6), height: min(22, geometry.stripHeight - 6))
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                    case .battery:
+                        Image(systemName: "battery.100percent").font(.system(size: 12))
+                            .padding(.leading, restingBatteryInset)
+                    case .agents:
+                        NotchAgentRestingWing(leading: true)
+                            .padding(.leading, restingBatteryInset)
+                    case .none: EmptyView()
+                    }
+                }.frame(width: geometry.restingWingWidth, alignment: .trailing)
+                Color.clear.frame(width: geometry.cameraWidth)
+                Group {
+                    switch service.idleContent {
+                    case .music:
+                        if music.playback?.isPlaying == true {
+                            NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
+                                                   tint: music.artworkTint?.color ?? .white)
+                        }
+                    case .battery:
+                        if let percent = service.power.chargePercent {
+                            Text("\(percent)%").font(.system(size: 9, weight: .medium)).monospacedDigit()
+                                .lineLimit(1)
+                                .padding(.trailing, restingBatteryInset)
+                        }
+                    case .agents:
+                        NotchAgentRestingWing(leading: false)
+                            .padding(.trailing, restingBatteryInset)
+                    case .none: EmptyView()
+                    }
+                }.frame(width: geometry.restingWingWidth, alignment: .leading)
+            } else { Color.clear }
+        }
+        .foregroundStyle(.white.opacity(0.9))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .accessibilityHidden(true)
+    }
+}
+
 struct NotchShape: Shape {
     var attached: Bool
     var radius: CGFloat
+    /// A capsule floating this far inside the top and bottom of the rect,
+    /// with its own corners, instead of the outline hanging from the edge.
+    var floatingGap: CGFloat? = nil
     var animatableData: CGFloat {
         get { radius }
         set { radius = newValue }
     }
 
+    /// The island's outline at a surface of `height`, as its display draws it.
+    static func island(height: CGFloat, geometry: NotchGeometry) -> NotchShape {
+        NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: height), floatingGap: geometry.floatingGap)
+    }
+
     func path(in rect: CGRect) -> Path {
         guard attached else { return Path(roundedRect: rect, cornerRadius: radius) }
+        if let floatingGap { return Path(NotchLayout.capsulePath(in: rect, gap: floatingGap)) }
         let shoulder = NotchLayout.shoulder(height: rect.height)
         let bottom = min(radius, rect.height / 2, (rect.width - shoulder * 2) / 2)
         let tangent: CGFloat = 0.55228475
@@ -570,5 +709,69 @@ private struct NotchPageClip: Shape {
         Path(CGRect(x: rect.minX - NotchLayout.horizontalInset, y: rect.minY - top,
                     width: rect.width + NotchLayout.horizontalInset * 2,
                     height: rect.height + top + NotchLayout.bottomInset))
+    }
+}
+
+/// Named choices appear below the camera, with the current activity highlighted.
+struct NotchActivityPicker: View {
+    let activities: [NotchCompactActivity]
+    let selected: NotchCompactActivity
+    let combinations: [NotchActivityCombination]
+    let combination: NotchActivityCombination?
+    let columns: Int
+    let language: AppLanguage
+    let select: (NotchCompactActivity) -> Void
+    let combine: (NotchActivityCombination) -> Void
+
+    var body: some View {
+        VStack(spacing: NotchActivityPickerLayout.spacing) {
+            individualChoices
+            if !combinations.isEmpty {
+                Menu {
+                    ForEach(combinations) { pair in
+                        Button { combine(pair) } label: {
+                            Label(pair.title(language),
+                                  systemImage: combination == pair ? "checkmark" : pair.companion.symbol)
+                        }
+                    }
+                } label: {
+                    Label(combination?.title(language) ?? FeatureStrings.notch(language).combineActivities,
+                          systemImage: combination == nil ? "plus" : "checkmark")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(combination == nil ? 0.75 : 1))
+                        .frame(height: NotchActivityPickerLayout.combinationHeight)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityIdentifier("notch.activity.combine")
+            }
+        }
+    }
+
+    private var individualChoices: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NotchActivityPickerLayout.spacing),
+                                 count: columns), spacing: NotchActivityPickerLayout.spacing) {
+            ForEach(activities) { activity in
+                let chosen = activity == selected && combination == nil
+                Button { select(activity) } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: activity.symbol)
+                        Text(activity.title(language)).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: NotchActivityPickerLayout.rowHeight)
+                    .foregroundStyle(chosen ? Color.black : Color.white)
+                    .background(chosen ? Color.white : Color.white.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 8))
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(activity.title(language))
+                .accessibilityAddTraits(chosen ? .isSelected : [])
+                .accessibilityIdentifier("notch.activity.\(activity.rawValue)")
+            }
+        }
     }
 }

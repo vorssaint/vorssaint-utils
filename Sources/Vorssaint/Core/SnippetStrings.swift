@@ -82,6 +82,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -90,6 +91,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -161,6 +163,73 @@ extension SnippetFeatureStrings {
         soundCaption: "입력한 트리거가 확장될 때마다 짧은 시스템 소리가 재생됩니다.",
         soundPickerLabel: "소리",
         soundUnavailable: "사용할 수 없는 소리"
+    )
+    static let uk = SnippetFeatureStrings(
+        pageTitle: "Текстові сніпети",
+        hubDescription: "Короткі тригери розгортаються в повний текст",
+        enable: "Розгортати сніпети під час набору",
+        enableCaption: "Введіть тригер будь-де, і він стане своїм текстом. Все залишається на цьому Mac.",
+        addButton: "Додати сніпет",
+        newTitle: "Новий сніпет",
+        editTitle: "Редагувати сніпет",
+        nameLabel: "Назва",
+        namePlaceholder: "Особистий email",
+        triggerLabel: "Тригер",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Текст",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "Розгорнути",
+        expansionImmediate: "Одразу",
+        expansionDelimiter: "Після пробілу, Tab або Return",
+        variablesHint: "Змінні: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Вони стають датою, часом та скопійованим текстом у момент розгортання.",
+        emptyList: "Ще немає сніпетів. Додайте перший.",
+        duplicateTrigger: "Інший сніпет уже використовує цей тригер.",
+        triggerTooShort: "Тригер має містити щонайменше 2 символи.",
+        deleteButton: "Видалити",
+        saveButton: "Зберегти",
+        manageButton: "Керувати сніпетами",
+        ignoreCaseLabel: "Ігнорувати регістр",
+        libraryTitle: "Швидке меню сніпетів",
+        libraryToggle: "Відкривати сніпети з меню",
+        libraryCaption: "Клавіатурне скорочення відкриває меню з пошуком. Вибір сніпета друкує його прямо там, де ваш курсор.",
+        librarySearchPlaceholder: "Шукати сніпети",
+        libraryNoResults: "Жоден сніпет не відповідає пошуку.",
+        libraryEmpty: "Поки нічого показувати. Додайте сніпети або увімкніть «Показувати в швидкому меню» для тих, що використовуєте найчастіше.",
+        libraryFooterHint: "↩ вставляє · esc закриває",
+        folderLabel: "Папка",
+        folderPlaceholder: "Робота",
+        showInLibraryLabel: "Показувати в швидкому меню",
+        variablesFormatCaption: "Формат після двокрапки визначає, як вони виглядають, наприклад {{date:yyyy-MM-dd}}. Частина -tz(...) задає часовий пояс, наприклад {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Формат після двокрапки визначає, як вони виглядають, наприклад {{date:yyyy-MM-dd}}, або використовуйте кнопку дати/часу вище. Частина -tz(...) задає часовий пояс, наприклад {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Вставити дату/час",
+        dateTimeEditButton: "Редагувати дату/час",
+        dateTimeTypeLabel: "Тип",
+        dateTimeKindDate: "Дата",
+        dateTimeKindTime: "Час",
+        dateTimeKindDateTime: "Дата та час",
+        dateTimeStyleLabel: "Стиль",
+        dateTimeStyleShort: "Короткий",
+        dateTimeStyleMedium: "Середній",
+        dateTimeStyleLong: "Довгий",
+        dateTimeStyleFull: "Повний",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Власний",
+        dateTimeStyleLocaleNote: "Іменований стиль зберігає формат, який зараз використовує регіон вашого Mac.",
+        dateTimeTimezoneLabel: "Часовий пояс",
+        dateTimeTimezoneDeviceDefault: "Типове для пристрою",
+        dateTimeTimezoneValid: "Дійсний часовий пояс",
+        dateTimeTimezoneInvalid: "Невідомий часовий пояс",
+        dateTimeTimezoneClear: "Очистити часовий пояс",
+        dateTimeTimezoneSearchPlaceholder: "Шукати часові пояси",
+        dateTimePatternLabel: "Шаблон",
+        dateTimePreviewLabel: "Попередній перегляд",
+        dateTimeConfirmInsert: "Вставити",
+        dateTimeConfirmUpdate: "Оновити",
+        soundToggle: "Відтворювати звук, коли тригер розгортається",
+        soundCaption: "Щоразу, коли введений тригер розгортається, лунає короткий системний звук.",
+        soundPickerLabel: "Звук",
+        soundUnavailable: "Звук недоступний"
     )
 }
 
@@ -503,6 +572,74 @@ extension SnippetFeatureStrings {
         soundCaption: "Se reproduce un sonido corto del sistema cada vez que un disparador escrito se expande.",
         soundPickerLabel: "Sonido",
         soundUnavailable: "Sonido no disponible"
+    )
+
+    static let sk = SnippetFeatureStrings(
+        pageTitle: "Textové fragmenty",
+        hubDescription: "Krátke spúšťače sa rozbalia na celý text",
+        enable: "Rozbaľovať fragmenty počas písania",
+        enableCaption: "Napíšte spúšťač kdekoľvek a zmení sa na svoj text. Všetko zostáva v tomto Macu.",
+        addButton: "Pridať fragment",
+        newTitle: "Nový fragment",
+        editTitle: "Upraviť fragment",
+        nameLabel: "Názov",
+        namePlaceholder: "Osobný e-mail",
+        triggerLabel: "Spúšťač",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Text",
+        replacementPlaceholder: "mojemail@priklad.sk",
+        expansionLabel: "Rozbaliť",
+        expansionImmediate: "Ihneď",
+        expansionDelimiter: "Po medzere, Tab alebo Return",
+        variablesHint: "Premenné: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "V okamihu rozbalenia sa zmenia na dátum, čas a skopírovaný text.",
+        emptyList: "Zatiaľ žiadne fragmenty. Pridajte prvý.",
+        duplicateTrigger: "Tento spúšťač už používa iný fragment.",
+        triggerTooShort: "Spúšťač potrebuje aspoň 2 znaky.",
+        deleteButton: "Vymazať",
+        saveButton: "Uložiť",
+        manageButton: "Spravovať fragmenty",
+        ignoreCaseLabel: "Nerozlišovať veľké a malé písmená",
+        libraryTitle: "Rýchla ponuka fragmentov",
+        libraryToggle: "Otvárať fragmenty z ponuky",
+        libraryCaption: "Skratka otvorí ponuku s vyhľadávaním. Výberom fragmentu ho vložíte presne tam, kde je kurzor.",
+        librarySearchPlaceholder: "Hľadať fragmenty",
+        libraryNoResults: "Vyhľadávaniu nezodpovedá žiadny fragment.",
+        libraryEmpty: "Zatiaľ nie je čo zobraziť. Pridajte fragmenty alebo pri tých, ktoré používate najčastejšie, zapnite „Zobraziť v rýchlej ponuke“.",
+        libraryFooterHint: "↩ vloží · esc zavrie",
+        folderLabel: "Priečinok",
+        folderPlaceholder: "Práca",
+        showInLibraryLabel: "Zobraziť v rýchlej ponuke",
+        variablesFormatCaption: "Formát za dvojbodkou určí, ako budú vyzerať, napríklad {{date:yyyy-MM-dd}}. Časové pásmo nastavíte časťou -tz(...), napríklad {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Formát za dvojbodkou určí, ako budú vyzerať, napríklad {{date:yyyy-MM-dd}}, alebo použite tlačidlo dátumu a času vyššie. Časové pásmo nastavíte časťou -tz(...), napríklad {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Vložiť dátum/čas",
+        dateTimeEditButton: "Upraviť dátum/čas",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Dátum",
+        dateTimeKindTime: "Čas",
+        dateTimeKindDateTime: "Dátum a čas",
+        dateTimeStyleLabel: "Štýl",
+        dateTimeStyleShort: "Krátky",
+        dateTimeStyleMedium: "Stredný",
+        dateTimeStyleLong: "Dlhý",
+        dateTimeStyleFull: "Úplný",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Vlastný",
+        dateTimeStyleLocaleNote: "Pomenovaný štýl uloží formát, ktorý región vášho Macu používa práve teraz.",
+        dateTimeTimezoneLabel: "Časové pásmo",
+        dateTimeTimezoneDeviceDefault: "Predvolené zariadenia",
+        dateTimeTimezoneValid: "Platné časové pásmo",
+        dateTimeTimezoneInvalid: "Nerozpoznané časové pásmo",
+        dateTimeTimezoneClear: "Vymazať časové pásmo",
+        dateTimeTimezoneSearchPlaceholder: "Hľadať časové pásma",
+        dateTimePatternLabel: "Vzor",
+        dateTimePreviewLabel: "Ukážka",
+        dateTimeConfirmInsert: "Vložiť",
+        dateTimeConfirmUpdate: "Aktualizovať",
+        soundToggle: "Prehrať zvuk pri rozbalení napísaného spúšťača",
+        soundCaption: "Krátky systémový zvuk zaznie vždy, keď sa napísaný spúšťač rozbalí.",
+        soundPickerLabel: "Zvuk",
+        soundUnavailable: "Zvuk nie je k dispozícii"
     )
 
     static let de = SnippetFeatureStrings(

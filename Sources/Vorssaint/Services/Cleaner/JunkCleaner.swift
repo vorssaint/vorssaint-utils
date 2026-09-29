@@ -5,10 +5,11 @@ import AppKit
 import Combine
 
 /// Finds junk the Mac accumulates — leftovers of uninstalled apps, orphaned
-/// startup items, caches, logs, developer build junk, the Trash — lets the
-/// user review every single path with its size, and moves what they confirm
-/// to the Trash. Nothing is deleted in place, nothing is touched while the
-/// scan runs, and nothing runs at all until the user opens the tool.
+/// startup items, caches, logs, developer build junk, the Trash, forgotten
+/// screenshots — lets the user review every single path with its size, and
+/// moves what they confirm to the Trash. Nothing is deleted in place,
+/// nothing is touched while the scan runs, and nothing runs at all until the
+/// user opens the tool.
 ///
 /// The safety model, in order of importance:
 /// 1. Review first. Every item shows its full path and size before anything
@@ -20,9 +21,11 @@ import Combine
 ///    related to any installed identifier (dot boundary family match),
 ///    or container metadata that names that owner. Shared wrappers and plain
 ///    names are never treated as proof in this general scan.
-/// 4. Scoped roots only. Items come from fixed, well known junk locations.
-///    The general scan never enters another app's support tree; symbolic links
-///    are never followed and each item is bound to its observed file identity.
+/// 4. Scoped roots only. Items come from fixed, well known junk locations,
+///    plus the top level of the screenshot folders, where only files macOS
+///    itself marked as screen captures are ever considered. The general
+///    scan never enters another app's support tree; symbolic links are
+///    never followed and each item is bound to its observed file identity.
 final class JunkCleaner: ObservableObject {
     static let shared = JunkCleaner()
 
@@ -75,6 +78,9 @@ final class JunkCleaner: ObservableObject {
 
     /// Serializes scans so a re-scan started while one runs is ignored.
     private var scanToken = UUID()
+    /// Lets the running scan's background loop see a cancel; the token only
+    /// guards what reaches the main thread.
+    private var scanCancellation: CleanerSupport.ScanCancellation?
 
     var selectedSize: Int64 { items.filter(\.include).reduce(0) { $0 + $1.size } }
     var totalSize: Int64 { items.reduce(0) { $0 + $1.size } }
@@ -97,6 +103,8 @@ final class JunkCleaner: ObservableObject {
 
     func reset() {
         scanToken = UUID()
+        scanCancellation?.cancel()
+        scanCancellation = nil
         items = []
         scanningCategory = nil
         phase = .idle
@@ -104,14 +112,21 @@ final class JunkCleaner: ObservableObject {
 
     // MARK: - Scan
 
-    func scan() {
+    /// `attended: false` is a pass nobody watches: it skips the screenshot
+    /// search, which reads the user's own folders and can ask for access.
+    func scan(attended: Bool) {
         guard phase != .scanning else { return }
         let token = UUID()
         scanToken = token
+        scanCancellation?.cancel()
+        let cancellation = CleanerSupport.ScanCancellation()
+        scanCancellation = cancellation
         items = []
         phase = .scanning
+        let screenshots = attended ? Self.screenshotSearch() : nil
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard !cancellation.isCancelled else { return }
             let installed = Self.installedBundleIDs()
             // A path claimed by the leftover scan must not reappear under
             // caches or logs: one path, one row, one decision.
@@ -128,8 +143,11 @@ final class JunkCleaner: ObservableObject {
                 (.developer, { Self.scanDeveloperJunk() }),
                 (.trash, { Self.scanTrash() }),
                 (.deviceBackups, { Self.scanDeviceBackups() }),
-            ]
+            ] + (screenshots.map { search in
+                [(.screenshots, { Self.scanScreenshots(in: search.folders, days: search.days) })]
+            } ?? [])
             for (category, run) in categories {
+                guard !cancellation.isCancelled else { return }
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.scanToken == token else { return }
                     self.scanningCategory = category
@@ -142,6 +160,7 @@ final class JunkCleaner: ObservableObject {
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.scanToken == token else { return }
+                self.scanCancellation = nil
                 self.scanningCategory = nil
                 self.phase = .results
             }
@@ -256,6 +275,9 @@ final class JunkCleaner: ObservableObject {
                   CleanerSupport.bundleIDCandidate(fromEntryName: item.detail) != nil,
                   !CleanerSupport.isProtectedBundleID(item.detail),
                   !hasLivingOwner(item.detail, installed: installed) else { return false }
+        }
+        if item.category == .screenshots {
+            guard isScreenshotFolderChild(url), isScreenCapture(url) else { return false }
         }
         // Depth guard: anything this shallow is a root of some kind, never junk.
         return url.pathComponents.count >= 4
@@ -594,6 +616,96 @@ final class JunkCleaner: ObservableObject {
                               recommended: CleanerPolicy.precheckDeviceBackups))
         }
         return sorted(found)
+    }
+
+    /// The folders and age of the forgotten screenshot search, or nil when
+    /// the user turned it off.
+    private static func screenshotSearch() -> (folders: [URL], days: Int)? {
+        let days = CleanerPolicy.sanitizedScreenshotAgeDays(
+            UserDefaults.standard.integer(forKey: DefaultsKey.cleanerScreenshotAgeDays))
+        guard days > 0 else { return nil }
+        return (screenshotFolders(), days)
+    }
+
+    /// Where macOS saves screenshots and, when its screenshot tool is
+    /// installed, where this app saves its own.
+    private static func screenshotFolders() -> [URL] {
+        let home = NSHomeDirectory()
+        let location = CFPreferencesCopyAppValue("location" as CFString,
+                                                 "com.apple.screencapture" as CFString) as? String
+        var paths = [CleanerSupport.screenshotFolder(location: location, home: home)]
+        if AppFeature.screenshot.isAvailable {
+            let stored = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveFolder) ?? ""
+            paths.append(stored.isEmpty ? home + "/Desktop" : (stored as NSString).expandingTildeInPath)
+        }
+        var seen = Set<String>()
+        return paths
+            // The real path: the removal guard refuses anything reached
+            // through a symbolic link.
+            .map { URL(fileURLWithPath: $0, isDirectory: true).resolvingSymlinksInPath().standardizedFileURL }
+            .filter { seen.insert($0.path).inserted }
+    }
+
+    private static func isScreenshotFolderChild(_ url: URL) -> Bool {
+        screenshotFolders().contains { CleanerSupport.isDirectChild(url, of: $0) }
+    }
+
+    /// Screenshots nobody touched for `days`: only the top level of the
+    /// screenshot folders, only files macOS itself marked as captures, and
+    /// only under the dated name they were saved with. Moving or renaming
+    /// one is a decision about it, so it never shows up again. Without
+    /// access to a folder nothing from it is offered.
+    private static func scanScreenshots(in folders: [URL], days: Int) -> [Item] {
+        let fm = FileManager.default
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey,
+                                         .creationDateKey, .contentModificationDateKey]
+        let now = Date()
+        var found: [Item] = []
+        for folder in folders {
+            guard let entries = try? fm.contentsOfDirectory(at: folder,
+                                                            includingPropertiesForKeys: Array(keys),
+                                                            options: [.skipsHiddenFiles]) else { continue }
+            for url in entries {
+                guard let values = try? url.resourceValues(forKeys: keys),
+                      values.isRegularFile == true, values.isSymbolicLink != true,
+                      let created = values.creationDate,
+                      isScreenCapture(url),
+                      CleanerSupport.screenshotKeepsDefaultName(url.lastPathComponent,
+                                                                created: created) else { continue }
+                let lastUsed = extendedAttribute(CleanerSupport.lastUsedDateAttribute, of: url)
+                    .flatMap(CleanerSupport.lastUsedDate(fromAttribute:))
+                guard CleanerSupport.isForgottenScreenshot(created: created,
+                                                           modified: values.contentModificationDate,
+                                                           lastUsed: lastUsed,
+                                                           now: now, days: days) else { continue }
+                let size = fileSize(url)
+                guard size > 0 else { continue }
+                found.append(Item(url: url, category: .screenshots, size: size,
+                                  detail: DateFormatter.localizedString(from: created,
+                                                                        dateStyle: .medium,
+                                                                        timeStyle: .none),
+                                  recommended: CleanerPolicy.precheckScreenshots))
+            }
+        }
+        return sorted(found)
+    }
+
+    private static func isScreenCapture(_ url: URL) -> Bool {
+        extendedAttribute(CleanerSupport.screenCaptureAttribute, of: url)
+            .map(CleanerSupport.isScreenCaptureFlag) ?? false
+    }
+
+    private static func extendedAttribute(_ name: String, of url: URL) -> Data? {
+        url.withUnsafeFileSystemRepresentation { path -> Data? in
+            guard let path else { return nil }
+            let length = getxattr(path, name, nil, 0, 0, XATTR_NOFOLLOW)
+            guard length > 0, length <= 4096 else { return nil }
+            var data = Data(count: length)
+            let read = data.withUnsafeMutableBytes {
+                getxattr(path, name, $0.baseAddress, length, 0, XATTR_NOFOLLOW)
+            }
+            return read == length ? data : nil
+        }
     }
 
     private static func scanTrash() -> [Item] {

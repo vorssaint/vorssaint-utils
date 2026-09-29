@@ -26,6 +26,10 @@ struct NotchArtworkTint: Equatable {
 }
 
 struct NotchPlayback: Equatable {
+    /// How long a song stays shown after a reading finds nothing playing,
+    /// which a player moving on to its next song can report for a moment.
+    static let gapGracePeriod: TimeInterval = 1.5
+
     let track: RadialNowPlayingSnapshot
     let isPlaying: Bool
     let elapsed: TimeInterval
@@ -37,6 +41,9 @@ struct NotchPlayback: Equatable {
     var itemIdentifier: String? = nil
     var commandContext: NotchPlaybackContext? = nil
     var canSendCommandsDirectly = false
+    /// Nil when the player's commands could not be read.
+    var canSkipNext: Bool? = nil
+    var canSkipPrevious: Bool? = nil
 
     func position(at date: Date) -> TimeInterval {
         min(duration, max(0, elapsed + (isPlaying ? max(0, date.timeIntervalSince(sampledAt)) * rate : 0)))
@@ -78,7 +85,9 @@ struct NotchPlayback: Equatable {
                                 .map { $0.doubleValue.isFinite && $0.doubleValue >= 0 } == true,
                              itemIdentifier: reply.info["itemIdentifier"] as? String,
                              commandContext: commandContext?.pid == track.appPID ? commandContext : nil,
-                             canSendCommandsDirectly: canSendCommandsDirectly)
+                             canSendCommandsDirectly: canSendCommandsDirectly,
+                             canSkipNext: reply.info["canSkipNext"] as? Bool,
+                             canSkipPrevious: reply.info["canSkipPrevious"] as? Bool)
     }
 }
 
@@ -140,5 +149,47 @@ struct NotchArtworkCache<Artwork> {
     mutating func expire(at now: Date = Date()) {
         guard let expiresAt, now >= expiresAt else { return }
         self = Self()
+    }
+}
+
+/// Tells a new song from the updates a playing one keeps sending. A player
+/// reports its song again for every pause, seek and cover, can fill in the
+/// artist a moment after the title, and a reader that starts or changes source
+/// first reports what was already on; none of that is a new song. Each player
+/// keeps its own song, so another one standing in between tracks changes
+/// nothing, and a song counts once it plays: some players report the next one
+/// paused for a moment before it starts.
+struct NotchTrackChange {
+    private struct Song {
+        let title: String
+        let artist: String?
+
+        /// A reading without the artist still names the same song.
+        func matches(_ other: Song) -> Bool {
+            title == other.title && (artist == nil || other.artist == nil || artist == other.artist)
+        }
+    }
+
+    private var songs: [String: Song] = [:]
+
+    /// Whether `playback` is a player moving on to another song. `first` marks
+    /// the first reading since the reader started or changed source, which
+    /// only sets where each player is.
+    mutating func isNewSong(_ playback: NotchPlayback?, first: Bool) -> Bool {
+        guard let playback,
+              let player = playback.track.appBundleIdentifier ?? playback.track.appPID.map(String.init),
+              let title = Self.cleaned(playback.track.title) else { return false }
+        let song = Song(title: title, artist: Self.cleaned(playback.track.artist))
+        guard !first else { songs[player] = song; return false }
+        guard playback.isPlaying else { return false }
+        guard let previous = songs.updateValue(song, forKey: player) else { return false }
+        return !previous.matches(song)
+    }
+
+    mutating func reset() { songs = [:] }
+
+    private static func cleaned(_ text: String?) -> String? {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        return text
     }
 }

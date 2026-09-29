@@ -23,6 +23,12 @@ enum MusicLaunchSupport {
         fastForwardKeyCode, rewindKeyCode
     ]
 
+    /// A player opened in place of the music app gets this long to finish
+    /// launching, then this long to settle before it is asked to play.
+    static let replacementLaunchTimeout: TimeInterval = 15
+    static let replacementSettleDelay: TimeInterval = 1
+    static let playbackAttempts = 3
+
     /// True for the key-down of a media key that would otherwise open the
     /// music app. Releases, auto-repeat and volume or brightness keys do not
     /// count, so those never arm the blocker.
@@ -31,8 +37,18 @@ enum MusicLaunchSupport {
         let raw = UInt32(truncatingIfNeeded: data1)
         let state = Int((raw >> 8) & 0xFF)
         guard state == keyDownState, (raw & 0x1) == 0 else { return false }
-        let keyCode = UInt16((raw >> 16) & 0xFFFF)
-        return musicLaunchKeyCodes.contains(keyCode)
+        return musicLaunchKeyCodes.contains(keyCode(data1: data1))
+    }
+
+    static func keyCode(data1: Int) -> UInt16 {
+        UInt16((UInt32(truncatingIfNeeded: data1) >> 16) & 0xFFFF)
+    }
+
+    /// procNotFound and connectionInvalid: the player was not listening yet,
+    /// so the command never arrived and asking again cannot play twice. Any
+    /// other failure, a timeout included, may follow delivery.
+    static func playbackNeverArrived(_ status: Int) -> Bool {
+        status == -600 || status == -609
     }
 
     /// A newer click or key press takes precedence over a media key. Invalid

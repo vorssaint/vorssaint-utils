@@ -5,12 +5,15 @@ import AppKit
 import Combine
 import IOKit.ps
 import IOKit.pwr_mgt
+import os
 
 /// Core of the energy feature: manages "keep awake" sessions through IOKit power
 /// assertions, the closed-lid mode (pmset disablesleep, administrator password)
 /// and the battery protection watchdog.
 final class KeepAwakeManager: ObservableObject {
     static let shared = KeepAwakeManager()
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                    category: "keep-awake")
 
     enum EndReason { case manual, timer, battery, quit }
     enum SessionTrigger { case manual, automation }
@@ -18,9 +21,16 @@ final class KeepAwakeManager: ObservableObject {
     @Published private(set) var isActive = false
     @Published private(set) var endDate: Date? // nil = indefinite
     @Published private(set) var sessionTrigger: SessionTrigger?
+    /// The preset a manual session started from; nil for an end time or automation.
+    @Published private(set) var sessionMinutes: Int?
     @Published private(set) var runningAppBundleIDs: [String] = []
     @Published private(set) var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()
-    @Published private(set) var clamshellActive = false
+    @Published private(set) var clamshellActive = false {
+        didSet {
+            guard clamshellActive != oldValue else { return }
+            syncLidDimmingObserver()
+        }
+    }
     @Published private(set) var passwordlessClamshell = false
     @Published private(set) var clamshellSetupInProgress = false
     @Published private(set) var clamshellSetupFailed = false
@@ -43,6 +53,18 @@ final class KeepAwakeManager: ObservableObject {
                 clamshellSetupInProgress = false
                 clamshellSetupID = nil
             }
+        }
+    }
+
+    /// Persistent preference: dims the built-in display to zero while the
+    /// closed-lid mode is actually in effect, restoring the captured
+    /// brightness when the lid opens again.
+    @Published var dimScreenOnLidClose: Bool {
+        didSet {
+            guard dimScreenOnLidClose != oldValue else { return }
+            UserDefaults.standard.set(dimScreenOnLidClose, forKey: DefaultsKey.dimScreenOnLidClose)
+            if !dimScreenOnLidClose { applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness)) }
+            syncLidDimmingObserver()
         }
     }
 
@@ -74,6 +96,10 @@ final class KeepAwakeManager: ObservableObject {
     private var clamshellSetupID: UUID?
     private var lidSleepGeneration = 0
     private var lidSleepAttemptsRemaining = 0
+    private var lidDimmingNotificationPort: IONotificationPortRef?
+    private var lidDimmingNotification: io_object_t = 0
+    private var lidClosedForDimming: Bool?
+    private var savedDisplayBrightness: Double?
     private static let screenLockNotification = Notification.Name("com.apple.screenIsLocked")
     private static let screenUnlockNotification = Notification.Name("com.apple.screenIsUnlocked")
     /// Guards the closed-lid setup against an infinite retry loop: if `pmset
@@ -86,6 +112,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private init() {
         clamshellPreferred = UserDefaults.standard.bool(forKey: DefaultsKey.clamshellPreferred)
+        dimScreenOnLidClose = UserDefaults.standard.bool(forKey: DefaultsKey.dimScreenOnLidClose)
         refreshPasswordlessStatus()
         // Every settings write announces itself, including the ones made from
         // inside this class, so a burst folds into a single reply on the next
@@ -117,6 +144,49 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    /// Clearing permissions, or an uninstall that stopped, restored normal
+    /// sleep directly and left this app running. Discard the old session state
+    /// without asking for the rule again: a rule that is still installed rearms
+    /// the current session, and a removed one is requested by the next session.
+    func resumeAfterSystemTeardown() {
+        let restorePending = clamshellRestorePending
+        if !restorePending { clamshellOperationGeneration &+= 1 }
+        // An installation prompt may already be open. Its existing reply can
+        // finish setup without showing a second authorization request.
+        clamshellEnablePending = false
+        lidSleepGeneration &+= 1
+        lidSleepAttemptsRemaining = 0
+        clamshellActive = false
+        passwordlessClamshell = false
+        let generation = clamshellOperationGeneration
+        let checksSleep = UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag)
+        DispatchQueue.global(qos: .utility).async {
+            // A session can start while the removal waits for its password and
+            // turn sleep off again through the rule. Only a reading that answered
+            // "on" lets the recovery marker go.
+            var sleepRestored = true
+            if checksSleep {
+                let report = Shell.run("/usr/bin/pmset", ["-g"])
+                sleepRestored = report.status == 0
+                    && !SudoersSupport.sleepDisabled(inPmsetOutput: report.output)
+            }
+            let configured = !restorePending && Sudoers.isConfigured()
+            DispatchQueue.main.async {
+                guard !self.isTerminating, self.clamshellOperationGeneration == generation else { return }
+                if checksSleep, sleepRestored {
+                    UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+                }
+                // A prior restore can still finish with an authorized off. Its
+                // reply rearms this session in order after that operation.
+                guard !restorePending, !self.clamshellRestorePending else { return }
+                self.passwordlessClamshell = configured
+                if configured, self.clamshellPreferred, AppFeature.keepAwake.isAvailable {
+                    self.enableClamshell()
+                }
+            }
+        }
+    }
+
     // MARK: - Session
 
     func toggle() {
@@ -126,7 +196,7 @@ final class KeepAwakeManager: ObservableObject {
             }
             deactivate(reason: .manual)
         } else {
-            activate(minutes: Defaults.sanitizedDefaultDuration(UserDefaults.standard.integer(forKey: DefaultsKey.defaultDuration)))
+            startLastPick()
         }
     }
 
@@ -161,12 +231,35 @@ final class KeepAwakeManager: ObservableObject {
         let minutes = Defaults.sanitizedDefaultDuration(minutes)
         let end = minutes > 0 ? Date().addingTimeInterval(TimeInterval(minutes) * 60) : nil
         activate(end: end, trigger: .manual)
+        sessionMinutes = isActive ? minutes : nil
+        guard isActive else { return }
+        // Every entry point records the pick, so each switch restarts the same session.
+        UserDefaults.standard.set(minutes, forKey: DefaultsKey.defaultDuration)
+        UserDefaults.standard.set(false, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
     }
 
     func activate(until date: Date) {
         guard date > Date() else { return }
         automationSuppressedUntilConditionsClear = false
         activate(end: date, trigger: .manual)
+        // An end time replaces any running preset, so no duration chip stays selected.
+        sessionMinutes = nil
+        guard isActive else { return }
+        UserDefaults.standard.set(true, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
+        UserDefaults.standard.set(date.timeIntervalSinceReferenceDate, forKey: DefaultsKey.keepAwakeUntilTime)
+    }
+
+    /// Restarts the last pick: the saved end time while it is still ahead,
+    /// otherwise the saved duration. A passed end time never rolls to
+    /// tomorrow here, which would silently start a session of almost a day.
+    func startLastPick() {
+        let defaults = UserDefaults.standard
+        let end = Date(timeIntervalSinceReferenceDate: defaults.double(forKey: DefaultsKey.keepAwakeUntilTime))
+        if defaults.bool(forKey: DefaultsKey.keepAwakeSwitchUsesUntil), end > Date() {
+            activate(until: end)
+        } else {
+            activate(minutes: Defaults.sanitizedDefaultDuration(defaults.integer(forKey: DefaultsKey.defaultDuration)))
+        }
     }
 
     private func activate(end: Date?, trigger: SessionTrigger) {
@@ -225,6 +318,7 @@ final class KeepAwakeManager: ObservableObject {
         endDate = nil
         releaseAssertions()
         sessionTrigger = nil
+        sessionMinutes = nil
         activeAutomationConditions.removeAll()
         isActive = false
         sessionPausedForScreenLock = false
@@ -847,6 +941,7 @@ final class KeepAwakeManager: ObservableObject {
     /// behavior on the next launch.
     func recoverIfNeeded(completion: (() -> Void)? = nil) {
         guard !isTerminating else { return }
+        recoverDimmedDisplayIfNeeded()
         guard UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) else {
             finishRecovery(completion)
             return
@@ -897,6 +992,125 @@ final class KeepAwakeManager: ObservableObject {
         syncWithPreferences()
     }
 
+    /// A crash or force quit while the lid was closed can leave the built-in
+    /// panel dimmed with nothing left running to bring it back. Closed-lid
+    /// sleep already recovers its own override the same way: the intent is
+    /// written down before acting, and undone on the next launch.
+    private func recoverDimmedDisplayIfNeeded() {
+        guard let saved = UserDefaults.standard.object(forKey: DefaultsKey.dimmedDisplaySavedBrightness) as? Double
+        else { return }
+        // Set before attempting, not just on failure: if the write does not
+        // report success until later, `syncLidDimmingObserver` still has to
+        // see this as owed right away to arm the lid observer for a retry.
+        savedDisplayBrightness = saved
+        applyDimmingAction(.restore(saved))
+        syncLidDimmingObserver()
+    }
+
+    // MARK: - Closed-lid screen dimming
+
+    /// Runs whenever the closed-lid mode or the dimming preference changes.
+    /// An `IOPMrootDomain` general-interest notification is cheaper than
+    /// polling and is already how `BrightnessService` watches the lid for
+    /// its own deferred-restoration case; this registers its own interest
+    /// independently since the two features dim different things for
+    /// different reasons. A restore still owed keeps the observer armed past
+    /// the mode ending, the same way `BrightnessService`'s own deferred
+    /// display restoration outlives whatever asked for it.
+    private func syncLidDimmingObserver() {
+        let armed = clamshellActive && dimScreenOnLidClose
+        if !armed { applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness)) }
+        guard armed || savedDisplayBrightness != nil else {
+            if lidDimmingNotification != 0 { IOObjectRelease(lidDimmingNotification) }
+            lidDimmingNotification = 0
+            if let lidDimmingNotificationPort { IONotificationPortDestroy(lidDimmingNotificationPort) }
+            lidDimmingNotificationPort = nil
+            lidClosedForDimming = nil
+            return
+        }
+        guard lidDimmingNotificationPort == nil else { return }
+        let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard root != 0 else { return }
+        defer { IOObjectRelease(root) }
+        guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
+        let result = IOServiceAddInterestNotification(
+            port, root, kIOGeneralInterest, { context, _, _, _ in
+                guard let context else { return }
+                let manager = Unmanaged<KeepAwakeManager>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async { [weak manager] in manager?.lidStateMayHaveChangedForDimming() }
+            }, Unmanaged.passUnretained(self).toOpaque(), &lidDimmingNotification)
+        guard result == KERN_SUCCESS else {
+            IONotificationPortDestroy(port)
+            return
+        }
+        lidDimmingNotificationPort = port
+        IONotificationPortSetDispatchQueue(port, DispatchQueue.main)
+        lidClosedForDimming = BrightnessService.lidClosed()
+        // The option can be enabled from an external display while the lid is
+        // already shut. No transition follows registration in that case.
+        if armed, lidClosedForDimming == true, savedDisplayBrightness == nil {
+            applyDimmingAction(LidDimmingSupport.lidClosed(
+                currentBrightness: LidDisplayDimmer.currentBrightness()))
+        }
+    }
+
+    /// General interest fires on far more than lid transitions, so the
+    /// current state is compared against what was last seen rather than
+    /// assumed from the notification itself. The armed check also catches a
+    /// callback already queued when the feature was torn down: it lands here
+    /// as a no-op instead of acting on a mode that already ended.
+    private func lidStateMayHaveChangedForDimming() {
+        guard (clamshellActive && dimScreenOnLidClose) || savedDisplayBrightness != nil else { return }
+        let closed = BrightnessService.lidClosed() ?? false
+        guard closed != lidClosedForDimming else { return }
+        lidClosedForDimming = closed
+        if closed {
+            if clamshellActive, dimScreenOnLidClose {
+                applyDimmingAction(LidDimmingSupport.lidClosed(currentBrightness: LidDisplayDimmer.currentBrightness()))
+            }
+        } else {
+            applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness))
+        }
+    }
+
+    private func applyDimmingAction(_ action: LidDimmingSupport.Action) {
+        switch action {
+        case .dim(let save):
+            savedDisplayBrightness = save
+            UserDefaults.standard.set(save, forKey: DefaultsKey.dimmedDisplaySavedBrightness)
+            LidDisplayDimmer.setBrightness(0)
+            Self.log.log("lid closed: dimmed the built-in display, saved \(save)")
+        case .restore(let value):
+            attemptDisplayRestore(value)
+        case .none:
+            break
+        }
+    }
+
+    /// Keeps the saved level and its recovery marker until a write actually
+    /// reports success — clearing them on a merely attempted write, the same
+    /// way `BrightnessService`'s deferred restoration never drops a display
+    /// it could not yet bring back, would leave the panel at zero forever if
+    /// it is not in the online list yet (right as the lid opens) or the
+    /// write itself fails. A few retries a half second apart cover that
+    /// startup race; if the panel is still not back after those, whatever
+    /// keeps `syncLidDimmingObserver` armed for an owed restore is what
+    /// finds the next real lid-open event to try again.
+    private func attemptDisplayRestore(_ value: Double, attemptsLeft: Int = 6) {
+        guard LidDisplayDimmer.setBrightness(value) else {
+            Self.log.log("restoring the built-in display to \(value) found no panel yet, \(attemptsLeft - 1) retries left")
+            guard attemptsLeft > 1 else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.attemptDisplayRestore(value, attemptsLeft: attemptsLeft - 1)
+            }
+            return
+        }
+        savedDisplayBrightness = nil
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.dimmedDisplaySavedBrightness)
+        Self.log.log("restored the built-in display to \(value)")
+        syncLidDimmingObserver()
+    }
+
     // MARK: - Battery protection
 
     private func startBatteryWatch() {
@@ -916,12 +1130,19 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     private func checkBattery() {
-        let limit = Defaults.sanitizedBatteryLimit(UserDefaults.standard.integer(forKey: DefaultsKey.batteryLimit))
-        guard limit > 0, isActive else { return }
-        guard let battery = SystemInfo.batterySnapshot(),
-              battery.isOnBattery,
-              battery.percent <= limit else { return }
+        guard isActive, batteryProtectionPercent() != nil else { return }
         deactivate(reason: .battery)
+    }
+
+    /// The battery level while battery protection would end any session at
+    /// once (on battery, at or below the limit); nil when a session can run.
+    func batteryProtectionPercent() -> Int? {
+        let limit = Defaults.sanitizedBatteryLimit(UserDefaults.standard.integer(forKey: DefaultsKey.batteryLimit))
+        guard limit > 0,
+              let battery = SystemInfo.batterySnapshot(),
+              battery.isOnBattery,
+              battery.percent <= limit else { return nil }
+        return battery.percent
     }
 
     // MARK: - Optional pointer activity

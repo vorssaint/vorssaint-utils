@@ -76,6 +76,23 @@ extension FeatureStrings {
             optimizeMedia: "Optimizar contenido",
             optimizeDropHint: "Arrastra imágenes o un vídeo a la isla y suéltalos en Optimizar contenido para elegir cómo guardar una copia.",
             resumeMedia: "Volver al contenido multimedia")
+        case .sk: return NotchFilesStrings(
+            archive: "Vytvoriť ZIP",
+            archiveHint: "Každá vybratá položka sa uloží ako samostatný ZIP. Originály zostanú nezmenené.",
+            saved: "Uložené",
+            downloadsTitle: "Stiahnuté",
+            downloadsDescription: "Sledujte súbory prichádzajúce do vybraného priečinka priamo v Dynamic Island.",
+            downloadsHint: "Vyberte priečinok, kam váš prehliadač ukladá stiahnuté súbory. Sleduje sa iba tento priečinok.",
+            chooseFolder: "Vybrať priečinok…",
+            folderUnavailable: "Tento priečinok nie je dostupný. Vyberte ho znova, aby ste obnovili prístup.",
+            waiting: "V tomto priečinku nie sú žiadne súbory",
+            inProgress: "Sťahovanie",
+            totalUnknown: "Celková veľkosť nie je dostupná",
+            completed: "Sťahovanie dokončené",
+            clearFolder: "Zabudnúť priečinok",
+            optimizeMedia: "Optimalizovať médiá",
+            optimizeDropHint: "Presuňte obrázky alebo jedno video na Dynamic Island a pustite ich na Optimalizovať médiá, aby ste vybrali spôsob uloženia kópie.",
+            resumeMedia: "Späť na médiá")
         case .de: return NotchFilesStrings(
             archive: "ZIP erstellen",
             archiveHint: "Jedes ausgewählte Objekt wird als eigene ZIP-Datei gesichert. Die Originale bleiben erhalten.",
@@ -246,6 +263,23 @@ extension FeatureStrings {
             optimizeMedia: "最佳化媒體",
             optimizeDropHint: "將圖片或一段影片拖曳到動態島，再放到「最佳化媒體」上，選擇如何儲存副本。",
             resumeMedia: "返回媒體")
+        case .uk: return NotchFilesStrings(
+            archive: "Створити ZIP",
+            archiveHint: "Кожен вибраний елемент зберігається в окремий ZIP. Оригінали лишаються без змін.",
+            saved: "Збережено",
+            downloadsTitle: "Завантаження",
+            downloadsDescription: "Стежте за файлами, які надходять до вибраної папки, прямо у Dynamic Island.",
+            downloadsHint: "Виберіть папку, куди ваш браузер зберігає завантаження. Відстежується лише ця папка.",
+            chooseFolder: "Вибрати папку…",
+            folderUnavailable: "Ця папка недоступна. Виберіть її знову, щоб відновити доступ.",
+            waiting: "У цій папці немає файлів",
+            inProgress: "Завантаження",
+            totalUnknown: "Загальний розмір недоступний",
+            completed: "Завантаження завершено",
+            clearFolder: "Забути папку",
+            optimizeMedia: "Оптимізувати медіа",
+            optimizeDropHint: "Перетягніть зображення або одне відео на острівець і відпустіть над «Оптимізувати медіа», щоб вибрати, як зберегти копію.",
+            resumeMedia: "Повернутися до медіа")
         }
     }
 }

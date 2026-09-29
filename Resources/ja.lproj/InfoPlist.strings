@@ -14,11 +14,11 @@
 "NSCameraUsageDescription" = "Vorssaintは、開いたプレビューウインドウにのみカメラを表示し、通話前に自分の映りを確認できるようにします。何も録画されず、Macの外に送信されることもありません。";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "Vorssaintは、ダウンロード内のローカルメタデータを確認し、選択した確認済みWhatsAppファイルだけを確認、整理、またはゴミ箱へ移動します。";
+"NSDownloadsFolderUsageDescription" = "Vorssaintは、ダウンロード内のローカルメタデータを確認し、選択した確認済みWhatsAppファイルだけを確認、整理、またはゴミ箱へ移動します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
 
 /* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
-"NSDocumentsFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
-"NSNetworkVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
-"NSRemovableVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
+"NSDesktopFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
+"NSDocumentsFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
+"NSNetworkVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
+"NSRemovableVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
 "NSCalendarsFullAccessUsageDescription" = "画面上部に今後の予定を表示します。カレンダーの予定がこのMacの外に送信されることはありません。";

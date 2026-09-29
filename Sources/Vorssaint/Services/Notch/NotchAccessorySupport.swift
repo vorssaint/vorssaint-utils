@@ -30,6 +30,41 @@ enum NotchAccessorySupport {
         }
     }
 
+    /// Phones, tablets, computers and network access points are not
+    /// accessories, and their Bluetooth links come and go without anyone
+    /// reaching for them. Every other class announces a connection,
+    /// including a device that declares no class at all.
+    static func announcesConnection(majorClass: UInt32) -> Bool {
+        !(0x01...0x03).contains(majorClass)
+    }
+
+    /// A name says what an accessory is only until someone renames it. The
+    /// Bluetooth class of device it announces still does, from a speaker or
+    /// a car down to the trackpad that sets a pointer's digitizer bits.
+    /// Major and minor classes as the Bluetooth assigned numbers define them.
+    static func symbol(name: String, majorClass: UInt32, minorClass: UInt32) -> String {
+        let named = PeripheralBatterySupport.kind(product: name, primaryUsagePage: nil, primaryUsage: nil, usagePairs: [])
+        guard named == .device else { return symbol(for: named, name: name) }
+        switch (majorClass, minorClass) {
+        case (0x04, 0x04): return "mic"
+        case (0x04, 0x05), (0x04, 0x07), (0x04, 0x0A): return "hifispeaker"
+        case (0x04, 0x08): return "car"
+        case (0x04, 0x0E), (0x04, 0x0F): return "tv"
+        case (0x04, 0x12): return "gamecontroller"
+        case (0x04, 0x01), (0x04, 0x02), (0x04, 0x06): return symbol(for: .audio, name: name)
+        case (0x05, let minor) where [0x01, 0x02].contains(minor & 0x0F): return "gamecontroller"
+        case (0x05, let minor) where minor & 0x0F == 0x03: return "av.remote"
+        case (0x05, let minor) where minor & 0x30 == 0x20:
+            return minor & 0x0F == 0x05 ? symbol(for: .trackpad, name: name) : symbol(for: .mouse, name: name)
+        case (0x05, let minor) where minor & 0x10 != 0: return symbol(for: .keyboard, name: name)
+        case (0x06, let minor) where minor & 0x20 != 0: return "printer"
+        case (0x07, 0x01): return "applewatch"
+        case (0x07, 0x05): return "eyeglasses"
+        case (0x08, _): return "gamecontroller"
+        default: return symbol(for: .device, name: name)
+        }
+    }
+
     static func identity(_ device: PeripheralBatteryDevice) -> String {
         // The existing sampler coalesces the same physical accessory by name
         // when its reading moves between HID, system metadata and Bluetooth.

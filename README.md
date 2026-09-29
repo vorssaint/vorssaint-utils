@@ -106,6 +106,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Text snippets.** Expand short triggers into text with clipboard, date and time variables, or insert snippets from a searchable menu.
 - **Smooth scrolling.** Give your mouse wheel a fluid glide with adjustable speed and response.
 - **Pointer acceleration.** Disable mouse acceleration and restore your previous setting when turned off.
+- **Linear scrolling.** Make every mouse wheel notch scroll the same number of lines, however fast the wheel spins.
 - **Focus follows mouse.** Bring the window under the pointer forward after an adjustable pause.
 - **Scroll direction.** Invert vertical and horizontal mouse scrolling independently of the trackpad.
 - **Scroll sideways while holding a key.** Turn vertical wheel movement into horizontal scrolling while holding a chosen key.
@@ -131,7 +132,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Everyday tools
 
 - **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
-- **AI agents.** Follow Claude and Codex in the Dynamic Island: plan limits and when they reset, tokens, API value, models, projects and live work, with a notice when a long task finishes.
+- **AI agents.** Follow Claude and Codex in the Dynamic Island: plan limits and when they reset, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too.
 - **Command Bar.** Search apps, windows, files, clipboard history, snippets and app menu commands from one field. Calculate, convert units, find emoji or run saved scripts.
 - **Quick panel.** Open a floating palette of favorite tools with ⌃⌘V.
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.
@@ -142,7 +143,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Capture and create
 
 - **Screen capture.** Switch between screenshots, recording, text recognition and color picking in one selector with a pixel magnifier.
-- **Screenshot.** Capture an area, window, screen or scrolling page. Annotate, crop, redact, add backgrounds and watermarks, pin captures or share an expiring link.
+- **Screenshot.** Capture an area, window, screen or scrolling page. Annotate, crop, redact, add backgrounds and watermarks, pin captures, send them through the Share menu or share an expiring link.
 - **Screen recording.** Record with separate system-audio and microphone tracks. Trim, cut, add automatic zooms, blur private details and export video or GIFs, or share an expiring link.
 - **Camera preview.** Check your camera in a floating mirror or Dynamic Island before a call.
 - **Copy text from screen.** Recognize text offline from any screen area, or read a QR code.
@@ -161,7 +162,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Energy and display
 
 - **Keep awake.** Keep your Mac working on a timer, with the lid closed, or while selected apps, power or external displays are present.
-- **Displays.** Control individual displays and brightness, with hardware control where supported and software dimming as a fallback.
+- **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
 - **Extra brightness.** Use a MacBook Pro XDR display's HDR headroom to go beyond its normal maximum brightness.
 - **Bluetooth on sleep.** Disconnect Bluetooth during sleep and restore it on wake only if Vorssaint turned it off.
 

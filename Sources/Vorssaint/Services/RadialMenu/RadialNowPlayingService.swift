@@ -93,10 +93,10 @@ final class RadialNowPlayingService {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         panel.title = "Now Playing"
         panel.level = .statusBar
         panel.isOpaque = false
@@ -276,14 +276,45 @@ enum RadialNowPlayingApplication {
         return icon
     }
 
+    /// The island and the radial card are non-activating panels, so Vorssaint
+    /// rarely holds activation when one is clicked. Since macOS 14 a bare
+    /// request from an inactive app is refused, and the player stayed behind.
     static func open(_ snapshot: RadialNowPlayingSnapshot) {
         if let application = runningApplication(for: snapshot) {
-            application.activate(options: [.activateAllWindows])
+            // A helper takes no activation; the handoff would leave Vorssaint in front.
+            guard application.activationPolicy == .regular else { return }
+            // Read before the unhide below: a hidden player's windows come back with it.
+            let showsNoWindow = !application.isHidden && !hasWindowOnScreen(pid: application.processIdentifier)
+            if application.isHidden { application.unhide() }
+            ActivationHandoff.yield(to: application)
+            if !application.activate(from: NSRunningApplication.current, options: [.activateAllWindows]) {
+                application.activate(options: [.activateAllWindows])
+            }
+            // Like a Dock click, a player that keeps playing with its window
+            // closed shows one again, the way the App Switcher reopens a
+            // windowless app. Activation alone would leave nothing to see.
+            if showsNoWindow, let url = application.bundleURL {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = false
+                configuration.addsToRecentItems = false
+                configuration.promptsUserIfNeeded = false
+                NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+            }
             return
         }
         guard let identifier = snapshot.appBundleIdentifier,
               let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    /// Whether the player has a window on the current Space. One on another
+    /// Space reads as none, and the reopen that follows is harmless there.
+    private static func hasWindowOnScreen(pid: pid_t) -> Bool {
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                 kCGNullWindowID) as? [[String: Any]] ?? []
+        return windows.contains {
+            ($0[kCGWindowOwnerPID as String] as? pid_t) == pid && ($0[kCGWindowLayer as String] as? Int) == 0
+        }
     }
 }
 

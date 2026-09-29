@@ -17,6 +17,7 @@ struct FeatureHubStrings {
     let titleDockClick: String
     let titleMouseNavigation: String
     let titleMusicBlock: String
+    let titleAudioPriority: String
     // Group headers
     let groupWindowsDock: String
     let groupMouseKeyboard: String
@@ -25,6 +26,7 @@ struct FeatureHubStrings {
     let groupEnergyDisplay: String
     let groupTools: String
     let groupMonitor: String
+    let experimentalBadge: String
     // Permissions portal
     let permissionsIntro: String
     let usedByFormat: String           // "Used by %@"
@@ -70,6 +72,7 @@ struct FeatureHubStrings {
     let descURLCleaner: String
     let descMixer: String
     let descSoundOutputSwitcher: String
+    let descAudioPriority: String
     let descMicMute: String
     let descMusicBlock: String
     let descKeepAwake: String
@@ -123,6 +126,11 @@ struct FeatureHubStrings {
     let notchUninstallMessageFormat: String   // "…: %@. …", the installed extensions' names
     let notchUninstallWithExtensions: String
     let notchUninstallKeepExtensions: String
+    // Installed features never turned on, offered for uninstalling together
+    let neverUsedTitle: String
+    let neverUsedMessageFormat: String   // "…: %@. …" with the feature names
+    let neverUsedUninstall: String
+    let neverUsedKeep: String
 }
 
 extension FeatureStrings {
@@ -133,6 +141,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -141,6 +150,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -156,6 +166,7 @@ extension FeatureHubStrings {
         titleDockClick: "Dock 클릭",
         titleMouseNavigation: "사이드 버튼",
         titleMusicBlock: "음악 앱 차단기",
+         titleAudioPriority: "오디오 장치 우선순위",
         groupWindowsDock: "윈도우 및 Dock",
         groupMouseKeyboard: "마우스 및 키보드",
         groupClipboardFiles: "클립보드 및 파일",
@@ -163,6 +174,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "에너지 및 디스플레이",
         groupTools: "도구",
         groupMonitor: "시스템 모니터",
+        experimentalBadge: "실험적",
         permissionsIntro: "각 권한의 용도와 사용하는 기능을 확인하세요. 다른 접근 권한은 해당 기능을 사용할 때만 요청합니다.",
         usedByFormat: "사용 중: %@",
         usedByNone: "현재 켜진 기능 중 이 권한을 사용하는 기능이 없습니다.",
@@ -206,6 +218,7 @@ extension FeatureHubStrings {
         descURLCleaner: "복사한 링크에서 추적 요소 제거",
         descMixer: "앱별 음량 조절, 고정 및 순서 변경",
         descSoundOutputSwitcher: "단축키로 사운드 출력 순환",
+         descAudioPriority: "선호하는 오디오 장치를 자동으로 사용",
         descMicMute: "어디서나 마이크 음소거",
         descMusicBlock: "감지된 미디어 키로 음악 앱이 열리는 것을 차단",
         descKeepAwake: "필요할 때 Mac을 깨운 상태로 유지",
@@ -256,7 +269,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Dynamic Island 제거",
         notchUninstallMessageFormat: "다음 확장 기능은 Dynamic Island 안에서만 작동합니다: %@. 함께 제거할까요? 아무것도 삭제되지 않으며 한 번의 클릭으로 모두 되돌릴 수 있습니다.",
         notchUninstallWithExtensions: "확장 기능도 제거",
-        notchUninstallKeepExtensions: "확장 기능 유지"
+        notchUninstallKeepExtensions: "확장 기능 유지",
+        neverUsedTitle: "한 번도 켜지 않은 기능",
+        neverUsedMessageFormat: "다음 기능은 설치되어 있지만 한 번도 켜진 적이 없습니다: %@. 제거하면 패널과 설정이 짧아집니다. 아무것도 삭제되지 않으며 클릭 한 번으로 다시 돌아옵니다.",
+        neverUsedUninstall: "이 기능 제거",
+        neverUsedKeep: "유지"
     )
 }
 
@@ -271,6 +288,7 @@ extension FeatureHubStrings {
         titleDockClick: "Dock clicks",
         titleMouseNavigation: "Side buttons",
         titleMusicBlock: "Music app blocker",
+         titleAudioPriority: "Audio device priority",
         groupWindowsDock: "Windows and Dock",
         groupMouseKeyboard: "Mouse and keyboard",
         groupClipboardFiles: "Clipboard and files",
@@ -278,6 +296,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energy and display",
         groupTools: "Tools",
         groupMonitor: "System monitor",
+        experimentalBadge: "Experimental",
         permissionsIntro: "What each permission does and which features use it. Other access is requested only when you use it.",
         usedByFormat: "Used by %@",
         usedByNone: "Nothing that is on uses this permission right now.",
@@ -321,6 +340,7 @@ extension FeatureHubStrings {
         descURLCleaner: "Copied links lose their tracking junk",
         descMixer: "Per-app volume, pinning and custom order",
         descSoundOutputSwitcher: "Cycle sound outputs with a shortcut",
+         descAudioPriority: "Automatically use your preferred audio devices",
         descMicMute: "Mute the microphone from anywhere",
         descMusicBlock: "Block music launches from detected media keys",
         descKeepAwake: "Keep the Mac awake on demand",
@@ -371,7 +391,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Uninstall Dynamic Island",
         notchUninstallMessageFormat: "These extensions only work inside the Dynamic Island: %@. Uninstall them too? Nothing is deleted, and everything comes back with one click.",
         notchUninstallWithExtensions: "Uninstall extensions too",
-        notchUninstallKeepExtensions: "Keep extensions"
+        notchUninstallKeepExtensions: "Keep extensions",
+        neverUsedTitle: "Never turned on",
+        neverUsedMessageFormat: "These features are installed but have never been on: %@. Uninstalling them makes the panel and Settings shorter. Nothing is deleted, and each one comes back with one click.",
+        neverUsedUninstall: "Uninstall these",
+        neverUsedKeep: "Keep them"
     )
 
     static let ptBR = FeatureHubStrings(
@@ -384,6 +408,7 @@ extension FeatureHubStrings {
         titleDockClick: "Cliques no Dock",
         titleMouseNavigation: "Botões laterais",
         titleMusicBlock: "Bloqueio do app Música",
+         titleAudioPriority: "Prioridade de dispositivos de áudio",
         groupWindowsDock: "Janelas e Dock",
         groupMouseKeyboard: "Mouse e teclado",
         groupClipboardFiles: "Área de transferência e arquivos",
@@ -391,6 +416,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energia e tela",
         groupTools: "Ferramentas",
         groupMonitor: "Monitor do sistema",
+        experimentalBadge: "Experimental",
         permissionsIntro: "O que cada permissão faz e quais recursos usam cada uma. Outros acessos só são pedidos quando você os usa.",
         usedByFormat: "Usada por %@",
         usedByNone: "Nada que está ligado usa esta permissão agora.",
@@ -434,6 +460,7 @@ extension FeatureHubStrings {
         descURLCleaner: "Links copiados perdem os rastreadores",
         descMixer: "Volume por app, fixação e ordem personalizada",
         descSoundOutputSwitcher: "Troque a saída de som com um atalho",
+         descAudioPriority: "Use automaticamente seus dispositivos de áudio preferidos",
         descMicMute: "Silencie o microfone de qualquer lugar",
         descMusicBlock: "Bloqueia aberturas de música acionadas por teclas de mídia detectadas",
         descKeepAwake: "Mantenha o Mac acordado quando quiser",
@@ -484,7 +511,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Desinstalar Dynamic Island",
         notchUninstallMessageFormat: "Estas extensões só funcionam dentro da Dynamic Island: %@. Desinstalar também? Nada é apagado e tudo volta com um clique.",
         notchUninstallWithExtensions: "Desinstalar extensões também",
-        notchUninstallKeepExtensions: "Manter extensões"
+        notchUninstallKeepExtensions: "Manter extensões",
+        neverUsedTitle: "Nunca ativados",
+        neverUsedMessageFormat: "Estes recursos estão instalados, mas nunca foram ativados: %@. Desinstalar deixa o painel e os Ajustes mais curtos. Nada é apagado, e cada um volta com um clique.",
+        neverUsedUninstall: "Desinstalar estes",
+        neverUsedKeep: "Manter"
     )
 
     static let tr = FeatureHubStrings(
@@ -497,6 +528,7 @@ extension FeatureHubStrings {
         titleDockClick: "Dock tıklamaları",
         titleMouseNavigation: "Yan düğmeler",
         titleMusicBlock: "Müzik engelleyici",
+         titleAudioPriority: "Ses cihazı önceliği",
         groupWindowsDock: "Pencereler ve Dock",
         groupMouseKeyboard: "Fare ve klavye",
         groupClipboardFiles: "Pano ve dosyalar",
@@ -504,6 +536,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Enerji ve ekran",
         groupTools: "Araçlar",
         groupMonitor: "Sistem monitörü",
+        experimentalBadge: "Deneysel",
         permissionsIntro: "Her iznin ne yaptığı ve hangi özelliklerin onu kullandığı. Diğer erişimler yalnızca kullandığınızda istenir.",
         usedByFormat: "Kullanan: %@",
         usedByNone: "Şu anda açık olan hiçbir şey bu izni kullanmıyor.",
@@ -547,6 +580,7 @@ extension FeatureHubStrings {
         descURLCleaner: "Kopyalanan bağlantılar izleyicilerden arınır",
         descMixer: "Uygulama başına ses, sabitleme ve özel sıralama",
         descSoundOutputSwitcher: "Kısayolla ses çıkışları arasında geçin",
+         descAudioPriority: "Tercih ettiğiniz ses cihazlarını otomatik kullan",
         descMicMute: "Mikrofonu her yerden sessize alın",
         descMusicBlock: "Algılanan medya tuşlarının müzik uygulamasını açmasını engeller",
         descKeepAwake: "Mac’i istediğinizde uyanık tutun",
@@ -597,7 +631,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Dynamic Island’ı kaldır",
         notchUninstallMessageFormat: "Bu uzantılar yalnızca Dynamic Island içinde çalışır: %@. Onlar da kaldırılsın mı? Hiçbir şey silinmez, hepsi tek tıkla geri gelir.",
         notchUninstallWithExtensions: "Uzantıları da kaldır",
-        notchUninstallKeepExtensions: "Uzantılar kalsın"
+        notchUninstallKeepExtensions: "Uzantılar kalsın",
+        neverUsedTitle: "Hiç açılmadı",
+        neverUsedMessageFormat: "Bu özellikler yüklü ama hiç açılmadı: %@. Kaldırırsanız panel ve Ayarlar kısalır. Hiçbir şey silinmez ve her biri tek tıkla geri gelir.",
+        neverUsedUninstall: "Bunları kaldır",
+        neverUsedKeep: "Kalsın"
     )
 
     static let ru = FeatureHubStrings(
@@ -610,6 +648,7 @@ extension FeatureHubStrings {
         titleDockClick: "Клики по Dock",
         titleMouseNavigation: "Боковые кнопки",
         titleMusicBlock: "Блокировка приложения Музыка",
+         titleAudioPriority: "Приоритет аудиоустройств",
         groupWindowsDock: "Окна и Dock",
         groupMouseKeyboard: "Мышь и клавиатура",
         groupClipboardFiles: "Буфер обмена и файлы",
@@ -617,6 +656,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Энергия и экран",
         groupTools: "Инструменты",
         groupMonitor: "Системный монитор",
+        experimentalBadge: "Экспериментально",
         permissionsIntro: "Что делает каждое разрешение и какие функции им пользуются. Остальной доступ запрашивается только при использовании.",
         usedByFormat: "Используется: %@",
         usedByNone: "Сейчас ни одна включённая функция не использует это разрешение.",
@@ -660,6 +700,7 @@ extension FeatureHubStrings {
         descURLCleaner: "Скопированные ссылки очищаются от трекеров",
         descMixer: "Громкость приложений, закрепление и порядок",
         descSoundOutputSwitcher: "Переключайте выходы звука сочетанием клавиш",
+         descAudioPriority: "Автоматически использовать предпочитаемые аудиоустройства",
         descMicMute: "Отключайте микрофон откуда угодно",
         descMusicBlock: "Блокирует запуск музыки обнаруженными медиаклавишами",
         descKeepAwake: "Не давайте Mac засыпать, когда нужно",
@@ -710,7 +751,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Удалить Dynamic Island",
         notchUninstallMessageFormat: "Эти расширения работают только внутри Dynamic Island: %@. Удалить и их? Ничего не стирается, всё возвращается одним кликом.",
         notchUninstallWithExtensions: "Удалить и расширения",
-        notchUninstallKeepExtensions: "Оставить расширения"
+        notchUninstallKeepExtensions: "Оставить расширения",
+        neverUsedTitle: "Ни разу не включались",
+        neverUsedMessageFormat: "Эти функции установлены, но ни разу не включались: %@. Если их удалить, панель и настройки станут короче. Ничего не стирается, и любую можно вернуть одним щелчком.",
+        neverUsedUninstall: "Удалить их",
+        neverUsedKeep: "Оставить"
     )
 
     static let es = FeatureHubStrings(
@@ -723,6 +768,7 @@ extension FeatureHubStrings {
         titleDockClick: "Clics en el Dock",
         titleMouseNavigation: "Botones laterales",
         titleMusicBlock: "Bloqueo de la app Música",
+         titleAudioPriority: "Prioridad de dispositivos de audio",
         groupWindowsDock: "Ventanas y Dock",
         groupMouseKeyboard: "Ratón y teclado",
         groupClipboardFiles: "Portapapeles y archivos",
@@ -730,6 +776,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energía y pantalla",
         groupTools: "Herramientas",
         groupMonitor: "Monitor del sistema",
+        experimentalBadge: "Experimental",
         permissionsIntro: "Qué hace cada permiso y qué funciones lo usan. Los demás accesos se piden solo al utilizarlos.",
         usedByFormat: "Usado por %@",
         usedByNone: "Nada de lo que está activo usa este permiso ahora.",
@@ -773,6 +820,7 @@ extension FeatureHubStrings {
         descURLCleaner: "Los enlaces copiados pierden los rastreadores",
         descMixer: "Volumen por app, fijación y orden personalizado",
         descSoundOutputSwitcher: "Cambia la salida de sonido con un atajo",
+         descAudioPriority: "Usa automáticamente tus dispositivos de audio preferidos",
         descMicMute: "Silencia el micrófono desde cualquier lugar",
         descMusicBlock: "Bloquea aperturas de música por teclas multimedia detectadas",
         descKeepAwake: "Mantén el Mac despierto cuando quieras",
@@ -823,7 +871,131 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Desinstalar Dynamic Island",
         notchUninstallMessageFormat: "Estas extensiones solo funcionan dentro del Dynamic Island: %@. ¿Desinstalarlas también? No se borra nada y todo vuelve con un clic.",
         notchUninstallWithExtensions: "Desinstalar también las extensiones",
-        notchUninstallKeepExtensions: "Conservar las extensiones"
+        notchUninstallKeepExtensions: "Conservar las extensiones",
+        neverUsedTitle: "Nunca activadas",
+        neverUsedMessageFormat: "Estas funciones están instaladas, pero nunca se activaron: %@. Desinstalarlas acorta el panel y los Ajustes. No se borra nada y cada una vuelve con un clic.",
+        neverUsedUninstall: "Desinstalar estas",
+        neverUsedKeep: "Conservarlas"
+    )
+
+    static let sk = FeatureHubStrings(
+        pageTitle: "Funkcie",
+        intro: "Nainštalujte len to, čo používate. Čokoľvek odinštalujete, zmizne z celej aplikácie a prestane sa načítavať.",
+        tabFeatures: "Funkcie",
+        tabPermissions: "Povolenia",
+        activeCountFormat: "Nainštalované: %1$d z %2$d funkcií",
+        monitorAllOffNote: "Keď je všetko vypnuté, Monitor zmizne z panela aj z lišty.",
+        titleDockClick: "Kliknutia na Dock",
+        titleMouseNavigation: "Bočné tlačidlá",
+        titleMusicBlock: "Blokovač hudobnej aplikácie",
+        titleAudioPriority: "Priorita zvukových zariadení",
+        groupWindowsDock: "Okná a Dock",
+        groupMouseKeyboard: "Myš a klávesnica",
+        groupClipboardFiles: "Schránka a súbory",
+        groupSound: "Zvuk",
+        groupEnergyDisplay: "Energia a displej",
+        groupTools: "Nástroje",
+        groupMonitor: "Systémový monitor",
+        experimentalBadge: "Experimentálne",
+        permissionsIntro: "Čo jednotlivé povolenia robia a ktoré funkcie ich používajú. Ostatný prístup sa vyžiada, až keď ho použijete.",
+        usedByFormat: "Používa: %@",
+        usedByNone: "Toto povolenie momentálne nepoužíva žiadna zapnutá funkcia.",
+        unusedBanner: "Toto povolenie ste udelili, no žiadna zapnutá funkcia ho nepotrebuje. Ak chcete, odvolajte ho v Systémových nastaveniach.",
+        statusGranted: "Udelené",
+        statusMissing: "Neudelené",
+        statusUnknown: "Aplikácia toto nedokáže overiť",
+        requestButton: "Vyžiadať",
+        openSystemSettings: "Otvoriť Systémové nastavenia",
+        permAccessibility: "Prístupnosť",
+        permScreenRecording: "Nahrávanie obrazovky",
+        permFullDisk: "Plný prístup k disku",
+        permFilesAndFolders: "Súbory a priečinky",
+        permNotifications: "Hlásenia",
+        permAutomationFinder: "Automatizácia Findera",
+        permAutomationTerminal: "Automatizácia Terminálu",
+        permAudioCapture: "Zvuk aplikácií",
+        explainAccessibility: "Umožňuje funkciám reagovať na kliknutia a klávesy a presúvať okná.",
+        explainScreenRecording: "Umožňuje funkciám zobrazovať miniatúry okien a čítať text na obrazovke.",
+        explainFullDisk: "Umožňuje čističu a nástroju na odinštalovanie nájsť zvyšné súbory kdekoľvek.",
+        explainFilesAndFolders: "Umožňuje čisteniu stiahnutých súborov z WhatsAppu a experimentálnemu organizátoru skontrolovať priečinok Stiahnuté.",
+        explainNotifications: "Umožňuje aplikácii upozorňovať vás na hlásenia, ktoré ste zapli.",
+        explainAutomationFinder: "Umožňuje aplikácii požiadať Finder, aby za vás presunul súbory.",
+        explainAutomationTerminal: "Umožňuje otvárať príkazy Homebrew v aplikácii Terminál.",
+        explainAudioCapture: "Umožňuje mixéru upravovať hlasitosť jednotlivých aplikácií, pruhom v Dynamic Island sledovať hudbu a nahrávkam obrazovky zachytiť zvuk Macu.",
+        descSwitcher: "Prepínanie aplikácií a okien s náhľadmi",
+        descDockPreview: "Náhľady okien pri prejdení kurzorom nad Dockom",
+        descDockClick: "Kliknutím na ikonu v Docku minimalizujete alebo prepínate okná",
+        descWindowMaximizer: "Zelené tlačidlo maximalizuje namiesto celej obrazovky",
+        descWindowLayout: "Usporiadajte okná skratkami alebo priľnutím k okraju a upravte ich ťahaním",
+        descAutoQuit: "Ukončí aplikáciu po zavretí jej posledného okna",
+        descScrollInverter: "Obráti smer kolieska myši",
+        descSmoothScroll: "Plynulé, animované rolovanie myšou",
+        descMouseNavigation: "Bočné tlačidlá myši slúžia na návrat a posun vpred",
+        descMiddleClick: "Kliknutie tromi prstami funguje ako stredné tlačidlo",
+        descKeyboardDebounce: "Ignoruje náhodné dvojité stlačenia klávesov",
+        descClipboardHistory: "Uchováva lokálnu históriu skopírovaného obsahu",
+        descPastePlain: "Prilepenie textu bez formátovania",
+        descFinderCutPaste: "Vystrihovanie a prilepovanie súborov vo Finderi",
+        descShelf: "Presunutím súborov na lištu ich podržíte",
+        descURLCleaner: "Kopírované odkazy prídu o sledovacie parametre",
+        descMixer: "Hlasitosť podľa aplikácie, pripnutie a vlastné poradie",
+        descSoundOutputSwitcher: "Prepínanie zvukových výstupov skratkou",
+        descAudioPriority: "Automaticky používa vaše preferované zvukové zariadenia",
+        descMicMute: "Stlmenie mikrofónu odkiaľkoľvek",
+        descMusicBlock: "Zablokuje spustenie hudby rozpoznanými multimediálnymi klávesmi",
+        descKeepAwake: "Udržiava Mac v bdelom stave na požiadanie",
+        descExtraBrightness: "Extra jas na displejoch XDR",
+        descQuickLauncher: "Plávajúci panel s vašimi obľúbenými nástrojmi",
+        descColorPicker: "Výber ľubovoľnej farby na obrazovke",
+        descScreenOCR: "Kopírovanie textu alebo QR kódov z čohokoľvek na obrazovke",
+        descCleaningMode: "Uzamkne klávesnicu a obrazovku na čistenie",
+        descMediaTools: "Komprimovanie videí, obrázkov a GIF-ov",
+        descCleaner: "Vymaže vyrovnávacie pamäte a nepotrebné súbory",
+        descUninstaller: "Odstráni aplikácie aj ich zvyšky",
+        descHomebrew: "Udržiava balíky Homebrew aktuálne",
+        descMonitorCPU: "Vyťaženie a teplota procesora",
+        descMonitorGPU: "Vyťaženie a teplota grafiky",
+        descMonitorMemory: "Využitie a tlak na pamäť",
+        descMonitorNetwork: "Rýchlosť a využitie siete",
+        descMonitorDisk: "Priestor a aktivita disku",
+        descMonitorPower: "Batéria, napájanie a nabíjanie",
+        footerNote: "Odinštalovanie nič nevymaže: funkcia len opustí aplikáciu a prestane sa načítavať. Kedykoľvek ju nainštalujte znova a všetko sa vráti tak, ako bolo.",
+        restartNote: "Funkcie odinštalované v tejto relácii zostávajú načítané, kým aplikáciu reštartujete. Reštartujte ju, ak ich chcete hneď uvoľniť z pamäte.",
+        restartButton: "Reštartovať teraz",
+        installAllButton: "Nainštalovať všetko",
+        uninstallAllButton: "Odinštalovať všetko",
+        presetsTitle: "Začnite balíkom",
+        presetsCaption: "Jedno kliknutie nastaví aplikáciu podľa toho, ako používate Mac. Všetko ostatné zostáva na jedno kliknutie.",
+        presetEssentialName: "Základ",
+        presetEssentialDesc: "Mixér hlasitosti, systémový monitor a udržanie v bdelom stave.",
+        presetWindowsName: "Okná",
+        presetWindowsDesc: "Prepínač aplikácií, usporiadanie okien a funkcie Docku.",
+        presetBatteryName: "Batéria a ticho",
+        presetBatteryDesc: "Odľahčený monitor s batériou, pamäťou a procesorom. Nič nesleduje vstupy.",
+        presetApplyButton: "Použiť",
+        presetConfirmFormat: "Nainštalovať balík %1$@ a ostatné odinštalovať? Nič sa nevymaže, všetko sa dá vrátiť jedným kliknutím.",
+        presetConfirmApply: "Použiť balík",
+        presetConfirmCancel: "Zrušiť",
+        energyIdle: "Nič v pokoji",
+        energyMouse: "Sleduje myš",
+        energyPointer: "Sleduje kurzor",
+        energyKeyboard: "Sleduje klávesnicu",
+        energyInputs: "Sleduje myš a klávesnicu",
+        energyPeriodic: "Kontroluje v pravidelných intervaloch",
+        energyHelp: "Čo funkcia udržiava v chode, kým je zapnutá. Odinštalované funkcie nenačítavajú vôbec nič.",
+        explainAppManagement: "Umožňuje aktualizáciám nahradiť alebo odstrániť aplikácie nainštalované správcom balíkov.",
+        onboardingSelectedPermissionsTitle: "Povolenia pre váš výber",
+        onboardingNoSelectedPermissions: "Na dokončenie nastavenia nemusíte udeliť žiadne povolenie.",
+        onboardingOtherPermissionsTitle: "Ostatné povolenia",
+        onboardingOtherPermissionsCaption: "Voliteľné. Udeľte ich teraz alebo neskôr, keď ich bude funkcia potrebovať.",
+        notchUninstallTitle: "Odinštalovať Dynamic Island",
+        notchUninstallMessageFormat: "Tieto rozšírenia fungujú len v rámci Dynamic Island: %@. Odinštalovať aj ich? Nič sa nevymaže, všetko sa dá vrátiť jedným kliknutím.",
+        notchUninstallWithExtensions: "Odinštalovať aj rozšírenia",
+        notchUninstallKeepExtensions: "Ponechať rozšírenia",
+        neverUsedTitle: "Nikdy nezapnuté",
+        neverUsedMessageFormat: "Tieto funkcie sú nainštalované, ale ešte nikdy neboli zapnuté: %@. Ich odinštalovaním sa panel a nastavenia skrátia. Nič sa nevymaže a každá sa vráti jedným kliknutím.",
+        neverUsedUninstall: "Odinštalovať tieto",
+        neverUsedKeep: "Ponechať"
     )
 
     static let de = FeatureHubStrings(
@@ -836,6 +1008,7 @@ extension FeatureHubStrings {
         titleDockClick: "Dock-Klicks",
         titleMouseNavigation: "Seitentasten",
         titleMusicBlock: "Musik-App-Blocker",
+         titleAudioPriority: "Priorität der Audiogeräte",
         groupWindowsDock: "Fenster und Dock",
         groupMouseKeyboard: "Maus und Tastatur",
         groupClipboardFiles: "Zwischenablage und Dateien",
@@ -843,6 +1016,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energie und Display",
         groupTools: "Werkzeuge",
         groupMonitor: "Systemmonitor",
+        experimentalBadge: "Experimentell",
         permissionsIntro: "Was jede Berechtigung tut und welche Funktionen sie nutzen. Weitere Zugriffe werden erst bei der Nutzung angefragt.",
         usedByFormat: "Genutzt von %@",
         usedByNone: "Nichts Eingeschaltetes nutzt diese Berechtigung gerade.",
@@ -886,6 +1060,7 @@ extension FeatureHubStrings {
         descURLCleaner: "Kopierte Links verlieren ihre Tracker",
         descMixer: "App-Lautstärke, Anheften und eigene Reihenfolge",
         descSoundOutputSwitcher: "Tonausgänge per Kurzbefehl durchschalten",
+         descAudioPriority: "Bevorzugte Audiogeräte automatisch verwenden",
         descMicMute: "Das Mikrofon von überall stummschalten",
         descMusicBlock: "Blockiert Musikstarts durch erkannte Medientasten",
         descKeepAwake: "Hält den Mac wach, wann immer du willst",
@@ -936,7 +1111,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Dynamic Island deinstallieren",
         notchUninstallMessageFormat: "Diese Erweiterungen funktionieren nur im Dynamic Island: %@. Auch deinstallieren? Nichts wird gelöscht, alles kommt mit einem Klick zurück.",
         notchUninstallWithExtensions: "Erweiterungen auch deinstallieren",
-        notchUninstallKeepExtensions: "Erweiterungen behalten"
+        notchUninstallKeepExtensions: "Erweiterungen behalten",
+        neverUsedTitle: "Nie eingeschaltet",
+        neverUsedMessageFormat: "Diese Funktionen sind installiert, waren aber nie eingeschaltet: %@. Deinstallierst du sie, werden Panel und Einstellungen kürzer. Nichts wird gelöscht, und jede kommt mit einem Klick zurück.",
+        neverUsedUninstall: "Diese deinstallieren",
+        neverUsedKeep: "Behalten"
     )
 
     static let fr = FeatureHubStrings(
@@ -949,6 +1128,7 @@ extension FeatureHubStrings {
         titleDockClick: "Clics sur le Dock",
         titleMouseNavigation: "Boutons latéraux",
         titleMusicBlock: "Blocage de l’app Musique",
+        titleAudioPriority: "Priorité des périphériques audio",
         groupWindowsDock: "Fenêtres et Dock",
         groupMouseKeyboard: "Souris et clavier",
         groupClipboardFiles: "Presse-papiers et fichiers",
@@ -956,6 +1136,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Énergie et écran",
         groupTools: "Outils",
         groupMonitor: "Moniteur système",
+        experimentalBadge: "Expérimental",
         permissionsIntro: "Ce que fait chaque autorisation et quelles fonctions l’utilisent. Les autres accès ne sont demandés qu’à l’utilisation.",
         usedByFormat: "Utilisée par %@",
         usedByNone: "Rien d’activé n’utilise cette autorisation pour l’instant.",
@@ -999,6 +1180,7 @@ extension FeatureHubStrings {
         descURLCleaner: "Les liens copiés perdent leurs traqueurs",
         descMixer: "Volume par app, épinglage et ordre personnalisé",
         descSoundOutputSwitcher: "Changez de sortie audio avec un raccourci",
+        descAudioPriority: "Utiliser automatiquement vos périphériques audio préférés",
         descMicMute: "Coupez le micro depuis n’importe où",
         descMusicBlock: "Bloque les ouvertures de musique par des touches multimédias détectées",
         descKeepAwake: "Gardez le Mac éveillé à la demande",
@@ -1049,7 +1231,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Désinstaller Dynamic Island",
         notchUninstallMessageFormat: "Ces extensions ne fonctionnent que dans Dynamic Island\u{00A0}: %@. Les désinstaller aussi\u{00A0}? Rien n’est effacé et tout revient en un clic.",
         notchUninstallWithExtensions: "Désinstaller aussi les extensions",
-        notchUninstallKeepExtensions: "Conserver les extensions"
+        notchUninstallKeepExtensions: "Conserver les extensions",
+        neverUsedTitle: "Jamais activées",
+        neverUsedMessageFormat: "Ces fonctions sont installées mais n’ont jamais été activées\u{00A0}: %@. Les désinstaller raccourcit le panneau et les Réglages. Rien n’est effacé, et chacune revient en un clic.",
+        neverUsedUninstall: "Les désinstaller",
+        neverUsedKeep: "Les garder"
     )
 
     static let it = FeatureHubStrings(
@@ -1062,6 +1248,7 @@ extension FeatureHubStrings {
         titleDockClick: "Clic sul Dock",
         titleMouseNavigation: "Tasti laterali",
         titleMusicBlock: "Blocco dell’app Musica",
+        titleAudioPriority: "Priorità dei dispositivi audio",
         groupWindowsDock: "Finestre e Dock",
         groupMouseKeyboard: "Mouse e tastiera",
         groupClipboardFiles: "Appunti e file",
@@ -1069,6 +1256,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energia e schermo",
         groupTools: "Strumenti",
         groupMonitor: "Monitor di sistema",
+        experimentalBadge: "Sperimentale",
         permissionsIntro: "Cosa fa ogni permesso e quali funzioni lo usano. Gli altri accessi vengono chiesti solo quando servono.",
         usedByFormat: "Usato da %@",
         usedByNone: "Niente di attivo usa questo permesso al momento.",
@@ -1112,6 +1300,7 @@ extension FeatureHubStrings {
         descURLCleaner: "I link copiati perdono i tracciatori",
         descMixer: "Volume per app, app fissate e ordine personalizzato",
         descSoundOutputSwitcher: "Cambia uscita audio con una scorciatoia",
+         descAudioPriority: "Usa automaticamente i tuoi dispositivi audio preferiti",
         descMicMute: "Silenzia il microfono da ovunque",
         descMusicBlock: "Blocca l’apertura della musica da tasti multimediali rilevati",
         descKeepAwake: "Tieni il Mac sveglio quando serve",
@@ -1162,7 +1351,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Disinstalla Dynamic Island",
         notchUninstallMessageFormat: "Queste estensioni funzionano solo nel Dynamic Island: %@. Disinstallare anche loro? Nulla viene cancellato e tutto torna con un clic.",
         notchUninstallWithExtensions: "Disinstalla anche le estensioni",
-        notchUninstallKeepExtensions: "Mantieni le estensioni"
+        notchUninstallKeepExtensions: "Mantieni le estensioni",
+        neverUsedTitle: "Mai attivate",
+        neverUsedMessageFormat: "Queste funzioni sono installate ma non sono mai state attivate: %@. Disinstallarle accorcia il pannello e le Impostazioni. Non si cancella nulla e ognuna torna con un clic.",
+        neverUsedUninstall: "Disinstalla queste",
+        neverUsedKeep: "Mantienile"
     )
 
     static let ja = FeatureHubStrings(
@@ -1175,6 +1368,7 @@ extension FeatureHubStrings {
         titleDockClick: "Dockのクリック",
         titleMouseNavigation: "サイドボタン",
         titleMusicBlock: "ミュージック起動ブロック",
+         titleAudioPriority: "オーディオデバイスの優先順位",
         groupWindowsDock: "ウインドウとDock",
         groupMouseKeyboard: "マウスとキーボード",
         groupClipboardFiles: "クリップボードとファイル",
@@ -1182,6 +1376,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "エネルギーとディスプレイ",
         groupTools: "ツール",
         groupMonitor: "システムモニタ",
+        experimentalBadge: "実験的",
         permissionsIntro: "各権限の役割と、それを使う機能です。その他のアクセスは機能を使うときだけ求めます。",
         usedByFormat: "使用中: %@",
         usedByNone: "現在オンの機能でこの権限を使うものはありません。",
@@ -1225,6 +1420,7 @@ extension FeatureHubStrings {
         descURLCleaner: "コピーしたリンクからトラッカーを除去",
         descMixer: "アプリ別の音量、固定、並べ替え",
         descSoundOutputSwitcher: "ショートカットで出力先を切り替え",
+         descAudioPriority: "優先するオーディオデバイスを自動的に使用",
         descMicMute: "どこからでもマイクをミュート",
         descMusicBlock: "検出したメディアキーによる音楽アプリの起動を防止",
         descKeepAwake: "必要なときにMacをスリープさせない",
@@ -1275,7 +1471,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "Dynamic Islandをアンインストール",
         notchUninstallMessageFormat: "次の拡張機能はDynamic Islandの中でのみ動作します：%@。これらもアンインストールしますか？何も削除されず、すべてワンクリックで戻ります。",
         notchUninstallWithExtensions: "拡張機能もアンインストール",
-        notchUninstallKeepExtensions: "拡張機能を残す"
+        notchUninstallKeepExtensions: "拡張機能を残す",
+        neverUsedTitle: "一度もオンにしていない機能",
+        neverUsedMessageFormat: "次の機能はインストール済みですが、一度もオンになっていません: %@。アンインストールするとパネルと設定が短くなります。何も消えず、どれもワンクリックで戻せます。",
+        neverUsedUninstall: "これらをアンインストール",
+        neverUsedKeep: "残す"
     )
 
     static let zhHans = FeatureHubStrings(
@@ -1288,6 +1488,7 @@ extension FeatureHubStrings {
         titleDockClick: "程序坞点按",
         titleMouseNavigation: "侧键",
         titleMusicBlock: "「音乐」App 拦截",
+         titleAudioPriority: "音频设备优先级",
         groupWindowsDock: "窗口与程序坞",
         groupMouseKeyboard: "鼠标与键盘",
         groupClipboardFiles: "剪贴板与文件",
@@ -1295,6 +1496,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗与显示",
         groupTools: "工具",
         groupMonitor: "系统监视器",
+        experimentalBadge: "实验性",
         permissionsIntro: "每项权限的作用以及哪些功能会使用它。其他访问权限只会在使用相关功能时请求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前没有已开启的功能在使用此权限。",
@@ -1338,6 +1540,7 @@ extension FeatureHubStrings {
         descURLCleaner: "拷贝的链接自动去除跟踪参数",
         descMixer: "各 App 音量、置顶和自定义排序",
         descSoundOutputSwitcher: "用快捷键切换声音输出",
+         descAudioPriority: "自动使用您首选的音频设备",
         descMicMute: "随时随地静音麦克风",
         descMusicBlock: "阻止检测到的媒体键触发音乐启动",
         descKeepAwake: "需要时让 Mac 保持唤醒",
@@ -1388,7 +1591,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "卸载 Dynamic Island",
         notchUninstallMessageFormat: "以下扩展只能在 Dynamic Island 中使用：%@。要一并卸载吗？不会删除任何内容，一键即可全部恢复。",
         notchUninstallWithExtensions: "一并卸载扩展",
-        notchUninstallKeepExtensions: "保留扩展"
+        notchUninstallKeepExtensions: "保留扩展",
+        neverUsedTitle: "从未开启",
+        neverUsedMessageFormat: "这些功能已安装，但从未开启：%@。卸载后，面板和设置会更简短。不会删除任何数据，每项都能一键恢复。",
+        neverUsedUninstall: "卸载这些",
+        neverUsedKeep: "保留"
     )
 
     static let zhTW = FeatureHubStrings(
@@ -1401,6 +1608,7 @@ extension FeatureHubStrings {
         titleDockClick: "Dock 點按",
         titleMouseNavigation: "側鍵",
         titleMusicBlock: "音樂 App 攔截",
+         titleAudioPriority: "音訊裝置優先順序",
         groupWindowsDock: "視窗與 Dock",
         groupMouseKeyboard: "滑鼠與鍵盤",
         groupClipboardFiles: "剪貼板與檔案",
@@ -1408,6 +1616,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗與顯示",
         groupTools: "工具",
         groupMonitor: "系統監視器",
+        experimentalBadge: "實驗性",
         permissionsIntro: "每項權限的作用，以及哪些功能會使用它。其他存取權限只會在使用相關功能時要求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前沒有已開啟的功能在使用此權限。",
@@ -1451,6 +1660,7 @@ extension FeatureHubStrings {
         descURLCleaner: "拷貝的連結自動移除追蹤參數",
         descMixer: "各 App 音量、置頂和自訂排序",
         descSoundOutputSwitcher: "用快速鍵切換聲音輸出",
+         descAudioPriority: "自動使用您偏好的音訊裝置",
         descMicMute: "隨時隨地將麥克風靜音",
         descMusicBlock: "阻止偵測到的媒體鍵觸發音樂啟動",
         descKeepAwake: "需要時讓 Mac 保持喚醒",
@@ -1501,7 +1711,11 @@ extension FeatureHubStrings {
         notchUninstallTitle: "解除安裝 Dynamic Island",
         notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
         notchUninstallWithExtensions: "一併解除安裝延伸功能",
-        notchUninstallKeepExtensions: "保留延伸功能"
+        notchUninstallKeepExtensions: "保留延伸功能",
+        neverUsedTitle: "從未開啟",
+        neverUsedMessageFormat: "這些功能已安裝，但從未開啟：%@。解除安裝後，面板和設定會更簡短。不會刪除任何資料，每項都能一鍵恢復。",
+        neverUsedUninstall: "解除安裝這些",
+        neverUsedKeep: "保留"
     )
 
     static let zhHK = FeatureHubStrings(
@@ -1514,6 +1728,7 @@ extension FeatureHubStrings {
         titleDockClick: "Dock 點按",
         titleMouseNavigation: "側鍵",
         titleMusicBlock: "音樂 App 攔截",
+         titleAudioPriority: "音訊裝置優先順序",
         groupWindowsDock: "視窗與 Dock",
         groupMouseKeyboard: "滑鼠與鍵盤",
         groupClipboardFiles: "剪貼板與檔案",
@@ -1521,6 +1736,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗與顯示",
         groupTools: "工具",
         groupMonitor: "系統監察器",
+        experimentalBadge: "實驗性",
         permissionsIntro: "每項權限嘅作用，以及哪些功能會使用佢。其他存取權限只會喺使用相關功能時要求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前沒有已開啟的功能使用此權限。",
@@ -1564,6 +1780,7 @@ extension FeatureHubStrings {
         descURLCleaner: "複製的連結自動移除追蹤參數",
         descMixer: "各 App 音量、置頂和自訂排序",
         descSoundOutputSwitcher: "用快速鍵切換聲音輸出",
+         descAudioPriority: "自動使用您偏好嘅音訊裝置",
         descMicMute: "隨時隨地將咪高風靜音",
         descMusicBlock: "阻止偵測到的媒體鍵觸發音樂啟動",
         descKeepAwake: "需要時讓 Mac 保持喚醒",
@@ -1614,6 +1831,133 @@ extension FeatureHubStrings {
         notchUninstallTitle: "解除安裝 Dynamic Island",
         notchUninstallMessageFormat: "以下延伸功能只能在 Dynamic Island 中使用：%@。要一併解除安裝嗎？不會刪除任何內容，一鍵即可全部復原。",
         notchUninstallWithExtensions: "一併解除安裝延伸功能",
-        notchUninstallKeepExtensions: "保留延伸功能"
+        notchUninstallKeepExtensions: "保留延伸功能",
+        neverUsedTitle: "從未開啟",
+        neverUsedMessageFormat: "這些功能已安裝，但從未開啟：%@。解除安裝後，面板和設定會更簡短。不會刪除任何資料，每項都可以一鍵恢復。",
+        neverUsedUninstall: "解除安裝這些",
+        neverUsedKeep: "保留"
+    )
+}
+
+// Українська.
+extension FeatureHubStrings {
+    static let uk = FeatureHubStrings(
+        pageTitle: "Функції",
+        intro: "Встановлюйте лише те, чим користуєтесь. Усе видалене зникає з усієї програми та перестає завантажуватися.",
+        tabFeatures: "Функції",
+        tabPermissions: "Дозволи",
+        activeCountFormat: "Встановлено функцій: %1$d з %2$d",
+        monitorAllOffNote: "Коли все вимкнено, Монітор зникає з панелі та зі смуги меню.",
+        titleDockClick: "Клацання по Dock",
+        titleMouseNavigation: "Бокові кнопки",
+        titleMusicBlock: "Блокувальник програми Музика",
+        titleAudioPriority: "Пріоритет аудіопристроїв",
+        groupWindowsDock: "Вікна та Dock",
+        groupMouseKeyboard: "Миша та клавіатура",
+        groupClipboardFiles: "Буфер обміну та файли",
+        groupSound: "Звук",
+        groupEnergyDisplay: "Живлення та дисплей",
+        groupTools: "Інструменти",
+        groupMonitor: "Системний монітор",
+        experimentalBadge: "Експериментальне",
+        permissionsIntro: "Що робить кожен дозвіл та які функції його використовують. Інший доступ запитується лише при використанні.",
+        usedByFormat: "Використовується: %@",
+        usedByNone: "Зараз ніщо з увімкненого не використовує цей дозвіл.",
+        unusedBanner: "Ви надали цей дозвіл, але ніщо з увімкненого його не потребує. За бажанням відкличте його в Системних параметрах.",
+        statusGranted: "Надано",
+        statusMissing: "Не надано",
+        statusUnknown: "Програма не може це перевірити",
+        requestButton: "Запитати",
+        openSystemSettings: "Відкрити Системні параметри",
+        permAccessibility: "Доступність",
+        permScreenRecording: "Запис екрана",
+        permFullDisk: "Повний доступ до диска",
+        permFilesAndFolders: "Файли та папки",
+        permNotifications: "Сповіщення",
+        permAutomationFinder: "Автоматизація Finder",
+        permAutomationTerminal: "Автоматизація Термінала",
+        permAudioCapture: "Звук програм",
+        explainAccessibility: "Дозволяє функціям реагувати на клацання та клавіші та переміщати вікна.",
+        explainScreenRecording: "Дозволяє функціям показувати мініатюри вікон та читати текст на екрані.",
+        explainFullDisk: "Дозволяє очищувачу та деінсталятору знаходити залишки файлів всюди.",
+        explainFilesAndFolders: "Дозволяє очищенню завантажень WhatsApp та експериментальному органайзеру перевіряти папку «Викачане».",
+        explainNotifications: "Дозволяє програмі сповіщати вас про увімкнені оповіщення.",
+        explainAutomationFinder: "Дозволяє програмі просити Finder переміщати файли за вас.",
+        explainAutomationTerminal: "Дозволяє командам Homebrew відкриватися в Терміналі.",
+        explainAudioCapture: "Дозволяє мікшеру налаштовувати гучність кожної програми, смугам Dynamic Island реагувати на музику, а записам екрана захоплювати звук Mac.",
+        descSwitcher: "Перемикайте програми та вікна з прев’ю",
+        descDockPreview: "Прев’ю вікон при наведенні на Dock",
+        descDockClick: "Клац по значку Dock згортає або перемикає вікна",
+        descWindowMaximizer: "Зелена кнопка розгортає замість повного екрана",
+        descWindowLayout: "Розставляйте вікна поєднаннями клавіш або прилипанням до країв, потім коригуйте перетягуванням",
+        descAutoQuit: "Закривати програми, коли закривається їхнє останнє вікно",
+        descScrollInverter: "Інвертувати напрямок колеса миші",
+        descSmoothScroll: "Плавна анімована прокрутка миші",
+        descMouseNavigation: "Бокові кнопки миші йдуть назад та вперед",
+        descMiddleClick: "Клац трьома пальцями працює як середній клац",
+        descKeyboardDebounce: "Ігнорувати випадкові подвійні натискання клавіш",
+        descClipboardHistory: "Зберігати локальну історію скопійованого",
+        descPastePlain: "Вставляти текст без форматування",
+        descFinderCutPaste: "Вирізати та вставляти файли у Finder",
+        descShelf: "Кидайте файли на смугу меню, щоб зберегти їх",
+        descURLCleaner: "Скопійовані посилання втрачають трекери",
+        descMixer: "Гучність кожної програми, закріплення та власний порядок",
+        descSoundOutputSwitcher: "Перемикати виходи звуку поєднанням клавіш",
+        descAudioPriority: "Автоматично використовувати бажані аудіопристрої",
+        descMicMute: "Вимкнути мікрофон звідки завгодно",
+        descMusicBlock: "Блокувати запуск програми Музика від виявлених натискань медіаклавіш",
+        descKeepAwake: "Не давати Mac засинати на вимогу",
+        descExtraBrightness: "Додаткова яскравість на XDR-дисплеях",
+        descQuickLauncher: "Плаваюча панель з вашими улюбленими інструментами",
+        descColorPicker: "Візьміть будь-який колір на екрані",
+        descScreenOCR: "Копіюйте текст або QR-коди з чого завгодно на екрані",
+        descCleaningMode: "Блокувати клавіатуру та екран для чищення",
+        descMediaTools: "Стискайте відео, зображення та GIF",
+        descCleaner: "Очищайте кеш та сміттєві файли",
+        descUninstaller: "Видаляйте програми та їхні залишки",
+        descHomebrew: "Тримайте пакети Homebrew в актуальному стані",
+        descMonitorCPU: "Використання та температура процесора",
+        descMonitorGPU: "Використання та температура графіки",
+        descMonitorMemory: "Використання та тиск пам’яті",
+        descMonitorNetwork: "Швидкість та використання мережі",
+        descMonitorDisk: "Місце та активність диска",
+        descMonitorPower: "Акумулятор, живлення та заряджання",
+        footerNote: "Видалення нічого не стирає: функція просто зникає з програми та перестає завантажуватися. Встановіть її знову, і все повернеться як було.",
+        restartNote: "Функції, видалені в цій сесії, залишаються в пам’яті до перезапуску програми. Перезапустіть, щоб вивантажити їх зараз.",
+        restartButton: "Перезапустити зараз",
+        installAllButton: "Встановити все",
+        uninstallAllButton: "Видалити все",
+        presetsTitle: "Почніть з набору",
+        presetsCaption: "Одне клацання налаштовує програму під ваш стиль роботи. Решта залишається доступною одним клацанням.",
+        presetEssentialName: "Основне",
+        presetEssentialDesc: "Мікшер гучності, системний монітор та режим без сну.",
+        presetWindowsName: "Вікна",
+        presetWindowsDesc: "Перемикач програм, розкладка вікон та функції Dock.",
+        presetBatteryName: "Акумулятор та тиша",
+        presetBatteryDesc: "Компактний монітор з акумулятором, пам’яттю та процесором. Нічого не відстежує введення.",
+        presetApplyButton: "Застосувати",
+        presetConfirmFormat: "Встановити набір %1$@ та видалити решту? Нічого не стирається, усе повертається одним клацанням.",
+        presetConfirmApply: "Застосувати набір",
+        presetConfirmCancel: "Скасувати",
+        energyIdle: "Нічого в стані спокою",
+        energyMouse: "Слухає мишу",
+        energyPointer: "Слухає введення вказівника",
+        energyKeyboard: "Слухає клавіатуру",
+        energyInputs: "Слухає мишу та клавіатуру",
+        energyPeriodic: "Перевіряє з інтервалом",
+        energyHelp: "Що функція тримає активним, поки вона ввімкнена. Видалені функції не завантажують нічого.",
+        explainAppManagement: "Дозволяє оновленням замінювати або видаляти програми, встановлені через менеджер пакетів.",
+        onboardingSelectedPermissionsTitle: "Дозволи для вашого вибору",
+        onboardingNoSelectedPermissions: "Вам не потрібно надавати жодних дозволів для завершення налаштування.",
+        onboardingOtherPermissionsTitle: "Інші дозволи",
+        onboardingOtherPermissionsCaption: "Необов’язково. Надайте їх зараз або пізніше, коли функція їх потребуватиме.",
+        notchUninstallTitle: "Видалити Dynamic Island",
+        notchUninstallMessageFormat: "Наступні розширення працюють лише з Dynamic Island: %@. Видалити їх разом? Нічого не стирається, усе повертається одним клацанням.",
+        notchUninstallWithExtensions: "Видалити розширення разом",
+        notchUninstallKeepExtensions: "Залишити розширення",
+        neverUsedTitle: "Жодного разу не вмикалися",
+        neverUsedMessageFormat: "Ці функції встановлені, але жодного разу не вмикалися: %@. Якщо їх видалити, панель і налаштування стануть коротшими. Нічого не стирається, і будь-яку можна повернути одним клацанням.",
+        neverUsedUninstall: "Видалити їх",
+        neverUsedKeep: "Залишити"
     )
 }

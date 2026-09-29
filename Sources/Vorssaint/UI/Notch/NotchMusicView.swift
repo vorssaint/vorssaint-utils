@@ -10,8 +10,8 @@ struct NotchMusicView: View {
     @ObservedObject private var service = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
-    @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = false
-    @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = false
+    @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
+    @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @State private var extra: MusicExtra?
     private enum MusicExtra { case lyrics, queue }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -90,6 +90,7 @@ struct NotchMusicView: View {
         .onDisappear {
             guard !preview else { return }
             NotchService.shared.setMusicDetailsVisible(false)
+            NotchService.shared.setPageLayer(.music, close: nil)
             NotchLyricsService.shared.hide()
             service.setQueueVisible(false)
         }
@@ -98,6 +99,8 @@ struct NotchMusicView: View {
     private func syncExtras() {
         guard !preview else { return }
         NotchService.shared.setMusicDetailsVisible(openExtra != nil)
+        // Escape closes lyrics or the queue before the island.
+        NotchService.shared.setPageLayer(.music, close: openExtra == nil ? nil : { extra = nil })
         NotchLyricsService.shared.update(playback: service.playback, visible: extra == .lyrics)
         service.setQueueVisible(extra == .queue)
     }
@@ -159,6 +162,7 @@ struct NotchMusicView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(height: height)
+        .modifier(NotchMusicSwipeFeedback())
     }
 
     private func details(_ playback: NotchPlayback, titleLines: Int, artist: Bool, timeline: Bool, roomy: Bool) -> some View {
@@ -264,9 +268,13 @@ private struct NotchMusicTransport: View {
 
     private var transportButtons: some View {
         HStack(spacing: compact ? 14 : 22) {
-            playbackButton("backward.end.fill", title: text.mediaPrevious, command: .previous)
+            if !service.lacksTrackSkipping(.previous) {
+                playbackButton("backward.end.fill", title: text.mediaPrevious, command: .previous)
+            }
             toggleButton
-            playbackButton("forward.end.fill", title: text.mediaNext, command: .next)
+            if !service.lacksTrackSkipping(.next) {
+                playbackButton("forward.end.fill", title: text.mediaNext, command: .next)
+            }
         }
         .frame(height: height)
     }
@@ -310,7 +318,7 @@ private struct NotchMusicTransport: View {
     }
 }
 
-private struct NotchMusicTimeline: View {
+struct NotchMusicTimeline: View {
     let playback: NotchPlayback
     @ObservedObject var service: NotchMusicService
     var tint: Color = .white

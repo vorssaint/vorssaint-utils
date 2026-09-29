@@ -11,6 +11,7 @@ final class AgentUsageStore {
     private(set) var records: [AgentUsageRecord] = []
     private var billables: [AgentBillable] = []
     private var index: [String: Int] = [:]
+    private let summary = AgentUsageSummaryCache()
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
     private var codexPlanObserved = Date.distantPast
@@ -19,6 +20,8 @@ final class AgentUsageStore {
     /// Turns gone quiet, by log file: not shown as working, but work that
     /// resumes after an approval or a long command goes on with them.
     private(set) var waiting: [String: AgentLiveSession] = [:]
+    /// Claude turns whose process was seen running, by log file.
+    private var registered: Set<String> = []
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -34,6 +37,12 @@ final class AgentUsageStore {
 
     var live: [AgentLiveSession] { Array(turns.values) }
 
+    func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
+                  calendar: Calendar = .current) -> AgentUsageSnapshot {
+        summary.snapshot(records: records, limits: limits, live: live, plans: plans,
+                         providers: providers, now: now, calendar: calendar)
+    }
+
     /// Applies one file's entries and returns the turns they finished.
     /// `parent` is the log whose turn a subagent's responses count toward.
     @discardableResult
@@ -45,9 +54,7 @@ final class AgentUsageStore {
             case .usage(let key, let record, let billable):
                 add(record, billable: billable, key: key, turn: tracksTurns ? file : parent, subagent: !tracksTurns)
             case .limits(let reading):
-                if (limits[reading.provider]?.observedAt ?? .distantPast) <= reading.observedAt {
-                    limits[reading.provider] = reading
-                }
+                updateLimits(reading)
             case .plan(let plan, let date):
                 // An archived session read again from its start holds an
                 // older plan than the one in use.
@@ -107,6 +114,7 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             guard merged != old.tokens else { return }
+            summary.recordChanged(at: position, previous: old)
             var combined = billables[position]
             combined.tokens = merged
             combined.longCacheWrite = max(combined.longCacheWrite, billable.longCacheWrite)
@@ -125,6 +133,7 @@ final class AgentUsageStore {
             records[position].cost = priced.cost
             records[position].savings = priced.savings
         } else {
+            summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
             records.append(record)
             billables.append(billable)
@@ -144,6 +153,7 @@ final class AgentUsageStore {
 
     /// Prices every response again, after a newer list arrives.
     func reprice() {
+        summary.invalidate()
         for position in records.indices {
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             records[position].cost = priced.cost
@@ -153,6 +163,14 @@ final class AgentUsageStore {
 
     func setLimits(_ reading: AgentLimits) {
         limits[reading.provider] = reading
+    }
+
+    /// Keeps the newer of two readings of an account, whichever way each
+    /// one arrived.
+    func updateLimits(_ reading: AgentLimits) {
+        if (limits[reading.provider]?.observedAt ?? .distantPast) <= reading.observedAt {
+            limits[reading.provider] = reading
+        }
     }
 
     func clearLimits(_ provider: AgentProvider) {
@@ -171,9 +189,36 @@ final class AgentUsageStore {
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
     }
 
+    /// A Claude session quit or killed in the middle of a turn, as when its
+    /// terminal closes, writes nothing that ends the turn. Its process
+    /// record says so sooner than the quiet wait: the record names a process
+    /// that no longer runs, or a record seen running is gone. A session that
+    /// keeps no record waits as before. At launch, a turn the logs left open
+    /// without a record is over too, once the records could be read. True
+    /// when a turn was showing.
+    @discardableResult
+    func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false) -> Bool {
+        registered.formIntersection(turns.keys)
+        var closed = false
+        for (file, turn) in turns where turn.provider == .claude {
+            let session = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
+            if processes.running.contains(session) {
+                registered.insert(file)
+            } else if processes.ended.contains(session)
+                        || (processes.complete && (registered.contains(file) || (atLaunch && processes.listed))) {
+                registered.remove(file)
+                closed = forget(file: file) || closed
+            }
+        }
+        return closed
+    }
+
+    var showsClaudeTurn: Bool { turns.values.contains { $0.provider == .claude } }
+
     /// Keeps memory bounded to the history the island can show.
     func dropRecords(before date: Date) {
         guard records.contains(where: { $0.date < date }) else { return }
+        summary.invalidate()
         var kept: [AgentUsageRecord] = []
         var keptBillables: [AgentBillable] = []
         var positions: [Int: Int] = [:]
@@ -213,6 +258,49 @@ struct AgentLogRoot: Equatable {
     var exists: Bool {
         var directory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && directory.boolValue
+    }
+}
+
+/// The Claude sessions with a process, from the `sessions/<pid>.json` record
+/// Claude Code keeps beside its logs while it runs. A process that exits
+/// removes its record; one that is killed leaves it behind.
+struct AgentSessionRegistry: Equatable {
+    /// Session ids, which name their log files, with a running process.
+    var running: Set<String> = []
+    /// Session ids whose recorded process no longer runs.
+    var ended: Set<String> = []
+    /// False when a record could not be read, as while it is being written,
+    /// so a missing session proves nothing.
+    var complete = true
+    /// A sessions folder could be listed, so this Claude Code keeps records.
+    var listed = false
+
+    /// `folders` are the `sessions` folders beside each Claude log root.
+    static func read(_ folders: [URL], isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> AgentSessionRegistry {
+        var registry = AgentSessionRegistry()
+        for folder in folders {
+            guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { continue }
+            registry.listed = true
+            for name in names where name.hasSuffix(".json") && Int32(name.dropLast(5)) != nil {
+                guard let data = try? Data(contentsOf: folder.appending(path: name)), data.count < 1 << 16,
+                      let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                      let pid = json["pid"] as? Int, let session = json["sessionId"] as? String, !session.isEmpty else {
+                    registry.complete = false
+                    continue
+                }
+                // A session run in a container or virtual machine that shares
+                // this folder names a process this Mac cannot see.
+                if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
+                if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
+            }
+        }
+        // A session resumed by a new process after an old one was killed.
+        registry.ended.subtract(registry.running)
+        return registry
+    }
+
+    static func isRunning(_ pid: Int32) -> Bool {
+        pid > 0 && (kill(pid, 0) == 0 || errno == EPERM)
     }
 }
 
@@ -278,7 +366,9 @@ enum AgentLogReader {
 
     /// Reads what was appended since the last call and hands over each
     /// complete line. A replaced or truncated file starts over.
-    static func readAppended(_ cursor: AgentLogCursor, line: (Data) -> Void) {
+    static func readAppended(_ cursor: AgentLogCursor, shouldContinue: () -> Bool = { true },
+                             line: (Data) -> Void) {
+        guard shouldContinue() else { return }
         var info = stat()
         guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
         let size = UInt64(max(0, info.st_size))
@@ -295,7 +385,7 @@ enum AgentLogReader {
         guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { try? handle.close() }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
-        while cursor.offset < size {
+        while cursor.offset < size, shouldContinue() {
             let wanted = Int(min(UInt64(chunkSize), size - cursor.offset))
             // A first read can cover gigabytes; each chunk and what was parsed
             // from it are released before the next one.
@@ -317,7 +407,9 @@ enum AgentLogReader {
         var lines: [Range<Int>] = []
         buffer.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
-            var position = 0
+            // What was carried over holds no line break; a long line is
+            // not searched again with every chunk it spans.
+            var position = cursor.pending.count
             while position < count, let found = memchr(base + position, 0x0A, count - position) {
                 let end = base.distance(to: UnsafeRawPointer(found))
                 lines.append(start..<end)
@@ -330,9 +422,11 @@ enum AgentLogReader {
                 cursor.discarding = false
                 continue
             }
-            if !range.isEmpty { line(buffer.subdata(in: range)) }
+            if !range.isEmpty, range.count <= maximumLine { line(buffer.subdata(in: range)) }
         }
-        if count - start > maximumLine {
+        // Once a line is oversized, scan only for its terminator. Retaining
+        // subsequent fragments would rebuild a buffer we can never deliver.
+        if cursor.discarding || count - start > maximumLine {
             cursor.pending = Data()
             cursor.discarding = true
         } else {

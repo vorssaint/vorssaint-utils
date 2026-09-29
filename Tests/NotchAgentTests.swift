@@ -18,13 +18,18 @@ enum NotchAgentTests {
         codexParsing(suite)
         timestamps(suite)
         summary(suite)
+        AgentUsageSummaryCacheTests.run(suite)
         limits(suite)
         strip(suite)
         liveTurns(suite)
         reading(suite)
+        AgentUsageReadTests.run(suite)
         claudeApp(suite)
+        AgentCodexResetTests.run(suite)
         preferences(suite)
         formatting(suite)
+        AgentUsageEventDeliveryTests.run(suite)
+        NotchAgentAnimationTests.run { suite.expect($0, $1) }
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -431,6 +436,20 @@ enum NotchAgentTests {
                                                state: &aborted, now: now)
                         == [.turnEnded(AgentTimestamp.parse("2026-09-22T15:00:00.000Z"), completed: false, duration: 10.961)],
                      "an aborted turn ends without counting as finished")
+        let event = line(#"{"timestamp":"2026-09-22T15:00:00.000Z","ordinal":3,"type":"event_msg","payload":{"type":"token_count","info":null}}"#)
+        let kind = AgentLogParser.firstType(event)
+        suite.expect(kind?.name == "event_msg" && AgentLogParser.firstType(event, from: kind?.end ?? 0)?.name == "token_count",
+                     "a Codex line's own type is found first, then its event's")
+        // Compacted history and tool output quote whole records, keys and all.
+        let quoted = #"{"type":"event_msg","payload":{"type":"task_complete","duration_ms":1}}"#
+        let history = String(repeating: quoted, count: 20_000)
+        var quiet = AgentLogState(turnOpen: true)
+        suite.expect(AgentLogParser.parseCodex(line(#"{"timestamp":"2026-09-22T15:00:00.000Z","type":"compacted","payload":{"replacement_history":[\#(history)]}}"#),
+                                               state: &quiet, now: now).isEmpty
+                        && AgentLogParser.parseCodex(line(#"{"timestamp":"2026-09-22T15:00:00.000Z","type":"event_msg","payload":{"type":"item_completed","item":\#(quoted)}}"#),
+                                                     state: &quiet, now: now).isEmpty
+                        && quiet == AgentLogState(turnOpen: true),
+                     "records quoted inside another line's payload are not read as the line's own")
     }
 
     private static func timestamps(_ suite: TestSuite) {
@@ -628,6 +647,7 @@ enum NotchAgentTests {
         quiet.closeIdleTurns(now: start.addingTimeInterval(claudeWait + 1), after: NotchAgentSupport.idleTurn)
         suite.expect(quiet.waiting.isEmpty && claudeWait < AgentUsageStore.resumeWindow(for: .codex),
                      "a Claude turn that a killed session left open stops waiting sooner")
+        sessionProcesses(suite, start: start)
 
         // A Claude subagent's responses count toward the turn it works for.
         let sessionLog = "/x/p/s1.jsonl"
@@ -663,6 +683,9 @@ enum NotchAgentTests {
             AgentUsageSummary.snapshot(records: [], limits: limits, live: live, plans: [:],
                                        providers: [.claude, .codex], now: now)
         }
+        suite.expect(NotchAgentReadout.elapsed.advancesWithClock && NotchAgentReadout.limit.advancesWithClock
+                        && !NotchAgentReadout.tokens.advancesWithClock && !NotchAgentReadout.cost.advancesWithClock,
+                     "only elapsed and expiring-limit readouts require clock-driven updates")
         let short = snapshot([session(.claude, startedAgo: 754)])
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
         suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
@@ -672,6 +695,15 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(long, readout: .tokens, display: .remaining, now: now)
                             == AgentFormat.tokens(600),
                      "cost and written tokens add up every turn that is working")
+        for readout in [NotchAgentReadout.tokens, .cost] {
+            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, now: now)
+                            == NotchAgentSupport.stripReading(short, readout: readout, display: .remaining,
+                                                             now: now.addingTimeInterval(60)),
+                         "time alone never changes the \(readout.rawValue) reading")
+            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, now: now)
+                            != NotchAgentSupport.stripReading(long, readout: readout, display: .remaining, now: now),
+                         "a new usage snapshot still changes the \(readout.rawValue) reading")
+        }
         let window = AgentLimitWindow(id: "w", kind: .weekly, minutes: 10_080, scope: nil, usedPercent: 79,
                                       resetsAt: now.addingTimeInterval(86_400))
         let limited = snapshot([session(.claude, startedAgo: 754)],
@@ -680,6 +712,10 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
                         && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        let expiredAt = now.addingTimeInterval(86_401)
+        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: expiredAt)
+                        == AgentFormat.percent(1),
+                     "a limit that renews without a new snapshot still updates from the clock")
         suite.expect(NotchAgentSupport.readingShape("12:34") == NotchAgentSupport.readingShape("59:59")
                         && NotchAgentSupport.readingShape("9:59") != NotchAgentSupport.readingShape("10:00")
                         && NotchAgentSupport.readingShape("$4,56") == "$0,00",
@@ -697,6 +733,68 @@ enum NotchAgentTests {
         suite.expect(crowded.compactAgentGeometry(wing: 57).compactActivityWingWidth == 0
                         && !crowded.compactAgentGeometry(wing: 57).compactActivityUsesFooter,
                      "without room beside the camera the strip keeps to the cutout, never below it")
+    }
+
+    /// A Claude session quit or killed mid-turn ends the turn by its process
+    /// record, not after the quiet wait.
+    private static func sessionProcesses(_ suite: TestSuite, start: Date) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-agent-sessions-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        func write(_ name: String, _ text: String) {
+            FileManager.default.createFile(atPath: folder.appending(path: name).path, contents: Data(text.utf8))
+        }
+        write("100.json", #"{"pid":100,"sessionId":"quit","cwd":"/p"}"#)
+        write("200.json", #"{"pid":200,"sessionId":"killed"}"#)
+        write("300.json", #"{"pid":300,"sessionId":"killed"}"#)
+        write("300.abc.key", "{}")
+        write("500.json", #"{"pid":500,"sessionId":"contained","pidDomain":"linux:4f2ac19e:4026531836"}"#)
+        write(".heartbeat", "1")
+        let running: Set<Int32> = [100, 300]
+        var registry = AgentSessionRegistry.read([folder, folder.appending(path: "missing")]) { running.contains($0) }
+        suite.expect(registry == AgentSessionRegistry(running: ["quit", "killed"], ended: [], complete: true, listed: true),
+                     "a session with a running process reads as running, even beside a killed one's record, and a container's record proves nothing")
+        write("400.json", #"{"pid":"#)
+        registry = AgentSessionRegistry.read([folder]) { $0 == 100 }
+        suite.expect(registry.running == ["quit"] && registry.ended == ["killed"] && !registry.complete,
+                     "a killed process's record reads as ended, and a record being written leaves the list incomplete")
+
+        let store = AgentUsageStore()
+        for name in ["quit", "killed", "other", "partial"] {
+            store.apply([.turnBegan(start)], file: "/p/\(name).jsonl", provider: .claude, tracksTurns: true, modified: start)
+        }
+        store.apply([.turnBegan(start)], file: "/p/quit-codex.jsonl", provider: .codex, tracksTurns: true, modified: start)
+        store.closeEndedTurns(AgentSessionRegistry(running: ["quit", "partial"], ended: [], complete: true))
+        suite.expect(store.live.count == 5, "turns with a running process, or with no record at all, keep working")
+        store.closeEndedTurns(AgentSessionRegistry(running: [], ended: [], complete: false))
+        suite.expect(store.live.count == 5, "a record missing from an incomplete read proves nothing")
+        let closed = store.closeEndedTurns(AgentSessionRegistry(running: ["partial"], ended: ["killed"], complete: true))
+        suite.expect(closed && Set(store.live.map(\.id)) == ["/p/other.jsonl", "/p/partial.jsonl", "/p/quit-codex.jsonl"]
+                        && store.waiting.isEmpty,
+                     "a session whose process quit or was killed stops working at once, without waiting aside")
+        store.closeEndedTurns(AgentSessionRegistry(running: [], ended: [], complete: true))
+        suite.expect(store.live.count == 2 && !store.live.contains { $0.id == "/p/partial.jsonl" },
+                     "a record that disappears ends the turn it was running")
+        suite.expect(AgentSessionRegistry.read([folder.appending(path: "missing")]) { _ in true }
+                        == AgentSessionRegistry(running: [], ended: [], complete: true, listed: false),
+                     "without a sessions folder the records say nothing")
+
+        // Relaunched after a session quit mid-turn: its log still reads as
+        // working, and nothing was ever seen running.
+        let relaunched = AgentUsageStore()
+        for name in ["gone", "alive"] {
+            relaunched.apply([.turnBegan(start)], file: "/p/\(name).jsonl", provider: .claude, tracksTurns: true, modified: start)
+        }
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true), atLaunch: true)
+        suite.expect(relaunched.live.count == 2, "at launch, a Claude Code that keeps no records leaves turns to the quiet wait")
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: false, listed: true), atLaunch: true)
+        suite.expect(relaunched.live.count == 2, "at launch, an incomplete read ends nothing")
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true))
+        suite.expect(relaunched.live.count == 2, "after launch, a record never seen running ends nothing")
+        let ended = relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true),
+                                               atLaunch: true)
+        suite.expect(ended && relaunched.live.map(\.id) == ["/p/alive.jsonl"],
+                     "at launch, a turn left open by a session that quit ends at once")
     }
 
     private static func reading(_ suite: TestSuite) {
@@ -743,6 +841,74 @@ enum NotchAgentTests {
         suite.expect(ordered.map(\.path) == [sessionPath, root.appending(path: "session/subagents/agent-1.jsonl").path]
                         && AgentLogCursor(path: ordered.last?.path ?? "", provider: .claude).parent == sessionPath,
                      "a subagent is read after the session it works for, even when it finished first")
+
+        let large = folder.appending(path: "large.jsonl")
+        for count in [AgentLogReader.maximumLine, AgentLogReader.maximumLine + 1,
+                      AgentLogReader.maximumLine + AgentLogReader.chunkSize + 1] {
+            autoreleasepool {
+                var data = Data(repeating: 0x78, count: count)
+                data.append(contentsOf: "\nok\n".utf8)
+                try? data.write(to: large)
+                let cursor = AgentLogCursor(path: large.path, provider: .claude)
+                var sizes: [Int] = []
+                AgentLogReader.readAppended(cursor) { sizes.append($0.count) }
+                suite.expect(sizes == (count <= AgentLogReader.maximumLine ? [count, 2] : [2]),
+                             "log line limit applies across chunk boundaries, including a newline in the next chunk (\(count) bytes)")
+                suite.expect(cursor.pending.isEmpty && !cursor.discarding,
+                             "an oversized log line never consumes the valid line after it")
+            }
+        }
+
+        // An invalid line may keep growing over several file-change events.
+        // None of its later fragments may become a pending valid line.
+        try? Data(repeating: 0x78, count: AgentLogReader.maximumLine + 1).write(to: large)
+        let discarded = AgentLogCursor(path: large.path, provider: .claude)
+        var recovered: [String] = []
+        func readDiscarded() {
+            AgentLogReader.readAppended(discarded) { recovered.append(String(decoding: $0, as: UTF8.self)) }
+        }
+        func appendDiscarded(_ data: Data) {
+            guard let handle = try? FileHandle(forWritingTo: large) else {
+                suite.expect(false, "the oversized-line fixture opens for appending")
+                return
+            }
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(data)
+            readDiscarded()
+        }
+        readDiscarded()
+        suite.expect(discarded.discarding && discarded.pending.isEmpty && recovered.isEmpty,
+                     "an unterminated oversized line enters discard mode")
+        for _ in 0..<3 {
+            appendDiscarded(Data(repeating: 0x78, count: AgentLogReader.chunkSize))
+            suite.expect(discarded.discarding && discarded.pending.isEmpty && recovered.isEmpty,
+                         "later fragments of a discarded line are never retained between reads")
+        }
+        appendDiscarded(Data("\nok\npar".utf8))
+        suite.expect(!discarded.discarding && discarded.pending == Data("par".utf8) && recovered == ["ok"],
+                     "the discarded line's end preserves the next complete line and its valid partial successor")
+        appendDiscarded(Data("tial\n".utf8))
+        suite.expect(discarded.pending.isEmpty && recovered == ["ok", "partial"],
+                     "a valid partial line after discard mode completes normally")
+
+        var chunked = Data("head\n".utf8)
+        chunked.append(Data(repeating: 0x78, count: AgentLogReader.chunkSize))
+        chunked.append(contentsOf: "\ntail\n".utf8)
+        try? chunked.write(to: large)
+        let cancelled = AgentLogCursor(path: large.path, provider: .claude)
+        var sizes: [Int] = []
+        AgentLogReader.readAppended(cancelled, shouldContinue: { false }) { sizes.append($0.count) }
+        suite.expect(cancelled.offset == 0 && sizes.isEmpty,
+                     "a cancelled log read consumes no file data")
+        AgentLogReader.readAppended(cancelled, shouldContinue: { sizes.isEmpty }) { sizes.append($0.count) }
+        suite.expect(cancelled.offset == UInt64(AgentLogReader.chunkSize)
+                        && sizes == [4] && cancelled.pending.count == AgentLogReader.chunkSize - 5,
+                     "disabling agents during a large read stops at the next chunk boundary")
+        sizes.removeAll()
+        AgentLogReader.readAppended(cancelled) { sizes.append($0.count) }
+        suite.expect(sizes == [AgentLogReader.chunkSize, 4] && cancelled.offset == UInt64(chunked.count),
+                     "an interrupted log resumes its partial line without losing or replaying completed lines")
     }
 
     private static func history(_ samples: [(String, String?, [String: Any])], version: Int = 2) -> Data {
@@ -832,9 +998,11 @@ enum NotchAgentTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        suite.expect(NotchAgentSupport.isEnabled(in: defaults), "installed AI agents start enabled in the island")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(!NotchSupport.modules(in: defaults).contains(.agents) && !NotchAgentSupport.isEnabled(in: defaults)
                         && !NotchSupport.routes(.agents, in: defaults),
-                     "the AI page stays off until it is chosen")
+                     "turning AI agents off removes their page and notices")
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(NotchSupport.modules(in: defaults).last == .agents && NotchAgentSupport.isEnabled(in: defaults)
                         && NotchSupport.routes(.agents, in: defaults) && NotchAgentSupport.showsLiveActivity(in: defaults),
@@ -854,7 +1022,7 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "an agent can be left out")
@@ -871,9 +1039,9 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
-                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == true
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
-                     "every AI preference is registered and travels in backups, with the page off and prices kept current")
+                     "every AI preference is registered and travels in backups, with the page on and prices kept current")
         suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
         suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "turning price updates off stops the download")
@@ -887,6 +1055,10 @@ enum NotchAgentTests {
         let trend = NotchAgentTile(card: .trend, provider: nil)
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex]) == [limits, codex, trend],
                      "each agent gets its own limits card")
+        let resets = NotchAgentTile(card: .resets, provider: .codex)
+        suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex]) == [resets, spend]
+                        && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude]) == [spend],
+                     "the resets card belongs to Codex and leaves with it")
         suite.expect(NotchAgentSupport.rows([limits, codex, spend, trend], width: 424) == [[limits, codex], [spend], [trend]]
                         && NotchAgentSupport.rows([limits, trend, codex], width: 424) == [[limits], [trend], [codex]],
                      "cards pair in reading order, and charts and lone cards take the row")

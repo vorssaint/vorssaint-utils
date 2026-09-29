@@ -1132,6 +1132,29 @@ enum RecorderFeatureTests {
                 && RecorderSupport.blurBlockSize(for: CGSize(width: 600, height: 90)) == 30
                 && RecorderSupport.blurBlockSize(for: CGSize(width: 900, height: 900)) == 48,
                "the mosaic is coarser than one line of text and never turns a big area into four squares")
+        suite.expect(RecorderSupport.blurBlockSize(for: CGSize(width: 600, height: 90), strength: 3) == 30
+                && RecorderSupport.blurBlockSize(for: CGSize(width: 600, height: 90), strength: 1) == 12
+                && RecorderSupport.blurBlockSize(for: CGSize(width: 600, height: 90), strength: 5) == 66
+                && RecorderSupport.blurBlockSize(for: CGSize(width: 300, height: 24), strength: 1) >= 2,
+               "blur strength scales the mosaic around the old strength and never to nothing")
+        suite.expect(blur.strength == ScreenshotSupport.BlurStrength.defaultLevel
+                && RecorderBlurRegion(start: 1, end: 3, strength: 9).sanitized(duration: 10)?.strength == 5,
+               "a blur starts at the old strength and a damaged strength is brought back in range")
+        let strongBlur = RecorderBlurRegion(start: 2, end: 6, strength: 5)
+        suite.expect(RecorderEditDocument.decoded(
+                RecorderEditDocument(blurs: [strongBlur]).encoded()).blurs.first?.strength == 5,
+               "a blur's strength is saved with the recording")
+        let legacyBlurJSON = #"{"id":"7F2B1E0C-8B3A-4E43-9C66-0A8E0D8E2D11","start":1,"end":4,"x":0.1,"y":0.1,"width":0.2,"height":0.2}"#
+        let legacyBlur = try? JSONDecoder().decode(RecorderBlurRegion.self,
+                                                   from: Data(legacyBlurJSON.utf8))
+        suite.expect(legacyBlur?.strength == ScreenshotSupport.BlurStrength.defaultLevel
+                && legacyBlur?.end == 4,
+               "a blur saved before strength existed opens at the strength it was drawn with")
+        let recorderControllerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Recorder/RecorderEditorController.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(recorderControllerSource.contains("rect: rect,\n                                      strength: item.strength)"),
+               "redrawing a blur's area keeps its strength")
         let blurredDocument = RecorderEditDocument.decoded(
             RecorderEditDocument(blurs: [blur]).encoded())
         suite.expect(blurredDocument.blurs == [blur],
@@ -1314,7 +1337,7 @@ enum RecorderFeatureTests {
         // number and is how the app already words several other counts. The
         // ones left out need no agreement: Turkish keeps the noun singular
         // after a number, and Chinese, Japanese and Korean do not inflect.
-        let agreeingLanguages: [AppLanguage] = [.enUS, .ptBR, .ru, .es, .de, .fr, .it]
+        let agreeingLanguages: [AppLanguage] = [.enUS, .ptBR, .ru, .uk, .es, .de, .fr, .it]
         for language in agreeingLanguages {
             let selection = FeatureStrings.commandBar(language).selectionCountFormat
             suite.expect(!selection.hasPrefix("%d"),

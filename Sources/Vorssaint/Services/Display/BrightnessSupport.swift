@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 
 /// Pure DDC/CI helpers for the display brightness feature: packet building,
@@ -65,6 +66,13 @@ enum BrightnessSupport {
     static func keyboardLightOnLevel(lastNonzero: Float?) -> Float {
         guard let lastNonzero, lastNonzero > 0 else { return defaultKeyboardLightLevel }
         return min(lastNonzero, 1)
+    }
+
+    /// A slider hands over whatever the drag produced. Nothing but a finite
+    /// value inside the supported range reaches the private setter.
+    static func sliderKeyboardLightLevel(_ level: Float) -> Float? {
+        guard level.isFinite else { return nil }
+        return min(max(level, 0), 1)
     }
 
     static func steppedKeyboardLightLevel(current: Float, direction: Int) -> Float {
@@ -314,6 +322,88 @@ enum BrightnessSupport {
     /// increments.
     static let brightnessKeyStep = 1.0 / 16.0
 
+    /// How far one press of the brightness keys or the display brightness
+    /// shortcuts moves a display. Standard is the system's sixteenth; half
+    /// and quarter divide it, and quarter is the step the system itself
+    /// takes for Option-Shift.
+    enum KeyStep: String, CaseIterable {
+        case standard, half, quarter
+
+        static func sanitized(_ raw: String?) -> KeyStep {
+            KeyStep(rawValue: raw ?? "") ?? .standard
+        }
+
+        var fraction: Double {
+            switch self {
+            case .standard: return brightnessKeyStep
+            case .half: return brightnessKeyStep / 2
+            case .quarter: return brightnessKeyStep / 4
+            }
+        }
+
+        /// A press never moves further than the chosen step. A step that is
+        /// already finer, like the system's Option-Shift quarter, stays as is.
+        func limited(_ delta: Double) -> Double {
+            guard abs(delta) > fraction else { return delta }
+            return delta < 0 ? -fraction : fraction
+        }
+
+        /// How many of the system's own Option-Shift quarter steps make one
+        /// press. Nil when the system's plain step already is the choice.
+        var systemQuarterSteps: Int? {
+            switch self {
+            case .standard: return nil
+            case .half: return 2
+            case .quarter: return 1
+            }
+        }
+    }
+
+    /// A press this app leaves to the system is sent on as the system's own
+    /// quarter steps when a finer step is chosen, so the system still moves
+    /// the display and shows its own feedback. A press held with Command,
+    /// Control or Option means something else to the system (another
+    /// display, Displays settings, its own quarter step) and stays untouched.
+    static func systemQuarterSteps(for step: KeyStep, command: Bool, control: Bool,
+                                   option: Bool) -> Int? {
+        guard !command, !control, !option else { return nil }
+        return step.systemQuarterSteps
+    }
+
+    /// The two halves of one Option-Shift brightness press, laid out the way
+    /// the keyboard sends them: key code and press state in data1, the
+    /// state repeated under the Option and Shift flags.
+    static func systemQuarterStepHalves(increase: Bool) -> [(data1: Int, flags: UInt)] {
+        let keyCode = increase ? 2 : 3
+        let optionShift: UInt = 0x80000 | 0x20000
+        return [0x0A, 0x0B].map { state in
+            ((keyCode << 16) | (state << 8), UInt(state << 8) | optionShift)
+        }
+    }
+
+    /// Marks the Option-Shift presses this app sends on to the system, so its
+    /// own tap lets them through.
+    static let systemQuarterStepMarker: Int64 = 0x564F4252 // "VOBR"
+
+    /// One brightness key press sent on as `count` of the system's own
+    /// Option-Shift quarter steps, each a press and a release carrying the
+    /// marker. Posting is left to the caller.
+    static func systemQuarterStepEvents(increase: Bool, count: Int) -> [CGEvent] {
+        let halves = systemQuarterStepHalves(increase: increase)
+        return (0..<max(0, count)).flatMap { _ in
+            halves.compactMap { half -> CGEvent? in
+                guard let event = NSEvent.otherEvent(
+                    with: .systemDefined, location: .zero,
+                    modifierFlags: NSEvent.ModifierFlags(rawValue: half.flags),
+                    timestamp: 0, windowNumber: 0, context: nil,
+                    subtype: 8, data1: half.data1, data2: -1)?.cgEvent
+                else { return nil }
+                event.setIntegerValueField(.eventSourceUserData, value: systemQuarterStepMarker)
+                return event
+            }
+        }
+    }
+
     struct BrightnessKeyEvent: Equatable {
         let delta: Double
         let isKeyDown: Bool
@@ -397,6 +487,21 @@ enum BrightnessSupport {
         return true
     }
 
+    /// Plain brightness key presses reach the system unless this app answers
+    /// them: to follow the pointer, to show its own overlay or the island in
+    /// place of the system's, or to take a finer step. Only then is their
+    /// keystroke tap worth it.
+    static func answersPlainBrightnessKeys(followsPointer: Bool, overlayReplacesNative: Bool,
+                                           finerSteps: Bool) -> Bool {
+        followsPointer || overlayReplacesNative || finerSteps
+    }
+
+    /// The display a plain brightness key moves: the one under the pointer
+    /// when the pointer decides, otherwise the one the system's keys move.
+    static func plainKeyTarget(followsPointer: Bool, pointerDisplay: UInt32?, systemTarget: UInt32?) -> UInt32? {
+        followsPointer ? pointerDisplay : systemTarget
+    }
+
     static func shortcutDisplay(followsPointer: Bool, pointerDisplay: UInt32?,
                                 primaryDisplay: UInt32, eligible: Set<UInt32>) -> UInt32? {
         let target = followsPointer ? pointerDisplay : primaryDisplay
@@ -420,6 +525,16 @@ enum BrightnessSupport {
                                          overlayReplacesNative: Bool) -> Bool {
         if followsPointer, !displayIsBuiltIn { return true }
         return overlayReplacesNative
+    }
+
+    /// Whether this app shows a brightness change in place of the system:
+    /// with its overlay when that option is on, or in the island while the
+    /// island shows notices. An island hidden until hover or away in full
+    /// screen shows none, so the key keeps the system's own feedback rather
+    /// than bringing back the overlay its option turned off.
+    static func overlayReplacesNative(overlayEnabled: Bool, islandRoutes: Bool,
+                                      islandShowsNotices: Bool) -> Bool {
+        overlayEnabled || (islandRoutes && islandShowsNotices)
     }
 
     /// Sixteen segments match the system brightness steps. A non-zero value
@@ -459,6 +574,26 @@ enum BrightnessSupport {
         let ceiling = sanitizedMaximum(maximum)
         let clamped = min(max(normalized, 0), 1)
         return UInt16((clamped * Double(ceiling)).rounded())
+    }
+
+    /// An optional lower quarter of the slider dims the picture after the
+    /// monitor has reached its own minimum. The rest keeps using its backlight.
+    static let extendedDimmingRange = 0.25
+
+    static func extendedDimmingComponents(for brightness: Double) -> (hardware: Double, picture: Double) {
+        let level = min(max(brightness, 0), 1)
+        if level < extendedDimmingRange {
+            return (0, level / extendedDimmingRange)
+        }
+        return ((level - extendedDimmingRange) / (1 - extendedDimmingRange), 1)
+    }
+
+    static func extendedDimmingLevel(hardware: Double, remembered: Double?, pictureDimmed: Bool) -> Double {
+        let physical = extendedDimmingRange
+            + min(max(hardware, 0), 1) * (1 - extendedDimmingRange)
+        guard pictureDimmed, hardware <= 0.001, let remembered,
+              remembered < extendedDimmingRange else { return physical }
+        return min(max(remembered, 0), extendedDimmingRange)
     }
 
     // MARK: - Display to service matching

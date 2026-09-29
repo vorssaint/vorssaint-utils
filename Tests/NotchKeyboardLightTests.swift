@@ -25,7 +25,9 @@ enum NotchKeyboardLightTests {
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set(false, forKey: DefaultsKey.brightnessControlEnabled)
-        suite.expect(!NotchSupport.routes(.keyboardLight, in: defaults), "keyboard light notices are opt-in")
+        suite.expect(NotchSupport.routes(.keyboardLight, in: defaults), "installed keyboard light notices start enabled")
+        defaults.set(false, forKey: DefaultsKey.notchKeyboardLight)
+        suite.expect(!NotchSupport.routes(.keyboardLight, in: defaults), "keyboard light notices can be turned off")
         defaults.set(true, forKey: DefaultsKey.notchKeyboardLight)
         suite.expect(NotchSupport.routes(.keyboardLight, in: defaults),
                "keyboard light does not depend on enabling display control")

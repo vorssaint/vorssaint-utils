@@ -183,7 +183,7 @@ final class RecorderComposer {
                   }) else { continue }
             let rect = region.pixelRect(in: plan.sourceSize)
             guard rect.width >= 1, rect.height >= 1 else { continue }
-            let block = RecorderSupport.blurBlockSize(for: rect.size)
+            let block = RecorderSupport.blurBlockSize(for: rect.size, strength: region.strength)
             // Clamped first so the blur never pulls transparent edges in and
             // lets a sliver of the original show through the border.
             let hidden = content.clampedToExtent()

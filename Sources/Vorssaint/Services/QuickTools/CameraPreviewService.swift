@@ -309,8 +309,8 @@ final class CameraPreviewService: ObservableObject {
     private func installDeviceObservers() {
         guard deviceObservers.isEmpty else { return }
         let center = NotificationCenter.default
-        for name in [AVCaptureDevice.wasConnectedNotification,
-                     AVCaptureDevice.wasDisconnectedNotification] {
+        for name in [NSNotification.Name.AVCaptureDeviceWasConnected,
+                     NSNotification.Name.AVCaptureDeviceWasDisconnected] {
             deviceObservers.append(center.addObserver(forName: name, object: nil,
                                                       queue: .main) { [weak self] _ in
                 self?.handleDevicesChanged()
@@ -352,7 +352,7 @@ final class CameraPreviewService: ObservableObject {
 
     /// Borderless panels refuse key status by default; the preview needs it
     /// so Esc closes it without a click.
-    private final class KeyablePreviewPanel: NSPanel {
+    private final class KeyablePreviewPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

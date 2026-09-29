@@ -185,6 +185,7 @@ final class CommandBarService: ObservableObject {
     private var uninstallSelectionEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallSelection] = nil } }
     private var uninstallSelectionLoading = false
     private var uninstallFinderRequestID: UUID?
+    private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
     /// True while the bar is closing, so nothing is rebuilt on the way out.
     private var isTearingDown = false
     private var menusLoading = false
@@ -665,6 +666,15 @@ final class CommandBarService: ObservableObject {
                 return
             }
             NSSound.beep()
+            return
+        }
+        // A script marked to run directly does its work at once, with no
+        // argument and nothing on screen. Direct execution bypasses result
+        // filtering. Do nothing when the row is hidden or Links is disabled.
+        if let link = CommandBarLinks.directRunScript(forStableKey: key, in: CommandBarLinks.decode(
+            UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks))) {
+            guard !hiddenCache.contains(key), isEnabled(.links) else { return }
+            CommandBarCatalog.runScriptDirectly(link)
             return
         }
         // A row that would confirm, ask for input, or keep the field visible
@@ -1653,9 +1663,12 @@ final class CommandBarService: ObservableObject {
         // "st" must not answer "Storage" over what the person meant.
         let firstToken = foldedQuery.split(separator: " ").first.map(String.init) ?? ""
 
+        // A color typed on its own is placed once the rest of the list is
+        // known; a conversion asked for with "to" leads like any answer.
+        let colorPreview = answer?.id == "color.preview" ? answer : nil
         var counts: [String: Int] = [:]
         var result: [CommandBarEntry] = []
-        if let answer { result.append(answer) }
+        if let answer, colorPreview == nil { result.append(answer) }
         if let openURL { result.append(openURL) }
         if let scriptAnswer { result.append(scriptAnswer) }
         for index in ranked {
@@ -1671,6 +1684,11 @@ final class CommandBarService: ObservableObject {
             }
             result.append(entry)
             if result.count >= 12 { break }
+        }
+        if let colorPreview {
+            result.insert(colorPreview, at: CommandBarSearch.colorPreviewIndex(
+                rowTitles: result.map(\.title), query: trimmed))
+            if result.count > 12 { result.removeLast() }
         }
         return result
     }
@@ -2088,7 +2106,8 @@ final class CommandBarService: ObservableObject {
     private func confirmUninstallReview(entryID: String) {
         let uninstaller = AppUninstaller.shared
         guard uninstaller.phase == .results, !uninstaller.isRemoving else { return }
-        if uninstaller.selectedHomebrewPackage != nil {
+        if let confirmation = uninstaller.homebrewRemovalConfirmation {
+            pendingHomebrewRemoval = confirmation
             mode = .uninstallHomebrewConfirm(entryID: entryID)
             refreshPanelLayout()
             return
@@ -2100,7 +2119,10 @@ final class CommandBarService: ObservableObject {
     /// checklist, which shows its live progress the same way the menu panel
     /// already does while `AppUninstaller` waits on it.
     private func confirmUninstallHomebrewRemoval(entryID: String) {
-        AppUninstaller.shared.removeSelectedWithHomebrew()
+        if let confirmation = pendingHomebrewRemoval {
+            AppUninstaller.shared.removeSelectedWithHomebrew(confirmation: confirmation)
+        }
+        pendingHomebrewRemoval = nil
         mode = .uninstallReview(entryID: entryID)
         refreshPanelLayout()
     }
@@ -2929,7 +2951,7 @@ final class CommandBarService: ObservableObject {
 
     /// Borderless panels refuse key status by default, and the bar's field
     /// needs it for typing while the target app stays active.
-    private final class KeyableBarPanel: NSPanel {
+    private final class KeyableBarPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

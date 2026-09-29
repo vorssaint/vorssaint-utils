@@ -521,6 +521,21 @@ struct RecorderInspector: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if let blur = model.selectedBlur {
+                let levels = ScreenshotSupport.BlurStrength.levels
+                valueSlider(title: screenshotStrings.blurStrengthLabel,
+                            value: Double(blur.strength),
+                            range: Double(levels.lowerBound)...Double(levels.upperBound),
+                            format: "%.0f",
+                            step: 1,
+                            onChange: { model.setSelectedBlurStrength(Int($0.rounded())) },
+                            onCommit: { model.commitZoomEdit() },
+                            onReset: {
+                                model.setSelectedBlurStrength(ScreenshotSupport.BlurStrength.defaultLevel)
+                                model.commitZoomEdit()
+                            })
+            }
+
             Button(strings.removeZoom) { model.removeSelectedBlur() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -566,6 +581,7 @@ struct RecorderInspector: View {
                              range: ClosedRange<Double>,
                              format: String,
                              scale: Double = 1,
+                             step: Double? = nil,
                              onChange: @escaping (Double) -> Void,
                              onCommit: @escaping () -> Void = {},
                              onReset: @escaping () -> Void) -> some View {
@@ -580,11 +596,20 @@ struct RecorderInspector: View {
                     .monospacedDigit()
                     .foregroundStyle(Color(white: 0.86))
             }
-            Slider(value: Binding(get: { value }, set: onChange),
-                   in: range,
-                   onEditingChanged: { editing in if !editing { onCommit() } })
-                .controlSize(.small)
-                .onTapGesture(count: 2) { onReset() }
+            Group {
+                if let step {
+                    Slider(value: Binding(get: { value }, set: onChange),
+                           in: range,
+                           step: step,
+                           onEditingChanged: { editing in if !editing { onCommit() } })
+                } else {
+                    Slider(value: Binding(get: { value }, set: onChange),
+                           in: range,
+                           onEditingChanged: { editing in if !editing { onCommit() } })
+                }
+            }
+            .controlSize(.small)
+            .onTapGesture(count: 2) { onReset() }
         }
     }
 

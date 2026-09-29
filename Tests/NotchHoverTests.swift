@@ -36,41 +36,75 @@ enum NotchHoverTests {
         static var active = false
         static func ownsCocoaPoint(_ point: CGPoint) -> Bool { active }
     }
+    final class NSWorkspace {
+        static let shared = NSWorkspace()
+        var accessibilityDisplayShouldReduceMotion = false
+    }
     final class Host {
         var visible = true
         var rect = CGRect.zero
+        var departsContent = true
+        func finishDeparture() { departsContent = false }
+        var isConcealedForMissionControl = false
+        var revealChecks = 0
+        func blocksHoverReveal() -> Bool {
+            revealChecks += 1
+            return isConcealedForMissionControl
+        }
         func containsHover(_ point: CGPoint) -> Bool {
-            visible && CGRect(origin: .zero, size: rect.size)
+            visible && !isConcealedForMissionControl && CGRect(origin: .zero, size: rect.size)
                 .contains(CGPoint(x: point.x - rect.minX, y: rect.maxY - point.y))
         }
     }
-    enum NotchContentTransition { case none, reveal, dismiss, replace }
+    enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
+    enum NotchMusicService {
+        static let shared = Reader()
+        final class Reader { var playback: NotchPlayback? }
+    }
+    /// The strip's track by title; the real snapshot also holds its cover and geometry.
+    struct NotchCompactMusicSnapshot: Equatable { let title: String }
     class State {
+        func schedulePointerFollow() {}
         var hiddenInFullscreen = false
+        var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         var showsSystemFeedback = true, routesNotices = true
-        var running = true, suspended = false, inside = false
+        var running = true, suspended = false, inside = false, hoverEmphasized = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
+        var departingNotice: NotchNotice?
+        var departureWork: DispatchWorkItem?
+        var trackWork: DispatchWorkItem?
+        var presentedMusic: NotchCompactMusicSnapshot?
+        var heldMusic: NotchCompactMusicSnapshot?
         var compactActivity: NotchCompactActivity?
+        var compactActivities: [NotchCompactActivity] = []
+        var activityPickerMenuOpen = false
         var hoverState = NotchHoverState()
         var hiddenHoverMonitors: [Any] = []
         var hoverWork: DispatchWorkItem?
         var captureHover: ((Bool) -> Void)?
         func updateCaptureControlsHover(wasInside: Bool) {}
+        func updateCaptureControlsClickThrough() {}
+        var childWindowFrames: [CGRect] = []
+        func pointerOverChildWindow(_ point: CGPoint) -> Bool { childWindowFrames.contains { $0.contains(point) } }
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: -1920, y: 900, width: 1920, height: 1080),
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)
         var compactActivityGeometry: NotchGeometry { geometry.compactMusicGeometry }
         var surfaceSize: CGSize {
+            if fullscreenCompact { return geometry.restingSize(showsContent: false) }
             if let notice {
                 guard noticeExpanded else { return geometry.noticeSize(wingWidth: notice.preferredWingWidth) }
                 return geometry.notificationPreviewSize(
                     contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
             }
-            return expanded ? geometry.expanded : peeking ? geometry.peek : geometry.collapsed
+            if expanded { return geometry.expanded }
+            if peeking { return geometry.peek }
+            let resting = compactActivity == nil ? geometry.collapsed : compactActivityGeometry.compactActivitySize
+            return hoverEmphasized ? NotchHoverEmphasis.size(from: resting, geometry: geometry) : resting
         }
         var openings = 0, closures = 0, feedbacks = 0
         var requestedModule: NotchModule?
@@ -87,6 +121,7 @@ enum NotchHoverTests {
             updateBounds()
         }
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
+        func refreshPresentation() { updateBounds() }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
     }
@@ -100,6 +135,7 @@ enum NotchHoverTests {
             DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
             UserDefaults.standard = UserDefaults.Preferences()
             AssistiveKeyboard.active = false
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
             let service = Service()
             if physical {
                 service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
@@ -113,6 +149,94 @@ enum NotchHoverTests {
             NSEvent.mouseLocation = CGPoint(x: service.geometry.screen.minX, y: service.geometry.screen.minY)
             service.hover(false)
         }
+        for physical in [false, true] {
+            for reduced in [false, true] {
+                let picker = fixture(physical: physical)
+                picker.compactActivity = .agents
+                picker.compactActivities = [.agents, .music]
+                NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = reduced
+                picker.hover(true)
+                suite.expect(picker.showsCompactActivityPicker && picker.hoverWork == nil,
+                             "hover exposes named choices without an automatic opening deadline, including Reduce Motion")
+                DispatchQueue.main.advance(2)
+                suite.expect(picker.openings == 0, "the activity chooser stays available while the person decides")
+                picker.activityPickerMenuOpen = true
+                leave(picker)
+                suite.expect(picker.showsCompactActivityPicker, "moving into the combination menu keeps its picker visible")
+                picker.activityPickerMenuOpen = false
+                leave(picker)
+                suite.expect(!picker.showsCompactActivityPicker, "leaving hides the activity chooser")
+                picker.expanded = true
+                picker.inside = true
+                suite.expect(!picker.showsCompactActivityPicker, "the chooser does not cover an open page")
+                picker.expanded = false
+                picker.captureControls = true
+                suite.expect(!picker.showsCompactActivityPicker, "capture controls retain priority")
+                picker.captureControls = nil
+                picker.notice = volume
+                suite.expect(!picker.showsCompactActivityPicker, "system notices retain priority")
+                picker.notice = nil
+                picker.hiddenInFullscreen = true
+                suite.expect(!picker.showsCompactActivityPicker, "full-screen content hiding retains priority")
+            }
+        }
+        for physical in [false, true] {
+            let clickOnly = fixture(physical: physical)
+            UserDefaults.standard.enabled = false
+            let resting = clickOnly.surfaceSize
+            clickOnly.hover(true)
+            let emphasized = clickOnly.surfaceSize
+            suite.expect(emphasized.height == resting.height + 5 && emphasized.width >= resting.width
+                         && emphasized.width <= resting.width + 20 && clickOnly.hoverWork == nil,
+                         "click-only islands pulse within available menu space without scheduling an opening")
+            leave(clickOnly)
+            suite.expect(clickOnly.surfaceSize == resting,
+                         "leaving restores the resting island size")
+        }
+        let hiddenPulse = fixture()
+        UserDefaults.standard.hides = true
+        hiddenPulse.windowHost?.visible = false
+        let hiddenResting = hiddenPulse.surfaceSize
+        hiddenPulse.hover(true)
+        suite.expect(hiddenPulse.surfaceSize == hiddenResting,
+                     "an invisible island does not pulse before its hover reveal")
+        let reducedMotion = fixture()
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
+        let reducedResting = reducedMotion.surfaceSize
+        reducedMotion.hover(true)
+        suite.expect(reducedMotion.surfaceSize == reducedResting,
+                     "Reduce Motion leaves the resting island still on hover")
+        let compactPulse = fixture(physical: true)
+        compactPulse.compactActivity = .music
+        compactPulse.updateBounds()
+        let compactResting = compactPulse.surfaceSize
+        compactPulse.hover(true)
+        suite.expect(compactPulse.surfaceSize.height == compactResting.height + 5,
+                     "a visible compact activity responds to hover without replacing its content")
+        leave(compactPulse)
+        suite.expect(compactPulse.surfaceSize == compactResting,
+                     "the compact activity returns to its original size on exit")
+        let fullscreen = fixture(physical: true)
+        fullscreen.hiddenInFullscreen = true
+        fullscreen.compactActivity = .music
+        UserDefaults.standard.hides = true
+        UserDefaults.standard.expands = false
+        fullscreen.updateBounds()
+        let blackSize = fullscreen.surfaceSize
+        fullscreen.hover(true)
+        suite.expect(blackSize == fullscreen.geometry.restingSize(showsContent: false)
+                     && !fullscreen.hoverEmphasized && fullscreen.hoverWork != nil,
+                     "fullscreen keeps the cutout black but schedules configured hover access even with cached music")
+        DispatchQueue.main.advance(0.26)
+        suite.expect(fullscreen.peeking && fullscreen.openings == 0,
+                     "hover preview remains available from the black fullscreen cutout")
+        let simulatedFullscreen = fixture()
+        simulatedFullscreen.hiddenInFullscreen = true
+        simulatedFullscreen.hover(true)
+        DispatchQueue.main.advance(0.26)
+        suite.expect(simulatedFullscreen.hoverWork == nil && !simulatedFullscreen.peeking
+                     && simulatedFullscreen.openings == 0,
+                     "a simulated cutout hidden in full screen does not open on hover")
         for physical in [false, true] {
             let service = fixture(physical: physical)
             service.hover(true)
@@ -178,6 +302,66 @@ enum NotchHoverTests {
                        "stopping releases both hidden hover observers")
             }
         }
+        for expands in [false, true] {
+            let hidden = fixture()
+            UserDefaults.standard.hides = true
+            UserDefaults.standard.expands = expands
+            hidden.windowHost?.visible = false
+            hidden.windowHost?.isConcealedForMissionControl = true
+            hidden.hover(true)
+            suite.expect(!hidden.inside && hidden.hoverWork == nil,
+                         "Mission Control cannot start a hidden island's hover deadline")
+            hidden.windowHost?.isConcealedForMissionControl = false
+            hidden.hover(true)
+            suite.expect(hidden.inside && hidden.hoverWork != nil,
+                         "leaving Mission Control allows a fresh hidden hover deadline")
+            hidden.windowHost?.isConcealedForMissionControl = true
+            DispatchQueue.main.advance(0.26)
+            suite.expect(hidden.openings == 0 && !hidden.peeking && hidden.windowHost?.revealChecks == 1,
+                         "Mission Control starting during the hover delay blocks expansion and preview")
+
+            let visible = fixture()
+            UserDefaults.standard.expands = expands
+            visible.hover(true)
+            suite.expect(visible.inside && visible.hoverWork != nil,
+                         "a visible island has a pending hover deadline before Mission Control")
+            visible.windowHost?.isConcealedForMissionControl = true
+            DispatchQueue.main.advance(0.26)
+            suite.expect(visible.openings == 0 && !visible.peeking && visible.windowHost?.revealChecks == 1,
+                         "Mission Control blocks a pending visible hover without a mouse-exit event")
+            visible.windowHost?.isConcealedForMissionControl = false
+            visible.missionControlDidRestore()
+            suite.expect(visible.hoverWork != nil,
+                         "restoring Mission Control restarts a hover deadline when the pointer stayed over the island")
+            DispatchQueue.main.advance(0.26)
+            suite.expect(expands ? visible.openings == 1 : visible.peeking,
+                         "the restored hover opens the island after its normal delay")
+        }
+        let capturePreview = fixture()
+        capturePreview.expanded = true
+        capturePreview.updateBounds()
+        var previewHovered: Bool?
+        capturePreview.captureHover = { previewHovered = $0 }
+        capturePreview.windowHost?.isConcealedForMissionControl = true
+        capturePreview.windowHost?.isConcealedForMissionControl = false
+        capturePreview.missionControlDidRestore()
+        suite.expect(previewHovered == true,
+                     "restoring with the pointer over a capture preview keeps its auto-dismiss paused")
+
+        let departed = fixture()
+        departed.hover(true)
+        DispatchQueue.main.advance(0.26)
+        suite.expect(departed.expanded && departed.openedByHover,
+                     "the island is open from hover before Mission Control")
+        departed.windowHost?.isConcealedForMissionControl = true
+        NSEvent.mouseLocation = CGPoint(x: departed.geometry.screen.minX, y: departed.geometry.screen.minY)
+        departed.windowHost?.isConcealedForMissionControl = false
+        departed.missionControlDidRestore()
+        suite.expect(!departed.inside && departed.hoverWork != nil,
+                     "restoration notices that the pointer left while Mission Control owned input")
+        DispatchQueue.main.advance(0.19)
+        suite.expect(departed.closures == 1,
+                     "the hover-open island closes after its normal pointer exit delay")
         for disable: (Service) -> Void in [
             { $0.suspended = true }, { $0.windowHost = nil },
             { _ in UserDefaults.standard.hides = false }, { _ in UserDefaults.standard.enabled = false }
@@ -299,7 +483,59 @@ enum NotchHoverTests {
         AssistiveKeyboard.active = true
         DispatchQueue.main.advance(1)
         expect(keyboard.closures == 0, "moving to the Accessibility Keyboard preserves the working panel")
+
+        let popover = fixture()
+        popover.open(nil, takeFocus: false)
+        popover.childWindowFrames = [CGRect(x: popover.geometry.screen.minX, y: popover.geometry.screen.minY,
+                                            width: 240, height: 200)]
+        leave(popover)
+        DispatchQueue.main.advance(1)
+        expect(popover.closures == 0 && popover.inside,
+               "moving into a popover hanging from the island keeps a hover-opened panel")
         notificationContracts(fixture: fixture, leave: leave, expect: expect)
+        trackNoticeContracts(fixture: fixture, expect: expect)
+    }
+
+    /// A new song's notice waits for playback to settle, and the compact
+    /// strip keeps the song it showed until the notice covers it.
+    private static func trackNoticeContracts(fixture: (Bool) -> Service, expect: (Bool, String) -> Void) {
+        func song(_ title: String, playing: Bool = true) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: "Artist", album: nil, artworkData: nil,
+                                                          appBundleIdentifier: "org.example.player", appPID: 42),
+                          isPlaying: playing, elapsed: 0, duration: 200, rate: 1, sampledAt: Date(), canSeek: false)
+        }
+        defer { NotchMusicService.shared.playback = nil }
+        let skipped = fixture(false)
+        skipped.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+        NotchMusicService.shared.playback = song("New")
+        skipped.scheduleTrackNotice()
+        expect(skipped.heldMusic?.title == "Old" && skipped.notice == nil,
+               "a new song leaves the strip on the song it showed while the notice waits")
+        DispatchQueue.main.advance(0.3)
+        skipped.presentedMusic = NotchCompactMusicSnapshot(title: "New")
+        NotchMusicService.shared.playback = song("Newer")
+        skipped.scheduleTrackNotice()
+        DispatchQueue.main.advance(0.49)
+        expect(skipped.heldMusic?.title == "Old" && skipped.notice == nil,
+               "skipping again restarts the wait and keeps the song still on screen")
+        DispatchQueue.main.advance(0.02)
+        expect(skipped.notice?.event == .track && skipped.notice?.title == "Newer" && skipped.heldMusic == nil,
+               "the notice shows where playback settled and releases the strip behind it")
+        for block: (Service) -> Void in [{ $0.expanded = true },
+                                         { _ in NotchMusicService.shared.playback = song("New", playing: false) }] {
+            let blocked = fixture(false)
+            blocked.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+            NotchMusicService.shared.playback = song("New")
+            blocked.scheduleTrackNotice()
+            block(blocked)
+            DispatchQueue.main.advance(0.5)
+            expect(blocked.notice == nil && blocked.heldMusic == nil,
+                   "a notice that cannot show releases the strip to the current song")
+        }
+        let hidden = fixture(false)
+        NotchMusicService.shared.playback = song("New")
+        hidden.scheduleTrackNotice()
+        expect(hidden.heldMusic == nil, "nothing is held when the strip was not on screen")
     }
 
     /// A mirrored banner arrives with its own dismissal pending, as `show`
@@ -539,5 +775,28 @@ enum NotchHoverTests {
         leave(interrupted)
         DispatchQueue.main.advance(0.2)
         expect(interrupted.closures == 0 && interrupted.notice == nil, "leaving afterwards has nothing left to close")
+
+        // A burst keeps the banner's width, so the island does not resize
+        // with each message and a banner held near its end stays in reach.
+        let wide = banner(String(repeating: "A long message in a busy chat ", count: 8))
+        let burst = fixture(false)
+        leave(burst)
+        expect(burst.show(wide) && burst.show(banner("ok")), "precondition: a burst replaces the banner")
+        expect(burst.surfaceSize == burst.geometry.noticeSize(wingWidth: wide.preferredWingWidth),
+               "a message replacing a banner still on screen keeps its width")
+        DispatchQueue.main.advance(3.1)
+        let alone = banner("ok")
+        expect(burst.notice == nil && burst.show(alone) && alone.preferredWingWidth < wide.preferredWingWidth
+               && burst.surfaceSize == burst.geometry.noticeSize(wingWidth: alone.preferredWingWidth),
+               "the next message on its own takes only the width it needs")
+        let held = fixture(false)
+        leave(held)
+        expect(held.show(wide), "precondition: a wide banner is shown")
+        let frame = held.geometry.frame(for: held.surfaceSize)
+        NSEvent.mouseLocation = CGPoint(x: frame.maxX - 4, y: frame.midY)
+        held.hover(true)
+        expect(held.show(banner("ok")) && held.windowHost?.containsHover(NSEvent.mouseLocation) == true
+               && held.noticeWork == nil,
+               "a message arriving over a banner held near its end stays under the pointer")
     }
 }

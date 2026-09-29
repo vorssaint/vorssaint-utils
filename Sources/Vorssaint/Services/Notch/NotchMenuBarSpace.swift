@@ -19,15 +19,12 @@ enum NotchMenuBarSpace {
               CFGetTypeID(rawItems) == CFArrayGetTypeID(),
               let items = rawItems as? [AXUIElement], !items.isEmpty, items.count <= 64 else { return nil }
         let deadline = Date().addingTimeInterval(0.25)
-        var occupied: [CGRect] = []
+        var menuItems: [CGRect] = []
         for item in items {
             guard Date() < deadline, let rect = frame(item, primaryTop: primaryTop) else { return nil }
-            occupied.append(rect)
+            menuItems.append(rect)
         }
-        let bar = CGRect(x: geometry.screen.minX, y: geometry.screen.maxY - geometry.menuBarHeight,
-                         width: geometry.screen.width, height: geometry.menuBarHeight)
-        // AX may describe only a different display's active menu bar.
-        guard occupied.contains(where: { $0.intersects(bar) }) else { return nil }
+        var statusItems: [CGRect] = []
         guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else { return nil }
         for window in windows {
             guard let number = window[kCGWindowNumber as String] as? Int, number != ownWindow,
@@ -40,10 +37,13 @@ enum NotchMenuBarSpace {
                   let width = bounds["Width"], let height = bounds["Height"],
                   width > 0, width < geometry.screen.width - 2,
                   height > 0, height <= geometry.menuBarHeight + 2 else { continue }
-            occupied.append(CGRect(x: x, y: primaryTop - y - height, width: width, height: height))
+            statusItems.append(CGRect(x: x, y: primaryTop - y - height, width: width, height: height))
         }
-        return NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
-                                           barHeight: geometry.menuBarHeight, occupied: occupied)
+        // AX may describe only another display's menu bar. Require an item on
+        // the selected display before status items can further constrain it.
+        return NotchMenuBarLayout.measuredSideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
+                                                   barHeight: geometry.menuBarHeight,
+                                                   menuItems: menuItems, statusItems: statusItems)
     }
 
     private static func value(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {

@@ -124,5 +124,19 @@ enum NotchScreenEdgeClickTests {
         service.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
         suite.expect(service.openings == 1 && service.screenEdgeClickMonitors.isEmpty,
                "clicking the top edge opens a simulated notch exactly once and stops its closed-state monitors")
+        // A capsule floats below the top edge; the menu bar above it still
+        // opens it, and the capsule itself takes its own clicks.
+        for (depth, opens) in [(CGFloat(0), true), (1.5, true), (2.5, true), (3.5, false)] {
+            let capsule = Service()
+            capsule.geometry = NotchGeometry(screen: capsule.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                             silhouette: .capsule)
+            capsule.syncScreenEdgeClicks()
+            let point = CGPoint(x: capsule.geometry.screen.midX, y: capsule.geometry.screen.maxY - depth)
+            capsule.handleScreenEdgeClick(.leftMouseDown, at: point, isNotchWindow: false)
+            capsule.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
+            suite.expect(capsule.openings == (opens ? 1 : 0),
+                         "a click \(depth) points below the top edge \(opens ? "opens" : "leaves") a floating capsule")
+            capsule.removeScreenEdgeClickMonitors()
+        }
     }
 }

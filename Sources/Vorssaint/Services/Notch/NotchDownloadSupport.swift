@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Darwin
 import Foundation
@@ -171,6 +172,9 @@ enum NotchDownloadSupport {
     /// Folder entries the page lists, newest first.
     static let maximumListedFiles = 200
     static let percentSize: CGFloat = 10
+    static let compactNameWingThreshold: CGFloat = 94
+    private static let compactNameMinimumWing: CGFloat = 64
+    private static let compactNameMaximumWing: CGFloat = 160
     /// Progress rounds up to a full hundred near the end, and four of the
     /// languages part the number from its sign, so the narrowest wing cannot
     /// hold the widest reading at full size. It shrinks rather than wrap or
@@ -184,6 +188,44 @@ enum NotchDownloadSupport {
     /// Digits carry no descenders, so their ink is about the cap height.
     static func percentInset(in geometry: NotchGeometry) -> CGFloat {
         geometry.compactActivityEdgeInset(boxHeight: percentSize * 0.72, radius: 0)
+    }
+
+    /// Restore the file name only when menus leave a readable wing. Otherwise
+    /// the arrow and percent keep their short strip beside the camera.
+    static func compactWing(for name: String?, in geometry: NotchGeometry) -> CGFloat {
+        guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty,
+              let room = geometry.compactSideRoom, room.isFinite,
+              room >= compactNameWingThreshold else { return 56 }
+        let provisional = geometry.compactDownloadGeometry(wing: compactNameWingThreshold)
+        let icon = min(17, provisional.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
+        let inset = provisional.compactActivityEdgeInset(boxHeight: icon, radius: icon / 2)
+        return min(compactNameMaximumWing,
+                   max(compactNameMinimumWing, (inset + compactNameContentWidth(name, icon: icon) + 4).rounded(.up)))
+    }
+
+    /// The island asks for its geometry on every layout and progress tick, so
+    /// the one name on show is measured once rather than each time.
+    private static var measuredCompactName: (name: String, icon: CGFloat, width: CGFloat)?
+
+    private static func compactNameContentWidth(_ name: String, icon: CGFloat) -> CGFloat {
+        if let measured = measuredCompactName, measured.name == name, measured.icon == icon {
+            return measured.width
+        }
+        // The symbol draws wider than its point size; measuring the size alone
+        // left every name a few points short and cut it in the middle.
+        let symbol = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: icon, weight: .regular))?
+            .size.width ?? icon + 3
+        let title = (name as NSString).size(withAttributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium)
+        ]).width.rounded(.up)
+        let width = max(icon, symbol) + 6 + title
+        measuredCompactName = (name, icon, width)
+        return width
+    }
+
+    static func showsCompactName(in geometry: NotchGeometry) -> Bool {
+        geometry.compactActivityWingWidth >= compactNameMinimumWing
     }
 
     struct FileSnapshot: Equatable {

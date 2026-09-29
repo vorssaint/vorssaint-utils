@@ -62,6 +62,10 @@ final class QuickLauncherService: ObservableObject {
     /// menu bar popover is never involved.
     @Published private(set) var activeUtility: QuickLauncherItem?
     @Published private(set) var selectedIndex: Int?
+    /// Where the keyboard moved the selection, which the island's rail
+    /// scrolls to. Hover clears it: centering a hovered tile slid the next
+    /// one under the pointer, and the rail kept scrolling by itself.
+    @Published private(set) var keyboardIndex: Int?
     @Published private(set) var presentationID = UUID()
     @Published private(set) var hiddenItemsRaw: String = UserDefaults.standard.string(
         forKey: DefaultsKey.quickLauncherHiddenItems) ?? ""
@@ -170,6 +174,7 @@ final class QuickLauncherService: ObservableObject {
         isEditing = false
         editingOptionsItem = nil
         selectedIndex = visibleItems.isEmpty ? nil : 0
+        keyboardIndex = selectedIndex
     }
 
     func refreshAvailability() {
@@ -253,10 +258,14 @@ final class QuickLauncherService: ObservableObject {
                                                     count: count,
                                                     flow: flow,
                                                     direction: direction)
+        keyboardIndex = selectedIndex
     }
 
+    /// The pointer's selection. The hovered tile is already in view, so the
+    /// rail stays where it is.
     func select(_ item: QuickLauncherItem) {
         selectedIndex = visibleItems.firstIndex(of: item)
+        keyboardIndex = nil
     }
 
     func run(_ item: QuickLauncherItem) {
@@ -328,7 +337,7 @@ final class QuickLauncherService: ObservableObject {
     /// Borderless panels refuse key status by default, and the launcher needs
     /// it for arrows, digits and Esc. Borderless also removes the invisible
     /// title-bar strip that would swallow clicks on the header controls.
-    private final class KeyableLauncherPanel: NSPanel {
+    private final class KeyableLauncherPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 
@@ -376,6 +385,10 @@ final class QuickLauncherService: ObservableObject {
     func handlePanelKey(_ event: NSEvent,
                         flow: QuickToolsSupport.GridFlow = .rows(columns: QuickLauncherService.columns)) -> NSEvent? {
         if event.keyCode == UInt16(kVK_Escape) {
+            // While an input method is composing in a utility's field, Esc
+            // belongs to it and drops the candidate; the launcher takes the
+            // next one.
+            if (event.window?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
             if activeUtility != nil {
                 activeUtility = nil
             } else if editingOptionsItem != nil {

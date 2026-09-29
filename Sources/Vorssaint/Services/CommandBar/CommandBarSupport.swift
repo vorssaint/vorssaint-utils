@@ -256,6 +256,16 @@ enum CommandBarSearch {
         return false
     }
 
+    /// Where a color typed on its own goes in the list. It leads, unless a row
+    /// already there spells what was typed: "#1234" is also an issue number
+    /// and "#cafe" a channel someone copied, and Return must still reach
+    /// those. The swatch then sits right under the first row.
+    static func colorPreviewIndex(rowTitles: [String], query: String) -> Int {
+        let typed = normalized(query)
+        guard !typed.isEmpty else { return 0 }
+        return rowTitles.contains { normalized($0).contains(typed) } ? 1 : 0
+    }
+
     static func matches(title: String, keywords: String = "", query: String) -> Bool {
         score(title: title, keywords: keywords, query: query) != nil
     }
@@ -880,5 +890,42 @@ enum CommandBarCompletion {
                                  completedValue: String?,
                                  afterChangingTo value: String) -> String? {
         value == completedValue ? original : nil
+    }
+}
+
+enum CommandBarAppSort {
+    enum Column { case name, alias, shortcut, pinned }
+
+    static func sorted<Item>(_ items: [Item], by column: Column, ascending: Bool,
+                             title: (Item) -> String, key: (Item) -> String,
+                             aliases: [String: String], shortcuts: [String: GlobalShortcut],
+                             pins: Set<String>) -> [Item] {
+        func text(_ item: Item) -> String? {
+            switch column {
+            case .name: return title(item)
+            case .alias: return aliases[key(item)].flatMap { $0.isEmpty ? nil : $0 }
+            case .shortcut: return shortcuts[key(item)]?.displayString
+            case .pinned: return nil
+            }
+        }
+        func byTitle(_ lhs: Item, _ rhs: Item) -> Bool {
+            title(lhs).localizedStandardCompare(title(rhs)) == .orderedAscending
+        }
+        return items.sorted { lhs, rhs in
+            if column == .pinned {
+                let left = pins.contains(key(lhs)), right = pins.contains(key(rhs))
+                if left != right { return ascending ? left : right }
+                return byTitle(lhs, rhs)
+            }
+            switch (text(lhs), text(rhs)) {
+            case (nil, nil): return byTitle(lhs, rhs)
+            case (nil, _): return false
+            case (_, nil): return true
+            case let (left?, right?):
+                let order = left.localizedStandardCompare(right)
+                if order == .orderedSame { return byTitle(lhs, rhs) }
+                return ascending ? order == .orderedAscending : order == .orderedDescending
+            }
+        }
     }
 }

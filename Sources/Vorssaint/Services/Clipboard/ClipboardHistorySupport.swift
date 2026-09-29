@@ -3,6 +3,38 @@
 
 import AppKit
 
+enum ClipboardHistoryWindowSizing {
+    static let compactDefault = NSSize(width: 560, height: 420)
+    static let compactMinimum = NSSize(width: 560, height: 300)
+    static let previewExtra = NSSize(width: 280, height: 80)
+
+    static func minimumSize(preview: Bool) -> NSSize {
+        NSSize(width: compactMinimum.width + (preview ? previewExtra.width : 0),
+               height: compactMinimum.height + (preview ? previewExtra.height : 0))
+    }
+
+    static func contentSize(preview: Bool, savedWidth: Double, savedHeight: Double,
+                            visibleFrame: NSRect) -> NSSize {
+        let minimum = minimumSize(preview: preview)
+        let width = savedWidth.isFinite && savedWidth >= compactMinimum.width
+            ? CGFloat(savedWidth) : compactDefault.width
+        let height = savedHeight.isFinite && savedHeight >= compactMinimum.height
+            ? CGFloat(savedHeight) : compactDefault.height
+        let requested = NSSize(width: width + (preview ? previewExtra.width : 0),
+                               height: height + (preview ? previewExtra.height : 0))
+        return NSSize(width: max(minimum.width, min(requested.width, visibleFrame.width - 32)),
+                      height: max(minimum.height, min(requested.height, visibleFrame.height - 32)))
+    }
+
+    static func savedCompactSize(from contentSize: NSSize, preview: Bool) -> NSSize? {
+        let width = contentSize.width - (preview ? previewExtra.width : 0)
+        let height = contentSize.height - (preview ? previewExtra.height : 0)
+        guard width.isFinite, height.isFinite,
+              width >= compactMinimum.width, height >= compactMinimum.height else { return nil }
+        return NSSize(width: width, height: height)
+    }
+}
+
 /// Main-thread capture admission. Expiring a result does not release the
 /// actual queued read; stop/start must not release it either.
 struct ClipboardHistoryCaptureState {
@@ -40,6 +72,29 @@ struct ClipboardHistoryCaptureState {
 
     mutating func didBaseline() {
         needsBaseline = false
+    }
+}
+
+/// Decides whether a polled pasteboard change count is a new copy.
+///
+/// The count normally only grows, but it lives in the pasteboard server
+/// (pboard): when that process crashes or is restarted, launchd starts a new
+/// one whose count begins again near zero. A plain `read > last` check then
+/// rejects every later copy until the new count climbs past the old one,
+/// which can take days, so history silently stops recording.
+enum ClipboardHistoryChangeCount {
+    /// The count to adopt, or nil when the read carries nothing new.
+    /// - Parameters:
+    ///   - read: the count observed by this poll.
+    ///   - since: the last known count when this poll was scheduled. Every
+    ///     count known then came from the same server before the read was
+    ///     queued, so only a server restart can make `read` lower than it.
+    ///   - last: the last known count now, which a write finishing while the
+    ///     read was in flight (history copy, paste as plain text, auto-clear)
+    ///     may have raised past `read`. That stale read stays rejected.
+    static func accepted(read: Int, since: Int, last: Int) -> Int? {
+        if read < since { return read }
+        return read > last ? read : nil
     }
 }
 
@@ -117,6 +172,11 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         case .files:
             return fileNames.joined(separator: ", ")
         }
+    }
+
+    /// The color a text entry spells out, if that is all it holds.
+    var color: ColorValue? {
+        kind == .text ? ColorValue(text: text) : nil
     }
 
     /// `preview` collapsed further to a menu bar sized excerpt, for the
@@ -245,6 +305,30 @@ enum ClipboardHistoryEditing {
         return byteCount >= 0 && byteCount <= maxEncodedHistoryBytes
     }
 
+    /// Whether the pinned entries alone still fit the saved file. The encoder
+    /// below keeps pinned entries first and drops whatever no longer fits, so
+    /// a pin or an edit that fails this check would lose a pinned entry.
+    static func pinnedEntriesFit(_ entries: [ClipboardHistoryEntry],
+                                 byteLimit: Int = maxEncodedHistoryBytes) -> Bool {
+        let pinned = entries.filter(\.isPinned)
+        // JSON escaping turns one UTF-8 byte into at most six, and an entry's
+        // other fields stay well under 512 bytes, so a small pinned set is
+        // never encoded on the main thread just to be measured.
+        let rawBound = pinned.reduce(0) { total, entry in
+            total + 512 + entry.text.utf8.count + (entry.imageFile?.utf8.count ?? 0)
+                + entry.filePaths.reduce(0) { $0 + $1.utf8.count + 3 }
+        }
+        guard rawBound > (byteLimit - 2) / 6 else { return true }
+        let encoder = JSONEncoder()
+        var encodedSize = 2 // Opening and closing brackets.
+        for (offset, entry) in pinned.enumerated() {
+            guard let encoded = try? encoder.encode(entry) else { return false }
+            encodedSize += encoded.count + (offset == 0 ? 0 : 1)
+            if encodedSize > byteLimit { return false }
+        }
+        return true
+    }
+
     /// Encodes a readable snapshot without ever writing a file the next
     /// launch would reject. JSON escaping can make stored data much larger
     /// than the raw UTF-8 text budget, so the encoded bound must be enforced
@@ -285,15 +369,19 @@ struct ClipboardHistorySearchCandidate {
 }
 
 enum ClipboardHistorySearch {
+    /// `textIsNormalized` is for callers that already ran every candidate's
+    /// text through `normalized(_:)` once and search it on every keystroke:
+    /// folding long entries is what made typing lag (#1885).
     static func rankedIndexes(candidates: [ClipboardHistorySearchCandidate],
-                              matching query: String) -> [Int] {
+                              matching query: String,
+                              textIsNormalized: Bool = false) -> [Int] {
         let normalizedQuery = normalized(query)
         let tokens = queryTokens(normalizedQuery)
         guard !tokens.isEmpty else { return candidates.map(\.index) }
 
         return candidates
             .compactMap { candidate -> (index: Int, score: Int, originalOrder: Int)? in
-                let text = normalized(candidate.text)
+                let text = textIsNormalized ? candidate.text : normalized(candidate.text)
                 guard tokens.allSatisfy({ text.contains($0) }) else { return nil }
                 return (candidate.index,
                         score(for: text,
@@ -307,6 +395,12 @@ enum ClipboardHistorySearch {
                 return $0.originalOrder < $1.originalOrder
             }
             .map(\.index)
+    }
+
+    /// Whether the query filters at all; an empty one lists every candidate
+    /// in order, so there is nothing to fold for it.
+    static func hasSearchTerms(_ query: String) -> Bool {
+        !queryTokens(normalized(query)).isEmpty
     }
 
     static func matches(_ text: String, query: String) -> Bool {
@@ -346,7 +440,7 @@ enum ClipboardHistorySearch {
             .filter { !$0.isEmpty }
     }
 
-    private static func normalized(_ value: String) -> String {
+    static func normalized(_ value: String) -> String {
         value
             // No locale: Turkish folds a dotted I to a dotless one, and a
             // search that inherited the Mac's locale would stop finding

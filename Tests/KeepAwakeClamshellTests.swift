@@ -13,13 +13,26 @@ extension KeepAwakeLidSleepContract {
         static let clamshellPreferred = "preferred"
         static let sleepDisabledFlag = "disabled"
         static let keepAwakePauseWhenLocked = "pause"
+        static let dimScreenOnLidClose = "dimScreen"
+        static let dimmedDisplaySavedBrightness = "dimmedDisplaySavedBrightness"
+        static let defaultDuration = "defaultDuration"
+        static let keepAwakeSwitchUsesUntil = "switchUsesUntil"
+        static let keepAwakeUntilTime = "untilTime"
     }
     enum UserDefaults {
         static let standard = Store()
         final class Store {
             var values: [String: Bool] = [:]
+            var doubles: [String: Double] = [:]
+            var integers: [String: Int] = [:]
             func bool(forKey key: String) -> Bool { values[key] ?? false }
             func set(_ value: Bool, forKey key: String) { values[key] = value }
+            func set(_ value: Double, forKey key: String) { doubles[key] = value }
+            func set(_ value: Int, forKey key: String) { integers[key] = value }
+            func integer(forKey key: String) -> Int { integers[key] ?? 0 }
+            func double(forKey key: String) -> Double { doubles[key] ?? 0 }
+            func object(forKey key: String) -> Any? { doubles[key] }
+            func removeObject(forKey key: String) { doubles[key] = nil }
         }
     }
     enum Thread {
@@ -120,6 +133,45 @@ enum KeepAwakeClamshellTests {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        let switching = C.reset()
+        switching.activate(minutes: 15)
+        switching.activate(until: Date().addingTimeInterval(3600))
+        expect(switching.isActive && switching.sessionMinutes == nil && switching.endDate != nil,
+               "an end time replacing a preset session leaves no duration chip selected")
+        switching.activate(minutes: 30)
+        expect(switching.sessionMinutes == 30,
+               "a preset replacing an end-time session selects that preset")
+        switching.deactivate(reason: .manual); C.drain()
+
+        typealias prefs = KeepAwakeLidSleepContract.UserDefaults
+        typealias Key = KeepAwakeLidSleepContract.DefaultsKey
+        let lastPick = C.reset()
+        let end = Date().addingTimeInterval(3600)
+        lastPick.activate(until: end)
+        lastPick.deactivate(reason: .manual); C.drain()
+        lastPick.startLastPick()
+        expect(lastPick.endDate == end && lastPick.sessionMinutes == nil,
+               "the switch restarts a started end time unchanged")
+        lastPick.activate(minutes: 30)
+        lastPick.deactivate(reason: .manual); C.drain()
+        lastPick.startLastPick()
+        expect(lastPick.sessionMinutes == 30,
+               "a preset started from any entry point is what the switch restarts")
+        lastPick.deactivate(reason: .manual); C.drain()
+        prefs.standard.set(true, forKey: Key.keepAwakeSwitchUsesUntil)
+        prefs.standard.set(Date().addingTimeInterval(-60).timeIntervalSinceReferenceDate,
+                                  forKey: Key.keepAwakeUntilTime)
+        lastPick.startLastPick()
+        expect(lastPick.sessionMinutes == 30,
+               "an end time that already passed restarts the saved duration, not a session into tomorrow")
+        lastPick.resumeAfterSystemTeardown(); C.drain()
+        expect(lastPick.isActive && lastPick.sessionMinutes == 30,
+               "clearing permissions keeps the running preset selected")
+        lastPick.deactivate(reason: .manual); C.drain()
+        prefs.standard.integers = [:]
+        prefs.standard.set(false, forKey: Key.keepAwakeSwitchUsesUntil)
+        prefs.standard.removeObject(forKey: Key.keepAwakeUntilTime)
+
         let staleStatus = C.reset(); staleStatus.isActive = true
         staleStatus.refreshPasswordlessStatus()
         staleStatus.enableClamshell()
@@ -128,6 +180,71 @@ enum KeepAwakeClamshellTests {
         C.DispatchQueue.background.flush(); C.DispatchQueue.main.flush()
         expect(staleStatus.passwordlessClamshell,
                "a status request from before a newer enable cannot overwrite that operation's verified result")
+
+        let retainedRule = active(); C.Sudoers.disabled = false
+        retainedRule.resumeAfterSystemTeardown(); C.drain()
+        expect(retainedRule.clamshellActive && C.Sudoers.disabled && C.Sudoers.calls == [true]
+               && C.Sudoers.installCompletions.isEmpty
+               && C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
+               "a teardown that stopped rearms the active session through a rule that remained installed")
+
+        let removedRule = active(); C.Sudoers.disabled = false; C.Sudoers.configured = false
+        removedRule.resumeAfterSystemTeardown()
+        expect(!removedRule.clamshellActive && !removedRule.passwordlessClamshell,
+               "a teardown discards the stale closed-lid session at once")
+        C.drain()
+        expect(C.Sudoers.installCompletions.isEmpty && C.Sudoers.calls.isEmpty && C.AdminShell.prompts == 0
+               && !C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag)
+               && removedRule.clamshellPreferred && !removedRule.clamshellSetupFailed,
+               "a removed rule is not requested again right after the teardown, and a confirmed restore clears the marker")
+        removedRule.deactivate(reason: .manual); C.drain()
+        expect(C.Sudoers.calls.isEmpty && C.AdminShell.prompts == 0,
+               "ending that session asks for nothing, since sleep is already back on")
+        removedRule.activate(end: nil, trigger: .manual); C.drain()
+        expect(C.Sudoers.installCompletions.count == 1,
+               "the next session requests the removed rule the usual way")
+        C.Sudoers.configured = true
+        C.Sudoers.installCompletions.removeFirst()(true); C.drain()
+        expect(removedRule.clamshellActive && C.Sudoers.disabled && C.Sudoers.calls == [true],
+               "successful rule setup enables closed-lid mode for that session")
+
+        let rearmedDuringRemoval = active(); C.Sudoers.configured = false
+        rearmedDuringRemoval.resumeAfterSystemTeardown(); C.drain()
+        expect(!rearmedDuringRemoval.clamshellActive && C.Sudoers.installCompletions.isEmpty
+               && C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
+               "sleep turned off again while the rule was being removed keeps its recovery marker")
+        rearmedDuringRemoval.deactivate(reason: .manual); C.drain()
+        expect(C.Sudoers.calls == [false] && !C.Sudoers.disabled
+               && !C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
+               "ending the session still restores sleep that remained off")
+
+        let unreadableReport = active(); C.Sudoers.disabled = false; C.Sudoers.configured = false; C.Shell.status = 1
+        unreadableReport.resumeAfterSystemTeardown(); C.drain()
+        expect(C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
+               "an unreadable sleep report does not drop the recovery marker")
+        C.Shell.status = 0
+
+        let pendingSetup = active(); C.Sudoers.disabled = false; C.Sudoers.configured = false
+        pendingSetup.prepareClamshellPreference(); C.drain()
+        pendingSetup.resumeAfterSystemTeardown(); C.drain()
+        expect(C.Sudoers.installCompletions.count == 1,
+               "a teardown keeps one pending rule authorization instead of asking twice")
+        C.Sudoers.configured = true
+        C.Sudoers.installCompletions.removeFirst()(true); C.drain()
+        expect(pendingSetup.clamshellActive && C.Sudoers.disabled,
+               "the pending authorization can restore the closed-lid session")
+
+        let pendingRestore = active(); C.Sudoers.results = [false, true]
+        pendingRestore.deactivate(reason: .manual); C.drain()
+        pendingRestore.activate(end: nil, trigger: .manual); C.drain()
+        C.Sudoers.disabled = false
+        pendingRestore.resumeAfterSystemTeardown(); C.drain()
+        expect(!pendingRestore.clamshellActive && C.Sudoers.calls == [false]
+               && !C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
+               "a teardown waits for an older authorized restore before rearming")
+        C.AdminShell.answer(true); C.drain()
+        expect(pendingRestore.clamshellActive && C.Sudoers.disabled && C.Sudoers.calls == [false, true],
+               "the older restore cannot silently turn off a session that has already rearmed")
 
         let quitting = active()
         var endedBeforeSleep = false

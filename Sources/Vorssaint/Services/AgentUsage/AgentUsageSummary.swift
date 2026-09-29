@@ -162,10 +162,10 @@ enum AgentUsageSummary {
                 name = AgentPricing.displayName(record.model)
                 names[record.model] = name
             }
+            let modelID = record.provider.rawValue + ":" + name
             for period in AgentPeriod.allCases where day > lastDay - period.days {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
-                let modelID = record.provider.rawValue + ":" + name
                 models[period, default: [:]][modelID, default: AgentShare(
                     id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
                     .totals.add(record)
@@ -210,7 +210,7 @@ enum AgentUsageSummary {
         !snapshot.burnRate.isEmpty || snapshot.claudeBlock != nil || !calendar.isDate(snapshot.now, inSameDayAs: now)
     }
 
-    private static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {
+    static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {
         shares.sorted {
             let left = $0.totals.weight(byCost: byCost), right = $1.totals.weight(byCost: byCost)
             return left != right ? left > right : $0.name < $1.name
@@ -233,7 +233,9 @@ enum AgentUsageSummary {
     /// Claude app's readings are placed.
     static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
         var block: AgentBlock?
-        for record in records.sorted(by: { $0.date < $1.date }) {
+        // Sorting positions moves no strings: a day of records is thousands.
+        for position in records.indices.sorted(by: { records[$0].date < records[$1].date }) {
+            let record = records[position]
             if let current = block, record.date < current.end {
                 block?.totals.add(record)
                 continue
@@ -245,6 +247,154 @@ enum AgentUsageSummary {
         }
         guard let block, block.end > now else { return nil }
         return block
+    }
+}
+
+/// Queue-confined history totals. Ordinary log updates add only new responses
+/// or the difference from a streamed response. Calendar changes, pruning and
+/// repricing rebuild from the authoritative store instead of trying to undo
+/// old buckets. The short sliding windows are evaluated at publication time.
+final class AgentUsageSummaryCache {
+    private var history: AgentUsageSnapshot?
+    private var calendar: Calendar?
+    private var providers: Set<AgentProvider> = []
+    private var models: [AgentPeriod: [String: AgentShare]] = [:]
+    private var projects: [AgentPeriod: [String: AgentShare]] = [:]
+    private var names: [String: String] = [:]
+    private var starts: [Date] = []
+    private var hourStarts: [Date] = []
+    private var tomorrow = Date.distantPast
+    private struct Change { let previous: AgentUsageRecord? }
+    private var changes: [Int: Change] = [:]
+    private var recentPositions: Set<Int> = []
+    private var lastTime = Date.distantPast
+    /// Records accumulated on the last publication, for performance contracts.
+    private(set) var accumulatedRecords = 0
+
+    func invalidate() {
+        history = nil
+        changes.removeAll(keepingCapacity: true)
+        recentPositions.removeAll(keepingCapacity: true)
+    }
+
+    func recordChanged(at position: Int, previous: AgentUsageRecord?) {
+        guard history != nil, changes[position] == nil else { return }
+        // Keep the value before the first change, including a response added
+        // and streamed again before the next publication.
+        changes[position] = Change(previous: previous)
+    }
+
+    func snapshot(records: [AgentUsageRecord], limits: [AgentProvider: AgentLimits],
+                  live: [AgentLiveSession], plans: [AgentProvider: AgentPlan],
+                  providers: Set<AgentProvider>, now: Date,
+                  calendar: Calendar = .current) -> AgentUsageSnapshot {
+        accumulatedRecords = 0
+        let rebuild = history == nil || self.calendar != calendar || self.providers != providers
+            || now < lastTime || !calendar.isDate(lastTime, inSameDayAs: now)
+        if rebuild {
+            self.calendar = calendar
+            self.providers = providers
+            models.removeAll(keepingCapacity: true)
+            projects.removeAll(keepingCapacity: true)
+            names.removeAll(keepingCapacity: true)
+            recentPositions.removeAll(keepingCapacity: true)
+            history = AgentUsageSummary.snapshot(records: [], limits: [:], live: [], plans: [:],
+                                                 providers: providers, now: now, calendar: calendar)
+            starts = history!.days.map(\.start)
+            hourStarts = history!.hours.map(\.start)
+            let today = calendar.startOfDay(for: now)
+            tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
+            for position in records.indices {
+                accumulate(records[position], previous: nil)
+                if isRecent(records[position], now: now) { recentPositions.insert(position) }
+            }
+        } else {
+            for position in changes.keys.sorted() {
+                accumulate(records[position], previous: changes[position]?.previous)
+                if isRecent(records[position], now: now) { recentPositions.insert(position) }
+            }
+        }
+        if rebuild || !changes.isEmpty {
+            for period in AgentPeriod.allCases {
+                let byCost = history!.periods[period]!.fullyPriced
+                history!.periods[period]!.models = AgentUsageSummary.sorted(
+                    models[period].map { Array($0.values) } ?? [], byCost: byCost)
+                history!.periods[period]!.projects = AgentUsageSummary.sorted(
+                    projects[period].map { Array($0.values) } ?? [], byCost: byCost)
+            }
+        }
+        changes.removeAll(keepingCapacity: true)
+        lastTime = now
+        var result = history!
+        result.now = now
+        result.limits = limits.filter { providers.contains($0.key) }
+        result.plans = plans.filter { providers.contains($0.key) }
+        result.live = live.filter { providers.contains($0.provider) }.sorted { $0.started < $1.started }
+        result.seen.formUnion(result.limits.keys)
+        result.seen.formUnion(result.live.map(\.provider))
+        var claude: [AgentUsageRecord] = []
+        // Stable store order also preserves the original accumulation order.
+        for position in recentPositions.sorted() {
+            let record = records[position]
+            guard isRecent(record, now: now) else { recentPositions.remove(position); continue }
+            guard record.date <= now else { continue }
+            if record.provider == .claude { claude.append(record) }
+            if record.date >= now.addingTimeInterval(-AgentUsageSummary.burnWindow) {
+                result.burnRate[record.provider, default: AgentTotals()].add(record)
+            }
+        }
+        for provider in Array(result.burnRate.keys) {
+            let total = result.burnRate[provider]!
+            // Scale amounts, not the number of responses or unpriced entries.
+            result.burnRate[provider]!.tokens += total.tokens
+            result.burnRate[provider]!.cost *= 2
+            result.burnRate[provider]!.savings *= 2
+        }
+        result.claudeBlock = AgentUsageSummary.currentBlock(claude, now: now)
+        return result
+    }
+
+    private func isRecent(_ record: AgentUsageRecord, now: Date) -> Bool {
+        guard providers.contains(record.provider) else { return false }
+        return record.provider == .claude
+            ? record.date > now.addingTimeInterval(-AgentUsageSummary.blockHistory)
+            : record.date >= now.addingTimeInterval(-AgentUsageSummary.burnWindow)
+    }
+
+    private func accumulate(_ record: AgentUsageRecord, previous: AgentUsageRecord?) {
+        guard providers.contains(record.provider) else { return }
+        accumulatedRecords += 1
+        history!.seen.insert(record.provider)
+        history!.lastActivity[record.provider] = max(history!.lastActivity[record.provider] ?? .distantPast, record.date)
+        guard record.date < tomorrow, let day = AgentUsageSummary.index(of: record.date, in: starts) else { return }
+        var delta = AgentTotals()
+        delta.add(record)
+        if let previous {
+            delta.tokens += AgentTokens(input: -previous.tokens.input, cacheWrite: -previous.tokens.cacheWrite,
+                                        cacheRead: -previous.tokens.cacheRead, output: -previous.tokens.output,
+                                        reasoning: -previous.tokens.reasoning)
+            delta.cost -= previous.cost ?? 0
+            delta.savings -= previous.savings
+            delta.requests -= 1
+            delta.unpriced -= previous.cost == nil ? 1 : 0
+        }
+        history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
+        if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
+            history!.hours[hour].byProvider[record.provider, default: AgentTotals()] += delta
+        }
+        let name = names[record.model] ?? AgentPricing.displayName(record.model)
+        names[record.model] = name
+        let modelID = record.provider.rawValue + ":" + name
+        for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
+            history!.periods[period]!.total += delta
+            history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta
+            models[period, default: [:]][modelID, default: AgentShare(
+                id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())].totals += delta
+            if !record.project.isEmpty {
+                projects[period, default: [:]][record.project, default: AgentShare(
+                    id: record.project, name: record.project, provider: nil, totals: AgentTotals())].totals += delta
+            }
+        }
     }
 }
 

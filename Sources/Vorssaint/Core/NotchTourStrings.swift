@@ -17,6 +17,8 @@ extension FeatureStrings {
             caption: "Controle música, temporizadores, volume e brilho. Escolha os atalhos flutuantes que você mais usa.")
         case .es: return NotchTourStrings(preview: "Vista previa de 3.4",
             caption: "Controla la música, los temporizadores, el volumen y el brillo. Elige los accesos flotantes que más usas.")
+        case .sk: return NotchTourStrings(preview: "Ukážka verzie 3.4",
+            caption: "Ovládajte hudbu, časovače, hlasitosť a jas. Vyberte plávajúce skratky, ktoré používate najčastejšie.")
         case .de: return NotchTourStrings(preview: "Vorschau auf 3.4",
             caption: "Steuere Musik, Timer, Lautstärke und Helligkeit. Wähle die schwebenden Kurzbefehle, die du am häufigsten nutzt.")
         case .fr: return NotchTourStrings(preview: "Aperçu de la version 3.4",
@@ -37,6 +39,8 @@ extension FeatureStrings {
             caption: "控制音樂、計時器、音量和亮度。選擇常用的浮動快捷按鈕。")
         case .zhHK: return NotchTourStrings(preview: "3.4 預覽",
             caption: "控制音樂、計時器、音量和亮度。選擇常用的浮動快捷按鈕。")
+        case .uk: return NotchTourStrings(preview: "Прев’ю версії 3.4",
+            caption: "Керуйте музикою, таймерами, гучністю та яскравістю. Виберіть плаваючі кнопки для ваших найчастіших дій.")
         }
     }
 }

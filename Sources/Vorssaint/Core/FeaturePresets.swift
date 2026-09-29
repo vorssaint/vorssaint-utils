@@ -89,13 +89,15 @@ enum FeatureEnergyProfile: String {
 extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .windowMaximizer, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .windowMaximizer, .middleClick,
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
              .dockPreview, .dockClick, .shelf:
             return .mouse
-        case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey, .quitWindowProtection:
+        case .keyboardDebounce, .finderCutPaste, .finderRename, .quitWindowProtection, .musicBlock:
             return .keyboard
-        case .textSnippets, .autoQuit:
+        // The switcher's tap also takes clicks and scrolls, and the Super key
+        // stamps its modifiers on mouse presses from a second tap.
+        case .switcher, .superKey, .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
             let edgeSnapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
@@ -107,11 +109,11 @@ extension AppFeature {
                 || edgeSnapRuns
                 ? .pointer : .idle
         case .radialMenu:
-            // With a side button configured the trigger is a mouse tap;
-            // shortcut-only costs nothing at rest.
-            return RadialMenuMouseTrigger.sanitized(
-                UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) == .off
-                ? .idle : .mouse
+            // A side button or the trackpad tap on any wheel keeps an input
+            // tap running; shortcut-only costs nothing at rest.
+            return RadialMenuSupport.opensFromMouseOrTrackpad(
+                UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
+                ? .mouse : .idle
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         case .notchAccessories: return .periodic
         // Log changes arrive as file events; a timer keeps countdowns and
@@ -119,15 +121,25 @@ extension AppFeature {
         case .notch, .notchCalendar, .notchLyrics, .notchLiveEqualizer, .notchAgents: return .periodic
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
-             .monitorNetwork, .monitorDisk, .monitorPower:
+             .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return .periodic
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle
-        case .mouseAcceleration, .pastePlain, .soundOutputSwitcher, .micMute,
-             .musicBlock, .bluetoothSleep, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
+        case .brightness:
+            // Following the pointer, the overlay and a finer step answer the
+            // brightness keys from a tap. Like Accessibility, the island's own
+            // notices are counted under the island.
+            let defaults = UserDefaults.standard
+            return defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
+                || defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
+                || BrightnessSupport.KeyStep.sanitized(
+                    defaults.string(forKey: DefaultsKey.brightnessKeyStep)) != .standard
+                ? .keyboard : .idle
+        case .mouseAcceleration, .pastePlain, .soundOutputSwitcher, .audioPriority, .micMute,
+             .bluetoothSleep, .keepAwake, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
-             .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .fanControl,
+             .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .wallpaper, .fanControl,
              .diskImageInstaller, .killProcess, .portManager:
             return .idle
         case .appUpdates:
