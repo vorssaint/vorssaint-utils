@@ -2075,5 +2075,9 @@ extension FeatureHubStrings {
         notchUninstallTitle: "إلغاء تثبيت الجزيرة الديناميكية",
         notchUninstallMessageFormat: "تعمل هذه الإضافات داخل الجزيرة الديناميكية فقط: %@. هل تريد إلغاء تثبيتها أيضًا؟ لا يُحذف شيء، وكل شيء يعود بنقرة واحدة.",
         notchUninstallWithExtensions: "إلغاء تثبيت الإضافات أيضًا",
-        notchUninstallKeepExtensions: "الإبقاء على الإضافات")
+        notchUninstallKeepExtensions: "الإبقاء على الإضافات",
+        neverUsedTitle: "لم تُفعَّل قط",
+        neverUsedMessageFormat: "هذه الميزات مثبّتة ولم تُفعَّل قط: %@. وإلغاء تثبيتها يختصر اللوحة والإعدادات. ولا يُحذف شيء، وتعود كل واحدة بنقرة.",
+        neverUsedUninstall: "إلغاء تثبيتها",
+        neverUsedKeep: "إبقاؤها")
 }

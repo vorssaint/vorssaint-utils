@@ -524,7 +524,9 @@ extension FeatureStrings {
             accessories: "تنبيهات الملحقات",
             accessoryDescription: "يعرض الملحقات الموصولة وينبّه مرة واحدة عند انخفاض بطاريتها إلى 20%.",
             connected: "موصول",
-            lowBattery: "بطارية منخفضة")
+            lowBattery: "بطارية منخفضة",
+            keepAwakeActivity: "إظهار “الإبقاء مستيقظًا” في الجزيرة المغلقة",
+            keepAwakeActivityHint: "تظهر الجلسة الجارية بجانب الكاميرا مع ما تبقّى من وقتها، أو ∞ إن كانت بلا نهاية.")
         }
     }
 }

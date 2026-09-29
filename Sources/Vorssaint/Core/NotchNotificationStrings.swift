@@ -209,8 +209,8 @@ extension FeatureStrings {
             open: "فتح",
             dismiss: "تجاهل",
             unavailable: "لم يعد هذا الإشعار يقبل هذا الإجراء.",
-            dismissSystemBanner: "تجاهل راية النظام",
-            dismissSystemBannerHint: "يتجاهل الراية الأصلية بعد ظهورها في الجزيرة الديناميكية. وقد تظل تظهر للحظة.")
+            hideSystemBanner: "إخفاء راية النظام",
+            hideSystemBannerHint: "يُخفي الراية الأصلية بينما تعرضها الجزيرة الديناميكية.")
         }
     }
 }
