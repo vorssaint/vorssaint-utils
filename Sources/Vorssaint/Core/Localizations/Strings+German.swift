@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Wenn ausgeschaltet, werden Fenster aller Schreibtische angezeigt. Die Auswahl eines Fensters auf einem anderen Schreibtisch wechselt dorthin.",
         dockPreviewBackgroundOpacity: "Hintergrund des Panels",
         dockPreviewBackgroundOpacityCaption: "Verringere ihn, um mehr von dem zu sehen, was hinter dem Panel liegt.",
+        dockPreviewBackgroundOpacityGlassCaption: "Bei aktiviertem Liquid Glass wird die Transparenz des Panels in Systemeinstellungen > Erscheinungsbild festgelegt.",
         dockPreviewOpenDelay: "Öffnungsverzögerung",
         dockPreviewOpenDelayCaption: "Wie lange der Zeiger auf einem Symbol ruhen muss, bevor sich das Panel öffnet.",
         dockPreviewQuitAppOnClose: "App mit der ×-Taste beenden",
