@@ -37,7 +37,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
-    @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = false
+    @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = true
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
@@ -114,7 +114,7 @@ struct ScreenshotCaptureSettings: View {
             } header: {
                 Text(strings.pageTitle)
             }
-            .settingsSectionAnchor(.screenshot)
+            .settingsFormSectionAnchor(.screenshot)
 
             Section {
                 Toggle(strings.freezeToggle, isOn: $freeze)
@@ -164,7 +164,7 @@ struct ScreenshotCaptureSettings: View {
             }
 
             Section {
-                Toggle(strings.autoCopyToggle, isOn: $copyToClipboard)
+                Toggle(strings.autoCopyToggle, isOn: autoCopyBinding)
                 Text(strings.autoCopyCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -226,18 +226,30 @@ struct ScreenshotCaptureSettings: View {
         }
     }
 
+    /// The after-capture action can copy too, so the toggle reads on while
+    /// either one copies. Turning it off clears both. Otherwise captures keep
+    /// reaching the clipboard while the switch shows off.
+    private var autoCopyBinding: Binding<Bool> {
+        Binding {
+            copyToClipboard || defaultAction.copiesToClipboard
+        } set: { isOn in
+            copyToClipboard = isOn
+            if !isOn { defaultActionRaw = defaultAction.withoutCopy.rawValue }
+        }
+    }
+
+    private var defaultAction: ScreenshotDefaultAction {
+        ScreenshotDefaultAction(rawValue: defaultActionRaw) ?? .none
+    }
+
     private var defaultActionRow: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Picker(strings.defaultActionLabel, selection: $defaultActionRaw) {
-                Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
-                Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
-                Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)
-                Text(strings.copyButton).tag(ScreenshotDefaultAction.copy.rawValue)
-                Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
+            ScreenshotDefaultActionPicker(strings: strings, selection: $defaultActionRaw)
+            if defaultActionRaw != ScreenshotDefaultAction.edit.rawValue {
+                Text(strings.defaultActionCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Text(strings.defaultActionCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -294,15 +306,16 @@ struct ScreenshotCaptureSettings: View {
             HStack {
                 Text(strings.subfolderLabel)
                     .lineLimit(1)
-                TextField("", text: $saveSubfolder)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 150)
+                Spacer(minLength: 12)
                 if !saveSubfolder.isEmpty {
                     Text(ScreenshotSupport.expandSaveSubfolder(saveSubfolder, date: Date()))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
+                TextField("", text: $saveSubfolder)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 150)
             }
             .fixedSize(horizontal: false, vertical: true)
             Text(strings.subfolderCaption)
@@ -316,13 +329,14 @@ struct ScreenshotCaptureSettings: View {
             HStack {
                 Text(strings.fileNamePatternLabel)
                     .lineLimit(1)
-                TextField("", text: $fileNamePattern)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 150)
+                Spacer(minLength: 12)
                 Text(fileNamePreview)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                TextField("", text: $fileNamePattern)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 150)
             }
             .fixedSize(horizontal: false, vertical: true)
             Text(strings.fileNamePatternCaption)
@@ -559,6 +573,21 @@ private struct ScreenshotSharedLinksView: View {
                 showingDeleteError = true
             }
             deletingID = nil
+        }
+    }
+}
+
+struct ScreenshotDefaultActionPicker: View {
+    let strings: ScreenshotFeatureStrings
+    @Binding var selection: String
+
+    var body: some View {
+        Picker(strings.defaultActionLabel, selection: $selection) {
+            Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
+            Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
+            Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)
+            Text(strings.copyButton).tag(ScreenshotDefaultAction.copy.rawValue)
+            Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
         }
     }
 }

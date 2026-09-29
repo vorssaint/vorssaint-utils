@@ -41,7 +41,8 @@ final class SnippetLibraryService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.snippetLibraryEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.snippetLibraryShortcut,
                                             fallback: .snippetLibraryDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.snippetLibraryShortcut)
         if !enabled { hide() }
         if isVisible {
             reloadSnippets()
@@ -223,7 +224,7 @@ final class SnippetLibraryService: ObservableObject {
 
     /// Borderless panels refuse key status by default, and the library needs
     /// it for the search field, arrows and Esc.
-    private final class KeyableLibraryPanel: NSPanel {
+    private final class KeyableLibraryPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 
@@ -329,7 +330,10 @@ final class SnippetLibraryService: ObservableObject {
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return }
-            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel) {
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
+               // Every key on the Accessibility Keyboard is a click outside this
+               // panel. Dismissing on those makes the panel impossible to type into.
+               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) {
                 self.hide()
             }
         }
@@ -340,7 +344,8 @@ final class SnippetLibraryService: ObservableObject {
         ) { [weak self] notification in
             guard let self,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  app.bundleIdentifier != Bundle.main.bundleIdentifier
+                  app.bundleIdentifier != Bundle.main.bundleIdentifier,
+                  app.bundleIdentifier != AssistiveKeyboard.bundleID
             else { return }
             self.hide()
         }

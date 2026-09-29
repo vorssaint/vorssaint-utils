@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// The text snippets page: the enable toggle, the snippet list and a simple
@@ -10,8 +11,11 @@ struct TextSnippetsSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var library = SnippetLibraryService.shared
+    @ObservedObject private var secureInput = SecureInputMonitor.shared
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var enabled = false
     @AppStorage(DefaultsKey.snippetLibraryEnabled) private var libraryEnabled = false
+    @AppStorage(DefaultsKey.snippetSoundEnabled) private var soundEnabled = false
+    @AppStorage(DefaultsKey.snippetSoundName) private var soundName = Defaults.defaultSnippetSoundName
     @State private var snippets: [TextSnippet] = TextSnippetSupport.decode(
         UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
     @State private var editing: TextSnippet?
@@ -33,6 +37,36 @@ struct TextSnippetsSettings: View {
                     .foregroundStyle(.secondary)
                 if enabled, !permissions.accessibility {
                     PermissionRow(kind: .accessibility)
+                }
+                if enabled {
+                    Toggle(text.soundToggle, isOn: $soundEnabled)
+                        .onChange(of: soundEnabled) { _, _ in
+                            TextSnippetService.shared.syncExpansionSound()
+                        }
+                    Text(text.soundCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if soundEnabled {
+                        Picker(text.soundPickerLabel, selection: $soundName) {
+                            ForEach(AlertSoundStrings.sortedNames(TextSnippetSupport.alertSoundNames,
+                                                                  language: l10n.language), id: \.self) { name in
+                                Text(AlertSoundStrings.displayName(for: name, language: l10n.language)).tag(name)
+                            }
+                            // A name stored on another Mac, or dropped by a
+                            // macOS update, needs a row of its own or the
+                            // picker shows an empty selection. Asked through
+                            // the same resolver the service arms the sound
+                            // with, so the row cannot call a name usable that
+                            // an expansion would substitute away from.
+                            if TextSnippetSupport.resolvedSoundName(stored: soundName) != soundName {
+                                Text(text.soundUnavailable).tag(soundName)
+                            }
+                        }
+                        .onChange(of: soundName) { _, _ in
+                            TextSnippetService.shared.syncExpansionSound()
+                            TextSnippetService.shared.previewExpansionSound()
+                        }
+                    }
                 }
             }
 
@@ -57,6 +91,14 @@ struct TextSnippetsSettings: View {
                 }
             } header: {
                 Text(text.libraryTitle)
+            }
+
+            // The library beeps under secure input whether or not trigger
+            // expansion is on, so either toggle earns the explanation. It
+            // answers to both, so it sits under both rather than inside the
+            // section for one of them.
+            if enabled || libraryEnabled, secureInput.holder != .off {
+                Section { SecureInputRow() }
             }
 
             Section {
@@ -89,6 +131,7 @@ struct TextSnippetsSettings: View {
             }
         }
         .formStyle(.grouped)
+        .observesSecureInput(isActive: enabled || libraryEnabled)
         .sheet(isPresented: $creating) {
             SnippetEditor(text: text,
                           snippet: TextSnippet(),

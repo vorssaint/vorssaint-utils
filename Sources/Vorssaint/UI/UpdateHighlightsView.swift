@@ -3,229 +3,110 @@
 
 import SwiftUI
 
-/// The one-time tour shown after a headline update. Every page belongs to the
-/// pinned release and uses a native illustration, so it never ships personal
-/// content or gets stale when another part of the interface changes.
+/// The release's Dynamic Island demonstration, stored inside the app bundle.
 struct UpdateHighlightsView: View {
     @ObservedObject private var l10n = L10n.shared
-    @State private var index = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var availableSize = NSScreen.pointerVisibleFrame.size
     let onFinish: () -> Void
 
-    private var s: Strings { l10n.s }
-
-    private enum Layout {
-        static let width: CGFloat = 600
-        static let pageHeight: CGFloat = 414
-        static let height: CGFloat = 552
-        static let captionLines = 2
-    }
-
-    private struct Highlight: Identifiable {
-        let id: String
-        let imageName: String
-        let symbol: String
-        let title: String
-        let caption: String
-        let actionLabel: String
-        let action: () -> Void
-    }
-
-    private var highlights: [Highlight] {
-        var pages: [Highlight] = []
-        if AppFeature.windowLayout.isAvailable {
-            pages.append(Highlight(
-                id: "window-layout",
-                imageName: "highlights-windowlayout",
-                symbol: "macwindow.on.rectangle",
-                title: s.highlightsTitleWindowLayout,
-                caption: s.highlightsCaptionWindowLayout,
-                actionLabel: s.highlightsConfigure,
-                action: { openSettings(AppFeature.windowLayout.settingsDestination) }))
-        }
-        if AppFeature.quitWindowProtection.isAvailable {
-            pages.append(Highlight(
-                id: "quit-protection",
-                imageName: "highlights-quitprotection",
-                symbol: "xmark.circle.fill",
-                title: s.highlightsTitleQuitProtection,
-                caption: s.highlightsCaptionQuitProtection,
-                actionLabel: s.highlightsConfigure,
-                action: { openSettings(AppFeature.quitWindowProtection.settingsDestination) }))
-        }
-        if AppFeature.screenRecorder.isAvailable {
-            pages.append(Highlight(
-                id: "recorder-blur",
-                imageName: "highlights-recorderblur",
-                symbol: "aqi.medium",
-                title: s.highlightsTitleRecorderBlur,
-                caption: s.highlightsCaptionRecorderBlur,
-                actionLabel: s.highlightsConfigure,
-                action: { openSettings(AppFeature.screenRecorder.settingsDestination) }))
-        }
-        return pages
+    private var text: NotchTourStrings { FeatureStrings.notchTour(l10n.language) }
+    private var animationURL: URL? {
+        Bundle.main.url(forResource: "highlights-notch", withExtension: "gif", subdirectory: "Gifs")
     }
 
     var body: some View {
-        let pages = highlights
-        let clamped = min(index, max(0, pages.count - 1))
-        VStack(spacing: 0) {
-            VStack(spacing: 3) {
-                Text(s.highlightsTitle)
-                    .font(.title3.weight(.bold))
-                Text("Vorssaint \(AppInfo.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        let size = UpdateHighlightsLayout.size(in: availableSize)
+        VStack(spacing: 16) {
+            VStack(spacing: 4) {
+                Text(FeatureStrings.notch(l10n.language).title).font(.title2.weight(.semibold))
+                Text(AppInfo.isDeveloperBuild ? text.preview : "Vorssaint \(AppInfo.version)")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            .padding(.top, 23)
-            .padding(.bottom, 13)
+            .frame(height: 42)
 
-            ZStack {
-                if pages.indices.contains(clamped) {
-                    page(pages[clamped])
-                        .id(pages[clamped].id)
-                        .transition(.opacity)
-                }
-            }
-            .frame(height: Layout.pageHeight)
-            .animation(.easeInOut(duration: 0.18), value: clamped)
-
-            ZStack {
-                HStack(spacing: 6) {
-                    ForEach(pages.indices, id: \.self) { dot in
-                        Circle()
-                            .fill(dot == clamped ? Color.accentColor : Color.primary.opacity(0.18))
-                            .frame(width: 7, height: 7)
-                    }
-                }
-                .accessibilityHidden(true)
-
-                HStack {
-                    if clamped > 0 {
-                        Button(s.obBack) { index = clamped - 1 }
-                            .buttonStyle(.borderless)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Button(s.highlightsSeeAll) { openSettings(.releaseNotes) }
-                            .buttonStyle(.borderless)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button(s.obContinue) {
-                        if clamped >= pages.count - 1 {
-                            onFinish()
+            ScrollView {
+                VStack(spacing: 16) {
+                    Group {
+                        if let animationURL {
+                            UpdateHighlightsGIF(url: animationURL, animates: !reduceMotion)
                         } else {
-                            index = clamped + 1
+                            Image(systemName: "rectangle.topthird.inset.filled")
+                                .font(.system(size: 72, weight: .light)).foregroundStyle(.secondary)
                         }
                     }
+                    .frame(height: UpdateHighlightsLayout.artworkHeight(in: size))
+                    .clipped()
+                    .accessibilityHidden(true)
+
+                    Text(text.caption)
+                        .font(.callout).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            HStack {
+                Button(l10n.s.highlightsConfigure) {
+                    if !AppFeature.notch.isAvailable {
+                        FeatureRuntime.shared.setAvailable([.notch], true)
+                    }
+                    SettingsRouter.shared.request(AppFeature.notch.settingsDestination)
+                    appDelegate()?.openSettingsFromHighlights()
+                }
+                .buttonStyle(.bordered)
+                Spacer()
+                Button(l10n.s.supportIntroDoneButton, action: onFinish)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
-                }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 14)
-            .padding(.bottom, 18)
+            .frame(height: 32)
         }
-        .frame(width: Layout.width, height: Layout.height)
-    }
-
-    private func page(_ highlight: Highlight) -> some View {
-        VStack(spacing: 12) {
-            UpdateHighlightArtwork(imageName: highlight.imageName, fallbackSymbol: highlight.symbol)
-                .frame(width: 500, height: 268)
-                .accessibilityHidden(true)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-
-            VStack(spacing: 4) {
-                HStack(spacing: 7) {
-                    Image(systemName: highlight.symbol)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHidden(true)
-                    Text(highlight.title)
-                        .font(.title3.weight(.semibold))
-                }
-                Text(highlight.caption)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(Layout.captionLines)
-                    .frame(maxWidth: 460)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Button(highlight.actionLabel) { highlight.action() }
-                .buttonStyle(.bordered)
-        }
-        .padding(.horizontal, 24)
-    }
-
-    private func openSettings(_ destination: FeatureSettingsDestination) {
-        SettingsRouter.shared.request(destination)
-        appDelegate()?.openSettingsFromHighlights()
-    }
-
-    private func openSettings(_ page: SettingsPage) {
-        SettingsRouter.shared.page = page
-        appDelegate()?.openSettingsFromHighlights()
+        .frame(maxWidth: 500)
+        .padding(24)
+        .frame(width: size.width, height: size.height)
     }
 }
 
-private struct UpdateHighlightArtwork: View {
-    let imageName: String
-    let fallbackSymbol: String
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color.accentColor.opacity(0.18),
-                         Color.purple.opacity(0.08),
-                         Color.primary.opacity(0.025)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing)
-
-            if let image = asset(imageName) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-                    }
-                    .shadow(color: .black.opacity(0.24), radius: 10, y: 5)
-                    .padding(14)
-            } else {
-                ZStack {
-                    Theme.spaceGradient
-                    Image(systemName: fallbackSymbol)
-                        .font(.system(size: 44, weight: .medium))
-                        .foregroundStyle(.white)
-                }
-            }
-        }
+enum UpdateHighlightsLayout {
+    static func size(in available: CGSize) -> CGSize {
+        CGSize(width: min(600, max(1, available.width - 32)),
+               height: min(660, max(1, available.height - 32)))
     }
 
-    private func asset(_ name: String) -> NSImage? {
-        let extensions = ["png", "jpg", "jpeg"]
-        for ext in extensions {
-            if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Images")
-                ?? Bundle.main.url(forResource: name, withExtension: ext) {
-                if let image = NSImage(contentsOf: url) {
-                    return image
-                }
-            }
-        }
-        for ext in extensions {
-            let direct = URL(fileURLWithPath: "Resources/Images/\(name).\(ext)")
-            if let image = NSImage(contentsOf: direct) {
-                return image
-            }
-        }
-        return nil
+    static func artworkHeight(in size: CGSize) -> CGFloat {
+        min(400, max(80, size.height - 260))
+    }
+}
+
+private struct UpdateHighlightsGIF: NSViewRepresentable {
+    let url: URL
+    let animates: Bool
+
+    func makeNSView(context: Context) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.masksToBounds = true
+
+        let imageView = NSImageView()
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.animates = animates
+        let image = NSImage(contentsOf: url)
+        image?.size = NSSize(width: 451, height: 400)
+        imageView.image = image
+        container.addSubview(imageView)
+        NSLayoutConstraint.activate([
+            imageView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            imageView.topAnchor.constraint(equalTo: container.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
+        return container
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        (view.subviews.first as? NSImageView)?.animates = animates
     }
 }

@@ -17,6 +17,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -25,6 +26,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -58,6 +60,12 @@ extension ShortcutSettingsStrings {
         active: "Activo",
         inactive: "Inactivo",
         superKeyAlternativeFormat: "o %@"
+    )
+
+    static let sk = ShortcutSettingsStrings(
+        active: "Aktívna",
+        inactive: "Neaktívna",
+        superKeyAlternativeFormat: "alebo %@"
     )
 
     static let de = ShortcutSettingsStrings(
@@ -106,5 +114,10 @@ extension ShortcutSettingsStrings {
         active: "已啟用",
         inactive: "未啟用",
         superKeyAlternativeFormat: "或 %@"
+    )
+    static let uk = ShortcutSettingsStrings(
+        active: "Активно",
+        inactive: "Неактивно",
+        superKeyAlternativeFormat: "або %@"
     )
 }

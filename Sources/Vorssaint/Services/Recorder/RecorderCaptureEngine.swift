@@ -26,7 +26,7 @@ protocol RecorderCaptureEngineDelegate: AnyObject {
 }
 
 /// Owns the ScreenCaptureKit stream and nothing else: it acquires pixels and
-/// system audio and hands them over untouched. No compositing happens here,
+/// system audio and maps their timestamps to the host clock. No compositing happens here,
 /// because everything the editor can change has to stay changeable after the
 /// recording ends.
 final class RecorderCaptureEngine: NSObject {
@@ -45,13 +45,6 @@ final class RecorderCaptureEngine: NSObject {
     private var lifecycle = RecorderCaptureLifecycle()
     private var stream: SCStream?
 
-    /// The clock the stream timestamps against, so a source that is not
-    /// ScreenCaptureKit (the microphone) can be lined up with the video.
-    private var storedSynchronizationClock: CMClock?
-    var synchronizationClock: CMClock? {
-        lifecycleLock.withLock { storedSynchronizationClock }
-    }
-
     /// True while pixels are being delivered. Read from the main thread.
     var isRunning: Bool {
         lifecycleLock.withLock { lifecycle.isRunning }
@@ -65,6 +58,7 @@ final class RecorderCaptureEngine: NSObject {
                frameRate: Int,
                capturesSystemAudio: Bool,
                excludedWindowNumbers: [Int],
+               willStartCapture: (CMTime) -> Void,
                isCancelled: @escaping () -> Bool) async -> RecorderFailure? {
         guard lifecycleLock.withLock({ self.stream == nil }), !isCancelled() else {
             return .streamFailed
@@ -134,13 +128,13 @@ final class RecorderCaptureEngine: NSObject {
                 return true
             }
             guard willStart else { return .streamFailed }
+            willStartCapture(CMClockGetTime(CMClockGetHostTimeClock()))
             try await stream.startCapture()
         } catch {
             let failure = Self.failure(for: error)
             lifecycleLock.withLock {
                 lifecycle.stop()
                 if self.stream === stream { self.stream = nil }
-                storedSynchronizationClock = nil
             }
             await stopAndDrain(stream)
             return failure
@@ -150,7 +144,6 @@ final class RecorderCaptureEngine: NSObject {
             lifecycleLock.withLock {
                 lifecycle.stop()
                 if self.stream === stream { self.stream = nil }
-                storedSynchronizationClock = nil
             }
             await stopAndDrain(stream)
             return .streamFailed
@@ -158,7 +151,6 @@ final class RecorderCaptureEngine: NSObject {
 
         let didStart = lifecycleLock.withLock { () -> Bool in
             guard self.stream === stream, lifecycle.didStart() else { return false }
-            storedSynchronizationClock = stream.synchronizationClock
             return true
         }
         guard didStart else {
@@ -175,7 +167,6 @@ final class RecorderCaptureEngine: NSObject {
             lifecycle.stop()
             let stream = self.stream
             self.stream = nil
-            storedSynchronizationClock = nil
             return stream
         }
         if let stream { try? await stream.stopCapture() }
@@ -245,7 +236,7 @@ final class RecorderCaptureEngine: NSObject {
 }
 
 /// Captures the default microphone only while a recording asks for it. Its
-/// sample timestamps are converted onto ScreenCaptureKit's clock before the
+/// sample timestamps are converted onto the recording's host clock before the
 /// writer sees them, so system sound, voice and picture keep one timeline.
 final class RecorderMicrophoneCapture: NSObject,
                                        AVCaptureAudioDataOutputSampleBufferDelegate,
@@ -306,28 +297,12 @@ final class RecorderMicrophoneCapture: NSObject,
               let targetClock,
               CMSampleBufferIsValid(sampleBuffer)
         else { return }
-        let sourceTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        let targetTime = CMSyncConvertTime(sourceTime, from: sourceClock, to: targetClock)
-        guard targetTime.isValid,
-              let synchronized = Self.retimed(sampleBuffer, to: targetTime)
+        guard let synchronized = RecorderSampleTiming.converted(sampleBuffer,
+            from: sourceClock, to: targetClock)
         else { return }
         onSample?(synchronized)
     }
 
-    private static func retimed(_ sampleBuffer: CMSampleBuffer,
-                                to time: CMTime) -> CMSampleBuffer? {
-        var timing = CMSampleTimingInfo(duration: CMSampleBufferGetDuration(sampleBuffer),
-                                        presentationTimeStamp: time,
-                                        decodeTimeStamp: .invalid)
-        var copy: CMSampleBuffer?
-        let status = CMSampleBufferCreateCopyWithNewTiming(
-            allocator: kCFAllocatorDefault,
-            sampleBuffer: sampleBuffer,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &copy)
-        return status == noErr ? copy : nil
-    }
 }
 
 // MARK: - Stream callbacks
@@ -339,16 +314,21 @@ extension RecorderCaptureEngine: SCStreamOutput {
         guard lifecycleLock.withLock({
             lifecycle.acceptsSamples && self.stream === stream
         }),
-              CMSampleBufferIsValid(sampleBuffer) else { return }
+              CMSampleBufferIsValid(sampleBuffer),
+              let clock = stream.synchronizationClock else { return }
+        let kind: Kind
         switch type {
         case .screen:
             guard Self.carriesPixels(sampleBuffer) else { return }
-            delegate?.captureEngine(self, didOutput: sampleBuffer, of: .video)
+            kind = .video
         case .audio:
-            delegate?.captureEngine(self, didOutput: sampleBuffer, of: .systemAudio)
+            kind = .systemAudio
         default:
-            break
+            return
         }
+        guard let synchronized = RecorderSampleTiming.converted(sampleBuffer,
+            from: clock, to: CMClockGetHostTimeClock()) else { return }
+        delegate?.captureEngine(self, didOutput: synchronized, of: kind)
     }
 
     /// A screen buffer only counts when the display actually changed and the
@@ -372,7 +352,6 @@ extension RecorderCaptureEngine: SCStreamDelegate {
             guard lifecycle.acceptsSamples, self.stream === stream else { return false }
             lifecycle.stop()
             self.stream = nil
-            storedSynchronizationClock = nil
             return true
         }
         guard shouldReport else { return }

@@ -20,6 +20,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -28,6 +29,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -76,6 +78,15 @@ extension DiskExclusionStrings {
         removeButton: "Quitar",
         customPlaceholder: "Nombre del disco o volumen",
         caption: "Los discos de esta lista nunca se expulsan al expulsar todos los discos."
+    )
+
+    static let sk = DiskExclusionStrings(
+        listTitle: "Vylúčené disky",
+        addButton: "Pridať disk…",
+        otherDrive: "Iný názov disku…",
+        removeButton: "Odstrániť",
+        customPlaceholder: "Názov disku alebo zväzku",
+        caption: "Disky v tomto zozname sa nikdy neodpoja pri použití Vysunúť všetky disky."
     )
 
     static let de = DiskExclusionStrings(
@@ -148,5 +159,13 @@ extension DiskExclusionStrings {
         removeButton: "移除",
         customPlaceholder: "磁碟機或宗卷名稱",
         caption: "使用「推出所有磁碟」時，此清單中的磁碟機絕不會被推出。"
+    )
+    static let uk = DiskExclusionStrings(
+        listTitle: "Виключені диски",
+        addButton: "Додати диск…",
+        otherDrive: "Інша назва диска…",
+        removeButton: "Видалити",
+        customPlaceholder: "Назва диска або тому",
+        caption: "Диски з цього списку ніколи не демонтуються при використанні «Вийняти всі диски»."
     )
 }

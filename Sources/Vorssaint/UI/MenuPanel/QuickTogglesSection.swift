@@ -91,15 +91,14 @@ struct QuickTogglesList: View {
     let dismissSurface: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(items) { item in
-                PanelReorderableItem(item: item,
-                                     isEnabled: editing,
-                                     order: itemOrderBinding,
-                                     dragging: $draggingItem) {
-                    itemView(item)
-                        .disabled(toggles.state(for: item) == .running)
-                }
+        PanelRowGroup(items: items, showsDragHandles: editing) { item in
+            PanelReorderableItem(item: item,
+                                 isEnabled: editing,
+                                 previewsAsCard: true,
+                                 order: itemOrderBinding,
+                                 dragging: $draggingItem) {
+                itemView(item)
+                    .disabled(toggles.state(for: item) == .running)
             }
         }
         .onAppear {
@@ -176,6 +175,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                captionStaysVisible: reportsState(item),
                                 action: {
                                     QuickTogglesService.shared.toggleDarkMode()
                                 })
@@ -210,6 +210,7 @@ struct QuickTogglesList: View {
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
                                 needsAttention: needsPermission(item),
+                                captionStaysVisible: reportsState(item),
                                 permissionButtonTitle: permissionButtonTitle(item),
                                 permissionAction: permissionAction(item),
                                 action: {
@@ -218,12 +219,16 @@ struct QuickTogglesList: View {
                                     QuickTogglesService.shared.emptyTrash()
                                 })
         case .ejectDisks:
+            // Anything but the plain description is news: nothing to eject,
+            // ejecting now, or a failure.
+            let eject = ejectCaption(strings)
             UtilityActionButton(title: strings.ejectTitle,
-                                caption: ejectCaption(strings),
+                                caption: eject,
                                 systemImage: "eject.fill",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                captionStaysVisible: eject != strings.ejectCaption,
                                 action: {
                                     QuickTogglesService.shared.ejectAllDisks()
                                 })
@@ -234,6 +239,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                captionStaysVisible: true,
                                 action: {
                                     QuickTogglesService.shared.toggleHiddenFiles()
                                 })
@@ -244,6 +250,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                captionStaysVisible: true,
                                 action: {
                                     QuickTogglesService.shared.toggleDesktopIcons()
                                 })
@@ -267,6 +274,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                captionStaysVisible: reportsState(item),
                                 action: {
                                     dismissSurface()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -290,6 +298,15 @@ struct QuickTogglesList: View {
     }
 
     // MARK: - Row state
+
+    /// True while the caption is a failure or permission note rather than the
+    /// idle description, so the row keeps it in view.
+    private func reportsState(_ item: QuickToggleAction) -> Bool {
+        switch toggles.state(for: item) {
+        case .failed, .needsPermission: return true
+        case .running, .none: return false
+        }
+    }
 
     /// The idle caption, replaced by a short-lived failure note; success needs
     /// no caption, the row itself already reflects the new state.

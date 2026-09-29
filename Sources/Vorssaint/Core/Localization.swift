@@ -4,6 +4,19 @@
 import Combine
 import Foundation
 
+/// The way a language agrees a noun with the number in front of it.
+enum CountAgreement {
+    /// One form for exactly one, another for every other count.
+    case oneAndMany
+    /// Russian and Ukrainian: the number's last digits decide. 21 takes the
+    /// first form and 22 the middle one, while 11 through 14 fall back to the last.
+    case byLastDigits
+    /// Slovak: the whole number decides. Only one itself takes the first form
+    /// and only two through four the middle one, so 21 and 22 read
+    /// "21 súborov" and "22 súborov" the same way 25 does.
+    case byWholeNumber
+}
+
 /// Languages the interface can use. The first launch defaults to the system
 /// language; the onboarding and Settings let the user override it at any time.
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -12,21 +25,30 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case tr = "tr"
     case ru = "ru"
     case es = "es"
+    case sk = "sk"
     case de = "de"
     case fr = "fr"
     case it = "it"
     case ja = "ja"
     case ko = "ko"
+    case uk = "uk"
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
 
     var id: String { rawValue }
 
-    /// Whether this language puts a distinct form between one and many. Only
-    /// Russian, of the thirteen: two through four take a form of their own,
-    /// so "2 файла" and not "2 файлов".
-    var usesFewCountForm: Bool { self == .ru }
+    /// How this language agrees a counted noun with the number in front of
+    /// it. Three of the fifteen put a distinct form between one and many, and
+    /// they disagree on which numbers take it, so the count itself is not
+    /// enough to pick a form without knowing the language's rule.
+    var countAgreement: CountAgreement {
+        switch self {
+        case .ru, .uk: return .byLastDigits
+        case .sk: return .byWholeNumber
+        default: return .oneAndMany
+        }
+    }
 
     /// The language's own name, shown in its own script, the way macOS lists them.
     var displayName: String {
@@ -36,6 +58,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .tr: return "Türkçe"
         case .ru: return "Русский"
         case .es: return "Español"
+        case .sk: return "Slovenčina"
         case .de: return "Deutsch"
         case .fr: return "Français"
         case .it: return "Italiano"
@@ -44,7 +67,19 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhHans: return "简体中文"
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
+        case .uk: return "Українська"
         }
+    }
+
+    /// Dates and times in this language, arranged the way System Settings
+    /// asks: region, 12- or 24-hour clock and first day of the week. A locale
+    /// made from the language alone would bring that language's own clock.
+    func formattingLocale(system: Locale = .autoupdatingCurrent) -> Locale {
+        var components = Locale.Components(identifier: rawValue)
+        components.region = system.region
+        components.hourCycle = system.hourCycle
+        components.firstDayOfWeek = system.firstDayOfWeek
+        return Locale(components: components)
     }
 
     static var systemDefault: AppLanguage {
@@ -60,8 +95,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
 
         let matches: [(String, AppLanguage)] = [
-            ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("de", .de), ("fr", .fr),
-            ("it", .it), ("ja", .ja), ("ko", .ko), ("zh", .zhHans),
+            ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
+            ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -77,13 +112,29 @@ final class L10n: ObservableObject {
         didSet { UserDefaults.standard.set(language.rawValue, forKey: DefaultsKey.language) }
     }
 
-    var s: Strings {
+    var s: Strings { Strings.localized(language) }
+
+    private init() {
+        if let raw = UserDefaults.standard.string(forKey: DefaultsKey.language),
+           let saved = AppLanguage(rawValue: raw) {
+            language = saved
+        } else {
+            language = .systemDefault
+        }
+    }
+}
+
+extension Strings {
+    /// The catalog for a language other than the current one, as the
+    /// feature string tables offer theirs.
+    static func localized(_ language: AppLanguage) -> Strings {
         switch language {
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -92,15 +143,7 @@ final class L10n: ObservableObject {
         case .zhHans: return .zhHans
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
-        }
-    }
-
-    private init() {
-        if let raw = UserDefaults.standard.string(forKey: DefaultsKey.language),
-           let saved = AppLanguage(rawValue: raw) {
-            language = saved
-        } else {
-            language = .systemDefault
+        case .uk: return .uk
         }
     }
 }
@@ -166,6 +209,8 @@ struct Strings {
     let keepAwakeEndsIn: String        // + remaining
     let keepAwakeUntilDisabled: String
     let keepAwakeNormalRules: String
+    let keepAwakeUntilLabel: String
+    let keepAwakeUntilStart: String
     let keepAwakeOptions: String
     let keepAwakeMouseJiggle: String
     let keepAwakeMouseJiggleCaption: String
@@ -246,6 +291,7 @@ struct Strings {
     let advancedResetDescription: String
     let advancedClearButton: String
     let advancedCleared: String
+    let advancedClearFailed: String
     let advancedClearConfirmTitle: String
     let advancedClearConfirmBody: String
     let advancedUninstallSection: String
@@ -278,6 +324,8 @@ struct Strings {
     let configuring: String
     let sudoersFailed: String
     let clamshellExplanation: String
+    let dimScreenOnLidCloseTitle: String
+    let dimScreenOnLidCloseCaption: String
 
     // MARK: Settings — mouse
     let scrollSection: String
@@ -317,6 +365,8 @@ struct Strings {
     let micMuteCaption: String
     let micMutedHUD: String
     let micUnmutedHUD: String
+    let micMutePartialHUD: String
+    let micUnmutePartialHUD: String
     let micMuteMenuBarToggle: String
     let micMuteMenuBarCaption: String
     let pastePlainName: String
@@ -337,7 +387,6 @@ struct Strings {
     let switcherNoWindows: String
     let switcherIconRowMode: String
     let switcherIconRowModeCaption: String
-    let switcherSimpleMode: String
     let switcherSimpleModeCaption: String
     let switcherShortcutHintApps: String
     let switcherShortcutHintWindows: String
@@ -346,6 +395,8 @@ struct Strings {
     let switcherTakeOverSystemShortcutsCaption: String
     let switcherAppearanceDelay: String
     let switcherAppearanceDelayCaption: String
+    let switcherInstantSelection: String
+    let switcherInstantSelectionCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherWindowlessApps: String
@@ -358,12 +409,18 @@ struct Strings {
     let dockPreviewName: String
     let dockPreviewEnable: String
     let dockPreviewEnableCaption: String
+    let dockPreviewCurrentSpaceOnlyCaption: String
     let dockPreviewBackgroundOpacity: String
     let dockPreviewBackgroundOpacityCaption: String
+    let dockPreviewBackgroundOpacityGlassCaption: String
     let dockPreviewOpenDelay: String
     let dockPreviewOpenDelayCaption: String
     let dockPreviewQuitAppOnClose: String
     let dockPreviewQuitAppOnCloseCaption: String
+    let dockPreviewKeepDockVisible: String
+    let dockPreviewKeepDockVisibleCaption: String
+    let dockPreviewOrderByCreation: String
+    let dockPreviewOrderByCreationCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -413,6 +470,7 @@ struct Strings {
     let autoQuitStep1: String
     let autoQuitStep2: String
     let autoQuitPredictableNote: String
+    let autoQuitOngoingWorkNote: String
     let autoQuitExceptionsTitle: String
     let autoQuitExceptionsCaption: String
     let autoQuitExceptionsEmpty: String
@@ -442,6 +500,7 @@ struct Strings {
     let uninstallerSelectedFormat: String   // + selected, total
     let uninstallerRemove: String
     let uninstallerCancel: String
+    let uninstallerConfirmationExpired: String
     let uninstallerDoneTitle: String
     let uninstallerFreedFormat: String      // + size string
     let uninstallerSomeFailed: String
@@ -456,6 +515,11 @@ struct Strings {
     let uninstallerCatLogs: String
     let uninstallerCatState: String
     let uninstallerCatOther: String
+    let uninstallerCommandBarBrowseTitle: String
+    let uninstallerCommandBarToggle: String
+    let uninstallerCommandBarCaption: String
+    let uninstallerCommandBarFinderTitle: String
+    let uninstallerSelectionUnavailable: String
 
     // MARK: Feature — URL cleaner
     let urlCleanerName: String
@@ -501,6 +565,8 @@ struct Strings {
     let homebrewFormulas: String
     let homebrewCasks: String
     let homebrewNoPackages: String
+    let homebrewDependencies: String
+    let homebrewGroupDependencies: String
     let homebrewNoSelection: String
     let homebrewDetailsTitle: String
     let homebrewInstall: String
@@ -587,6 +653,9 @@ struct Strings {
     let mediaCompressionLow: String
     let mediaCompressionMedium: String
     let mediaCompressionHigh: String
+    let mediaCompressionLowDescription: String
+    let mediaCompressionMediumDescription: String
+    let mediaCompressionHighDescription: String
     let mediaMaxSize: String
     let mediaSizingResolution: String
     let mediaSizingFileSize: String
@@ -633,7 +702,12 @@ struct Strings {
     let shelfShakeCaption: String
     let shelfDropZoneToggle: String
     let shelfDropZoneCaption: String
+    let shelfDropZoneCaptionTopCenter: String
     let shelfDropZoneLabel: String
+    let shelfDockPlacement: String
+    let shelfDockMenuBar: String
+    let shelfDockTopCenter: String
+    let shelfDockIslandNote: String
     let shelfCollapse: String
     let shelfBehaviorTitle: String
     let shelfCloseAfterDrop: String
@@ -660,8 +734,8 @@ struct Strings {
     let shelfSelectedFormat: String      // + count
     let shelfHint: String
     let shelfItemImage: String
-    // Three forms, not two: Russian agrees a noun with the number in front of
-    // it as one, as two through four, and as five or more. Every other
+    // Three forms, not two: Russian and Ukrainian agree a noun with the number
+    // in front of it as one, as two through four, and as five or more. Every other
     // language here needs only the first and the last, and repeats the last
     // in the middle slot. A pile always holds two or more, so the items count
     // has no singular of its own.
@@ -682,6 +756,8 @@ struct Strings {
     let shelfActionOpen: String
     let shelfActionOpenWith: String
     let shelfActionShare: String
+    let shelfActionPin: String
+    let shelfActionUnpin: String
 
     // MARK: Panel — per-app breakdown
     let breakdownMeasuring: String
@@ -724,6 +800,18 @@ struct Strings {
     let mixerHiddenCountLabel: String
     let mixerHideFromList: String
 
+    // MARK: Panel — audio device priority
+    let audioPrioritySection: String
+    let audioPriorityOutputEnable: String
+    let audioPriorityInputEnable: String
+    let audioPriorityOutputList: String
+    let audioPriorityInputList: String
+    let audioPriorityMoveUp: String
+    let audioPriorityMoveDown: String
+    let audioPriorityUnavailable: String
+    let audioPriorityCurrent: String
+    let audioPriorityCaption: String
+
     // MARK: Settings — updates
     let updatesSection: String
     let autoCheckToggle: String
@@ -754,6 +842,13 @@ struct Strings {
     let permissionOpenSettings: String
     let permissionRequest: String
     let permissionRestartNote: String
+
+    // MARK: Secure input
+    let secureInputTitle: String
+    let secureInputHeldFormat: String
+    let secureInputUnattributed: String
+    let secureInputUnidentified: String
+    let secureInputRevealFormat: String
 
     // MARK: About
     let aboutDescription: String
@@ -828,6 +923,8 @@ struct Strings {
 
     // MARK: Panel — network
     let networkSection: String
+    let networkIPAddresses: String
+    let networkLocalIP: String
     let networkDownload: String
     let networkUpload: String
     let networkThisSession: String
@@ -839,6 +936,10 @@ struct Strings {
     let diskSection: String
     let diskUsed: String
     let diskFree: String
+    let diskMenuBarStyleLabel: String
+    let diskMenuBarUsedPercentage: String
+    let diskMenuBarAvailableSpace: String
+    let diskMenuBarUsedSpace: String
     let diskAvailable: String
     let diskPurgeable: String
     let diskInternal: String
@@ -936,7 +1037,6 @@ struct Strings {
     let monitorItemDiskProtection: String
     let monitorItemDiskTools: String
     let monitorPanelConfigHint: String
-    let monitorOrderSection: String
     let monitorOrderHint: String
     let obStepPanelTitle: String
     let obStepPanelBody: String
@@ -1010,10 +1110,10 @@ struct Strings {
     let updateShowcaseUnavailable: String
     let updateShowcaseRestart: String
     let showMenuBarIcon: String
-    let showMenuBarIconCaption: String
     let menuBarIconStillHiddenTitle: String
     let menuBarIconStillHiddenBody: String
     let menuBarIconManagerHintFormat: String  // + manager name (twice)
+    let menuBarIconDisallowedBody: String
 
     // MARK: Configurable shortcuts
     let shortcutRecording: String
@@ -1026,6 +1126,10 @@ struct Strings {
     let shortcutDeleteHint: String
     let shortcutNotCaptured: String
     let shortcutConflictFormat: String
+    let shortcutTakeOverOffer: String
+    let shortcutTakeOverAction: String
+    let shortcutTakeOverCaption: String
+    let shortcutTakeOverDismiss: String
     let shortcutUnavailable: String
     let shelfShortcutToggle: String
     let switcherUsageHintFormat: String
@@ -1034,9 +1138,12 @@ struct Strings {
     let musicBlockSection: String
     let musicBlockTitle: String
     let musicBlockCaption: String
+    let musicBlockUnavailable: String
     let musicBlockReplacementLabel: String
     let musicBlockReplacementNone: String
+    let musicBlockReplacementBlocked: String
     let musicBlockChooseApp: String
+    let musicBlockPlayReplacement: String
 
     // MARK: Cleaner
     let cleanerName: String
@@ -1056,6 +1163,10 @@ struct Strings {
     let cleanerTrashNote: String
     let cleanerCatDeviceBackups: String
     let cleanerDeviceBackupsCaption: String
+    let cleanerCatScreenshots: String
+    let cleanerScreenshotsCaptionFormat: String
+    let cleanerScreenshotsSettingCaption: String
+    let cleanerScreenshotsAfterFormat: String
     let cleanerNothingFound: String
     let cleanerClean: String
     let cleanerDoneNote: String
@@ -1141,6 +1252,10 @@ struct Strings {
     let switcherSearchPinCaption: String
     let invertVerticalScroll: String
     let invertHorizontalScroll: String
+    let scrollHorizontalName: String
+    let scrollHorizontalModifierLabel: String
+    let scrollHorizontalCommandKey: String
+    let scrollHorizontalCaption: String
     let switcherShowShortcutHints: String
     let switcherShowShortcutHintsCaption: String
     let uninstallerHomebrewPackageFormat: String
@@ -1150,6 +1265,7 @@ struct Strings {
     let focusFollowsMouseCaption: String
     let focusFollowsMouseDelay: String
     let switcherMinimizedPlacementLabel: String
+    let switcherTreatHiddenAppsLikeMinimized: String
     let switcherMinimizedPlacementNormal: String
     let switcherMinimizedPlacementEnd: String
     let switcherMinimizedPlacementHidden: String
@@ -1162,10 +1278,16 @@ struct Strings {
     let switcherCurrentDisplayOnly: String
     let switcherCurrentDisplayOnlyCaption: String
     let smoothScrollResponseLabel: String
+    let smoothScrollCoastLabel: String
     let mouseAccelerationName: String
     let mouseAccelerationCaption: String
+    let linearScrollName: String
+    let linearScrollCaption: String
+    let linearScrollLinesLabel: String
     let shelfClearOnClose: String
     let shelfClearOnCloseCaption: String
+    let shelfShortcutFinderSelection: String
+    let shelfShortcutFinderSelectionCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1221,6 +1343,8 @@ extension Strings {
         keepAwakeEndsIn: "Termina em",
         keepAwakeUntilDisabled: "Ativo até você desativar",
         keepAwakeNormalRules: "O Mac segue as regras normais de energia",
+        keepAwakeUntilLabel: "Até",
+        keepAwakeUntilStart: "Iniciar",
         keepAwakeOptions: "Opções",
         keepAwakeMouseJiggle: "Mover cursor levemente",
         keepAwakeMouseJiggleCaption: "Durante uma sessão, move o cursor um pouco no intervalo escolhido.",
@@ -1294,6 +1418,7 @@ extension Strings {
         advancedResetDescription: "Remove todas as permissões que você concedeu ao Vorssaint (Acessibilidade, Gravação de Tela, Acesso Total ao Disco e outras), o item de início e a regra de tampa fechada. Útil para começar do zero ou antes de desinstalar. O app continua instalado.",
         advancedClearButton: "Limpar todas as permissões",
         advancedCleared: "Permissões limpas.",
+        advancedClearFailed: "Não foi possível remover algumas permissões ou a regra de tampa fechada. Tente de novo e permita o pedido de senha, se ele aparecer.",
         advancedClearConfirmTitle: "Limpar todas as permissões?",
         advancedClearConfirmBody: "Os recursos que dependem de permissão vão parar de funcionar até você conceder de novo. As suas configurações são mantidas.",
         advancedUninstallSection: "Desinstalar",
@@ -1324,6 +1449,8 @@ extension Strings {
         configuring: "Configurando…",
         sudoersFailed: "Não foi possível ativar a tampa fechada. Tente de novo.",
         clamshellExplanation: "“Continuar com a tampa fechada” desativa completamente a suspensão enquanto “Manter acordado” estiver ativo e é revertido automaticamente quando a sessão termina ou o app é encerrado. Prefira usá-lo conectado à energia.",
+        dimScreenOnLidCloseTitle: "Escurecer a tela completamente",
+        dimScreenOnLidCloseCaption: "Escurece a tela quando a tampa fecha e restaura o brilho quando ela abre.",
 
         scrollSection: "Rolagem",
         invertMouseScroll: "Inverter rolagem do mouse",
@@ -1362,6 +1489,8 @@ extension Strings {
         micMuteCaption: "Corta o microfone do Mac com um clique ou atalho, valendo para qualquer app.",
         micMutedHUD: "Microfone silenciado",
         micUnmutedHUD: "Microfone reativado",
+        micMutePartialHUD: "Alguns microfones não puderam ser silenciados",
+        micUnmutePartialHUD: "Alguns microfones continuam silenciados",
         micMuteMenuBarToggle: "Mostrar na barra de menus enquanto silenciado",
         micMuteMenuBarCaption: "Um microfone cortado em vermelho aparece ao lado do ícone do app na barra de menus.",
         pastePlainName: "Colar como texto puro",
@@ -1381,7 +1510,6 @@ extension Strings {
         switcherNoWindows: "Nenhuma janela aberta",
         switcherIconRowMode: "Mostrar %@ com ícones grandes",
         switcherIconRowModeCaption: "Mostra um ícone por app com os previews das janelas do app acima.",
-        switcherSimpleMode: "Alternador simples",
         switcherSimpleModeCaption: "Mostra ícones de apps e títulos das janelas, sem previews nem captura da tela pelo alternador.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
@@ -1390,6 +1518,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Desativa os atalhos correspondentes de apps e janelas do macOS somente enquanto o alternador do Vorssaint estiver ativo. Todos os apps abertos continuam acessíveis.",
         switcherAppearanceDelay: "Atraso de exibição",
         switcherAppearanceDelayCaption: "Quanto tempo o atalho precisa ficar pressionado antes de o alternador aparecer.",
+        switcherInstantSelection: "Seleção instantânea",
+        switcherInstantSelectionCaption: "Move o destaque e a rolagem imediatamente ao navegar por apps e janelas.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -1402,12 +1532,18 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Pré-visualizar janelas no Dock",
         dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver suas janelas e clique na que quiser abrir.",
+        dockPreviewCurrentSpaceOnlyCaption: "Quando desligado, mostra janelas de todas as mesas. Escolher uma janela em outra mesa leva você até ela.",
         dockPreviewBackgroundOpacity: "Fundo do painel",
         dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
+        dockPreviewBackgroundOpacityGlassCaption: "Com o Liquid Glass ligado, a transparência do painel é definida em Ajustes do Sistema > Aparência.",
         dockPreviewOpenDelay: "Atraso de abertura",
         dockPreviewOpenDelayCaption: "Quanto tempo o ponteiro precisa ficar sobre um ícone antes de o painel abrir.",
         dockPreviewQuitAppOnClose: "Encerrar o app com o botão ×",
         dockPreviewQuitAppOnCloseCaption: "No Dock Preview, × encerra o app inteiro em vez de fechar apenas aquela janela.",
+        dockPreviewKeepDockVisible: "Manter Dock visível (experimental)",
+        dockPreviewKeepDockVisibleCaption: "Suspende o ocultamento automático enquanto o preview está aberto e restaura ao sair. Pode reajustar janelas. Se o app for interrompido, reabra-o para restaurar o Dock.",
+        dockPreviewOrderByCreation: "Ordenar janelas por criação",
+        dockPreviewOrderByCreationCaption: "Mostra primeiro as janelas mais antigas em vez das usadas mais recentemente.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -1455,6 +1591,7 @@ extension Strings {
         autoQuitStep1: "Feche a última janela de um app (⌘W ou o botão vermelho).",
         autoQuitStep2: "O app é encerrado sozinho. Diálogos de “salvar?” continuam aparecendo.",
         autoQuitPredictableNote: "Apps que normalmente rodam sem janela nunca são encerrados.",
+        autoQuitOngoingWorkNote: "Alguns apps fecham a última janela e continuam trabalhando, como um gravador de tela depois que a captura começa. Esses também são encerrados, a menos que estejam na lista de exceções.",
         autoQuitExceptionsTitle: "Exceções",
         autoQuitExceptionsCaption: "Apps nesta lista continuam abertos mesmo sem nenhuma janela.",
         autoQuitExceptionsEmpty: "Nenhuma exceção",
@@ -1483,6 +1620,7 @@ extension Strings {
         uninstallerSelectedFormat: "%d de %d selecionados",
         uninstallerRemove: "Mover para a Lixeira",
         uninstallerCancel: "Cancelar",
+        uninstallerConfirmationExpired: "Esta confirmação não é mais válida. Revise os itens atuais e confirme de novo.",
         uninstallerDoneTitle: "Pronto!",
         uninstallerFreedFormat: "%@ recuperados",
         uninstallerSomeFailed: "Alguns itens não puderam ser movidos para a Lixeira.",
@@ -1497,6 +1635,11 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Estado salvo",
         uninstallerCatOther: "Outros",
+        uninstallerCommandBarBrowseTitle: "Desinstalar aplicativo",
+        uninstallerCommandBarToggle: "Mostrar na Barra de Comandos",
+        uninstallerCommandBarCaption: "Permite escolher e desinstalar aplicativos pela Barra de Comandos.",
+        uninstallerCommandBarFinderTitle: "Desinstalar aplicativo selecionado no Finder",
+        uninstallerSelectionUnavailable: "Selecione um aplicativo que possa ser removido no Finder ou escolha outro na lista.",
 
         urlCleanerName: "Limpar URL",
         urlCleanerEnable: "Limpar URLs ao copiar",
@@ -1540,6 +1683,8 @@ extension Strings {
         homebrewFormulas: "Fórmulas",
         homebrewCasks: "Casks",
         homebrewNoPackages: "Nenhum pacote encontrado",
+        homebrewDependencies: "Dependências",
+        homebrewGroupDependencies: "Agrupar dependências",
         homebrewNoSelection: "Selecione um pacote instalado ou pesquise um novo.",
         homebrewDetailsTitle: "Detalhes do pacote",
         homebrewInstall: "Instalar",
@@ -1625,6 +1770,9 @@ extension Strings {
         mediaCompressionLow: "Baixa",
         mediaCompressionMedium: "Média",
         mediaCompressionHigh: "Alta",
+        mediaCompressionLowDescription: "Alta qualidade, arquivo grande",
+        mediaCompressionMediumDescription: "Equilíbrio entre qualidade e tamanho do arquivo",
+        mediaCompressionHighDescription: "Baixa qualidade, arquivo pequeno",
         mediaMaxSize: "Tamanho",
         mediaSizingResolution: "Resolução",
         mediaSizingFileSize: "Tamanho do arquivo",
@@ -1670,13 +1818,18 @@ extension Strings {
         shelfShakeCaption: "Sacuda o ponteiro rapidamente segurando um item para chamar a área perto do cursor.",
         shelfDropZoneToggle: "Guardar arquivos na barra de menus ao arrastar",
         shelfDropZoneCaption: "Ao arrastar um arquivo, a área aparece embaixo do ícone na barra de menus. O que você soltar fica guardado ali, num botão que você encolhe e abre com um clique e que some quando a área fica vazia.",
+        shelfDropZoneCaptionTopCenter: "Ao arrastar um arquivo, a área aparece como um selo no topo, no centro da tela. O que você soltar fica guardado ali, num selo que você abre com um clique e que some quando a área fica vazia.",
         shelfDropZoneLabel: "Solte aqui",
+        shelfDockPlacement: "Posição",
+        shelfDockMenuBar: "Embaixo do ícone da barra de menus",
+        shelfDockTopCenter: "No topo, no centro da tela",
+        shelfDockIslandNote: "Enquanto a Dynamic Island está ligada, o centro do topo é dela.",
         shelfCollapse: "Encolher",
         shelfBehaviorTitle: "Depois de usar",
         shelfCloseAfterDrop: "Fechar depois de soltar em outro app",
         shelfCloseAfterDropCaption: "Fecha a área quando o destino aceita os itens. O alfinete no painel a mantém aberta.",
         shelfRemoveAfterDrop: "Remover itens depois de soltar",
-        shelfRemoveAfterDropCaption: "Itens aceitos por outro app saem da área. Desative para manter uma cópia nela.",
+        shelfRemoveAfterDropCaption: "Itens aceitos por outro app saem da área. Desative para manter uma cópia nela. Itens fixados sempre ficam.",
         shelfExclusionsTitle: "Exceções automáticas",
         shelfExclusionsEmpty: "Nenhum app adicionado.",
         shelfExclusionsCaption: "Sacudir e a área da barra de menus não abrem durante arrastes iniciados nesses apps. O atalho e Abrir agora continuam funcionando.",
@@ -1714,6 +1867,8 @@ extension Strings {
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir com",
         shelfActionShare: "Compartilhar",
+        shelfActionPin: "Fixar",
+        shelfActionUnpin: "Desafixar",
 
         breakdownMeasuring: "Medindo…",
 
@@ -1753,6 +1908,16 @@ extension Strings {
         mixerAllShown: "Todos",
         mixerHiddenCountLabel: "Escondidos",
         mixerHideFromList: "Esconder da lista",
+        audioPrioritySection: "Prioridade dos dispositivos de áudio",
+        audioPriorityOutputEnable: "Trocar automaticamente para a saída de áudio com maior prioridade",
+        audioPriorityInputEnable: "Trocar automaticamente para o microfone de maior prioridade",
+        audioPriorityOutputList: "Prioridade das saídas de áudio",
+        audioPriorityInputList: "Prioridade dos microfones",
+        audioPriorityMoveUp: "Mover para cima",
+        audioPriorityMoveDown: "Mover para baixo",
+        audioPriorityUnavailable: "Indisponível",
+        audioPriorityCurrent: "Em uso",
+        audioPriorityCaption: "Os dispositivos são selecionados por ordem de prioridade. Quando um dispositivo de maior prioridade é conectado, ele passa a ser usado. Quando o dispositivo ativo é desconectado, o próximo disponível é selecionado.",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -1782,6 +1947,11 @@ extension Strings {
         permissionOpenSettings: "Abrir Ajustes do Sistema…",
         permissionRequest: "Conceder acesso",
         permissionRestartNote: "O macOS pode pedir para reabrir o app depois de conceder.",
+        secureInputTitle: "A entrada segura está ativa",
+        secureInputHeldFormat: "%@ está mantendo-a ativa, então o Vorssaint não consegue digitar por você. Saia do campo de senha do app, ou encerre-o, para liberá-la.",
+        secureInputUnattributed: "Nenhum app em execução a reivindica. Encerre a sessão e entre novamente para limpá-la.",
+        secureInputUnidentified: "Não foi possível identificar o app que a está mantendo ativa, então o Vorssaint não consegue digitar por você.",
+        secureInputRevealFormat: "Mostrar %@",
 
         aboutDescription: "Central de utilidades para o seu Mac.\nEnergia, monitor do sistema, rolagem e alternador de janelas, direto na barra de menus.",
         versionPrefix: "Versão",
@@ -1852,6 +2022,8 @@ extension Strings {
         betaFeatureWarning: "Beta. Você pode encontrar alguns bugs.",
 
         networkSection: "Rede",
+        networkIPAddresses: "Endereços IP",
+        networkLocalIP: "IPv4 local",
         networkDownload: "Download",
         networkUpload: "Upload",
         networkThisSession: "Nesta sessão",
@@ -1862,6 +2034,10 @@ extension Strings {
         diskSection: "Discos",
         diskUsed: "usado",
         diskFree: "livre",
+        diskMenuBarStyleLabel: "Exibição do disco",
+        diskMenuBarUsedPercentage: "Porcentagem usada",
+        diskMenuBarAvailableSpace: "Espaço disponível",
+        diskMenuBarUsedSpace: "Espaço usado",
         diskAvailable: "disponível",
         diskPurgeable: "purgável",
         diskInternal: "Interno",
@@ -1955,7 +2131,6 @@ extension Strings {
         monitorItemDiskProtection: "Proteção externa",
         monitorItemDiskTools: "Ferramentas",
         monitorPanelConfigHint: "Abra um bloco para escolher o que ele mostra.",
-        monitorOrderSection: "Ordem das seções",
         monitorOrderHint: "Arraste para reordenar as seções do painel e use o olho para mostrar ou ocultar cada uma.",
         obStepPanelTitle: "O que aparece no painel",
         obStepPanelBody: "Abra cada bloco e escolha exatamente o que mostrar quando você clica no ícone.",
@@ -2027,10 +2202,10 @@ extension Strings {
         updateShowcaseUnavailable: "Não foi possível carregar o vídeo agora. Você ainda pode continuar.",
         updateShowcaseRestart: "Voltar ao início",
         showMenuBarIcon: "Mostrar ícone na barra de menus",
-        showMenuBarIconCaption: "Se o ícone do Vorssaint sumir (o macOS pode esconder ícones quando a barra de menus fica sem espaço, comum em Macs com notch), reabra o Vorssaint pela pasta Aplicativos ou pelo Spotlight: isso recria o ícone e, se ele ainda estiver escondido, abre esta janela.",
         menuBarIconStillHiddenTitle: "O ícone continua escondido",
         menuBarIconStillHiddenBody: "O ícone foi recriado, mas o macOS não deu um lugar visível a ele. A barra de menus provavelmente está sem espaço: remova alguns ícones da barra (ou feche apps com menus longos) e tente de novo.",
         menuBarIconManagerHintFormat: "O %@ está aberto e pode estar guardando o ícone na seção oculta dele. Procure o Vorssaint lá, ou configure o %@ para sempre mostrar o Vorssaint.",
+        menuBarIconDisallowedBody: "O macOS está impedindo o Vorssaint de aparecer na barra de menus. Abra Ajustes do Sistema > Barra de Menus, encontre o Vorssaint na lista de apps e ative “Permitir na Barra de Menus” (Allow in the Menu Bar). O ícone aparece assim que a opção é ligada.",
         shortcutRecording: "Pressione o novo atalho",
         shortcutReset: "Redefinir",
         shortcutNone: "Nenhum",
@@ -2041,15 +2216,22 @@ extension Strings {
         shortcutDeleteHint: "Delete remove.",
         shortcutNotCaptured: "Nada foi capturado. O macOS ou outro app já usa essa combinação. Tente outra.",
         shortcutConflictFormat: "Este atalho já está em uso por %@.",
+        shortcutTakeOverOffer: "O macOS usa %@ em um atalho próprio.",
+        shortcutTakeOverAction: "Assumir enquanto o Vorssaint estiver aberto",
+        shortcutTakeOverCaption: "O macOS recupera a tecla sempre que o Vorssaint não estiver aberto ou este recurso estiver desligado.",
+        shortcutTakeOverDismiss: "Não assumir",
         shortcutUnavailable: "O macOS recusou este atalho. Escolha outro.",
         shelfShortcutToggle: "Atalho da área temporária",
         switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
         musicBlockSection: "Teclas de mídia",
         musicBlockTitle: "Impedir que o Música abra sozinho",
-        musicBlockCaption: "O app Música deixa de abrir ao tocar nas teclas de mídia. Você ainda pode abri-lo quando quiser.",
+        musicBlockCaption: "Bloqueia a abertura do app de música após detectar uma tecla de mídia. Requer acesso à Acessibilidade. Comandos de fones sem uma tecla detectada são preservados.",
+        musicBlockUnavailable: "Esta proteção está indisponível agora. Desligue e ligue a opção para tentar novamente.",
         musicBlockReplacementLabel: "Abrir no lugar",
         musicBlockReplacementNone: "Nenhum",
+        musicBlockReplacementBlocked: "O Música e o iTunes são os apps bloqueados, então não podem abrir no lugar. Escolha outro app.",
         musicBlockChooseApp: "Escolher app…",
+        musicBlockPlayReplacement: "Reproduzir após abrir o app substituto",
         cleanerName: "Limpeza",
         cleanerIntroTitle: "Limpe o lixo do Mac",
         cleanerIntroCaption: "Procura restos de apps desinstalados, caches, registros e a Lixeira. Você revisa tudo antes e os itens removidos vão para a Lixeira.",
@@ -2067,6 +2249,10 @@ extension Strings {
         cleanerTrashNote: "Esvaziar a Lixeira é permanente.",
         cleanerCatDeviceBackups: "Backups de iPhone",
         cleanerDeviceBackupsCaption: "Backups antigos de iPhone e iPad ocupam boa parte do que o macOS chama de Outros. Remova só os que você não precisa mais; um novo backup é feito quando o aparelho for conectado de novo.",
+        cleanerCatScreenshots: "Capturas de tela esquecidas",
+        cleanerScreenshotsCaptionFormat: "Capturas de tela que você não abre há %d dias e que ainda têm o nome e a pasta que o macOS deu. As que você renomeou ou moveu nunca aparecem aqui.",
+        cleanerScreenshotsSettingCaption: "A varredura lista, desmarcadas e com o tamanho total, as capturas de tela que você não abre há esse tempo.",
+        cleanerScreenshotsAfterFormat: "Após %d dias",
         cleanerNothingFound: "Nada para limpar. Seu Mac está em ordem.",
         cleanerClean: "Limpar",
         cleanerDoneNote: "Os itens foram para a Lixeira e podem ser recuperados de lá.",
@@ -2152,6 +2338,10 @@ extension Strings {
         switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
         invertVerticalScroll: "Inverter rolagem vertical",
         invertHorizontalScroll: "Inverter rolagem horizontal",
+        scrollHorizontalName: "Rolar na horizontal segurando uma tecla",
+        scrollHorizontalModifierLabel: "Tecla modificadora",
+        scrollHorizontalCommandKey: "Command",
+        scrollHorizontalCaption: "Mantenha apenas a tecla escolhida pressionada para rolar a roda vertical do mouse na horizontal. Outras combinações de teclas não são alteradas.",
         switcherShowShortcutHints: "Mostrar dicas de atalhos",
         switcherShowShortcutHintsCaption: "Exibe os atalhos de apps e janelas abaixo dos ícones.",
         uninstallerHomebrewPackageFormat: "%@ também será removido do Homebrew.",
@@ -2161,6 +2351,7 @@ extension Strings {
         focusFollowsMouseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
         focusFollowsMouseDelay: "Atraso ao passar o mouse",
         switcherMinimizedPlacementLabel: "Janelas minimizadas",
+        switcherTreatHiddenAppsLikeMinimized: "Tratar apps ocultos como janelas minimizadas",
         switcherMinimizedPlacementNormal: "Ordem normal",
         switcherMinimizedPlacementEnd: "Colocar no final",
         switcherMinimizedPlacementHidden: "Ocultar",
@@ -2173,10 +2364,16 @@ extension Strings {
         switcherCurrentDisplayOnly: "Mostrar só a tela atual",
         switcherCurrentDisplayOnlyCaption: "Mostra apenas as janelas da tela sob o cursor. Se essa tela não tiver janelas, o alternador não abre.",
         smoothScrollResponseLabel: "Resposta",
+        smoothScrollCoastLabel: "Inércia",
         mouseAccelerationName: "Desativar aceleração do mouse",
         mouseAccelerationCaption: "Remove a aceleração do cursor para os mouses conectados. A configuração anterior volta ao desligar esta opção ou sair do Vorssaint.",
+        linearScrollName: "Rolagem linear",
+        linearScrollCaption: "Cada passo da rodinha do mouse rola a mesma distância, não importa a velocidade do giro. O trackpad não muda.",
+        linearScrollLinesLabel: "Linhas por passo",
         shelfClearOnClose: "Limpar ao fechar",
-        shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens."
+        shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens.",
+        shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
+        shelfShortcutFinderSelectionCaption: "Com o Finder em primeiro plano, o atalho abre a área temporária já com os arquivos selecionados. Sem seleção, ela abre como sempre."
     )
 }
 
@@ -2233,6 +2430,8 @@ extension Strings {
         keepAwakeEndsIn: "Ends in",
         keepAwakeUntilDisabled: "Active until you turn it off",
         keepAwakeNormalRules: "The Mac follows its normal energy rules",
+        keepAwakeUntilLabel: "Until",
+        keepAwakeUntilStart: "Start",
         keepAwakeOptions: "Options",
         keepAwakeMouseJiggle: "Move pointer slightly",
         keepAwakeMouseJiggleCaption: "During a session, moves the pointer a little at the chosen interval.",
@@ -2306,6 +2505,7 @@ extension Strings {
         advancedResetDescription: "Removes every permission you granted Vorssaint (Accessibility, Screen Recording, Full Disk Access and others), the login item and the closed-lid rule. Useful to start fresh or before uninstalling. The app stays installed.",
         advancedClearButton: "Clear all permissions",
         advancedCleared: "Permissions cleared.",
+        advancedClearFailed: "Some permissions or the closed-lid rule could not be removed. Try again and allow the password request if it appears.",
         advancedClearConfirmTitle: "Clear all permissions?",
         advancedClearConfirmBody: "Features that need permissions will stop working until you grant them again. Your settings are kept.",
         advancedUninstallSection: "Uninstall",
@@ -2336,6 +2536,8 @@ extension Strings {
         configuring: "Configuring…",
         sudoersFailed: "Couldn’t turn on closed-lid mode. Try again.",
         clamshellExplanation: "“Keep going with the lid closed” fully disables sleep while “Keep awake” is active and is reverted automatically when the session ends or the app quits. Prefer using it plugged in.",
+        dimScreenOnLidCloseTitle: "Dim the screen to zero",
+        dimScreenOnLidCloseCaption: "Dims the screen when the lid closes and brings the brightness back when it opens.",
 
         scrollSection: "Scrolling",
         invertMouseScroll: "Invert mouse scrolling",
@@ -2374,6 +2576,8 @@ extension Strings {
         micMuteCaption: "Cuts the Mac’s microphone with a click or shortcut, across every app.",
         micMutedHUD: "Microphone muted",
         micUnmutedHUD: "Microphone back on",
+        micMutePartialHUD: "Some microphones could not be muted",
+        micUnmutePartialHUD: "Some microphones are still muted",
         micMuteMenuBarToggle: "Show in the menu bar while muted",
         micMuteMenuBarCaption: "A red crossed-out mic appears beside the app’s icon in the menu bar.",
         pastePlainName: "Paste as plain text",
@@ -2393,7 +2597,6 @@ extension Strings {
         switcherNoWindows: "No open windows",
         switcherIconRowMode: "Show %@ with large icons",
         switcherIconRowModeCaption: "Shows one icon per app with that app’s window previews above it.",
-        switcherSimpleMode: "Simple app switcher",
         switcherSimpleModeCaption: "Shows app icons and window titles, without previews or screen capture by the switcher.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
@@ -2402,6 +2605,8 @@ extension Strings {
         switcherTakeOverSystemShortcutsCaption: "Disables the matching macOS app and window shortcuts only while Vorssaint’s switcher is active. All running apps stay reachable.",
         switcherAppearanceDelay: "Appearance delay",
         switcherAppearanceDelayCaption: "How long the shortcut must be held before the switcher appears.",
+        switcherInstantSelection: "Instant selection",
+        switcherInstantSelectionCaption: "Moves the highlight and scroll position immediately as you browse apps and windows.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app’s windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",
@@ -2414,12 +2619,18 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Preview windows from the Dock",
         dockPreviewEnableCaption: "Hover over an open app in the Dock to see its windows, then click the one you want.",
+        dockPreviewCurrentSpaceOnlyCaption: "When off, shows windows from all desktops. Choosing a window on another desktop takes you there.",
         dockPreviewBackgroundOpacity: "Panel background",
         dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass is on, so the panel’s transparency is set in System Settings > Appearance.",
         dockPreviewOpenDelay: "Open delay",
         dockPreviewOpenDelayCaption: "How long the pointer has to rest on an icon before its panel opens.",
         dockPreviewQuitAppOnClose: "Quit the app with the × button",
         dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × quits the whole app instead of closing only that window.",
+        dockPreviewKeepDockVisible: "Keep Dock visible (experimental)",
+        dockPreviewKeepDockVisibleCaption: "Pauses auto-hide while the preview is open and restores it when you leave. May resize windows. If the app is interrupted, reopen it to restore the Dock.",
+        dockPreviewOrderByCreation: "Order windows by creation time",
+        dockPreviewOrderByCreationCaption: "Show older windows first instead of the ones you used most recently.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app’s windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
@@ -2467,6 +2678,7 @@ extension Strings {
         autoQuitStep1: "Close an app’s last window (⌘W or the red button).",
         autoQuitStep2: "The app quits on its own. “Save changes?” dialogs still appear.",
         autoQuitPredictableNote: "Apps that normally run without a window are never quit.",
+        autoQuitOngoingWorkNote: "Some apps close their last window while they keep working, such as a screen recorder once capture starts. Those are quit too, unless they are on the Exceptions list.",
         autoQuitExceptionsTitle: "Exceptions",
         autoQuitExceptionsCaption: "Apps on this list stay open even with no windows.",
         autoQuitExceptionsEmpty: "No exceptions",
@@ -2495,6 +2707,7 @@ extension Strings {
         uninstallerSelectedFormat: "%d of %d selected",
         uninstallerRemove: "Move to Trash",
         uninstallerCancel: "Cancel",
+        uninstallerConfirmationExpired: "This confirmation is no longer valid. Review the current items and confirm again.",
         uninstallerDoneTitle: "Done!",
         uninstallerFreedFormat: "%@ recovered",
         uninstallerSomeFailed: "Some items couldn’t be moved to the Trash.",
@@ -2509,6 +2722,11 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Saved state",
         uninstallerCatOther: "Other",
+        uninstallerCommandBarBrowseTitle: "Uninstall Application",
+        uninstallerCommandBarToggle: "Show in Command Bar",
+        uninstallerCommandBarCaption: "Choose and uninstall apps in the Command Bar.",
+        uninstallerCommandBarFinderTitle: "Uninstall app selected in Finder",
+        uninstallerSelectionUnavailable: "Select an app that can be removed in Finder, or choose another from the list.",
 
         urlCleanerName: "Clean URL",
         urlCleanerEnable: "Clean URLs as you copy them",
@@ -2552,6 +2770,8 @@ extension Strings {
         homebrewFormulas: "Formulae",
         homebrewCasks: "Casks",
         homebrewNoPackages: "No packages found",
+        homebrewDependencies: "Dependencies",
+        homebrewGroupDependencies: "Group dependencies",
         homebrewNoSelection: "Select an installed package or search for a new one.",
         homebrewDetailsTitle: "Package details",
         homebrewInstall: "Install",
@@ -2637,6 +2857,9 @@ extension Strings {
         mediaCompressionLow: "Low",
         mediaCompressionMedium: "Medium",
         mediaCompressionHigh: "High",
+        mediaCompressionLowDescription: "High quality, large file size",
+        mediaCompressionMediumDescription: "Balanced quality and file size",
+        mediaCompressionHighDescription: "Low quality, small file size",
         mediaMaxSize: "Size",
         mediaSizingResolution: "Resolution",
         mediaSizingFileSize: "File size",
@@ -2682,13 +2905,18 @@ extension Strings {
         shelfShakeCaption: "Shake the pointer quickly while holding an item to summon it near the cursor.",
         shelfDropZoneToggle: "Keep dragged files in the menu bar",
         shelfDropZoneCaption: "While you drag a file, the shelf appears below the menu bar icon. Whatever you drop is kept right there, in a button you shrink and open with a click that goes away once the shelf is empty.",
+        shelfDropZoneCaptionTopCenter: "While you drag a file, the shelf appears as a badge at the top center of the screen. Whatever you drop is kept right there, in a badge you open with a click that goes away once the shelf is empty.",
         shelfDropZoneLabel: "Drop here",
+        shelfDockPlacement: "Position",
+        shelfDockMenuBar: "Below the menu bar icon",
+        shelfDockTopCenter: "Top center of the screen",
+        shelfDockIslandNote: "The Dynamic Island keeps the top center while it is on.",
         shelfCollapse: "Collapse",
         shelfBehaviorTitle: "After use",
         shelfCloseAfterDrop: "Close after dropping into another app",
         shelfCloseAfterDropCaption: "Closes the shelf when the destination accepts the items. The pin in the panel keeps it open.",
         shelfRemoveAfterDrop: "Remove items after dropping",
-        shelfRemoveAfterDropCaption: "Items accepted by another app leave the shelf. Turn this off to keep a copy there.",
+        shelfRemoveAfterDropCaption: "Items accepted by another app leave the shelf. Turn this off to keep a copy there. Pinned items always stay.",
         shelfExclusionsTitle: "Automatic exceptions",
         shelfExclusionsEmpty: "No apps added.",
         shelfExclusionsCaption: "Shake and the menu bar drop zone stay off for drags started in these apps. The shortcut and Open now still work.",
@@ -2726,6 +2954,8 @@ extension Strings {
         shelfActionOpen: "Open",
         shelfActionOpenWith: "Open With",
         shelfActionShare: "Share",
+        shelfActionPin: "Pin",
+        shelfActionUnpin: "Unpin",
 
         breakdownMeasuring: "Measuring…",
 
@@ -2765,6 +2995,16 @@ extension Strings {
         mixerAllShown: "All",
         mixerHiddenCountLabel: "Hidden",
         mixerHideFromList: "Hide from the list",
+        audioPrioritySection: "Audio priority",
+        audioPriorityOutputEnable: "Automatically switch to the highest-priority output",
+        audioPriorityInputEnable: "Automatically switch to the highest-priority microphone",
+        audioPriorityOutputList: "Output priority",
+        audioPriorityInputList: "Microphone priority",
+        audioPriorityMoveUp: "Move up",
+        audioPriorityMoveDown: "Move down",
+        audioPriorityUnavailable: "Unavailable",
+        audioPriorityCurrent: "Current",
+        audioPriorityCaption: "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
@@ -2794,6 +3034,11 @@ extension Strings {
         permissionOpenSettings: "Open System Settings…",
         permissionRequest: "Grant access",
         permissionRestartNote: "macOS may ask to reopen the app after granting.",
+        secureInputTitle: "Secure input is on",
+        secureInputHeldFormat: "%@ is holding it, so Vorssaint cannot type for you. Dismiss its password field, or quit it, to release it.",
+        secureInputUnattributed: "No running app claims it. Log out and back in to clear it.",
+        secureInputUnidentified: "The app holding it could not be identified, so Vorssaint cannot type for you.",
+        secureInputRevealFormat: "Show %@",
 
         aboutDescription: "A utility hub for your Mac.\nEnergy, system monitor, scrolling and a window switcher, right in the menu bar.",
         versionPrefix: "Version",
@@ -2864,6 +3109,8 @@ extension Strings {
         betaFeatureWarning: "Beta. You may run into some bugs.",
 
         networkSection: "Network",
+        networkIPAddresses: "IP addresses",
+        networkLocalIP: "Local IPv4",
         networkDownload: "Download",
         networkUpload: "Upload",
         networkThisSession: "This session",
@@ -2874,6 +3121,10 @@ extension Strings {
         diskSection: "Disks",
         diskUsed: "used",
         diskFree: "free",
+        diskMenuBarStyleLabel: "Disk display",
+        diskMenuBarUsedPercentage: "Used percentage",
+        diskMenuBarAvailableSpace: "Available space",
+        diskMenuBarUsedSpace: "Used space",
         diskAvailable: "available",
         diskPurgeable: "purgeable",
         diskInternal: "Internal",
@@ -2967,7 +3218,6 @@ extension Strings {
         monitorItemDiskProtection: "External protection",
         monitorItemDiskTools: "Tools",
         monitorPanelConfigHint: "Open a block to choose what it shows.",
-        monitorOrderSection: "Section order",
         monitorOrderHint: "Drag to reorder the panel sections and use the eye to show or hide each one.",
         obStepPanelTitle: "What’s in the panel",
         obStepPanelBody: "Open each block and pick exactly what shows when you click the icon.",
@@ -3039,10 +3289,10 @@ extension Strings {
         updateShowcaseUnavailable: "The video could not load right now. You can still continue.",
         updateShowcaseRestart: "Restart",
         showMenuBarIcon: "Show menu bar icon",
-        showMenuBarIconCaption: "If Vorssaint’s icon disappears (macOS can hide menu bar icons when the bar runs out of room, common on Macs with a notch), reopen Vorssaint from Applications or Spotlight: that rebuilds the icon and, if it’s still hidden, opens this window.",
         menuBarIconStillHiddenTitle: "The icon is still hidden",
         menuBarIconStillHiddenBody: "The icon was rebuilt, but macOS did not give it a visible spot. The menu bar is probably out of room: remove some menu bar icons (or close apps with long menus) and try again.",
         menuBarIconManagerHintFormat: "%@ is open and may be keeping the icon in its hidden section. Look for Vorssaint there, or set %@ to always show Vorssaint.",
+        menuBarIconDisallowedBody: "macOS is keeping Vorssaint out of the menu bar. Open System Settings > Menu Bar, find Vorssaint in the app list and turn on “Allow in the Menu Bar”. The icon appears as soon as the switch is on.",
         shortcutRecording: "Press the new shortcut",
         shortcutReset: "Reset",
         shortcutNone: "None",
@@ -3053,15 +3303,22 @@ extension Strings {
         shortcutDeleteHint: "Delete clears.",
         shortcutNotCaptured: "Nothing was captured. macOS or another app already uses that combination. Try another one.",
         shortcutConflictFormat: "This shortcut is already used by %@.",
+        shortcutTakeOverOffer: "macOS uses %@ for one of its own shortcuts.",
+        shortcutTakeOverAction: "Take over while Vorssaint runs",
+        shortcutTakeOverCaption: "macOS gets the key back whenever Vorssaint is not running or this feature is off.",
+        shortcutTakeOverDismiss: "Don’t take over",
         shortcutUnavailable: "macOS rejected this shortcut. Choose another one.",
         shelfShortcutToggle: "Shelf shortcut",
         switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",
         musicBlockSection: "Media keys",
         musicBlockTitle: "Stop Music from opening on its own",
-        musicBlockCaption: "The Music app no longer opens when you press the media keys. You can still open it yourself.",
+        musicBlockCaption: "Blocks the music app opening after a detected media key. Requires Accessibility access. Headphone commands without a detected key are left alone.",
+        musicBlockUnavailable: "This protection is unavailable right now. Turn it off and on to try again.",
         musicBlockReplacementLabel: "Open instead",
         musicBlockReplacementNone: "None",
+        musicBlockReplacementBlocked: "Music and iTunes are the apps being blocked, so they can’t open instead. Choose another app.",
         musicBlockChooseApp: "Choose app…",
+        musicBlockPlayReplacement: "Play after opening replacement",
         cleanerName: "Cleaner",
         cleanerIntroTitle: "Clean up your Mac",
         cleanerIntroCaption: "Scans for leftovers from uninstalled apps, caches, logs and the Trash. You review everything first and removed items go to the Trash.",
@@ -3079,6 +3336,10 @@ extension Strings {
         cleanerTrashNote: "Emptying the Trash is permanent.",
         cleanerCatDeviceBackups: "iPhone backups",
         cleanerDeviceBackupsCaption: "Old iPhone and iPad backups take a big slice of the storage macOS calls Other. Remove only the ones you no longer need; a new backup is made when you plug the device in again.",
+        cleanerCatScreenshots: "Forgotten screenshots",
+        cleanerScreenshotsCaptionFormat: "Screenshots you have not opened in %d days that still have the name and folder macOS gave them. Ones you renamed or moved never show up here.",
+        cleanerScreenshotsSettingCaption: "The scan lists the screenshots you have not opened for this long, unchecked, with their total size.",
+        cleanerScreenshotsAfterFormat: "After %d days",
         cleanerNothingFound: "Nothing to clean. Your Mac is tidy.",
         cleanerClean: "Clean",
         cleanerDoneNote: "Items went to the Trash and can be recovered from there.",
@@ -3164,6 +3425,10 @@ extension Strings {
         switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",
         invertVerticalScroll: "Invert vertical scrolling",
         invertHorizontalScroll: "Invert horizontal scrolling",
+        scrollHorizontalName: "Scroll sideways while holding a key",
+        scrollHorizontalModifierLabel: "Modifier key",
+        scrollHorizontalCommandKey: "Command",
+        scrollHorizontalCaption: "Hold only the selected modifier to scroll the vertical mouse wheel horizontally. Other key combinations are unchanged.",
         switcherShowShortcutHints: "Show shortcut hints",
         switcherShowShortcutHintsCaption: "Shows the app and window shortcuts below the icons.",
         uninstallerHomebrewPackageFormat: "%@ will also be removed from Homebrew.",
@@ -3173,6 +3438,7 @@ extension Strings {
         focusFollowsMouseCaption: "Focuses and raises the window under the pointer after a short pause.",
         focusFollowsMouseDelay: "Hover delay",
         switcherMinimizedPlacementLabel: "Minimized windows",
+        switcherTreatHiddenAppsLikeMinimized: "Treat hidden apps like minimized windows",
         switcherMinimizedPlacementNormal: "Normal ordering",
         switcherMinimizedPlacementEnd: "Place at end",
         switcherMinimizedPlacementHidden: "Hide",
@@ -3185,9 +3451,15 @@ extension Strings {
         switcherCurrentDisplayOnly: "Show only the current display",
         switcherCurrentDisplayOnlyCaption: "Lists only windows on the display under the pointer. If that display has no windows, the switcher does not open.",
         smoothScrollResponseLabel: "Response",
+        smoothScrollCoastLabel: "Coast",
         mouseAccelerationName: "Disable mouse acceleration",
         mouseAccelerationCaption: "Removes pointer acceleration for connected mice. Your previous setting returns when this is turned off or Vorssaint quits.",
+        linearScrollName: "Linear scrolling",
+        linearScrollCaption: "Every notch of the mouse wheel scrolls the same distance, no matter how fast it spins. The trackpad is not affected.",
+        linearScrollLinesLabel: "Lines per step",
         shelfClearOnClose: "Clear when closed",
-        shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items."
+        shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items.",
+        shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",
+        shelfShortcutFinderSelectionCaption: "With Finder in front, the shortcut opens the shelf with the selected files already in it. With nothing selected, it opens as usual."
     )
 }

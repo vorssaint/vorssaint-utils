@@ -118,13 +118,17 @@ enum QuickToolHUD {
         let content = ScrollingCaptureHUDView(model: model,
                                               finishTitle: finishTitle,
                                               cancelTitle: cancelTitle,
-                                              onFinish: onFinish,
+                                              onFinish: {
+                                                  guard !model.isFinishing else { return }
+                                                  model.isFinishing = true
+                                                  onFinish()
+                                              },
                                               onCancel: onCancel)
-        let host = NSHostingController(rootView: AnyView(content))
-        host.view.layoutSubtreeIfNeeded()
-        let size = host.view.fittingSize
+        let host = ScrollingCaptureHostingView(rootView: AnyView(content))
+        host.layoutSubtreeIfNeeded()
+        let size = host.fittingSize
         let panel = ensureScrollingPanel()
-        panel.contentViewController = host
+        panel.contentView = host
         let frame = NSScreen.pointerVisibleFrame
         panel.setFrame(NSRect(x: frame.midX - size.width / 2,
                               y: frame.maxY - size.height - 24,
@@ -143,13 +147,17 @@ enum QuickToolHUD {
         scrollingModel?.height = height
     }
 
+    static func markScrollingCaptureFinishing() {
+        scrollingModel?.isFinishing = true
+    }
+
     static func dismissScrollingCapture() {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { dismissScrollingCapture() }
             return
         }
         scrollingPanel?.orderOut(nil)
-        scrollingPanel?.contentViewController = nil
+        scrollingPanel?.contentView = nil
         scrollingModel = nil
     }
 
@@ -218,10 +226,10 @@ enum QuickToolHUD {
     }
 
     private static func makePanel() -> NSPanel {
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         configure(panel)
         return panel
     }
@@ -261,13 +269,18 @@ private struct QuickToolCountdownView: View {
 
 /// A non-activating panel that can still own Return and Escape while the
 /// underlying window continues receiving pointer and scrolling events.
-private final class ScrollingCapturePanel: NSPanel {
+private final class ScrollingCapturePanel: OverlayPanel {
     override var canBecomeKey: Bool { true }
+}
+
+private final class ScrollingCaptureHostingView: NSHostingView<AnyView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 private final class ScrollingCaptureHUDModel: ObservableObject {
     let message: String
     @Published var height = 0
+    @Published var isFinishing = false
 
     init(message: String) {
         self.message = message
@@ -283,9 +296,16 @@ private struct ScrollingCaptureHUDView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "rectangle.stack.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+            ZStack {
+                if model.isFinishing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "rectangle.stack.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .frame(width: 16, height: 16)
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.message)
                     .font(.system(size: 12, weight: .semibold))
@@ -304,6 +324,7 @@ private struct ScrollingCaptureHUDView: View {
                 .controlSize(.small)
                 .keyboardShortcut(.cancelAction)
             Button(finishTitle, action: onFinish)
+                .disabled(model.isFinishing)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .keyboardShortcut(.defaultAction)

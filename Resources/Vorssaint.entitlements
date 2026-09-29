@@ -2,18 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Hardened runtime is required for notarization. The app is NOT sandboxed
-	     (its features need system-wide access gated by TCC at runtime, not by
-	     entitlements). Hardened runtime blocks two capabilities the app uses:
-	     sending Apple Events (cut & paste and the uninstaller drive the Finder)
-	     the camera (the preview mirror) and audio input (optional recordings);
-	     these entitlements restore them.
-	     The user still grants each one through the normal TCC prompts. -->
+	<!-- Hardened runtime still requires explicit resource capabilities even
+	     though the app is not sandboxed. These allow requesting access to
+	     Apple Events, camera, audio input and calendars; the user still
+	     authorizes each protected resource through the normal TCC prompt. -->
 	<key>com.apple.security.automation.apple-events</key>
 	<true/>
 	<key>com.apple.security.device.camera</key>
 	<true/>
 	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.personal-information.calendars</key>
 	<true/>
 </dict>
 </plist>

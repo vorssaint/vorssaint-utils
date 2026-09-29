@@ -11,9 +11,9 @@ import Foundation
 /// the thing you run weekly does not. Nothing is registered unless the person
 /// asked for it, so an untouched install pays nothing.
 enum CommandBarRowShortcuts {
-    /// Few enough that the keyboard is still the person's, and that the list
-    /// in Settings stays readable.
-    static let limit = 20
+    /// Bound global hotkey registrations while leaving room for a shortcut
+    /// for every letter and for other commands.
+    static let limit = 64
 
     /// A cold catalog may arrive after the person changed their shortcut.
     /// Only the latest request, with its original binding still intact, runs.

@@ -9,6 +9,7 @@ struct PanelHomebrewView: View {
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @Environment(\.notchPresentation) private var inNotch
     @State private var query = ""
     @State private var searchKind: HomebrewPackageKind = .cask
     @State private var mode: PanelHomebrewMode = .search
@@ -387,6 +388,19 @@ struct PanelHomebrewView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(.green)
+            } else {
+                Button {
+                    presentConfirmation(HomebrewPendingAction(action: .install, package: package))
+                } label: {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 22, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(homebrew.isBusy)
+                .help(l10n.s.homebrewInstall)
+                .accessibilityLabel(l10n.s.homebrewInstall)
             }
         }
         .padding(.horizontal, 7)
@@ -666,7 +680,11 @@ struct PanelHomebrewView: View {
 
     private var confirmationTitle: String {
         guard let pendingAction else { return "" }
-        switch pendingAction.action {
+        return dialogTitle(for: pendingAction)
+    }
+
+    private func dialogTitle(for action: HomebrewPendingAction) -> String {
+        switch action.action {
         case .install:
             return l10n.s.homebrewConfirmInstallTitle
         case .uninstall:
@@ -758,6 +776,16 @@ struct PanelHomebrewView: View {
     }
 
     private func presentConfirmation(_ action: HomebrewPendingAction) {
+        // The dialog would hang from the island as a sheet; there it asks on its own.
+        guard !inNotch else {
+            DispatchQueue.main.async {
+                guard NSAlert.confirmAboveIsland(dialogTitle(for: action), message: confirmationBody(for: action),
+                                                 action: actionTitle(for: action), destructive: action.action == .uninstall,
+                                                 cancel: l10n.s.uninstallerCancel) else { return }
+                run(action)
+            }
+            return
+        }
         PanelInteractionState.shared.isPresentingPopoverModal = true
         pendingAction = action
     }

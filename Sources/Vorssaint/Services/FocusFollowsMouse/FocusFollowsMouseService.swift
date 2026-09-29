@@ -151,7 +151,13 @@ final class FocusFollowsMouseService {
                           targetWindowID: target.windowID,
                           focusedWindowID: target.focusedWindowID,
                           targetAppIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier
-                              == target.processID)
+                              == target.processID),
+                      // The window server reports a desktop switch only once
+                      // its animation ends, so a target it still parks on a
+                      // hidden Space is a switch in flight: the activator would
+                      // travel there and macOS replays the slide. Hover never
+                      // travels between desktops.
+                      !SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID)
                 else { return }
                 WindowActivator.activate(pid: target.processID,
                                          windowID: target.windowID,

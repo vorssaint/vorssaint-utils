@@ -33,6 +33,10 @@ struct AutoQuitSettings: View {
                 Text(l10n.s.autoQuitPredictableNote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Label(l10n.s.autoQuitOngoingWorkNote, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // The exception list has one reader, the window check, and that only
@@ -92,7 +96,13 @@ struct AutoQuitSettings: View {
     }
 
     private var sortedExceptions: [String] {
-        service.exceptions.sorted { InstalledApps.name(for: $0).localizedCaseInsensitiveCompare(InstalledApps.name(for: $1)) == .orderedAscending }
+        AutoQuitSupport.visibleExceptions(service.exceptions) {
+            InstalledApps.url(for: $0) != nil
+        }
+        .sorted {
+            InstalledApps.name(for: $0).localizedCaseInsensitiveCompare(InstalledApps.name(for: $1))
+                == .orderedAscending
+        }
     }
 
     private var appPickerSheet: some View {

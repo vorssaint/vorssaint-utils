@@ -14,7 +14,8 @@ import IOKit
 /// MultitouchSupport private framework (the only source; every middle-click
 /// utility uses it), loaded via dlopen/dlsym so a macOS that changes it
 /// degrades to the feature simply staying off. Requires Accessibility for
-/// the event tap.
+/// the event tap. The same tap recognizer also opens the radial menu from a
+/// four-finger tap, so the service runs for either feature.
 final class MiddleClickService: ObservableObject {
     static let shared = MiddleClickService()
 
@@ -40,6 +41,9 @@ final class MiddleClickService: ObservableObject {
     private var observers: [Any] = []
     private var hotplugPort: IONotificationPortRef?
     private var hotplugIterator: io_iterator_t = 0
+    /// Whether presses are turned into middle clicks. Off while the service
+    /// runs only for the radial menu's tap. Guarded by `tapStateLock`.
+    private var middleClickOn = false
     /// A physical primary or secondary press is currently being relayed as a
     /// middle button, so its drag and release must transform too.
     private var middleButtonHeld = false
@@ -71,6 +75,10 @@ final class MiddleClickService: ObservableObject {
     // starts when the chosen finger count lands, collects movement, and is
     // judged when every finger lifts.
     private var tapFingers = 0
+    private var radialMenuTapFingers = 0
+    /// The finger count the current candidate started with: the larger count
+    /// takes over when both taps are on and a fourth finger lands.
+    private var tapCandidateFingers = 0
     private var tapDragConflict = false
     private var tapStartUptime: TimeInterval?
     private var tapStartPosition: (x: Float, y: Float)?
@@ -90,17 +98,26 @@ final class MiddleClickService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        let defaults = UserDefaults.standard
         let enabled = AppFeature.middleClick.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
-        let tap = Defaults.sanitizedMiddleClickTapFingers(
-            UserDefaults.standard.integer(forKey: DefaultsKey.middleClickTapFingers))
+            && defaults.bool(forKey: DefaultsKey.middleClickEnabled)
+        let tap = enabled ? Defaults.sanitizedMiddleClickTapFingers(
+            defaults.integer(forKey: DefaultsKey.middleClickTapFingers)) : 0
+        let radialMenuTap = MiddleClickSupport.radialMenuTapFingers(
+            radialMenuWantsTap: AppFeature.radialMenu.isAvailable
+                && defaults.bool(forKey: DefaultsKey.radialMenuEnabled)
+                && RadialMenuSupport.decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
+                                                    defaults: defaults).contains(where: \.trackpadTap),
+            middleClickTapFingers: tap)
+        tapStateLock.withLock { middleClickOn = enabled }
         stateLock.lock()
         tapFingers = tap
+        radialMenuTapFingers = radialMenuTap
         resetTapCandidateLocked()
         stateLock.unlock()
         refreshDragGestureConflict()
         if SessionActivitySupport.tapShouldRun(
-            featureWanted: enabled,
+            featureWanted: enabled || radialMenuTap > 0,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive
         ) {
@@ -325,7 +342,7 @@ final class MiddleClickService: ObservableObject {
     fileprivate func contactFrame(fingerCount count: Int,
                                   touches: UnsafeMutableRawPointer?) {
         let now = ProcessInfo.processInfo.systemUptime
-        var fireTap = false
+        var firedFingers: Int?
         stateLock.lock()
         if count == 3 {
             if fingerCount != 3 { threeFingersSince = now }
@@ -334,49 +351,56 @@ final class MiddleClickService: ObservableObject {
         }
         fingerCount = count
         lastFrameUptime = now
-        if tapFingers > 0 {
-            // Touch geometry is read only while the tap option is on: with it
+        if tapFingers > 0 || radialMenuTapFingers > 0 {
+            // Touch geometry is read only while a tap option is on: with them
             // off (the default) the per-frame cost stays what it always was.
             let geometry = Multitouch.touchGeometry(touches: touches, count: count)
-            fireTap = trackTapLocked(count: count, geometry: geometry, now: now)
+            firedFingers = trackTapLocked(count: count, geometry: geometry, now: now)
         }
+        let radialMenuFingers = radialMenuTapFingers
         stateLock.unlock()
-        if fireTap {
-            postMiddleTap()
+        if let firedFingers {
+            if firedFingers == radialMenuFingers {
+                DispatchQueue.main.async { RadialMenuService.shared.toggleFromTrackpad() }
+            } else {
+                postMiddleTap()
+            }
         }
     }
 
     /// The tap candidate's life, under `stateLock`: born when the chosen
     /// finger count lands, cancelled by extra fingers, movement (a swipe), a
     /// physical click or unreadable positions, judged when the pad empties.
-    /// Returns true when the finished touch should fire a middle click.
+    /// Returns the finger count of a finished touch that should fire.
     private func trackTapLocked(count: Int,
                                 geometry: (center: (x: Float, y: Float), spread: Float)?,
-                                now: TimeInterval) -> Bool {
+                                now: TimeInterval) -> Int? {
         if count == 0 {
             defer { resetTapCandidateLocked() }
-            guard let startedAt = tapStartUptime else { return false }
+            guard let startedAt = tapStartUptime else { return nil }
             let secondsSinceLastKeyDown = CGEventSource.secondsSinceLastEventType(
                 .combinedSessionState,
                 eventType: .keyDown
             )
-            return MiddleClickSupport.tapShouldFire(duration: now - startedAt,
-                                                    maxMovement: tapMaxMovement,
-                                                    maxSpreadChange: tapMaxSpreadChange,
-                                                    exceededFingerCount: tapExceededCount,
-                                                    buttonPressedDuring: tapSawButton,
-                                                    positionUnavailable: tapPositionUnavailable,
-                                                    systemDragGestureEnabled: tapDragConflict,
-                                                    tapFingers: tapFingers,
-                                                    secondsSinceLastKeyDown: secondsSinceLastKeyDown)
+            let fires = MiddleClickSupport.tapShouldFire(duration: now - startedAt,
+                                                         maxMovement: tapMaxMovement,
+                                                         maxSpreadChange: tapMaxSpreadChange,
+                                                         exceededFingerCount: tapExceededCount,
+                                                         buttonPressedDuring: tapSawButton,
+                                                         positionUnavailable: tapPositionUnavailable,
+                                                         systemDragGestureEnabled: tapDragConflict,
+                                                         tapFingers: tapCandidateFingers,
+                                                         secondsSinceLastKeyDown: secondsSinceLastKeyDown)
+            return fires ? tapCandidateFingers : nil
         }
-        if count > tapFingers {
+        if count > max(tapFingers, radialMenuTapFingers) {
             tapExceededCount = true
-            return false
+            return nil
         }
-        if count == tapFingers {
-            if tapStartUptime == nil {
-                guard !tapExceededCount else { return false }
+        if count == tapFingers || count == radialMenuTapFingers {
+            if tapStartUptime == nil || count > tapCandidateFingers {
+                guard !tapExceededCount else { return nil }
+                tapCandidateFingers = count
                 tapStartUptime = now
                 tapStartPosition = geometry?.center
                 tapStartSpread = geometry?.spread
@@ -384,6 +408,8 @@ final class MiddleClickService: ObservableObject {
                 tapMaxSpreadChange = 0
                 tapSawButton = false
                 tapPositionUnavailable = geometry == nil
+            } else if count < tapCandidateFingers {
+                // A finger lifting from a larger tap leaves the candidate alone.
             } else if let start = tapStartPosition, let geometry {
                 tapMaxMovement = max(tapMaxMovement,
                                      max(abs(geometry.center.x - start.x),
@@ -398,10 +424,11 @@ final class MiddleClickService: ObservableObject {
         }
         // Counts between 1 and tapFingers - 1 are fingers landing or lifting
         // mid-touch; the candidate stays as it is until the pad empties.
-        return false
+        return nil
     }
 
     private func resetTapCandidateLocked() {
+        tapCandidateFingers = 0
         tapStartUptime = nil
         tapStartPosition = nil
         tapStartSpread = nil
@@ -448,6 +475,7 @@ final class MiddleClickService: ObservableObject {
             releaseHeldMiddleButton()
             let enabled = AppFeature.middleClick.isAvailable
                 && UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
+                || stateLock.withLock { radialMenuTapFingers > 0 }
             let shouldRearm = SessionActivitySupport.tapShouldRun(
                 featureWanted: enabled,
                 accessibilityGranted: AXIsProcessTrusted(),
@@ -473,6 +501,10 @@ final class MiddleClickService: ObservableObject {
             if tapStartUptime != nil { tapSawButton = true }
             stateLock.unlock()
             tapStateLock.lock()
+            guard middleClickOn else {
+                tapStateLock.unlock()
+                return Unmanaged.passUnretained(event)
+            }
             if suppressedButtonSequence {
                 tapStateLock.unlock()
                 return nil

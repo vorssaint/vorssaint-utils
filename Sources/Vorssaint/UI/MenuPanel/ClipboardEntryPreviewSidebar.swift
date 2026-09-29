@@ -112,11 +112,9 @@ struct ClipboardEntryPreviewSidebar: View {
     @ViewBuilder
     private func imagePreview(_ entry: ClipboardHistoryEntry) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let name = entry.imageFile,
-               let image = ClipboardImageStore.thumbnail(named: name) {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+            if let name = entry.imageFile {
+                ClipboardThumbnailImage(source: .stored(name: name),
+                                        aspectRatio: entry.imageAspectRatio)
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
@@ -139,14 +137,12 @@ struct ClipboardEntryPreviewSidebar: View {
     @ViewBuilder
     private func singleFilePreview(_ path: String) -> some View {
         let isImage = ClipboardImageStore.isImageFile(atPath: path)
-        let thumbnail = ClipboardImageStore.fileThumbnail(atPath: path)
         let fileName = (path as NSString).lastPathComponent
 
         VStack(alignment: .leading, spacing: 10) {
-            if isImage, let thumbnail {
-                Image(nsImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+            if isImage {
+                ClipboardThumbnailImage(source: .file(path: path),
+                                        aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
@@ -201,11 +197,8 @@ struct ClipboardEntryPreviewSidebar: View {
             VStack(spacing: 6) {
                 ForEach(entry.filePaths, id: \.self) { path in
                     HStack(spacing: 6) {
-                        if ClipboardImageStore.isImageFile(atPath: path),
-                           let thumb = ClipboardImageStore.fileThumbnail(atPath: path, maxPixelSize: 64) {
-                            Image(nsImage: thumb)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
+                        if ClipboardImageStore.isImageFile(atPath: path) {
+                            ClipboardThumbnailImage(source: .file(path: path, maxPixelSize: 64))
                                 .frame(width: 20, height: 20)
                                 .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                         } else {

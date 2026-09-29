@@ -50,8 +50,11 @@ enum WindowEnumerator {
 
     /// Window surfaces larger than this are considered real, switchable windows.
     private static let minimumSize = CGSize(width: 80, height: 60)
-    /// Hard cap to keep the switcher readable and captures cheap.
-    private static let maximumCount = 24
+    /// Hard cap to keep the switcher readable and captures cheap. Sized to the
+    /// thumbnail cache in `WindowPreviewProvider`, which already budgets for
+    /// this many previews. `visibleSelectionIndices` spends the budget so every
+    /// app keeps an entry before any app gets a second one.
+    private static let maximumCount = 48
     /// AX calls normally return in a few milliseconds. A process that cannot
     /// answer within this ceiling must not hold the switcher behind it.
     private static let messagingTimeout: Float = 0.2
@@ -65,8 +68,8 @@ enum WindowEnumerator {
         return queue
     }()
     /// Ceiling on the whole batch. The Switcher waits on its serial session
-    /// queue, which must stay bounded for later shortcuts. The six synchronous
-    /// `listWindows(for:)` Dock and preview callers still run on main, so this
+    /// queue, which must stay bounded for later shortcuts. The five synchronous
+    /// `listWindows(for:)` Dock and switcher callers still run on main, so this
     /// bound also prevents their walks from stalling main and the event taps
     /// (issues #971 and #189).
     private static let accessibilityBatchBudget: TimeInterval = 5.0
@@ -103,10 +106,14 @@ enum WindowEnumerator {
                         displayIDsByUUID: SpaceWindowBridge.displayIDsByUUID())
     }
 
+    /// `scopedToFrontmostPID` is set for a session that shows only the front
+    /// app's windows; the cap then spends its slots on that app alone.
     static func enumerateSwitcherWindows(groupByApp: Bool,
                                          preservingGroupedWindows: Bool,
                                          snapshot: Snapshot,
                                          displayScope: DisplayScope? = nil,
+                                         scopedToFrontmostPID: pid_t? = nil,
+                                         resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                          isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         listWindows(
             appRules: SwitcherAppRule.rules(
@@ -116,6 +123,8 @@ enum WindowEnumerator {
             marksHiddenSpaces: true,
             snapshot: snapshot,
             displayScope: displayScope,
+            scopedToFrontmostPID: scopedToFrontmostPID,
+            resolveSource: resolveSource,
             isCancelled: isCancelled
         )
     }
@@ -134,6 +143,8 @@ enum WindowEnumerator {
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
                                     displayScope: DisplayScope? = nil,
+                                    scopedToFrontmostPID: pid_t? = nil,
+                                    resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
@@ -143,6 +154,8 @@ enum WindowEnumerator {
         let minimizedPlacement = WindowSwitchMinimizedPlacement(
             rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
         ) ?? .normal
+        let treatHiddenAppsLikeMinimized = UserDefaults.standard.bool(
+            forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized)
         let showFullscreenWindows = UserDefaults.standard.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
@@ -150,24 +163,49 @@ enum WindowEnumerator {
                            appRules: appRules,
                            groupByApp: groupByApp,
                            minimizedPlacement: minimizedPlacement,
+                           treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized,
                            showFullscreenWindows: showFullscreenWindows,
                            preservingGroupedWindows: preservingGroupedWindows,
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
                            snapshot: snapshot,
+                           scopedToFrontmostPID: scopedToFrontmostPID,
                            displayScope: displayScope,
+                           resolveSource: resolveSource,
                            isCancelled: isCancelled)
     }
 
-    static func listWindows(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
-        // The current-desktop choice belongs to the switcher alone (issue
-        // #337): its caption promises it trims the switcher list, nothing
-        // else. Dock previews keep showing windows from every desktop, the
-        // behavior issue #339 made first-class; honoring the toggle here
-        // would leave an empty preview with no setting anywhere near the
-        // Dock to explain it.
-        // An entry for the app itself belongs to the switcher alone for the
-        // same reason: a Dock preview is opened by pointing at one app's icon,
+    /// Dock Preview has its own scope; Dock click actions keep the default
+    /// all-desktop list and never inherit either preview or switcher settings.
+    static func listWindowsForDockPreview(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
+        listWindows(for: pid, maximumCount: maximumCount,
+                    currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+                    marksHiddenSpaces: true)
+    }
+
+    /// A desktop can change after enumeration, including between pinned refreshes.
+    static func dockPreviewMayActivate(_ item: SwitcherItem) -> Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+              let windowID = item.windowID else { return true }
+        return !SpaceWindowBridge.isParkedOnHiddenSpace(windowID)
+    }
+
+    static func listWindows(for pid: pid_t, maximumCount: Int = 12,
+                            currentSpaceOnly: Bool = false,
+                            marksHiddenSpaces: Bool = false) -> [SwitcherItem] {
+        listWindows(for: pid, maximumCount: maximumCount,
+                    currentSpaceOnly: currentSpaceOnly,
+                    marksHiddenSpaces: marksHiddenSpaces,
+                    snapshot: snapshot())
+    }
+
+    /// The snapshot must be taken on main before a caller moves this walk off-main.
+    static func listWindows(for pid: pid_t, maximumCount: Int = 12,
+                            currentSpaceOnly: Bool = false,
+                            marksHiddenSpaces: Bool = false,
+                            snapshot: Snapshot) -> [SwitcherItem] {
+        // An entry for the app itself belongs to the switcher alone. A
+        // Dock preview is opened by pointing at one app's icon,
         // so a card naming that app says nothing the pointer did not, and
         // picking it would only repeat the Dock click.
         listWindows(filterPID: pid,
@@ -176,11 +214,12 @@ enum WindowEnumerator {
                     appRules: [:],
                     groupByApp: false,
                     minimizedPlacement: .normal,
+                    treatHiddenAppsLikeMinimized: false,
                     showFullscreenWindows: true,
                     preservingGroupedWindows: false,
-                    currentSpaceOnly: false,
-                    marksHiddenSpaces: false,
-                    snapshot: snapshot()).items
+                    currentSpaceOnly: currentSpaceOnly,
+                    marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
+                    snapshot: snapshot).items
     }
 
     private static func listWindows(filterPID: pid_t?,
@@ -189,14 +228,18 @@ enum WindowEnumerator {
                                     appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
                                     minimizedPlacement: WindowSwitchMinimizedPlacement,
+                                    treatHiddenAppsLikeMinimized: Bool,
                                     showFullscreenWindows: Bool,
                                     preservingGroupedWindows: Bool,
                                     currentSpaceOnly: Bool,
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
+                                    scopedToFrontmostPID: pid_t? = nil,
                                     displayScope: DisplayScope? = nil,
+                                    resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        let historyRevision = WindowUseTracker.shared.historyRevision
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
@@ -227,7 +270,7 @@ enum WindowEnumerator {
         WindowUseTracker.shared.reconcile(
             existingWindows: Set(raw.compactMap { $0[kCGWindowNumber as String] as? CGWindowID }),
             frontToBack: frontToBack,
-            running: Set(runningApps.map(\.pid)))
+            running: Set(runningApps.map(\.pid)), revision: historyRevision)
         var regularApps: [pid_t: String] = [:]
         var regularBundlePaths: [pid_t: String] = [:]
         for app in runningApps where app.isRegular {
@@ -287,8 +330,9 @@ enum WindowEnumerator {
 
         // Accessibility cannot describe windows parked on a Space that is not
         // visible, so the ghost veto below needs the window server as a second
-        // witness. A stale surface can retain an old Space assignment, so
-        // membership alone is not proof that it is still a real window.
+        // witness. A partial Accessibility list cannot veto a sibling, but a
+        // dismissed surface can retain its desktop assignment. Check whether
+        // an unmatched window is still ordered in as well as cycle-eligible.
         // Resolved lazily and cached, so fully Accessibility-confirmed lists
         // pay nothing.
         var topologyResolved = false
@@ -371,22 +415,19 @@ enum WindowEnumerator {
                     windowSpaces: spaces(of: CGWindowID(windowID)))
             let axSnapshot = accessibilityWindows[windowOwnerPID]
             let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
-            // A stale dialog can keep an old ordinary-Space tag indefinitely.
-            // Trust an unmatched hidden surface only when Accessibility could
-            // not describe any window for that owner, or when the window
-            // server puts this exact surface on a native fullscreen Space.
+            // Accessibility may list only the owner's visible-Space windows.
+            // A sibling in that list says nothing about this window's existence.
             let hiddenSpaceSurfaceIsWitnessed = isOnHiddenSpace(CGWindowID(windowID))
-                && ((axSnapshot?.ordered.isEmpty ?? true)
-                    || isOnFullscreenSpace(CGWindowID(windowID)))
             if axSnapshot != nil, axWindow == nil {
-                // WindowServer kept a surface Accessibility does not vouch for:
-                // a stale leftover from a closed tab or window. Windows parked
-                // on a hidden Space and confirmed hidden-app windows are real,
-                // so they survive this veto.
-                if (!hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow)
-                    || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)) {
-                    continue
-                }
+                guard SwitcherSupport.keepsUnmatchedWindow(
+                    isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed,
+                    isConfirmedHiddenAppWindow: isConfirmedHiddenAppWindow,
+                    isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)),
+                    isOrderedIn: hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow
+                        ? SpaceWindowBridge.isWindowOrderedIn(CGWindowID(windowID)) : nil,
+                    allowsUnverifiedHiddenSpace: axSnapshot?.ordered.isEmpty == true
+                        || isOnFullscreenSpace(CGWindowID(windowID))
+                ) else { continue }
             } else if axSnapshot == nil,
                       SwitcherSupport.unwitnessedSurfaceIsLeftover(
                         isOnScreen: isOnScreen,
@@ -474,9 +515,12 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
+        let affectedByMinimizedPlacement = { (item: SwitcherItem) in
+            item.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized)
+        }
         let filtered = windows.filter { item in
             if !showFullscreenWindows, item.isFullscreen { return false }
-            if minimizedPlacement == .hidden, item.isMinimized { return false }
+            if minimizedPlacement == .hidden, affectedByMinimizedPlacement(item) { return false }
             return true
         }
         let sourceItems = displayScope.map { _ in orderByUse(filtered, frontToBack: frontToBack) }
@@ -484,10 +528,10 @@ enum WindowEnumerator {
             SwitcherSupport.itemsOnDisplay(filtered, displayBounds: $0.bounds, targetIndex: $0.targetIndex)
         } ?? filtered
         let groupedBackingWindows = groupByApp && preservingGroupedWindows ? scoped : []
-        let ordered: [SwitcherItem]
+        var ordered: [SwitcherItem]
         if minimizedPlacement == .end {
-            let primary = scoped.filter { !$0.isMinimized }
-            let deferred = scoped.filter { $0.isMinimized }
+            let primary = scoped.filter { !affectedByMinimizedPlacement($0) }
+            let deferred = scoped.filter { affectedByMinimizedPlacement($0) }
             let orderedPrimary = orderByUse(primary, frontToBack: frontToBack)
             let orderedDeferred = orderByUse(deferred, frontToBack: frontToBack)
             let groupedPrimary = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedPrimary) : orderedPrimary
@@ -497,27 +541,48 @@ enum WindowEnumerator {
             let orderedRaw = orderByUse(scoped, frontToBack: frontToBack)
             ordered = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedRaw) : orderedRaw
         }
+        let backingOrdered: [SwitcherItem]
+        if groupByApp, preservingGroupedWindows {
+            if minimizedPlacement == .end {
+                let primary = groupedBackingWindows.filter { !affectedByMinimizedPlacement($0) }
+                let deferred = groupedBackingWindows.filter { affectedByMinimizedPlacement($0) }
+                backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
+            } else {
+                backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
+            }
+        } else {
+            backingOrdered = []
+        }
+        // Focus observation runs independently of the use history. Resolve the
+        // current window before discarding candidates, so a fresh focus reading
+        // can still correct a history that has not caught up.
+        let sourceCandidates = sourceItems ?? (backingOrdered.isEmpty ? ordered
+            : SwitcherSupport.expandGroupedWindows(orderedWindows: backingOrdered, representatives: ordered))
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        let source = ordered.isEmpty ? nil : resolveSource?(sourceCandidates)
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        ordered = SwitcherSupport.orderedForSession(ordered, currentID: source?.id)
         var result = ordered
         if ordered.count > maximumCount {
-            result = Array(ordered.prefix(maximumCount))
+            // One entry per app first, then the remaining slots: an app with
+            // many windows must never push another app off the list entirely
+            // (issue #172). A session scoped to the front app caps that app's
+            // own windows instead.
+            result = SwitcherSupport
+                .visibleSelectionIndices(items: ordered, limit: maximumCount,
+                                         frontmostPID: scopedToFrontmostPID)
+                .map { ordered[$0] }
             // Asking for the desktop app alone names one entry, so that entry must
             // not vanish just because the list happens to be full. Asking for every
             // windowless app is a bulk choice instead, and there the cap keeps
             // cutting the least recently used tail exactly as it does for windows.
             if windowlessApps == .finder,
-               let desktopEntry = ordered.dropFirst(maximumCount).first(where: { $0.windowID == nil }) {
+               !result.contains(where: { $0.windowID == nil }),
+               let desktopEntry = ordered.first(where: { $0.windowID == nil }) {
                 result.append(desktopEntry)
             }
         }
         if groupByApp, preservingGroupedWindows {
-            let backingOrdered: [SwitcherItem]
-            if minimizedPlacement == .end {
-                let primary = groupedBackingWindows.filter { !$0.isMinimized }
-                let deferred = groupedBackingWindows.filter { $0.isMinimized }
-                backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
-            } else {
-                backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
-            }
             result = SwitcherSupport.expandGroupedWindows(
                 orderedWindows: backingOrdered,
                 representatives: result)
@@ -530,7 +595,7 @@ enum WindowEnumerator {
                 return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
             }
         }
-        return WindowList(items: result, sourceItems: sourceItems ?? result)
+        return WindowList(items: result, sourceItems: sourceCandidates)
     }
 
     /// WindowServer can keep stale, titled surfaces around after some apps close
@@ -626,8 +691,8 @@ enum WindowEnumerator {
         let app = AXUIElementCreateApplication(pid)
         // An app that is not servicing its run loop would hold every AX call
         // for the default timeout. The Switcher's serial session queue
-        // must stay available for later shortcuts. The six synchronous
-        // listWindows(for:) Dock and preview callers run on main, where a long
+        // must stay available for later shortcuts. The five synchronous
+        // listWindows(for:) Dock and switcher callers run on main, where a long
         // wait also stalls the event taps (issue #189).
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
         var axWindows: [AXUIElement] = []
@@ -847,14 +912,20 @@ enum WindowEnumerator {
             let windowID = role == (kAXWindowRole as String)
                 ? AXWindowResolver.windowID(for: window)
                 : nil
-            let hasNormalWindowLevel = subrole == "AXUnknown"
+            let hasNormalWindowLevel = (subrole == "AXUnknown" || subrole == "AXDialog")
                 && (windowID.map(normalLevelWindowIDs.contains) ?? false)
+            // A hidden app's ordinary windows read as dialogs too (issue
+            // #2279). Only a normal-level dialog pays for the button read.
+            let canMinimize = subrole == "AXDialog" && hasNormalWindowLevel
+                && !isCancelled()
+                && hasWorkingMinimizeButton(window)
             return SwitcherSupport.isSwitchableNonstandardWindow(
                 role: role,
                 subrole: subrole,
                 fillsScreen: fillsScreen,
                 hasNormalWindowLevel: hasNormalWindowLevel,
                 acceptsUndescribedSubroles: acceptsUndescribedSubroles,
+                canMinimize: canMinimize,
                 // A borderless helper stays in the app's window list even when
                 // the app asks the window server to keep it out of cycling.
                 isExcludedFromWindowCycle: windowID
@@ -862,6 +933,14 @@ enum WindowEnumerator {
         }
         guard !isCancelled() else { return false }
         return stringAttribute(window, kAXRoleAttribute as String) == "AXWindow"
+    }
+
+    private static func hasWorkingMinimizeButton(_ window: AXUIElement) -> Bool {
+        guard let button = accessibilityWindowAttribute(window, kAXMinimizeButtonAttribute as String) else {
+            return false
+        }
+        AXUIElementSetMessagingTimeout(button, 0.35)
+        return boolAttribute(button, kAXEnabledAttribute as String)
     }
 
     private static func isFullscreenWindow(_ window: AXUIElement,
@@ -957,10 +1036,7 @@ enum WindowEnumerator {
                                    frontToBack: WindowUseTracker.FrontToBack) -> [SwitcherItem] {
         let tracker = WindowUseTracker.shared
         let entries = windows.map { WindowUseOrder.Entry(windowID: $0.windowID, pid: $0.pid) }
-        return WindowUseOrder.order(entries,
-                                    windowHistory: tracker.windows,
-                                    appHistory: tracker.apps,
-                                    frontToBack: frontToBack.windows)
+        return tracker.order(entries, frontToBack: frontToBack.windows)
             .map { windows[$0] }
     }
 

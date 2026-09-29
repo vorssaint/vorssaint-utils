@@ -758,9 +758,9 @@ final class FinderCutPaste: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered, defer: false)
         panel.level = .statusBar
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -783,11 +783,14 @@ final class FinderCutPaste: ObservableObject {
 /// for some users. Same Finder Automation permission as before; nothing new.
 /// Callers run this off the main thread so a slow Finder never blocks the UI or
 /// the event taps.
-private enum FinderBridge {
+enum FinderBridge {
     private static let finderBundleID = "com.apple.finder"
 
-    static func selectionURLs() -> [URL] {
-        guard AppleScriptRunner.consentToAutomate(bundleID: finderBundleID) else { return [] }
+    static func selectionURLs(requestPermission: Bool = true) -> [URL] {
+        let allowed = requestPermission
+            ? AppleScriptRunner.consentToAutomate(bundleID: finderBundleID)
+            : Permissions.automationStatus(for: .finder) == .granted
+        guard allowed else { return [] }
         let script = """
         tell application "Finder"
             set out to ""

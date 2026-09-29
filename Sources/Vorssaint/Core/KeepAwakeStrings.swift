@@ -20,6 +20,16 @@ struct KeepAwakeAutomationStrings {
     let automationActive: String
     let pauseWhenLockedToggle: String
     let pauseWhenLockedCaption: String
+    let matchAny: String
+    let matchAll: String
+    let automationCaptionAll: String
+
+    /// The caption under the condition tiles. The Any wording predates the
+    /// match mode and would lie about an All setup, so it is chosen here
+    /// rather than read straight out of the struct (issue #1587).
+    func caption(requireAll: Bool) -> String {
+        requireAll ? automationCaptionAll : automationCaption
+    }
 
     func activeStatus(for conditions: Set<KeepAwakeAutomationCondition>) -> String {
         if conditions == [.externalDisplay] { return externalDisplayActive }
@@ -42,6 +52,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -50,6 +61,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 
@@ -60,6 +72,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -68,6 +81,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -96,6 +110,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let es = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Permitir que la pantalla se apague",
         allowDisplaySleepCaption: "Mantiene el Mac activo mientras la pantalla sigue su temporizador de reposo habitual."
+    )
+
+    static let sk = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Povoliť uspatie displeja",
+        allowDisplaySleepCaption: "Udržiava Mac v bdelom stave, zatiaľ čo displej sa riadi bežným časovačom uspávania."
     )
 
     static let de = KeepAwakeDisplaySleepStrings(
@@ -137,6 +156,10 @@ extension KeepAwakeDisplaySleepStrings {
         allowDisplaySleep: "允許顯示器進入睡眠",
         allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。"
     )
+    static let uk = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Дозволити дисплею засинати",
+        allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
+    )
 }
 
 extension KeepAwakeAutomationStrings {
@@ -156,7 +179,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "Keep Awake starts while any of these apps is open, even in the background.",
         automationActive: "Active because an automatic condition is met",
         pauseWhenLockedToggle: "Pause while the Mac is locked",
-        pauseWhenLockedCaption: "Follows normal sleep rules while locked and resumes the remaining session after you unlock."
+        pauseWhenLockedCaption: "Follows normal sleep rules while locked and resumes the remaining session after you unlock.",
+        matchAny: "Any",
+        matchAll: "All",
+        automationCaptionAll: "Starts only when every selected condition is active."
     )
 
     static let ptBR = KeepAwakeAutomationStrings(
@@ -175,7 +201,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "O Keep Awake inicia enquanto qualquer um destes apps estiver aberto, mesmo em segundo plano.",
         automationActive: "Ativo porque uma condição automática foi atendida",
         pauseWhenLockedToggle: "Pausar enquanto o Mac estiver bloqueado",
-        pauseWhenLockedCaption: "Segue as regras normais de repouso enquanto estiver bloqueado e retoma o tempo restante após o desbloqueio."
+        pauseWhenLockedCaption: "Segue as regras normais de repouso enquanto estiver bloqueado e retoma o tempo restante após o desbloqueio.",
+        matchAny: "Qualquer",
+        matchAll: "Todas",
+        automationCaptionAll: "Inicia somente quando todas as condições selecionadas estiverem ativas."
     )
 
     static let tr = KeepAwakeAutomationStrings(
@@ -194,7 +223,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "Bu uygulamalardan herhangi biri açıkken (arka planda bile) Uyanık Tut başlar.",
         automationActive: "Otomatik bir koşul sağlandığı için etkin",
         pauseWhenLockedToggle: "Mac kilitliyken duraklat",
-        pauseWhenLockedCaption: "Kilitliyken normal uyku kurallarını izler ve kilidi açtığınızda kalan oturumu sürdürür."
+        pauseWhenLockedCaption: "Kilitliyken normal uyku kurallarını izler ve kilidi açtığınızda kalan oturumu sürdürür.",
+        matchAny: "Herhangi",
+        matchAll: "Tümü",
+        automationCaptionAll: "Yalnızca seçili tüm koşullar etkinken başlar."
     )
 
     static let ru = KeepAwakeAutomationStrings(
@@ -213,7 +245,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "Не давать Mac уснуть, пока открыто любое из этих приложений, даже в фоне.",
         automationActive: "Активно по автоматическому условию",
         pauseWhenLockedToggle: "Приостанавливать, пока Mac заблокирован",
-        pauseWhenLockedCaption: "Пока Mac заблокирован, действуют обычные правила сна, а после разблокировки продолжается оставшееся время сеанса."
+        pauseWhenLockedCaption: "Пока Mac заблокирован, действуют обычные правила сна, а после разблокировки продолжается оставшееся время сеанса.",
+        matchAny: "Любое",
+        matchAll: "Все",
+        automationCaptionAll: "Запускается только когда активны все выбранные условия."
     )
 
     static let es = KeepAwakeAutomationStrings(
@@ -232,7 +267,32 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "Keep Awake se activa mientras cualquiera de estas apps esté abierta, incluso en segundo plano.",
         automationActive: "Activo porque se cumple una condición automática",
         pauseWhenLockedToggle: "Pausar mientras el Mac esté bloqueado",
-        pauseWhenLockedCaption: "Sigue las reglas de reposo habituales mientras está bloqueado y reanuda el tiempo restante al desbloquearlo."
+        pauseWhenLockedCaption: "Sigue las reglas de reposo habituales mientras está bloqueado y reanuda el tiempo restante al desbloquearlo.",
+        matchAny: "Cualquiera",
+        matchAll: "Todas",
+        automationCaptionAll: "Se activa solo cuando todas las condiciones seleccionadas están activas."
+    )
+
+    static let sk = KeepAwakeAutomationStrings(
+        automationSection: "Automatizácia",
+        automationCaption: "Spustí sa, keď je aktívna ktorákoľvek vybraná podmienka.",
+        automationOff: "Vypnuté",
+        externalDisplayToggle: "Externý displej",
+        externalDisplayActive: "Aktívne, kým je pripojený externý displej",
+        powerToggle: "Napájanie",
+        powerActive: "Aktívne, kým je pripojené napájanie",
+        runningAppsToggle: "Aplikácie",
+        runningAppsActive: "Aktívne, kým beží vybraná aplikácia",
+        runningAppsListTitle: "Vybrané aplikácie",
+        runningAppsAddButton: "Pridať aplikáciu…",
+        runningAppsRemoveButton: "Odstrániť",
+        runningAppsListCaption: "Bdelý režim je aktívny, kým je otvorená ktorákoľvek z týchto aplikácií, aj na pozadí.",
+        automationActive: "Aktívne, pretože je splnená automatická podmienka",
+        pauseWhenLockedToggle: "Pozastaviť, keď je Mac uzamknutý",
+        pauseWhenLockedCaption: "Počas uzamknutia sa riadi bežnými pravidlami uspávania a po odomknutí pokračuje zvyšná časť relácie.",
+        matchAny: "Ktorákoľvek",
+        matchAll: "Všetky",
+        automationCaptionAll: "Spustí sa iba vtedy, keď sú aktívne všetky vybrané podmienky."
     )
 
     static let de = KeepAwakeAutomationStrings(
@@ -251,7 +311,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "Wachhalten startet, solange eine dieser Apps geöffnet ist, auch im Hintergrund.",
         automationActive: "Aktiv, weil eine automatische Bedingung erfüllt ist",
         pauseWhenLockedToggle: "Pausieren, solange der Mac gesperrt ist",
-        pauseWhenLockedCaption: "Im Sperrzustand gelten die normalen Ruhezustandsregeln. Nach dem Entsperren läuft die verbleibende Sitzung weiter."
+        pauseWhenLockedCaption: "Im Sperrzustand gelten die normalen Ruhezustandsregeln. Nach dem Entsperren läuft die verbleibende Sitzung weiter.",
+        matchAny: "Eine",
+        matchAll: "Alle",
+        automationCaptionAll: "Startet nur, wenn alle ausgewählten Bedingungen erfüllt sind."
     )
 
     static let fr = KeepAwakeAutomationStrings(
@@ -270,7 +333,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "Garder éveillé démarre tant que l’une de ces apps est ouverte, même en arrière-plan.",
         automationActive: "Actif car une condition automatique est remplie",
         pauseWhenLockedToggle: "Suspendre lorsque le Mac est verrouillé",
-        pauseWhenLockedCaption: "Suit les règles de veille habituelles pendant le verrouillage et reprend le temps restant après le déverrouillage."
+        pauseWhenLockedCaption: "Suit les règles de veille habituelles pendant le verrouillage et reprend le temps restant après le déverrouillage.",
+        matchAny: "L’une",
+        matchAll: "Toutes",
+        automationCaptionAll: "Démarre uniquement lorsque toutes les conditions sélectionnées sont actives."
     )
 
     static let it = KeepAwakeAutomationStrings(
@@ -289,7 +355,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "Mantieni attivo si avvia mentre una di queste app è aperta, anche in background.",
         automationActive: "Attivo perché una condizione automatica è soddisfatta",
         pauseWhenLockedToggle: "Metti in pausa quando il Mac è bloccato",
-        pauseWhenLockedCaption: "Segue le normali regole di stop quando è bloccato e riprende il tempo rimanente dopo lo sblocco."
+        pauseWhenLockedCaption: "Segue le normali regole di stop quando è bloccato e riprende il tempo rimanente dopo lo sblocco.",
+        matchAny: "Qualsiasi",
+        matchAll: "Tutte",
+        automationCaptionAll: "Si avvia solo quando tutte le condizioni selezionate sono attive."
     )
 
     static let ja = KeepAwakeAutomationStrings(
@@ -308,7 +377,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "これらのアプリのいずれかが開いている間（バックグラウンドでも）スリープを防ぎます。",
         automationActive: "自動条件が満たされているため有効",
         pauseWhenLockedToggle: "Macのロック中は一時停止",
-        pauseWhenLockedCaption: "ロック中は通常のスリープ設定に従い、ロック解除後に残りのセッションを再開します。"
+        pauseWhenLockedCaption: "ロック中は通常のスリープ設定に従い、ロック解除後に残りのセッションを再開します。",
+        matchAny: "いずれか",
+        matchAll: "すべて",
+        automationCaptionAll: "選択したすべての条件が満たされているときだけ開始します。"
     )
 
     static let ko = KeepAwakeAutomationStrings(
@@ -327,7 +399,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "이 앱 중 하나라도 열려 있으면(백그라운드 포함) 절전 방지가 시작됩니다.",
         automationActive: "자동 조건이 충족되어 활성화",
         pauseWhenLockedToggle: "Mac이 잠겨 있는 동안 일시 정지",
-        pauseWhenLockedCaption: "잠겨 있는 동안 일반 잠자기 설정을 따르고 잠금 해제 후 남은 세션을 다시 시작합니다."
+        pauseWhenLockedCaption: "잠겨 있는 동안 일반 잠자기 설정을 따르고 잠금 해제 후 남은 세션을 다시 시작합니다.",
+        matchAny: "하나",
+        matchAll: "모두",
+        automationCaptionAll: "선택한 모든 조건이 충족될 때만 시작합니다."
     )
 
     static let zhHans = KeepAwakeAutomationStrings(
@@ -346,7 +421,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "只要这些应用中有任一在运行（包括后台），就会保持唤醒。",
         automationActive: "因满足自动条件而保持唤醒",
         pauseWhenLockedToggle: "Mac 锁定时暂停",
-        pauseWhenLockedCaption: "锁定期间遵循正常的睡眠设置，解锁后继续剩余时段。"
+        pauseWhenLockedCaption: "锁定期间遵循正常的睡眠设置，解锁后继续剩余时段。",
+        matchAny: "任一",
+        matchAll: "所有",
+        automationCaptionAll: "仅当所有选定条件都满足时才启动。"
     )
 
     static let zhTW = KeepAwakeAutomationStrings(
@@ -365,7 +443,10 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "只要這些 App 中有任一正在執行（包括背景），就會保持喚醒。",
         automationActive: "因符合自動條件而保持喚醒",
         pauseWhenLockedToggle: "Mac 鎖定時暫停",
-        pauseWhenLockedCaption: "鎖定期間會依照正常的睡眠設定，解鎖後繼續剩餘時段。"
+        pauseWhenLockedCaption: "鎖定期間會依照正常的睡眠設定，解鎖後繼續剩餘時段。",
+        matchAny: "任一",
+        matchAll: "所有",
+        automationCaptionAll: "僅當所有選定條件都符合時才啟動。"
     )
 
     static let zhHK = KeepAwakeAutomationStrings(
@@ -384,6 +465,30 @@ extension KeepAwakeAutomationStrings {
         runningAppsListCaption: "只要這些 App 中有任何一個正在執行（包括背景），就會保持喚醒。",
         automationActive: "因符合自動條件而保持喚醒",
         pauseWhenLockedToggle: "Mac 鎖定時暫停",
-        pauseWhenLockedCaption: "鎖定期間會按正常睡眠設定運作，解鎖後繼續餘下時段。"
+        pauseWhenLockedCaption: "鎖定期間會按正常睡眠設定運作，解鎖後繼續餘下時段。",
+        matchAny: "任一",
+        matchAll: "所有",
+        automationCaptionAll: "只有當所有已選條件都符合時才啟動。"
+    )
+    static let uk = KeepAwakeAutomationStrings(
+        automationSection: "Автоматизація",
+        automationCaption: "Запускається, коли будь-яка обрана умова активна.",
+        automationOff: "Вимкнено",
+        externalDisplayToggle: "Зовнішній дисплей",
+        externalDisplayActive: "Активно при підключеному зовнішньому дисплеї",
+        powerToggle: "Живлення",
+        powerActive: "Активно при підключеному живленні",
+        runningAppsToggle: "Програми",
+        runningAppsActive: "Активно, поки запущена обрана програма",
+        runningAppsListTitle: "Обрані програми",
+        runningAppsAddButton: "Додати програму…",
+        runningAppsRemoveButton: "Видалити",
+        runningAppsListCaption: "Режим без сну вмикається, поки будь-яка з цих програм відкрита, навіть у фоновому режимі.",
+        automationActive: "Активно, оскільки виконано автоматичну умову",
+        pauseWhenLockedToggle: "Призупиняти, коли Mac заблоковано",
+        pauseWhenLockedCaption: "Під час блокування діють звичайні правила сну; після розблокування сеанс продовжується.",
+        matchAny: "Будь-яка",
+        matchAll: "Усі",
+        automationCaptionAll: "Запускається лише коли всі обрані умови активні."
     )
 }

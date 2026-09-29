@@ -9,13 +9,14 @@ final class AppUpdateFeedLoader: NSObject, URLSessionDataDelegate {
     private var data = Data()
     private var accepted = false
     private var redirects = 0
-    private let completion: (Data?) -> Void
+    private var result: AppUpdateFeedSupport.LoadResult = .failed
+    private let completion: (AppUpdateFeedSupport.LoadResult) -> Void
 
-    private init(completion: @escaping (Data?) -> Void) { self.completion = completion }
+    private init(completion: @escaping (AppUpdateFeedSupport.LoadResult) -> Void) { self.completion = completion }
 
-    static func load(_ url: URL, completion: @escaping (Data?) -> Void) {
+    static func load(_ url: URL, completion: @escaping (AppUpdateFeedSupport.LoadResult) -> Void) {
         guard AppUpdateFeedSupport.publicURL(url.absoluteString) != nil else {
-            completion(nil)
+            completion(.failed)
             return
         }
         let delegate = AppUpdateFeedLoader(completion: completion)
@@ -34,7 +35,14 @@ final class AppUpdateFeedLoader: NSObject, URLSessionDataDelegate {
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
                     didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        accepted = (response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } == true
+        let statusCode = (response as? HTTPURLResponse)?.statusCode
+        if AppUpdateFeedSupport.feedIsAbsent(statusCode: statusCode) {
+            accepted = false
+            result = .absent
+            completionHandler(.cancel)
+            return
+        }
+        accepted = statusCode.map { (200..<300).contains($0) } == true
             && response.expectedContentLength <= Int64(AppUpdateFeedSupport.byteLimit)
         completionHandler(accepted ? .allow : .cancel)
     }
@@ -62,6 +70,6 @@ final class AppUpdateFeedLoader: NSObject, URLSessionDataDelegate {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        completion(error == nil && accepted ? data : nil)
+        completion(error == nil && accepted ? .data(data) : result)
     }
 }

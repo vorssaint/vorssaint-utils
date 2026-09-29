@@ -50,10 +50,10 @@ final class RecorderIndicator {
 
         let guide = RegionGuideView(frame: CGRect(origin: .zero, size: screen.frame.size),
                                     selection: selection)
-        let panel = NSPanel(contentRect: screen.frame,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: screen.frame,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         panel.contentView = guide
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -87,10 +87,10 @@ final class RecorderIndicator {
         pill.onPause = { [weak self] in self?.onPause() }
         pill.onStop = { [weak self] in self?.onStop() }
 
-        let panel = NSPanel(contentRect: CGRect(origin: .zero, size: PillView.size),
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered,
-                            defer: false)
+        let panel = OverlayPanel(contentRect: CGRect(origin: .zero, size: PillView.size),
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered,
+                                 defer: false)
         panel.contentView = pill
         panel.isOpaque = false
         panel.backgroundColor = .clear

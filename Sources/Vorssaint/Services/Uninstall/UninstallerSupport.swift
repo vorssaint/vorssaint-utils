@@ -69,6 +69,26 @@ enum UninstallerSupport {
         let requiresSignedGroup: Bool
     }
 
+    /// Cancellation for one leftover scan. The main thread cancels it; the
+    /// scan's background work reads it between steps and stops early instead
+    /// of walking every folder for a result nobody is waiting for.
+    final class ScanCancellation {
+        private let lock = NSLock()
+        private var cancelled = false
+
+        var isCancelled: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return cancelled
+        }
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            lock.unlock()
+        }
+    }
+
     /// The symbol a finished removal shows. A tick is for a removal that took
     /// everything; anything left behind gets a warning, so a done state cannot
     /// report success over its own survivors.
@@ -97,6 +117,16 @@ enum UninstallerSupport {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { return nil }
         return FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
+    }
+
+    /// A missing entry or ancestor is absence; an unreadable or invalid path
+    /// is not. Use the same lookup for both the entry and its error so an
+    /// earlier directory listing cannot turn lost access into success.
+    /// Unlike stat, lstat also sees dangling links as existing entries.
+    static func isConfirmedAbsent(at url: URL) -> Bool {
+        var info = stat()
+        guard lstat(url.path, &info) != 0 else { return false }
+        return errno == ENOENT
     }
 
     /// A removal path must still exist below the root that produced it and no
