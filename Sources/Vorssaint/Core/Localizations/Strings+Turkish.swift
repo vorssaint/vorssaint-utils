@@ -1103,8 +1103,9 @@ extension Strings {
         standardResolution: "Standart Çözünürlük (1x)",
         recoveryKeep: "Ayarları Koru",
         recoveryRevert: "Geri Dön",
-        recoveryCountdownTitle: "Bu ekran ayarlarını koru?",
+        recoveryCountdownTitle: "Bu ekran ayarları korunsun mu?",
         recoveryCountdownRemaining: { "\($0) sn içinde otomatik geri dönülecek" },
+        recoveryFailedMessage: "Önceki HiDPI modu geri yüklenemedi",
         toggleHiDPICaption: "Retina HiDPI ölçeklemeyi aç/kapat"
     )
 }

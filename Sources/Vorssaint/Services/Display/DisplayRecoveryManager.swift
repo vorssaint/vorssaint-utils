@@ -50,6 +50,13 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
     @Published public private(set) var currentSnapshot: DisplayTransactionSnapshot?
     @Published public private(set) var hasRollbackFailure: Bool = false
 
+    internal var recreateVirtualMirror: (CGDirectDisplayID, Int, Int) throws -> CGDirectDisplayID = { targetID, width, height in
+        try VirtualDisplayService.shared.enableVirtualMirror(for: targetID, width: width, height: height)
+    }
+    internal var teardownVirtualMirror: (CGDirectDisplayID) throws -> Void = { targetID in
+        try VirtualDisplayService.shared.disableVirtualMirror(for: targetID)
+    }
+
     private var timer: DispatchSourceTimer?
 
     private init() {}
@@ -175,7 +182,7 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
         // 1. If virtual display was created, teardown the virtual mirror
         if snapshot.virtualDisplayCreated {
             do {
-                try VirtualDisplayService.shared.disableVirtualMirror(for: snapshot.targetDisplayID)
+                try teardownVirtualMirror(snapshot.targetDisplayID)
                 Self.log.info("Disabled virtual mirror for display \(snapshot.targetDisplayID, privacy: .public).")
             } catch {
                 Self.log.error("Failed to disable virtual mirror for display \(snapshot.targetDisplayID, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -249,10 +256,10 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
             let expectedPixelW = max(targetW, targetW * 2)
             let expectedPixelH = max(targetH, targetH * 2)
             do {
-                let virtualID = try VirtualDisplayService.shared.enableVirtualMirror(
-                    for: snapshot.targetDisplayID,
-                    width: targetW,
-                    height: targetH
+                let virtualID = try recreateVirtualMirror(
+                    snapshot.targetDisplayID,
+                    targetW,
+                    targetH
                 )
                 let activeMode = CGDisplayCopyDisplayMode(virtualID)
                 guard activeMode?.width == targetW && activeMode?.height == targetH &&
@@ -271,7 +278,7 @@ public final class DisplayRecoveryManager: ObservableObject, @unchecked Sendable
                 Self.log.info("Restored previous virtual HiDPI mirror for display \(snapshot.targetDisplayID, privacy: .public) at \(targetW)×\(targetH).")
             } catch {
                 Self.log.error("Failed to recreate previous virtual HiDPI mirror: \(error.localizedDescription, privacy: .public)")
-                try? VirtualDisplayService.shared.disableVirtualMirror(for: snapshot.targetDisplayID)
+                try? teardownVirtualMirror(snapshot.targetDisplayID)
                 self.hasRollbackFailure = true
                 self.remainingSeconds = 0
                 return

@@ -1311,6 +1311,7 @@ struct Strings {
     public let recoveryRevert: String
     public let recoveryCountdownTitle: String
     public let recoveryCountdownRemaining: (Int) -> String
+    public let recoveryFailedMessage: String
     public let toggleHiDPICaption: String
 }
 
@@ -2418,6 +2419,7 @@ extension Strings {
         recoveryRevert: "Reverter",
         recoveryCountdownTitle: "Confirmar ajustes de tela",
         recoveryCountdownRemaining: { "Revertendo em \($0) s" },
+        recoveryFailedMessage: "Não foi possível restaurar o modo HiDPI anterior",
         toggleHiDPICaption: "Alternar dimensionamento Retina HiDPI"
     )
 }
@@ -3526,6 +3528,7 @@ extension Strings {
         recoveryRevert: "Revert",
         recoveryCountdownTitle: "Confirm Display Settings",
         recoveryCountdownRemaining: { "Auto-reverting in \($0)s" },
+        recoveryFailedMessage: "Previous HiDPI mode could not be restored",
         toggleHiDPICaption: "Toggle Retina HiDPI scaling"
     )
 }

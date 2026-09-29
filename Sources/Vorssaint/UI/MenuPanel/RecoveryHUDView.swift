@@ -71,15 +71,17 @@ public final class RecoveryHUDController: ObservableObject, @unchecked Sendable 
         guard !isVisible || panels.isEmpty else { return }
         isVisible = true
 
+        setupScreenObserver()
+
         let screens = NSScreen.screens
         guard !screens.isEmpty else {
-            close()
+            closePanelsOnly()
+            stopMonitoring()
             return
         }
 
         recreatePanels(screens: screens)
         startMonitoring()
-        setupScreenObserver()
     }
 
     public func close() {
@@ -178,18 +180,23 @@ public final class RecoveryHUDController: ObservableObject, @unchecked Sendable 
             guard let self = self, DisplayRecoveryManager.shared.awaitingConfirmation else { return }
             let screens = NSScreen.screens
             guard !screens.isEmpty else {
-                self.close()
+                self.closePanelsOnly()
+                self.stopMonitoring()
                 return
             }
             if self.panels.count != screens.count {
                 self.recreatePanels(screens: screens)
+                self.startMonitoring()
             } else {
                 for (screen, panel) in zip(screens, self.panels) {
                     let frame = self.frameForScreen(screen)
                     if panel.frame != frame {
                         panel.setFrame(frame, display: true)
                     }
+                    panel.orderFrontRegardless()
                 }
+                self.panels.first?.makeKey()
+                self.startMonitoring()
             }
         }
     }
@@ -268,7 +275,7 @@ public struct RecoveryHUDView: View {
                         .lineLimit(1)
 
                     if recoveryManager.hasRollbackFailure {
-                        Text("\(l10n.s.recoveryRevert) · Esc / \(l10n.s.recoveryKeep) · ↵")
+                        Text(l10n.s.recoveryFailedMessage)
                             .font(.system(size: 11.5, weight: .regular))
                             .foregroundStyle(.white.opacity(0.7))
                             .lineLimit(1)

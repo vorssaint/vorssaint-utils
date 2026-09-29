@@ -1105,6 +1105,7 @@ extension Strings {
         recoveryRevert: "元に戻す",
         recoveryCountdownTitle: "このディスプレイ設定を保持しますか？",
         recoveryCountdownRemaining: { "\($0)秒後に自動で元に戻します" },
+        recoveryFailedMessage: "以前の HiDPI モードを復元できませんでした",
         toggleHiDPICaption: "Retina HiDPI スケーリングの切り替え"
     )
 }

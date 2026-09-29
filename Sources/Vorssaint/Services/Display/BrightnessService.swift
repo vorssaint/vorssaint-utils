@@ -651,10 +651,6 @@ final class BrightnessService: ObservableObject {
             guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
                              as? NSNumber)?.uint32Value else { continue }
             names[id] = screen.localizedName
-            let targetID = VirtualDisplayService.shared.resolvePhysicalTarget(for: id)
-            if targetID != id {
-                names[targetID] = screen.localizedName
-            }
         }
         return names
     }
