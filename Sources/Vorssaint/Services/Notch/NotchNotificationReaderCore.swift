@@ -45,6 +45,9 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     private var targets: [Target] = []
     /// Windows moved off screen, with the place the center had given them.
     private var hiddenWindows: [(window: Access.Element, origin: CGPoint)] = []
+    /// Windows that also hold an alert the reader could not take apart. The
+    /// island never showed it, so such a window stays in sight.
+    private var untakenWindows: [Access.Element] = []
     private var liveIDs = Set<UUID>()
     private var ambiguousIdentities = Set<String>()
     private var deadline: TimeInterval = 0
@@ -89,9 +92,15 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         var nextTargets = targets
         var currentIDs = Set<UUID>()
         var identityCounts: [String: Int] = [:]
+        var untaken: [Access.Element] = []
         for candidate in roots {
             let root = candidate.root
-            guard let content = content(root) else { continue }
+            guard let content = content(root) else {
+                if !candidate.transient, !untaken.contains(where: { access.same($0, candidate.window) }) {
+                    untaken.append(candidate.window)
+                }
+                continue
+            }
             let identity = NotchNotificationSupport.nativeIdentity(string(root, "AXIdentifier"))
             if let identity { identityCounts[identity, default: 0] += 1 }
             let old = nextTargets.first {
@@ -118,6 +127,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         }
         targets = Array(nextTargets.suffix(100))
         liveIDs = currentIDs
+        untakenWindows = untaken
         return Snapshot(items: items)
     }
 
@@ -162,13 +172,16 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         }
         var failed = Set<UUID>()
         for group in groups {
-            guard group.targets.allSatisfy({ $0.transient && shown.contains($0.item.id) }) else {
+            guard !untakenWindows.contains(where: { access.same($0, group.window) }),
+                  group.targets.allSatisfy({ $0.transient && shown.contains($0.item.id) }) else {
                 show(group.window); continue
             }
             // Every message in the window must still be the one the island took.
             guard group.targets.allSatisfy({ validatedTarget($0.item.id) != nil }), usable else { continue }
             if hide(group.window) == false { failed.formUnion(group.targets.map(\.item.id)) }
         }
+        // Also once its banners are gone and only such an alert is left.
+        for window in untakenWindows { show(window) }
         // An emptied window is left to the center, which places it again
         // before showing anything else. Forget the ones it placed or removed.
         hiddenWindows.removeAll { record in

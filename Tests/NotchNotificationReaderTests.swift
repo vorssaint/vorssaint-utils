@@ -241,6 +241,31 @@ enum NotchNotificationReaderTests {
             suite.expect(reader.hideNative([id]) == [id] && !reader.hidesWindows,
                          "a window without a position to move closes its banner instead")
         }
+        // An alert naming two senders cannot be taken apart, so the island
+        // never showed it.
+        func untakenAlert() -> Node {
+            let alert = card(sender: "Sam", body: "Alarm")
+            alert.strings["AXSubrole"] = "AXNotificationCenterAlert"
+            alert.children.append(Node("AXStaticText", identifier: "title", value: "Other sender"))
+            return alert
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            window.children.append(untakenAlert())
+            _ = reader.read()
+            suite.expect(reader.hideNative([id]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "a shown banner beside an alert the reader cannot take apart stays in sight")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            _ = reader.hideNative([id])
+            window.children = [untakenAlert()]
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "a hidden window comes back when its banner leaves an alert the reader cannot take apart")
+        }
         if let (access, reader, window, _, id) = hiddenFixture() {
             access.allowClose = true
             _ = reader.hideNative([id])

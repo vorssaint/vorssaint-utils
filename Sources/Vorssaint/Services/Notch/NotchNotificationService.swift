@@ -161,6 +161,10 @@ final class NotchNotificationService: ObservableObject {
     func hideNative(_ id: UUID) {
         guard monitoring, NotchNotificationSupport.dismissesNative(),
               items.contains(where: { $0.id == id }) else { return }
+        guard NotchNotificationSupport.movesNativeWindow else {
+            if closingIDs.insert(id).inserted { closeNative(id) }
+            return
+        }
         shownIDs.insert(id)
         placeNative()
     }
@@ -242,9 +246,10 @@ final class NotchNotificationService: ObservableObject {
 
     private func detach() {
         // Nothing may stay out of sight once mirroring stops, quitting included.
-        // This waits for a move already on its way.
-        if hidesNative, let reader { queue.sync { reader.showNative() } }
+        // Cancelling first ends a read in flight at its next step, and the wait
+        // still covers a move on its way, even one a later pass just queued.
         cancellation.cancel()
+        if let reader, hidesNative || !shownIDs.isEmpty { queue.sync { reader.showNative() } }
         generation = UUID()
         pendingScan?.cancel(); pendingScan = nil
         if let observer {

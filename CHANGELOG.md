@@ -34,7 +34,7 @@ Dynamic Island can follow the pointer between displays, fit the notch, step back
 - Dynamic Island notification banners fit their message instead of always using the same wide strip, and keep one width while several messages arrive in a row.
 - Dynamic Island's screen capture controls start compact, open while the pointer rests on them and close when it leaves; open, they place their title and buttons in the top row, beside the camera when they fit, and keep them away from the island's edges, so less of the screen is covered.
 - Escape in Dynamic Island steps back one level, closing the mixer options, month grid, lyrics or queue, or leaving a detail opened inside the island, before it closes the island.
-- Dynamic Island's Hide the system banner option, formerly Dismiss the system banner, takes the original off screen as soon as the island shows the message instead of closing it about a second later, so its sound plays to the end and it still goes to Notification Center.
+- On macOS 27, Dynamic Island's Hide the system banner option, formerly Dismiss the system banner, takes the original off screen as soon as the island shows the message instead of closing it about a second later, so its sound plays to the end and it still goes to Notification Center.
 
 ### Fixed
 - VoiceOver reads the name of every menu bar panel tab instead of its symbol.
