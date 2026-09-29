@@ -738,7 +738,8 @@ final class AppSwitcher: ObservableObject {
                 && !MouseAppExceptions.shared.excludesPointerTarget(
                     .scrollDirection, at: event.location,
                     sourceProcessID: event.getIntegerValueField(.eventSourceUnixProcessID))
-            let delta = scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil)
+            let delta = scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil,
+                                                        rightToLeft: L10n.shared.language.isRightToLeft)
             if delta != 0 {
                 // Moving the row must not select the card under a stationary pointer.
                 hoverAnchor = NSEvent.mouseLocation

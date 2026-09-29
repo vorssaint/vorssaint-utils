@@ -844,7 +844,7 @@ extension ScratchpadFeatureStrings {
         saveName: "حفظ",
         cancel: "إلغاء",
         deletePadMessageFormat: "حذف “%@” وكل ما فيها؟",
-        padLimitFormat: "يمكنك الاحتفاظ بما يصل إلى %d مفكرة",
+        padLimitFormat: "الحد الأقصى للمفكرات: %d",
         previewFormatting: "إظهار التنسيق",
         editText: "تحرير النص",
         markBold: "عريض",

@@ -258,7 +258,7 @@ final class NotchLockScreenService {
         // pane and a player with no song pass them to the lock screen beneath.
         // Set to false, the whole frame would take them even with nothing shown.
         if !interactive { panel.ignoresMouseEvents = true }
-        let host = NotchLockScreenHostingView(rootView: AnyView(content))
+        let host = NotchLockScreenHostingView(rootView: AnyView(content.appLayoutDirection()))
         host.sizingOptions = []
         panel.contentView = host
         panel.setFrame(frame, display: false)

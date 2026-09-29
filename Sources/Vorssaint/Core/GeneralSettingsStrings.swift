@@ -494,12 +494,12 @@ extension GeneralSettingsStrings {
     )
 
     static let ar = GeneralSettingsStrings(
-        pageDescription: "كيف يبدأ Vorssaint، وكيف يبدو، وما تعرضه لوحة شريط القائمة.",
+        pageDescription: "كيف يبدأ Vorssaint، وكيف يبدو، وما تعرضه لوحة شريط القوائم.",
         appearanceCaption: "ينطبق على نوافذ Vorssaint ولوحاته وحدها، لا على الـ Mac بأكمله.",
         launchAtLoginCaption: "يُفتح تلقائيًا في كل مرة تشغّل فيها الـ Mac.",
         liquidGlassCaption: "لوحات شفافة تشبه الزجاج.",
         liquidGlassOtherWindows: "النوافذ واللوحات الأخرى",
-        panelIntro: "انقر أيقونة Vorssaint في شريط القائمة لفتح اللوحة. وتظهر علاماتها بهذا الترتيب.",
+        panelIntro: "انقر أيقونة Vorssaint في شريط القوائم لفتح اللوحة. وتظهر علاماتها بهذا الترتيب.",
         panelReorderHint: "اسحب لإعادة الترتيب. وأوقف ما لا تحتاج إليه.",
         menuBarIconTitle: "أيقونة شريط القوائم",
         menuBarIconCaption: "اختر الأيقونة التي يعرضها Vorssaint في شريط القوائم.",
