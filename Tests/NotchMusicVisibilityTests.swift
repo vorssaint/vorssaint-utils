@@ -316,5 +316,11 @@ enum NotchMusicVisibilityTests {
                         showsDownloads: false, wing: service.keepAwakeStripWing)
                      && service.surfaceSize == service.compactActivityGeometry.compactActivitySize,
                      "a running Keep Awake session takes the timer's wings in the closed island")
+        service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
+                                         cameraWidth: 180, menuBarHeight: 32, compactSideRoom: 100)
+        service.calendarStripWing = 66
+        suite.expect(service.compactGeometry(for: .calendar, companion: .music).compactActivityWingWidth == 66
+                     && service.compactGeometry(for: .calendar).compactActivityWingWidth == 72,
+                     "an event beside music takes the wings its pair needs, and alone keeps room for its title")
     }
 }
