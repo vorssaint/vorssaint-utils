@@ -534,8 +534,9 @@ struct NotchActivityCombination: Hashable, Identifiable {
 
     var id: String { primary.rawValue + "+" + companion.rawValue }
 
+    /// Named in the order the island shows them, left to right.
     func title(_ language: AppLanguage) -> String {
-        primary.title(language) + " + " + companion.title(language)
+        companion.title(language) + " + " + primary.title(language)
     }
 }
 

@@ -118,6 +118,7 @@ final class BrightnessService: ObservableObject {
     /// system-defined events only, so ordinary typing never touches it.
     private var keyTap: CFMachPort?
     private var keyTapSource: CFRunLoopSource?
+    private var keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
     /// Second tap for keyboards that send brightness as an ordinary key
     /// press instead of a media key. Every keystroke in the session passes
     /// through it, so it runs on its own thread: the window server waits for
@@ -1066,6 +1067,7 @@ final class BrightnessService: ObservableObject {
         CFMachPortInvalidate(tap)
         keyTapSource = nil
         keyTap = nil
+        keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
     }
 
     // MARK: - Brightness keys on other keyboards
@@ -1448,12 +1450,18 @@ final class BrightnessService: ObservableObject {
         guard running, let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
                                                                data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
+        guard case .app(let ownedDelta) = keyOwnership.owner(
+            of: press,
+            option: event.flags.contains(.maskAlternate),
+            shift: event.flags.contains(.maskShift),
+            commandOrControl: !event.flags.isDisjoint(with: [.maskCommand, .maskControl]))
+        else { return Unmanaged.passUnretained(event) }
 
         let defaults = UserDefaults.standard
         let followsPointer = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
         let showsOverlay = defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
         let keyStep = self.keyStep
-        let delta = keyStep.limited(press.delta)
+        let delta = keyStep.limited(ownedDelta)
         // A press left to the system still takes a finer step, as the
         // system's own quarter steps, and both of its halves are replaced.
         func leaveToSystem() -> Unmanaged<CGEvent>? {
