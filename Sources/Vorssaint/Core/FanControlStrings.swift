@@ -47,6 +47,9 @@ struct FanControlFeatureStrings {
     let hottestGPU: String
     let helperUnavailable: String
     let resumeAfterRestart: String
+    let keepManualFor: String
+    let untilChanged: String
+    let returnsToSystemFormat: String
 }
 
 extension FeatureStrings {
@@ -115,7 +118,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "Hottest CPU",
         hottestGPU: "Hottest GPU",
         helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
-        resumeAfterRestart: "Resume after restart or sleep"
+        resumeAfterRestart: "Resume after restart or sleep",
+        keepManualFor: "Keep this speed for",
+        untilChanged: "Until I change it",
+        returnsToSystemFormat: "Back to System in %@"
     )
 
     static let ptBR = FanControlFeatureStrings(
@@ -161,7 +167,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU mais quente",
         hottestGPU: "GPU mais quente",
         helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente.",
-        resumeAfterRestart: "Retomar depois de reiniciar ou repousar"
+        resumeAfterRestart: "Retomar depois de reiniciar ou repousar",
+        keepManualFor: "Manter esta velocidade por",
+        untilChanged: "Até eu mudar",
+        returnsToSystemFormat: "Volta ao Sistema em %@"
     )
 
     static let tr = FanControlFeatureStrings(
@@ -207,7 +216,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "En sıcak CPU",
         hottestGPU: "En sıcak GPU",
         helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin.",
-        resumeAfterRestart: "Yeniden başlatma veya uykudan sonra sürdür"
+        resumeAfterRestart: "Yeniden başlatma veya uykudan sonra sürdür",
+        keepManualFor: "Bu hızı koruma süresi",
+        untilChanged: "Ben değiştirene kadar",
+        returnsToSystemFormat: "%@ sonra Sisteme dönecek"
     )
 
     static let ru = FanControlFeatureStrings(
@@ -253,7 +265,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "Самая горячая CPU",
         hottestGPU: "Самая горячая GPU",
         helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку.",
-        resumeAfterRestart: "Возобновлять после перезагрузки или сна"
+        resumeAfterRestart: "Возобновлять после перезагрузки или сна",
+        keepManualFor: "Держать эту скорость",
+        untilChanged: "Пока я не изменю",
+        returnsToSystemFormat: "Возврат к системе через %@"
     )
 
     static let es = FanControlFeatureStrings(
@@ -299,7 +314,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU más caliente",
         hottestGPU: "GPU más caliente",
         helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo.",
-        resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo"
+        resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo",
+        keepManualFor: "Mantener esta velocidad",
+        untilChanged: "Hasta que la cambie",
+        returnsToSystemFormat: "Vuelve a Sistema en %@"
     )
 
     static let sk = FanControlFeatureStrings(
@@ -345,7 +363,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "Najteplejší CPU",
         hottestGPU: "Najteplejší GPU",
         helperUnavailable: "Chránený ovládač ventilátorov nie je dostupný. Povoľte Vorssaint v časti Položky a rozšírenia spúšťané pri prihlásení a skúste to znova.",
-        resumeAfterRestart: "Pokračovať po reštarte alebo spánku"
+        resumeAfterRestart: "Pokračovať po reštarte alebo spánku",
+        keepManualFor: "Ponechať túto rýchlosť",
+        untilChanged: "Kým ju nezmením",
+        returnsToSystemFormat: "Návrat na Systém o %@"
     )
 
     static let de = FanControlFeatureStrings(
@@ -391,7 +412,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "Heißeste CPU",
         hottestGPU: "Heißeste GPU",
         helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut.",
-        resumeAfterRestart: "Nach Neustart oder Ruhezustand fortsetzen"
+        resumeAfterRestart: "Nach Neustart oder Ruhezustand fortsetzen",
+        keepManualFor: "Diese Geschwindigkeit halten",
+        untilChanged: "Bis ich sie ändere",
+        returnsToSystemFormat: "Zurück zu System in %@"
     )
 
     static let fr = FanControlFeatureStrings(
@@ -437,7 +461,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU le plus chaud",
         hottestGPU: "GPU le plus chaud",
         helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez.",
-        resumeAfterRestart: "Reprendre après un redémarrage ou la veille"
+        resumeAfterRestart: "Reprendre après un redémarrage ou la veille",
+        keepManualFor: "Garder cette vitesse pendant",
+        untilChanged: "Jusqu’à ce que je la change",
+        returnsToSystemFormat: "Retour à Système dans %@"
     )
 
     static let it = FanControlFeatureStrings(
@@ -483,7 +510,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU più calda",
         hottestGPU: "GPU più calda",
         helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova.",
-        resumeAfterRestart: "Riprendi dopo il riavvio o lo stop"
+        resumeAfterRestart: "Riprendi dopo il riavvio o lo stop",
+        keepManualFor: "Mantieni questa velocità per",
+        untilChanged: "Finché non la cambio",
+        returnsToSystemFormat: "Ritorno a Sistema tra %@"
     )
 
     static let ja = FanControlFeatureStrings(
@@ -529,7 +559,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "最高CPU",
         hottestGPU: "最高GPU",
         helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。",
-        resumeAfterRestart: "再起動やスリープのあとに再開"
+        resumeAfterRestart: "再起動やスリープのあとに再開",
+        keepManualFor: "この速度を保つ時間",
+        untilChanged: "変更するまで",
+        returnsToSystemFormat: "あと%@でシステムに戻ります"
     )
 
     static let ko = FanControlFeatureStrings(
@@ -575,7 +608,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "가장 뜨거운 CPU",
         hottestGPU: "가장 뜨거운 GPU",
         helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요.",
-        resumeAfterRestart: "재시작 또는 잠자기 후 다시 적용"
+        resumeAfterRestart: "재시작 또는 잠자기 후 다시 적용",
+        keepManualFor: "이 속도 유지 시간",
+        untilChanged: "직접 바꿀 때까지",
+        returnsToSystemFormat: "%@ 후 시스템으로 돌아갑니다"
     )
 
     static let zhHans = FanControlFeatureStrings(
@@ -621,7 +657,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU最高温度",
         hottestGPU: "GPU最高温度",
         helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。",
-        resumeAfterRestart: "重新启动或睡眠后恢复"
+        resumeAfterRestart: "重新启动或睡眠后恢复",
+        keepManualFor: "保持此速度",
+        untilChanged: "直到我更改",
+        returnsToSystemFormat: "%@后恢复系统控制"
     )
 
     static let zhTW = FanControlFeatureStrings(
@@ -667,7 +706,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。",
-        resumeAfterRestart: "重新開機或睡眠後恢復"
+        resumeAfterRestart: "重新開機或睡眠後恢復",
+        keepManualFor: "維持此速度",
+        untilChanged: "直到我變更",
+        returnsToSystemFormat: "%@後恢復系統控制"
     )
 
     static let zhHK = FanControlFeatureStrings(
@@ -713,7 +755,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。",
-        resumeAfterRestart: "重新啟動或睡眠後恢復"
+        resumeAfterRestart: "重新啟動或睡眠後恢復",
+        keepManualFor: "維持此速度",
+        untilChanged: "直到我更改",
+        returnsToSystemFormat: "%@後恢復系統控制"
     )
     static let uk = FanControlFeatureStrings(
         title: "Керування вентиляторами",
@@ -758,6 +803,9 @@ extension FanControlFeatureStrings {
         hottestCPU: "Найгарячіший CPU",
         hottestGPU: "Найгарячіший GPU",
         helperUnavailable: "Захищений контролер вентиляторів недоступний. Дозвольте Vorssaint у розділі «Автозапуск» і спробуйте знову.",
-        resumeAfterRestart: "Відновлювати після перезавантаження або сну"
+        resumeAfterRestart: "Відновлювати після перезавантаження або сну",
+        keepManualFor: "Тримати цю швидкість",
+        untilChanged: "Доки я не зміню",
+        returnsToSystemFormat: "Повернення до системи через %@"
     )
 }
