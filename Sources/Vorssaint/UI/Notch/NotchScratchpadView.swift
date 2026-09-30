@@ -5,8 +5,9 @@ import AppKit
 import SwiftUI
 
 /// The scratchpad's document inside the island: its tabs in a row, the
-/// editor or its formatted reading filling the rest, and the pad's actions
-/// behind one menu. Everything the floating pad does, at the island's size:
+/// editor or its formatted reading filling the rest, and direct rename and
+/// export controls beside formatting. Everything the floating pad does, at
+/// the island's size:
 /// tabs close from their own cross, Command-T and Command-W work, a new or
 /// chosen pad puts the caret in its text, and a cleared pad comes back with
 /// one undo.
@@ -154,6 +155,18 @@ struct NotchScratchpadView: View {
                 withAnimation(.easeOut(duration: 0.15)) { pad.toggleMarks() }
             }
             .disabled(pad.isPreviewing)
+            NotchIconButton(symbol: "pencil.line", title: text.renamePad) {
+                guard let selectedPad else { return }
+                presentRename(selectedPad)
+            }
+            .disabled(selectedPad == nil)
+            NotchIconButton(symbol: "square.and.arrow.down", title: text.exportAction) {
+                if let window = service.presentationWindow {
+                    pad.exportText(suggestedName: ScratchpadSupport.exportFileName(title: pad.selectedPadName, date: Date()),
+                                   from: window)
+                }
+            }
+            .disabled(pad.text.isEmpty)
             NotchIconButton(symbol: "plus",
                             title: pad.canCreatePad
                                 ? text.newPad
@@ -177,13 +190,6 @@ struct NotchScratchpadView: View {
                         .disabled(!pad.canClosePad)
                     Divider()
                 }
-                Button(text.exportAction) {
-                    if let window = service.presentationWindow {
-                        pad.exportText(suggestedName: ScratchpadSupport.exportFileName(title: pad.selectedPadName, date: Date()),
-                                       from: window)
-                    }
-                }
-                .disabled(pad.text.isEmpty)
                 Button(text.clearAction, role: .destructive) { pad.clear(through: editor.view) }
                     .disabled(pad.text.isEmpty)
                 Divider()
@@ -214,6 +220,10 @@ struct NotchScratchpadView: View {
                 Text(entry.name)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
+                    .simultaneousGesture(TapGesture(count: 2).onEnded {
+                        pad.selectPad(entry.id)
+                        presentRename(entry)
+                    })
                 if showsClose {
                     Button { requestClose(entry) } label: {
                         Image(systemName: "xmark")
