@@ -176,17 +176,40 @@ struct NotchTrackChange {
     /// the first reading since the reader started or changed source, which
     /// only sets where each player is.
     mutating func isNewSong(_ playback: NotchPlayback?, first: Bool) -> Bool {
-        guard let playback,
-              let player = playback.track.appBundleIdentifier ?? playback.track.appPID.map(String.init),
-              let title = Self.cleaned(playback.track.title) else { return false }
-        let song = Song(title: title, artist: Self.cleaned(playback.track.artist))
+        guard let playback, let player = Self.player(of: playback), let song = Self.song(of: playback) else { return false }
         guard !first else { songs[player] = song; return false }
         guard playback.isPlaying else { return false }
         guard let previous = songs.updateValue(song, forKey: player) else { return false }
         return !previous.matches(song)
     }
 
+    /// Whether `next`, read after `current`, can be a player between songs:
+    /// nothing playing, or a song that is not playing and is not the one that
+    /// played, such as another player's paused song standing in or the next
+    /// song reported before it starts. The same song paused is a pause. So is
+    /// another player's song while the player that played still lists a song
+    /// in `sources`, since that player was paused and automatic playback moved
+    /// to the other.
+    static func isBetweenSongs(_ next: NotchPlayback?, after current: NotchPlayback,
+                               sources: [NotchPlaybackSource] = []) -> Bool {
+        guard let next else { return true }
+        guard current.isPlaying, !next.isPlaying else { return false }
+        guard let player = Self.player(of: next), player == Self.player(of: current) else {
+            return !sources.contains { $0.pid == current.track.appPID && $0.hasTrack }
+        }
+        guard let song = Self.song(of: next), let played = Self.song(of: current) else { return true }
+        return !song.matches(played)
+    }
+
     mutating func reset() { songs = [:] }
+
+    private static func player(of playback: NotchPlayback) -> String? {
+        playback.track.appBundleIdentifier ?? playback.track.appPID.map(String.init)
+    }
+
+    private static func song(of playback: NotchPlayback) -> Song? {
+        cleaned(playback.track.title).map { Song(title: $0, artist: cleaned(playback.track.artist)) }
+    }
 
     private static func cleaned(_ text: String?) -> String? {
         guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }

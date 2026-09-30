@@ -122,12 +122,16 @@ final class NotchService: ObservableObject {
     private var screenEdgePressArea: CGRect?
     private var captureControlsMonitors: [Any] = []
     private var hiddenHoverMonitors: [Any] = []
+    private var hoverExitMonitors: [Any] = []
     private var hoverWork: DispatchWorkItem?
     private var noticeWork: DispatchWorkItem?
     private var departureWork: DispatchWorkItem?
     private var musicDepartureWork: DispatchWorkItem?
     private var presentedMusic: NotchCompactMusicSnapshot?
     private var trackWork: DispatchWorkItem?
+    /// A new song with no strip song to keep in its place stays out of the
+    /// closed island until its notice, as scheduleTrackNotice() explains.
+    private var awaitsTrackNotice = false
     private var powerSource: CFRunLoopSource?
     private var powerSampler: PowerSampler?
     private var captureID: UUID?
@@ -233,7 +237,7 @@ final class NotchService: ObservableObject {
     /// A Mac without a battery has no charge to show, so a saved battery
     /// choice rests empty there; playing music still shows as before.
     var idleContent: NotchIdleContent {
-        let content = NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
+        let content = NotchSupport.visibleIdleContent(isPlaying: !awaitsTrackNotice && NotchMusicService.shared.playback?.isPlaying == true)
         return content == .battery && !PowerSampler.hasInternalBattery ? .none : content
     }
 
@@ -268,7 +272,8 @@ final class NotchService: ObservableObject {
     }
 
     var compactActivity: NotchCompactActivity? {
-        activitySelection.current(available: compactActivities)
+        // A new song waiting for its notice is not drawn yet.
+        activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
     }
 
     var compactActivities: [NotchCompactActivity] {
@@ -570,7 +575,7 @@ final class NotchService: ObservableObject {
 
     var surfaceSize: CGSize {
         if let capsule = capsuleSurfaceSize { return capsule }
-        if fullscreenCompact { return geometry.restingSize(showsContent: false) }
+        if fullscreenCompact { return geometry.bareCutout }
         if captureControls != nil {
             if captureControlsCollapsed {
                 return CGSize(width: geometry.cameraWidth + 56, height: geometry.stripHeight)
@@ -845,6 +850,7 @@ final class NotchService: ObservableObject {
         presentedMusic = nil
         trackWork?.cancel(); trackWork = nil
         heldMusic = nil
+        awaitsTrackNotice = false
         subscriptions.removeAll()
         stopPower()
         NotchMusicService.shared.stop()
@@ -881,6 +887,7 @@ final class NotchService: ObservableObject {
         removeScreenEdgeClickMonitors()
         removeCaptureControlsClickThrough()
         removeHiddenHoverMonitors()
+        removeHoverExitMonitors()
         removePointerMonitors()
         releaseMonitor()
         musicTitleWork?.cancel(); musicTitleWork = nil
@@ -1021,7 +1028,7 @@ final class NotchService: ObservableObject {
     }
 
     func hover(_ entered: Bool) {
-        guard running, !suspended, !hiddenAtRestInFullscreen else { return }
+        guard running, !suspended, !hiddenAtRestInFullscreen else { removeHoverExitMonitors(); return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
         let showedPicker = showsCompactActivityPicker
@@ -1029,6 +1036,7 @@ final class NotchService: ObservableObject {
             && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true || pointerOverChildWindow(point)
         hoverState.update(pointerInside: inside)
+        syncHoverExitMonitoring(entered: entered, point: point)
         let emphasize = inside && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
             && notice == nil && captureControls == nil
             && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -1097,6 +1105,36 @@ final class NotchService: ObservableObject {
             hoverWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + (expanded || noticeExpanded ? NotchQuickAccessLayout.hoverExitDelay : 0.12), execute: work)
         }
+    }
+
+    /// AppKit reports hover from the mouse moves it receives, and those can
+    /// stop while the pointer crosses the transparent margin around the
+    /// floating controls. One can even carry another window's coordinates.
+    /// An exit can then arrive with the pointer still in that margin and be
+    /// the last report. From such an exit until AppKit reports the pointer
+    /// again, every move is checked here, so leaving still closes the island.
+    /// A pointer at rest costs nothing.
+    private func syncHoverExitMonitoring(entered: Bool, point: CGPoint) {
+        let watching = !entered
+            && NotchSupport.closesOnPointerExit(expanded: expanded, peeking: peeking, openedByHover: openedByHover)
+            && captureControls == nil && !pinned && !heldDrag && !hiddenUntilHover && !keepsWorkingSurface
+            // Once watching, a pointer that leaves and slips back unreported is still seen.
+            && (!hoverExitMonitors.isEmpty || windowHost?.containsHover(point) == true)
+        guard watching else { removeHoverExitMonitors(); return }
+        guard hoverExitMonitors.isEmpty else { return }
+        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in
+            self?.hover(false)
+        }) { hoverExitMonitors.append(token) }
+        if let token = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] event in
+            self?.hover(false)
+            return event
+        }) { hoverExitMonitors.append(token) }
+    }
+
+    private func removeHoverExitMonitors() {
+        hoverExitMonitors.forEach(NSEvent.removeMonitor)
+        hoverExitMonitors.removeAll()
     }
 
     /// A mirrored banner the pointer can hold: on screen and not covered.
@@ -1730,11 +1768,14 @@ final class NotchService: ObservableObject {
     private func scheduleTrackNotice() {
         trackWork?.cancel()
         if heldMusic == nil, let presentedMusic { heldMusic = presentedMusic }
+        // With no song on the strip, as after a long gap between songs, the
+        // new one waits too, so the notice is still where it first appears.
+        if heldMusic == nil { awaitsTrackNotice = true }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.trackWork = nil
             // Released once the notice covers the strip, or when none can.
-            defer { if self.heldMusic != nil { self.heldMusic = nil } }
+            defer { self.releaseTrackHold() }
             // The open island already shows the song, or holds something else
             // the person is doing.
             guard !self.expanded, !self.peeking, !self.dragPlaceholder, self.captureControls == nil,
@@ -1745,6 +1786,24 @@ final class NotchService: ObservableObject {
         }
         trackWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    /// The reading that ends the song names nothing, another player's song or
+    /// the next one paused. Held, the strip leaves as the song it showed, and
+    /// its hiding ends the hold.
+    private func holdEndingTrack() {
+        if heldMusic == nil, let presentedMusic { heldMusic = presentedMusic }
+    }
+
+    /// The closed island turns to the live song. A song that waited for its
+    /// notice appears now, unless a notice covers it, and the menu room is
+    /// read again for the strip it brings.
+    private func releaseTrackHold() {
+        if heldMusic != nil { heldMusic = nil }
+        guard awaitsTrackNotice else { return }
+        awaitsTrackNotice = false
+        syncMenuSpaceMonitoring()
+        if notice == nil { refreshPresentation() }
     }
 
     func showBrightness(_ level: Double) -> Bool {
@@ -1942,6 +2001,9 @@ final class NotchService: ObservableObject {
         if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
             finishMusicDeparture()
             presentedMusic = nil
+            // Hiding the strip ends a hold, as rememberPresentedMusic does, so
+            // a song held as it ended never comes back over the next one.
+            if heldMusic != nil { heldMusic = nil }
             if hiddenUntilHover { windowHost?.hide(animated: animated, transitionContent: transitionContent) }
             else { panel?.orderOut(nil) }
             removeScreenEdgeClickMonitors()
@@ -1951,6 +2013,7 @@ final class NotchService: ObservableObject {
         guard open || (!hiddenAtRestInFullscreen && (geometry.isNotched || geometry.compactSideRoom != nil)) else {
             finishMusicDeparture()
             presentedMusic = nil
+            if heldMusic != nil { heldMusic = nil }
             windowHost?.hide(animated: animated, transitionContent: transitionContent)
             removeScreenEdgeClickMonitors()
             return
@@ -2533,7 +2596,8 @@ final class NotchService: ObservableObject {
                              customWidth: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomWidth),
                              customHeight: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomHeight),
                              cameraFit: NotchCameraFit.current(), silhouette: NotchSilhouette.current(),
-                             capsuleFit: NotchCapsuleFit.current())
+                             capsuleFit: NotchCapsuleFit.current(),
+                             outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled))
     }
 
     private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {
@@ -2911,6 +2975,11 @@ final class NotchService: ObservableObject {
                     guard playback != nil else { return }
                     self?.rememberPresentedMusic(playback: playback, artwork: artwork, tint: tint)
                 }.store(in: &subscriptions)
+            // Received at once, before the reading that ends the song is
+            // published, so the strip leaves as its own song, cover included.
+            music.trackEnds
+                .sink { [weak self] in self?.holdEndingTrack() }
+                .store(in: &subscriptions)
             music.$playback.map { ($0 != nil, $0?.isPlaying == true) }
                 .removeDuplicates { $0 == $1 }.receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

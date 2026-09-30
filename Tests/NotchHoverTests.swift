@@ -43,6 +43,8 @@ enum NotchHoverTests {
     final class Host {
         var visible = true
         var rect = CGRect.zero
+        /// The floating controls' hover rects on screen, margin included.
+        var controls: [CGRect] = []
         var departsContent = true
         func finishDeparture() { departsContent = false }
         var isConcealedForMissionControl = false
@@ -52,8 +54,8 @@ enum NotchHoverTests {
             return isConcealedForMissionControl
         }
         func containsHover(_ point: CGPoint) -> Bool {
-            visible && !isConcealedForMissionControl && CGRect(origin: .zero, size: rect.size)
-                .contains(CGPoint(x: point.x - rect.minX, y: rect.maxY - point.y))
+            visible && !isConcealedForMissionControl && (CGRect(origin: .zero, size: rect.size)
+                .contains(CGPoint(x: point.x - rect.minX, y: rect.maxY - point.y)) || controls.contains { $0.contains(point) })
         }
     }
     enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
@@ -77,6 +79,7 @@ enum NotchHoverTests {
         var departingNotice: NotchNotice?
         var departureWork: DispatchWorkItem?
         var trackWork: DispatchWorkItem?
+        var awaitsTrackNotice = false
         var presentedMusic: NotchCompactMusicSnapshot?
         var heldMusic: NotchCompactMusicSnapshot?
         var compactActivity: NotchCompactActivity?
@@ -84,6 +87,7 @@ enum NotchHoverTests {
         var activityPickerMenuOpen = false
         var hoverState = NotchHoverState()
         var hiddenHoverMonitors: [Any] = []
+        var hoverExitMonitors: [Any] = []
         var hoverWork: DispatchWorkItem?
         var captureHover: ((Bool) -> Void)?
         func updateCaptureControlsHover(wasInside: Bool) {}
@@ -121,7 +125,9 @@ enum NotchHoverTests {
             updateBounds()
         }
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
-        func refreshPresentation() { updateBounds() }
+        var refreshes = 0, menuSpaceSyncs = 0
+        func refreshPresentation() { refreshes += 1; updateBounds() }
+        func syncMenuSpaceMonitoring() { menuSpaceSyncs += 1 }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
     }
@@ -362,6 +368,88 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(0.19)
         suite.expect(departed.closures == 1,
                      "the hover-open island closes after its normal pointer exit delay")
+
+        // AppKit's last exit can come while the pointer is still in the margin
+        // around the floating controls. Leaving from there over transparent
+        // pixels or out of the window reports nothing more to the island.
+        func openWithPointerInMargin() -> Service {
+            let service = fixture()
+            service.hover(true)
+            DispatchQueue.main.advance(0.26)
+            let island = service.windowHost!.rect
+            service.windowHost?.controls = [CGRect(x: island.midX - 38, y: island.minY - 72, width: 76, height: 88)]
+            NSEvent.mouseLocation = CGPoint(x: island.midX, y: island.minY - 60)
+            service.hover(false)
+            return service
+        }
+        func follow(to point: CGPoint, local: Bool = false) {
+            NSEvent.mouseLocation = point
+            let event = NSEvent()
+            if local {
+                for handler in Array(NSEvent.local.values) {
+                    suite.expect(handler(event) === event, "following the pointer never consumes its local event")
+                }
+            } else { for handler in Array(NSEvent.global.values) { handler(event) } }
+        }
+        let margin = openWithPointerInMargin()
+        let island = margin.windowHost!.rect
+        suite.expect(margin.expanded && margin.inside && margin.hoverWork == nil
+                     && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                     "an exit reported in the controls' margin keeps the island open and follows the pointer")
+        follow(to: CGPoint(x: island.midX + 20, y: island.minY - 30), local: true)
+        DispatchQueue.main.advance(0.5)
+        suite.expect(margin.expanded && margin.closures == 0, "slow travel through the margin keeps the island open")
+        follow(to: CGPoint(x: island.midX, y: island.minY - 400))
+        DispatchQueue.main.advance(0.10)
+        follow(to: CGPoint(x: island.midX - 20, y: island.minY - 50))
+        DispatchQueue.main.advance(0.20)
+        suite.expect(margin.expanded && margin.closures == 0,
+                     "slipping back into the margin unreported cancels the pending close")
+        follow(to: CGPoint(x: island.midX, y: island.minY - 400))
+        DispatchQueue.main.advance(0.19)
+        suite.expect(margin.closures == 1, "leaving from the margin with no further report still closes the island")
+        follow(to: CGPoint(x: island.midX, y: island.minY - 420))
+        suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty, "the closed island stops following the pointer")
+
+        let reported = openWithPointerInMargin()
+        reported.hover(true)
+        suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty && reported.expanded,
+                     "an entry AppKit reports hands hover back to its tracking")
+        let stopped = openWithPointerInMargin()
+        stopped.running = false
+        follow(to: CGPoint(x: island.midX, y: island.minY - 400))
+        suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty && stopped.closures == 0,
+                     "stopping the island releases the pointer observers")
+        // Pinning, a drag from the shelf, or a menu or dialog keeps the island
+        // and ends the watch. A menu that closes with the pointer still in the
+        // margin starts it again.
+        for protect: (Service) -> Void in [{ $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true }] {
+            let held = openWithPointerInMargin()
+            protect(held)
+            follow(to: CGPoint(x: island.midX, y: island.minY - 400))
+            DispatchQueue.main.advance(1)
+            suite.expect(held.expanded && held.closures == 0 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "pinning, a shelf drag, a menu or a dialog keeps the island and stops following the pointer")
+        }
+        let menu = openWithPointerInMargin()
+        menu.keepsWorkingSurface = true
+        follow(to: CGPoint(x: island.midX + 20, y: island.minY - 30))
+        menu.keepsWorkingSurface = false
+        menu.hover(false)
+        suite.expect(NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                     "a menu that closes with the pointer in the margin follows the pointer again")
+        follow(to: CGPoint(x: island.midX, y: island.minY - 400))
+        DispatchQueue.main.advance(0.19)
+        follow(to: CGPoint(x: island.midX, y: island.minY - 420))
+        suite.expect(menu.closures == 1 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                     "leaving after the menu closes the island and releases the pointer observers")
+        let clickOpened = fixture()
+        clickOpened.open(takeFocus: true)
+        clickOpened.windowHost?.controls = [CGRect(x: island.midX - 38, y: island.minY - 72, width: 76, height: 88)]
+        NSEvent.mouseLocation = CGPoint(x: island.midX, y: island.minY - 60)
+        clickOpened.hover(false)
+        suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                     "an island opened by a click, which leaving does not close, never follows the pointer")
         for disable: (Service) -> Void in [
             { $0.suspended = true }, { $0.windowHost = nil },
             { _ in UserDefaults.standard.hides = false }, { _ in UserDefaults.standard.enabled = false }
@@ -536,6 +624,38 @@ enum NotchHoverTests {
         NotchMusicService.shared.playback = song("New")
         hidden.scheduleTrackNotice()
         expect(hidden.heldMusic == nil, "nothing is held when the strip was not on screen")
+
+        // A long gap takes the strip away before the next song plays.
+        let arriving = fixture(false)
+        NotchMusicService.shared.playback = song("New")
+        arriving.scheduleTrackNotice()
+        expect(arriving.awaitsTrackNotice && arriving.heldMusic == nil,
+               "a new song with no strip song to keep waits for its notice too")
+        DispatchQueue.main.advance(0.5)
+        expect(arriving.notice?.title == "New" && !arriving.awaitsTrackNotice && arriving.menuSpaceSyncs == 1,
+               "the notice shows the song first, and the closed island may show it after, with its menu room read again")
+        let unnoticed = fixture(false)
+        NotchMusicService.shared.playback = song("New")
+        unnoticed.scheduleTrackNotice()
+        unnoticed.expanded = true
+        let refreshes = unnoticed.refreshes
+        DispatchQueue.main.advance(0.5)
+        expect(unnoticed.notice == nil && !unnoticed.awaitsTrackNotice && unnoticed.refreshes > refreshes,
+               "a song whose notice cannot show is released to the island at once")
+        let kept = fixture(false)
+        kept.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+        NotchMusicService.shared.playback = song("New")
+        kept.scheduleTrackNotice()
+        expect(!kept.awaitsTrackNotice && kept.heldMusic?.title == "Old",
+               "a song on the strip is kept in place instead")
+        let ending = fixture(false)
+        ending.holdEndingTrack()
+        expect(ending.heldMusic == nil, "nothing is held for a song that was not on the strip")
+        ending.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+        ending.holdEndingTrack()
+        ending.presentedMusic = NotchCompactMusicSnapshot(title: "Other")
+        ending.holdEndingTrack()
+        expect(ending.heldMusic?.title == "Old", "a song that ends leaves the strip as the song it showed")
     }
 
     /// A mirrored banner arrives with its own dismissal pending, as `show`

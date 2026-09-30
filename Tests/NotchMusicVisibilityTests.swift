@@ -81,6 +81,7 @@ enum NotchMusicVisibilityTests {
         var downloadName: String?
         var hasAgentActivity = false
         var hasKeepAwakeActivity = false
+        var awaitsTrackNotice = false
         var timerStripWing: CGFloat = 44
         func timerStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
@@ -150,6 +151,13 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(!reader.running && service.surfaceSize == closed,
                          "fullscreen keeps a black cutout and stops the automatic playback reader")
+            let plain = service.geometry
+            service.geometry = NotchGeometry(screen: plain.screen, safeAreaTop: physical ? 32 : 0,
+                                             cameraWidth: physical ? 180 : 0, menuBarHeight: 32,
+                                             compactSideRoom: 100, outline: true)
+            suite.expect(service.surfaceSize == closed,
+                         "fullscreen draws no outline, so its cutout keeps to the camera without the outline's room")
+            service.geometry = plain
             service.showsCopies = true
             service.syncVisibleConsumers()
             suite.expect(reader.running, "copies on other displays keep the song while the island rests in fullscreen")
@@ -220,6 +228,11 @@ enum NotchMusicVisibilityTests {
                        && (service.surfaceSize == closed) == !playing,
                        "re-enabling music detects resume while paused playback occupies no wings")
             }
+            service.awaitsTrackNotice = true
+            suite.expect(service.compactActivity == nil && service.idleContent == .none && service.surfaceSize == closed,
+                   "a new song waiting for its notice leaves the closed island at rest, cover included")
+            service.awaitsTrackNotice = false
+            suite.expect(service.compactActivity == .music, "once released, the playing song takes the strip")
             defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
             defaults.set(true, forKey: DefaultsKey.notchHideUntilHover)
             service.syncVisibleConsumers()

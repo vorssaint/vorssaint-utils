@@ -28,6 +28,10 @@ final class NotchMusicService: ObservableObject {
     /// A player moved on to another song; see NotchTrackChange. Sent before
     /// the song is published, while every surface still shows the old one.
     let trackChanges = PassthroughSubject<Void, Never>()
+    /// The song shown stops, and no other plays yet: a gap between songs
+    /// outlasted its grace period, or another player's paused song took over
+    /// from a pause. Sent before that reading is published.
+    let trackEnds = PassthroughSubject<Void, Never>()
     /// Immediate visual acknowledgement of an accepted swipe, before metadata arrives.
     let gestureSkips = PassthroughSubject<Bool, Never>()
     private var trackChange = NotchTrackChange()
@@ -209,12 +213,19 @@ final class NotchMusicService: ObservableObject {
     }
 
     /// A player moving on to its next song can clear its metadata for a
-    /// moment, which reads as nothing playing: the page would empty and
-    /// shrink, and the compact strip leave, until the next song arrives.
-    /// The last song stays through such a gap and the next reading replaces
-    /// it at once. Later empty readings never extend the grace period.
+    /// moment, which reads as nothing playing or as another player's paused
+    /// song standing in, or report the next song paused before it starts. The
+    /// page would empty or change and shrink, and the compact strip leave,
+    /// until the next song plays. The last song stays through such a gap and
+    /// the next reading replaces it at once. Later readings of the gap never
+    /// extend the grace period.
     private func receive(_ reading: Reading) {
-        if reading.playback == nil, playback != nil, !awaitingPlayback {
+        // A player that still lists a song when another player's paused song
+        // takes its place was paused. During a gap it had left, the song it
+        // lists again can be its next one, still loading.
+        let listing = gapWork == nil ? reading.sources : []
+        if let current = playback, !awaitingPlayback,
+           NotchTrackChange.isBetweenSongs(reading.playback, after: current, sources: listing) {
             gapReading = reading
             guard gapWork == nil else { return }
             let requested = generation
@@ -240,6 +251,9 @@ final class NotchMusicService: ObservableObject {
     private func apply(_ reading: Reading) {
         let first = awaitingPlayback
         if trackChange.isNewSong(reading.playback, first: first) { trackChanges.send() }
+        else if !first, let current = playback, NotchTrackChange.isBetweenSongs(reading.playback, after: current) {
+            trackEnds.send()
+        }
         updateArtwork(reading.artwork, tint: reading.tint, playback: reading.playback)
         playback = reading.playback
         sources = reading.sources
