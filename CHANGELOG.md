@@ -14,12 +14,10 @@ The recording editor can copy a recording as an animated GIF, and the camera mir
 - An event countdown paired with music or AI agents is only as wide as its clock and the other activity's mark need, like a timer's pair, so it leaves no extra black beside the camera. With Show over the menus off, the pair also stays beside the camera on a crowded menu bar whenever it fits.
 - The capsule grows around what it shows when the pointer reaches it, so a song's cover and sound bars no longer jump outward first.
 - In the open capsule, the header's buttons now sit as far from the top edge as the page does from the bottom, so the title no longer crowds the top.
-- With Liquid Glass on, the lower part of the open island stays darker, so text from a window behind it no longer reads through the cards.
-- Pages that scroll fade out at the top and bottom instead of ending in a hard line, and lists that run past the side, such as recent captures and notifications, fade where more follows. This needs macOS 15 or later.
-- Choosing another activity in the closed island slides the highlight to it and changes the strip in place, instead of fading the whole island.
-- Play and pause in Now Playing change at once instead of waiting for the player to answer.
-- The Downloads page invites you to choose a folder with an icon and a button, or to turn Downloads on, instead of a bare checkbox.
-- The menu behind the ··· button of the open island uses the dark look of the island, and the volume bar under a song's position bar is as slim as it.
+- With Liquid Glass on, more of the open island stays dark, so text from a window behind it shows through only near its lower edge. Menus opened from the island's buttons, such as ··· and the output device chooser, use the island's dark look.
+- On macOS 15 and later, a page taller than the island fades at the top and bottom where more follows, and rows that run past the side, such as recent captures and notifications, fade at that edge instead of ending in a hard line.
+- Choosing another activity in the closed island slides the highlight to it and changes the strip in place instead of fading the whole island. Play and pause change at once for players the island controls directly.
+- The Downloads page without a folder explains what it does and offers a Choose Folder… button, or a Downloads switch while Downloads is off, instead of a bare checkbox.
 
 ### Added
 - The recording editor's Copy button has a menu with Copy as GIF, which copies the edited recording as an animated GIF ready to paste. Copy and ⌘C still copy the video.
