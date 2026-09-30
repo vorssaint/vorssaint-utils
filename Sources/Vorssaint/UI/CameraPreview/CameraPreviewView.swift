@@ -76,32 +76,41 @@ struct CameraPreviewView: View {
     @ViewBuilder
     private var controls: some View {
         if showsMenu || onStop != nil {
-            HStack(spacing: 6) {
-                if showsMenu {
-                    cameraMenu.transition(.opacity)
-                }
-                if let onStop {
-                    Button(action: onStop) {
-                        Text(FeatureStrings.notchActivities(l10n.language).stopCamera)
-                            .font(.caption)
-                            .lineLimit(1)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(.black.opacity(0.55), in: Capsule())
-                            // Still a button over the black of a status message.
-                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
-                    .foregroundStyle(.white)
-                    .fixedSize()
-                }
+            // A camera name too long to share the row leaves the picker its
+            // icon, so neither control is cut off at the image's edges.
+            ViewThatFits(in: .horizontal) {
+                controlRow(showsCameraName: true)
+                controlRow(showsCameraName: false)
             }
-            .padding(.bottom, 10)
+            .padding([.horizontal, .bottom], 10)
         }
     }
 
-    private var cameraMenu: some View {
+    private func controlRow(showsCameraName: Bool) -> some View {
+        HStack(spacing: 6) {
+            if showsMenu {
+                cameraMenu(showsName: showsCameraName).transition(.opacity)
+            }
+            if let onStop {
+                Button(action: onStop) {
+                    Text(FeatureStrings.notchActivities(l10n.language).stopCamera)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(.black.opacity(0.55), in: Capsule())
+                        // Still a button over the black of a status message.
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
+                .foregroundStyle(.white)
+                .fixedSize()
+            }
+        }
+    }
+
+    private func cameraMenu(showsName: Bool) -> some View {
         Menu {
             ForEach(service.devices, id: \.uniqueID) { device in
                 Button {
@@ -118,9 +127,11 @@ struct CameraPreviewView: View {
             HStack(spacing: 5) {
                 Image(systemName: "web.camera")
                     .font(.system(size: 10, weight: .semibold))
-                Text(currentCameraName)
-                    .font(.caption)
-                    .lineLimit(1)
+                if showsName {
+                    Text(currentCameraName)
+                        .font(.caption)
+                        .lineLimit(1)
+                }
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8, weight: .semibold))
             }

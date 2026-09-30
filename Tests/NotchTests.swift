@@ -1507,7 +1507,8 @@ enum NotchTests {
                    "gallery Down follows the next visible row rather than the old sideways rail")
         }
         for size in [CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
-                     CGSize(width: 504, height: 264)] {
+                     CGSize(width: 504, height: 264), CGSize(width: 304, height: 144),
+                     CGSize(width: 424, height: 300)] {
             let preview = NotchLayout.cameraPreviewSize(in: size)
             let ratio = preview.width / preview.height
             suite.expect(preview.width <= size.width && preview.height <= size.height
