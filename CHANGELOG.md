@@ -21,6 +21,7 @@ On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipbo
 - Up next shows each song's cover when the player shares one, and the list no longer blanks out for a moment on next or previous.
 - On the Clipboard page, Return or Enter pastes the first entry before any arrow is pressed, as the history window does. Without Accessibility it copies the entry.
 - The AI Agents page picks up where the last launch stopped and reads only what Claude Code and Codex wrote since, instead of every log of the last 13 weeks. What it keeps for that is in the app's cache folder and is deleted when the section is turned off.
+- The closed island can show your weekly AI limit instead of whichever limit is closest to running out. Choose Session or Week under Limit in the island, in the AI agents options of Settings → Dynamic Island.
 
 ### Added
 - The recording editor's Copy button has a menu with Copy as GIF, which copies the edited recording as an animated GIF ready to paste. Copy and ⌘C still copy the video.

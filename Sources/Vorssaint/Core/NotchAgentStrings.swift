@@ -50,6 +50,8 @@ struct NotchAgentStrings {
     let cardsTitle: String
     let cardsHint: String
     let limitsAs: String
+    let limitWindow: String
+    let limitTightest: String
     let remaining: String
     let used: String
     let liveTitle: String
@@ -128,6 +130,14 @@ struct NotchAgentStrings {
         case .projects: return projectsCard
         case .activity: return activityCard
         case .resets: return resetsCard
+        }
+    }
+
+    func limitWindow(_ window: NotchAgentLimitWindow) -> String {
+        switch window {
+        case .tightest: return limitTightest
+        case .session: return session
+        case .weekly: return weekly
         }
     }
 
@@ -211,6 +221,8 @@ extension NotchAgentStrings {
         cardsTitle: "Cards",
         cardsHint: "Drag to reorder. Charts take the full width of the island.",
         limitsAs: "Show limits as",
+        limitWindow: "Limit in the island",
+        limitTightest: "Closest to running out",
         remaining: "Left",
         used: "Used",
         liveTitle: "While an agent works",
@@ -304,6 +316,8 @@ extension NotchAgentStrings {
         cardsTitle: "Картки",
         cardsHint: "Перетягуйте, щоб змінити порядок. Діаграми займають усю ширину острівця.",
         limitsAs: "Показувати ліміти як",
+        limitWindow: "Ліміт в острові",
+        limitTightest: "Найближчий до вичерпання",
         remaining: "Залишок",
         used: "Використано",
         liveTitle: "Поки агент працює",
@@ -397,6 +411,8 @@ extension NotchAgentStrings {
         cardsTitle: "Cartões",
         cardsHint: "Arraste para reordenar. Gráficos ocupam toda a largura do Dynamic Island.",
         limitsAs: "Mostrar limites como",
+        limitWindow: "Limite na ilha",
+        limitTightest: "O mais perto de acabar",
         remaining: "Restante",
         used: "Usado",
         liveTitle: "Enquanto um agente trabalha",
@@ -490,6 +506,8 @@ extension NotchAgentStrings {
         cardsTitle: "Tarjetas",
         cardsHint: "Arrastra para reordenar. Los gráficos ocupan todo el ancho del Dynamic Island.",
         limitsAs: "Mostrar límites como",
+        limitWindow: "Límite en la isla",
+        limitTightest: "El más cerca de agotarse",
         remaining: "Restante",
         used: "Usado",
         liveTitle: "Mientras un agente trabaja",
@@ -583,6 +601,8 @@ extension NotchAgentStrings {
         cardsTitle: "Karty",
         cardsHint: "Presunutím zmeníte poradie. Grafy zaberajú celú šírku Dynamic Island.",
         limitsAs: "Zobraziť limity ako",
+        limitWindow: "Limit na ostrove",
+        limitTightest: "Najbližšie k vyčerpaniu",
         remaining: "Zostatok",
         used: "Využité",
         liveTitle: "Kým agent pracuje",
@@ -676,6 +696,8 @@ extension NotchAgentStrings {
         cardsTitle: "Karten",
         cardsHint: "Zum Neuordnen ziehen. Diagramme nutzen die volle Breite des Dynamic Island.",
         limitsAs: "Limits anzeigen als",
+        limitWindow: "Limit auf der Insel",
+        limitTightest: "Am nächsten am Ende",
         remaining: "Übrig",
         used: "Genutzt",
         liveTitle: "Während ein Agent arbeitet",
@@ -769,6 +791,8 @@ extension NotchAgentStrings {
         cardsTitle: "Cartes",
         cardsHint: "Faites glisser pour réorganiser. Les graphiques occupent toute la largeur du Dynamic Island.",
         limitsAs: "Afficher les limites en",
+        limitWindow: "Limite dans l’île",
+        limitTightest: "La plus proche de la fin",
         remaining: "Restant",
         used: "Utilisé",
         liveTitle: "Pendant qu’un agent travaille",
@@ -862,6 +886,8 @@ extension NotchAgentStrings {
         cardsTitle: "Schede",
         cardsHint: "Trascina per riordinare. I grafici occupano tutta la larghezza del Dynamic Island.",
         limitsAs: "Mostra i limiti come",
+        limitWindow: "Limite nell’isola",
+        limitTightest: "Il più vicino all’esaurimento",
         remaining: "Rimasto",
         used: "Usato",
         liveTitle: "Mentre un agente lavora",
@@ -955,6 +981,8 @@ extension NotchAgentStrings {
         cardsTitle: "Карточки",
         cardsHint: "Перетащите, чтобы изменить порядок. Графики занимают всю ширину Dynamic Island.",
         limitsAs: "Показывать лимиты",
+        limitWindow: "Лимит в острове",
+        limitTightest: "Ближайший к исчерпанию",
         remaining: "Остаток",
         used: "Использовано",
         liveTitle: "Пока агент работает",
@@ -1048,6 +1076,8 @@ extension NotchAgentStrings {
         cardsTitle: "Kartlar",
         cardsHint: "Sıralamak için sürükleyin. Grafikler Dynamic Island’ın tüm genişliğini kaplar.",
         limitsAs: "Sınırları göster",
+        limitWindow: "Adadaki sınır",
+        limitTightest: "Bitmeye en yakın",
         remaining: "Kalan",
         used: "Kullanılan",
         liveTitle: "Bir ajan çalışırken",
@@ -1141,6 +1171,8 @@ extension NotchAgentStrings {
         cardsTitle: "カード",
         cardsHint: "ドラッグで並べ替えできます。グラフはDynamic Islandの横幅いっぱいに表示されます。",
         limitsAs: "上限の表示",
+        limitWindow: "アイランドの上限",
+        limitTightest: "残りが最も少ない上限",
         remaining: "残り",
         used: "使用済み",
         liveTitle: "エージェントの作業中",
@@ -1234,6 +1266,8 @@ extension NotchAgentStrings {
         cardsTitle: "카드",
         cardsHint: "드래그하여 순서를 바꾸세요. 그래프는 Dynamic Island의 전체 너비를 사용합니다.",
         limitsAs: "한도 표시 방식",
+        limitWindow: "아일랜드에 표시할 한도",
+        limitTightest: "가장 먼저 소진될 한도",
         remaining: "남은 양",
         used: "사용량",
         liveTitle: "에이전트가 작업하는 동안",
@@ -1327,6 +1361,8 @@ extension NotchAgentStrings {
         cardsTitle: "卡片",
         cardsHint: "拖动以重新排序。图表会占满 Dynamic Island 的宽度。",
         limitsAs: "额度显示为",
+        limitWindow: "灵动岛中的额度",
+        limitTightest: "最先用尽的额度",
         remaining: "剩余",
         used: "已用",
         liveTitle: "智能体工作时",
@@ -1420,6 +1456,8 @@ extension NotchAgentStrings {
         cardsTitle: "卡片",
         cardsHint: "拖移以重新排序。圖表會占滿 Dynamic Island 的寬度。",
         limitsAs: "額度顯示為",
+        limitWindow: "動態島中的額度",
+        limitTightest: "最先用盡的額度",
         remaining: "剩餘",
         used: "已用",
         liveTitle: "代理運作時",
@@ -1513,6 +1551,8 @@ extension NotchAgentStrings {
         cardsTitle: "卡片",
         cardsHint: "拖移以重新排序。圖表會佔滿 Dynamic Island 的闊度。",
         limitsAs: "額度顯示為",
+        limitWindow: "動態島中的額度",
+        limitTightest: "最先用盡的額度",
         remaining: "剩餘",
         used: "已用",
         liveTitle: "代理運作時",

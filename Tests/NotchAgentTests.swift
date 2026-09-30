@@ -691,32 +691,44 @@ enum NotchAgentTests {
                      "only elapsed and expiring-limit readouts require clock-driven updates")
         let short = snapshot([session(.claude, startedAgo: 754)])
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
-        suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
-                        && NotchAgentSupport.stripReading(long, readout: .elapsed, display: .remaining, now: now) == "1:02:03",
+        suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, window: .tightest, now: now) == "12:34"
+                        && NotchAgentSupport.stripReading(long, readout: .elapsed, display: .remaining, window: .tightest, now: now) == "1:02:03",
                      "the strip counts from the earliest turn still working")
-        suite.expect(NotchAgentSupport.stripReading(short, readout: .cost, display: .remaining, now: now) == AgentFormat.cost(4.56)
-                        && NotchAgentSupport.stripReading(long, readout: .tokens, display: .remaining, now: now)
+        suite.expect(NotchAgentSupport.stripReading(short, readout: .cost, display: .remaining, window: .tightest, now: now) == AgentFormat.cost(4.56)
+                        && NotchAgentSupport.stripReading(long, readout: .tokens, display: .remaining, window: .tightest, now: now)
                             == AgentFormat.tokens(600),
                      "cost and written tokens add up every turn that is working")
         for readout in [NotchAgentReadout.tokens, .cost] {
-            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, now: now)
+            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, window: .tightest, now: now)
                             == NotchAgentSupport.stripReading(short, readout: readout, display: .remaining,
-                                                             now: now.addingTimeInterval(60)),
+                                                             window: .tightest, now: now.addingTimeInterval(60)),
                          "time alone never changes the \(readout.rawValue) reading")
-            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, now: now)
-                            != NotchAgentSupport.stripReading(long, readout: readout, display: .remaining, now: now),
+            suite.expect(NotchAgentSupport.stripReading(short, readout: readout, display: .remaining, window: .tightest, now: now)
+                            != NotchAgentSupport.stripReading(long, readout: readout, display: .remaining, window: .tightest, now: now),
                          "a new usage snapshot still changes the \(readout.rawValue) reading")
         }
         let window = AgentLimitWindow(id: "w", kind: .weekly, minutes: 10_080, scope: nil, usedPercent: 79,
                                       resetsAt: now.addingTimeInterval(86_400))
         let limited = snapshot([session(.claude, startedAgo: 754)],
                                limits: [.claude: AgentLimits(provider: .claude, windows: [window], observedAt: now, source: .claudeApp)])
-        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: now) == AgentFormat.percent(0.21)
-                        && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
-                        && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
+        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, window: .tightest, now: now) == AgentFormat.percent(0.21)
+                        && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, window: .tightest, now: now) == AgentFormat.percent(0.79)
+                        && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, window: .tightest, now: now) == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        let sessionWindow = AgentLimitWindow(id: "s", kind: .session, minutes: 300, scope: nil, usedPercent: 96,
+                                             resetsAt: now.addingTimeInterval(3_600))
+        let opusWindow = AgentLimitWindow(id: "o", kind: .weekly, minutes: 10_080, scope: "Opus", usedPercent: 90,
+                                          resetsAt: now.addingTimeInterval(86_400))
+        let both = snapshot([session(.claude, startedAgo: 754)],
+                            limits: [.claude: AgentLimits(provider: .claude, windows: [sessionWindow, opusWindow, window],
+                                                          observedAt: now, source: .claudeApp)])
+        suite.expect(NotchAgentSupport.stripReading(both, readout: .limit, display: .used, window: .tightest, now: now) == AgentFormat.percent(0.96)
+                        && NotchAgentSupport.stripReading(both, readout: .limit, display: .used, window: .session, now: now) == AgentFormat.percent(0.96)
+                        && NotchAgentSupport.stripReading(both, readout: .limit, display: .used, window: .weekly, now: now) == AgentFormat.percent(0.79)
+                        && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, window: .session, now: now) == AgentFormat.percent(0.79),
+                     "a chosen window reads the allowance covering every model, and the tightest while that kind is unknown")
         let expiredAt = now.addingTimeInterval(86_401)
-        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: expiredAt)
+        suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, window: .tightest, now: expiredAt)
                         == AgentFormat.percent(1),
                      "a limit that renews without a new snapshot still updates from the clock")
         suite.expect(NotchAgentSupport.readingShape("12:34") == NotchAgentSupport.readingShape("59:59")

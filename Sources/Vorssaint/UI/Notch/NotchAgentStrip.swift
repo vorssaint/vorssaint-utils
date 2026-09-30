@@ -14,6 +14,7 @@ struct NotchAgentStrip: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitWindow) private var limitWindow = NotchAgentLimitWindow.tightest.rawValue
 
     private var live: [AgentLiveSession] { usage.snapshot.live }
     private var working: [AgentProvider] {
@@ -87,7 +88,8 @@ struct NotchAgentStrip: View {
 
     private func reading(at now: Date) -> String {
         NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
-                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
+                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
+                                       window: NotchAgentLimitWindow(rawValue: limitWindow) ?? .tightest, now: now)
     }
 }
 
@@ -114,6 +116,7 @@ struct NotchAgentRestingWing: View {
     let leading: Bool
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitWindow) private var limitWindow = NotchAgentLimitWindow.tightest.rawValue
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -124,7 +127,8 @@ struct NotchAgentRestingWing: View {
     @ViewBuilder private func content(now: Date) -> some View {
         let snapshot = usage.snapshot
         let candidates = snapshot.limits.compactMap { provider, limits in
-            AgentLimitSupport.binding(limits, now: now).map { (provider: provider, window: $0) }
+            NotchAgentSupport.shownLimit(limits, window: NotchAgentLimitWindow(rawValue: limitWindow) ?? .tightest, now: now)
+                .map { (provider: provider, window: $0) }
         }
         let focus = candidates.max {
             $0.window.usedPercent != $1.window.usedPercent ? $0.window.usedPercent < $1.window.usedPercent
