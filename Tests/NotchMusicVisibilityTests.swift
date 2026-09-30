@@ -150,6 +150,13 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(!reader.running && service.surfaceSize == closed,
                          "fullscreen keeps a black cutout and stops the automatic playback reader")
+            let plain = service.geometry
+            service.geometry = NotchGeometry(screen: plain.screen, safeAreaTop: physical ? 32 : 0,
+                                             cameraWidth: physical ? 180 : 0, menuBarHeight: 32,
+                                             compactSideRoom: 100, outline: true)
+            suite.expect(service.surfaceSize == closed,
+                         "fullscreen draws no outline, so its cutout keeps to the camera without the outline's room")
+            service.geometry = plain
             service.showsCopies = true
             service.syncVisibleConsumers()
             suite.expect(reader.running, "copies on other displays keep the song while the island rests in fullscreen")
@@ -316,5 +323,11 @@ enum NotchMusicVisibilityTests {
                         showsDownloads: false, wing: service.keepAwakeStripWing)
                      && service.surfaceSize == service.compactActivityGeometry.compactActivitySize,
                      "a running Keep Awake session takes the timer's wings in the closed island")
+        service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
+                                         cameraWidth: 180, menuBarHeight: 32, compactSideRoom: 100)
+        service.calendarStripWing = 66
+        suite.expect(service.compactGeometry(for: .calendar, companion: .music).compactActivityWingWidth == 66
+                     && service.compactGeometry(for: .calendar).compactActivityWingWidth == 72,
+                     "an event beside music takes the wings its pair needs, and alone keeps room for its title")
     }
 }
