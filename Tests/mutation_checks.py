@@ -203,6 +203,11 @@ MUTATIONS = [
     ("overwrite unreadable notes", "storage", "Sources/Vorssaint/Services/QuickTools/ScratchpadStore.swift",
      "        guard canSave else { return false }", "        // guard canSave else { return false }",
      "damaged scratchpad blocks subsequent saves of empty and nonempty documents"),
+    ("Codex conversation starts its plugins", "agents",
+     "Sources/Vorssaint/Services/AgentUsage/AgentCodexServer.swift",
+     "process.arguments = [\"-c\", \"features.plugins=false\", \"app-server\"]",
+     "process.arguments = [\"app-server\"]",
+     "a conversation starts Codex's server with its plugins off"),
 ]
 
 
