@@ -54,6 +54,8 @@ enum NotchFullscreenTests {
     class State {
         var running = true, suspended = false, hiddenInFullscreen = false
         var hoverEmphasized = false
+        var hoverEmphasisWork: DispatchWorkItem?
+        var hoverEmphasisReady = false
         var panel: Bool? = true
         var windowHost: Host? = Host()
         struct Host { var isConcealedForMissionControl = false }

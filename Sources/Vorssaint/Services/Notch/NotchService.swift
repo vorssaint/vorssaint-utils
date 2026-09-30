@@ -124,6 +124,8 @@ final class NotchService: ObservableObject {
     private var hiddenHoverMonitors: [Any] = []
     private var hoverExitMonitors: [Any] = []
     private var hoverWork: DispatchWorkItem?
+    private var hoverEmphasisWork: DispatchWorkItem?
+    private var hoverEmphasisReady = false
     private var noticeWork: DispatchWorkItem?
     private var departureWork: DispatchWorkItem?
     private var musicDepartureWork: DispatchWorkItem?
@@ -871,6 +873,8 @@ final class NotchService: ObservableObject {
         sectionRow = 0
         inside = false
         hoverEmphasized = false
+        hoverEmphasisWork?.cancel(); hoverEmphasisWork = nil
+        hoverEmphasisReady = false
         activitySelection = NotchActivitySelection()
         activityPickerMenuOpen = false
         hoverState = NotchHoverState()
@@ -1028,9 +1032,33 @@ final class NotchService: ObservableObject {
             && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true || pointerOverChildWindow(point)
         hoverState.update(pointerInside: inside)
-        let emphasize = inside && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
+        let wantsEmphasis = inside && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
             && notice == nil && captureControls == nil
             && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        // A pointer passing straight over the island should not make it twitch,
+        // so the emphasis waits a moment. Leaving still ends it at once.
+        if !wantsEmphasis {
+            hoverEmphasisWork?.cancel(); hoverEmphasisWork = nil
+            hoverEmphasisReady = false
+        } else if !hoverEmphasisReady, hoverEmphasisWork == nil {
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.hoverEmphasisWork = nil
+                let point = NSEvent.mouseLocation
+                guard self.running, !self.suspended, self.inside,
+                      self.windowHost?.containsHover(point) == true || self.pointerOverChildWindow(point),
+                      !self.hiddenInFullscreen, !self.hiddenUntilHover, !self.expanded, !self.peeking,
+                      !self.dragPlaceholder, self.notice == nil, self.captureControls == nil,
+                      !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+                self.hoverEmphasisReady = true
+                self.hoverEmphasized = true
+                self.refreshPresentation()
+                self.syncHoverExitMonitoring(entered: true, point: point)
+            }
+            hoverEmphasisWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + NotchSupport.hoverEmphasisDelay, execute: work)
+        }
+        let emphasize = wantsEmphasis && hoverEmphasisReady
         if hoverEmphasized != emphasize || showedPicker != showsCompactActivityPicker {
             hoverEmphasized = emphasize
             refreshPresentation()
@@ -2578,6 +2606,8 @@ final class NotchService: ObservableObject {
         if hidden {
             hoverWork?.cancel(); hoverWork = nil
             hoverEmphasized = false
+            hoverEmphasisWork?.cancel(); hoverEmphasisWork = nil
+            hoverEmphasisReady = false
             heldDrag = false
             dragPlaceholder = false
             cancelCaptureControls()

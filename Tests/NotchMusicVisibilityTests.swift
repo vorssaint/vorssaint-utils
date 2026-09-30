@@ -98,6 +98,8 @@ enum NotchMusicVisibilityTests {
         var sectionRow = 0
         var hoverState = NotchHoverState()
         var hoverEmphasized = false
+        var hoverEmphasisWork: DispatchWorkItem?
+        var hoverEmphasisReady = false
         var hoverWork: DispatchWorkItem?
         var windowHost: Host?
         var panel: Panel? = Panel()
