@@ -151,10 +151,16 @@ final class URLCleanerService: ObservableObject {
         // is never fetched only to be left alone. Some "copy link" commands
         // put the link on the pasteboard only as a URL, with no text next
         // to it.
+
+        // The rewrite is for a link something was actually taken out of. A
+        // copy with nothing to remove is left exactly as the user put it,
+        // because writing to the pasteboard discards whatever else the copy
+        // carried, and a link the cleaner did not need to touch is the one
+        // most likely to come back spelled differently.
         guard URLCleaning.canRewritePasteboard(types: (pasteboard.types ?? []).map(\.rawValue)),
               let text = pasteboard.string(forType: .string) ?? pasteboard.string(forType: urlType),
               let cleaned = URLCleaning.clean(text, rules: rules),
-              cleaned.url != text.trimmingCharacters(in: .whitespacesAndNewlines),
+              !cleaned.removed.isEmpty,
               !token.isCancelled else {
             return PollResult(changeCount: changeCount, cleaned: nil)
         }
