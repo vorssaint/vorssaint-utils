@@ -4,8 +4,9 @@
 import Foundation
 import os
 
-/// Runs the production brightness step against a scripted DDC read and
-/// manually drained queues. No monitor is read or written.
+/// Runs the production brightness step and system write against a scripted
+/// DDC read, a scripted system pipeline and manually drained queues. No
+/// monitor is read or written.
 enum BrightnessStepTests {
     final class Queue {
         var jobs: [() -> Void] = []
@@ -13,6 +14,37 @@ enum BrightnessStepTests {
         func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
     }
     enum DispatchQueue { static let main = Queue() }
+    /// The system brightness pipeline, with the level it reports and what
+    /// its easing call does with a change.
+    enum BrightnessBridge {
+        enum Easing { case lands, refused, ignored }
+        static var level: Float = 0.5
+        static var easing = Easing.lands
+        static var calls: [String] = []
+        static var getBrightness: ((UInt32, UnsafeMutablePointer<Float>) -> Int32)? = { _, reading in
+            reading.pointee = BrightnessBridge.level
+            return 0
+        }
+        static var setBrightness: ((UInt32, Float) -> Int32)? = { _, value in
+            BrightnessBridge.calls.append("set \(value)")
+            BrightnessBridge.level = value
+            return 0
+        }
+        static var setBrightnessSmooth: ((UInt32, Float) -> Int32)? = { _, change in
+            BrightnessBridge.calls.append("ease \(change)")
+            switch BrightnessBridge.easing {
+            case .lands:
+                BrightnessBridge.level += change
+                return 0
+            case .refused:
+                return 1000
+            case .ignored:
+                return 0
+            }
+        }
+    }
+    static var displayAsleep = false
+    static func CGDisplayIsAsleep(_ id: UInt32) -> UInt32 { displayAsleep ? 1 : 0 }
     struct BrightnessDisplay {
         enum Method: Equatable { case system, ddc, gamma }
         let id: UInt32
@@ -99,5 +131,46 @@ enum BrightnessStepTests {
                                                        route: service.routes[2]!, service: "monitor" as CFString)
         suite.expect(written && service.writes == [50],
                      "a physical monitor adjustment cannot suppress a step back to the app's previous value")
+
+        // A key step on a system display eases by the change from the level
+        // the system reports. Everything else writes the level itself, once,
+        // so a change the system refuses or ignores is never added twice
+        // (issue #2149).
+        func systemWrite(_ value: Double, from level: Float, smooth: Bool = true,
+                         easing: BrightnessBridge.Easing = .lands)
+            -> (written: Bool, calls: [String], level: Float) {
+            BrightnessBridge.level = level
+            BrightnessBridge.easing = easing
+            BrightnessBridge.calls = []
+            let written = Service.writeSystemBrightness(value, to: 1, smooth: smooth)
+            return (written, BrightnessBridge.calls, BrightnessBridge.level)
+        }
+        let eased = systemWrite(0.5625, from: 0.5)
+        suite.expect(eased.written && eased.calls == ["ease 0.0625"] && eased.level == 0.5625,
+                     "a key step on a system display eases by the change from the reported level")
+        let slider = systemWrite(0.25, from: 0.5, smooth: false)
+        suite.expect(slider.written && slider.calls == ["set 0.25"] && slider.level == 0.25,
+                     "a slider write on a system display lands at once")
+        let fallback = ["ease 0.0625", "set 0.5625"]
+        let refused = systemWrite(0.5625, from: 0.5, easing: .refused)
+        suite.expect(refused.written && refused.calls == fallback && refused.level == 0.5625,
+                     "an eased step the system refuses gets the level written directly")
+        let ignored = systemWrite(0.5625, from: 0.5, easing: .ignored)
+        suite.expect(ignored.written && ignored.calls == fallback && ignored.level == 0.5625,
+                     "an eased step the system ignores gets the level written once, never the change twice")
+        let atEnd = systemWrite(1, from: 1)
+        suite.expect(atEnd.written && atEnd.calls == ["set 1.0"] && atEnd.level == 1,
+                     "a step already at the end of the range writes the level without easing")
+        displayAsleep = true
+        let asleep = systemWrite(0.5625, from: 0.5)
+        displayAsleep = false
+        suite.expect(asleep.written && asleep.calls == ["set 0.5625"],
+                     "an asleep display gets the level directly")
+        let smoothCall = BrightnessBridge.setBrightnessSmooth
+        BrightnessBridge.setBrightnessSmooth = nil
+        let missing = systemWrite(0.5625, from: 0.5)
+        BrightnessBridge.setBrightnessSmooth = smoothCall
+        suite.expect(missing.written && missing.calls == ["set 0.5625"],
+                     "a system without the easing call gets the level directly")
     }
 }
