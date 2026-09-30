@@ -253,6 +253,22 @@ enum RecorderExportRenderingTests {
             try FileManager.default.copyItem(at: gifTake.videoURL, to: sourceCopy)
             try FileManager.default.copyItem(at: gifURL, to: gifCopy)
         }
+        // Esc while the GIF is still taking frames: the saved GIF stays and
+        // nothing hidden is left beside it.
+        let cancelFolder = folder.appendingPathComponent("cancelled-gif")
+        try FileManager.default.createDirectory(at: cancelFolder, withIntermediateDirectories: true)
+        let savedGIF = cancelFolder.appendingPathComponent("saved.gif")
+        let previousGIF = Data("previous gif".utf8)
+        try previousGIF.write(to: savedGIF)
+        let gifExporter = RecorderExporter()
+        let gifCancel = await gifExporter.export(take: take, document: RecorderEditDocument(),
+                                                 output: .gif, to: savedGIF,
+                                                 progress: { _ in gifExporter.cancel() })
+        suite.expect(gifCancel == .cancelled && (try? Data(contentsOf: savedGIF)) == previousGIF,
+                     "cancelled GIF export preserves the existing destination")
+        let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: cancelFolder.path)) ?? []
+        suite.expect(leftovers == ["saved.gif"],
+                     "cancelled GIF export leaves nothing beside the destination \(leftovers)")
         let destination = folder.appendingPathComponent("preserved.mp4")
         let original = Data("previous export".utf8)
         try original.write(to: destination)

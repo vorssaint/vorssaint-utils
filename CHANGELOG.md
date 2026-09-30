@@ -15,6 +15,7 @@ The recording editor can copy a recording as an animated GIF. Volume keys routed
 ### Fixed
 - After the Mac wakes from sleep, volume keys routed through Dynamic Island step from the level the output really plays, so external speakers no longer jump to a level far from the one the island showed.
 - Brightness and volume keys pressed with Option, Command or Control reach macOS again while Vorssaint handles those keys, so Option opens Displays or Sound settings. Option-Shift brightness keys take quarter steps and still follow the pointer to the right display.
+- Cancelling a GIF export from the recording editor no longer leaves a hidden empty file in the folder it was saving to.
 
 ### Contributors
 Thanks to @niukanen1, @Qarru and @ruvelro.
