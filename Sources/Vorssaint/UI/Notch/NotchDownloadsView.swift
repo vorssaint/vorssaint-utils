@@ -69,8 +69,10 @@ private struct NotchDownloadsSetupView: View {
     }
 
     private var copy: some View {
+        // Off, the page says what Downloads does beside its switch; on, which
+        // folder to choose.
         Text(downloads.folderUnavailable ? text.folderUnavailable
-             : offersSwitchOnly ? text.downloadsTitle : text.downloadsHint)
+             : offersSwitchOnly ? text.downloadsTitle : enabled ? text.downloadsHint : text.downloadsDescription)
             .font(.system(size: 12))
             .foregroundStyle(downloads.folderUnavailable ? Color.orange : .white.opacity(0.65))
             .fixedSize(horizontal: false, vertical: true)
