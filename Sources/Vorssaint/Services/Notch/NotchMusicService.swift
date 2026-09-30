@@ -29,7 +29,8 @@ final class NotchMusicService: ObservableObject {
     /// the song is published, while every surface still shows the old one.
     let trackChanges = PassthroughSubject<Void, Never>()
     /// The song shown stops, and no other plays yet: a gap between songs
-    /// outlasted its grace period. Sent before that reading is published.
+    /// outlasted its grace period, or another player's paused song took over
+    /// from a pause. Sent before that reading is published.
     let trackEnds = PassthroughSubject<Void, Never>()
     /// Immediate visual acknowledgement of an accepted swipe, before metadata arrives.
     let gestureSkips = PassthroughSubject<Bool, Never>()
@@ -219,7 +220,12 @@ final class NotchMusicService: ObservableObject {
     /// the next reading replaces it at once. Later readings of the gap never
     /// extend the grace period.
     private func receive(_ reading: Reading) {
-        if let current = playback, !awaitingPlayback, NotchTrackChange.isBetweenSongs(reading.playback, after: current) {
+        // A player that still lists a song when another player's paused song
+        // takes its place was paused. During a gap it had left, the song it
+        // lists again can be its next one, still loading.
+        let listing = gapWork == nil ? reading.sources : []
+        if let current = playback, !awaitingPlayback,
+           NotchTrackChange.isBetweenSongs(reading.playback, after: current, sources: listing) {
             gapReading = reading
             guard gapWork == nil else { return }
             let requested = generation

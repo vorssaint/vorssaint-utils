@@ -186,12 +186,18 @@ struct NotchTrackChange {
     /// Whether `next`, read after `current`, can be a player between songs:
     /// nothing playing, or a song that is not playing and is not the one that
     /// played, such as another player's paused song standing in or the next
-    /// song reported before it starts. The same song paused is a pause.
-    static func isBetweenSongs(_ next: NotchPlayback?, after current: NotchPlayback) -> Bool {
+    /// song reported before it starts. The same song paused is a pause. So is
+    /// another player's song while the player that played still lists a song
+    /// in `sources`, since that player was paused and automatic playback moved
+    /// to the other.
+    static func isBetweenSongs(_ next: NotchPlayback?, after current: NotchPlayback,
+                               sources: [NotchPlaybackSource] = []) -> Bool {
         guard let next else { return true }
         guard current.isPlaying, !next.isPlaying else { return false }
-        guard let player = Self.player(of: next), player == Self.player(of: current),
-              let song = Self.song(of: next), let played = Self.song(of: current) else { return true }
+        guard let player = Self.player(of: next), player == Self.player(of: current) else {
+            return !sources.contains { $0.pid == current.track.appPID && $0.hasTrack }
+        }
+        guard let song = Self.song(of: next), let played = Self.song(of: current) else { return true }
         return !song.matches(played)
     }
 
