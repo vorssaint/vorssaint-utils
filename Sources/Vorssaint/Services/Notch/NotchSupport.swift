@@ -245,10 +245,11 @@ enum NotchLayout {
         return min(30, max(16, (room / 6).rounded(.down)))
     }
 
-    /// Fit a 4:3 preview above the stop button, including narrow, tall islands.
+    /// The preview fills the page. A wide strip crops the camera to 16:9 and a
+    /// narrow, tall island to 4:3, so a face stays in frame on either.
     static func cameraPreviewSize(in size: CGSize) -> CGSize {
-        let height = max(0, min(size.height - 28 - rowSpacing, size.width * 3 / 4))
-        return CGSize(width: height * 4 / 3, height: height)
+        let width = max(0, size.width), height = max(0, size.height)
+        return CGSize(width: min(width, height * 16 / 9), height: min(height, width * 3 / 4))
     }
     /// Breathing room every compact strip keeps from its silhouette.
     static let compactEdgeGap: CGFloat = 5
@@ -264,6 +265,8 @@ enum NotchLayout {
     /// rounder one; the open island reaches the full radius and shoulder.
     static func surfaceRadius(height: CGFloat) -> CGFloat { min(28, height * 0.34) }
     static func shoulder(height: CGFloat) -> CGFloat { min(shoulder, height * 0.19) }
+    /// The optional outline's stroke. Only its inner half, inside the island, shows.
+    static let outlineWidth: CGFloat = 2
 
     // MARK: Capsule
     // Without a camera the island can float in the menu bar as a capsule.
@@ -534,8 +537,9 @@ struct NotchActivityCombination: Hashable, Identifiable {
 
     var id: String { primary.rawValue + "+" + companion.rawValue }
 
+    /// Named in the order the island shows them, left to right.
     func title(_ language: AppLanguage) -> String {
-        primary.title(language) + " + " + companion.title(language)
+        companion.title(language) + " + " + primary.title(language)
     }
 }
 
@@ -1621,6 +1625,10 @@ struct NotchGeometry: Equatable {
     let floatingGap: CGFloat?
     /// How far a fitted capsule sits below the top of the display, open or closed.
     let floatingDrop: CGFloat
+    /// How far past a physical camera an outlined island reaches on each side
+    /// and below. The line is drawn inside the island's edge, so an island
+    /// that only covers the camera would hide it behind the housing.
+    let outlineRoom: CGFloat
     private let capsuleWidthFit: CGFloat
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
@@ -1633,7 +1641,8 @@ struct NotchGeometry: Equatable {
     init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, layout: NotchSize = .compact,
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
          customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
-         cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero) {
+         cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero,
+         outline: Bool = false) {
         self.screen = screen
         self.layout = layout
         self.customWidth = NotchSize.clamped(customWidth, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
@@ -1655,10 +1664,13 @@ struct NotchGeometry: Equatable {
         let profileHeight = gap.map { stripHeight - ($0 - NotchLayout.capsuleMargin) * 2 } ?? barHeight
         // A capsule's camera is only the room it keeps, on whole points.
         let simulated = 180 * profileHeight / 32
-        self.cameraWidth = min(isNotched ? max(0, cameraWidth + fit.width)
+        // A simulated cutout sits on the menu bar, where its outline already shows.
+        let room = isNotched && outline ? NotchLayout.outlineWidth : 0
+        outlineRoom = room
+        self.cameraWidth = min(isNotched ? max(0, cameraWidth + fit.width + room * 2)
                                : gap == nil ? simulated : (simulated + capsuleFit.width).rounded(),
                                screen.width * 0.7)
-        cameraHeight = isNotched ? min(max(0, safeAreaTop + fit.height), 64) : stripHeight
+        cameraHeight = isNotched ? min(max(0, safeAreaTop + fit.height + room), 64) : stripHeight
         self.menuBarHeight = max(cameraHeight, barHeight)
         self.compactSideRoom = compactSideRoom
     }
@@ -1677,9 +1689,10 @@ struct NotchGeometry: Equatable {
     /// A title and the compact actions each fit in a 100-point wing, including
     /// the compact preset. Narrower layouts keep a full row below the camera.
     var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 200 ? cameraWidth : 0 }
-    /// A capsule's header keeps clear of its rounded top corners.
+    /// A capsule's header keeps clear of its rounded top corners, its
+    /// 28-point buttons as far from the top edge as the page is from the bottom.
     var headerTopInset: CGFloat {
-        if let floatingGap { return floatingGap + 2 }
+        if floats { return NotchLayout.bottomInset - (NotchLayout.headerHeight - 28) / 2 }
         return !isNotched || headerCameraGap > 0 ? 0 : safeContentTop
     }
     var headerRowHeight: CGFloat { headerCameraGap > 0 ? max(cameraHeight, NotchLayout.headerHeight) : NotchLayout.headerHeight }
@@ -1724,6 +1737,12 @@ struct NotchGeometry: Equatable {
         let shoulders = NotchLayout.shoulder(height: stripHeight) * 2
         let capsule = max(NotchLayout.capsuleRestingAspect * stripBodyHeight + capsuleWidthFit, stripBodyHeight * 2)
         return CGSize(width: min(cameraWidth, (capsule + shoulders).rounded()), height: cameraHeight)
+    }
+    /// Full screen and the Lock Screen draw no outline, so their black cutout
+    /// keeps to the camera instead of showing the outline's room below it.
+    var bareCutout: CGSize {
+        let resting = restingSize(showsContent: false)
+        return CGSize(width: max(0, resting.width - outlineRoom * 2), height: max(0, resting.height - outlineRoom))
     }
     /// Music remains one row high, with the physical camera between its wings.
     /// Insufficient menu space hides the wings instead of growing below the camera.
@@ -1810,16 +1829,21 @@ struct NotchGeometry: Equatable {
     /// Give the title useful space beside the camera, as wide as the title or
     /// the clock needs, so neither wing ends in a band of empty black. When
     /// menus leave less than a readable wing, a physical notch uses one row
-    /// below the camera.
+    /// below the camera. Paired with another activity, the wings hold no
+    /// title, only the event's clock and the other's mark, so they fit those
+    /// as a timer's pair does instead of keeping a title's minimum.
     var compactCalendarGeometry: NotchGeometry { compactCalendarGeometry(wing: Self.calendarWingRange.upperBound) }
-    func compactCalendarGeometry(wing: CGFloat) -> NotchGeometry {
+    func compactCalendarGeometry(wing: CGFloat, paired: Bool = false) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
         let range = Self.calendarWingRange
-        let fitted = min(range.upperBound, max(range.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
-        compact.compactSideRoom = room.isFinite && room >= range.lowerBound ? min(fitted, room) : 0
+        let lowest = paired ? NotchTimerSupport.stripWingRange.lowerBound : range.lowerBound
+        let fitted = min(range.upperBound, max(lowest, wing.isFinite ? wing.rounded(.up) : 0))
+        // The narrowest wing still drawn: a readable title, or a whole pair.
+        let readable = min(fitted, range.lowerBound)
+        compact.compactSideRoom = room.isFinite && room >= readable ? min(fitted, room) : 0
         compact.minimumCompactWidth = cameraWidth + fitted * 2
-        compact.minimumWing = 72
+        compact.minimumWing = readable
         return compact
     }
     /// A working agent keeps its mark and one reading beside the camera,
