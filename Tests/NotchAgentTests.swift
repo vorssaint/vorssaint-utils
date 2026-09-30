@@ -339,13 +339,18 @@ enum NotchAgentTests {
             store.apply(AgentLogParser.parseClaude(data, state: &state, now: now), file: "main", provider: .claude,
                         tracksTurns: true, modified: now, now: now)
         }
-        func notice(_ id: String, status: String = "completed", wrapper: String = "user") -> Data {
-            let text = #"<task-notification>\n<task-id>\#(id)</task-id>\n<status>\#(status)</status>\n<summary>done</summary>\n</task-notification>"#
+        func notice(_ id: String, status: String? = "completed", wrapper: String = "user") -> Data {
+            let statusTag = status.map { "<status>\($0)</status>\\n" } ?? ""
+            let text = #"<task-notification>\n<task-id>\#(id)</task-id>\n\#(statusTag)<summary>done</summary>\n</task-notification>"#
             switch wrapper {
             case "queue":
                 return line(#"{"type":"queue-operation","operation":"enqueue","timestamp":"2026-09-21T23:43:00.000Z","sessionId":"s1","content":"\#(text)"}"#)
             case "attachment":
-                return line(#"{"type":"attachment","attachment":{"type":"queued_command","prompt":"\#(text)"}}"#)
+                return line(#"{"type":"attachment","attachment":{"type":"queued_command","commandMode":"task-notification","prompt":"\#(text)"}}"#)
+            case "queuedPrompt":
+                return line(#"{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","prompt":"\#(text)"}}"#)
+            case "pasted":
+                return line(#"{"type":"user","timestamp":"2026-09-21T23:43:00.000Z","sessionId":"s1","origin":{"kind":"human"},"message":{"role":"user","content":"\#(text)"}}"#)
             default:
                 return line(#"{"type":"user","timestamp":"2026-09-21T23:43:00.000Z","sessionId":"s1","origin":{"kind":"task-notification"},"message":{"role":"user","content":"\#(text)"}}"#)
             }
@@ -370,8 +375,15 @@ enum NotchAgentTests {
         suite.expect(state.background.count == 2, "a tool result quoting a notice settles nothing")
         _ = feed(notice("b1", status: "running"))
         suite.expect(state.background.count == 2, "a notice about work still going settles nothing")
+        _ = feed(notice("b1", status: nil))
+        suite.expect(state.background.count == 2, "a notice without a status settles nothing")
+        _ = feed(notice("b1", wrapper: "pasted"))
+        _ = feed(notice("b1", wrapper: "queuedPrompt"))
+        suite.expect(state.background.count == 2, "the person's own message holding a notice settles nothing")
         _ = feed(notice("b1", wrapper: "queue"))
+        suite.expect(state.background.count == 2, "a queue line, which never says whose text it holds, settles nothing")
         _ = feed(notice("b1"))
+        _ = feed(notice("b1", wrapper: "attachment"))
         suite.expect(state.background == ["a1"] && store.awaiting == ["main"] && store.live.count == 1,
                      "a finished task is settled once, while the rest keep the turn waiting")
         _ = feed(notice("a1", status: "killed", wrapper: "attachment"))
@@ -392,6 +404,17 @@ enum NotchAgentTests {
         store.closeIdleTurns(now: later, after: NotchAgentSupport.idleTurn)
         suite.expect(store.live.isEmpty && store.awaiting.isEmpty,
                      "background work that never reports back stops showing as working in time")
+        let resumed = later.addingTimeInterval(60)
+        func stamp(_ date: Date) -> String {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return formatter.string(from: date)
+        }
+        _ = feed(claudeUser(time: stamp(resumed)))
+        suite.expect(state.background.isEmpty && store.live.first?.started == resumed,
+                     "the next prompt after that starts a turn of its own, without the forgotten work")
+        let done = feed(claudeAssistant(id: "msg_6", request: "req_6", stop: "end_turn", time: stamp(resumed.addingTimeInterval(30))))
+        suite.expect(done.count == 1 && store.live.isEmpty, "and that turn finishes when its reply ends")
     }
 
     // MARK: Codex logs

@@ -36,6 +36,8 @@ struct AgentLogState: Equatable {
     /// Claude Code commands and agents sent to the background that have not
     /// reported back yet. The session answers again when each one does.
     var background: Set<String> = []
+    /// When the session last replied while that work was still running.
+    var awaitingSince: Date?
 }
 
 enum AgentLogParser {
@@ -57,11 +59,22 @@ enum AgentLogParser {
     // MARK: Claude Code
 
     static func parseClaude(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        // A background task's report is queued first and delivered later,
-        // each time on a line of its own; whichever comes first settles it.
         var settled: [AgentLogEntry] = []
+        // The store stops waiting on background work after the resume window;
+        // work that never reported back by then is forgotten here as well, so
+        // the next turn in this log can finish.
+        if let since = state.awaitingSince, contains(line, #""timestamp":""#),
+           let date = object(line).flatMap({ timestamp($0["timestamp"]) }),
+           date.timeIntervalSince(since) >= AgentUsageStore.resumeWindow(for: .claude) {
+            state.background.removeAll()
+            state.awaitingSince = nil
+            state.turnOpen = false
+        }
+        // A background task's report arrives mid-turn as a queued command, or
+        // on its own when the session is idle; whichever comes settles it.
         if !state.background.isEmpty, contains(line, "<task-notification>"), let id = finishedTask(line),
            state.background.remove(id) != nil, state.background.isEmpty {
+            state.awaitingSince = nil
             settled = [.awaitingBackground(false)]
         }
         if contains(line, #""type":"assistant""#) { return settled + claudeAssistant(line, state: &state, now: now) }
@@ -139,6 +152,7 @@ enum AgentLogParser {
                 entries.append(state.turnOpen ? .turnActive(date) : .turnBegan(date))
                 entries.append(.awaitingBackground(true))
                 state.turnOpen = true
+                state.awaitingSince = date
                 return entries
             }
             if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil)) }
@@ -147,6 +161,7 @@ enum AgentLogParser {
             if !state.turnOpen { entries.append(.turnBegan(date)) }
             else { entries.append(.turnActive(date)) }
             state.turnOpen = true
+            state.awaitingSince = nil
         }
         return entries
     }
@@ -178,21 +193,31 @@ enum AgentLogParser {
         return id.flatMap { $0.isEmpty ? nil : native($0) }
     }
 
-    /// The task a notice reports as stopped. Only a notice Claude Code wrote
-    /// counts, never one quoted in a tool result or a reply.
+    /// Statuses a notice gives for work that has stopped.
+    private static let stoppedStatuses: Set<String> = ["completed", "failed", "killed"]
+
+    /// The task a notice reports as stopped. Only a notice Claude Code marked
+    /// as one counts: the person's own message, queued or delivered, can
+    /// hold the same text, and so can a tool result or a reply. The queue's
+    /// own lines never say which kind they hold, so they are not read.
     static func finishedTask(_ line: Data) -> String? {
         guard let json = object(line) else { return nil }
         let text: String?
         switch json["type"] as? String {
-        case "queue-operation": text = json["content"] as? String
-        case "attachment": text = (json["attachment"] as? [String: Any])?["prompt"] as? String
-        case "user": text = (json["message"] as? [String: Any])?["content"] as? String
-        default: text = nil
+        case "attachment":
+            let attachment = json["attachment"] as? [String: Any]
+            text = attachment?["type"] as? String == "queued_command"
+                && attachment?["commandMode"] as? String == "task-notification"
+                ? attachment?["prompt"] as? String : nil
+        case "user":
+            text = (json["origin"] as? [String: Any])?["kind"] as? String == "task-notification"
+                ? (json["message"] as? [String: Any])?["content"] as? String : nil
+        default:
+            text = nil
         }
-        guard let text, text.hasPrefix("<task-notification>"),
-              let id = tag("task-id", in: text), !id.isEmpty else { return nil }
-        // A notice about work still going is no ending.
-        return tag("status", in: text) == "running" ? nil : native(id)
+        guard let text, text.hasPrefix("<task-notification>"), let id = tag("task-id", in: text), !id.isEmpty,
+              let status = tag("status", in: text), stoppedStatuses.contains(status) else { return nil }
+        return native(id)
     }
 
     private static func tag(_ name: String, in text: String) -> String? {
