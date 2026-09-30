@@ -1681,6 +1681,12 @@ final class AppVolumeMixer: ObservableObject {
     /// one per notification.
     private func reconcileEngines(with apps: [MixerApp]) {
         let apps = Self.coalescingAppsWithDuplicateIDs(apps)
+        // Only while AirPlay is offered, so this never creates the manager.
+        if AirPlayRouteManager.isListed {
+            AirPlayRouteManager.shared.routedAudioChanged(active: apps.contains { app in
+                app.isPlaying && app.effectiveOutputDeviceUID.map(MixerRoutingSupport.isAirPlaySentinel) == true
+            })
+        }
         var byId: [String: MixerApp] = [:]
         for app in apps {
             byId[app.id] = app
