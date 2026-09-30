@@ -417,6 +417,29 @@ enum NotchHoverTests {
         follow(to: CGPoint(x: island.midX, y: island.minY - 400))
         suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty && stopped.closures == 0,
                      "stopping the island releases the pointer observers")
+        // Pinning, a drag from the shelf, or a menu or dialog keeps the island
+        // and ends the watch. A menu that closes with the pointer still in the
+        // margin starts it again.
+        for protect: (Service) -> Void in [{ $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true }] {
+            let held = openWithPointerInMargin()
+            protect(held)
+            follow(to: CGPoint(x: island.midX, y: island.minY - 400))
+            DispatchQueue.main.advance(1)
+            suite.expect(held.expanded && held.closures == 0 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "pinning, a shelf drag, a menu or a dialog keeps the island and stops following the pointer")
+        }
+        let menu = openWithPointerInMargin()
+        menu.keepsWorkingSurface = true
+        follow(to: CGPoint(x: island.midX + 20, y: island.minY - 30))
+        menu.keepsWorkingSurface = false
+        menu.hover(false)
+        suite.expect(NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                     "a menu that closes with the pointer in the margin follows the pointer again")
+        follow(to: CGPoint(x: island.midX, y: island.minY - 400))
+        DispatchQueue.main.advance(0.19)
+        follow(to: CGPoint(x: island.midX, y: island.minY - 420))
+        suite.expect(menu.closures == 1 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                     "leaving after the menu closes the island and releases the pointer observers")
         let clickOpened = fixture()
         clickOpened.open(takeFocus: true)
         clickOpened.windowHost?.controls = [CGRect(x: island.midX - 38, y: island.minY - 72, width: 76, height: 88)]
