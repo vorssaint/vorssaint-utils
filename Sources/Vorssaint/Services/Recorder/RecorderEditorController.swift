@@ -1521,6 +1521,22 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
         copyVideoAndDelete(false)
     }
 
+    func copyGIF() {
+        guard let destination = copyDestination(fileExtension: "gif") else {
+            QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
+            return
+        }
+        run(.gif, to: destination, rememberDestination: false) { [weak self] url in
+            guard let self else { return }
+            guard RecorderGIFClipboard.publish(fileURL: url) else {
+                NSSound.beep()
+                QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)
+                return
+            }
+            QuickToolHUD.show(icon: "doc.on.doc", message: self.strings.copiedHUD)
+        }
+    }
+
     func copyAndDelete() {
         copyVideoAndDelete(true)
     }
@@ -1545,7 +1561,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
     }
 
     private func copyVideoAndDelete(_ deletesRecording: Bool) {
-        guard let destination = copyDestination() else {
+        guard let destination = copyDestination(fileExtension: "mp4") else {
             QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
             return
         }
@@ -1582,7 +1598,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func copyDestination() -> URL? {
+    private func copyDestination(fileExtension: String) -> URL? {
         let manager = FileManager.default
         guard let base = manager.urls(for: .cachesDirectory, in: .userDomainMask).first,
               let bundleID = Bundle.main.bundleIdentifier
@@ -1600,7 +1616,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             }
         }
         let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix,
-                                              date: Date(), fileExtension: "mp4")
+                                              date: Date(), fileExtension: fileExtension)
         let unique = ScreenshotSupport.uniqueFileName(name) { candidate in
             manager.fileExists(atPath: folder.appendingPathComponent(candidate).path)
         }

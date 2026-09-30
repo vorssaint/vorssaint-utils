@@ -2532,6 +2532,58 @@ enum FeatureCatalogTests {
                "other media keys never decode as brightness")
         suite.expect(BrightnessSupport.brightnessKeyEvent(subtype: 1, data1: 0) == nil,
                "other system-defined subtypes never decode as brightness")
+        let keyDown = BrightnessSupport.BrightnessKeyEvent(delta: -BrightnessSupport.brightnessKeyStep,
+                                                           isKeyDown: true, isRepeat: false)
+        let keyRepeat = BrightnessSupport.BrightnessKeyEvent(delta: -BrightnessSupport.brightnessKeyStep,
+                                                             isKeyDown: true, isRepeat: true)
+        let keyUp = BrightnessSupport.BrightnessKeyEvent(delta: -BrightnessSupport.brightnessKeyStep,
+                                                         isKeyDown: false, isRepeat: false)
+        let step = BrightnessSupport.BrightnessKeyOwner.app(delta: -BrightnessSupport.brightnessKeyStep)
+        let fineStep = BrightnessSupport.BrightnessKeyOwner.app(delta: -BrightnessSupport.brightnessKeyStep / 4)
+        func owner(_ ownership: inout BrightnessSupport.BrightnessKeyOwnership,
+                   _ press: BrightnessSupport.BrightnessKeyEvent,
+                   option: Bool = false, shift: Bool = false,
+                   commandOrControl: Bool = false) -> BrightnessSupport.BrightnessKeyOwner {
+            ownership.owner(of: press, option: option, shift: shift, commandOrControl: commandOrControl)
+        }
+        var optionPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&optionPress, keyDown, option: true) == .system
+                && owner(&optionPress, keyRepeat) == .system
+                && owner(&optionPress, keyUp) == .system,
+               "an Option brightness press stays with the system after Option is released")
+        var commandPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&commandPress, keyDown, commandOrControl: true) == .system,
+               "a Command or Control brightness press goes to the system")
+        var finePress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&finePress, keyDown, option: true, shift: true) == fineStep
+                && owner(&finePress, keyRepeat) == fineStep
+                && owner(&finePress, keyUp) != .system,
+               "an Option-Shift brightness press takes quarter steps until its release")
+        var plainPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&plainPress, keyDown) == step
+                && owner(&plainPress, keyRepeat, option: true) == step
+                && owner(&plainPress, keyUp, option: true) != .system,
+               "a plain brightness press stays with the app when a modifier joins mid-press")
+        var shiftPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&shiftPress, keyDown, shift: true) == step,
+               "Shift alone keeps the ordinary brightness step")
+        var unseenPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&unseenPress, keyRepeat, option: true, shift: true) == .system
+                && owner(&unseenPress, keyUp, option: true, shift: true) == .system,
+               "a brightness press whose key-down the tap never saw stays with the system")
+        var unseenPlainPress = BrightnessSupport.BrightnessKeyOwnership()
+        suite.expect(owner(&unseenPlainPress, keyRepeat) == .system
+                && owner(&unseenPlainPress, keyUp) == .system,
+               "unseen plain brightness repeats and releases stay with the system")
+        var nextPress = BrightnessSupport.BrightnessKeyOwnership()
+        _ = owner(&nextPress, keyDown, option: true)
+        _ = owner(&nextPress, keyUp, option: true)
+        suite.expect(owner(&nextPress, keyDown) == step,
+               "the next plain brightness press is the app's again")
+        var lostRelease = BrightnessSupport.BrightnessKeyOwnership()
+        _ = owner(&lostRelease, keyDown, option: true)
+        suite.expect(owner(&lostRelease, keyDown) == step,
+               "a fresh brightness press is the app's even when the last release was lost")
         suite.expect(BrightnessSupport.keyboardLightOnLevel(lastNonzero: nil) == 0.5
                 && BrightnessSupport.keyboardLightOnLevel(lastNonzero: 0) == 0.5
                 && BrightnessSupport.keyboardLightOnLevel(lastNonzero: 0.7) == 0.7

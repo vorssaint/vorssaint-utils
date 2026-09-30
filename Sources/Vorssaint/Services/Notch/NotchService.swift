@@ -370,7 +370,9 @@ final class NotchService: ObservableObject {
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
-        case .calendar: return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry))
+        case .calendar:
+            return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
+                                                    paired: companion != nil)
         // Its reading is a countdown like the timer's, so it takes the timer's wings.
         case .keepAwake: return geometry.compactTimerGeometry(showsDownloads: false, wing: keepAwakeStripWing(in: geometry))
         default: return geometry
@@ -390,7 +392,8 @@ final class NotchService: ObservableObject {
         guard let countdown = NotchCalendarService.shared.countdown else {
             return NotchGeometry.calendarWingRange.upperBound
         }
-        let provisional = geometry.compactCalendarGeometry(wing: NotchGeometry.calendarWingRange.lowerBound)
+        // Measured at the narrowest wing the strip may take.
+        let provisional = geometry.compactCalendarGeometry(wing: 0, paired: companion != nil)
         let inset = provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0)
         if let companion {
             let sides = max(inset + calendarClockWidth, companionMarkWidth(companion, in: provisional))

@@ -410,6 +410,29 @@ enum BrightnessSupport {
         let isRepeat: Bool
     }
 
+    enum BrightnessKeyOwner: Equatable {
+        case system
+        case app(delta: Double)
+    }
+
+    struct BrightnessKeyOwnership {
+        private var owners = [Bool: BrightnessKeyOwner]()
+
+        mutating func owner(of press: BrightnessKeyEvent, option: Bool, shift: Bool,
+                            commandOrControl: Bool) -> BrightnessKeyOwner {
+            let increases = press.delta > 0
+            guard press.isKeyDown else { return owners.removeValue(forKey: increases) ?? .system }
+            if !press.isRepeat {
+                if commandOrControl || (option && !shift) {
+                    owners[increases] = .system
+                } else {
+                    owners[increases] = .app(delta: option ? press.delta / 4 : press.delta)
+                }
+            }
+            return owners[increases] ?? .system
+        }
+    }
+
     static func brightnessKeyEvent(subtype: Int, data1: Int) -> BrightnessKeyEvent? {
         guard subtype == 8 else { return nil }
         let raw = UInt32(truncatingIfNeeded: data1)
