@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+The recording editor can copy a recording as an animated GIF. Volume keys routed through Dynamic Island step from the level the output really plays after the Mac wakes, and brightness and volume keys pressed with Option, Command or Control reach macOS again.
+
+### Added
+- The recording editor's Copy button has a menu with Copy as GIF, which copies the edited recording as an animated GIF ready to paste. Copy and ⌘C still copy the video.
+
+### Fixed
+- After the Mac wakes from sleep, volume keys routed through Dynamic Island step from the level the output really plays, so external speakers no longer jump to a level far from the one the island showed.
+- Brightness and volume keys pressed with Option, Command or Control reach macOS again while Vorssaint handles those keys, so Option opens Displays or Sound settings. Option-Shift brightness keys take quarter steps and still follow the pointer to the right display.
+
+### Contributors
+Thanks to @niukanen1, @Qarru and @ruvelro.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary
