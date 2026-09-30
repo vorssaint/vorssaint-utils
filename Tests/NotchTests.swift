@@ -2317,6 +2317,12 @@ enum NotchTests {
                      && menus(60).compactCalendarGeometry(wing: 66, paired: true).compactActivityUsesFooter
                      && menus(75).compactCalendarGeometry(wing: 80, paired: true).compactActivityWingWidth == 75,
                      "a pair stays beside the camera where the menus leave it room and moves below a crowded notch otherwise")
+        // The service measures a pair in this geometry before it knows the wing.
+        let measuring = menus(50).compactCalendarGeometry(wing: 0, paired: true)
+        suite.expect(!measuring.compactActivityUsesFooter
+                     && measuring.compactActivityEdgeInset(boxHeight: 9, radius: 0)
+                        == pair.compactActivityEdgeInset(boxHeight: 9, radius: 0),
+                     "a pair is measured beside the camera wherever its narrowest wing fits, with the inset its wings keep")
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         let midnight = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8))!
