@@ -74,6 +74,8 @@ enum MetricsFeatureTests {
                "SMART health subtracts percentage used")
         suite.expect(DiskSupport.healthPercent(fromPercentageUsed: 150) == 0,
                "SMART health clamps exhausted drives")
+        suite.expect(DiskSupport.healthPercent(fromPercentageUsed: UInt64.max) == 0,
+               "A percentage-used value beyond Int.max clamps to 0 instead of aborting the process")
         suite.expect(DiskSupport.fileSystemLabel(type: "apfs") == "APFS",
                "file system label maps apfs")
         suite.expect(DiskSupport.fileSystemLabel(type: " APFS \n") == "APFS",
