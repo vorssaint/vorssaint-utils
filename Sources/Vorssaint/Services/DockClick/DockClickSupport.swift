@@ -286,4 +286,31 @@ enum DockClickSupport {
         }
         return false
     }
+
+    /// Whether any of the strings a Dock item displays can be read as one of
+    /// `applicationNames`. Many Dock items carry no `AXURL` at all — stack
+    /// contents that are not app bundles, drop-target placeholders, recent
+    /// items, and in some configurations minimized-window entries — so the
+    /// printed label is the only identity left to resolve them by.
+    /// `DockPreviewService` resolves those same items this way, and keeping
+    /// the comparison here is what lets the test suite decide it without an
+    /// Accessibility grant.
+    static func dockLabelsMatchApplication(_ labels: [String],
+                                           applicationNames: [String]) -> Bool {
+        let names = applicationNames.map(normalizeDockLabel)
+        guard !names.isEmpty else { return false }
+        return labels.contains { names.contains(normalizeDockLabel($0)) }
+    }
+
+    /// First line only, `.app` dropped, trimmed and lowercased. A Dock label
+    /// is presentation rather than identity: stacks and minimized windows
+    /// get multi-line titles, the Dock pads and suffixes its own text, and
+    /// the name the app reports may or may not carry the extension.
+    static func normalizeDockLabel(_ value: String) -> String {
+        let firstLine = value.components(separatedBy: .newlines).first ?? value
+        return firstLine
+            .replacingOccurrences(of: ".app", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
 }

@@ -827,15 +827,77 @@ final class DockClickService {
                 let hit = horizontal
                     ? (point.x >= frame.minX && point.x <= frame.maxX)
                     : (point.y >= frame.minY && point.y <= frame.maxY)
-                guard hit, let url = Self.urlAttribute(item) else { continue }
-                let standardized = url.standardizedFileURL.path
-                return NSWorkspace.shared.runningApplications.first {
-                    $0.activationPolicy == .regular && !$0.isTerminated
-                        && $0.bundleURL?.standardizedFileURL.path == standardized
-                }
+                guard hit else { continue }
+                return Self.runningApplication(forDockItem: item)
             }
         }
         return nil
+    }
+
+    /// The running application the Dock item stands for, or nil when it
+    /// stands for none. `AXURL` is the trustworthy identity and is tried
+    /// first, but many Dock items publish none — stack contents that are not
+    /// app bundles, drop-target placeholders, recent items, and in some
+    /// configurations minimized-window entries — and skipping those left a
+    /// click on such an icon resolving to no application at all, while
+    /// `DockPreviewService` previewed the very same items from their labels.
+    /// The label fallback mirrors that, and the comparison itself lives in
+    /// `DockClickSupport` so it can be decided without a live Dock.
+    private static func runningApplication(forDockItem item: AXUIElement) -> NSRunningApplication? {
+        let running = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && !$0.isTerminated
+        }
+
+        if let url = urlAttribute(item) {
+            let standardized = url.standardizedFileURL.path
+            if let app = running.first(where: { $0.bundleURL?.standardizedFileURL.path == standardized }) {
+                return app
+            }
+        }
+
+        let labels = labelCandidates(from: item)
+        guard !labels.isEmpty else { return nil }
+        return running.first { app in
+            let names = [
+                app.localizedName,
+                app.bundleURL?.deletingPathExtension().lastPathComponent,
+                app.bundleURL?.lastPathComponent.replacingOccurrences(of: ".app", with: ""),
+            ].compactMap { $0 }
+            return DockClickSupport.dockLabelsMatchApplication(labels, applicationNames: names)
+        }
+    }
+
+    /// Everything a Dock item and its ancestors print, which is all a Dock
+    /// entry without an `AXURL` can be recognized by. The ancestors are read
+    /// because where the Dock puts the wording of a stack or a
+    /// minimized-window row cannot be verified without a live Dock, and
+    /// reading them costs nothing when they answer nothing. Deliberately
+    /// duplicated from `DockPreviewService` rather than shared: moving one
+    /// feature's AX reads behind the other's would be a refactor, not a fix.
+    private static func labelCandidates(from element: AXUIElement) -> [String] {
+        var result: [String] = []
+        for candidate in elementAndParents(from: element) {
+            for attribute in [kAXTitleAttribute as String,
+                              kAXDescriptionAttribute as String,
+                              kAXHelpAttribute as String,
+                              kAXValueAttribute as String] {
+                if let value = stringAttribute(candidate, attribute), !value.isEmpty {
+                    result.append(value)
+                }
+            }
+        }
+        return result
+    }
+
+    private static func elementAndParents(from element: AXUIElement) -> [AXUIElement] {
+        var result = [element]
+        var current = element
+        for _ in 0..<8 {
+            guard let parent = elementAttribute(current, kAXParentAttribute as String) else { break }
+            result.append(parent)
+            current = parent
+        }
+        return result
     }
 
     private static func elementArray(_ element: AXUIElement, _ attribute: String) -> [AXUIElement]? {

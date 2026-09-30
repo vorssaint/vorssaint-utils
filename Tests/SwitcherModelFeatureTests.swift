@@ -3695,6 +3695,29 @@ enum SwitcherModelFeatureTests {
                "a capture whose windows all came back another way is stale")
         suite.expect(!DockClickSupport.capturedMinimizeStillHolds(captured: [], stillMinimized: [9]),
                "a capture that named nothing claims nothing")
+        // A Dock item without an AXURL — a stack's contents, a drop-target
+        // placeholder, a recent-items row — can only be resolved by the text
+        // the Dock prints on it, so that comparison is the whole fallback.
+        // Pinned here because it needs no Accessibility grant to decide.
+        suite.expect(DockClickSupport.dockLabelsMatchApplication(["Safari"],
+                                                                applicationNames: ["Safari"]),
+               "a Dock label naming a running app resolves that app")
+        suite.expect(DockClickSupport.dockLabelsMatchApplication(["Safari\nDownloads"],
+                                                                applicationNames: ["Safari"]),
+               "only the first line of a multi-line Dock title is the app's name")
+        suite.expect(DockClickSupport.dockLabelsMatchApplication(["Safari.app"],
+                                                                applicationNames: ["Safari"]),
+               "a Dock label spelled with .app still names the app")
+        suite.expect(DockClickSupport.dockLabelsMatchApplication(["  sAfArI  "],
+                                                                applicationNames: ["Safari"]),
+               "Dock label matching ignores case and surrounding space")
+        suite.expect(!DockClickSupport.dockLabelsMatchApplication(["Downloads"],
+                                                                 applicationNames: ["Safari", "Finder"]),
+               "a Dock label naming no running app resolves to nothing")
+        suite.expect(!DockClickSupport.dockLabelsMatchApplication([], applicationNames: ["Safari"]),
+               "a Dock item that reports no label resolves to nothing")
+        suite.expect(!DockClickSupport.dockLabelsMatchApplication(["Safari"], applicationNames: []),
+               "an app with no name to compare cannot be claimed by a Dock label")
         suite.expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: false,
