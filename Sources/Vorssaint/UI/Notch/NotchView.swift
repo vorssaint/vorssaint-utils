@@ -397,10 +397,12 @@ struct NotchView: View {
                                        symbol: "slider.horizontal.3") { launcher.isEditing.toggle() })
         }
         if clear {
+            // As the header draws, the pointer on its way to this menu included,
+            // and again when chosen: this view does not observe the history.
+            let empty = { RecentCapturesView.visible(RecentCaptureService.shared.entries).isEmpty }
             items.append(NotchMenuItem(title: FeatureStrings.recentCaptures(l10n.language).clear, symbol: "trash",
-                                       action: {
-                // Read when chosen: this view does not observe the history.
-                guard !RecentCapturesView.visible(RecentCaptureService.shared.entries).isEmpty else { return }
+                                       enabled: !empty(), action: {
+                guard !empty() else { return }
                 RecentCapturesView.confirmClearAboveIsland()
             }))
         }
