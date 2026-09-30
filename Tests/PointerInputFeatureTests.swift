@@ -819,18 +819,45 @@ enum PointerInputFeatureTests {
         suite.expect(FocusFollowsMouseSupport.crossesDisplays(
                 pointer: CGPoint(x: 900, y: 400), focusedWindowBounds: nil, displays: focusDisplays),
                "without a focused window hover is free to focus any display")
+        // A floating panel on display B holds focus while the app's normal
+        // window sits on display A. The window server lists the panel's
+        // layer first, but focus is what Accessibility names.
         let focusWindowList: [[String: Any]] = [
             [kCGWindowOwnerPID as String: NSNumber(value: 7), kCGWindowLayer as String: NSNumber(value: 25),
+             kCGWindowNumber as String: NSNumber(value: 1),
              kCGWindowBounds as String: ["X": 0, "Y": 0, "Width": 50, "Height": 50]],
-            [kCGWindowOwnerPID as String: NSNumber(value: 7), kCGWindowLayer as String: NSNumber(value: 0),
+            [kCGWindowOwnerPID as String: NSNumber(value: 7), kCGWindowLayer as String: NSNumber(value: 3),
+             kCGWindowNumber as String: NSNumber(value: 2),
              kCGWindowBounds as String: ["X": 1_100, "Y": 10, "Width": 300, "Height": 200]],
             [kCGWindowOwnerPID as String: NSNumber(value: 7), kCGWindowLayer as String: NSNumber(value: 0),
+             kCGWindowNumber as String: NSNumber(value: 3),
              kCGWindowBounds as String: ["X": 10, "Y": 10, "Width": 300, "Height": 200]],
         ]
-        suite.expect(FocusFollowsMouseSupport.frontWindowBounds(in: focusWindowList, processID: 7)
+        let focusedPanelBounds = FocusFollowsMouseSupport.focusedWindowBounds(
+            in: focusWindowList, processID: 7, focusedWindowID: 2)
+        suite.expect(focusedPanelBounds == CGRect(x: 1_100, y: 10, width: 300, height: 200),
+               "the focused display follows a focused floating panel")
+        suite.expect(!FocusFollowsMouseSupport.crossesDisplays(
+                pointer: CGPoint(x: 1_500, y: 400), focusedWindowBounds: focusedPanelBounds,
+                displays: focusDisplays)
+                && FocusFollowsMouseSupport.crossesDisplays(
+                pointer: CGPoint(x: 500, y: 400), focusedWindowBounds: focusedPanelBounds,
+                displays: focusDisplays),
+               "a focused panel on another display than its app's window holds hover to the panel's display")
+        suite.expect(FocusFollowsMouseSupport.focusedWindowBounds(
+                in: focusWindowList, processID: 7, focusedWindowID: 3)
+                == CGRect(x: 10, y: 10, width: 300, height: 200),
+               "a focused normal window wins over the app's panel stacked above it")
+        suite.expect(FocusFollowsMouseSupport.focusedWindowBounds(
+                in: focusWindowList, processID: 7, focusedWindowID: 1)
+                == CGRect(x: 0, y: 0, width: 50, height: 50),
+               "a focused window above the app layers, like a modal alert, still names the focused display")
+        suite.expect(FocusFollowsMouseSupport.focusedWindowBounds(
+                in: focusWindowList, processID: 7, focusedWindowID: nil)
                 == CGRect(x: 1_100, y: 10, width: 300, height: 200)
-                && FocusFollowsMouseSupport.frontWindowBounds(in: focusWindowList, processID: 8) == nil,
-               "the focused display comes from the app's frontmost normal window")
+                && FocusFollowsMouseSupport.focusedWindowBounds(
+                in: focusWindowList, processID: 8, focusedWindowID: nil) == nil,
+               "without an Accessibility answer the app's frontmost window stands in, panels included")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseOnlyBetweenDisplays] as? Bool == false,
                "focus follows mouse works on every display by default")
         let focusFollowsMouseServiceSource = (try? String(

@@ -62,16 +62,29 @@ enum FocusFollowsMouseSupport {
         return pointerDisplay != focusedDisplay
     }
 
-    /// The frontmost normal window of an app in a front-to-back window list,
-    /// which is the one holding its keyboard focus.
-    static func frontWindowBounds(in windows: [[String: Any]], processID: pid_t) -> CGRect? {
+    /// The bounds of the window holding the app's keyboard focus, as
+    /// Accessibility names it. That can be a floating panel on one display
+    /// while the app's frontmost normal window sits on another, so the
+    /// stacking order alone cannot tell. Only when Accessibility names no
+    /// window does the app's frontmost window, panels included, stand in.
+    /// A named window counts on any layer, so a focused modal alert above
+    /// the app layers still holds hover to its display.
+    static func focusedWindowBounds(in windows: [[String: Any]],
+                                    processID: pid_t,
+                                    focusedWindowID: CGWindowID?) -> CGRect? {
         for window in windows {
             guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == processID,
-                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue,
                   (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
                   let bounds = WindowServerSupport.bounds(from: window),
                   bounds.width > 1, bounds.height > 1
             else { continue }
+            if let focusedWindowID {
+                guard (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value == focusedWindowID
+                else { continue }
+            } else {
+                guard MouseAppExceptionSupport.appWindowLayers.contains(layer) else { continue }
+            }
             return bounds
         }
         return nil

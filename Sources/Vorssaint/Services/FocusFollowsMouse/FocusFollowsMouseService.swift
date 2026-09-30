@@ -139,13 +139,14 @@ final class FocusFollowsMouseService {
         queryQueue.async { [weak self] in
             guard let self else { return }
             let windows = WindowServerSupport.onScreenWindowInfo()
-            // Checked before any Accessibility query: staying on the focused
-            // window's display is the common case and needs no app lookup.
+            // Checked before the hit test: staying on the focused window's
+            // display is the common case and needs only the focused window.
             if let frontmostProcessID {
                 guard FocusFollowsMouseSupport.crossesDisplays(
                     pointer: evaluation.point,
-                    focusedWindowBounds: FocusFollowsMouseSupport.frontWindowBounds(
-                        in: windows, processID: frontmostProcessID),
+                    focusedWindowBounds: FocusFollowsMouseSupport.focusedWindowBounds(
+                        in: windows, processID: frontmostProcessID,
+                        focusedWindowID: WindowActivator.focusedWindowID(for: frontmostProcessID)),
                     displays: Self.displayBounds()
                 ) else { return }
             }
