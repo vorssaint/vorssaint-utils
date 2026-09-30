@@ -645,6 +645,8 @@ final class RecorderExporter {
         }
 
         guard CGImageDestinationFinalize(sink) else { return .writeFailed }
+        // A cancel that arrived while the GIF was finalized writes nothing.
+        if cancelled.isCancelled { return .cancelled }
         do {
             try encoded.write(to: destination)
         } catch {
