@@ -149,7 +149,10 @@ struct NotchView: View {
                         .padding(.vertical, NotchActivityPickerLayout.verticalInset)
                 }
             } else {
-                activityStrip(activity, size: service.surfaceSize)
+                // Hover grows the capsule around its strip, as it grows the
+                // notch around its wings. Drawn at the grown size, a song's
+                // cover and bars jumped out at once while the shape still grew.
+                activityStrip(activity, size: service.compactStripSize(for: activity, companion: service.compactCompanion))
             }
         } else if let departingMusic = service.departingMusic {
             Group {

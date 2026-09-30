@@ -593,9 +593,9 @@ enum NotchActivityTests {
                      "an event's clock keeps its side beside a download, agents or music, whatever the timer does")
         suite.expect([NotchCompactActivity.downloads, .agents, .music].allSatisfy { companions(of: $0).isEmpty },
                      "downloads, agents and music need both wings and cannot lead a pair")
-        suite.expect(NotchActivityCombination(primary: .calendar, companion: .music).title(.enUS) == "Calendar + Music"
-                     && NotchActivityCombination(primary: .timer, companion: .calendar).title(.enUS) == "Timer + Calendar",
-                     "a pair is named after the activity keeping the right of the camera first")
+        suite.expect(NotchActivityCombination(primary: .calendar, companion: .music).title(.enUS) == "Music + Calendar"
+                     && NotchActivityCombination(primary: .timer, companion: .calendar).title(.enUS) == "Calendar + Timer",
+                     "a pair is named in the order the island shows it, the companion left of the camera first")
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         for barHeight: CGFloat in [16, 22, 24, 32, 40, 64] {
             for notched in [false, true] {

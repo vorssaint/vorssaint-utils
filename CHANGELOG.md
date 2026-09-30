@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+The recording editor can copy a recording as an animated GIF. Volume keys routed through Dynamic Island step from the level the output really plays after the Mac wakes, and brightness and volume keys pressed with Option, Command or Control reach macOS again.
+
+### Dynamic Island
+- In the open capsule, the header's buttons now sit as far from the top edge as the page does from the bottom, so the title no longer crowds the top.
+- The capsule grows around what it shows when the pointer reaches it, so a song's cover and sound bars no longer jump outward first.
+- An event countdown paired with music or AI agents is only as wide as its clock and the other activity's mark need, like a timer's pair, so it leaves no extra black beside the camera. With Show over the menus off, the pair also stays beside the camera on a crowded menu bar whenever it fits.
+
+### Added
+- The recording editor's Copy button has a menu with Copy as GIF, which copies the edited recording as an animated GIF ready to paste. Copy and ⌘C still copy the video.
+
+### Fixed
+- After the Mac wakes from sleep, volume keys routed through Dynamic Island step from the level the output really plays, so external speakers no longer jump to a level far from the one the island showed.
+- Brightness and volume keys pressed with Option, Command or Control reach macOS again while Vorssaint handles those keys, so Option opens Displays or Sound settings. Option-Shift brightness keys take quarter steps and still follow the pointer to the right display.
+- Cancelling a GIF export from the recording editor no longer leaves a hidden empty file in the folder it was saving to.
+- Dynamic Island's Combine menu names each pair in the order the island shows it, left to right, such as Music + Timer.
+- While Dynamic Island or Show brightness when adjusting shows the brightness, the brightness keys ease the display to each new level as macOS does, instead of jumping to it. Display brightness shortcuts ease the same way.
+
+### Contributors
+Thanks to @AlirezaBs, @niukanen1, @Qarru and @ruvelro. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary
