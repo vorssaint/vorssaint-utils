@@ -168,7 +168,6 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutMarginMaximize),
                "window layout choices travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.screenshotFreeze)
-                && backupKeys.contains(DefaultsKey.screenshotSaveFolder)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotShowLastRegion)
@@ -187,6 +186,8 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
+        suite.expect(!backupKeys.contains(DefaultsKey.screenshotSaveFolder),
+               "the chosen screenshot save folder does not travel with the settings backup, being authority on one Mac")
         suite.expect(!backupKeys.contains(DefaultsKey.screenshotLoupeLastZoom),
                "the magnifier's last session zoom stays on its own Mac")
         suite.expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsEnabled)
