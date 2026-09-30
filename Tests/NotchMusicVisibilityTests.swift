@@ -150,6 +150,13 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(!reader.running && service.surfaceSize == closed,
                          "fullscreen keeps a black cutout and stops the automatic playback reader")
+            let plain = service.geometry
+            service.geometry = NotchGeometry(screen: plain.screen, safeAreaTop: physical ? 32 : 0,
+                                             cameraWidth: physical ? 180 : 0, menuBarHeight: 32,
+                                             compactSideRoom: 100, outline: true)
+            suite.expect(service.surfaceSize == closed,
+                         "fullscreen draws no outline, so its cutout keeps to the camera without the outline's room")
+            service.geometry = plain
             service.showsCopies = true
             service.syncVisibleConsumers()
             suite.expect(reader.running, "copies on other displays keep the song while the island rests in fullscreen")
