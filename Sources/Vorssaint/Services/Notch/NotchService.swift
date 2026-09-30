@@ -2001,6 +2001,9 @@ final class NotchService: ObservableObject {
         if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
             finishMusicDeparture()
             presentedMusic = nil
+            // Hiding the strip ends a hold, as rememberPresentedMusic does, so
+            // a song held as it ended never comes back over the next one.
+            if heldMusic != nil { heldMusic = nil }
             if hiddenUntilHover { windowHost?.hide(animated: animated, transitionContent: transitionContent) }
             else { panel?.orderOut(nil) }
             removeScreenEdgeClickMonitors()
@@ -2010,6 +2013,7 @@ final class NotchService: ObservableObject {
         guard open || (!hiddenAtRestInFullscreen && (geometry.isNotched || geometry.compactSideRoom != nil)) else {
             finishMusicDeparture()
             presentedMusic = nil
+            if heldMusic != nil { heldMusic = nil }
             windowHost?.hide(animated: animated, transitionContent: transitionContent)
             removeScreenEdgeClickMonitors()
             return
