@@ -77,6 +77,7 @@ enum NotchHoverTests {
         var departingNotice: NotchNotice?
         var departureWork: DispatchWorkItem?
         var trackWork: DispatchWorkItem?
+        var awaitsTrackNotice = false
         var presentedMusic: NotchCompactMusicSnapshot?
         var heldMusic: NotchCompactMusicSnapshot?
         var compactActivity: NotchCompactActivity?
@@ -121,7 +122,9 @@ enum NotchHoverTests {
             updateBounds()
         }
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
-        func refreshPresentation() { updateBounds() }
+        var refreshes = 0, menuSpaceSyncs = 0
+        func refreshPresentation() { refreshes += 1; updateBounds() }
+        func syncMenuSpaceMonitoring() { menuSpaceSyncs += 1 }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
     }
@@ -536,6 +539,38 @@ enum NotchHoverTests {
         NotchMusicService.shared.playback = song("New")
         hidden.scheduleTrackNotice()
         expect(hidden.heldMusic == nil, "nothing is held when the strip was not on screen")
+
+        // A long gap takes the strip away before the next song plays.
+        let arriving = fixture(false)
+        NotchMusicService.shared.playback = song("New")
+        arriving.scheduleTrackNotice()
+        expect(arriving.awaitsTrackNotice && arriving.heldMusic == nil,
+               "a new song with no strip song to keep waits for its notice too")
+        DispatchQueue.main.advance(0.5)
+        expect(arriving.notice?.title == "New" && !arriving.awaitsTrackNotice && arriving.menuSpaceSyncs == 1,
+               "the notice shows the song first, and the closed island may show it after, with its menu room read again")
+        let unnoticed = fixture(false)
+        NotchMusicService.shared.playback = song("New")
+        unnoticed.scheduleTrackNotice()
+        unnoticed.expanded = true
+        let refreshes = unnoticed.refreshes
+        DispatchQueue.main.advance(0.5)
+        expect(unnoticed.notice == nil && !unnoticed.awaitsTrackNotice && unnoticed.refreshes > refreshes,
+               "a song whose notice cannot show is released to the island at once")
+        let kept = fixture(false)
+        kept.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+        NotchMusicService.shared.playback = song("New")
+        kept.scheduleTrackNotice()
+        expect(!kept.awaitsTrackNotice && kept.heldMusic?.title == "Old",
+               "a song on the strip is kept in place instead")
+        let ending = fixture(false)
+        ending.holdEndingTrack()
+        expect(ending.heldMusic == nil, "nothing is held for a song that was not on the strip")
+        ending.presentedMusic = NotchCompactMusicSnapshot(title: "Old")
+        ending.holdEndingTrack()
+        ending.presentedMusic = NotchCompactMusicSnapshot(title: "Other")
+        ending.holdEndingTrack()
+        expect(ending.heldMusic?.title == "Old", "a song that ends leaves the strip as the song it showed")
     }
 
     /// A mirrored banner arrives with its own dismissal pending, as `show`

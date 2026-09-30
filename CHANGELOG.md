@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Dynamic Island handles track changes in web players smoothly, keeping the current song until the next one plays.
+
+### Fixed
+- Dynamic Island keeps the current song on screen while a web player loads the next one, also when another player's paused song would stand in for a moment. With the New track indicator on, the next song appears first in the indicator instead of the compact island, even when it takes a while to load.
+
+### Contributors
+Thanks to @gorillasuti.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary

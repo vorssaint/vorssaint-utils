@@ -128,6 +128,9 @@ final class NotchService: ObservableObject {
     private var musicDepartureWork: DispatchWorkItem?
     private var presentedMusic: NotchCompactMusicSnapshot?
     private var trackWork: DispatchWorkItem?
+    /// A new song with no strip song to keep in its place stays out of the
+    /// closed island until its notice, as scheduleTrackNotice() explains.
+    private var awaitsTrackNotice = false
     private var powerSource: CFRunLoopSource?
     private var powerSampler: PowerSampler?
     private var captureID: UUID?
@@ -233,7 +236,7 @@ final class NotchService: ObservableObject {
     /// A Mac without a battery has no charge to show, so a saved battery
     /// choice rests empty there; playing music still shows as before.
     var idleContent: NotchIdleContent {
-        let content = NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
+        let content = NotchSupport.visibleIdleContent(isPlaying: !awaitsTrackNotice && NotchMusicService.shared.playback?.isPlaying == true)
         return content == .battery && !PowerSampler.hasInternalBattery ? .none : content
     }
 
@@ -268,7 +271,8 @@ final class NotchService: ObservableObject {
     }
 
     var compactActivity: NotchCompactActivity? {
-        activitySelection.current(available: compactActivities)
+        // A new song waiting for its notice is not drawn yet.
+        activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
     }
 
     var compactActivities: [NotchCompactActivity] {
@@ -842,6 +846,7 @@ final class NotchService: ObservableObject {
         presentedMusic = nil
         trackWork?.cancel(); trackWork = nil
         heldMusic = nil
+        awaitsTrackNotice = false
         subscriptions.removeAll()
         stopPower()
         NotchMusicService.shared.stop()
@@ -1727,11 +1732,14 @@ final class NotchService: ObservableObject {
     private func scheduleTrackNotice() {
         trackWork?.cancel()
         if heldMusic == nil, let presentedMusic { heldMusic = presentedMusic }
+        // With no song on the strip, as after a long gap between songs, the
+        // new one waits too, so the notice is still where it first appears.
+        if heldMusic == nil { awaitsTrackNotice = true }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.trackWork = nil
             // Released once the notice covers the strip, or when none can.
-            defer { if self.heldMusic != nil { self.heldMusic = nil } }
+            defer { self.releaseTrackHold() }
             // The open island already shows the song, or holds something else
             // the person is doing.
             guard !self.expanded, !self.peeking, !self.dragPlaceholder, self.captureControls == nil,
@@ -1742,6 +1750,24 @@ final class NotchService: ObservableObject {
         }
         trackWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    /// The reading that ends the song names nothing, another player's song or
+    /// the next one paused. Held, the strip leaves as the song it showed, and
+    /// its hiding ends the hold.
+    private func holdEndingTrack() {
+        if heldMusic == nil, let presentedMusic { heldMusic = presentedMusic }
+    }
+
+    /// The closed island turns to the live song. A song that waited for its
+    /// notice appears now, unless a notice covers it, and the menu room is
+    /// read again for the strip it brings.
+    private func releaseTrackHold() {
+        if heldMusic != nil { heldMusic = nil }
+        guard awaitsTrackNotice else { return }
+        awaitsTrackNotice = false
+        syncMenuSpaceMonitoring()
+        if notice == nil { refreshPresentation() }
     }
 
     func showBrightness(_ level: Double) -> Bool {
@@ -2908,6 +2934,11 @@ final class NotchService: ObservableObject {
                     guard playback != nil else { return }
                     self?.rememberPresentedMusic(playback: playback, artwork: artwork, tint: tint)
                 }.store(in: &subscriptions)
+            // Received at once, before the reading that ends the song is
+            // published, so the strip leaves as its own song, cover included.
+            music.trackEnds
+                .sink { [weak self] in self?.holdEndingTrack() }
+                .store(in: &subscriptions)
             music.$playback.map { ($0 != nil, $0?.isPlaying == true) }
                 .removeDuplicates { $0 == $1 }.receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
