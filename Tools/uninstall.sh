@@ -5,7 +5,7 @@
 # Cleanly removes Vorssaint and every piece of system state it created:
 # the fan helper daemon, the login item, TCC permissions, preferences, saved
 # state, the app's own data folder and (if present) the password-free
-# closed-lid sudoers rule. Leaves no dead entries behind.
+# closed-lid and time zone switching sudoers rules. Leaves no dead entries behind.
 # Also clears the pre-rename "Vorssaint Utils.app" if it is still around.
 set -uo pipefail
 
@@ -75,6 +75,12 @@ RULES="/etc/sudoers.d/vorssaint-clamshell /etc/sudoers.d/vorssaint-utils-clamshe
 if ls $RULES >/dev/null 2>&1; then
     echo "▸ Removing closed-lid sudoers rule (asks for your admin password)…"
     osascript -e "do shell script \"rm -f $RULES\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
+fi
+
+TIMEZONE_RULE="/etc/sudoers.d/vorssaint-timezone"
+if [[ -f "$TIMEZONE_RULE" ]]; then
+    echo "▸ Removing time zone switching sudoers rule (asks for your admin password)…"
+    osascript -e "do shell script \"rm -f $TIMEZONE_RULE\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
 fi
 
 # `--uninstall` restores sleep, but it runs before the app has an

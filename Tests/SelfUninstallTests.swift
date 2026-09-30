@@ -11,6 +11,9 @@ enum SelfUninstallContract {
     static var sleepRestoreAllowed = true
     static var detachAllowed = true
     static var ruleRemovalAllowed = true
+    static var timeZoneRuleFilesPresent = false
+    static var timeZoneRuleConfigured = false
+    static var timeZoneRuleRemovalAllowed = true
     static var tccResetAllowed = true
     static var fanHelperWasRegistered = true
     static var fanRegistrationRestored = true
@@ -33,6 +36,14 @@ enum SelfUninstallContract {
         static func remove(completion: @escaping (Bool) -> Void) {
             events.append("rule")
             DispatchQueue.main.async { completion(ruleRemovalAllowed) }
+        }
+    }
+    enum TimeZoneSudoers {
+        static var ruleFilesPresent: Bool { timeZoneRuleFilesPresent }
+        static func isConfigured() -> Bool { timeZoneRuleConfigured }
+        static func remove(completion: @escaping (Bool) -> Void) {
+            events.append("timezone rule")
+            DispatchQueue.main.async { completion(timeZoneRuleRemovalAllowed) }
         }
     }
     enum Shell {
@@ -89,6 +100,9 @@ enum SelfUninstallContract {
             sleepRestoreAllowed = true
             detachAllowed = true
             ruleRemovalAllowed = allowRule
+            timeZoneRuleFilesPresent = false
+            timeZoneRuleConfigured = false
+            timeZoneRuleRemovalAllowed = true
             tccResetAllowed = true
             fanHelperWasRegistered = true
             fanRegistrationRestored = true
@@ -212,5 +226,25 @@ enum SelfUninstallContract {
         suite.expect(failure == "stopped"
                         && events == ["suspend", "refresh permissions", "resume features", "resume brightness"],
                      "a full uninstall still waits for mouse acceleration before deleting its journal, found \(events)")
+
+        // Both rules present: each removed, closed-lid first, time zone second.
+        reset(allowRule: true)
+        timeZoneRuleFilesPresent = true
+        Host.clearPermissions { cleared = $0 }
+        DispatchQueue.main.flush()
+        suite.expect(cleared == true
+                        && events == ["suspend", "sleep", "fan", "login", "rule", "timezone rule", "tccutil", "refresh permissions", "restore keep awake", "resume brightness"],
+                     "both sudoers rules are removed before permissions reset, found \(events)")
+
+        // A refused time zone rule removal keeps it a partial clear, exactly
+        // like a refused closed-lid removal does.
+        reset(allowRule: true)
+        timeZoneRuleFilesPresent = true
+        timeZoneRuleRemovalAllowed = false
+        Host.clearPermissions { cleared = $0 }
+        DispatchQueue.main.flush()
+        suite.expect(cleared == false
+                        && events == ["suspend", "sleep", "fan", "login", "rule", "timezone rule", "tccutil", "refresh permissions", "restore keep awake", "resume features", "resume brightness"],
+                     "a refused time zone rule removal reports partial clear, found \(events)")
     }
 }

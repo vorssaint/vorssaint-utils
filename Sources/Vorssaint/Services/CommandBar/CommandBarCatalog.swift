@@ -631,6 +631,26 @@ enum CommandBarCatalog {
                 run: { _ in QuickTogglesService.shared.emptyTrashConfirmed() }))
         }
 
+        if AppFeature.timeZoneSwitcher.isAvailable,
+           UserDefaults.standard.bool(forKey: DefaultsKey.timeZoneSwitcherCommandBarEnabled) {
+            let tzText = FeatureStrings.timeZoneSwitcher(language)
+            let tzService = TimeZoneSwitchService.shared
+            let tzArea = area(.timeZoneSwitcher)
+            for identifier in tzService.favorites where identifier != tzService.currentIdentifier {
+                let city = TimeZoneSwitchSupport.displayName(for: identifier)
+                let offset = TimeZoneSwitchSupport.offsetLabel(for: identifier)
+                entries.append(CommandBarEntry(
+                    id: "action.timeZoneSwitcher.\(identifier)",
+                    title: "\(tzText.switchButton) \(city)",
+                    subtitle: offset.map { "\(tzArea) · \($0)" } ?? tzArea,
+                    keywords: TimeZoneSwitchSupport.regionName(for: identifier),
+                    icon: .symbol("globe"),
+                    run: { _ in
+                        tzService.switchTimeZone(to: identifier)
+                    }))
+            }
+        }
+
         if AppFeature.urlCleaner.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.cleanURL",

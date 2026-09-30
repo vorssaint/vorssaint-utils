@@ -412,6 +412,12 @@ enum SettingsDirectory {
                                                  FeatureStrings.radialMenu(language).kindMedia,
                                                  FeatureStrings.radialMenu(language).kindSubmenu,
                                                  FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
+                SettingsDirectoryItem(page: .timeZoneSwitcher,
+                                      title: FeatureStrings.timeZoneSwitcher(language).pageTitle,
+                                      icon: "globe",
+                                      keywords: ["timezone", "time zone", "UTC", "GMT", "world clock",
+                                                 FeatureStrings.timeZoneSwitcher(language).currentLabel,
+                                                 FeatureStrings.timeZoneSwitcher(language).favoritesHeader]),
             ]),
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",

@@ -236,6 +236,53 @@ enum Sudoers {
     }
 }
 
+/// NOPASSWD rule restricted to `systemsetup -settimezone`, so switching time
+/// zones only asks for the administrator password once, the first time.
+enum TimeZoneSudoers {
+    static let rulePath = "/etc/sudoers.d/vorssaint-timezone"
+
+    static var ruleFilesPresent: Bool {
+        FileManager.default.fileExists(atPath: rulePath)
+    }
+
+    /// Proves the passwordless path by actually using it: re-applying the
+    /// current zone through `sudo -n` changes nothing on the system (the same
+    /// idempotence `Sudoers.isConfigured()` relies on for sleep) and exercises
+    /// the exact call a real switch makes.
+    static func isConfigured() -> Bool {
+        switchTimeZone(to: TimeZone.current.identifier)
+    }
+
+    static func install(completion: @escaping (Bool) -> Void) {
+        let rule = SudoersSupport.timeZoneRule(uid: getuid())
+        let command = "mkdir -p /etc/sudoers.d && chmod 0755 /etc/sudoers.d && echo '\(rule)' > \(rulePath) && chmod 0440 \(rulePath) && /usr/sbin/visudo -c -f \(rulePath) || { rm -f \(rulePath); exit 1; }"
+        let prompt = FeatureStrings.timeZoneSwitcher(L10n.shared.language).adminSetupPrompt
+        AdminShell.run(command, prompt: prompt) { ok in
+            completion(ok && isConfigured())
+        }
+    }
+
+    static func remove(completion: @escaping (Bool) -> Void) {
+        let prompt = FeatureStrings.timeZoneSwitcher(L10n.shared.language).adminRemovePrompt
+        AdminShell.run("rm -f \(rulePath)", prompt: prompt) { ok in
+            completion(ok)
+        }
+    }
+
+    /// Runs the switch through the password-free path. Fails silently
+    /// (returns false) when the rule is not installed, or the identifier is
+    /// not one of macOS's own — the same whitelist the interactive path uses.
+    /// A longer timeout than `Shell`'s default: `systemsetup` occasionally
+    /// waits on the date-and-time daemon, longer than the few seconds most
+    /// commands here are ever worth waiting on.
+    @discardableResult
+    static func switchTimeZone(to identifier: String) -> Bool {
+        guard TimeZoneSwitchSupport.isKnownIdentifier(identifier) else { return false }
+        return Shell.run("/usr/bin/sudo", ["-n", "/usr/sbin/systemsetup", "-settimezone", identifier],
+                         timeout: 15).status == 0
+    }
+}
+
 /// Sends Apple Events to another app IN-PROCESS (via NSAppleScript) instead of
 /// spawning `osascript`. The Automation consent is then attributed to THIS app —
 /// so it stays granted across updates, is re-requested if it was lost, and the

@@ -17,4 +17,12 @@ enum SudoersSupport {
     static func clamshellRule(uid: uid_t) -> String {
         "#\(uid) ALL=(root) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0"
     }
+
+    /// The time-zone-switch NOPASSWD rule. Wildcarded on the zone name, unlike
+    /// the clamshell rule's fixed pair: any of macOS's own zone identifiers is
+    /// a valid switch target, and only `TimeZoneSwitchSupport.isKnownIdentifier`'s
+    /// whitelist check decides which ones ever reach this rule.
+    static func timeZoneRule(uid: uid_t) -> String {
+        "#\(uid) ALL=(root) NOPASSWD: /usr/sbin/systemsetup -settimezone *"
+    }
 }

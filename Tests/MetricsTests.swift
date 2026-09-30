@@ -83,6 +83,7 @@ struct MetricsTests {
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
                 PortManagerRefreshTests.run(suite)
+                TimeZoneSwitchSupportTests.run(suite)
             }),
             ("settings", {
                 SettingsFeatureTests.run(suite)

@@ -15,7 +15,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
-| Administrator (one time) | Yes | Password free closed lid toggling |
+| Administrator (one time) | Yes | Password free closed lid toggling and time zone switching |
 | Automation | Yes | Finder actions, Homebrew Terminal handoff and supported music playback controls |
 | App Management | Yes | App installs, updates and removal |
 
@@ -119,13 +119,13 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 
 ## Administrator, one time and optional
 
-**Why it comes up.** Keeping the Mac awake with the lid shut relies on `pmset disablesleep`, which needs administrator rights. So it does not have to ask for your password every time you flip closed lid mode, Vorssaint can install a tightly scoped `sudoers` rule that allows only that single command.
+**Why it comes up.** Keeping the Mac awake with the lid shut relies on `pmset disablesleep`, which needs administrator rights. So it does not have to ask for your password every time you flip closed lid mode, Vorssaint can install a tightly scoped `sudoers` rule that allows only that single command. Switching the system time zone works the same way, through its own rule limited to `systemsetup -settimezone`.
 
-**What uses it.** Closed lid keep awake.
+**What uses it.** Closed lid keep awake, and the time zone switcher.
 
-**If you say no.** Closed lid mode still works. macOS just asks for your administrator password each time you turn it on or off.
+**If you say no.** Both features still work. macOS just asks for your administrator password every time: closed lid mode each time you turn it on or off, and the time zone switcher each time you switch.
 
-**Optional.** Yes, and it is a one time choice. The rule is limited to `pmset disablesleep` and nothing else, and it goes away on its own when you uninstall Vorssaint or reset things from Settings under Advanced.
+**Optional.** Yes, and each rule is a one time choice, asked the first time its feature actually runs. Each rule is limited to its own single command and nothing else, and both go away on their own when you uninstall Vorssaint or reset things from Settings under Advanced.
 
 ## Automation
 

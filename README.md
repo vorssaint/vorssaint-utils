@@ -165,6 +165,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
 - **Extra brightness.** Use a MacBook Pro XDR display's HDR headroom to go beyond its normal maximum brightness.
 - **Bluetooth on sleep.** Disconnect Bluetooth during sleep and restore it on wake only if Vorssaint turned it off.
+- **Time zone switcher.** Switch the Mac's system time zone in one click from a list of favorites, with your administrator password.
 
 ## Install
 

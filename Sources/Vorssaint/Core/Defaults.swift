@@ -291,6 +291,8 @@ enum DefaultsKey {
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
     static let uninstallerCommandBarEnabled = "uninstallerCommandBarEnabled"
+    static let timeZoneSwitcherFavorites = "timeZoneSwitcherFavorites" // [IANA identifier], user's saved list
+    static let timeZoneSwitcherCommandBarEnabled = "timeZoneSwitcherCommandBarEnabled"
     static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
     static let killProcessGroupRelated = "killProcessGroupRelated"
     static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
@@ -698,6 +700,7 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
+    static let panelUtilityTimeZoneSwitcher = "panelUtilityTimeZoneSwitcher"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1429,6 +1432,8 @@ enum Defaults {
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.uninstallerCommandBarEnabled: false,
+        DefaultsKey.timeZoneSwitcherFavorites: [String](),
+        DefaultsKey.timeZoneSwitcherCommandBarEnabled: true,
         DefaultsKey.killProcessCommandBarEnabled: true,
         DefaultsKey.killProcessGroupRelated: true,
         DefaultsKey.killProcessSortBy: "cpu",
@@ -1715,6 +1720,7 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
+        DefaultsKey.panelUtilityTimeZoneSwitcher: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

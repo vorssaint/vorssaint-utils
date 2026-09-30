@@ -235,8 +235,18 @@ enum SelfUninstall {
     }
 
     private static func removeSudoersRuleIfPresent(then: @escaping (Bool) -> Void) {
-        guard Sudoers.ruleFilesPresent || Sudoers.isConfigured() else { then(true); return }
-        Sudoers.remove(completion: then)            // shows the admin password prompt
+        let needsClamshellRemoval = Sudoers.ruleFilesPresent || Sudoers.isConfigured()
+        let needsTimeZoneRemoval = TimeZoneSudoers.ruleFilesPresent || TimeZoneSudoers.isConfigured()
+        guard needsClamshellRemoval || needsTimeZoneRemoval else { then(true); return }
+        func removeTimeZoneIfNeeded(_ ok: Bool) {
+            guard ok, needsTimeZoneRemoval else { then(ok); return }
+            TimeZoneSudoers.remove(completion: then)    // shows the admin password prompt
+        }
+        if needsClamshellRemoval {
+            Sudoers.remove(completion: removeTimeZoneIfNeeded)    // shows the admin password prompt
+        } else {
+            removeTimeZoneIfNeeded(true)
+        }
     }
 
     /// `tccutil reset All <bundle id>` clears Accessibility, Screen Recording,

@@ -1148,7 +1148,8 @@ def main():
           + "".join(declaration(keep_awake, prefix).replace("private ", "", 1) for prefix in keep_awake_methods)
           + "}\n}\n"
           + "extension KeepAwakeLidSleepContract.Sudoers {\n"
-          + declaration("Sources/Vorssaint/Services/ShellSupport.swift", "    static func isConfigured()")
+          + declaration("Sources/Vorssaint/Services/ShellSupport.swift", "    static func isConfigured()",
+                        scope="enum Sudoers {")
           + declaration("Sources/Vorssaint/Services/ShellSupport.swift", "    static func restoreSleepWithAuthorization(")
           + "}\n")
     write("KeepAwakeTimerHandoff.swift", "import Foundation\n\nextension KeepAwakeTimerHandoffContract {\n"
