@@ -144,14 +144,25 @@ enum URLCleaning {
         }
 
         var removed: [String] = []
-        if let items = components.queryItems {
+        if let query = components.percentEncodedQuery, !query.isEmpty {
             let matcher = Self.matcher(for: host, rules: rules)
-            let kept = items.filter { item in
-                guard matcher.matches(item.name) else { return true }
-                if !removed.contains(item.name) { removed.append(item.name) }
-                return false
+            // The query is filtered in the spelling it arrived in and the
+            // survivors are joined back from their own bytes, so cleaning is a
+            // pure deletion. Reading `queryItems` instead would decode every
+            // pair and write it back through a much wider allowed set, and a
+            // value that survived the filter came out respelled — even when
+            // nothing was removed at all, which left the caller rewriting a
+            // link it had no reason to touch.
+            let kept = query.split(separator: "&", omittingEmptySubsequences: false)
+                .filter { pair in
+                    let name = Self.decodedName(ofEncodedPair: pair)
+                    guard matcher.matches(name) else { return true }
+                    if !removed.contains(name) { removed.append(name) }
+                    return false
+                }
+            if !removed.isEmpty {
+                components.percentEncodedQuery = kept.isEmpty ? nil : kept.joined(separator: "&")
             }
-            components.queryItems = kept.isEmpty ? nil : kept
         }
 
         guard let url = components.url?.absoluteString else { return nil }
@@ -230,6 +241,17 @@ enum URLCleaning {
             return nil
         }
         return value
+    }
+
+    /// The name half of one percent-encoded `name=value` pair, decoded so a
+    /// tracker a link spells as `%75tm_source` or `%24deep_link` is still the
+    /// name the rules list. A pair carries no `=` when it is a bare flag, and
+    /// a broken escape cannot be decoded at all; both fall back to the raw
+    /// text, which then simply matches nothing.
+    private static func decodedName(ofEncodedPair pair: Substring) -> String {
+        let raw = String(pair.prefix { $0 != "=" })
+        guard raw.contains("%") else { return raw }
+        return raw.removingPercentEncoding ?? raw
     }
 
     private struct Matcher {
