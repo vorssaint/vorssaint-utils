@@ -534,8 +534,9 @@ struct NotchActivityCombination: Hashable, Identifiable {
 
     var id: String { primary.rawValue + "+" + companion.rawValue }
 
+    /// Named in the order the island shows them, left to right.
     func title(_ language: AppLanguage) -> String {
-        primary.title(language) + " + " + companion.title(language)
+        companion.title(language) + " + " + primary.title(language)
     }
 }
 
@@ -1677,9 +1678,10 @@ struct NotchGeometry: Equatable {
     /// A title and the compact actions each fit in a 100-point wing, including
     /// the compact preset. Narrower layouts keep a full row below the camera.
     var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 200 ? cameraWidth : 0 }
-    /// A capsule's header keeps clear of its rounded top corners.
+    /// A capsule's header keeps clear of its rounded top corners, its
+    /// 28-point buttons as far from the top edge as the page is from the bottom.
     var headerTopInset: CGFloat {
-        if let floatingGap { return floatingGap + 2 }
+        if floats { return NotchLayout.bottomInset - (NotchLayout.headerHeight - 28) / 2 }
         return !isNotched || headerCameraGap > 0 ? 0 : safeContentTop
     }
     var headerRowHeight: CGFloat { headerCameraGap > 0 ? max(cameraHeight, NotchLayout.headerHeight) : NotchLayout.headerHeight }

@@ -3151,6 +3151,49 @@ enum PointerInputFeatureTests {
                 && PreciseVolumeMediaKey.volumeDown.rollerDirection == .down
                 && PreciseVolumeMediaKey.mute.rollerDirection == nil,
                "precise volume only remaps volume up and down media keys")
+        var optionPress = PreciseVolumeKeyOwnership()
+        suite.expect(optionPress.leavesToSystem(keyCode: 0, isDown: true, isRepeat: false,
+                                                option: true, commandOrControl: false)
+                && optionPress.leavesToSystem(keyCode: 0, isDown: true, isRepeat: true,
+                                              option: false, commandOrControl: false)
+                && optionPress.leavesToSystem(keyCode: 0, isDown: false, isRepeat: false,
+                                              option: false, commandOrControl: false),
+               "precise volume leaves an Option press to the system until its release")
+        var commandPress = PreciseVolumeKeyOwnership()
+        suite.expect(commandPress.leavesToSystem(keyCode: 1, isDown: true, isRepeat: false,
+                                                 option: false, commandOrControl: true),
+               "precise volume leaves a Command or Control press to the system")
+        var plainPress = PreciseVolumeKeyOwnership()
+        suite.expect(!plainPress.leavesToSystem(keyCode: 0, isDown: true, isRepeat: false,
+                                                option: false, commandOrControl: false)
+                && !plainPress.leavesToSystem(keyCode: 0, isDown: true, isRepeat: true,
+                                              option: true, commandOrControl: false)
+                && !plainPress.leavesToSystem(keyCode: 0, isDown: false, isRepeat: false,
+                                              option: true, commandOrControl: false),
+               "precise volume keeps remapping a plain press when Option joins mid-press")
+        var unseenPress = PreciseVolumeKeyOwnership()
+        suite.expect(unseenPress.leavesToSystem(keyCode: 0, isDown: true, isRepeat: true,
+                                                option: true, commandOrControl: false)
+                && unseenPress.leavesToSystem(keyCode: 0, isDown: false, isRepeat: false,
+                                              option: true, commandOrControl: false),
+               "precise volume leaves a press whose key-down it never saw to the system")
+        var unseenPlainPress = PreciseVolumeKeyOwnership()
+        suite.expect(unseenPlainPress.leavesToSystem(keyCode: 1, isDown: true, isRepeat: true,
+                                                     option: false, commandOrControl: false)
+                && unseenPlainPress.leavesToSystem(keyCode: 1, isDown: false, isRepeat: false,
+                                                   option: false, commandOrControl: false),
+               "precise volume leaves unseen plain repeats and releases to the system")
+        var lostRelease = PreciseVolumeKeyOwnership()
+        _ = lostRelease.leavesToSystem(keyCode: 0, isDown: true, isRepeat: false,
+                                       option: true, commandOrControl: false)
+        suite.expect(!lostRelease.leavesToSystem(keyCode: 0, isDown: true, isRepeat: false,
+                                                 option: false, commandOrControl: false),
+               "precise volume remaps a fresh plain press even when the last release was lost")
+        let fineStep = PreciseVolumeKeyEvents.fineStep(0)
+        suite.expect(fineStep.count == 2 && fineStep.allSatisfy(PreciseVolumeKeyEvents.isPosted),
+               "precise volume marks its own fine-step events so its tap never counts them as a press")
+        suite.expect(CGEvent(source: nil).map { !PreciseVolumeKeyEvents.isPosted($0) } == true,
+               "a physical volume event is not taken for one precise volume posted")
 
         // MARK: Brightness key base (issue #370)
 
