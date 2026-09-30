@@ -8,7 +8,8 @@
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint использует Bluetooth только для чтения заряда подключённых периферийных устройств. Ничего не покидает ваш Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint записывает микрофон, только когда вы включаете его для записи экрана. Звук остаётся на вашем Mac, если только вы не создадите временную ссылку.";
+"NSMicrophoneUsageDescription" = "Vorssaint использует микрофон только во время диктовки или записи экрана. Диктовка распознаётся на этом Mac; аудио не отправляется на сервер.";
+"NSSpeechRecognitionUsageDescription" = "Vorssaint распознаёт диктовку на этом Mac только при включённом голосовом вводе. Аудио не отправляется на сервер.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint показывает вашу камеру только в открытом вами окне предпросмотра, чтобы вы могли проверить, как выглядите перед звонком. Ничего не записывается и не покидает ваш Mac.";

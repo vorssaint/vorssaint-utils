@@ -379,6 +379,7 @@ enum SettingsDirectory {
                                                             .keyboardLight]),
                                         (.cameraPreview,
                                          [FeatureStrings.cameraPreview(language).pageTitle]),
+                                        (.speechToText, [SpeechToTextStrings.localized(language).title]),
                                         (.wallpaper,
                                          [FeatureStrings.wallpaper(language).pageTitle]),
                                         (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),

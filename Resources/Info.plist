@@ -61,7 +61,9 @@
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Vorssaint uses Bluetooth only to read the battery level of connected peripherals. Nothing leaves your Mac.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Vorssaint records your microphone only when you turn it on for a screen recording. The audio stays on your Mac unless you choose to create a temporary link.</string>
+	<string>Vorssaint uses your microphone only while dictation or a screen recording is active. Dictation is recognized on this Mac; audio is not sent to a server.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Vorssaint recognizes your dictation on this Mac only while you activate voice typing. Audio is not sent to a server.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Show your upcoming appointments in the notch. Calendar events stay on this Mac.</string>
 	<key>NSCameraUsageDescription</key>

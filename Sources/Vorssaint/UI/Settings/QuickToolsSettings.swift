@@ -11,11 +11,13 @@ struct QuickToolsSettings: View {
     @ObservedObject private var micMute = MicMuteService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
+    @ObservedObject private var speechToText = SpeechToTextService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
+    @AppStorage(DefaultsKey.speechToTextShortcutEnabled) private var speechShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadShortcutEnabled) private var scratchpadShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadRetention) private var scratchpadRetention = ScratchpadRetention.never.rawValue
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
@@ -170,6 +172,44 @@ struct QuickToolsSettings: View {
                     Text(FeatureStrings.cameraPreview(l10n.language).pageTitle)
                 }
                 .settingsFormSectionAnchor(.cameraPreview)
+            }
+
+            if AppFeature.speechToText.isAvailable {
+                let strings = SpeechToTextStrings.localized(l10n.language)
+                Section {
+                    Button {
+                        speechToText.toggle()
+                    } label: {
+                        Label(speechToText.state == .listening || speechToText.state == .finishing
+                                ? strings.stop : strings.start,
+                              systemImage: speechToText.state == .listening ? "stop.fill" : "mic.fill")
+                    }
+                    Text(strings.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let status = speechToText.statusMessage {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(speechToText.state == .failed
+                                || speechToText.state == .unavailable ? Color.orange : Color.secondary)
+                    }
+                    Toggle(l10n.s.quickToolShortcutToggle, isOn: $speechShortcutEnabled)
+                        .onChange(of: speechShortcutEnabled) { _, _ in
+                            speechToText.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .speechToText,
+                                          isEnabled: speechShortcutEnabled) {
+                        speechToText.syncWithPreferences()
+                    }
+                    if speechShortcutEnabled, speechToText.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text(strings.title)
+                }
+                .settingsFormSectionAnchor(.speechToText)
             }
 
             if AppFeature.wallpaper.isAvailable {

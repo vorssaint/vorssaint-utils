@@ -8,6 +8,7 @@ import Combine
 import CoreGraphics
 import EventKit
 import UserNotifications
+import Speech
 
 /// Central place to check, request and watch the TCC permissions the app uses.
 /// Accessibility powers the scroll inverter and the switcher's event tap;
@@ -40,6 +41,7 @@ final class Permissions: ObservableObject {
     /// Optional microphone access, used only while a recording that asked for
     /// it is active.
     @Published private(set) var microphone: MicrophonePermissionState = .unknown
+    @Published private(set) var speechRecognition = SFSpeechRecognizer.authorizationStatus()
 
     enum NotificationPermissionState {
         case granted, denied, undetermined, unknown
@@ -137,6 +139,7 @@ final class Permissions: ObservableObject {
         refreshCameraPermission()
         calendarAccess = EKEventStore.authorizationStatus(for: .event)
         refreshMicrophonePermission()
+        speechRecognition = SFSpeechRecognizer.authorizationStatus()
         // Checking Full Disk Access means asking the system about protected
         // folders, and every refused answer costs time. Doing that where the
         // app is starting up holds back the menu bar icon, so it moves off
@@ -379,6 +382,19 @@ final class Permissions: ObservableObject {
                 completion?(granted)
             }
         }
+    }
+
+    func requestSpeechRecognition(completion: ((Bool) -> Void)? = nil) {
+        SFSpeechRecognizer.requestAuthorization { [weak self] status in
+            DispatchQueue.main.async {
+                self?.speechRecognition = status
+                completion?(status == .authorized)
+            }
+        }
+    }
+
+    func openSpeechRecognitionSettings() {
+        open(pane: "Privacy_SpeechRecognition")
     }
 
     func openCameraSettings() {
