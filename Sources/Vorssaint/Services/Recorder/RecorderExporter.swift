@@ -609,10 +609,16 @@ final class RecorderExporter {
             generator.videoComposition = composition
         }
 
-        guard let sink = CGImageDestinationCreateWithURL(destination as CFURL,
-                                                         UTType.gif.identifier as CFString,
-                                                         frameCount,
-                                                         nil)
+        // Encoded in memory and written out only once it is whole. Given a
+        // URL, ImageIO writes through a hidden file of its own beside it, and
+        // a cancel before the end leaves that file behind in the person's
+        // folder. The frames are held until the end either way, and the
+        // finished GIF is much smaller than they are.
+        let encoded = NSMutableData()
+        guard let sink = CGImageDestinationCreateWithData(encoded as CFMutableData,
+                                                          UTType.gif.identifier as CFString,
+                                                          frameCount,
+                                                          nil)
         else { return .writeFailed }
         CGImageDestinationSetProperties(sink, [
             kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0],
@@ -630,10 +636,7 @@ final class RecorderExporter {
         ] as CFDictionary
 
         for index in 0..<frameCount {
-            if cancelled.isCancelled {
-                try? FileManager.default.removeItem(at: destination)
-                return .cancelled
-            }
+            if cancelled.isCancelled { return .cancelled }
             let seconds = min(outputDuration, Double(index) / Double(fps))
             let time = CMTime(seconds: seconds, preferredTimescale: 600)
             guard let frame = try? await generator.image(at: time).image else { continue }
@@ -641,7 +644,12 @@ final class RecorderExporter {
             progress(min(0.99, Double(index + 1) / Double(frameCount)))
         }
 
-        guard CGImageDestinationFinalize(sink) else {
+        guard CGImageDestinationFinalize(sink) else { return .writeFailed }
+        // A cancel that arrived while the GIF was finalized writes nothing.
+        if cancelled.isCancelled { return .cancelled }
+        do {
+            try encoded.write(to: destination)
+        } catch {
             try? FileManager.default.removeItem(at: destination)
             return .writeFailed
         }
