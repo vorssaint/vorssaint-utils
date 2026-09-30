@@ -1028,7 +1028,6 @@ final class NotchService: ObservableObject {
             && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true || pointerOverChildWindow(point)
         hoverState.update(pointerInside: inside)
-        syncHoverExitMonitoring(entered: entered, point: point)
         let emphasize = inside && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
             && notice == nil && captureControls == nil
             && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -1036,6 +1035,7 @@ final class NotchService: ObservableObject {
             hoverEmphasized = emphasize
             refreshPresentation()
         }
+        syncHoverExitMonitoring(entered: entered, point: point)
         captureHover?(entered)
         if captureControls != nil {
             updateCaptureControlsHover(wasInside: wasInside)
@@ -1105,10 +1105,14 @@ final class NotchService: ObservableObject {
     /// An exit can then arrive with the pointer still in that margin and be
     /// the last report. From such an exit until AppKit reports the pointer
     /// again, every move is checked here, so leaving still closes the island.
-    /// A pointer at rest costs nothing.
+    /// The closed island's hover emphasis has the same gap, and worse: a fast
+    /// pass up through the top edge to a display above can report its exit
+    /// while the pointer still touches the island, or no exit at all. So while
+    /// the emphasis shows, moves are followed from the entry on. A pointer at
+    /// rest costs nothing.
     private func syncHoverExitMonitoring(entered: Bool, point: CGPoint) {
-        let watching = !entered
-            && NotchSupport.closesOnPointerExit(expanded: expanded, peeking: peeking, openedByHover: openedByHover)
+        let watching = (hoverEmphasized
+                || !entered && NotchSupport.closesOnPointerExit(expanded: expanded, peeking: peeking, openedByHover: openedByHover))
             && captureControls == nil && !pinned && !heldDrag && !hiddenUntilHover && !keepsWorkingSurface
             // Once watching, a pointer that leaves and slips back unreported is still seen.
             && (!hoverExitMonitors.isEmpty || windowHost?.containsHover(point) == true)
