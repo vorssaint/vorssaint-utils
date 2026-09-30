@@ -118,6 +118,7 @@ final class BrightnessService: ObservableObject {
     /// system-defined events only, so ordinary typing never touches it.
     private var keyTap: CFMachPort?
     private var keyTapSource: CFRunLoopSource?
+    private var keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
     /// Second tap for keyboards that send brightness as an ordinary key
     /// press instead of a media key. Every keystroke in the session passes
     /// through it, so it runs on its own thread: the window server waits for
@@ -154,6 +155,9 @@ final class BrightnessService: ObservableObject {
         let value: Double
         let showOSD: Bool
         let sequence: UInt64
+        /// A key step, which a system display eases into like the system's
+        /// own keys. Slider drags land at once.
+        let smooth: Bool
     }
     private var pendingLevels: [CGDirectDisplayID: PendingWrite] = [:]
     private var writeSequence: UInt64 = 0
@@ -605,9 +609,10 @@ final class BrightnessService: ObservableObject {
 
     /// Moves one display's brightness. The published value updates on the
     /// spot for a responsive slider; the hardware write happens on the work
-    /// queue, and a drag folds into one write of the newest value.
+    /// queue, and a drag folds into one write of the newest value. A key
+    /// step passes `smooth`, so a system display eases into it.
     func setBrightness(_ value: Double, for id: CGDirectDisplayID,
-                       showOSD: Bool = false) {
+                       showOSD: Bool = false, smooth: Bool = false) {
         guard value.isFinite else { return }
         let clamped = min(max(value, 0), 1)
         let shownInNotch = NotchService.shared.showBrightness(clamped)
@@ -619,7 +624,7 @@ final class BrightnessService: ObservableObject {
         writeSequence &+= 1
         pendingLevels[id] = PendingWrite(value: clamped,
                                          showOSD: showOSD && !shownInNotch,
-                                         sequence: writeSequence)
+                                         sequence: writeSequence, smooth: smooth)
         lastApplied[id] = RememberedLevel(value: clamped,
                                           fingerprint: Self.displayFingerprint(id))
         levelKnownAt[id] = Date()
@@ -1066,6 +1071,7 @@ final class BrightnessService: ObservableObject {
         CFMachPortInvalidate(tap)
         keyTapSource = nil
         keyTap = nil
+        keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
     }
 
     // MARK: - Brightness keys on other keyboards
@@ -1413,7 +1419,7 @@ final class BrightnessService: ObservableObject {
                             showOSD: Bool) {
         let stepped = BrightnessSupport.steppedBrightness(current, delta: delta)
         Self.log.log("key step display \(displayID) route \(String(describing: method), privacy: .public) \(current) to \(stepped)")
-        setBrightness(stepped, for: displayID, showOSD: showOSD)
+        setBrightness(stepped, for: displayID, showOSD: showOSD, smooth: true)
     }
 
     /// Routes a handled brightness key press to the pointer display when that
@@ -1448,12 +1454,18 @@ final class BrightnessService: ObservableObject {
         guard running, let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
                                                                data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
+        guard case .app(let ownedDelta) = keyOwnership.owner(
+            of: press,
+            option: event.flags.contains(.maskAlternate),
+            shift: event.flags.contains(.maskShift),
+            commandOrControl: !event.flags.isDisjoint(with: [.maskCommand, .maskControl]))
+        else { return Unmanaged.passUnretained(event) }
 
         let defaults = UserDefaults.standard
         let followsPointer = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
         let showsOverlay = defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
         let keyStep = self.keyStep
-        let delta = keyStep.limited(press.delta)
+        let delta = keyStep.limited(ownedDelta)
         // A press left to the system still takes a finer step, as the
         // system's own quarter steps, and both of its halves are replaced.
         func leaveToSystem() -> Unmanaged<CGEvent>? {
@@ -1518,7 +1530,7 @@ final class BrightnessService: ObservableObject {
             ) {
                 let stepped = BrightnessSupport.steppedBrightness(current, delta: delta)
                 Self.log.log("key step display \(displayID) route system \(current) to \(stepped)")
-                setBrightness(stepped, for: displayID, showOSD: showsOverlay)
+                setBrightness(stepped, for: displayID, showOSD: showsOverlay, smooth: true)
             }
             // Both halves are replaced so the system never draws a second OSD.
             return nil
@@ -2072,7 +2084,7 @@ final class BrightnessService: ObservableObject {
             var writeSucceeded = false
             switch route.method {
             case .system:
-                writeSucceeded = BrightnessBridge.setBrightness?(id, Float(value)) == 0
+                writeSucceeded = Self.writeSystemBrightness(value, to: id, smooth: pending.smooth)
             case .ddc:
                 guard let service = route.service else { continue }
                 if route.extendedDimming {
@@ -2117,6 +2129,26 @@ final class BrightnessService: ObservableObject {
                 }
             }
         }
+    }
+
+    /// A key step reaches a system display the way the system's own keys do:
+    /// the level moves at once and the backlight eases after it, instead of
+    /// jumping (issue #2149). The easing call takes a change, measured from
+    /// the level the system reports, which is already the end of any ramp
+    /// still running. A display that is asleep, refuses the change or does
+    /// not land on the level gets the level directly.
+    private static func writeSystemBrightness(_ value: Double, to id: CGDirectDisplayID,
+                                              smooth: Bool) -> Bool {
+        var current: Float = -1
+        if smooth, CGDisplayIsAsleep(id) == 0,
+           let ease = BrightnessBridge.setBrightnessSmooth, let read = BrightnessBridge.getBrightness,
+           read(id, &current) == 0,
+           let change = BrightnessSupport.easedBrightnessChange(to: value, from: current),
+           ease(id, change) == 0, read(id, &current) == 0,
+           BrightnessSupport.easedBrightnessLanded(on: value, reported: current) {
+            return true
+        }
+        return BrightnessBridge.setBrightness?(id, Float(value)) == 0
     }
 
     /// The monitor stays at its hardware minimum while the lower part of the
@@ -2534,6 +2566,11 @@ enum BrightnessBridge {
         symbol(displayServicesHandle, "DisplayServicesGetBrightness")
     static let setBrightness: SetBrightnessFn? =
         symbol(displayServicesHandle, "DisplayServicesSetBrightness")
+    /// What the system's own brightness keys call. It takes a change, not a
+    /// level: the reported level moves by that much at once and the
+    /// backlight eases after it.
+    static let setBrightnessSmooth: SetBrightnessFn? =
+        symbol(displayServicesHandle, "DisplayServicesSetBrightnessSmooth")
     static let createInfoDictionary: CreateInfoDictionaryFn? =
         symbol(coreDisplayHandle, "CoreDisplay_DisplayCreateInfoDictionary")
     static let createWithService: CreateWithServiceFn? =
