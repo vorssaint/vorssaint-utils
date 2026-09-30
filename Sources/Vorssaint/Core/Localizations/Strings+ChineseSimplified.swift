@@ -395,7 +395,7 @@ extension Strings {
         homebrewCasks: "Cask",
         homebrewNoPackages: "未找到包",
         homebrewDependencies: "依赖项",
-        homebrewGroupDependencies: "将依赖项分组",
+        homebrewGroupDependencies: "隐藏依赖项",
         homebrewNoSelection: "选择一个已安装的包，或搜索一个新的包。",
         homebrewDetailsTitle: "包详情",
         homebrewInstall: "安装",

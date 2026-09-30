@@ -395,7 +395,7 @@ extension Strings {
         homebrewCasks: "Casks",
         homebrewNoPackages: "Nenašli sa žiadne balíky",
         homebrewDependencies: "Závislosti",
-        homebrewGroupDependencies: "Zoskupiť závislosti",
+        homebrewGroupDependencies: "Skryť závislosti",
         homebrewNoSelection: "Vyberte nainštalovaný balík alebo vyhľadajte nový.",
         homebrewDetailsTitle: "Detaily balíka",
         homebrewInstall: "Inštalovať",

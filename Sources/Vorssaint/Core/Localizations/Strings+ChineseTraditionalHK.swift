@@ -396,7 +396,7 @@ extension Strings {
         homebrewCasks: "Cask",
         homebrewNoPackages: "找不到套件",
         homebrewDependencies: "依賴項目",
-        homebrewGroupDependencies: "將依賴項目分組",
+        homebrewGroupDependencies: "隱藏依賴項目",
         homebrewNoSelection: "選取已安裝的套件，或搜尋新的套件。",
         homebrewDetailsTitle: "套件詳情",
         homebrewInstall: "安裝",

@@ -130,11 +130,20 @@ struct HomebrewSettings: View {
             }
             HStack {
                 Spacer(minLength: 0)
-                Toggle(l10n.s.homebrewGroupDependencies, isOn: $homebrewGroupDependencies)
+                Toggle(l10n.s.homebrewGroupDependencies, isOn: hideDependenciesBinding)
                     .font(.caption)
                     .controlSize(.small)
             }
         }
+    }
+
+    /// Flat mode keeps every installed package visible while removing the
+    /// parent/child dependency presentation from the list.
+    private var hideDependenciesBinding: Binding<Bool> {
+        Binding(
+            get: { !homebrewGroupDependencies },
+            set: { homebrewGroupDependencies = !$0 }
+        )
     }
 
     private var searchField: some View {
@@ -287,10 +296,13 @@ struct HomebrewSettings: View {
 
     private var installedPackagesSection: some View {
         let visible = filteredInstalled
-        let folded = HomebrewDependencyGraph.display(visible,
+        let packagesToDisplay = homebrewGroupDependencies
+            ? visible
+            : visible.filter { $0.installedOnRequest != false }
+        let folded = HomebrewDependencyGraph.display(packagesToDisplay,
                                                       installed: homebrew.installed,
                                                       groupDependencies: homebrewGroupDependencies)
-        return packageSection(l10n.s.homebrewInstalled, count: visible.count) {
+        return packageSection(l10n.s.homebrewInstalled, count: packagesToDisplay.count) {
             if homebrew.isLoadingInstalled {
                 loadingRow(l10n.s.homebrewLoading)
             } else if folded.rows.isEmpty {

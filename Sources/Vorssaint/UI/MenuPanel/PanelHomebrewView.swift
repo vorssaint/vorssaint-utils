@@ -9,6 +9,7 @@ struct PanelHomebrewView: View {
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @AppStorage(DefaultsKey.homebrewGroupDependencies) private var homebrewGroupDependencies = true
     @Environment(\.notchPresentation) private var inNotch
     @State private var query = ""
     @State private var searchKind: HomebrewPackageKind = .cask
@@ -222,6 +223,10 @@ struct PanelHomebrewView: View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
+
+            Toggle(l10n.s.homebrewGroupDependencies, isOn: hideDependenciesBinding)
+                .font(.system(size: 9.5))
+                .controlSize(.small)
 
             HStack(spacing: 7) {
                 Button {
@@ -659,7 +664,17 @@ struct PanelHomebrewView: View {
         case .cask:
             packages = homebrew.installed.filter { $0.kind == .cask }
         }
-        return HomebrewPackageOrdering.updatesFirst(packages)
+        let visible = homebrewGroupDependencies
+            ? packages
+            : packages.filter { $0.installedOnRequest != false }
+        return HomebrewPackageOrdering.updatesFirst(visible)
+    }
+
+    private var hideDependenciesBinding: Binding<Bool> {
+        Binding(
+            get: { !homebrewGroupDependencies },
+            set: { homebrewGroupDependencies = !$0 }
+        )
     }
 
     private var installedCaskCount: Int {

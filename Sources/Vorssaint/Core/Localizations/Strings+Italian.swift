@@ -395,7 +395,7 @@ extension Strings {
         homebrewCasks: "Cask",
         homebrewNoPackages: "Nessun pacchetto trovato",
         homebrewDependencies: "Dipendenze",
-        homebrewGroupDependencies: "Raggruppa le dipendenze",
+        homebrewGroupDependencies: "Nascondi dipendenze",
         homebrewNoSelection: "Seleziona un pacchetto installato o cercane uno nuovo.",
         homebrewDetailsTitle: "Dettagli pacchetto",
         homebrewInstall: "Installa",

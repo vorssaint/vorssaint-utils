@@ -395,7 +395,7 @@ extension Strings {
         homebrewCasks: "Cask’ler",
         homebrewNoPackages: "Paket bulunamadı",
         homebrewDependencies: "Bağımlılıklar",
-        homebrewGroupDependencies: "Bağımlılıkları grupla",
+        homebrewGroupDependencies: "Bağımlılıkları gizle",
         homebrewNoSelection: "Yüklü bir paket seç veya yenisini ara.",
         homebrewDetailsTitle: "Paket ayrıntıları",
         homebrewInstall: "Yükle",

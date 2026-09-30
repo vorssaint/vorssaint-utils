@@ -395,7 +395,7 @@ extension Strings {
         homebrewCasks: "Cask",
         homebrewNoPackages: "パッケージが見つかりません",
         homebrewDependencies: "依存関係",
-        homebrewGroupDependencies: "依存関係をグループ化",
+        homebrewGroupDependencies: "依存関係を隠す",
         homebrewNoSelection: "インストール済みパッケージを選択するか、新しいものを検索してください。",
         homebrewDetailsTitle: "パッケージ詳細",
         homebrewInstall: "インストール",
