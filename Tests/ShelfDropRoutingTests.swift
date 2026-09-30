@@ -61,6 +61,7 @@ enum ShelfDropRoutingContract {
         var targetsMediaDrop = false
         var pinned = false
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 32, cameraWidth: 180)
+        var expandedGeometry: NotchGeometry { geometry }
         var surfaceSize: CGSize { geometry.expandedSize(module: .files) }
         var opened: [NotchModule] = []
         func refreshPresentation() {}

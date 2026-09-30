@@ -50,6 +50,10 @@ def main():
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchActivityPicker: View {"))
+    write("NotchModuleTitle.swift", "import Foundation\nextension NotchModule {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    func title(_ language: AppLanguage)",
+                        scope="extension NotchModule: PanelOrderItem {")
+          + "}\n")
     write("ScrollingCaptureLoop.swift", "import AppKit\nimport CoreGraphics\n"
           + "extension ScreenshotScrollingCaptureTests {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotScrollingCapture.swift",

@@ -188,6 +188,21 @@ enum NotchLayout {
     static let shoulder: CGFloat = 14
     static let horizontalInset: CGFloat = 28
     static let headerHeight: CGFloat = 36
+    /// The open header's title, and a detail's beside its back button. The
+    /// island is laid out from their widths and the header draws them.
+    static let headerTitleFont = NSFont.systemFont(ofSize: 16, weight: .semibold)
+    static let detailTitleFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
+    /// The island reads its geometry many times on every layout, so each
+    /// title is measured once per font.
+    private static var measuredHeaderTitles: [String: CGFloat] = [:]
+    /// A header title as wide as drawn, after the 28-point button and the
+    /// spacing that may lead it.
+    static func headerTitleWidth(_ title: String, font: NSFont = headerTitleFont, button: Bool) -> CGFloat {
+        let key = "\(font.fontName) \(font.pointSize) \(title)"
+        let width = measuredHeaderTitles[key] ?? (title as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+        measuredHeaderTitles[key] = width
+        return width + (button ? 28 + 6 : 0)
+    }
     static let navigationHeight: CGFloat = 36
     static let spacing: CGFloat = 12
     static let bottomInset: CGFloat = 16
@@ -1633,6 +1648,8 @@ struct NotchGeometry: Equatable {
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
     var requiresFullWidthHeader = false
+    /// The open page's title with the button before it, as the header draws them.
+    var headerTitleWidth: CGFloat = 0
     private var allowsActivityFooter = true
     private var minimumCompactWidth: CGFloat = 0
     /// Narrower wings than this are dropped rather than drawn cramped.
@@ -1686,9 +1703,14 @@ struct NotchGeometry: Equatable {
     /// Below a camera, or below the space it would take. A capsule has
     /// neither, so what it shows keeps even margins inside it.
     var safeContentTop: CGFloat { floats ? NotchLayout.bottomInset : cameraHeight + 10 }
-    /// A title and the compact actions each fit in a 100-point wing, including
-    /// the compact preset. Narrower layouts keep a full row below the camera.
-    var headerCameraGap: CGFloat { isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 200 ? cameraWidth : 0 }
+    /// The camera sits between the title and the compact actions only when each
+    /// fits whole on its side. The actions need a 100-point wing, which the
+    /// compact preset leaves, and the title its own width. Narrower layouts and
+    /// longer titles keep a full row below the camera.
+    var headerCameraGap: CGFloat {
+        isNotched && !requiresFullWidthHeader && contentWidth >= cameraWidth + 200
+            && headerTitleWidth <= (contentWidth - cameraWidth) / 2 ? cameraWidth : 0
+    }
     /// A capsule's header keeps clear of its rounded top corners, its
     /// 28-point buttons as far from the top edge as the page is from the bottom.
     var headerTopInset: CGFloat {

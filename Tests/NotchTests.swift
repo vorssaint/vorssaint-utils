@@ -243,6 +243,87 @@ enum NotchTests {
                      "without a camera the capture title and buttons take the top row, as the open header does")
     }
 
+    /// The camera sits between the open header's title and its actions only
+    /// where the whole title fits on its side. A longer title takes the full
+    /// row below the camera, as a narrow island's header does.
+    private static func headerTitleContracts(_ suite: TestSuite) {
+        func drawnWidth(_ title: String, _ font: NSFont) -> CGFloat {
+            let host = NSHostingView(rootView: Text(title).font(Font(font as CTFont)).fixedSize())
+            host.layoutSubtreeIfNeeded()
+            return host.fittingSize.width
+        }
+        for language in AppLanguage.allCases {
+            suite.expect(NotchModule.allCases.map { $0.title(language) }.allSatisfy {
+                drawnWidth($0, NotchLayout.headerTitleFont) <= NotchLayout.headerTitleWidth($0, button: false)
+            }, "the measured section titles cover the \(language.rawValue) titles as drawn")
+            suite.expect([FeatureStrings.fanControl(language).title, FeatureStrings.notch(language).title].allSatisfy {
+                drawnWidth($0, NotchLayout.detailTitleFont)
+                    <= NotchLayout.headerTitleWidth($0, font: NotchLayout.detailTitleFont, button: false)
+            }, "the measured detail titles cover the \(language.rawValue) titles as drawn")
+        }
+        let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
+        var geometries: [NotchGeometry] = []
+        for camera: CGFloat in [180, 185, 208, 210, 224, 240] {
+            for layout: NotchSize in [.compact, .spacious] {
+                geometries.append(NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: camera, layout: layout))
+            }
+            for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 10) {
+                geometries.append(NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: camera,
+                                                layout: .custom, customWidth: width))
+            }
+        }
+        // Every language, with and without the sections button before the title.
+        let titleWidths = NotchModule.allCases.map { module in
+            AppLanguage.allCases.flatMap { language in
+                [false, true].map { NotchLayout.headerTitleWidth(module.title(language), button: $0) }
+            }
+        }
+        for geometry in geometries {
+            let side = (geometry.contentWidth - geometry.cameraWidth) / 2
+            let place = "beside a \(Int(geometry.cameraWidth))-point camera in a \(Int(geometry.expandedWidth))-point island"
+            for (module, widths) in zip(NotchModule.allCases, titleWidths) {
+                var beside = true, below = true, kept = true
+                for width in widths {
+                    var titled = geometry
+                    titled.headerTitleWidth = width
+                    if titled.headerCameraGap > 0 {
+                        beside = beside && width <= side && titled.headerTopInset == 0
+                    } else {
+                        below = below && titled.headerTopInset == titled.safeContentTop
+                            && titled.headerRowHeight == NotchLayout.headerHeight
+                    }
+                    if geometry.headerCameraGap > 0, width <= side {
+                        kept = kept && titled.headerCameraGap == geometry.headerCameraGap
+                            && titled.expandedSize(module: module) == geometry.expandedSize(module: module)
+                    }
+                }
+                suite.expect(beside, "every \(module.rawValue) title \(place) fits whole on its side")
+                suite.expect(below, "a \(module.rawValue) title too wide to sit \(place) takes the full row below it")
+                suite.expect(kept, "a \(module.rawValue) title that fits \(place) keeps the layout it had")
+            }
+        }
+        // The report: a 1710 by 1112 point display with a 208 by 37.5 point camera, in the compact preset.
+        let reported = NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: 208)
+        func titled(_ module: NotchModule) -> NotchGeometry {
+            var result = reported
+            result.headerTitleWidth = NotchLayout.headerTitleWidth(module.title(.enUS), button: false)
+            return result
+        }
+        suite.expect(titled(.camera).headerCameraGap == 0 && titled(.camera).headerTopInset == reported.safeContentTop
+                     && titled(.controls).headerCameraGap == 208 && titled(.controls).headerTopInset == 0,
+                     "Camera mirror takes the row below a 208-point camera in the compact preset while Controls stays beside it")
+        for silhouette in NotchSilhouette.allCases {
+            let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, silhouette: silhouette)
+            var titled = plain
+            titled.headerTitleWidth = 1000
+            suite.expect(titled.headerCameraGap == 0 && titled.headerTopInset == plain.headerTopInset
+                         && titled.headerRowHeight == plain.headerRowHeight
+                         && titled.quickAccessCenterY == plain.quickAccessCenterY
+                         && titled.expandedSize(module: .camera) == plain.expandedSize(module: .camera),
+                         "a long title leaves the \(silhouette.rawValue) header without a camera where it was")
+        }
+    }
+
     private static func noticeLayoutContracts(_ suite: TestSuite) {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         func width(_ text: String) -> CGFloat {
@@ -832,6 +913,7 @@ enum NotchTests {
         railContracts(suite)
         presentationSpacingContracts(suite)
         captureControlsLayoutContracts(suite)
+        headerTitleContracts(suite)
         noticeLayoutContracts(suite)
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)

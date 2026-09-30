@@ -29,6 +29,7 @@ The recording editor can copy a recording as an animated GIF, and the camera mir
 - A Dynamic Island opened by hover now closes when the pointer leaves quickly past one of its floating buttons, such as the music button below it, instead of staying open until the pointer comes back.
 - On a Mac with a notch, the outline from Show outline no longer hides behind the camera while Dynamic Island is closed. The closed island reaches slightly past the notch to show it.
 - Dynamic Island's Combine menu names each pair in the order the island shows it, left to right, such as Music + Timer.
+- On a Mac with a notch, a Dynamic Island page title too long for the space beside the camera, such as Camera mirror on some displays, now moves to a row below the camera instead of being cut off. Titles that fit stay beside the camera.
 - While Dynamic Island or Show brightness when adjusting shows the brightness, the brightness keys ease the display to each new level as macOS does, instead of jumping to it. Display brightness shortcuts ease the same way.
 - After the Mac wakes from sleep, volume keys routed through Dynamic Island step from the level the output really plays, so external speakers no longer jump to a level far from the one the island showed.
 - Brightness and volume keys pressed with Option, Command or Control reach macOS again while Vorssaint handles those keys, so Option opens Displays or Sound settings. Option-Shift brightness keys take quarter steps and still follow the pointer to the right display.

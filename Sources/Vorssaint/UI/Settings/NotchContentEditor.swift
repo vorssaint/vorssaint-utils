@@ -57,7 +57,7 @@ struct NotchIslandPreview: View {
     }
 
     private func stage(in stageSize: CGSize) -> some View {
-        let geometry = notch.geometry
+        let geometry = notch.previewGeometry(for: module)
         let size = notch.previewSize(for: module)
         let scale = Self.scale(in: stageSize)
         return ZStack(alignment: .top) {
@@ -134,7 +134,7 @@ struct NotchIslandPreview: View {
                         .frame(width: 28, height: 28)
                 }
                 Text(module.title(l10n.language))
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(Font(NotchLayout.headerTitleFont as CTFont))
                     .lineLimit(1)
             }
             .frame(width: half, alignment: .leading)

@@ -293,11 +293,6 @@ struct NotchView: View {
         return notice
     }
 
-    /// The fan card opens Fan Control, so its page shares that title.
-    private func detailTitle(_ metric: MetricDetailKind) -> String {
-        metric == .fan ? FeatureStrings.fanControl(l10n.language).title : metric.title(l10n.s)
-    }
-
     private var header: some View {
         HStack(spacing: service.expandedGeometry.headerCameraGap > 0 ? 0 : 6) {
             let quickActions = NotchQuickAccessConfiguration.current().actions
@@ -320,8 +315,8 @@ struct NotchView: View {
                     if showsDetail {
                         NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.goBack)
                     }
-                    Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric.map(detailTitle) ?? text.title)
-                        .font(.system(size: 15, weight: .semibold))
+                    Text(service.detailTitle)
+                        .font(Font(NotchLayout.detailTitleFont as CTFont))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -329,7 +324,7 @@ struct NotchView: View {
                         NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
                     }
                     Text(service.selected.title(l10n.language))
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(Font(NotchLayout.headerTitleFont as CTFont))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -703,7 +698,7 @@ extension NotchModule: PanelOrderItem {
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .calendar: return FeatureStrings.notchCalendar(language).title
         case .controls: return FeatureStrings.notch(language).controls
-        case .mixer: return L10n.shared.s.mixerSection
+        case .mixer: return Strings.localized(language).mixerSection
         case .music: return FeatureStrings.radialMenu(language).mediaNowPlaying
         case .clipboard: return FeatureStrings.clipboard(language).title
         case .captures: return FeatureStrings.recentCaptures(language).title

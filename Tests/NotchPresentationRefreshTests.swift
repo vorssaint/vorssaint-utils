@@ -186,6 +186,7 @@ enum NotchPresentationRefreshContract {
         var panel: Panel? { windowHost?.panel }
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210)
+        var headerTitleWidth: CGFloat = 0
         var expandedGeometry: NotchGeometry { geometry }
         var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
         var surfaceSize: CGSize {
@@ -252,6 +253,13 @@ enum NotchPresentationRefreshContract {
         toolbar.showingSections = true
         suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
                      "leaving capture editing restores the compact header layout")
+        let titled = Service()
+        titled.headerTitleWidth = 108
+        suite.expect(titled.expandedGeometry.headerCameraGap == 0 && titled.expandedGeometry.headerTopInset == 42,
+                     "a page title wider than the camera's side takes the full row below it")
+        titled.headerTitleWidth = 107
+        suite.expect(titled.expandedGeometry.headerCameraGap == 210 && titled.expandedGeometry.headerTopInset == 0,
+                     "a page title that fits keeps its place beside the camera")
         captureControlsChecks(suite)
         let picker = Service()
         picker.expanded = false
