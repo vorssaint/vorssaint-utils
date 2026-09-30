@@ -122,6 +122,7 @@ final class NotchService: ObservableObject {
     private var screenEdgePressArea: CGRect?
     private var captureControlsMonitors: [Any] = []
     private var hiddenHoverMonitors: [Any] = []
+    private var hoverExitMonitors: [Any] = []
     private var hoverWork: DispatchWorkItem?
     private var noticeWork: DispatchWorkItem?
     private var departureWork: DispatchWorkItem?
@@ -878,6 +879,7 @@ final class NotchService: ObservableObject {
         removeScreenEdgeClickMonitors()
         removeCaptureControlsClickThrough()
         removeHiddenHoverMonitors()
+        removeHoverExitMonitors()
         removePointerMonitors()
         releaseMonitor()
         musicTitleWork?.cancel(); musicTitleWork = nil
@@ -1018,7 +1020,7 @@ final class NotchService: ObservableObject {
     }
 
     func hover(_ entered: Bool) {
-        guard running, !suspended, !hiddenAtRestInFullscreen else { return }
+        guard running, !suspended, !hiddenAtRestInFullscreen else { removeHoverExitMonitors(); return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
         let showedPicker = showsCompactActivityPicker
@@ -1026,6 +1028,7 @@ final class NotchService: ObservableObject {
             && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true || pointerOverChildWindow(point)
         hoverState.update(pointerInside: inside)
+        syncHoverExitMonitoring(entered: entered, point: point)
         let emphasize = inside && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
             && notice == nil && captureControls == nil
             && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -1094,6 +1097,36 @@ final class NotchService: ObservableObject {
             hoverWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + (expanded || noticeExpanded ? NotchQuickAccessLayout.hoverExitDelay : 0.12), execute: work)
         }
+    }
+
+    /// AppKit reports hover from the mouse moves it receives, and those can
+    /// stop while the pointer crosses the transparent margin around the
+    /// floating controls. One can even carry another window's coordinates.
+    /// An exit can then arrive with the pointer still in that margin and be
+    /// the last report. From such an exit until AppKit reports the pointer
+    /// again, every move is checked here, so leaving still closes the island.
+    /// A pointer at rest costs nothing.
+    private func syncHoverExitMonitoring(entered: Bool, point: CGPoint) {
+        let watching = !entered
+            && NotchSupport.closesOnPointerExit(expanded: expanded, peeking: peeking, openedByHover: openedByHover)
+            && captureControls == nil && !pinned && !heldDrag && !hiddenUntilHover && !keepsWorkingSurface
+            // Once watching, a pointer that leaves and slips back unreported is still seen.
+            && (!hoverExitMonitors.isEmpty || windowHost?.containsHover(point) == true)
+        guard watching else { removeHoverExitMonitors(); return }
+        guard hoverExitMonitors.isEmpty else { return }
+        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in
+            self?.hover(false)
+        }) { hoverExitMonitors.append(token) }
+        if let token = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] event in
+            self?.hover(false)
+            return event
+        }) { hoverExitMonitors.append(token) }
+    }
+
+    private func removeHoverExitMonitors() {
+        hoverExitMonitors.forEach(NSEvent.removeMonitor)
+        hoverExitMonitors.removeAll()
     }
 
     /// A mirrored banner the pointer can hold: on screen and not covered.

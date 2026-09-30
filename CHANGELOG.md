@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Dynamic Island
+- An island opened by hover closes when the pointer leaves quickly past one of its floating buttons, such as the music button below it, instead of staying open until the pointer comes back.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary
