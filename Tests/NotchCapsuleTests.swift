@@ -289,9 +289,9 @@ enum NotchCapsuleTests {
             let gap = geometry.floatingGap ?? 0
             let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious,
                                           menuBarHeight: geometry.menuBarHeight)
-            suite.expect(geometry.headerTopInset == gap + 2 && geometry.headerCameraGap == 0
+            suite.expect(geometry.headerTopInset == 12 && geometry.headerCameraGap == 0
                          && geometry.quickAccessCenterY == simulated.quickAccessCenterY,
-                         "the open capsule's header starts below its top edge and its floating buttons keep their row")
+                         "the open capsule's header sits as far below its top edge as its page ends above the bottom, and its floating buttons keep their row")
             suite.expect(geometry.activationArea(in: geometry.expanded, hasHeader: true, compactActivity: false,
                                                  expandedHeader: true).isEmpty,
                          "no invisible collapse button covers the capsule's header controls")
@@ -423,7 +423,7 @@ enum NotchCapsuleTests {
                                          && !geometry.contains(CGPoint(x: frame.midX, y: frame.maxY + 0.5), in: size),
                                          "the whole island, closed or open, lowers by the fitted distance")
                         }
-                        suite.expect(geometry.headerTopInset == gap + 2,
+                        suite.expect(geometry.headerTopInset == 12,
                                      "the open capsule keeps its header clear of its corners at any fit")
                         for (name, size) in strips(geometry) {
                             suite.expect(size.width >= resting.width && size.width <= max(resting.width, Layout.availableWidth(geometry))
