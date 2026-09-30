@@ -540,6 +540,11 @@ enum NotchAgentTests {
         suite.expect(failed.last == .turnEnded(Date(timeIntervalSince1970: 1_790_000_005), completed: false, duration: nil)
                         && !failed.contains { if case .usage = $0 { return true }; return false },
                      "an error ends the turn quietly without recording empty usage")
+        let filtered = AgentOpenCodeParser.entries(
+            messageID: "m-filter", sessionID: "s",
+            data: opencodeMessage(role: "assistant", finish: "content-filter"), directory: nil, now: now)
+        suite.expect(filtered.last == .turnEnded(Date(timeIntervalSince1970: 1_790_000_005), completed: false, duration: nil),
+                     "a refused reply ends quietly like an error, the way OpenCode breaks on it")
         let stepping = AgentOpenCodeParser.entries(
             messageID: "m-step", sessionID: "s",
             data: opencodeMessage(role: "assistant", finish: "tool-calls"), directory: nil, now: now)

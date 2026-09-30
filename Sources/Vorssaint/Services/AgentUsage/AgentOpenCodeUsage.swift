@@ -151,8 +151,10 @@ enum AgentOpenCodeParser {
                                         billable: AgentBillable(tokens: empty, reportedCost: dbCost)))
         }
         let moment = completed ?? created
-        if data["error"] as? [String: Any] != nil {
-            // A failed reply ends the turn without a finish notice.
+        if data["error"] as? [String: Any] != nil || (data["finish"] as? String) == "content-filter" {
+            // A failed reply ends the turn without a finish notice. OpenCode
+            // itself turns a content filter finish into an error that breaks
+            // the loop, so a refusal ends quietly too.
             entries.append(.turnEnded(moment, completed: false, duration: nil))
         } else if isCompaction(data) || finishKeepsWorking(data["finish"], completed: completed) {
             // A compaction reply summarizes context while the task goes on,
