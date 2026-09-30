@@ -48,6 +48,14 @@ enum NotchDestinationContract {
         func syncWithPreferences() { syncs += 1 }
     }
     enum BrightnessService { static var shared = Brightness() }
+    final class LockScreen {
+        var syncs: [NotchSessionState] = []
+        var sounds: [Bool] = []
+        var onSync: (() -> Void)?
+        func sync(_ session: NotchSessionState) { syncs.append(session); onSync?() }
+        func playSound(locking: Bool) { sounds.append(locking) }
+    }
+    enum NotchLockScreenService { static var shared = LockScreen() }
 
     class State {
         var acceptsUserInteraction = true
@@ -190,6 +198,7 @@ enum NotchDestinationContract {
         service.open(.tools)
         suite.expect(launcher.selectedIndex == nil, "an empty Tools module leaves keyboard activation without a target")
         sessionContracts(suite)
+        lockScreenContracts(defaults: defaults, suite: suite)
     }
 
     /// Escape steps back through what the island shows, then closes it.
@@ -443,7 +452,7 @@ enum NotchDestinationContract {
         for returnHome in [false, true] {
             defaults.set(returnHome, forKey: DefaultsKey.notchReturnHome)
             defaults.set(NotchModule.controls.rawValue, forKey: DefaultsKey.notchHomeModule)
-            for activity in [NotchCompactActivity.timer, .downloads, .calendar, .music] {
+            for activity in [NotchCompactActivity.timer, .downloads, .calendar, .music, .keepAwake] {
                 let service = Service()
                 service.open(.files)
                 service.expanded = false
@@ -511,6 +520,54 @@ enum NotchDestinationContract {
                    "system feedback keeps its own timer and never redirects an opening")
         }
         defaults.set(false, forKey: DefaultsKey.notchReturnHome)
+    }
+
+    /// The lock screen follows the island's own teardown and return, so what
+    /// it starts is never stopped under it, and the padlock plays only for a
+    /// lock or unlock made at the Mac.
+    private static func lockScreenContracts(defaults: UserDefaults, suite: TestSuite) {
+        defer {
+            NotchLockScreenService.shared = LockScreen()
+            defaults.set(false, forKey: DefaultsKey.notchLockSounds)
+        }
+        let service = Service()
+        let lockScreen = LockScreen()
+        NotchLockScreenService.shared = lockScreen
+        var order: [String] = []
+        lockScreen.onSync = { order.append("sync after \(service.presentationTearDowns) teardowns, \(service.presentationSyncs) returns") }
+        defaults.set(true, forKey: DefaultsKey.notchLockSounds)
+        service.updateSession { $0.locked = true }
+        suite.expect(order == ["sync after 1 teardowns, 0 returns"] && lockScreen.syncs.last?.showsLockScreen == true,
+                     "the lock screen takes over after the island has stopped its own sources")
+        service.updateSession { $0.locked = false }
+        suite.expect(order.last == "sync after 1 teardowns, 1 returns" && lockScreen.syncs.last?.canPresent == true,
+                     "on unlock the island takes its sources back before the lock screen leaves")
+        suite.expect(lockScreen.sounds == [true, false], "locking and unlocking at the Mac each play their padlock")
+        service.updateSession { $0.displaysSleeping = true }
+        service.updateSession { $0.locked = true }
+        suite.expect(lockScreen.sounds == [true, false] && lockScreen.syncs.last?.showsLockScreen == false,
+                     "a lock that comes with a dark display plays nothing and shows nothing")
+        service.updateSession { $0.displaysSleeping = false }
+        suite.expect(lockScreen.syncs.last?.showsLockScreen == true, "waking the display shows the lock screen")
+        service.updateSession { $0.screenSaverRunning = true }
+        suite.expect(lockScreen.syncs.last?.showsLockScreen == false && lockScreen.sounds.count == 2,
+                     "a screen saver hides the lock screen without a sound")
+        service.updateSession { $0.screenSaverRunning = false }
+        defaults.set(false, forKey: DefaultsKey.notchLockSounds)
+        service.updateSession { $0.locked = false }
+        suite.expect(lockScreen.sounds.count == 2, "with the sounds off, unlocking is silent")
+        defaults.set(true, forKey: DefaultsKey.notchLockSounds)
+        service.updateSession { $0.locked = true }
+        service.updateSession { $0.displaysSleeping = true }
+        service.updateSession { $0.locked = false }
+        service.updateSession { $0.displaysSleeping = false }
+        suite.expect(lockScreen.sounds == [true, false, true, false],
+                     "an unlock announced before the display wakes still plays its padlock")
+        service.running = false
+        let syncs = lockScreen.syncs.count
+        service.updateSession { $0.locked = true }
+        suite.expect(lockScreen.syncs.count == syncs && lockScreen.sounds.count == 4,
+                     "a stopped island leaves the lock screen alone")
     }
 
     private static func sessionContracts(_ suite: TestSuite) {

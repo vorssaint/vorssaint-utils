@@ -79,9 +79,9 @@ enum ClipboardFeatureTests {
 
         // MARK: Clipboard history color swatches
 
-        func expectColor(_ text: String, _ expected: ClipboardHistoryColor?, _ label: String,
+        func expectColor(_ text: String, _ expected: ColorValue?, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
-            let actual = ClipboardHistoryColor(text: text)
+            let actual = ColorValue(text: text)
             let matches: Bool
             if let actual, let expected {
                 matches = [(actual.red, expected.red), (actual.green, expected.green),
@@ -93,30 +93,47 @@ enum ClipboardFeatureTests {
             suite.expect(matches, "\(label): got \(String(describing: actual)), expected \(String(describing: expected))",
                          file: file, line: line)
         }
-        expectColor("#00BC7D", ClipboardHistoryColor(red: 0, green: 188 / 255, blue: 125 / 255),
+        expectColor("#00BC7D", ColorValue(red: 0, green: 188 / 255, blue: 125 / 255),
                     "six digit hex from the request reads as its color")
-        expectColor("  #ffffff\n", ClipboardHistoryColor(red: 1, green: 1, blue: 1),
+        expectColor("  #ffffff\n", ColorValue(red: 1, green: 1, blue: 1),
                     "surrounding whitespace and lowercase digits still read as a color")
-        expectColor("#f80", ClipboardHistoryColor(red: 1, green: 136 / 255, blue: 0),
+        expectColor("#f80", ColorValue(red: 1, green: 136 / 255, blue: 0),
                     "three digit hex expands each digit")
-        expectColor("#00000080", ClipboardHistoryColor(red: 0, green: 0, blue: 0, alpha: 128 / 255),
+        expectColor("#00000080", ColorValue(red: 0, green: 0, blue: 0, alpha: 128 / 255),
                     "eight digit hex carries alpha in the last pair")
-        expectColor("#f008", ClipboardHistoryColor(red: 1, green: 0, blue: 0, alpha: 136 / 255),
+        expectColor("#f008", ColorValue(red: 1, green: 0, blue: 0, alpha: 136 / 255),
                     "four digit hex carries alpha in the last digit")
-        expectColor("rgb(0, 188, 125)", ClipboardHistoryColor(red: 0, green: 188 / 255, blue: 125 / 255),
+        expectColor("rgb(0, 188, 125)", ColorValue(red: 0, green: 188 / 255, blue: 125 / 255),
                     "the color picker's rgb format reads as a color")
-        expectColor("rgba(255 0 0 / 50%)", ClipboardHistoryColor(red: 1, green: 0, blue: 0, alpha: 0.5),
+        expectColor("rgba(255 0 0 / 50%)", ColorValue(red: 1, green: 0, blue: 0, alpha: 0.5),
                     "space separated rgba with a slash alpha reads as a color")
-        expectColor("hsl(120, 100%, 25%)", ClipboardHistoryColor(red: 0, green: 0.5, blue: 0),
+        expectColor("hsl(120, 100%, 25%)", ColorValue(red: 0, green: 0.5, blue: 0),
                     "the color picker's hsl format converts to rgb")
-        expectColor("hsl(-120deg 100% 50%)", ClipboardHistoryColor(red: 0, green: 0, blue: 1),
+        expectColor("hsl(-120deg 100% 50%)", ColorValue(red: 0, green: 0, blue: 1),
                     "negative hue in degrees wraps around the circle")
-        expectColor(QuickToolsSupport.colorString(red: 0.2, green: 0.4, blue: 0.6, format: .hsl),
-                    ClipboardHistoryColor(red: 0.2, green: 0.4, blue: 0.6),
+        expectColor(ColorValue.string(red: 0.2, green: 0.4, blue: 0.6, format: .hsl),
+                    ColorValue(red: 0.2, green: 0.4, blue: 0.6),
                     "hsl written by the color picker reads back close to its source")
-        for text in ["00BC7D", "#12345", "#GGGGGG", "#00BC7D is the brand green", "color: #00BC7D",
+        expectColor(ColorValue.string(red: 0.2, green: 0.4, blue: 0.6, format: .swiftui),
+                    ColorValue(red: 0.2, green: 0.4, blue: 0.6),
+                    "SwiftUI code written by the color picker reads back as its color")
+        expectColor("Color(red:0.2,green:0.4,blue:0.6)",
+                    ColorValue(red: 0.2, green: 0.4, blue: 0.6),
+                    "compact SwiftUI code without spaces reads as a color")
+        expectColor("Color(red:1, green:0,blue: 0,opacity:0.5)",
+                    ColorValue(red: 1, green: 0, blue: 0, alpha: 0.5),
+                    "SwiftUI labels read with any spacing after the colon")
+        expectColor("Color(red: 1, green: 0, blue: 0, opacity: 0.5)",
+                    ColorValue(red: 1, green: 0, blue: 0, alpha: 0.5),
+                    "SwiftUI opacity reads as alpha")
+        expectColor("Color(red: 0.2509803922, green: 0.5019607843, blue: 0.7529411765, opacity: 0.5)",
+                    ColorValue(red: 0.251, green: 0.502, blue: 0.753, alpha: 0.5),
+                    "full precision SwiftUI code from Xcode reads as a color")
+        for text in ["Color(red: 1, green: 0)", "Color(green: 0, red: 1, blue: 0)",
+                     "Color(red: 2, green: 0, blue: 0)", "Color(.red)", "Color(red:1,green:0,blue:0,)",
+                     "Color(red 1, green 0, blue 0)", "00BC7D", "#12345", "#GGGGGG", "#00BC7D is the brand green", "color: #00BC7D",
                      "rgb(256, 0, 0)", "rgb(0, 0)", "rgb(0, 0, 0, 2)", "hsl(0, 50, 50%)",
-                     "rgb(nan, 0, 0)", "#", "", String(repeating: " ", count: 80) + "#fff"] {
+                     "rgb(nan, 0, 0)", "#", "", String(repeating: " ", count: 100) + "#fff"] {
             expectColor(text, nil, "\(text.debugDescription) is not a lone color value")
         }
         suite.expect(ClipboardHistoryEntry(text: "#fff", kind: .files, filePaths: ["/tmp/#fff"]).color == nil

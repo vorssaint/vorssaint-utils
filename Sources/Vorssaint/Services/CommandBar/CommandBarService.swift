@@ -1663,9 +1663,12 @@ final class CommandBarService: ObservableObject {
         // "st" must not answer "Storage" over what the person meant.
         let firstToken = foldedQuery.split(separator: " ").first.map(String.init) ?? ""
 
+        // A color typed on its own is placed once the rest of the list is
+        // known; a conversion asked for with "to" leads like any answer.
+        let colorPreview = answer?.id == "color.preview" ? answer : nil
         var counts: [String: Int] = [:]
         var result: [CommandBarEntry] = []
-        if let answer { result.append(answer) }
+        if let answer, colorPreview == nil { result.append(answer) }
         if let openURL { result.append(openURL) }
         if let scriptAnswer { result.append(scriptAnswer) }
         for index in ranked {
@@ -1681,6 +1684,11 @@ final class CommandBarService: ObservableObject {
             }
             result.append(entry)
             if result.count >= 12 { break }
+        }
+        if let colorPreview {
+            result.insert(colorPreview, at: CommandBarSearch.colorPreviewIndex(
+                rowTitles: result.map(\.title), query: trimmed))
+            if result.count > 12 { result.removeLast() }
         }
         return result
     }

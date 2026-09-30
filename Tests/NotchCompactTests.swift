@@ -190,13 +190,14 @@ enum NotchCompactTests {
         let day = Date(timeIntervalSince1970: 1_780_000_000)
         for language in AppLanguage.allCases {
             for width: CGFloat in [192, 304, 424] {
-                func height(title: String) -> CGFloat {
+                func height(title: String, chosen: Bool? = nil) -> CGFloat {
                     let event = NotchCalendarEvent(id: "layout", title: title, calendar: "Calendar",
                                                    start: day, end: day.addingTimeInterval(3600),
                                                    allDay: false, location: "Meeting room")
                     let host = NSHostingView(rootView: NotchCalendarEventRow(event: event, day: day, now: day,
                                                                            isNext: true,
-                                                                           text: FeatureStrings.notchCalendar(language), open: {})
+                                                                           text: FeatureStrings.notchCalendar(language),
+                                                                           countdown: chosen, choose: { _ in }, open: {})
                         .environment(\.locale, Locale(identifier: language.rawValue))
                         .frame(width: width))
                     host.layoutSubtreeIfNeeded()
@@ -208,6 +209,8 @@ enum NotchCompactTests {
                 let long = height(title: Array(repeating: "A long appointment title", count: 10).joined(separator: " "))
                 suite.expect(long > short + 40,
                              "long agenda titles grow vertically instead of clipping into a fixed-height card")
+                suite.expect(height(title: "Meeting", chosen: true) == short,
+                             "the mark of an event chosen to count down fits its time line without growing the card")
             }
         }
     }

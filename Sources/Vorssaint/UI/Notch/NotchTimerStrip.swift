@@ -4,40 +4,30 @@
 import SwiftUI
 
 /// The clock keeps the right of the camera. The left shows the timer's mark,
-/// or its explicitly chosen companion: a download, working agents or the
-/// music playing, each opening its own page. The wings are as wide as the
-/// wider side needs, and both sit at the ends, where the island shows.
+/// or its explicitly chosen companion: a download, working agents, the next
+/// event's clock or the music playing, each opening its own page. The wings
+/// are as wide as the wider side needs, and both sit at the ends, where the
+/// island shows.
 struct NotchTimerStrip: View {
     @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var timer = NotchTimerService.shared
+    // The companion's label reads these.
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var l10n = L10n.shared
 
-    private var geometry: NotchGeometry { service.compactActivityGeometry }
+    private var geometry: NotchGeometry { displayGeometry ?? service.compactActivityGeometry }
     private var companion: NotchCompactActivity? { service.compactCompanion }
-    private var iconSize: CGFloat {
-        let size = NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight)
-        return companion == .downloads ? min(13, size) : size
-    }
+    private var iconSize: CGFloat { NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight) }
     private var textSize: CGFloat { NotchTimerSupport.stripTextSize(height: geometry.compactActivityContentHeight) }
-    private var working: [AgentProvider] {
-        AgentProvider.allCases.filter { provider in usage.snapshot.live.contains { $0.provider == provider } }
-    }
-    private var agentMarkSize: CGFloat {
-        NotchTimerSupport.stripAgentMarkSize(height: geometry.compactActivityContentHeight, working: working.count)
-    }
     private var iconInset: CGFloat {
         guard !geometry.compactActivityUsesFooter else { return 0 }
-        switch companion {
-        case .agents:
-            return geometry.compactActivityEdgeInset(boxHeight: agentMarkSize + 4, radius: (agentMarkSize + 4) / 2)
-        case .music:
-            return geometry.compactMusicArtworkInset
-        default:
-            return geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
-        }
+        if let companion { return NotchCompanionMark.inset(companion, geometry: geometry) }
+        return geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
     }
     private var textInset: CGFloat {
         guard !geometry.compactActivityUsesFooter else { return 0 }
@@ -50,17 +40,9 @@ struct NotchTimerStrip: View {
             Button { service.openActivity(companion?.module ?? .timer) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 28 {
-                        switch companion {
-                        case .downloads:
-                            downloadIndicator
-                        case .agents:
-                            HStack(spacing: 1) {
-                                ForEach(working) { NotchAgentGlyph(provider: $0, size: agentMarkSize) }
-                            }
-                        case .music:
-                            NotchMusicCover(artwork: music.artwork, side: geometry.compactMusicArtworkSide,
-                                            radius: geometry.compactMusicArtworkRadius)
-                        default:
+                        if let companion {
+                            NotchCompanionMark(companion: companion, geometry: geometry)
+                        } else {
                             Image(systemName: timer.session.completed ? "checkmark.circle"
                                   : timer.session.isPaused ? "pause.circle" : timer.session.countsUp ? "stopwatch" : "timer")
                                 .font(.system(size: iconSize, weight: .medium))
@@ -73,7 +55,8 @@ struct NotchTimerStrip: View {
                        alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .accessibilityLabel(companionLabel)
+            .accessibilityLabel(companion.map { NotchCompanionMark.label($0, language: l10n.language) }
+                                ?? FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))
             Color.clear.frame(width: geometry.compactActivityCameraGap)
             if timer.session.isRunning {
                 TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.tickScheduleOffset(
@@ -89,20 +72,6 @@ struct NotchTimerStrip: View {
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 
-    private var companionLabel: String {
-        switch companion {
-        case .downloads:
-            return FeatureStrings.notchFiles(l10n.language).downloadsTitle
-        case .agents:
-            return working.map(\.displayName).joined(separator: ", ")
-        case .music:
-            let title = music.playback?.track.title ?? FeatureStrings.radialMenu(l10n.language).mediaNowPlaying
-            return [title, music.playback?.track.artist].compactMap { $0 }.joined(separator: ", ")
-        default:
-            return FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase)
-        }
-    }
-
     private var reading: some View {
         let now = timer.now
         let text = NotchTimerSupport.compactText(for: timer.session, at: now,
@@ -114,6 +83,7 @@ struct NotchTimerStrip: View {
                         .font(.system(size: textSize, weight: .medium)).monospacedDigit()
                         .foregroundStyle(.orange)
                         .lineLimit(1).minimumScaleFactor(0.65)
+                        .modifier(NotchRollingDigits(value: text, countsDown: !timer.session.countsUp, everySecond: false))
                         // A reading that gains or loses a character, like
                         // 10m becoming 9m, resizes the wings; the service
                         // measures the same reading.
@@ -130,6 +100,42 @@ struct NotchTimerStrip: View {
         .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).phase(timer.session.phase))
         .accessibilityValue(NotchTimerSupport.clockText(for: timer.session, at: now))
     }
+}
+
+/// What shares a strip with a timer or an event, drawn at the strip's left
+/// end: a download's progress, the working agents' marks, the event's dot
+/// and clock or the playing track's cover.
+struct NotchCompanionMark: View {
+    let companion: NotchCompactActivity
+    let geometry: NotchGeometry
+    @ObservedObject private var downloads = NotchDownloadService.shared
+    @ObservedObject private var music = NotchMusicService.shared
+    @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var calendar = NotchCalendarService.shared
+
+    var body: some View {
+        switch companion {
+        case .downloads:
+            downloadIndicator
+        case .agents:
+            let working = Self.working
+            HStack(spacing: 1) {
+                ForEach(working) { NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(working.count, geometry)) }
+            }
+        case .calendar:
+            if let countdown = calendar.countdown {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    NotchCalendarStrip.clockMark(countdown, remaining: NotchCalendarSupport.countdownText(
+                        until: countdown.target, now: context.date))
+                }
+            }
+        case .music:
+            NotchMusicCover(artwork: music.artwork, side: geometry.compactMusicArtworkSide,
+                            radius: geometry.compactMusicArtworkRadius)
+        case .timer, .keepAwake:
+            EmptyView()
+        }
+    }
 
     private var downloadIndicator: some View {
         HStack(spacing: 5) {
@@ -142,5 +148,51 @@ struct NotchTimerStrip: View {
         }
         .lineLimit(1)
         .clipped()
+    }
+
+    private static var working: [AgentProvider] {
+        let live = AgentUsageService.shared.snapshot.live
+        return AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
+    }
+
+    private static func agentMarkSize(_ working: Int, _ geometry: NotchGeometry) -> CGFloat {
+        NotchTimerSupport.stripAgentMarkSize(height: geometry.compactActivityContentHeight, working: working)
+    }
+
+    /// The mark's distance from the strip's end, as far from the curve as
+    /// from the strip's top and bottom.
+    static func inset(_ companion: NotchCompactActivity, geometry: NotchGeometry) -> CGFloat {
+        switch companion {
+        case .agents:
+            let side = agentMarkSize(working.count, geometry)
+            return geometry.compactActivityEdgeInset(boxHeight: side + 4, radius: (side + 4) / 2)
+        case .music:
+            return geometry.compactMusicArtworkInset
+        case .calendar:
+            return geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0)
+        case .downloads, .timer, .keepAwake:
+            let side = min(13, NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight))
+            return geometry.compactActivityEdgeInset(boxHeight: side, radius: side / 2)
+        }
+    }
+
+    static func label(_ companion: NotchCompactActivity, language: AppLanguage) -> String {
+        switch companion {
+        case .downloads:
+            return FeatureStrings.notchFiles(language).downloadsTitle
+        case .agents:
+            return working.map(\.displayName).joined(separator: ", ")
+        case .calendar:
+            let text = FeatureStrings.notchCalendar(language)
+            guard let countdown = NotchCalendarService.shared.countdown else { return text.title }
+            return "\(countdown.ongoing ? text.ongoing : text.next): "
+                + NotchCalendarStrip.displayTitle(countdown.event, untitled: text.untitled)
+        case .music:
+            let playback = NotchMusicService.shared.playback
+            let title = playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying
+            return [title, playback?.track.artist].compactMap { $0 }.joined(separator: ", ")
+        case .timer, .keepAwake:
+            return companion.title(language)
+        }
     }
 }

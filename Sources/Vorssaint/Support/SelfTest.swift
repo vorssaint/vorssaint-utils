@@ -107,14 +107,17 @@ enum SelfTest {
             }
         }
 
-        // A symbol chosen for the menu bar shares the active symbols' canvas;
-        // a name this Mac lacks must leave the mark, never an empty item.
-        if let symbol = BlackHoleGlyph.customMark(named: "bolt.fill") {
-            if symbol.size != BlackHoleGlyph.pointSize || inkTouchesEdge(of: symbol) {
-                failures.append("chosen menu bar symbol does not fit its canvas")
+        // A symbol chosen for the menu bar shares the active symbols' canvas,
+        // so every one the gallery offers must fit it; a name this Mac lacks
+        // must leave the mark, never an empty item.
+        for name in Defaults.menuBarIconGallery {
+            guard let symbol = BlackHoleGlyph.customMark(named: name) else {
+                failures.append("menu bar gallery symbol \(name)")
+                continue
             }
-        } else {
-            failures.append("chosen menu bar symbol")
+            if symbol.size != BlackHoleGlyph.pointSize || inkTouchesEdge(of: symbol) {
+                failures.append("menu bar gallery symbol \(name) does not fit its canvas")
+            }
         }
         let missingSymbol = "vorssaint.missing.symbol"
         if BlackHoleGlyph.customMark(named: missingSymbol) != nil

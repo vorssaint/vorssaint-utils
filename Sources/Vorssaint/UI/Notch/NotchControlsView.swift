@@ -463,6 +463,8 @@ struct NotchActionTile: View {
     let symbol: String
     let title: String
     var reading: String?
+    /// A timer's reading rolls down toward zero; a stopwatch's rolls up.
+    var readingCountsDown = false
     /// A shorter title for the line under a reading when `title` does not
     /// fit whole; help and VoiceOver keep `title`.
     var compactTitle: String?
@@ -507,6 +509,7 @@ struct NotchActionTile: View {
                     .foregroundStyle(.white)
                     .allowsTightening(true)
                     .minimumScaleFactor(0.7)
+                    .modifier(NotchRollingDigits(value: reading, countsDown: readingCountsDown))
                 ViewThatFits(in: .horizontal) {
                     readingTitle(title)
                     if let compactTitle { readingTitle(compactTitle) }
@@ -553,6 +556,7 @@ private struct NotchTimerTile: View {
             title: active ? FeatureStrings.notchActivities(l10n.language).phase(session.phase)
                 : NotchControlItem.timer.title(l10n),
             reading: active ? NotchTimerSupport.clockText(for: session, at: timer.now) : nil,
+            readingCountsDown: !session.countsUp,
             // A long phase name, such as a Russian short break, would be cut
             // off on a narrow tile; the module's own title stands in.
             compactTitle: active ? NotchControlItem.timer.title(l10n) : nil,

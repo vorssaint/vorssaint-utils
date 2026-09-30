@@ -15,10 +15,12 @@ struct NotchCompactMusicSnapshot {
 struct NotchMusicStrip: View {
     @ObservedObject var service: NotchService
     var snapshot: NotchCompactMusicSnapshot? = nil
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
 
-    private var geometry: NotchGeometry { snapshot?.geometry ?? service.compactActivityGeometry }
+    private var geometry: NotchGeometry { snapshot?.geometry ?? displayGeometry ?? service.compactActivityGeometry }
     /// A new song stays off the strip until its notice has shown it.
     private var shown: NotchCompactMusicSnapshot? { snapshot ?? service.heldMusic }
     private var playback: NotchPlayback? { shown?.playback ?? music.playback }

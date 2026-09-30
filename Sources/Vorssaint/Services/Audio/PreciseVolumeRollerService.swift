@@ -15,6 +15,14 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var source: CFRunLoopSource?
     private var gate = PreciseVolumeRollerGate()
     private var notchKeyGate = NotchVolumeKeyGate()
+    /// Island steps bypass the system, so its volume click plays on release here.
+    /// Waits for both the release and the last step's adjustment, so a failed
+    /// step forwarded to macOS never plays a second click.
+    private var feedback: (key: Int32, step: Int, applied: Bool, released: Bool)?
+    private var feedbackStep = 0
+    private static let volumeFeedback = NSSound(
+        contentsOfFile: "/System/Library/LoginPlugins/BezelServices.loginPlugin/Contents/Resources/volume.aiff",
+        byReference: true)
     private static let forwardedVolumeEvent: Int64 = 0x564F4C4E
 
     private init() {
@@ -53,6 +61,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         source = nil
         gate.reset()
         notchKeyGate = NotchVolumeKeyGate()
+        feedback = nil
     }
 
     private func start() {
@@ -141,16 +150,34 @@ final class PreciseVolumeRollerService: ObservableObject {
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift),
             commandOrControl: event.flags.contains(.maskCommand) || event.flags.contains(.maskControl))
         if action == .passThrough { return false }
-        if action == .consume { return true }
+        if action == .consume {
+            if state == 0x0b, feedback?.key == code {
+                feedback?.released = true
+                playFeedbackIfReady()
+            }
+            return true
+        }
         let precise = UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
         if precise, let direction = key.rollerDirection,
            !gate.accepts(direction, at: ProcessInfo.processInfo.systemUptime) { return true }
+        feedbackStep &+= 1
+        let step = feedbackStep
+        // Like macOS, the mute key clicks only when it unmutes.
+        feedback = (key != .mute || mixer.systemOutputMuted == true) && NotchVolumeKeyGate.playsFeedback(
+            setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
+            option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift))
+            ? (code, step, false, false) : nil
         let fine = precise || (event.flags.contains(.maskAlternate) && event.flags.contains(.maskShift))
         let fallback = event.copy()
         // CoreAudio can wait for a reconnecting device. Never hold the event
         // tap's reply while reading or writing the audio driver.
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
             let completion: (Bool) -> Void = { applied in
+                if let self, self.feedback?.step == step {
+                    // The forwarded native press plays its own feedback.
+                    if applied { self.feedback?.applied = true; self.playFeedbackIfReady() }
+                    else { self.feedback = nil }
+                }
                 if !applied, let fallback {
                     fallback.setIntegerValueField(.eventSourceUserData, value: Self.forwardedVolumeEvent)
                     fallback.post(tap: .cgSessionEventTap)
@@ -167,6 +194,13 @@ final class PreciseVolumeRollerService: ObservableObject {
             NotchService.shared.showCurrentVolume()
         }
         return true
+    }
+
+    private func playFeedbackIfReady() {
+        guard let feedback, feedback.applied, feedback.released else { return }
+        self.feedback = nil
+        Self.volumeFeedback?.stop()
+        Self.volumeFeedback?.play()
     }
 
     private static func postForwardedRelease(_ code: Int32) {

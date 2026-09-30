@@ -485,6 +485,13 @@ enum SwitcherModelFeatureTests {
                && SwitcherSupport.usesAppGroupsForMainShortcut(iconRowLayout: true,
                                                                 windowRow: false),
                "App Switcher main shortcut steps through simple window rows without app grouping")
+        let previewProviderCode = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(previewProviderCode.contains("Self.warmEnumerationQueue.async {")
+               && previewProviderCode.contains("continuation.resume(returning: WindowEnumerator.listWindows(for: pid, snapshot: snapshot))")
+               && !previewProviderCode.contains("Task.detached"),
+               "preview warming enumerates windows on a queue of its own, never on a shared task thread")
         suite.expect(SwitcherSupport.preservesGroupedWindowsDuringEnumeration(allApps: true,
                                                                         mergeWindowsByApp: true,
                                                                         simpleMode: true)
@@ -1806,10 +1813,10 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.0",
+        suite.expect(plistVersion == "3.4.1-beta.1",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "95",
+        suite.expect(plistBuild == "96",
                "every app version needs its own incremented bundle build")
         suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
                "the support prompt is prepared for the 3.4 final release")
@@ -1884,6 +1891,9 @@ enum SwitcherModelFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.shelfClearOnClose] as? Bool == false
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.shelfClearOnClose),
                "clearing the shelf on close is opt-in and travels with settings backups")
+        suite.expect(registeredDefaults[DefaultsKey.shelfShortcutAddsFinderSelection] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.shelfShortcutAddsFinderSelection),
+               "adding the Finder selection with the shelf shortcut is opt-in and travels with settings backups")
         suite.expect((registeredDefaults[DefaultsKey.shelfAutomaticExclusions] as? [String])?.isEmpty == true,
                "shelf automatic exclusions start empty")
         suite.expect(registeredDefaults[DefaultsKey.mouseNavigationEnabled] as? Bool == false,
@@ -2562,6 +2572,79 @@ enum SwitcherModelFeatureTests {
             .components(separatedBy: "\n    }").first ?? "")
         suite.expect(reopenCode.contains("mainItemHiddenByChoice != true, !iconIsOnScreen()"),
                "reopening the app leaves an item hidden by choice alone and opens Settings")
+        // macOS 27's Siri app reopens running apps on almost every interaction;
+        // only a reopen the person asked for may rebuild the icon or open anything.
+        let reopenJudged = reopenCode.range(of: "guard ReopenRequestSupport.isPersonOpeningApp(")
+        let reopenRebuild = reopenCode.range(of: "recreateStatusItem()")
+        suite.expect(reopenJudged != nil && reopenRebuild != nil
+                     && reopenJudged!.lowerBound < reopenRebuild!.lowerBound
+                     && reopenCode.contains("ReopenRequestSupport.currentSender()"),
+               "reopening judges who asked before it touches the icon, the panel or Settings")
+        typealias ReopenSender = ReopenRequestSupport.Sender
+        let personReopens: [(ReopenSender?, String)] = [
+            (ReopenSender(bundleIdentifier: "com.apple.finder",
+                          executablePath: "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder",
+                          isApplication: true), "Finder"),
+            (ReopenSender(bundleIdentifier: "com.apple.dock",
+                          executablePath: "/System/Library/CoreServices/Dock.app/Contents/MacOS/Dock",
+                          isApplication: true), "the Dock"),
+            (ReopenSender(bundleIdentifier: "com.apple.Spotlight", executablePath: nil,
+                          isApplication: true), "Spotlight"),
+            // On macOS 27 the search field opened with Command-Space lives in the Siri app.
+            (ReopenSender(bundleIdentifier: "com.apple.campo",
+                          executablePath: "/System/Applications/Siri AI.app/Contents/MacOS/Siri AI",
+                          isApplication: true), "the macOS 27 search field"),
+            (ReopenSender(bundleIdentifier: "com.apple.apps.launcher", executablePath: nil,
+                          isApplication: true), "the Apps launcher"),
+            (ReopenSender(bundleIdentifier: "com.example.launcher",
+                          executablePath: "/Applications/Launcher.app/Contents/MacOS/Launcher",
+                          isApplication: true), "a third-party launcher"),
+            (ReopenSender(bundleIdentifier: "com.example.ShortcutLauncher", executablePath: nil,
+                          isApplication: true), "another developer's app named after shortcuts"),
+            (ReopenSender(bundleIdentifier: nil, executablePath: nil, isApplication: false),
+             "open(1), gone by the time the event is read"),
+            (ReopenSender(bundleIdentifier: nil, executablePath: "/usr/bin/osascript", isApplication: false),
+             "a script run in Terminal"),
+            (nil, "an event without a sender"),
+        ]
+        for (sender, source) in personReopens {
+            suite.expect(ReopenRequestSupport.isPersonOpeningApp(sender),
+                         "reopening from \(source) still brings the app back")
+        }
+        let automaticReopens: [(ReopenSender, String)] = [
+            (ReopenSender(bundleIdentifier: "com.apple.WorkflowKit.BackgroundShortcutRunner",
+                          executablePath: "/System/Library/PrivateFrameworks/WorkflowKit.framework/XPCServices/"
+                              + "BackgroundShortcutRunner.xpc/Contents/MacOS/BackgroundShortcutRunner",
+                          isApplication: true), "the Shortcuts action runner"),
+            (ReopenSender(bundleIdentifier: nil,
+                          executablePath: "/System/Library/PrivateFrameworks/WorkflowKit.framework/XPCServices/"
+                              + "BackgroundShortcutRunner.xpc/Contents/MacOS/BackgroundShortcutRunner",
+                          isApplication: false), "the same runner before LaunchServices lists it"),
+            (ReopenSender(bundleIdentifier: "com.apple.shortcuts", executablePath: nil,
+                          isApplication: true), "the Shortcuts app"),
+            (ReopenSender(bundleIdentifier: "com.apple.Siri", executablePath: nil,
+                          isApplication: true), "Siri"),
+            (ReopenSender(bundleIdentifier: nil, executablePath: "/usr/libexec/linkd",
+                          isApplication: false), "the App Intents daemon"),
+            (ReopenSender(bundleIdentifier: nil,
+                          executablePath: "/System/Library/PrivateFrameworks/VoiceShortcuts.framework/Versions/A/"
+                              + "Support/siriactionsd",
+                          isApplication: false), "Siri's actions daemon"),
+            (ReopenSender(bundleIdentifier: nil,
+                          executablePath: "/System/Library/PrivateFrameworks/IntelligenceFlowRuntime.framework/"
+                              + "Versions/A/intelligenceflowd",
+                          isApplication: false), "an Apple Intelligence service"),
+        ]
+        for (sender, source) in automaticReopens {
+            suite.expect(!ReopenRequestSupport.isPersonOpeningApp(sender),
+                         "a reopen sent by \(source) opens nothing")
+        }
+        suite.expect(ReopenRequestSupport.logName(ReopenSender(bundleIdentifier: nil, executablePath: "/usr/libexec/linkd",
+                                                               isApplication: false)) == "linkd"
+                     && ReopenRequestSupport.logName(ReopenSender(bundleIdentifier: "com.apple.finder",
+                                                                  executablePath: "/System/Library/CoreServices/Finder.app",
+                                                                  isApplication: true)) == "com.apple.finder",
+               "the log names the sender by bundle identifier, or by executable without its path")
         let reshowCode = stripCommentLines((statusAnchorAppDelegateSource
             .components(separatedBy: "func reshowStatusItem() {").last ?? "")
             .components(separatedBy: "\n    }").first ?? "")
@@ -2814,6 +2897,7 @@ enum SwitcherModelFeatureTests {
             DefaultsKey.windowLayoutShortcutLeftTwoThirds,
             DefaultsKey.windowLayoutShortcutRightTwoThirds,
             DefaultsKey.windowLayoutShortcutNextDisplay,
+            DefaultsKey.windowDirectionalShortcut,
         ]
         let assignedLayoutShortcutValues = assignedLayoutShortcutKeys.compactMap {
             registeredDefaults[$0] as? String
@@ -3313,6 +3397,35 @@ enum SwitcherModelFeatureTests {
                    "a Dock Preview size chosen after the first launch leaves the switcher at its default size")
             previewSizeDefaults.removePersistentDomain(forName: previewSizeSuite)
         }
+        let excludedAppsSuite = "com.vorssaint.tests.switcher-preview-excluded-apps.\(UUID().uuidString)"
+        if let excludedAppsDefaults = UserDefaults(suiteName: excludedAppsSuite) {
+            excludedAppsDefaults.set(["com.example.vault"], forKey: DefaultsKey.windowPreviewExcludedApps)
+            Defaults.migrateSwitcherPreviewExcludedApps(in: excludedAppsDefaults)
+            let upgradedSwitcherApps = excludedAppsDefaults.stringArray(forKey: DefaultsKey.switcherPreviewExcludedApps)
+            excludedAppsDefaults.set([String](), forKey: DefaultsKey.switcherPreviewExcludedApps)
+            Defaults.migrateSwitcherPreviewExcludedApps(in: excludedAppsDefaults)
+            suite.expect(upgradedSwitcherApps == ["com.example.vault"]
+                    && excludedAppsDefaults.stringArray(forKey: DefaultsKey.switcherPreviewExcludedApps) == [],
+                   "an upgrade keeps the switcher paused in the apps it shared with Dock Preview, once")
+            excludedAppsDefaults.removePersistentDomain(forName: excludedAppsSuite)
+            Defaults.migrateSwitcherPreviewExcludedApps(in: excludedAppsDefaults)
+            excludedAppsDefaults.set(["com.example.vault"], forKey: DefaultsKey.windowPreviewExcludedApps)
+            Defaults.migrateSwitcherPreviewExcludedApps(in: excludedAppsDefaults)
+            suite.expect(excludedAppsDefaults.stringArray(forKey: DefaultsKey.switcherPreviewExcludedApps) == [],
+                   "an app paused in Dock Preview after the first launch leaves the switcher list alone")
+            excludedAppsDefaults.removePersistentDomain(forName: excludedAppsSuite)
+        }
+        let previewDefaults = PreviewProvider.UserDefaults.standard
+        previewDefaults.lists = [DefaultsKey.windowPreviewExcludedApps: ["com.example.vault"],
+                                 DefaultsKey.switcherPreviewExcludedApps: ["com.example.game"]]
+        PreviewProvider.NSWorkspace.shared.frontmostApplication = .init(bundleIdentifier: "com.example.vault")
+        suite.expect(PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps)
+                && !PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps),
+               "an app on Dock Preview's list pauses only Dock Preview captures")
+        PreviewProvider.NSWorkspace.shared.frontmostApplication = .init(bundleIdentifier: "com.example.game")
+        suite.expect(!PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps)
+                && PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps),
+               "an app on the switcher's list pauses only switcher captures")
         let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
                                                                  windowShortcut: .switcherWindowDefault)
         // Grave and J print the cap the active keyboard layout carries, not the
@@ -4098,28 +4211,28 @@ enum SwitcherModelFeatureTests {
                                                  systemDragGestureEnabled: true) == .passThrough,
                "middle click stands down while the system three-finger drag owns the gesture")
 
-        expectEqual(QuickToolsSupport.colorString(red: 1, green: 0, blue: 0, format: .hex), "#FF0000",
+        expectEqual(ColorValue.string(red: 1, green: 0, blue: 0, format: .hex), "#FF0000",
                     "color picker formats pure red as hex")
-        expectEqual(QuickToolsSupport.colorString(red: 0.2, green: 0.4, blue: 0.6, format: .rgb),
+        expectEqual(ColorValue.string(red: 0.2, green: 0.4, blue: 0.6, format: .rgb),
                     "rgb(51, 102, 153)",
                     "color picker formats components as CSS rgb")
-        expectEqual(QuickToolsSupport.colorString(red: 1, green: 0, blue: 0, format: .hsl),
+        expectEqual(ColorValue.string(red: 1, green: 0, blue: 0, format: .hsl),
                     "hsl(0, 100%, 50%)",
                     "color picker formats pure red as hsl")
-        expectEqual(QuickToolsSupport.colorString(red: 0, green: 0.5, blue: 0, format: .hsl),
+        expectEqual(ColorValue.string(red: 0, green: 0.5, blue: 0, format: .hsl),
                     "hsl(120, 100%, 25%)",
                     "color picker formats dark green as hsl")
-        expectEqual(QuickToolsSupport.colorString(red: 0.25, green: 0.5, blue: 0.75, format: .swiftui),
+        expectEqual(ColorValue.string(red: 0.25, green: 0.5, blue: 0.75, format: .swiftui),
                     "Color(red: 0.250, green: 0.500, blue: 0.750)",
                     "color picker formats components as SwiftUI code")
-        expectEqual(QuickToolsSupport.colorString(red: 1.4, green: -0.2, blue: 0.5, format: .hex), "#FF0080",
+        expectEqual(ColorValue.string(red: 1.4, green: -0.2, blue: 0.5, format: .hex), "#FF0080",
                     "color picker clamps extended-gamut components")
         suite.expect(ColorCopyFormat.sanitized("banana") == .hex,
                "color picker falls back to hex for unknown stored formats")
-        expectEqual(QuickToolsSupport.colorString(red: 1, green: 0, blue: 0, format: .hex, bareHex: true),
+        expectEqual(ColorValue.string(red: 1, green: 0, blue: 0, format: .hex, bareHex: true),
                     "FF0000",
                     "color picker drops the leading # when the bare hex option is on")
-        expectEqual(QuickToolsSupport.colorString(red: 0.2, green: 0.4, blue: 0.6, format: .rgb, bareHex: true),
+        expectEqual(ColorValue.string(red: 0.2, green: 0.4, blue: 0.6, format: .rgb, bareHex: true),
                     "rgb(51, 102, 153)",
                     "bare hex option leaves the other copy formats untouched")
 
@@ -4144,10 +4257,10 @@ enum SwitcherModelFeatureTests {
                 suite.expectClose(sampled.greenComponent, expected.greenComponent, "sampled green respects \(profile)")
                 suite.expectClose(sampled.blueComponent, expected.blueComponent, "sampled blue respects \(profile)")
                 if profile == CGColorSpace.sRGB {
-                    expectEqual(QuickToolsSupport.colorString(red: sampled.redComponent,
-                                                             green: sampled.greenComponent,
-                                                             blue: sampled.blueComponent,
-                                                             format: .hex),
+                    expectEqual(ColorValue.string(red: sampled.redComponent,
+                                                 green: sampled.greenComponent,
+                                                 blue: sampled.blueComponent,
+                                                 format: .hex),
                                 "#336699", "color picker preserves a known sRGB hex")
                 }
             }
@@ -6028,5 +6141,22 @@ enum SwitcherModelFeatureTests {
                                          targetMinimizedState: false, targetAppWindowIDs: [101],
                                          targetAppFocusedWindowID: 101, ownPID: 99),
                "later restoration cannot restart a cancelled focus chain")
+    }
+}
+
+extension SwitcherModelFeatureTests {
+    /// Hosts the production pause check with in-memory preferences and a
+    /// scripted frontmost app.
+    enum PreviewProvider {
+        final class UserDefaults {
+            static let standard = UserDefaults()
+            var lists: [String: [String]] = [:]
+            func stringArray(forKey key: String) -> [String]? { lists[key] }
+        }
+        final class NSWorkspace {
+            struct App { let bundleIdentifier: String? }
+            static let shared = NSWorkspace()
+            var frontmostApplication: App?
+        }
     }
 }

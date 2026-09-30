@@ -7,7 +7,7 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity
+    case limits, spend, live, trend, models, projects, activity, resets
 
     var id: String { rawValue }
 
@@ -20,6 +20,7 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         case .models: return "cpu"
         case .projects: return "folder"
         case .activity: return "square.grid.3x3.fill"
+        case .resets: return "arrow.counterclockwise.circle"
         }
     }
 
@@ -184,8 +185,12 @@ enum NotchAgentSupport {
 
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider]) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
-            card == .limits ? providers.map { NotchAgentTile(card: .limits, provider: $0) }
-                : [NotchAgentTile(card: card, provider: nil)]
+            switch card {
+            case .limits: return providers.map { NotchAgentTile(card: .limits, provider: $0) }
+            // Banked resets belong to a Codex account.
+            case .resets: return providers.contains(.codex) ? [NotchAgentTile(card: .resets, provider: .codex)] : []
+            default: return [NotchAgentTile(card: card, provider: nil)]
+            }
         }
     }
 

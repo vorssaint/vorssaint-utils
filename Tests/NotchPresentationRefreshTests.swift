@@ -138,7 +138,7 @@ enum NotchPresentationRefreshContract {
     class State: ObservableObject {
         var activitySelection = NotchActivitySelection()
         var compactActivities: [NotchCompactActivity] = []
-        var compactActivityCompanions: [NotchCompactActivity] = []
+        func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] { [] }
         var showsCompactActivityPicker = false
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
@@ -199,6 +199,7 @@ enum NotchPresentationRefreshContract {
         }
         func syncHiddenHoverMonitoring() {}
         func schedulePointerFollow() {}
+        func syncMirrors() {}
         func finishMusicDeparture() {
             musicDepartureWork?.cancel(); musicDepartureWork = nil
             departingMusic = nil
@@ -262,10 +263,20 @@ enum NotchPresentationRefreshContract {
         suite.expect(picker.windowHost!.activationRect.maxY
                      <= picker.compactActivityGeometry.compactActivitySize.height,
                      "the native open button never covers the activity choices below the strip")
+        // A song changing leaves the timer alone on the island for a moment.
         picker.compactActivities = [.timer]
         picker.refreshPresentation(animated: false)
+        suite.expect(picker.activitySelection.preferred == .music
+                     && picker.activitySelection.current(available: picker.compactActivities) == .timer,
+                     "production refresh keeps a chosen activity through a gap and shows what remains")
+        picker.compactActivities = [.timer, .music]
+        picker.refreshPresentation(animated: false)
+        suite.expect(picker.activitySelection.current(available: picker.compactActivities) == .music,
+                     "the chosen activity comes back instead of the timer")
+        picker.compactActivities = []
+        picker.refreshPresentation(animated: false)
         suite.expect(picker.activitySelection.preferred == nil,
-                     "production refresh forgets a chosen activity when it disappears")
+                     "production refresh forgets the choice once nothing is left to show")
         let fullscreen = Service()
         fullscreen.pinned = true
         fullscreen.expanded = false

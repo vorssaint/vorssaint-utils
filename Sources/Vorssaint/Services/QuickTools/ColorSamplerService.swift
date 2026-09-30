@@ -43,11 +43,11 @@ final class ColorSamplerService: ObservableObject {
         let format = ColorCopyFormat.sanitized(
             UserDefaults.standard.string(forKey: DefaultsKey.colorPickerFormat) ?? "hex"
         )
-        return QuickToolsSupport.colorString(red: srgb.redComponent,
-                                             green: srgb.greenComponent,
-                                             blue: srgb.blueComponent,
-                                             format: format,
-                                             bareHex: UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerBareHex))
+        return ColorValue.string(red: srgb.redComponent,
+                                 green: srgb.greenComponent,
+                                 blue: srgb.blueComponent,
+                                 format: format,
+                                 bareHex: UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerBareHex))
     }
 
     /// Copies without the HUD. The capture surface calls this while its

@@ -110,7 +110,7 @@ struct NotchIslandPreview: View {
         .padding(.bottom, NotchLayout.bottomInset)
         .frame(width: size.width, height: size.height, alignment: .top)
         .background {
-            NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height)).fill(.black)
+            NotchShape.island(height: size.height, geometry: geometry).fill(.black)
         }
         .foregroundStyle(.white)
         .tint(.white)

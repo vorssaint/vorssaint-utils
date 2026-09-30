@@ -68,6 +68,13 @@ enum NotchNotificationSupport {
     /// A brief grace avoids cutting off short alert tones when closing the
     /// original banner. This does not observe playback; longer sounds may stop.
     static let nativeCloseGrace: TimeInterval = 1.2
+    /// Moving the window that holds a banner was measured on macOS 27, where
+    /// the center keeps its banners in one window it places again each time
+    /// it shows one. Earlier versions close the original after the grace.
+    static var movesNativeWindow: Bool {
+        if #available(macOS 27, *) { return true }
+        return false
+    }
 
     /// Resolve only an unambiguous installed source. Formatting marks used by
     /// localized app labels are not part of the application's name.

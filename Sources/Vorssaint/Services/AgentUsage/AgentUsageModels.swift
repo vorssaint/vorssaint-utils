@@ -98,6 +98,8 @@ struct AgentLimits: Equatable {
         case claudeApp
         /// Copied by the agent into its session log with each response.
         case sessionLog
+        /// Asked of the agent on request, which checks the account itself.
+        case account
     }
 
     let provider: AgentProvider

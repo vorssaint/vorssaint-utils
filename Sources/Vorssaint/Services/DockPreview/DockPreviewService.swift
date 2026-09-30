@@ -783,7 +783,8 @@ final class DockPreviewService: ObservableObject {
         })
         selectedWindowID = nil
 
-        WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 420 * PreviewSizing.scale) { [weak self] windowID, image in
+        WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 420 * PreviewSizing.scale,
+                                                     excludedAppsKey: DefaultsKey.windowPreviewExcludedApps) { [weak self] windowID, image in
             guard let self, self.isVisible, self.windows.contains(where: { $0.previewWindowID == windowID }) else { return }
             self.previews[windowID] = image
         }
@@ -1812,7 +1813,8 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
                                         missingPreview: Bool) {
         guard windowIDsChanged || missingPreview else { return }
 
-        previewProvider.refreshPreviews(for: items, maxPixelSize: 420 * PreviewSizing.scale) { [weak self] windowID, image in
+        previewProvider.refreshPreviews(for: items, maxPixelSize: 420 * PreviewSizing.scale,
+                                        excludedAppsKey: DefaultsKey.windowPreviewExcludedApps) { [weak self] windowID, image in
             guard let self, self.windows.contains(where: { $0.previewWindowID == windowID }) else { return }
             self.previews[windowID] = image
         }
