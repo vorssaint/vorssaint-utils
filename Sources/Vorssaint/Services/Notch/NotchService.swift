@@ -327,6 +327,9 @@ final class NotchService: ObservableObject {
             objectWillChange.send()
             change()
         }
+        // A song chosen away is not music disappearing, which the host would
+        // fade out through the whole picker as another activity takes its place.
+        presentedMusic = nil
         refreshPresentation()
     }
 

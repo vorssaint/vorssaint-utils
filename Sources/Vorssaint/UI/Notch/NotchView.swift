@@ -725,12 +725,13 @@ private struct NotchPageClip: Shape {
     }
 }
 
-/// Named choices appear below the camera, with the current activity highlighted.
+/// The strip the picker shows, a new one for each choice.
 private struct NotchPickedStrip: Hashable {
     let activity: NotchCompactActivity
     let companion: NotchCompactActivity?
 }
 
+/// Named choices appear below the camera, with the current activity highlighted.
 struct NotchActivityPicker: View {
     @Namespace private var choice
     let activities: [NotchCompactActivity]
