@@ -777,6 +777,20 @@ enum ClipboardFeatureTests {
                     "org.nspasteboard.ConcealedType",
                     "the secret mark keeps the exact name the apps that write it use")
 
+        // MARK: Multi-line pasteboard text
+
+        // Issue #2411: copying links from several selected tabs puts one URL
+        // per line, and reading that as a single URL merges and re-encodes it.
+        let multiLineLinks = "https://a.example/x?q=1\nhttps://b.example/y?q=2"
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: nil,
+                                                                 plainText: multiLineLinks) ?? "",
+                    multiLineLinks,
+                    "clipboard history keeps a multi-line copy of tab links multi-line instead of collapsing it into one percent-encoded URL")
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: nil,
+                                                                 plainText: "\nhttps://a.example/path\n") ?? "",
+                    "https://a.example/path",
+                    "clipboard history still trims a single URL wrapped in surrounding newlines")
+
         ClipboardHistoryWriteTests.run(suite)
         ClipboardHistoryImageEditorTests.run(suite)
         ClipboardHistoryAccessTests.run(suite)

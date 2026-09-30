@@ -696,6 +696,10 @@ enum ClipboardHistoryPasteboardText {
 
     private static func normalizedWebURL(_ raw: String?) -> String? {
         guard let text = trimmed(raw),
+              // A copy of several links puts one URL per line, and `URL` takes
+              // the whole block as one string, encoding the breaks; `trimmed`
+              // has already dropped the outer ones.
+              !text.contains(where: \.isNewline),
               let url = URL(string: text),
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https",
