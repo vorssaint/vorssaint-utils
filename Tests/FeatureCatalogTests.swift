@@ -2540,6 +2540,20 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.steppedBrightness(0.97, delta: BrightnessSupport.brightnessKeyStep) == 1.0
                 && BrightnessSupport.steppedBrightness(0.03, delta: -BrightnessSupport.brightnessKeyStep) == 0.0,
                "key steps clamp at both ends of the range")
+        // The system's own brightness keys ease the panel with a call that
+        // takes a change, not a level (issue #2149).
+        suite.expect(BrightnessSupport.easedBrightnessChange(to: 0.3125, from: 0.25) == 0.0625
+                && BrightnessSupport.easedBrightnessChange(to: 0.25, from: 0.3125) == -0.0625
+                && BrightnessSupport.easedBrightnessChange(to: 1.2, from: 0.75) == 0.25,
+               "an eased key step sends the change from the reported level to the clamped target")
+        suite.expect(BrightnessSupport.easedBrightnessChange(to: 1, from: 1) == nil
+                && BrightnessSupport.easedBrightnessChange(to: 0.5, from: -1) == nil
+                && BrightnessSupport.easedBrightnessChange(to: .nan, from: 0.5) == nil,
+               "a step already at its level or measured from no real level is written directly")
+        suite.expect(BrightnessSupport.easedBrightnessLanded(on: 0.3125, reported: 0.3125)
+                && !BrightnessSupport.easedBrightnessLanded(on: 0.3125, reported: 0.25)
+                && !BrightnessSupport.easedBrightnessLanded(on: 0.265625, reported: 0.25),
+               "a display still reporting its old level after an eased step gets the level directly")
 
         // Keyboards other than the built-in one send brightness as a plain
         // key press, which is why the pointer never got a say on them

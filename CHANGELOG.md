@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- While Dynamic Island or Show brightness when adjusting shows the brightness, the brightness keys ease the display to each new level as macOS does, instead of jumping to it.
+
+### Contributors
+Thanks to @AlirezaBs. Feedback: Emanuele Frasca.
+
 ## [3.4.1-beta.1] - 2026-09-29
 
 ### Summary

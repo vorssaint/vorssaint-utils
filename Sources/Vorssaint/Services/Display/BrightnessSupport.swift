@@ -513,6 +513,23 @@ enum BrightnessSupport {
         min(max(current + delta, 0), 1)
     }
 
+    /// The change the system's easing call needs to bring a display from the
+    /// level it reports to `target`: that call moves the level by an amount,
+    /// not to one. Nil when the reported level is not a real one or the
+    /// display is already there, and the level is written directly instead.
+    static func easedBrightnessChange(to target: Double, from reported: Float) -> Float? {
+        guard target.isFinite, reported.isFinite, reported >= 0, reported <= 1 else { return nil }
+        let change = Float(min(max(target, 0), 1)) - reported
+        return change == 0 ? nil : change
+    }
+
+    /// Whether an eased step left the display at the level it asked for. The
+    /// system reports the new level as soon as it accepts the change, so a
+    /// display that ignored it still reports the old one.
+    static func easedBrightnessLanded(on target: Double, reported: Float) -> Bool {
+        reported.isFinite && abs(Double(reported) - target) < 0.001
+    }
+
     /// Whether a brightness key press aimed at a system-routed display is
     /// stepped by the app instead of left to the system (issue #268). The
     /// system's own key handling only ever moves its native target, so a
