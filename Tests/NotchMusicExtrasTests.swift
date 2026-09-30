@@ -130,6 +130,33 @@ enum NotchMusicExtrasTests {
         suite.expect(decode()?.instrumental == true && decode()?.lines.isEmpty == true,
                "instrumental recordings cannot display stray synchronized text")
 
+        // A single released without an album: the player reports no album and
+        // LRCLIB stores none, so there is nothing on either side to contradict.
+        let single = RadialNowPlayingSnapshot(title: "Sunset Lover", artist: "Petit Biscuit", album: nil,
+                                              artworkData: nil, appBundleIdentifier: nil, appPID: nil)
+        let singleIdentity = NotchMusicIdentity(NotchPlayback(track: single, isPlaying: true, elapsed: 0, duration: 210,
+                                                              rate: 1, sampledAt: playback.sampledAt, canSeek: false))
+        suite.expect(NotchLyricsSupport.lookupURL(for: singleIdentity) != nil,
+               "a recording the player reports without an album is still looked up")
+        let singleReply: [String: Any] = ["trackName": "Sunset Lover", "artistName": "Petit Biscuit",
+                                          "albumName": NSNull(), "duration": 210.0, "instrumental": false,
+                                          "plainLyrics": "Little bit of lonely",
+                                          "syncedLyrics": "[00:12.30]Little bit of lonely\n[00:16.10]for me"]
+        let singleLyrics = (try? JSONSerialization.data(withJSONObject: singleReply))
+            .flatMap { NotchLyricsSupport.decode($0, for: singleIdentity) }
+        suite.expect(singleLyrics?.lines.count == 2 && singleLyrics?.lines.first?.text == "Little bit of lonely",
+               "lyrics for a release the database stores without an album are no longer discarded")
+        var guarded = singleReply
+        guarded["duration"] = 213.0
+        suite.expect((try? JSONSerialization.data(withJSONObject: guarded))
+               .flatMap { NotchLyricsSupport.decode($0, for: singleIdentity) } == nil,
+               "a recording with no album is still matched on its length alone")
+        guarded = singleReply
+        guarded["albumName"] = "Presence"
+        suite.expect((try? JSONSerialization.data(withJSONObject: guarded))
+               .flatMap { NotchLyricsSupport.decode($0, for: singleIdentity) } == nil,
+               "an album the database does carry is still matched against the request's silence about it")
+
         let request = UUID()
         var queue: [String: Any] = ["queueRequest": request.uuidString, "queueAvailable": true,
                                     "currentIdentifier": "current-item", "pid": Int32(42), "queueCanPlay": true,

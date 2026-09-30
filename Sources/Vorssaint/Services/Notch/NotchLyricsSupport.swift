@@ -116,13 +116,18 @@ enum NotchLyricsSupport {
     }
 
     static func lookupURL(for track: NotchMusicIdentity) -> URL? {
-        guard [track.title, track.artist, track.album].allSatisfy({ !$0.isEmpty && $0.utf8.count <= 1024 }),
+        guard [track.title, track.artist].allSatisfy({ !$0.isEmpty && $0.utf8.count <= 1024 }),
               track.duration.isFinite, (1...3600).contains(track.duration) else { return nil }
         var url = URLComponents(string: "https://lrclib.net/api/get")!
-        url.queryItems = [URLQueryItem(name: "track_name", value: track.title),
-                          URLQueryItem(name: "artist_name", value: track.artist),
-                          URLQueryItem(name: "album_name", value: catalogAlbum(track.album)),
-                          URLQueryItem(name: "duration", value: String(track.duration))]
+        // The release only separates two recordings of one song, and a single
+        // has none: the request leaves the field out rather than sending an
+        // album the database has no record of.
+        var items = [URLQueryItem(name: "track_name", value: track.title),
+                     URLQueryItem(name: "artist_name", value: track.artist)]
+        let album = catalogAlbum(track.album)
+        if !album.isEmpty { items.append(URLQueryItem(name: "album_name", value: album)) }
+        items.append(URLQueryItem(name: "duration", value: String(track.duration)))
+        url.queryItems = items
         return url.url
     }
 
@@ -131,7 +136,7 @@ enum NotchLyricsSupport {
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               equal(object["trackName"] as? String, track.title),
               equal(object["artistName"] as? String, track.artist),
-              equal((object["albumName"] as? String).map(catalogAlbum), catalogAlbum(track.album)),
+              albumMatches(object["albumName"] as? String, track.album),
               let duration = object["duration"] as? Double, duration.isFinite,
               abs(duration - track.duration) <= 2 else { return nil }
         let plain = (object["plainLyrics"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -152,6 +157,14 @@ enum NotchLyricsSupport {
             return String(trimmed[..<range.lowerBound])
         }
         return trimmed
+    }
+
+    /// A release neither side names is silence, not disagreement: a single
+    /// reaches the database without an album and comes back without one. An
+    /// album both sides do carry still has to be the same release.
+    private static func albumMatches(_ value: String?, _ expected: String) -> Bool {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return true }
+        return equal(catalogAlbum(value), catalogAlbum(expected))
     }
 
     private static func equal(_ value: String?, _ expected: String) -> Bool {
