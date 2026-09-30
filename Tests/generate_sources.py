@@ -193,7 +193,7 @@ def main():
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
               "    func togglePin(", "    func copy(_ entry:", "    private func touch(",
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
-              "    func filteredEntries(", "    private func foldedCandidates("])
+              "    func filteredEntries("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("CommandBarInputSource.swift", "import Foundation\n"
