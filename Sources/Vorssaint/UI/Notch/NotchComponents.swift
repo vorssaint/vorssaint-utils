@@ -624,7 +624,15 @@ final class NotchMenuAnchor: NSObject {
             }
             menu.addItem(entry)
         }
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: view)
+        // A menu whose top lands on the menu bar's edge opens scrolled past its
+        // first entry, so a button against the bar opens it a little below.
+        var location = NSPoint.zero
+        if let window = view.window, let screen = window.screen {
+            let bottom = window.convertPoint(toScreen: view.convert(location, to: nil)).y
+            let edge = screen.visibleFrame.maxY - 3
+            if bottom > edge { location.y -= bottom - edge }
+        }
+        menu.popUp(positioning: nil, at: location, in: view)
     }
 
     @objc private func choose(_ sender: NSMenuItem) {
